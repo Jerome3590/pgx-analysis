@@ -26,7 +26,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from helpers_1997_13.logging_utils import setup_logging, save_logs_to_s3
-from helpers_1997_13.s3_utils import sanitize_for_s3_key, _parse_s3_path_components
+from helpers_1997_13.s3_utils import sanitize_for_s3_key, _parse_s3_path_components, s3_directory_exists_with_files
 
 # Configuration
 GOLD_PHARMACY_PATH = "s3://pgxdatalake/gold/pharmacy/**/*.parquet"
@@ -53,7 +53,59 @@ def init_duckdb():
     logger = logging.getLogger(__name__)
     return create_simple_duckdb_connection(logger)
 
-def run_qa_with_connection(conn, dataset_type="both", partition_filter="", sample_size=None, save_results=True):
+
+def build_gold_globs(dataset: str, age_bands: Optional[List[str]] = None, years: Optional[List[str]] = None, all_partitions: bool = False) -> str:
+    """Build a comma-separated list of S3 globs that target partitions first.
+
+    Returns a single string suitable for passing into read_parquet('<glob1>,<glob2>')
+    If no specific partitions are found, returns the original recursive wildcard.
+    """
+    base = GOLD_PHARMACY_PATH.replace('/**/*.parquet', '') if dataset == 'pharmacy' else GOLD_MEDICAL_PATH.replace('/**/*.parquet', '')
+
+    # If no partition hints provided or user requested all partitions, return recursive wildcard
+    if all_partitions or (not age_bands and not years):
+        return f"{base}/**/*.parquet"
+
+    globs: List[str] = []
+    if age_bands and years:
+        for ab in age_bands:
+            for y in years:
+                globs.append(f"{base}/age_band={ab}/event_year={y}/*.parquet")
+    elif age_bands:
+        for ab in age_bands:
+            globs.append(f"{base}/age_band={ab}/*.parquet")
+    elif years:
+        for y in years:
+            globs.append(f"{base}/event_year={y}/*.parquet")
+
+    # Verify at least one of the globs points to existing files; if not, fall back to recursive wildcard
+    valid_globs: List[str] = []
+    for g in globs:
+        # Determine directory prefix to check
+        dir_prefix = g.rsplit('/', 1)[0]
+        try:
+            if s3_directory_exists_with_files(dir_prefix, file_pattern='*.parquet'):
+                valid_globs.append(g)
+        except Exception:
+            # If S3 check fails for any reason, skip this glob
+            continue
+
+    if not valid_globs:
+        logging.warning(f"No partitioned files found for requested partitions; falling back to full scan: {base}/**/*.parquet")
+        return f"{base}/**/*.parquet"
+
+    return ",".join(valid_globs)
+
+def run_qa_with_connection(
+    conn,
+    dataset_type="both",
+    partition_filter="",
+    sample_size=None,
+    save_results=True,
+    age_bands: Optional[List[str]] = None,
+    years: Optional[List[str]] = None,
+    all_partitions: bool = False,
+):
     """Run QA validation using an existing DuckDB connection."""
     logging.info(f"🔍 Starting QA validation for {dataset_type} using existing connection...")
     
@@ -62,7 +114,7 @@ def run_qa_with_connection(conn, dataset_type="both", partition_filter="", sampl
     # Run validations
     if dataset_type in ["pharmacy", "both"]:
         logging.info("🏪 Starting pharmacy data validation...")
-        pharmacy_results = validate_pharmacy_data(conn, partition_filter, sample_size)
+        pharmacy_results = validate_pharmacy_data(conn, partition_filter, sample_size, age_bands, years, all_partitions)
         print_summary_report(pharmacy_results)
         results["pharmacy"] = pharmacy_results
         
@@ -71,7 +123,7 @@ def run_qa_with_connection(conn, dataset_type="both", partition_filter="", sampl
     
     if dataset_type in ["medical", "both"]:
         logging.info("🏥 Starting medical data validation...")
-        medical_results = validate_medical_data(conn, partition_filter, sample_size)
+        medical_results = validate_medical_data(conn, partition_filter, sample_size, age_bands, years, all_partitions)
         print_summary_report(medical_results)
         results["medical"] = medical_results
         
@@ -113,7 +165,14 @@ def load_drug_mappings(conn) -> int:
         return 0
 
 
-def validate_pharmacy_data(conn, partition_filter: str = "", sample_size: Optional[int] = None) -> Dict:
+def validate_pharmacy_data(
+    conn,
+    partition_filter: str = "",
+    sample_size: Optional[int] = None,
+    age_bands: Optional[List[str]] = None,
+    years: Optional[List[str]] = None,
+    all_partitions: bool = False,
+) -> Dict:
     """Streamlined validation of pharmacy data - schema and data quality only."""
     logging.info("🔍 Starting pharmacy data validation...")
     
@@ -129,11 +188,12 @@ def validate_pharmacy_data(conn, partition_filter: str = "", sample_size: Option
     where_clause = f"WHERE {partition_filter}" if partition_filter else ""
     
     try:
-        # Create main view for analysis
+        # Create main view for analysis using partition-first reads when possible
+        gold_glob = build_gold_globs('pharmacy', age_bands, years, all_partitions)
         conn.sql(f"""
             CREATE OR REPLACE VIEW pharmacy_qa AS
             SELECT *
-            FROM read_parquet('{GOLD_PHARMACY_PATH}')
+            FROM read_parquet('{gold_glob}')
             {where_clause}
             {sample_clause}
         """)
@@ -324,7 +384,14 @@ def validate_pharmacy_data(conn, partition_filter: str = "", sample_size: Option
     return results
 
 
-def validate_medical_data(conn, partition_filter: str = "", sample_size: Optional[int] = None) -> Dict:
+def validate_medical_data(
+    conn,
+    partition_filter: str = "",
+    sample_size: Optional[int] = None,
+    age_bands: Optional[List[str]] = None,
+    years: Optional[List[str]] = None,
+    all_partitions: bool = False,
+) -> Dict:
     """Streamlined validation of medical data - schema and data quality only."""
     logging.info("🔍 Starting medical data validation...")
     
@@ -339,11 +406,12 @@ def validate_medical_data(conn, partition_filter: str = "", sample_size: Optiona
     where_clause = f"WHERE {partition_filter}" if partition_filter else ""
     
     try:
-        # Create main view for analysis
+        # Create main view for analysis using partition-first reads when possible
+        gold_glob = build_gold_globs('medical', age_bands, years, all_partitions)
         conn.sql(f"""
             CREATE OR REPLACE VIEW medical_qa AS
             SELECT *
-            FROM read_parquet('{GOLD_MEDICAL_PATH}')
+            FROM read_parquet('{gold_glob}')
             {where_clause}
             {sample_clause}
         """)
@@ -614,22 +682,34 @@ def main():
     logging.info("🚀 Initializing DuckDB with S3 support...")
     conn = init_duckdb()
     
-    # Build partition filter
+    # Build partition filter and lists for partition-first reads
     partition_conditions = []
+    age_bands_list: Optional[List[str]] = None
+    years_list: Optional[List[str]] = None
+
     if args.age_bands and not args.all_partitions:
-        age_bands = [ab.strip() for ab in args.age_bands.split(',')]
-        age_band_filter = "(" + " OR ".join(f"age_band = '{ab}'" for ab in age_bands) + ")"
+        age_bands_list = [ab.strip() for ab in args.age_bands.split(',')]
+        age_band_filter = "(" + " OR ".join(f"age_band = '{ab}'" for ab in age_bands_list) + ")"
         partition_conditions.append(age_band_filter)
-    
+
     if args.years and not args.all_partitions:
-        years = [y.strip() for y in args.years.split(',')]
-        year_filter = "(" + " OR ".join(f"event_year = {y}" for y in years) + ")"
+        years_list = [y.strip() for y in args.years.split(',')]
+        year_filter = "(" + " OR ".join(f"event_year = {y}" for y in years_list) + ")"
         partition_conditions.append(year_filter)
-    
+
     partition_filter = " AND ".join(partition_conditions)
-    
-    # Run validations using the new function
-    run_qa_with_connection(conn, args.type, partition_filter, args.sample_size, args.save_results)
+
+    # Run validations using the new function (pass partition hints)
+    run_qa_with_connection(
+        conn,
+        args.type,
+        partition_filter,
+        args.sample_size,
+        args.save_results,
+        age_bands=age_bands_list,
+        years=years_list,
+        all_partitions=args.all_partitions,
+    )
 
 
 if __name__ == "__main__":
