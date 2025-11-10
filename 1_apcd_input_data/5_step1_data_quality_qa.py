@@ -18,6 +18,8 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import duckdb
+import concurrent.futures
+import multiprocessing
 import json
 
 # Project imports
@@ -95,6 +97,127 @@ def run_qa_with_connection(
     return results
 
 
+def _split_globs(glob_str: str) -> List[str]:
+    """Split a comma-separated glob string into individual globs (trimmed)."""
+    if not glob_str:
+        return []
+    return [g.strip() for g in glob_str.split(',') if g.strip()]
+
+
+def _run_partition_worker(args_tuple):
+    """Worker entrypoint executed in a separate process.
+
+    args_tuple: (dataset, gold_glob, sample_size, save_results, age_bands, years, all_partitions)
+    Returns: result dict for the partition
+    """
+    dataset, gold_glob, sample_size, save_results, age_bands, years, all_partitions = args_tuple
+
+    # Each worker creates its own DuckDB connection and limits threads to 1
+    conn = init_duckdb()
+    try:
+        try:
+            conn.sql("SET threads=1;")
+        except Exception:
+            pass
+
+        if dataset == 'pharmacy':
+            res = validate_pharmacy_data(conn, partition_filter='', sample_size=sample_size, age_bands=age_bands, years=years, all_partitions=all_partitions, gold_glob=gold_glob)
+            # annotate partition source
+            res['partition_glob'] = gold_glob
+            return res
+        else:
+            res = validate_medical_data(conn, partition_filter='', sample_size=sample_size, age_bands=age_bands, years=years, all_partitions=all_partitions, gold_glob=gold_glob)
+            res['partition_glob'] = gold_glob
+            return res
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def run_qa_parallel(
+    dataset_type: str = "both",
+    sample_size: Optional[int] = None,
+    save_results: bool = True,
+    age_bands: Optional[List[str]] = None,
+    years: Optional[List[str]] = None,
+    all_partitions: bool = False,
+    workers: int = 4,
+):
+    """Parallel runner that splits partitions (globs) and runs per-partition validation in processes.
+
+    Returns aggregated results dict similar to run_qa_with_connection.
+    """
+    results = {}
+
+    tasks: List[tuple] = []
+
+    if dataset_type in ["pharmacy", "both"]:
+        pharmacy_glob = build_gold_globs('pharmacy', age_bands, years, all_partitions)
+        pg = _split_globs(pharmacy_glob)
+        if not pg:
+            pg = [pharmacy_glob]
+        for g in pg:
+            tasks.append(('pharmacy', g, sample_size, save_results, age_bands, years, all_partitions))
+
+    if dataset_type in ["medical", "both"]:
+        medical_glob = build_gold_globs('medical', age_bands, years, all_partitions)
+        mg = _split_globs(medical_glob)
+        if not mg:
+            mg = [medical_glob]
+        for g in mg:
+            tasks.append(('medical', g, sample_size, save_results, age_bands, years, all_partitions))
+
+    # Limit workers to sensible values
+    max_workers = max(1, min(workers, max(1, multiprocessing.cpu_count())))
+
+    aggregated = { 'pharmacy': [], 'medical': [] }
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_to_task = { executor.submit(_run_partition_worker, t): t for t in tasks }
+        for fut in concurrent.futures.as_completed(future_to_task):
+            t = future_to_task[fut]
+            try:
+                r = fut.result()
+                if r and r.get('dataset') == 'pharmacy':
+                    aggregated['pharmacy'].append(r)
+                elif r and r.get('dataset') == 'medical':
+                    aggregated['medical'].append(r)
+            except Exception as e:
+                logging.error(f"Partition task failed for {t}: {e}")
+
+    # Summarize aggregated results into same shape used by run_qa_with_connection
+    summary_results = {}
+    if aggregated['pharmacy']:
+        # naive combine: if any partition failed mark overall fail
+        overall_status = 'PASS'
+        for part in aggregated['pharmacy']:
+            if part.get('summary', {}).get('overall_status') != 'PASS':
+                overall_status = 'FAIL'
+        summary_results['pharmacy'] = {
+            'partitions': aggregated['pharmacy'],
+            'summary': {
+                'overall_status': overall_status,
+                'partition_count': len(aggregated['pharmacy'])
+            }
+        }
+    if aggregated['medical']:
+        overall_status = 'PASS'
+        for part in aggregated['medical']:
+            if part.get('summary', {}).get('overall_status') != 'PASS':
+                overall_status = 'FAIL'
+        summary_results['medical'] = {
+            'partitions': aggregated['medical'],
+            'summary': {
+                'overall_status': overall_status,
+                'partition_count': len(aggregated['medical'])
+            }
+        }
+
+    return summary_results
+
+
 def load_drug_mappings(conn) -> int:
     """Load drug mapping files for validation."""
     try:
@@ -133,6 +256,7 @@ def validate_pharmacy_data(
     age_bands: Optional[List[str]] = None,
     years: Optional[List[str]] = None,
     all_partitions: bool = False,
+    gold_glob: Optional[str] = None,
 ) -> Dict:
     """Streamlined validation of pharmacy data - schema and data quality only."""
     logging.info("🔍 Starting pharmacy data validation...")
@@ -150,7 +274,8 @@ def validate_pharmacy_data(
     
     try:
         # Create main view for analysis using partition-first reads when possible
-        gold_glob = build_gold_globs('pharmacy', age_bands, years, all_partitions)
+        if gold_glob is None:
+            gold_glob = build_gold_globs('pharmacy', age_bands, years, all_partitions)
         conn.sql(f"""
             CREATE OR REPLACE VIEW pharmacy_qa AS
             SELECT *
@@ -352,6 +477,7 @@ def validate_medical_data(
     age_bands: Optional[List[str]] = None,
     years: Optional[List[str]] = None,
     all_partitions: bool = False,
+    gold_glob: Optional[str] = None,
 ) -> Dict:
     """Streamlined validation of medical data - schema and data quality only."""
     logging.info("🔍 Starting medical data validation...")
@@ -368,7 +494,8 @@ def validate_medical_data(
     
     try:
         # Create main view for analysis using partition-first reads when possible
-        gold_glob = build_gold_globs('medical', age_bands, years, all_partitions)
+        if gold_glob is None:
+            gold_glob = build_gold_globs('medical', age_bands, years, all_partitions)
         conn.sql(f"""
             CREATE OR REPLACE VIEW medical_qa AS
             SELECT *
@@ -623,6 +750,8 @@ def main():
                        help="Comma-separated years to include (e.g., '2020,2021')")
     parser.add_argument("--all-partitions", action="store_true",
                        help="Validate all available partitions")
+    parser.add_argument("--workers", type=int, default=1,
+                       help="Number of parallel worker processes to run across partitions")
     parser.add_argument("--sample-size", type=int,
                        help="Limit analysis to sample size for faster execution")
     parser.add_argument("--save-results", action="store_true", default=True,
@@ -660,17 +789,35 @@ def main():
 
     partition_filter = " AND ".join(partition_conditions)
 
-    # Run validations using the new function (pass partition hints)
-    run_qa_with_connection(
-        conn,
-        args.type,
-        partition_filter,
-        args.sample_size,
-        args.save_results,
-        age_bands=age_bands_list,
-        years=years_list,
-        all_partitions=args.all_partitions,
-    )
+    # Run validations: parallel across partitions if requested, otherwise run in-process
+    if args.workers and args.workers > 1:
+        logging.info(f"🚀 Running QA in parallel with {args.workers} workers...")
+        agg = run_qa_parallel(
+            dataset_type=args.type,
+            sample_size=args.sample_size,
+            save_results=args.save_results,
+            age_bands=age_bands_list,
+            years=years_list,
+            all_partitions=args.all_partitions,
+            workers=args.workers,
+        )
+        # Print aggregated summaries
+        if 'pharmacy' in agg:
+            print_summary_report({'dataset':'pharmacy','timestamp':datetime.now().isoformat(),'summary':agg['pharmacy']['summary'],'validations':{},'partitions':agg['pharmacy']['partitions']})
+        if 'medical' in agg:
+            print_summary_report({'dataset':'medical','timestamp':datetime.now().isoformat(),'summary':agg['medical']['summary'],'validations':{},'partitions':agg['medical']['partitions']})
+    else:
+        # Run single-process QA using the provided DuckDB connection
+        run_qa_with_connection(
+            conn,
+            args.type,
+            partition_filter,
+            args.sample_size,
+            args.save_results,
+            age_bands=age_bands_list,
+            years=years_list,
+            all_partitions=args.all_partitions,
+        )
 
 
 if __name__ == "__main__":
