@@ -129,10 +129,45 @@ This design divides the dataset into discrete units for independent processing:
 
 ### 1. APCD Input Data
 
-- Reads partitioned Silver-tier data.
-- Performs demographic linkage and cleanup.
-- Produces partitioned Gold-tier medical/pharmacy outputs.
-- 48 concurrent workers process all partitions simultaneously, replacing old sequential runs.
+## 📥 Defaults: Partitioned (imputed) Silver Inputs
+
+To improve DuckDB performance and maximize parallelism, the orchestrator now prefers partitioned, pre-imputed Silver-tier inputs as the default entry point for optimized runs. In practice this means the pipeline will use paths like:
+
+```
+s3://pgxdatalake/silver/imputed/medical_partitioned/
+s3://pgxdatalake/silver/imputed/pharmacy_partitioned/
+```
+
+Why this change?
+- DuckDB performs best when work is split into many small, independent units (age_band × event_year). Reading partitioned Parquet files reduces memory pressure and enables many short-lived DuckDB instances to run concurrently.
+- Partition-first inputs unlock full parallelism (48 workers × 1 thread each) which greatly reduces overall runtime and increases cloud efficiency.
+- Global imputation already writes partitioned outputs (`global_imputation.py` saves `*_partitioned` directories under `silver/imputed/`); using those early avoids redundant transformation work.
+
+Compatibility and behavior
+- Backwards compatible: operators may still pass the legacy `--raw-medical s3://pgxdatalake/silver/medical/*.parquet` or `--raw-pharmacy` paths. The orchestrator will automatically resolve those to the imputed/partitioned equivalents when available.
+- Validation: the input validation routine will attempt both the raw silver path and the imputed/partitioned path. This surfaces clear errors if neither exists.
+- Override: to explicitly target a non-partitioned raw path, pass `--raw-medical`/`--raw-pharmacy` with the exact S3 URI you want. The orchestrator will use the value you provide.
+
+Examples
+
+- Run optimized medical cleaning (defaults use partitioned imputed input):
+
+```bash
+python3 1_apcd_input_data/3_apcd_clean.py --job medical --output-root s3://pgxdatalake/gold/medical --min-year 2016 --max-year 2020
+```
+
+- Force using a raw (non-partitioned) silver path (not recommended for large runs):
+
+```bash
+python3 1_apcd_input_data/3_apcd_clean.py --job medical --raw-medical s3://pgxdatalake/silver/medical/*.parquet --output-root s3://pgxdatalake/gold/medical
+```
+
+Validation helper
+- A lightweight script `scripts/validate_silver_inputs.py` is available to preview which input paths will be used and to optionally check whether previous orchestrator logs exist. Use it in CI or as a preflight check.
+
+Logging
+- The orchestrator logs which path was used (imputed vs raw) during discovery and validation so operators can audit decisions in S3 logs.
+
 
 
 ### 2. Global Demographic Imputation
