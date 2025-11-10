@@ -38,8 +38,8 @@ except Exception:
 log = logging.getLogger("orchestrator")
 
 # ----------------- Config -----------------
-DEFAULT_RAW_PHARMACY = "s3://pgxdatalake/silver/pharmacy/*.parquet"
-DEFAULT_RAW_MEDICAL  = "s3://pgxdatalake/silver/medical/*.parquet"
+DEFAULT_RAW_PHARMACY = "s3://pgxdatalake/silver/imputed/pharmacy_partitioned"
+DEFAULT_RAW_MEDICAL  = "s3://pgxdatalake/silver/imputed/medical_partitioned"
 
 AGE_BANDS = ["0-12","13-24","25-44","45-54","55-64","65-74","75-84","85-94","95-114"]
 
