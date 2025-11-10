@@ -25,8 +25,19 @@ def create_simple_duckdb_connection(logger, tmp_dir: Optional[str] = None, s3_re
         conn = duckdb.connect(database=':memory:')
         
         # Basic S3 setup only
-        conn.sql("INSTALL httpfs; LOAD httpfs;")
-        conn.sql("INSTALL aws; LOAD aws;")
+        # Try to LOAD extensions first to avoid INSTALLing on every worker startup.
+        # Installing extensions repeatedly is slow and unnecessary when the
+        # extension is already available in the environment.
+        try:
+            conn.sql("LOAD httpfs;")
+        except Exception:
+            # Fallback to install if load fails (first-time setup)
+            conn.sql("INSTALL httpfs; LOAD httpfs;")
+
+        try:
+            conn.sql("LOAD aws;")
+        except Exception:
+            conn.sql("INSTALL aws; LOAD aws;")
         conn.sql("CALL load_aws_credentials();")
         conn.sql(f"SET s3_region='{s3_region}'")
         conn.sql("SET s3_url_style='path'")
