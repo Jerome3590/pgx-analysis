@@ -620,8 +620,19 @@ def validate_input_dataset_paths(pharmacy_input: str, medical_input: str, logger
             logger.info(f"✓ Pharmacy input path validated: {pharmacy_input}")
             results["details"]["pharmacy"] = "Directory exists with parquet files"
         else:
-            logger.warning(f"Pharmacy input path may not exist or contain parquet files: {pharmacy_input}")
-            results["details"]["pharmacy"] = "Directory not found or no parquet files"
+            # Try falling back to imputed/partitioned layout (global_imputation writes here)
+            try:
+                imputed_pharmacy = convert_raw_to_imputed_path(pharmacy_input, 'pharmacy')
+                if s3_directory_exists_with_files(imputed_pharmacy, "*.parquet"):
+                    results["pharmacy"] = True
+                    logger.info(f"✓ Pharmacy imputed partition path validated: {imputed_pharmacy}")
+                    results["details"]["pharmacy"] = f"Found imputed partitioned data at {imputed_pharmacy}"
+                else:
+                    logger.warning(f"Pharmacy input path may not exist or contain parquet files: {pharmacy_input}")
+                    results["details"]["pharmacy"] = "Directory not found or no parquet files"
+            except Exception:
+                logger.warning(f"Pharmacy input path may not exist or contain parquet files: {pharmacy_input}")
+                results["details"]["pharmacy"] = "Directory not found or no parquet files"
             
         # Validate medical input  
         medical_base = medical_input.replace("/**/*.parquet", "").replace("/*", "")
@@ -630,8 +641,19 @@ def validate_input_dataset_paths(pharmacy_input: str, medical_input: str, logger
             logger.info(f"✓ Medical input path validated: {medical_input}")
             results["details"]["medical"] = "Directory exists with parquet files"
         else:
-            logger.warning(f"Medical input path may not exist or contain parquet files: {medical_input}")
-            results["details"]["medical"] = "Directory not found or no parquet files"
+            # Try falling back to imputed/partitioned layout (global_imputation writes here)
+            try:
+                imputed_medical = convert_raw_to_imputed_path(medical_input, 'medical')
+                if s3_directory_exists_with_files(imputed_medical, "*.parquet"):
+                    results["medical"] = True
+                    logger.info(f"✓ Medical imputed partition path validated: {imputed_medical}")
+                    results["details"]["medical"] = f"Found imputed partitioned data at {imputed_medical}"
+                else:
+                    logger.warning(f"Medical input path may not exist or contain parquet files: {medical_input}")
+                    results["details"]["medical"] = "Directory not found or no parquet files"
+            except Exception:
+                logger.warning(f"Medical input path may not exist or contain parquet files: {medical_input}")
+                results["details"]["medical"] = "Directory not found or no parquet files"
             
         # Summary
         if results["pharmacy"] and results["medical"]:
@@ -647,6 +669,61 @@ def validate_input_dataset_paths(pharmacy_input: str, medical_input: str, logger
         logger.warning(f"Could not validate input dataset paths: {e}")
         results["details"]["error"] = str(e)
         return results
+
+
+def build_gold_globs(dataset: str, age_bands: Optional[List[str]] = None, years: Optional[List[str]] = None, all_partitions: bool = False) -> str:
+    """Build a comma-separated list of S3 globs that target gold partitions first.
+
+    This mirrors the helper previously located in the QA script but centralizes S3
+    partition discovery so it can be reused across the codebase.
+
+    Args:
+        dataset: 'pharmacy' or 'medical'
+        age_bands: optional list of age band strings (e.g., ['65-74'])
+        years: optional list of years (as strings or ints)
+        all_partitions: if True, return recursive wildcard for all partitions
+
+    Returns:
+        A single string suitable for passing into read_parquet('<glob1>,<glob2>')
+        If no specific partitions are found, returns the original recursive wildcard.
+    """
+    # Build base gold directory for pharmacy or medical
+    if dataset == 'pharmacy':
+        base = f"s3://{S3_BUCKET}/gold/pharmacy"
+    else:
+        base = f"s3://{S3_BUCKET}/gold/medical"
+
+    # Use recursive wildcard when no hints or user requested all partitions
+    if all_partitions or (not age_bands and not years):
+        return f"{base}/**/*.parquet"
+
+    globs: List[str] = []
+    if age_bands and years:
+        for ab in age_bands:
+            for y in years:
+                globs.append(f"{base}/age_band={ab}/event_year={y}/*.parquet")
+    elif age_bands:
+        for ab in age_bands:
+            globs.append(f"{base}/age_band={ab}/*.parquet")
+    elif years:
+        for y in years:
+            globs.append(f"{base}/event_year={y}/*.parquet")
+
+    # Verify at least one of the globs points to existing files; if not, fall back
+    valid_globs: List[str] = []
+    for g in globs:
+        dir_prefix = g.rsplit('/', 1)[0]
+        try:
+            if s3_directory_exists_with_files(dir_prefix, file_pattern='*.parquet'):
+                valid_globs.append(g)
+        except Exception:
+            continue
+
+    if not valid_globs:
+        logging.warning(f"No partitioned files found for requested partitions; falling back to full scan: {base}/**/*.parquet")
+        return f"{base}/**/*.parquet"
+
+    return ",".join(valid_globs)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))

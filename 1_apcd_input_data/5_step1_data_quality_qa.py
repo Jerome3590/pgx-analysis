@@ -26,7 +26,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from helpers_1997_13.logging_utils import setup_logging, save_logs_to_s3
-from helpers_1997_13.s3_utils import sanitize_for_s3_key, _parse_s3_path_components, s3_directory_exists_with_files
+from helpers_1997_13.s3_utils import sanitize_for_s3_key, _parse_s3_path_components, s3_directory_exists_with_files, build_gold_globs
 
 # Configuration
 GOLD_PHARMACY_PATH = "s3://pgxdatalake/gold/pharmacy/**/*.parquet"
@@ -54,47 +54,8 @@ def init_duckdb():
     return create_simple_duckdb_connection(logger)
 
 
-def build_gold_globs(dataset: str, age_bands: Optional[List[str]] = None, years: Optional[List[str]] = None, all_partitions: bool = False) -> str:
-    """Build a comma-separated list of S3 globs that target partitions first.
-
-    Returns a single string suitable for passing into read_parquet('<glob1>,<glob2>')
-    If no specific partitions are found, returns the original recursive wildcard.
-    """
-    base = GOLD_PHARMACY_PATH.replace('/**/*.parquet', '') if dataset == 'pharmacy' else GOLD_MEDICAL_PATH.replace('/**/*.parquet', '')
-
-    # If no partition hints provided or user requested all partitions, return recursive wildcard
-    if all_partitions or (not age_bands and not years):
-        return f"{base}/**/*.parquet"
-
-    globs: List[str] = []
-    if age_bands and years:
-        for ab in age_bands:
-            for y in years:
-                globs.append(f"{base}/age_band={ab}/event_year={y}/*.parquet")
-    elif age_bands:
-        for ab in age_bands:
-            globs.append(f"{base}/age_band={ab}/*.parquet")
-    elif years:
-        for y in years:
-            globs.append(f"{base}/event_year={y}/*.parquet")
-
-    # Verify at least one of the globs points to existing files; if not, fall back to recursive wildcard
-    valid_globs: List[str] = []
-    for g in globs:
-        # Determine directory prefix to check
-        dir_prefix = g.rsplit('/', 1)[0]
-        try:
-            if s3_directory_exists_with_files(dir_prefix, file_pattern='*.parquet'):
-                valid_globs.append(g)
-        except Exception:
-            # If S3 check fails for any reason, skip this glob
-            continue
-
-    if not valid_globs:
-        logging.warning(f"No partitioned files found for requested partitions; falling back to full scan: {base}/**/*.parquet")
-        return f"{base}/**/*.parquet"
-
-    return ",".join(valid_globs)
+# NOTE: build_gold_globs() was moved to helpers_1997_13.s3_utils to centralize S3 partition
+# discovery logic. The function is imported above as build_gold_globs and used below.
 
 def run_qa_with_connection(
     conn,
