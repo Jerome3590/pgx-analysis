@@ -1,0 +1,15 @@
+{
+    "warfarin_sodium": "warfarin",
+    "wellbutrin_sr": "bupropion",
+    "westhroid": "thyroid",
+    "wymzya_fe": "ethinyl_estradiol_norethindrone_iron",
+    "wal-fex_allergen": "fexofenadine",
+    "wal-phed": "pseudoephedrine",
+    "wal-itin_d_24_hour": "loratadine_pseudoephedrine",
+    "wal-tussin_cough": "guaifenesin",
+    "wal-tussin_cough_&_chest": "guaifenesin",
+    "wal-zan_75": "ranitidine",
+    "walgreens_glucose": "glucose",
+    "walgreens_ultra_thin_lanc": "not_drug",
+    "wp_thyroid": "thyroid"
+}

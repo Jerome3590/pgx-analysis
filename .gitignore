@@ -1,0 +1,10 @@
+.vscode
+.Rproj.user
+.Rproj*
+.html
+data/*
+testing/*
+.ipynb_checkpoints/
+__pycache__/
+
+Notes/*

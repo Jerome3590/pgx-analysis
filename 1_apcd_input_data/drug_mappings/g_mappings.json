@@ -1,0 +1,21 @@
+{
+    "gentamicin_topical": "gentamicin",
+    "genvoya": "elvitegravir_cobicistat_emtricitabine_tenofovir_alafenamide",
+    "gilenya": "fingolimod",
+    "glatiramer_acetate": "glatiramer",
+    "glucophage": "metformin",
+    "glyxambi": "empagliflozin_linagliptin",
+    "gnp_mucus_er": "guaifenesin",
+    "gnp_acetylsalicylic_acidirin_low_dose": "acetylsalicylic_acid",
+    "gnp_acetylsalicylic_acidirin": "acetylsalicylic_acid",
+    "gnp_tussin_dm_cough": "guaifenesin_dextromethorphan",
+    "gnp_loratadine": "loratadine",
+    "gnp_lancets_thin_26g": "not_drug",
+    "glatopa": "glatiramer",
+    "glucotrol": "glipizide",
+    "glycolax": "polyethylene_glycol_3350",
+    "gocovri": "amantadine",
+    "golytely": "polyethylene_glycol_3350_electrolytes",
+    "gvoke_hypopen": "glucagon",
+    "guanfacine_hydrochloride": "guanfacine"
+}

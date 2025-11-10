@@ -1,0 +1,36 @@
+[
+  {
+    "Name": "mi_person_key",
+    "Type": "string"
+  },
+  {
+    "Name": "drug_name",
+    "Type": "string"
+  },
+  {
+    "Name": "standardized_drug_name",
+    "Type": "string"
+  },
+  {
+    "Name": "incurred_date",
+    "Type": "string"
+  },
+  {
+    "Name": "gender_source",
+    "Type": "string"
+  },
+  {
+    "Name": "age_source",
+    "Type": "string"
+  },
+  {
+    "Name": "age_band",
+    "Type": "string",
+    "PartitionKey": "Partition (0)"
+  },
+  {
+    "Name": "event_year",
+    "Type": "string",
+    "PartitionKey": "Partition (1)"
+  }
+]

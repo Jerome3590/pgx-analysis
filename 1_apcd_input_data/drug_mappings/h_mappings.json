@@ -1,0 +1,22 @@
+{
+    "harvoni": "ledipasvir_sofosbuvir",
+    "humira": "adalimumab",
+    "hydrocortisone_acetate_pramoxine": "hydrocortisone_pramoxine",
+    "hydrocodone_bitartrate_er": "hydrocodone_er",
+    "hydromorphone_hydrochloride_er": "hydromorphone_er",
+    "hydroxychloroquine_sulfat": "hydroxychloroquine",
+    "humulin_70_30": "insulin_nph",
+    "humulin_70_30_kwikpen": "insulin_nph",
+    "humulin_n": "insulin_nph",
+    "humulin_n_kwikpen": "insulin_nph",
+    "humulin_r_u-500": "insulin_regular",
+    "halobetasol_propionate": "halobetasol",
+    "heparin_lock": "heparin",
+    "heparin_lock_flush_sodium_chloride": "heparin_sodium_chloride",
+    "humatrope_combo_pack": "somatropin",
+    "hurricaine_one": "benzocaine",
+    "hydramine": "diphenhydramine",
+    "hydroxypropyl_methylcellu": "hydroxypropyl_methylcellulose",
+    "h-chlor_12": "chlorpheniramine",
+    "hemangeol": "propranolol"
+}

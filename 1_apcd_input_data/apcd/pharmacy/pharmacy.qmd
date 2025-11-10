@@ -1,0 +1,197 @@
+---
+title: "APCD - Pharmacy Dataset"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(here)
+library(reticulate)
+
+```
+
+```{python}
+
+import pandas as pd
+from io import BytesIO
+import boto3
+import duckdb
+import numpy as np
+import matplotlib.pyplot as plt
+
+```
+
+### Pharmacy Dataset
+
+```{python}
+
+# Define cohort and S3 paths
+s3_bucket = "pgxdatalake"
+s3_prefix = f"pharmacy"
+
+pharmacy_input_path = f"s3://{s3_bucket}/{s3_prefix}/*.parquet"
+
+# Enable S3 support in DuckDB
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+
+# AWS Credentials
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Check schema by selecting zero rows
+pharmacy_schema = duckdb.sql(f"SELECT * FROM read_parquet('{pharmacy_input_path}') LIMIT 0").df()
+
+print("Pharmacy Schema:\n", pharmacy_schema)
+
+```
+
+#### Load Dataset
+
+```{python}
+
+import duckdb
+
+# Setup
+s3_bucket = "pgxdatalake"
+s3_prefix = "pharmacy"
+pharmacy_input_path = f"s3://{s3_bucket}/{s3_prefix}/*.parquet"
+
+# Enable S3 support
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Create view with selected columns and parsed date
+duckdb.sql(f"""
+CREATE OR REPLACE VIEW pharmacy_updated AS
+SELECT
+  incurred_date,
+  mi_person_key,
+  payer_lob,
+  member_zip_code_dos,
+  member_county_dos,
+  member_age_dos,
+  member_age_band_dos,
+  member_gender,
+  member_race,
+  hcg_setting,
+  hcg_line,
+  hcg_detail,
+  therapeutic_class_1,
+  therapeutic_class_2,
+  therapeutic_class_3,
+  drug_name,
+  service_provider_name,
+  service_provider_npi,
+  service_provider_zip,
+  service_provider_county,
+  service_provider_state,
+  STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date
+FROM read_parquet('{pharmacy_input_path}')
+""")
+
+```
+
+### Pharmacy - Normalized Drug Names Dataset
+
+```{python}
+
+import duckdb
+
+# Define S3 bucket and prefix
+s3_bucket = "pgxdatalake"
+s3_prefix = "pharmacy-clean-drug-names"
+pharmacy_cleaned_input_path = f"s3://{s3_bucket}/{s3_prefix}/**/*.parquet"  # Double wildcard for recursive
+
+# Enable S3 support in DuckDB
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+
+# Load AWS credentials from the profile 'pgx'
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Read all partitioned Parquet files and preserve partition columns
+pharmacy_cleaned_df = duckdb.sql(f"""
+    SELECT *, 
+           REPLACE(SPLIT_PART(filename, '/', -3), 'age_band=', '') AS age_band,
+           REPLACE(SPLIT_PART(filename, '/', -2), 'event_year=', '') AS event_year
+    FROM read_parquet('{pharmacy_cleaned_input_path}', filename=True)
+""").df()
+
+print("Pharmacy Cleaned Full Dataset Loaded. Shape:", pharmacy_cleaned_df.shape)
+
+
+```
+
+```{python}
+
+
+import duckdb
+
+# Setup
+s3_bucket = "pgxdatalake"
+s3_prefix = "pharmacy"
+pharmacy_cleaned_input_path = f"s3://{s3_bucket}/{s3_prefix}/*.parquet"
+
+# Enable S3 support
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Create view with selected columns and parsed date
+duckdb.sql(f"""
+CREATE OR REPLACE VIEW pharmacy_normalized AS
+SELECT
+  incurred_date,
+  mi_person_key,
+  payer_lob,
+  member_zip_code_dos,
+  member_county_dos,
+  member_age_dos,
+  member_age_band_dos,
+  member_gender,
+  member_race,
+  hcg_setting,
+  hcg_line,
+  hcg_detail,
+  therapeutic_class_1,
+  therapeutic_class_2,
+  therapeutic_class_3,
+  drug_name,
+  service_provider_name,
+  service_provider_zip,
+  service_provider_county,
+  service_provider_state,
+  STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date
+FROM read_parquet('{pharmacy_input_path}')
+""")
+
+```
+
+```{python}
+
+import duckdb
+import os
+
+# Output folder for service provider
+output_dir = "drug_normalized_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# Drug columns to analyze
+drug_columns = ['drug_name', 'therapeutic_class_1', 'therapeutic_class_2', 'therapeutic_class_3']
+
+# Loop and save frequency counts per service provider column
+for col in drug_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM pharmacy_normalized
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved stratified file: {output_path}")
+    
+```
