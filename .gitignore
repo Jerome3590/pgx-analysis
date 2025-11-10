@@ -8,3 +8,4 @@ testing/*
 __pycache__/
 
 Notes/*
+logs/
