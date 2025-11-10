@@ -190,28 +190,53 @@ def run_qa_parallel(
     # Summarize aggregated results into same shape used by run_qa_with_connection
     summary_results = {}
     if aggregated['pharmacy']:
-        # naive combine: if any partition failed mark overall fail
+        # Aggregate per-partition summaries
+        total_validations = 0
+        passing_validations = 0
+        critical_issues = []
         overall_status = 'PASS'
         for part in aggregated['pharmacy']:
-            if part.get('summary', {}).get('overall_status') != 'PASS':
+            ps = part.get('summary', {})
+            total_validations += int(ps.get('total_validations', 0))
+            passing_validations += int(ps.get('passing_validations', 0))
+            if ps.get('overall_status') != 'PASS':
                 overall_status = 'FAIL'
+            # collect critical issues from partitions if present
+            for c in ps.get('critical_issues', []):
+                critical_issues.append({ 'partition': part.get('partition_glob'), 'issue': c })
+
         summary_results['pharmacy'] = {
             'partitions': aggregated['pharmacy'],
             'summary': {
                 'overall_status': overall_status,
-                'partition_count': len(aggregated['pharmacy'])
+                'partition_count': len(aggregated['pharmacy']),
+                'total_validations': total_validations,
+                'passing_validations': passing_validations,
+                'critical_issues': critical_issues,
             }
         }
     if aggregated['medical']:
+        total_validations = 0
+        passing_validations = 0
+        critical_issues = []
         overall_status = 'PASS'
         for part in aggregated['medical']:
-            if part.get('summary', {}).get('overall_status') != 'PASS':
+            ps = part.get('summary', {})
+            total_validations += int(ps.get('total_validations', 0))
+            passing_validations += int(ps.get('passing_validations', 0))
+            if ps.get('overall_status') != 'PASS':
                 overall_status = 'FAIL'
+            for c in ps.get('critical_issues', []):
+                critical_issues.append({ 'partition': part.get('partition_glob'), 'issue': c })
+
         summary_results['medical'] = {
             'partitions': aggregated['medical'],
             'summary': {
                 'overall_status': overall_status,
-                'partition_count': len(aggregated['medical'])
+                'partition_count': len(aggregated['medical']),
+                'total_validations': total_validations,
+                'passing_validations': passing_validations,
+                'critical_issues': critical_issues,
             }
         }
 
@@ -801,11 +826,21 @@ def main():
             all_partitions=args.all_partitions,
             workers=args.workers,
         )
-        # Print aggregated summaries
+        # Print concise aggregated summaries
         if 'pharmacy' in agg:
-            print_summary_report({'dataset':'pharmacy','timestamp':datetime.now().isoformat(),'summary':agg['pharmacy']['summary'],'validations':{},'partitions':agg['pharmacy']['partitions']})
+            ph = agg['pharmacy']
+            logging.info(f"📦 Pharmacy partitions processed: {ph['summary']['partition_count']}")
+            logging.info(f"📊 Pharmacy overall status: {ph['summary']['overall_status']}")
+            logging.info(f"✅ Passing validations: {ph['summary'].get('passing_validations',0)} / {ph['summary'].get('total_validations',0)}")
+            if ph['summary'].get('critical_issues'):
+                logging.warning(f"⚠ Pharmacy critical issues (sample): {ph['summary']['critical_issues'][:5]}")
         if 'medical' in agg:
-            print_summary_report({'dataset':'medical','timestamp':datetime.now().isoformat(),'summary':agg['medical']['summary'],'validations':{},'partitions':agg['medical']['partitions']})
+            md = agg['medical']
+            logging.info(f"📦 Medical partitions processed: {md['summary']['partition_count']}")
+            logging.info(f"📊 Medical overall status: {md['summary']['overall_status']}")
+            logging.info(f"✅ Passing validations: {md['summary'].get('passing_validations',0)} / {md['summary'].get('total_validations',0)}")
+            if md['summary'].get('critical_issues'):
+                logging.warning(f"⚠ Medical critical issues (sample): {md['summary']['critical_issues'][:5]}")
     else:
         # Run single-process QA using the provided DuckDB connection
         run_qa_with_connection(
