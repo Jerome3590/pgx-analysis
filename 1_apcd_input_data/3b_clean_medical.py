@@ -214,6 +214,7 @@ def build_optimized_pipeline(
                 billing_provider_county, billing_provider_state, service_provider_name,
                 claim_id,
                 service_provider_zip, service_provider_county, service_provider_state,
+                CAST(incurred_date AS VARCHAR) AS incurred_date,
                 TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date,
                 SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) AS event_year -- keep as string for joins
             FROM read_parquet('{partitioned_path}/**/*.parquet')
