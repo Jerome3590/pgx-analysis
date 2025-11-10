@@ -297,23 +297,28 @@ echo ""
 # Create logs directory
 mkdir -p /home/pgx3874/pgx-analysis/1_apcd_input_data/logs
 
+# Recommended: point directly to the imputed partitioned medical inputs to maximize DuckDB performance
 /home/pgx3874/jupyter-env/bin/python3.11 \
-    /home/pgx3874/pgx-analysis/1_apcd_input_data/3_apcd_clean.py \
-    --job medical \
-    --raw-medical s3://pgxdatalake/silver/medical/*.parquet \
-    --output-root s3://pgxdatalake/gold/medical \
-    --min-year 2016 --max-year 2020 \
-    --workers 16 \
-    --retries 1 \
-    --run-mode subprocess \
-    --medical-script /home/pgx3874/pgx-analysis/1_apcd_input_data/3b_clean_medical.py \
-    --log-level INFO 2>&1 | tee "/home/pgx3874/pgx-analysis/1_apcd_input_data/logs/medical_clean_output_$(date +%Y%m%d_%H%M%S).log"
+  /home/pgx3874/pgx-analysis/1_apcd_input_data/3_apcd_clean.py \
+  --job medical \
+  --medical-input s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet \
+  --output-root s3://pgxdatalake/gold/medical \
+  --min-year 2016 --max-year 2020 \
+  --workers 16 \
+  --retries 1 \
+  --run-mode subprocess \
+  --medical-script /home/pgx3874/pgx-analysis/1_apcd_input_data/3b_clean_medical.py \
+  --log-level INFO 2>&1 | tee "/home/pgx3874/pgx-analysis/1_apcd_input_data/logs/medical_clean_output_$(date +%Y%m%d_%H%M%S).log"
 
 echo ""
 echo "✅ Phase 2b completed successfully at: $(date)"
 ```
 
-**Note**: The script uses `--raw-medical` which points to silver tier. The script internally converts this to the imputed partitioned path (`s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet`) using the `convert_raw_to_imputed_path()` utility function.
+**Operator notes for Phase 2b:**
+
+- Recommended invocation: point to the imputed partitioned inputs (example above) which maximizes DuckDB performance and parallelism.
+- Legacy invocation (still supported): you may continue to pass `--raw-medical s3://pgxdatalake/silver/medical/*.parquet`; the orchestrator will attempt to convert this to the imputed partitioned path when needed using `convert_raw_to_imputed_path()`.
+- Preflight check: run `scripts/validate_silver_inputs.py` to detect whether imputed partitioned inputs exist and to get the preferred input path before a large run.
 
 ---
 
