@@ -1195,6 +1195,35 @@ def load_target_artifacts(outputs_dir: str = os.path.join('1_apcd_input_data', '
     if t_orig is None:
         t_orig = pd.DataFrame(columns=['event_year', 'target_code', 'frequency', 'target_system'])
 
+    # Apply any local target ICD mapping as a safety-net so callers always
+    # receive canonical target codes regardless of whether the generator
+    # applied mappings. This reads mapping files under the project's
+    # 1_apcd_input_data/target_mapping or 1_apcd_input_data/claim_mappings
+    # directories when present.
+    try:
+        mapping_paths = [
+            os.path.join('1_apcd_input_data', 'target_mapping', 'target_icd_mapping.json'),
+            os.path.join('1_apcd_input_data', 'claim_mappings', 'target_icd_mapping.json')
+        ]
+        map_dict = {}
+        for mp in mapping_paths:
+            if os.path.exists(mp):
+                try:
+                    with open(mp, 'r', encoding='utf-8') as fh:
+                        j = json.load(fh)
+                    if isinstance(j, dict):
+                        map_dict.update(j)
+                except Exception:
+                    # Ignore mapping load errors; mapping is advisory
+                    pass
+        if map_dict:
+            for df in (t_orig, t_updated):
+                if isinstance(df, pd.DataFrame) and 'target_code' in df.columns:
+                    df['target_code'] = df['target_code'].astype(str).replace(map_dict)
+    except Exception:
+        # Do not fail loader if mapping application fails; mapping is best-effort
+        pass
+
     # Ensure numeric types for downstream work
     for df in (t_orig, t_updated):
         if isinstance(df, pd.DataFrame):
