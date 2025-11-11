@@ -1003,7 +1003,7 @@ def _load_pickle(path: str) -> pd.DataFrame:
     return obj
 
 
-def find_preferred_pickle(base_dir: str, name: str = 'target_code_analysis_data.pkl') -> Optional[str]:
+def find_preferred_pickle(base_dir: str, name: str = 'target_analysis_data.pkl') -> Optional[str]:
     """Return path to preferred pickle file.
 
     Preference order:
@@ -1118,6 +1118,127 @@ def diff_pickles(before_path: str, after_path: str, key: Optional[str] = None, o
     combined, summary = _diff_dfs(before_k, after_k)
     combined.to_csv(out)
     return summary
+
+
+
+def normalize_to_all_targets(obj: object) -> Optional[pd.DataFrame]:
+    """Normalize different saved shapes to a DataFrame with columns:
+    event_year, target_code, frequency, target_system
+
+    Accepts DataFrame or dict-like objects commonly produced by the
+    frequency analysis scripts. Returns None when the object cannot be
+    normalized.
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, pd.DataFrame):
+        df = obj.copy()
+        for c in ['event_year', 'target_code', 'frequency', 'target_system']:
+            if c not in df.columns:
+                df[c] = pd.NA
+        return df[['event_year', 'target_code', 'frequency', 'target_system']]
+    if isinstance(obj, dict):
+        if 'all_targets' in obj and obj['all_targets'] is not None:
+            return normalize_to_all_targets(obj['all_targets'])
+        parts = []
+        if obj.get('icd_aggregated') is not None:
+            parts.append(obj['icd_aggregated'].assign(target_system='icd'))
+        if obj.get('cpt_aggregated') is not None:
+            parts.append(obj['cpt_aggregated'].assign(target_system='cpt'))
+        if parts:
+            out = pd.concat(parts, ignore_index=True)
+            for c in ['event_year', 'target_code', 'frequency', 'target_system']:
+                if c not in out.columns:
+                    out[c] = pd.NA
+            return out[['event_year', 'target_code', 'frequency', 'target_system']]
+        dfs = [v for v in obj.values() if isinstance(v, pd.DataFrame)]
+        if dfs:
+            out = pd.concat(dfs, ignore_index=True)
+            for c in ['event_year', 'target_code', 'frequency', 'target_system']:
+                if c not in out.columns:
+                    out[c] = pd.NA
+            return out[['event_year', 'target_code', 'frequency', 'target_system']]
+    return None
+
+
+def load_target_artifacts(outputs_dir: str = os.path.join('1_apcd_input_data', 'outputs'),
+                          s3_parquet: Optional[str] = 's3://pgxdatalake/gold/target_code/target_code_latest.parquet') -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Resolve and load target-code analysis artifacts.
+
+    Returns a tuple (t_orig, t_updated) where each item is a normalized
+    DataFrame (see :func:`normalize_to_all_targets`). The function prefers
+    pickles under `outputs_dir`. If the updated/canonical pickle is missing
+    and `s3_parquet` is provided, it may attempt to read the parquet via
+    DuckDB (when enabled).
+    """
+    # Resolve paths
+    # Only consult the canonical outputs directory; do not fall back to legacy_base
+    canonical_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data.pkl')
+    orig_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data.orig.pkl')
+    # The pipeline writes a stable "updated" artifact without a dot before 'updated'
+    updated_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data_updated.pkl')
+
+    pd_orig_obj = safe_load_pickle(orig_pk)
+    pd_updated_obj = safe_load_pickle(updated_pk)
+    pd_canon_obj = safe_load_pickle(canonical_pk)
+
+    t_updated = normalize_to_all_targets(pd_updated_obj or pd_canon_obj)
+    t_orig = normalize_to_all_targets(pd_orig_obj)
+
+    # If updated/canonical missing, fail loudly - require the canonical
+    # pickle to be present so callers correct the pipeline that produces it.
+    if t_updated is None or (isinstance(t_updated, pd.DataFrame) and t_updated.empty):
+        raise FileNotFoundError(
+            f"Canonical updated target-code artifact not found. Look for 'target_analysis_data_updated.pkl' under '{outputs_dir}'."
+        )
+
+    if t_orig is None:
+        t_orig = pd.DataFrame(columns=['event_year', 'target_code', 'frequency', 'target_system'])
+
+    # Ensure numeric types for downstream work
+    for df in (t_orig, t_updated):
+        if isinstance(df, pd.DataFrame):
+            if 'frequency' in df.columns:
+                df['frequency'] = pd.to_numeric(df['frequency'], errors='coerce').fillna(0).astype(int)
+            if 'event_year' in df.columns:
+                df['event_year'] = pd.to_numeric(df['event_year'], errors='coerce').fillna(0).astype(int)
+
+    return t_orig, t_updated
+
+
+def find_variants(df: pd.DataFrame, code_of_interest: str) -> list:
+    """Return a sorted list of target_code variants matching code_of_interest.
+
+    Matching is done by removing dots/spaces and doing a case-insensitive
+    substring search on the flattened code.
+    """
+    if df is None or df.empty:
+        return []
+    needle = code_of_interest.replace('.', '').upper()
+    tmp = df.copy()
+    tmp['code_flat'] = tmp['target_code'].astype(str).str.upper().str.replace('.', '', regex=False).str.replace(' ', '', regex=False)
+    codes = tmp[tmp['code_flat'].str.contains(needle, na=False)].groupby('target_code', as_index=False)['frequency'].sum().sort_values('frequency', ascending=False)['target_code'].tolist()
+    return codes
+
+
+def totals_for_codes(df: pd.DataFrame, codes: list) -> pd.DataFrame:
+    if df is None or df.empty or not codes:
+        return pd.DataFrame(columns=['target_code', 'frequency'])
+    return df[df['target_code'].isin(codes)].groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency': 'freq'})
+
+
+def compare_totals(t_orig: pd.DataFrame, t_updated: pd.DataFrame) -> pd.DataFrame:
+    """Compute orig/updated totals and deltas per target_code.
+
+    Returns a DataFrame with columns: target_code, orig_total, updated_total, delta
+    sorted by updated_total descending.
+    """
+    orig_totals = t_orig.groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency': 'orig_total'})
+    upd_totals = t_updated.groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency': 'updated_total'})
+    cmp = orig_totals.merge(upd_totals, on='target_code', how='outer').fillna(0)
+    cmp['delta'] = cmp['updated_total'] - cmp['orig_total']
+    cmp = cmp.sort_values('updated_total', ascending=False)
+    return cmp
 
 
 if __name__ == '__main__':
