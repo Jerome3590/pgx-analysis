@@ -325,17 +325,18 @@ python 1_apcd_input_data/3_apcd_clean.py \
         return out[['event_year','target_code','frequency','target_system']]
     return None
 
-  # Prefer updated -> canonical -> parquet
+  # Prefer updated -> canonical. Do NOT attempt to fall back to S3/parquet here.
+  # The pipeline must produce the canonical updated pickle under
+  # `1_apcd_input_data/outputs/` before running notebook analysis.
   t_updated = normalize_to_all_targets(pd_updated or pd_canon)
   t_orig = normalize_to_all_targets(pd_orig)
 
-  s3_parquet = "s3://pgxdatalake/gold/target_code/target_code_latest.parquet"
   if t_updated is None or (isinstance(t_updated, pd.DataFrame) and t_updated.empty):
-    print('\n⚠️ No updated/canonical pickle found or empty; attempting to load S3 parquet:', s3_parquet)
-    try:
-      t_updated = duckdb.sql(f"SELECT * FROM read_parquet('{s3_parquet}')").df()
-    except Exception as e:
-      raise RuntimeError(f"Failed to load any target_code data: {e}")
+    raise FileNotFoundError(
+      "Canonical updated target-code artifact not found. Generate the pickles by running:\n"
+      "  python 1_apcd_input_data/6_target_frequency_analysis.py --codes-of-interest \"F11.20\"\n"
+      "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_code_analysis_data.updated.pkl``)."
+    )
 
   if t_orig is None:
     t_orig = pd.DataFrame(columns=['event_year','target_code','frequency','target_system'])
@@ -1289,12 +1290,12 @@ print('Pickle presence: orig=%s, updated=%s, canonical=%s' % (bool(pd_orig), boo
 t_updated = normalize_to_all_targets(pd_updated or pd_canon)
 t_orig = normalize_to_all_targets(pd_orig)
 
-if t_updated is None or (isinstance(t_updated, pd.DataFrame) and t_updated.empty):
-  print('\n⚠️ No updated/canonical pickle found or empty; attempting to load S3 parquet:', s3_parquet)
-  try:
-    t_updated = duckdb.sql(f"SELECT * FROM read_parquet('{s3_parquet}')").df()
-  except Exception as e:
-    raise RuntimeError(f"Failed to load any target_code data: {e}")
+  if t_updated is None or (isinstance(t_updated, pd.DataFrame) and t_updated.empty):
+    raise FileNotFoundError(
+      "Canonical updated target-code artifact not found. Generate the pickles by running:\n"
+      "  python 1_apcd_input_data/6_target_frequency_analysis.py --codes-of-interest \"F11.20\"\n"
+      "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_code_analysis_data.updated.pkl``)."
+    )
 
 if t_orig is None:
   # If no orig pickle exists, create empty placeholder for comparison
