@@ -1003,6 +1003,44 @@ def _load_pickle(path: str) -> pd.DataFrame:
     return obj
 
 
+def find_preferred_pickle(base_dir: str, name: str = 'target_code_analysis_data.pkl') -> Optional[str]:
+    """Return path to preferred pickle file.
+
+    Preference order:
+      1. <base_dir>/outputs/<name>
+      2. <base_dir>/<name> (legacy)
+
+    Returns None if not found.
+    """
+    outputs_path = os.path.join(base_dir, 'outputs', name)
+    legacy_path = os.path.join(base_dir, name)
+    if os.path.exists(outputs_path):
+        return outputs_path
+    if os.path.exists(legacy_path):
+        return legacy_path
+    return None
+
+
+def safe_load_pickle(path: Optional[str]):
+    """Safely load an arbitrary pickle (not restricted to DataFrame).
+
+    Returns the unpickled object or None on error.
+    """
+    if not path:
+        return None
+    try:
+        # Prefer pandas for common parquet-backed pickles, fallback to pickle
+        try:
+            return pd.read_pickle(path)
+        except Exception:
+            import pickle as _pickle
+            with open(path, 'rb') as f:
+                return _pickle.load(f)
+    except Exception as e:
+        print(f"⚠️ Failed to load pickle {path}: {e}")
+        return None
+
+
 def _make_keyed_df(df: pd.DataFrame, key: Optional[str]) -> pd.DataFrame:
     if key is None:
         if df.index.name is None:

@@ -133,41 +133,54 @@ python 1_apcd_input_data/3_apcd_clean.py \
   ### Setup and load data
 
   ```python
-  import pickle
   import pandas as pd
   import matplotlib.pyplot as plt
   import seaborn as sns
   import warnings
-  warnings.filterwarnings('ignore')this 
+  from helpers_1997_13.data_utils import find_preferred_pickle, safe_load_pickle
 
-  # Use the local repo paths for saved analysis artifacts (outputs/)
-  drug_pickle = '1_apcd_input_data/outputs/drug_analysis_data.pkl'
-  target_pickle = '1_apcd_input_data/outputs/target_code_analysis_data.pkl'
+  warnings.filterwarnings('ignore')
+
+  # Prefer canonical outputs/ paths but fall back to legacy file if present
+  drug_pickle = find_preferred_pickle('1_apcd_input_data', 'drug_analysis_data.pkl')
+  if drug_pickle is None:
+    drug_pickle = '1_apcd_input_data/outputs/drug_analysis_data.pkl'
+
+  target_pickle = find_preferred_pickle('1_apcd_input_data', 'target_code_analysis_data.pkl')
+  if target_pickle is None:
+    target_pickle = '1_apcd_input_data/outputs/target_code_analysis_data.pkl'
 
   df = None
   high_freq_df = None
   low_freq_df = None
   summary_df = None
+  target_obj = None
 
-  try:
-    with open(drug_pickle, 'rb') as f:
-      data = pickle.load(f)
-    df = data.get('df')
-    high_freq_df = data.get('high_freq_df')
-    low_freq_df = data.get('low_freq_df')
-    summary_df = data.get('summary_df')
-    print('Loaded drug analysis data: rows=', len(df) if df is not None else 0)
-  except FileNotFoundError:
+  # Load drug analysis artifact (usually a dict with multiple DataFrames)
+  drug_obj = safe_load_pickle(drug_pickle)
+  if drug_obj is None:
     print(f'No drug pickle found at {drug_pickle}; skip drug visualizations')
+  else:
+    if isinstance(drug_obj, dict):
+      df = drug_obj.get('df')
+      high_freq_df = drug_obj.get('high_freq_df')
+      low_freq_df = drug_obj.get('low_freq_df')
+      summary_df = drug_obj.get('summary_df')
+    elif hasattr(drug_obj, 'get'):
+      # duck-typed mapping-like object
+      df = drug_obj.get('df')
+    else:
+      # single DataFrame stored directly
+      if isinstance(drug_obj, pd.DataFrame):
+        df = drug_obj
+    print('Loaded drug analysis data: rows=', len(df) if df is not None else 0)
 
-  try:
-    # target pickle may be a dict or DataFrame depending on the script
-    with open(target_pickle, 'rb') as f:
-      target_obj = pickle.load(f)
-    print('Loaded target analysis artifact from', target_pickle)
-  except FileNotFoundError:
-    target_obj = None
+  # Load target analysis artifact (may be dict or DataFrame)
+  target_obj = safe_load_pickle(target_pickle)
+  if target_obj is None:
     print(f'No target pickle found at {target_pickle}; skip target visualizations')
+  else:
+    print('Loaded target analysis artifact from', target_pickle)
 
   sns.set_style('whitegrid')
   plt.rcParams['figure.figsize'] = (12, 8)
