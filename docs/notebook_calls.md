@@ -1,3 +1,355 @@
+# Notebook runbook (canonical)
+This is the canonical, sanitized runbook for running the APCD pipeline steps
+from this repository. It replaces the previous sandbox copy. Paths are
+relative to the repository root. Production commands that require S3 or NVMe
+are annotated; a local smoke-test section is provided for development use.
+
+## Quick environment (recommended)
+
+Set these before running production commands (adjust as needed):
+
+```bash
+export PGX_WORKERS_MEDICAL=16
+export PGX_THREADS_PER_WORKER=1
+export PGX_S3_MAX_CONNECTIONS=64
+export PGX_LOCAL_STAGING_DIR=/mnt/nvme/pgx_staging  # optional
+
+## Phase 2 / 2b — Clean (pharmacy / medical)
+
+Notes: production examples use S3 URIs. For local development point `--pharmacy-input`/
+`--medical-input` to local parquet globs.
+
+Pharmacy (production):
+
+```bash
+mkdir -p ./1_apcd_input_data/logs
+python 1_apcd_input_data/3_apcd_clean.py \
+  --job pharmacy \
+  --pharmacy-input s3://pgxdatalake/silver/imputed/pharmacy_partitioned/**/*.parquet \
+  --output-root s3://pgxdatalake/gold/pharmacy \
+  --min-year 2016 --max-year 2020 \
+  --workers 48 --retries 1 --run-mode subprocess \
+  --pharmacy-script 1_apcd_input_data/3a_clean_pharmacy.py \
+  --log-level INFO 2>&1 | tee "./1_apcd_input_data/logs/pharmacy_clean_output_$(date +%Y%m%d_%H%M%S).log"
+```
+
+Medical (production):
+
+```bash
+mkdir -p ./1_apcd_input_data/logs
+python 1_apcd_input_data/3_apcd_clean.py \
+  --job medical \
+  --medical-input s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet \
+  # Notebook runbook (canonical)
+
+  This repository's canonical, sanitized runbook for running APCD pipeline steps.
+  Use relative paths from the repository root. Production commands that require S3
+  or NVMe are annotated. A local smoke-test section is included for developer
+  machines.
+
+  ## Recommended environment variables
+
+  ```bash
+  export PGX_WORKERS_MEDICAL=16
+  export PGX_THREADS_PER_WORKER=1
+  export PGX_S3_MAX_CONNECTIONS=64
+  export PGX_LOCAL_STAGING_DIR=/mnt/nvme/pgx_staging  # optional
+  ```
+
+  ## Phase 2 / 2b — Clean (pharmacy / medical)
+
+  Pharmacy (production):
+
+  ```bash
+  mkdir -p ./1_apcd_input_data/logs
+  python 1_apcd_input_data/3_apcd_clean.py \
+    --job pharmacy \
+    --pharmacy-input s3://pgxdatalake/silver/imputed/pharmacy_partitioned/**/*.parquet \
+    --output-root s3://pgxdatalake/gold/pharmacy \
+    --min-year 2016 --max-year 2020 \
+    --workers 48 --retries 1 --run-mode subprocess \
+    --pharmacy-script 1_apcd_input_data/3a_clean_pharmacy.py \
+    --log-level INFO 2>&1 | tee "./1_apcd_input_data/logs/pharmacy_clean_output_$(date +%Y%m%d_%H%M%S).log"
+  ```
+
+  Medical (production):
+
+  ```bash
+  mkdir -p ./1_apcd_input_data/logs
+  python 1_apcd_input_data/3_apcd_clean.py \
+    --job medical \
+    --medical-input s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet \
+    --output-root s3://pgxdatalake/gold/medical \
+    --min-year 2016 --max-year 2020 \
+    --workers 16 --retries 1 --run-mode subprocess \
+    --medical-script 1_apcd_input_data/3b_clean_medical.py \
+    --log-level INFO 2>&1 | tee "./1_apcd_input_data/logs/medical_clean_output_$(date +%Y%m%d_%H%M%S).log"
+  ```
+
+  ## Phase 3 — Data Quality Validation (sample)
+
+  Quick validation using a small sample or a local parquet file (dev):
+
+  ```bash
+  python 1_apcd_input_data/5_step1_data_quality_qa.py --type both --sample-size 100000 --verbose
+  ```
+
+  ## Phase 6 — Target variable frequency analysis
+
+  Purpose: run `1_apcd_input_data/6_target_frequency_analysis.py` to compute ICD/CPT
+  frequency statistics and save visualizations. Production examples read from S3.
+
+  Production (S3):
+
+  ```bash
+  export PGX_WORKERS_MEDICAL=16
+  export PGX_THREADS_PER_WORKER=1
+  export PGX_S3_MAX_CONNECTIONS=64
+
+  python 1_apcd_input_data/6_target_frequency_analysis.py \
+    --codes-of-interest "F11.20" \
+    --workers ${PGX_WORKERS_MEDICAL} \
+    --min-year 2016 --max-year 2020 \
+    --log-cpu --log-s3
+  ```
+
+  Local smoke-test (no S3): create a minimal local sample tree of parquet files
+  under `./dev_sample/` and point the script at that path. Example:
+
+  ```bash
+  # prepare a small sample under ./dev_sample/medical/age_band=*/event_year=*
+  python 1_apcd_input_data/6_target_frequency_analysis.py \
+    --codes-of-interest "F11.20" \
+    --medical-input "./dev_sample/medical/**/*.parquet" \
+    --workers 1 --min-year 2016 --max-year 2016 --log-cpu
+  ```
+
+  ## Visualization cells (drug frequency & target-code comparisons)
+
+  Below are sanitized notebook cells for visualizing results produced by the
+  frequency analysis scripts. These expect the scripts to have written pickle
+  or CSV artifacts into `1_apcd_input_data/`.
+
+  ### Setup and load data
+
+  ```python
+  import pickle
+  import pandas as pd
+  import matplotlib.pyplot as plt
+  import seaborn as sns
+  import warnings
+  warnings.filterwarnings('ignore')
+
+  # Use the local repo paths for saved analysis artifacts
+  drug_pickle = '1_apcd_input_data/drug_analysis_data.pkl'
+  target_pickle = '1_apcd_input_data/target_code_analysis_data.pkl'
+
+  df = None
+  high_freq_df = None
+  low_freq_df = None
+  summary_df = None
+
+  try:
+    with open(drug_pickle, 'rb') as f:
+      data = pickle.load(f)
+    df = data.get('df')
+    high_freq_df = data.get('high_freq_df')
+    low_freq_df = data.get('low_freq_df')
+    summary_df = data.get('summary_df')
+    print('Loaded drug analysis data: rows=', len(df) if df is not None else 0)
+  except FileNotFoundError:
+    print(f'No drug pickle found at {drug_pickle}; skip drug visualizations')
+
+  try:
+    # target pickle may be a dict or DataFrame depending on the script
+    with open(target_pickle, 'rb') as f:
+      target_obj = pickle.load(f)
+    print('Loaded target analysis artifact from', target_pickle)
+  except FileNotFoundError:
+    target_obj = None
+    print(f'No target pickle found at {target_pickle}; skip target visualizations')
+
+  sns.set_style('whitegrid')
+  plt.rcParams['figure.figsize'] = (12, 8)
+  ```
+
+  ### High-frequency drugs (stacked bar chart)
+
+  ```python
+  if df is not None and high_freq_df is not None and not high_freq_df.empty:
+    high_pivot = df[df['drug_name'].isin(high_freq_df['drug_name'])].pivot(
+      index='drug_name', columns='event_year', values='frequency'
+    ).fillna(0)
+    high_pivot = high_pivot.reindex(high_freq_df['drug_name'])
+
+    ax = high_pivot.plot(kind='bar', stacked=True, width=0.8)
+    ax.set_title('High Frequency Drug Names by Year (>1000 total occurrences)')
+    ax.set_xlabel('Drug Name')
+    ax.set_ylabel('Frequency')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+  else:
+    print('High-frequency data not available; skipping high-frequency chart')
+  ```
+
+  ### Low-frequency drugs (stacked bar chart)
+
+  ```python
+  if df is not None and low_freq_df is not None and not low_freq_df.empty:
+    low_pivot = df[df['drug_name'].isin(low_freq_df['drug_name'])].pivot(
+      index='drug_name', columns='event_year', values='frequency'
+    ).fillna(0)
+    low_pivot = low_pivot.reindex(low_freq_df['drug_name'])
+
+    ax = low_pivot.plot(kind='bar', stacked=True, width=0.8)
+    ax.set_title('Low Frequency Drug Names by Year (<1000 total occurrences)')
+    ax.set_xlabel('Drug Name')
+    ax.set_ylabel('Frequency')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+  else:
+    print('Low-frequency data not available; skipping low-frequency chart')
+  ```
+
+  ### Additional visualizations (top-10 lists)
+
+  ```python
+  if summary_df is not None:
+    print('Summary statistics:')
+    print(summary_df.head())
+    # example horizontal bar chart
+    if 'total_frequency' in summary_df.columns:
+      top10 = summary_df.sort_values('total_frequency', ascending=False).head(10)
+      top10.plot(kind='barh', x='drug_name', y='total_frequency', color='skyblue')
+      plt.gca().invert_yaxis()
+      plt.title('Top 10 drugs by total frequency')
+      plt.tight_layout()
+      plt.show()
+  else:
+    print('No summary dataframe for additional visualizations')
+  ```
+
+  ### Target-code (F11.20) variants comparison
+
+  This cell expects `1_apcd_input_data/target_code_f1120_comparison.csv` to exist
+  — the runbook's analysis cell (earlier) writes this CSV. The chart compares
+  orig vs updated frequencies for each variant.
+
+  ```python
+  import os
+  csv_path = '1_apcd_input_data/target_code_f1120_comparison.csv'
+  if os.path.exists(csv_path):
+    t = pd.read_csv(csv_path)
+    t = t.sort_values('updated_freq', ascending=False)
+    ax = t.plot(kind='bar', x='target_code', y=['orig_freq','updated_freq'], figsize=(14,6))
+    ax.set_title('F11.20 variants: orig vs updated frequencies')
+    ax.set_xlabel('Variant')
+    ax.set_ylabel('Frequency')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+  else:
+    print('No per-variant CSV found at', csv_path)
+  ```
+
+  ## Phase 7 — Update target codes (local staging note)
+
+  Local NVMe staging improves throughput in production. On developer machines
+  without NVMe, disable local staging (set `PGX_USE_LOCAL_STAGING=0`). Example:
+
+  ```bash
+  export PGX_USE_LOCAL_STAGING=0
+  python 1_apcd_input_data/7_update_codes.py --icd-target-map 1_apcd_input_data/target_mapping/target_icd_mapping.json --years "2016,2017" --workers-medical 4
+  ```
+
+  ## Local smoke-test checklist
+
+  1. Create a tiny local sample tree with 1–2 parquet files per partition (age_band/event_year).
+  2. Run the desired script with `--workers 1` and narrow the year range.
+  3. Confirm outputs (CSV, parquet, or pickle) are written under `1_apcd_input_data/`.
+
+  ---
+
+  If you'd like additional notebook cells promoted into this runbook (for example,
+  the full visualizations cells or the JSON-diff cell), tell me which cell
+  numbers and I will add them as sanitized, parameterized examples.
+  --min-year 2016 --max-year 2020 \
+  --workers 48 --retries 1 --run-mode subprocess \
+  --pharmacy-script 1_apcd_input_data/3a_clean_pharmacy.py \
+  --log-level INFO 2>&1 | tee "./1_apcd_input_data/logs/pharmacy_clean_output_$(date +%Y%m%d_%H%M%S).log"
+```
+
+## Phase 3 - Data Quality Validation (sample)
+
+Quick validation using a small sample (no S3 required if you prepare a local
+sample parquet file):
+
+```bash
+python 1_apcd_input_data/5_step1_data_quality_qa.py \
+  --type both --sample-size 100000 --verbose
+```
+
+## Phase 6 - Target Variable Frequency Analysis (sanitized)
+
+Purpose: run `1_apcd_input_data/6_target_frequency_analysis.py` to generate
+frequency summaries and visualizations for ICD/CPT target codes. In
+production this script reads from S3; for local testing override inputs with
+local sample files.
+
+Example (production - requires S3):
+
+```bash
+export PGX_WORKERS_MEDICAL=16
+export PGX_THREADS_PER_WORKER=1
+export PGX_S3_MAX_CONNECTIONS=64
+
+python 1_apcd_input_data/6_target_frequency_analysis.py \
+  --codes-of-interest "F11.20" \
+  --workers ${PGX_WORKERS_MEDICAL} \
+  --min-year 2016 --max-year 2020 \
+  --log-cpu --log-s3
+```
+
+Local smoke-test (no S3): create a small local sample directory containing a
+few partitioned parquet files and point the script to it using the script's
+`--medical-input`/`--pharmacy-input` flags (the script accepts local
+parquet globs). Example:
+
+```bash
+# Prepare or download a tiny sample under ./dev_sample/medical/age_band=*/event_year=*
+python 1_apcd_input_data/6_target_frequency_analysis.py \
+  --codes-of-interest "F11.20" \
+  --medical-input "./dev_sample/medical/**/*.parquet" \
+  --workers 1 --min-year 2016 --max-year 2020 --log-cpu
+```
+
+## Phase 7 - Update Target Codes (local staging note)
+
+This step benefits from local NVMe staging in production. When running on a
+developer machine without NVMe, omit `PGX_USE_LOCAL_STAGING` or set it to `0`.
+
+```bash
+export PGX_USE_LOCAL_STAGING=0
+python 1_apcd_input_data/7_update_codes.py --icd-target-map 1_apcd_input_data/target_mapping/target_icd_mapping.json --years "2016,2017" --workers-medical 4
+```
+
+## Local smoke-test checklist
+
+1. Create a small local sample directory with 1-2 parquet files for the
+   relevant partitions (age_band/event_year).
+2. Run the scripts with a single worker (`--workers 1`) and `--min-year`/`--max-year`
+   limiting the year range to the sample year.
+3. Verify that the script produces CSV/pickle outputs under `1_apcd_input_data/`.
+
+---
+
+If you want me to expand this runbook with more local sample generation steps
+or copy additional notebook cells, tell me which cells to include and I'll add
+them here.
+
+```
 # Updated Jupyter Notebook Calls with Logs Folder
 
 ## **Pipeline Overview**
