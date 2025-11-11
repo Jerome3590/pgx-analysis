@@ -867,13 +867,13 @@ def _process_medical_partition(filename: str, icd_map: Dict[str, str], cpt_map: 
                 norm_expr = f"REPLACE(regexp_extract(UPPER(CAST(norm.{col} AS VARCHAR)), '([A-Z][0-9]{{2}}(\\.?[A-Z0-9]{{1,4}})?)', 1), '.', '')"
                 
                 if icd_target_map and icd_map:
-                    mapped = f"COALESCE({tgt_alias}.canonical, {icd_alias}.canonical, {norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({tgt_alias}.canonical, {icd_alias}.canonical, {norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 elif icd_target_map:
-                    mapped = f"COALESCE({tgt_alias}.canonical, {norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({tgt_alias}.canonical, {norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 elif icd_map:
-                    mapped = f"COALESCE({icd_alias}.canonical, {norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({icd_alias}.canonical, {norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 else:
-                    mapped = f"COALESCE({norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 
                 final_selects.append(f"CASE WHEN norm.{col} IS NULL OR TRIM(CAST(norm.{col} AS VARCHAR))='' THEN NULL ELSE {mapped} END AS {col}")
             
@@ -882,9 +882,9 @@ def _process_medical_partition(filename: str, icd_map: Dict[str, str], cpt_map: 
                 norm_expr = f"REPLACE(REPLACE(UPPER(CAST(norm.{col} AS VARCHAR)),'.',''),' ','')"
                 
                 if cpt_map:
-                    mapped = f"COALESCE({cpt_alias}.canonical, {norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({cpt_alias}.canonical, {norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 else:
-                    mapped = f"COALESCE({norm_expr}, norm.{col})"
+                    mapped = f"COALESCE({norm_expr}, CAST(norm.{col} AS VARCHAR))"
                 
                 final_selects.append(f"CASE WHEN norm.{col} IS NULL OR TRIM(CAST(norm.{col} AS VARCHAR))='' THEN NULL ELSE {mapped} END AS {col}")
             
@@ -2302,6 +2302,11 @@ def main():
     def _validate_map(name: str, path: str, mapping: dict) -> list:
         errors = []
         if path and not mapping:
+            # Allow empty CPT and Drug mapping files: it's valid to run without these mappings
+            # (e.g., when no normalization for that code family is desired). Treat as a warning, not an error.
+            if name.upper() in ('CPT', 'DRUG'):
+                print(f"ℹ️ {name} mapping file provided but empty: {path} — continuing without {name} normalization")
+                return errors
             errors.append(f"Mapping file provided but could not be loaded or is empty: {path}")
             return errors
         if mapping:
