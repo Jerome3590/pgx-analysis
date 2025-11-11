@@ -27,6 +27,7 @@ if project_root not in sys.path:
 from helpers_1997_13.common_imports import s3_client
 from helpers_1997_13.data_utils import convert_json_serializable
 from helpers_1997_13.constants import S3_BUCKET
+from botocore.config import Config
 
 
 # ---- S3 Retry Helper ----
@@ -387,6 +388,67 @@ def parse_s3_path(s3_uri):
         raise ValueError(f"Invalid S3 path: {s3_uri}")
     parts = s3_uri[5:].split("/", 1)
     return parts[0], parts[1]
+
+
+# ---- Light-weight discovery helpers (migrated from scripts/validate_silver_inputs.py)
+def s3_prefix_exists(bucket: str, prefix: str, min_keys: int = 1, s3: Optional[Any] = None) -> bool:
+    """Return True if prefix contains at least `min_keys` objects.
+
+    This is a minimal utility used by discovery code. It prefers the shared
+    `s3_client` if none is provided.
+    """
+    _s3 = s3 or s3_client or boto3.client("s3", config=Config(retries={"max_attempts": 3}))
+    paginator = _s3.get_paginator("list_objects_v2")
+    kwargs = {"Bucket": bucket, "Prefix": prefix}
+    count = 0
+    try:
+        for page in paginator.paginate(**kwargs):
+            if "Contents" in page:
+                count += len(page["Contents"])
+                if count >= min_keys:
+                    return True
+    except Exception:
+        # Mirror previous script behavior: treat errors as prefix missing
+        return False
+    return False
+
+
+def select_silver_inputs(bucket: str, base_prefix: str, job: str) -> Dict[str, Optional[str]]:
+    """Select preferred silver input S3 URIs for `medical` / `pharmacy` jobs.
+
+    Returns a dict with keys `raw_medical` and `raw_pharmacy` mapping to
+    s3://.../*.parquet strings or None if not found.
+    """
+    result = {"raw_medical": None, "raw_pharmacy": None}
+
+    if job in ("medical", "both"):
+        pref = f"{base_prefix}/imputed/medical_partitioned/"
+        if s3_prefix_exists(bucket, pref):
+            result["raw_medical"] = f"s3://{bucket}/{pref}*.parquet"
+        else:
+            fallback = f"{base_prefix}/medical/"
+            if s3_prefix_exists(bucket, fallback):
+                result["raw_medical"] = f"s3://{bucket}/{fallback}*.parquet"
+
+    if job in ("pharmacy", "both"):
+        pref = f"{base_prefix}/imputed/pharmacy_partitioned/"
+        if s3_prefix_exists(bucket, pref):
+            result["raw_pharmacy"] = f"s3://{bucket}/{pref}*.parquet"
+        else:
+            fallback = f"{base_prefix}/pharmacy/"
+            if s3_prefix_exists(bucket, fallback):
+                result["raw_pharmacy"] = f"s3://{bucket}/{fallback}*.parquet"
+
+    return result
+
+
+def check_previous_orchestrator_logs(job: str, repo_bucket: str = "pgx-repository") -> bool:
+    """Return True if previous orchestrator logs exist for `job` under
+    `pgx-repository/build_logs/apcd_input_data/orchestrator/{job}/`.
+    """
+    prefix = f"build_logs/apcd_input_data/orchestrator/{job}/"
+    return s3_prefix_exists(repo_bucket, prefix)
+
 
 
 def validate_output_paths(paths, logger):

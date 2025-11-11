@@ -5,7 +5,7 @@ Data processing and validation utilities.
 import sys
 import os
 import traceback
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict, Tuple
 import numpy as np
 import pandas as pd
 import json
@@ -980,6 +980,127 @@ def validate_data_consistency(conn, logger, age_band, event_year, step_name):
     except Exception as e:
         logger.error(f"→ [{step_name}] ERROR during data consistency validation: {str(e)}")
         return False
+
+
+
+
+# -----------------------------------------------------------------------------
+# Pickle diff utilities (migrated from scripts/diff_pickles.py)
+# These helpers provide a reusable API for comparing two DataFrame pickles and
+# producing a CSV of row-level differences. They are intended to be used from
+# tests, notebooks, or invoked directly via the small CLI wrapper below.
+# -----------------------------------------------------------------------------
+from typing import Dict, Tuple, Optional
+
+
+def _load_pickle(path: str) -> pd.DataFrame:
+    try:
+        obj = pd.read_pickle(path)
+    except Exception as e:
+        raise IOError(f"ERROR loading pickle {path}: {e}") from e
+    if not isinstance(obj, pd.DataFrame):
+        raise ValueError(f"Pickle at {path} does not contain a pandas.DataFrame (got {type(obj)})")
+    return obj
+
+
+def _make_keyed_df(df: pd.DataFrame, key: Optional[str]) -> pd.DataFrame:
+    if key is None:
+        if df.index.name is None:
+            df = df.copy()
+            df.index.name = "_index"
+        return df
+    if key in df.columns:
+        return df.set_index(key, drop=False)
+    raise KeyError(f"Key column '{key}' not found in DataFrame columns: {list(df.columns)}")
+
+
+def _diff_dfs(df_before: pd.DataFrame, df_after: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, int]]:
+    before = df_before.copy()
+    after = df_after.copy()
+
+    all_cols = sorted(set(before.columns) | set(after.columns))
+
+    before = before.reindex(columns=all_cols)
+    after = after.reindex(columns=all_cols)
+
+    combined = pd.concat([before.add_prefix('before__'), after.add_prefix('after__')], axis=1, sort=False)
+
+    change_mask = []
+    for col in all_cols:
+        bcol = f"before__{col}"
+        acol = f"after__{col}"
+        neq = ~(combined[bcol].eq(combined[acol]) | (combined[bcol].isna() & combined[acol].isna()))
+        change_mask.append(neq)
+
+    if change_mask:
+        changed_any = pd.concat(change_mask, axis=1).any(axis=1)
+    else:
+        changed_any = pd.Series(False, index=combined.index)
+
+    present_before = combined[[c for c in combined.columns if c.startswith('before__')]].notna().any(axis=1)
+    present_after = combined[[c for c in combined.columns if c.startswith('after__')]].notna().any(axis=1)
+
+    added = (~present_before) & present_after
+    removed = present_before & (~present_after)
+    changed = present_before & present_after & changed_any
+    unchanged = present_before & present_after & (~changed_any)
+
+    summary = {
+        "total_keys": int(len(combined)),
+        "added": int(added.sum()),
+        "removed": int(removed.sum()),
+        "changed": int(changed.sum()),
+        "unchanged": int(unchanged.sum()),
+    }
+
+    combined['diff_status'] = 'unchanged'
+    combined.loc[added, 'diff_status'] = 'added'
+    combined.loc[removed, 'diff_status'] = 'removed'
+    combined.loc[changed, 'diff_status'] = 'changed'
+
+    return combined, summary
+
+
+def diff_pickles(before_path: str, after_path: str, key: Optional[str] = None, out: str = 'diffs.csv') -> Dict[str, int]:
+    """Diff two pandas DataFrame pickles and write a CSV with prefixed before/after columns.
+
+    Returns a summary dict: total_keys, added, removed, changed, unchanged.
+    """
+    df_before = _load_pickle(before_path)
+    df_after = _load_pickle(after_path)
+
+    before_k = _make_keyed_df(df_before, key)
+    after_k = _make_keyed_df(df_after, key)
+
+    if not before_k.index.is_unique:
+        before_k = before_k[~before_k.index.duplicated(keep='first')]
+    if not after_k.index.is_unique:
+        after_k = after_k[~after_k.index.duplicated(keep='first')]
+
+    combined, summary = _diff_dfs(before_k, after_k)
+    combined.to_csv(out)
+    return summary
+
+
+if __name__ == '__main__':
+    import argparse
+
+    p = argparse.ArgumentParser(description='Diff two pandas pickles (DataFrames) and write a CSV of differences.')
+    p.add_argument('before', help='Path to before pickle')
+    p.add_argument('after', help='Path to after pickle')
+    p.add_argument('--key', help='Column name to use as key for alignment (default: index)', default=None)
+    p.add_argument('--out', help='Output CSV path (default: diffs.csv)', default='diffs.csv')
+    args = p.parse_args()
+
+    try:
+        summary = diff_pickles(args.before, args.after, key=args.key, out=args.out)
+        print('Summary:')
+        for k, v in summary.items():
+            print(f'  {k}: {v}')
+        print(f'Wrote diffs to {args.out}')
+    except Exception as e:
+        print(f'Error: {e}')
+        raise
 
 
 
