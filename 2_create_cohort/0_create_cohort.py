@@ -39,37 +39,10 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from helpers_1997_13.constants import (
-    MAX_RETRIES,
-    RETRY_DELAY,
-    DICTIONARY_SIZE_LIMIT_PERCENT,
-    BLOOM_FILTER_FALSE_POSITIVE_RATIO,
-    OPIOID_ICD_CODES,
-    S3_BUCKET
-)
-
-from helpers_1997_13.s3_utils import (
-    sanitize_for_s3_key,
-    validate_s3_source_paths,
-    s3_exists,
-    save_to_s3_parquet,
-    save_to_s3_json,
-    save_to_s3_text,
-    save_to_s3_html,
-    save_pipeline_metrics,
-    get_output_paths,
-    acquire_lock,
-    release_lock,
-    get_checkpoint_path,
-    checkpoint_exists,
-    save_checkpoint,
-    load_checkpoint,
-    delete_checkpoint,
-    list_checkpoints,
-    cleanup_checkpoints
-    # Note: Old checkpoint functions (check_step_checkpoint, save_step_checkpoint) 
-    # replaced by PipelineState system
-)
+# Import constants and s3 helpers as modules so we can reload them if CLI overrides are provided
+import importlib
+from helpers_1997_13 import constants as constants
+from helpers_1997_13 import s3_utils as s3_utils
 
 from helpers_1997_13.data_utils import (
     collect_validation_metrics,
@@ -231,7 +204,7 @@ def execute_pipeline(context):
     logger = context["logger"]
     
     logger.info("→ [PIPELINE] Starting optimized 4-phase pipeline execution...")
-    logger.info("→ [PIPELINE] Applied DuckDB optimizations from APCD development")
+    logger.info("→ [PIPELINE] Applied DUCKDB optimizations from APCD development")
     logger.info("→ [PIPELINE] Using new consolidated 4-phase workflow (5 steps total)")
     
     try:
@@ -286,8 +259,28 @@ def main():
                        help="Enable query profiling for debugging")
     parser.add_argument("--profile-format", default="json", choices=["json", "query_tree"],
                        help="Query profiling output format")
+    # Optional runtime overrides for target configuration (will set env vars and reload helpers)
+    parser.add_argument("--target-name", default=None, help="Optional target name to set (overrides PGX_TARGET_NAME env)")
+    parser.add_argument("--target-icd-codes", default=None, help="Optional ICD codes string (comma-separated) to set PGX_TARGET_ICD_CODES")
+    parser.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
     
     args = parser.parse_args()
+    # If target overrides provided on CLI, set environment variables *before* reloading constants/s3_utils
+    if args.target_name or args.target_icd_codes or args.target_cpt_codes:
+        if args.target_name:
+            os.environ["PGX_TARGET_NAME"] = args.target_name
+        if args.target_icd_codes:
+            os.environ["PGX_TARGET_ICD_CODES"] = args.target_icd_codes
+        if args.target_cpt_codes:
+            os.environ["PGX_TARGET_CPT_CODES"] = args.target_cpt_codes
+
+        # reload the modules so module-level constants derived from env are refreshed
+        try:
+            importlib.reload(constants)
+            importlib.reload(s3_utils)
+        except Exception:
+            # Best-effort; if reload fails we'll proceed and let later code surface errors
+            pass
     
     # Setup logging (aligned with 1_apcd_input_data logging framework)
     logger, log_buffer = setup_logging("create_cohort", args.age_band, args.event_year)
@@ -315,14 +308,14 @@ def main():
     
     try:
         # Note: environment validation handled implicitly in simplified helpers
-        
+
         # Initialize centralized checkpoint system
         entity_id = f"{args.cohort}_{args.age_band}_{args.event_year}"
         pipeline_state = PipelineState('create_cohort', entity_id, logger)
         logger.info(f"Checkpoint location: s3://pgx-repository/pgx-pipeline-status/create_cohort/{entity_id.replace('/', '_')}/")
-        
+
         # Check if final output already exists
-        output_paths = get_output_paths(args.cohort, args.age_band, args.event_year)
+        output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
         cohort_output = output_paths.get('cohort_parquet')
         if cohort_output and PipelineState.check_output_exists(cohort_output):
             logger.info(f"{SYMBOLS['success']} Final output already exists: {cohort_output}")
@@ -334,7 +327,7 @@ def main():
             except Exception as e:
                 logger.warning(f"Could not save logs to S3 on early exit: {e}")
             return
-        
+
         # Setup simplified DuckDB connection (helpers_1997_13)
         cohort_conn_duckdb = get_duckdb_connection(logger=logger)
         
@@ -348,7 +341,7 @@ def main():
             "cohort_conn_duckdb": cohort_conn_duckdb,
             "logger": logger,
             "operation_type": args.operation_type,
-            "s3_bucket": S3_BUCKET,
+            "s3_bucket": constants.S3_BUCKET,
             "pipeline_state": pipeline_state  # Add checkpoint system to context
         }
         
@@ -407,7 +400,7 @@ def main():
         try:
             if 'cohort_conn_duckdb' in locals():
                 cohort_conn_duckdb.close()
-        except:
+        except Exception:
             pass
 
         # Save error logs to S3 immediately
