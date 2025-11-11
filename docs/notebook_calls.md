@@ -128,7 +128,7 @@ python 1_apcd_input_data/3_apcd_clean.py \
 
   Below are sanitized notebook cells for visualizing results produced by the
   frequency analysis scripts. These expect the scripts to have written pickle
-  or CSV artifacts into `1_apcd_input_data/`.
+  or CSV artifacts into `1_apcd_input_data/outputs/`.
 
   ### Setup and load data
 
@@ -138,11 +138,11 @@ python 1_apcd_input_data/3_apcd_clean.py \
   import matplotlib.pyplot as plt
   import seaborn as sns
   import warnings
-  warnings.filterwarnings('ignore')
+  warnings.filterwarnings('ignore')this 
 
-  # Use the local repo paths for saved analysis artifacts
-  drug_pickle = '1_apcd_input_data/drug_analysis_data.pkl'
-  target_pickle = '1_apcd_input_data/target_code_analysis_data.pkl'
+  # Use the local repo paths for saved analysis artifacts (outputs/)
+  drug_pickle = '1_apcd_input_data/outputs/drug_analysis_data.pkl'
+  target_pickle = '1_apcd_input_data/outputs/target_code_analysis_data.pkl'
 
   df = None
   high_freq_df = None
@@ -348,6 +348,167 @@ python 1_apcd_input_data/7_update_codes.py --icd-target-map 1_apcd_input_data/ta
 If you want me to expand this runbook with more local sample generation steps
 or copy additional notebook cells, tell me which cells to include and I'll add
 them here.
+
+## Notebook call: Diff pickles (before vs after)
+
+Use the helper module `helpers_1997_13.data_utils` to compare two DataFrame pickles
+produced by the frequency analysis (before vs after). The CLI writes a CSV of
+row-level diffs and prints a small summary. You can run this from a terminal or
+embed it in a notebook cell.
+
+CLI example (module invocation):
+
+```bash
+python -m helpers_1997_13.data_utils \
+  1_apcd_input_data/outputs/target_code_analysis_before.pkl \
+  1_apcd_input_data/outputs/target_code_analysis_after.pkl \
+  --key code --out 1_apcd_input_data/outputs/target_code_diffs.csv
+```
+
+Notebook cell (JSON) example — paste this as a single notebook cell or use it
+to create a small .ipynb. This follows the runbook's notebook-format guidance.
+
+```json
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": { "language": "markdown" },
+      "source": [
+        "# Diff pickles: before vs after",
+        "\n",
+        "Update the paths in the code cell and run it to produce a CSV of diffs."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": { "language": "python" },
+      "source": [
+  "# Cell: run the diff helper (update file paths as needed)",
+  "before = '1_apcd_input_data/outputs/target_code_analysis_before.pkl'",
+  "after = '1_apcd_input_data/outputs/target_code_analysis_after.pkl'",
+  "out = '1_apcd_input_data/outputs/target_code_diffs.csv'",
+  "# Run the CLI module from the notebook (IPython system call)",
+  "!python -m helpers_1997_13.data_utils {before} {after} --key code --out {out}"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": { "language": "python" },
+      "source": [
+        "# Optional: preview the produced diffs",
+        "import pandas as pd",
+  "try:",
+  "  df = pd.read_csv('1_apcd_input_data/outputs/target_code_diffs.csv', index_col=0)",
+        "  display(df[df['diff_status'] != 'unchanged'].head(20))",
+        "except FileNotFoundError:",
+        "  print('diff CSV not found — run the previous cell to generate it')"
+      ]
+    }
+  ]
+}
+```
+
+Notes:
+
+- If your pickles use the DataFrame index as the key, omit `--key` and call the
+  CLI without that flag. If the key column is named differently, replace
+  `--key code` with the appropriate column name.
+- The pickle-diff helper is available in `helpers_1997_13.data_utils` and
+  can be invoked as a module (`python -m helpers_1997_13.data_utils`) on your workstation or EC2 instance.
+
+---
+
+## Phase 7 — Update target codes (local staging note)
+
+Local NVMe staging improves throughput in production. On developer machines
+without NVMe, disable local staging (set `PGX_USE_LOCAL_STAGING=0`). Example:
+
+```bash
+export PGX_USE_LOCAL_STAGING=0
+python 1_apcd_input_data/7_update_codes.py --icd-target-map 1_apcd_input_data/target_mapping/target_icd_mapping.json --years "2016,2017" --workers-medical 4
+```
+
+---
+
+## Local smoke-test checklist
+
+1. Create a tiny local sample directory with a couple of partitioned parquet files:
+   `./dev_sample/medical/age_band=*/event_year=*`.
+2. Run the desired script with `--workers 1` and limit the year range with
+   `--min-year`/`--max-year`.
+3. Verify the expected output files are written under `1_apcd_input_data/`.
+
+If you'd like further re-organization (split into per-phase files or add more
+notebook cells), tell me which phase to expand and I'll add the cells.
+
+## Notebook call: Diff pickles (before vs after)
+
+Use the helper module `helpers_1997_13.data_utils` to compare two DataFrame pickles
+produced by the frequency analysis (before vs after). The CLI writes a CSV of
+row-level diffs and prints a small summary. You can run this from a terminal or
+embed it in a notebook cell.
+
+CLI example (module invocation):
+
+```bash
+python -m helpers_1997_13.data_utils \
+  1_apcd_input_data/outputs/target_code_analysis_before.pkl \
+  1_apcd_input_data/outputs/target_code_analysis_after.pkl \
+  --key code --out 1_apcd_input_data/outputs/target_code_diffs.csv
+```
+
+Notebook cell (JSON) example — paste this as a single notebook cell or use it
+to create a small .ipynb. This follows the runbook's notebook-format guidance.
+
+```json
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": { "language": "markdown" },
+      "source": [
+        "# Diff pickles: before vs after",
+        "\n",
+        "Update the paths in the code cell and run it to produce a CSV of diffs."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": { "language": "python" },
+      "source": [
+  "# Cell: run the diff helper (update file paths as needed)",
+  "before = '1_apcd_input_data/outputs/target_code_analysis_before.pkl'",
+  "after = '1_apcd_input_data/outputs/target_code_analysis_after.pkl'",
+  "out = '1_apcd_input_data/outputs/target_code_diffs.csv'",
+  "# Run the CLI module from the notebook (IPython system call)",
+  "!python -m helpers_1997_13.data_utils {before} {after} --key code --out {out}"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": { "language": "python" },
+      "source": [
+        "# Optional: preview the produced diffs",
+        "import pandas as pd",
+  "try:",
+  "  df = pd.read_csv('1_apcd_input_data/outputs/target_code_diffs.csv', index_col=0)",
+        "  display(df[df['diff_status'] != 'unchanged'].head(20))",
+        "except FileNotFoundError:",
+        "  print('diff CSV not found — run the previous cell to generate it')"
+      ]
+    }
+  ]
+}
+```
+
+Notes:
+
+- If your pickles use the DataFrame index as the key, omit `--key` and call the
+  CLI without that flag. If the key column is named differently, replace
+  `--key code` with the appropriate column name.
+- The pickle-diff helper is available in `helpers_1997_13.data_utils` and can be
+  invoked as a module (`python -m helpers_1997_13.data_utils`) on your workstation or EC2 instance.
 
 ```
 # Updated Jupyter Notebook Calls with Logs Folder
@@ -885,7 +1046,7 @@ This analysis confirms that all our DuckDB fixes are working correctly and the p
 
 **Outputs:**
 - Console frequency reports
-- `target_code_analysis_data.pkl` for notebook visualization
+- `outputs/target_code_analysis_data.pkl` for notebook visualization
 - CSV/Parquet files with frequency data
 
 ### **Cell 34: Target Variable Frequency Analysis**
@@ -916,9 +1077,9 @@ import duckdb
 
 # Stable paths (script now writes .orig.pkl and .updated.pkl alongside canonical)
 base = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
-canonical_pk = os.path.join(base, 'target_code_analysis_data.pkl')
-orig_pk = os.path.join(base, 'target_code_analysis_data.orig.pkl')
-updated_pk = os.path.join(base, 'target_code_analysis_data.updated.pkl')
+canonical_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.pkl')
+orig_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.orig.pkl')
+updated_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.updated.pkl')
 s3_parquet = "s3://pgxdatalake/gold/target_code/target_code_latest.parquet"
 
 def load_pickle(path):
@@ -1063,8 +1224,8 @@ import duckdb
 
 # Paths (adjust if your environment differs)
 base = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
-orig_pk = os.path.join(base, 'target_code_analysis_data.orig.pkl')
-updated_pk = os.path.join(base, 'target_code_analysis_data.updated.pkl')
+orig_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.orig.pkl')
+updated_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.updated.pkl')
 out_json = '/home/pgx3874/pgx-analysis/docs/target_pickles_diff.json'
 
 def load_pickle(path):
@@ -1612,16 +1773,16 @@ import pickle
 data = drug_freq.main()
 
 # Save the data
-pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/drug_analysis_data.pkl'
+pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/outputs/drug_analysis_data.pkl'
 with open(pickle_path, 'wb') as f:
-    pickle.dump(data, f)
+  pickle.dump(data, f)
 print(f"💾 Data saved to '{pickle_path}'")
 ```
 
 This script will:
 - Test all DuckDB fixes
 - Generate comprehensive analysis
-- Save data to `drug_analysis_data.pkl` for notebook visualization
+- Save data to `outputs/drug_analysis_data.pkl` for notebook visualization
 - Print detailed summary report
 
 ### **Notebook Cells for Visualizations**
@@ -1642,10 +1803,10 @@ sns.set_palette("husl")
 plt.rcParams['figure.figsize'] = (12, 8)
 plt.rcParams['font.size'] = 10
 
-# Load data from script
-pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/drug_analysis_data.pkl'
+# Load data from script (outputs/ folder)
+pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/outputs/drug_analysis_data.pkl'
 with open(pickle_path, 'rb') as f:
-    data = pickle.load(f)
+  data = pickle.load(f)
 
 df = data['df']
 high_freq_df = data['high_freq_df']

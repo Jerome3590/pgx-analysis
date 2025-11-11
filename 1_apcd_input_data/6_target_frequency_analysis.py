@@ -18,6 +18,13 @@ import re
 import json
 import argparse
 from typing import Optional, List, Tuple
+# Visualization helpers (plots saved to S3)
+from helpers_1997_13.visualization_utils import (
+    plot_stacked_by_year,
+    plot_top_bars,
+    plot_heatmap_from_pairs,
+    save_and_display_chart,
+)
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
 warnings.filterwarnings('ignore')
@@ -114,13 +121,13 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
                               WHEN 7 THEN 'seventh' WHEN 8 THEN 'eighth' WHEN 9 THEN 'ninth'
                               WHEN 10 THEN 'tenth' END AS icd_position,
                      code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST(LIST_VALUE(
-                primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                ten_icd_diagnosis_code
-              )) WITH ORDINALITY AS t(code, ord)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST(LIST_VALUE(
+                                CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                CAST(ten_icd_diagnosis_code AS VARCHAR)
+                            )) WITH ORDINALITY AS t(code, ord)
               WHERE code IS NOT NULL AND code <> ''
             )
             SELECT event_year, icd_position, target_code, COUNT(*) AS frequency
@@ -135,13 +142,13 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
             WITH icd AS (
               SELECT '{event_year}'::INT AS event_year,
                      code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST(LIST_VALUE(
-                primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                ten_icd_diagnosis_code
-              )) AS t(code)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST(LIST_VALUE(
+                                CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                CAST(ten_icd_diagnosis_code AS VARCHAR)
+                            )) AS t(code)
               WHERE code IS NOT NULL AND code <> ''
             )
             SELECT event_year, target_code, COUNT(*) AS frequency
@@ -156,13 +163,13 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
               SELECT '{event_year}'::INT AS event_year,
                      '{age_band}' AS age_band,
                      code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST(LIST_VALUE(
-                primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                ten_icd_diagnosis_code
-              )) AS t(code)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST(LIST_VALUE(
+                                CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                CAST(ten_icd_diagnosis_code AS VARCHAR)
+                            )) AS t(code)
               WHERE code IS NOT NULL AND code <> ''
             )
             SELECT event_year, target_code, age_band, COUNT(*) AS frequency
@@ -177,11 +184,11 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
               SELECT '{event_year}'::INT AS event_year,
                      u.unnest.field AS cpt_field,
                      u.unnest.code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST([
-                STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-                STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-              ]) AS u(unnest)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST([
+                                STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                                STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                            ]) AS u(unnest)
               WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
             )
             SELECT event_year, cpt_field, target_code, COUNT(*) AS frequency
@@ -195,11 +202,11 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
             WITH cpt AS (
               SELECT '{event_year}'::INT AS event_year,
                      u.unnest.code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST([
-                STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-                STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-              ]) AS u(unnest)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST([
+                                STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                                STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                            ]) AS u(unnest)
               WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
             )
             SELECT event_year, target_code, COUNT(*) AS frequency
@@ -214,11 +221,11 @@ def _analyze_partition(filename: str, age_band: str, event_year: int, log_cpu: b
               SELECT '{event_year}'::INT AS event_year,
                      '{age_band}' AS age_band,
                      u.unnest.code AS target_code
-              FROM read_parquet('{filename}')
-              CROSS JOIN UNNEST([
-                STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-                STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-              ]) AS u(unnest)
+                            FROM read_parquet('{filename}')
+                            CROSS JOIN UNNEST([
+                                STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                                STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                            ]) AS u(unnest)
               WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
             )
             SELECT event_year, target_code, age_band, COUNT(*) AS frequency
@@ -268,12 +275,12 @@ def run_analysis(years=(2016, 2020), out_dir="/home/pgx3874/pgx-analysis/1_apcd_
                         WHEN 10 THEN 'tenth' END AS icd_position,
                code AS target_code, age_band
         FROM base
-        CROSS JOIN UNNEST(LIST_VALUE(
-          primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-          four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-          seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-          ten_icd_diagnosis_code
-        )) WITH ORDINALITY AS t(code, ord)
+                CROSS JOIN UNNEST(LIST_VALUE(
+                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                    CAST(ten_icd_diagnosis_code AS VARCHAR)
+                )) WITH ORDINALITY AS t(code, ord)
         WHERE code IS NOT NULL AND code <> '';
         """
     )
@@ -283,10 +290,10 @@ def run_analysis(years=(2016, 2020), out_dir="/home/pgx3874/pgx-analysis/1_apcd_
         CREATE OR REPLACE TEMP VIEW cpt AS
         SELECT event_year, claim_id, u.unnest.field AS cpt_field, u.unnest.code AS target_code, age_band
         FROM base
-        CROSS JOIN UNNEST([
-          STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-          STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-        ]) AS u(unnest)
+                CROSS JOIN UNNEST([
+                    STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                    STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                ]) AS u(unnest)
         WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> '';
         """
     )
@@ -455,10 +462,10 @@ def get_icd_frequency_data(conn, path, y0, y1):
                  age_band
           FROM base_once
           CROSS JOIN UNNEST(LIST_VALUE(
-            primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-            four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-            seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-            ten_icd_diagnosis_code
+                                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                    CAST(ten_icd_diagnosis_code AS VARCHAR)
           )) WITH ORDINALITY AS t(code, ord)
           WHERE code IS NOT NULL AND code <> ''
         )
@@ -475,12 +482,12 @@ def get_icd_frequency_data(conn, path, y0, y1):
           SELECT event_year,
                  code AS target_code
           FROM base_once
-          CROSS JOIN UNNEST(LIST_VALUE(
-            primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-            four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-            seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-            ten_icd_diagnosis_code
-          )) AS t(code)
+                    CROSS JOIN UNNEST(LIST_VALUE(
+                        CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                        CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                        CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                        CAST(ten_icd_diagnosis_code AS VARCHAR)
+                    )) AS t(code)
           WHERE code IS NOT NULL AND code <> ''
         )
         SELECT event_year, target_code, COUNT(*) AS frequency
@@ -501,12 +508,12 @@ def get_icd_frequency_data(conn, path, y0, y1):
                  code AS target_code,
                  age_band
           FROM base_once
-          CROSS JOIN UNNEST(LIST_VALUE(
-            primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-            four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-            seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-            ten_icd_diagnosis_code
-          )) AS t(code)
+                    CROSS JOIN UNNEST(LIST_VALUE(
+                        CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                        CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                        CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                        CAST(ten_icd_diagnosis_code AS VARCHAR)
+                    )) AS t(code)
           WHERE code IS NOT NULL AND code <> '' AND age_band IS NOT NULL AND age_band <> ''
         )
         SELECT event_year, target_code, age_band, COUNT(*) AS frequency
@@ -549,7 +556,7 @@ def get_cpt_frequency_data(conn, path, y0, y1):
                  code AS target_code,
                  age_band
           FROM base_once
-          CROSS JOIN UNNEST(LIST_VALUE(cpt_mod_1_code, cpt_mod_2_code)) WITH ORDINALITY AS t(code, ord)
+                    CROSS JOIN UNNEST(LIST_VALUE(CAST(cpt_mod_1_code AS VARCHAR), CAST(cpt_mod_2_code AS VARCHAR))) WITH ORDINALITY AS t(code, ord)
           WHERE code IS NOT NULL AND code <> ''
         )
         SELECT event_year, cpt_field, target_code, COUNT(*) AS frequency
@@ -565,7 +572,7 @@ def get_cpt_frequency_data(conn, path, y0, y1):
           SELECT event_year,
                  code AS target_code
           FROM base_once
-          CROSS JOIN UNNEST(LIST_VALUE(cpt_mod_1_code, cpt_mod_2_code)) AS t(code)
+                    CROSS JOIN UNNEST(LIST_VALUE(CAST(cpt_mod_1_code AS VARCHAR), CAST(cpt_mod_2_code AS VARCHAR))) AS t(code)
           WHERE code IS NOT NULL AND code <> ''
         )
         SELECT event_year, target_code, COUNT(*) AS frequency
@@ -585,7 +592,7 @@ def get_cpt_frequency_data(conn, path, y0, y1):
                  code AS target_code,
                  age_band
           FROM base_once
-          CROSS JOIN UNNEST(LIST_VALUE(cpt_mod_1_code, cpt_mod_2_code)) AS t(code)
+                    CROSS JOIN UNNEST(LIST_VALUE(CAST(cpt_mod_1_code AS VARCHAR), CAST(cpt_mod_2_code AS VARCHAR))) AS t(code)
           WHERE code IS NOT NULL AND code <> '' AND age_band IS NOT NULL AND age_band <> ''
         )
         SELECT event_year, target_code, age_band, COUNT(*) AS frequency
@@ -718,17 +725,20 @@ def _aggregate_and_write_outputs(icd_by_position_df: pd.DataFrame,
                                  cpt_age_df: pd.DataFrame,
                                  codes_of_interest: Optional[List[str]] = None,
                                  log_s3: bool = False) -> dict:
-    base_dir = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
+    # Write outputs to project-mounted data folder; create an `outputs/` subfolder.
+    data_dir = os.path.join(project_root, '1_apcd_input_data')
+    outputs_dir = os.path.join(data_dir, 'outputs')
+    os.makedirs(outputs_dir, exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     # Write CSVs locally
     try:
         if icd_by_position_df is not None and not icd_by_position_df.empty:
-            icd_by_position_df.to_csv(f"{base_dir}/icd_frequency_by_position_{ts}.csv", index=False)
+            icd_by_position_df.to_csv(os.path.join(outputs_dir, f"icd_frequency_by_position_{ts}.csv"), index=False)
         if cpt_by_field_df is not None and not cpt_by_field_df.empty:
-            cpt_by_field_df.to_csv(f"{base_dir}/cpt_frequency_by_field_{ts}.csv", index=False)
+            cpt_by_field_df.to_csv(os.path.join(outputs_dir, f"cpt_frequency_by_field_{ts}.csv"), index=False)
         if icd_agg_df is not None and not icd_agg_df.empty:
-            icd_agg_df.to_csv(f"{base_dir}/icd_frequency_aggregated_{ts}.csv", index=False)
+            icd_agg_df.to_csv(os.path.join(outputs_dir, f"icd_frequency_aggregated_{ts}.csv"), index=False)
     except Exception as e:
         print(f"⚠️ Local CSV writes failed: {e}")
 
@@ -798,6 +808,50 @@ def _aggregate_and_write_outputs(icd_by_position_df: pd.DataFrame,
                 except Exception as _e:
                     print(f"[tfa-parent] S3 throughput logging failed (latest csv): {_e}")
         print("📤 Unified latest written to S3 via COPY")
+        # Small visualizations for inspection: top codes and stacked-by-year plots
+        try:
+            import matplotlib.pyplot as plt
+
+            # ICD visualizations
+            if icd_agg_df is not None and not icd_agg_df.empty:
+                try:
+                    tot_icd = icd_agg_df.groupby('target_code', as_index=False)['frequency'].sum().sort_values('frequency', ascending=False)
+                    top_n = min(20, len(tot_icd))
+                    top_icd = tot_icd.head(top_n)
+
+                    # Top ICD bars
+                    plot_top_bars(top_icd, target_col='target_code', value_col='frequency', top_n=top_n, title='Top ICD codes (total frequency)')
+                    s3_icd_top = save_and_display_chart(plt.gcf(), 'icd_top_codes', 'target_code', display=False, close_fig=True)
+                    print(f"[tfa-parent] ICD top codes chart saved to: {s3_icd_top}")
+
+                    # Stacked by year for top 10 ICDs
+                    top10 = list(top_icd.head(10)['target_code'])
+                    plot_stacked_by_year(icd_agg_df[icd_agg_df['target_code'].isin(top10)], target_col='target_code', year_col='event_year', freq_col='frequency', ordered_targets=top10, title_suffix='Top 10 ICD codes')
+                    s3_icd_stack = save_and_display_chart(plt.gcf(), 'icd_top10_stacked', 'target_code', display=False, close_fig=True)
+                    print(f"[tfa-parent] ICD stacked-by-year chart saved to: {s3_icd_stack}")
+                except Exception as _e:
+                    print(f"[tfa-parent] ICD visualization failed: {_e}")
+
+            # CPT visualizations
+            if cpt_agg_df is not None and not cpt_agg_df.empty:
+                try:
+                    tot_cpt = cpt_agg_df.groupby('target_code', as_index=False)['frequency'].sum().sort_values('frequency', ascending=False)
+                    top_n_c = min(20, len(tot_cpt))
+                    top_cpt = tot_cpt.head(top_n_c)
+
+                    plot_top_bars(top_cpt, target_col='target_code', value_col='frequency', top_n=top_n_c, title='Top CPT codes (total frequency)')
+                    s3_cpt_top = save_and_display_chart(plt.gcf(), 'cpt_top_codes', 'target_code', display=False, close_fig=True)
+                    print(f"[tfa-parent] CPT top codes chart saved to: {s3_cpt_top}")
+
+                    top10c = list(top_cpt.head(10)['target_code'])
+                    plot_stacked_by_year(cpt_agg_df[cpt_agg_df['target_code'].isin(top10c)], target_col='target_code', year_col='event_year', freq_col='frequency', ordered_targets=top10c, title_suffix='Top 10 CPT codes')
+                    s3_cpt_stack = save_and_display_chart(plt.gcf(), 'cpt_top10_stacked', 'target_code', display=False, close_fig=True)
+                    print(f"[tfa-parent] CPT stacked-by-year chart saved to: {s3_cpt_stack}")
+                except Exception as _e:
+                    print(f"[tfa-parent] CPT visualization failed: {_e}")
+        except Exception:
+            # Visualization is optional; continue if plotting libs or S3 access missing
+            pass
     except Exception as e:
         print(f"❌ Failed to write outputs via COPY: {e}")
     finally:
@@ -896,7 +950,9 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
     cpt_by_field_df, cpt_agg_df, cpt_age_df, cpt_agg_raw = get_cpt_frequency_data(conn, path, y0, y1)
 
     # COPY-based outputs (avoid large pandas transfers)
-    base_dir = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
+    data_dir = os.path.join(project_root, '1_apcd_input_data')
+    outputs_dir = os.path.join(data_dir, 'outputs')
+    os.makedirs(outputs_dir, exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     # COPY via DuckDB (single-read approach)
@@ -940,16 +996,16 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
                        age_band
                 FROM base_once
                 CROSS JOIN UNNEST(LIST_VALUE(
-                  primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                  four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                  seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                  ten_icd_diagnosis_code
-                )) WITH ORDINALITY AS t(code, ord)
+                                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                    CAST(ten_icd_diagnosis_code AS VARCHAR)
+                                )) WITH ORDINALITY AS t(code, ord)
                 WHERE code IS NOT NULL AND code <> ''
               )
               SELECT event_year, icd_position, target_code, COUNT(*) AS frequency
               FROM icd GROUP BY ALL
-            ) TO '{base_dir}/icd_frequency_by_position_{ts}.csv' (HEADER, DELIMITER ',')
+            ) TO '{outputs_dir}/icd_frequency_by_position_{ts}.csv' (HEADER, DELIMITER ',')
             """
         )
 
@@ -961,16 +1017,16 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
                 SELECT event_year, code AS target_code
                 FROM base_once
                 CROSS JOIN UNNEST(LIST_VALUE(
-                  primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                  four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                  seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                  ten_icd_diagnosis_code
-                )) AS t(code)
+                                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                    CAST(ten_icd_diagnosis_code AS VARCHAR)
+                                )) AS t(code)
                 WHERE code IS NOT NULL AND code <> ''
               )
               SELECT event_year, target_code, COUNT(*) AS frequency
               FROM icd GROUP BY ALL
-            ) TO '{base_dir}/icd_frequency_aggregated_{ts}.csv' (HEADER, DELIMITER ',')
+            ) TO '{outputs_dir}/icd_frequency_aggregated_{ts}.csv' (HEADER, DELIMITER ',')
             """
         )
 
@@ -982,14 +1038,14 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
             SELECT event_year, u.unnest.field AS cpt_field, u.unnest.code AS target_code
             FROM base_once
             CROSS JOIN UNNEST([
-              STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-              STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
+                STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
             ]) AS u(unnest)
             WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
           )
           SELECT event_year, cpt_field, target_code, COUNT(*) AS frequency
               FROM cpt GROUP BY ALL ORDER BY event_year, cpt_field, frequency DESC
-            ) TO '{base_dir}/cpt_frequency_by_field_{ts}.csv' (HEADER, DELIMITER ',')
+            ) TO '{outputs_dir}/cpt_frequency_by_field_{ts}.csv' (HEADER, DELIMITER ',')
             """
         )
 
@@ -1001,8 +1057,8 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
             SELECT event_year, u.unnest.code AS target_code
             FROM base_once
             CROSS JOIN UNNEST([
-              STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-              STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
+                STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
             ]) AS u(unnest)
             WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
           )
@@ -1028,22 +1084,22 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
             COPY (
               WITH icd AS (
                 SELECT event_year, REPLACE(code, '.', '') AS target_code
-                FROM base_once
-                CROSS JOIN UNNEST(LIST_VALUE(
-                  primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                  four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                  seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                  ten_icd_diagnosis_code
-                )) AS t(code)
+                                FROM base_once
+                                CROSS JOIN UNNEST(LIST_VALUE(
+                                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                    CAST(ten_icd_diagnosis_code AS VARCHAR)
+                                )) AS t(code)
                 WHERE code IS NOT NULL AND code <> ''
               ),
               cpt AS (
-                SELECT event_year, u.unnest.code AS target_code
-                FROM base_once
-                CROSS JOIN UNNEST([
-                  STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-                  STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-                ]) AS u(unnest)
+                                SELECT event_year, u.unnest.code AS target_code
+                                FROM base_once
+                                CROSS JOIN UNNEST([
+                                    STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                                    STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                                ]) AS u(unnest)
                 WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
               )
               SELECT event_year, target_code, COUNT(*) AS frequency, 'icd' AS target_system
@@ -1060,21 +1116,21 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
               WITH icd AS (
                 SELECT event_year, REPLACE(code, '.', '') AS target_code
                 FROM base_once
-                CROSS JOIN UNNEST(LIST_VALUE(
-                  primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-                  four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code,
-                  seven_icd_diagnosis_code, eight_icd_diagnosis_code, nine_icd_diagnosis_code,
-                  ten_icd_diagnosis_code
-                )) AS t(code)
+                                CROSS JOIN UNNEST(LIST_VALUE(
+                                    CAST(primary_icd_diagnosis_code AS VARCHAR), CAST(two_icd_diagnosis_code AS VARCHAR), CAST(three_icd_diagnosis_code AS VARCHAR),
+                                    CAST(four_icd_diagnosis_code AS VARCHAR), CAST(five_icd_diagnosis_code AS VARCHAR), CAST(six_icd_diagnosis_code AS VARCHAR),
+                                    CAST(seven_icd_diagnosis_code AS VARCHAR), CAST(eight_icd_diagnosis_code AS VARCHAR), CAST(nine_icd_diagnosis_code AS VARCHAR),
+                                    CAST(ten_icd_diagnosis_code AS VARCHAR)
+                                )) AS t(code)
                 WHERE code IS NOT NULL AND code <> ''
               ),
               cpt AS (
                 SELECT event_year, u.unnest.code AS target_code
                 FROM base_once
-                CROSS JOIN UNNEST([
-                  STRUCT_PACK(field := 'cpt_mod_1_code', code := cpt_mod_1_code),
-                  STRUCT_PACK(field := 'cpt_mod_2_code', code := cpt_mod_2_code)
-                ]) AS u(unnest)
+                                CROSS JOIN UNNEST([
+                                    STRUCT_PACK(field := 'cpt_mod_1_code', code := CAST(cpt_mod_1_code AS VARCHAR)),
+                                    STRUCT_PACK(field := 'cpt_mod_2_code', code := CAST(cpt_mod_2_code AS VARCHAR))
+                                ]) AS u(unnest)
                 WHERE u.unnest.code IS NOT NULL AND u.unnest.code <> ''
               )
               SELECT event_year, target_code, COUNT(*) AS frequency, 'icd' AS target_system
@@ -1186,12 +1242,16 @@ if __name__ == '__main__':
     # also write a timestamped 'updated' copy so callers can diff/compare.
     import pickle
     import shutil
-    from datetime import datetime as _dt
+    
 
-    pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/target_code_analysis_data.pkl'
+    # Persist pickles under the project's 1_apcd_input_data/outputs directory on EC2
+    data_dir = os.path.join(project_root, '1_apcd_input_data')
+    outputs_dir = os.path.join(data_dir, 'outputs')
+    os.makedirs(outputs_dir, exist_ok=True)
+    pickle_path = os.path.join(outputs_dir, 'target_code_analysis_data.pkl')
     # Stable backup names (no timestamps) per request: keep previous run as .orig.pkl
-    orig_copy = pickle_path.replace('.pkl', '.orig.pkl')
-    updated_copy = pickle_path.replace('.pkl', '.updated.pkl')
+    orig_copy = os.path.join(outputs_dir, 'target_code_analysis_data.orig.pkl')
+    updated_copy = os.path.join(outputs_dir, 'target_code_analysis_data.updated.pkl')
 
     try:
         # If an existing canonical pickle exists, move/copy it to the stable orig path

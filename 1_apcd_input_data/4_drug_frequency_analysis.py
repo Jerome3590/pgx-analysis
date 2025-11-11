@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import warnings
+import os
+import sys
 warnings.filterwarnings('ignore')
 
 # Set root of project (e.g., /home/pgx3874/pgx-analysis)
@@ -295,8 +297,11 @@ if __name__ == "__main__":
     import pickle
     import os
     
-    # Save in the 1_apcd_input_data directory
-    pickle_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/drug_analysis_data.pkl'
+    # Persist into 1_apcd_input_data/outputs for EC2 runs
+    data_dir = os.path.join(project_root, '1_apcd_input_data')
+    outputs_dir = os.path.join(data_dir, 'outputs')
+    os.makedirs(outputs_dir, exist_ok=True)
+    pickle_path = os.path.join(outputs_dir, 'drug_analysis_data.pkl')
     with open(pickle_path, 'wb') as f:
         pickle.dump(data, f)
     print(f"\n💾 Data saved to '{pickle_path}' for notebook visualization")
