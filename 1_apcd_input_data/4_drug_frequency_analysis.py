@@ -328,15 +328,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️ Failed to write updated copy '{updated_copy}': {e}")
 
-        # Backwards-compatibility: also write a legacy canonical pickle at the
-        # project root 1_apcd_input_data path for notebooks or callers that
-        # still expect the old location (pre-outputs migration).
-        try:
-            legacy_path = os.path.join(project_root, '1_apcd_input_data', 'drug_analysis_data.pkl')
-            shutil.copy2(pickle_path, legacy_path)
-            print(f"💾 Back-compat pickle written to legacy path '{legacy_path}'")
-        except Exception as e:
-            print(f"⚠️ Failed to write back-compat pickle to legacy path: {e}")
+        # No legacy back-compat writes: consumers must use files under outputs_dir
 
     except Exception as e:
         print(f"❌ Failed to save pickle data: {e}")
