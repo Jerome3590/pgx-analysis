@@ -296,12 +296,47 @@ if __name__ == "__main__":
     # Save data for notebook use
     import pickle
     import os
-    
+    import shutil
+
     # Persist into 1_apcd_input_data/outputs for EC2 runs
     data_dir = os.path.join(project_root, '1_apcd_input_data')
     outputs_dir = os.path.join(data_dir, 'outputs')
     os.makedirs(outputs_dir, exist_ok=True)
+    # Canonical, stable filenames (idempotent): overwrite canonical and keep stable updated/ orig copies
     pickle_path = os.path.join(outputs_dir, 'drug_analysis_data.pkl')
-    with open(pickle_path, 'wb') as f:
-        pickle.dump(data, f)
-    print(f"\n💾 Data saved to '{pickle_path}' for notebook visualization")
+    orig_copy = os.path.join(outputs_dir, 'drug_analysis_data.orig.pkl')
+    updated_copy = os.path.join(outputs_dir, 'drug_analysis_data_updated.pkl')
+
+    try:
+        # If an existing canonical pickle exists, preserve it under the stable orig path
+        if os.path.exists(pickle_path):
+            try:
+                shutil.copy2(pickle_path, orig_copy)
+                print(f"💾 Existing pickle moved/copied to '{orig_copy}'")
+            except Exception as e:
+                print(f"⚠️ Could not preserve existing pickle to '{orig_copy}': {e}")
+
+        # Write the current data to the canonical path
+        with open(pickle_path, 'wb') as f:
+            pickle.dump(data, f)
+        print(f"\n💾 Data saved to '{pickle_path}' for notebook visualization")
+
+        # Also write/overwrite a stable 'updated' copy (no timestamp)
+        try:
+            shutil.copy2(pickle_path, updated_copy)
+            print(f"💾 Updated copy written to '{updated_copy}'")
+        except Exception as e:
+            print(f"⚠️ Failed to write updated copy '{updated_copy}': {e}")
+
+        # Backwards-compatibility: also write a legacy canonical pickle at the
+        # project root 1_apcd_input_data path for notebooks or callers that
+        # still expect the old location (pre-outputs migration).
+        try:
+            legacy_path = os.path.join(project_root, '1_apcd_input_data', 'drug_analysis_data.pkl')
+            shutil.copy2(pickle_path, legacy_path)
+            print(f"💾 Back-compat pickle written to legacy path '{legacy_path}'")
+        except Exception as e:
+            print(f"⚠️ Failed to write back-compat pickle to legacy path: {e}")
+
+    except Exception as e:
+        print(f"❌ Failed to save pickle data: {e}")
