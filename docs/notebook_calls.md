@@ -831,7 +831,12 @@ echo "✅ Phase 2b completed successfully at: $(date)"
 
 - Recommended invocation: point to the imputed partitioned inputs (example above) which maximizes DuckDB performance and parallelism.
 - Legacy invocation (still supported): you may continue to pass `--raw-medical s3://pgxdatalake/silver/medical/*.parquet`; the orchestrator will attempt to convert this to the imputed partitioned path when needed using `convert_raw_to_imputed_path()`.
-- Preflight check: run `scripts/validate_silver_inputs.py` to detect whether imputed partitioned inputs exist and to get the preferred input path before a large run.
+-- Preflight check: the discovery helper now lives in `helpers_1997_13.s3_utils.select_silver_inputs`.
+  You can preview preferred input paths from the command line, for example:
+
+```bash
+python -c "from helpers_1997_13.s3_utils import select_silver_inputs; import json; print(json.dumps(select_silver_inputs('pgxdatalake','silver','medical')))"
+```
 
 ---
 

@@ -163,7 +163,12 @@ python3 1_apcd_input_data/3_apcd_clean.py --job medical --raw-medical s3://pgxda
 ```
 
 Validation helper
-- A lightweight script `scripts/validate_silver_inputs.py` is available to preview which input paths will be used and to optionally check whether previous orchestrator logs exist. Use it in CI or as a preflight check.
+-- The preflight discovery helper is available as `helpers_1997_13.s3_utils.select_silver_inputs`.
+  Example one-liner to preview preferred inputs from the command line:
+
+```bash
+python -c "from helpers_1997_13.s3_utils import select_silver_inputs; import json; print(json.dumps(select_silver_inputs('pgxdatalake','silver','medical')))"
+```
 
 Logging
 - The orchestrator logs which path was used (imputed vs raw) during discovery and validation so operators can audit decisions in S3 logs.

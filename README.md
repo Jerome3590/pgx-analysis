@@ -242,7 +242,14 @@ The pipeline now prefers partitioned, imputed silver inputs by default for Phase
 - Where: outputs from `1_apcd_input_data/2_global_imputation.py` are written to `s3://pgxdatalake/silver/imputed/...` and include partition keys (e.g. `age_band` and `event_year`).
 - Operator note: The orchestrator defaults now point to the imputed partitioned paths. For compatibility the orchestrator still accepts legacy "raw" silver paths and will attempt to convert/locate the imputed partitioned path if the raw path contains no parquet files.
 
-Helper: A small preflight helper script is available at `scripts/validate_silver_inputs.py` which will inspect S3 and suggest the preferred input paths (partitioned imputed vs legacy raw silver). Run this lightweight check before large re-runs to avoid wasted compute on misconfigured inputs.
+Helper: The preflight discovery logic now lives in the Python helper `helpers_1997_13.s3_utils.select_silver_inputs`.
+You can call it from a short Python one-liner to preview preferred input paths, for example:
+
+```bash
+python -c "from helpers_1997_13.s3_utils import select_silver_inputs; import json; print(json.dumps(select_silver_inputs('pgxdatalake','silver','medical')))"
+```
+
+This replaces the older `scripts/validate_silver_inputs.py` script which was removed in cleanup.
 
 This architecture ensures maintainability, reduces bugs, and provides a clean separation of concerns with modular step implementations.
 
