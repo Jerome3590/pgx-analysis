@@ -267,6 +267,136 @@ python 1_apcd_input_data/3_apcd_clean.py \
     print('No per-variant CSV found at', csv_path)
   ```
 
+  ```python
+  # Load and compare orig/updated/canonical target-code artifacts (pickles)
+  import os
+  import pandas as pd
+  import duckdb
+  from helpers_1997_13.data_utils import find_preferred_pickle, safe_load_pickle
+
+  # Canonical outputs directory (where scripts running on EC2 write pickles)
+  outputs_dir = os.path.join('1_apcd_input_data', 'outputs')
+  legacy_base = '1_apcd_input_data'
+
+  # Preferred resolution order: outputs/<name> then legacy <base>/<name>
+  canonical_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.pkl')
+  orig_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.orig.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.orig.pkl')
+  updated_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.updated.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.updated.pkl')
+
+  # Base path used for writing the comparison CSV (keeps legacy location)
+  base = legacy_base
+
+  # Safe loader that returns None on failure
+  pd_orig = safe_load_pickle(orig_pk)
+  pd_updated = safe_load_pickle(updated_pk)
+  pd_canon = safe_load_pickle(canonical_pk)
+
+  print('Pickle presence: orig=%s, updated=%s, canonical=%s' % (bool(pd_orig), bool(pd_updated), bool(pd_canon)))
+
+  def normalize_to_all_targets(obj):
+    if obj is None:
+      return None
+    if isinstance(obj, pd.DataFrame):
+      df = obj.copy()
+      for c in ['event_year','target_code','frequency','target_system']:
+        if c not in df.columns:
+          df[c] = pd.NA
+      return df[['event_year','target_code','frequency','target_system']]
+    if isinstance(obj, dict):
+      if 'all_targets' in obj and obj['all_targets'] is not None:
+        return normalize_to_all_targets(obj['all_targets'])
+      parts = []
+      if obj.get('icd_aggregated') is not None:
+        parts.append(obj['icd_aggregated'].assign(target_system='icd'))
+      if obj.get('cpt_aggregated') is not None:
+        parts.append(obj['cpt_aggregated'].assign(target_system='cpt'))
+      if parts:
+        out = pd.concat(parts, ignore_index=True)
+        for c in ['event_year','target_code','frequency','target_system']:
+          if c not in out.columns:
+            out[c] = pd.NA
+        return out[['event_year','target_code','frequency','target_system']]
+      dfs = [v for v in obj.values() if isinstance(v, pd.DataFrame)]
+      if dfs:
+        out = pd.concat(dfs, ignore_index=True)
+        for c in ['event_year','target_code','frequency','target_system']:
+          if c not in out.columns:
+            out[c] = pd.NA
+        return out[['event_year','target_code','frequency','target_system']]
+    return None
+
+  # Prefer updated -> canonical -> parquet
+  t_updated = normalize_to_all_targets(pd_updated or pd_canon)
+  t_orig = normalize_to_all_targets(pd_orig)
+
+  s3_parquet = "s3://pgxdatalake/gold/target_code/target_code_latest.parquet"
+  if t_updated is None or (isinstance(t_updated, pd.DataFrame) and t_updated.empty):
+    print('\n⚠️ No updated/canonical pickle found or empty; attempting to load S3 parquet:', s3_parquet)
+    try:
+      t_updated = duckdb.sql(f"SELECT * FROM read_parquet('{s3_parquet}')").df()
+    except Exception as e:
+      raise RuntimeError(f"Failed to load any target_code data: {e}")
+
+  if t_orig is None:
+    t_orig = pd.DataFrame(columns=['event_year','target_code','frequency','target_system'])
+
+  for df in (t_orig, t_updated):
+    if 'frequency' in df.columns:
+      df['frequency'] = pd.to_numeric(df['frequency'], errors='coerce').fillna(0).astype(int)
+    if 'event_year' in df.columns:
+      df['event_year'] = pd.to_numeric(df['event_year'], errors='coerce').fillna(0).astype(int)
+
+  print('\nUpdated data shape:', t_updated.shape)
+  print('Orig data shape:', t_orig.shape)
+
+  # Aggregate totals and produce a comparison
+  orig_totals = t_orig.groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency':'orig_total'})
+  upd_totals = t_updated.groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency':'updated_total'})
+  cmp = orig_totals.merge(upd_totals, on='target_code', how='outer').fillna(0)
+  cmp['delta'] = cmp['updated_total'] - cmp['orig_total']
+  cmp = cmp.sort_values('updated_total', ascending=False)
+
+  print('\nTop 10 updated target_codes (by updated_total):')
+  print(cmp.head(10).to_string(index=False))
+
+  # Focused QA for F11.20 variants (ICD)
+  code_of_interest = 'F11.20'
+  needle = code_of_interest.replace('.', '').upper()
+
+  def find_variants(df):
+    if df is None or df.empty:
+      return []
+    tmp = df.copy()
+    tmp['code_flat'] = tmp['target_code'].astype(str).str.upper().str.replace('.', '', regex=False).str.replace(' ', '', regex=False)
+    codes = tmp[tmp['code_flat'].str.contains(needle, na=False)].groupby('target_code', as_index=False)['frequency'].sum().sort_values('frequency', ascending=False)['target_code'].tolist()
+    return codes
+
+  orig_variants = find_variants(t_orig)
+  upd_variants = find_variants(t_updated)
+  all_variants = sorted(set(orig_variants) | set(upd_variants))
+
+  print(f"\nF11.20 variants detected - orig: {len(orig_variants)}, updated: {len(upd_variants)}, union: {len(all_variants)}")
+  print('Variants union:', all_variants)
+
+  def totals_for_codes(df, codes):
+    if df is None or df.empty or not codes:
+      return pd.DataFrame(columns=['target_code','frequency'])
+    return df[df['target_code'].isin(codes)].groupby('target_code', as_index=False)['frequency'].sum().rename(columns={'frequency':'freq'})
+
+  o = totals_for_codes(t_orig, all_variants).rename(columns={'freq':'orig_freq'})
+  u = totals_for_codes(t_updated, all_variants).rename(columns={'freq':'updated_freq'})
+  summary = pd.merge(pd.DataFrame({'target_code': all_variants}), o, on='target_code', how='left').merge(u, on='target_code', how='left').fillna(0)
+  summary['delta'] = summary['updated_freq'].astype(int) - summary['orig_freq'].astype(int)
+
+  print('\nPer-variant before/after totals for F11.20 variants:')
+  print(summary.to_string(index=False))
+
+  out_csv = os.path.join(outputs_dir, 'target_code_f1120_comparison.csv')
+  os.makedirs(outputs_dir, exist_ok=True)
+  summary.to_csv(out_csv, index=False)
+  print('\nSaved comparison CSV to', out_csv)
+  ```
+
   ## Phase 7 — Update target codes (local staging note)
 
   Local NVMe staging improves throughput in production. On developer machines
