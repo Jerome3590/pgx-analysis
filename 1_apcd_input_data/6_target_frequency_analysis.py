@@ -1236,6 +1236,35 @@ if __name__ == '__main__':
 
     data = main(codes_of_interest=coi, years=(args.min_year, args.max_year), workers=args.workers, log_cpu=args.log_cpu, log_s3=args.log_s3)
 
+    # Apply target ICD mappings at source as a best-effort normalization step
+    # so saved artifacts contain canonical target codes (e.g., AF1120 -> F1120).
+    try:
+        map_paths = [
+            os.path.join(project_root, '1_apcd_input_data', 'target_mapping', 'target_icd_mapping.json'),
+            os.path.join(project_root, '1_apcd_input_data', 'claim_mappings', 'target_icd_mapping.json')
+        ]
+        map_dict = {}
+        for mp in map_paths:
+            if os.path.exists(mp):
+                try:
+                    with open(mp, 'r', encoding='utf-8') as fh:
+                        j = json.load(fh)
+                    if isinstance(j, dict):
+                        map_dict.update(j)
+                except Exception as _:
+                    print(f"⚠️ Could not load mapping file '{mp}' - skipping")
+        if map_dict:
+            # Apply replacements to any DataFrame-like entries that contain target_code
+            for k, v in list(data.items()):
+                try:
+                    if hasattr(v, 'columns') and 'target_code' in v.columns:
+                        data[k]['target_code'] = data[k]['target_code'].astype(str).replace(map_dict)
+                except Exception:
+                    # Non-fatal: mapping is best-effort
+                    pass
+    except Exception:
+        pass
+
     # Save data for notebook use (mirrors 4_drug_frequency_analysis.py)
     # Make this idempotent: if an existing pickle is present, preserve it
     # under a timestamped 'orig' filename, then write the new pickle and
@@ -1248,10 +1277,11 @@ if __name__ == '__main__':
     data_dir = os.path.join(project_root, '1_apcd_input_data')
     outputs_dir = os.path.join(data_dir, 'outputs')
     os.makedirs(outputs_dir, exist_ok=True)
-    pickle_path = os.path.join(outputs_dir, 'target_code_analysis_data.pkl')
-    # Stable backup names (no timestamps) per request: keep previous run as .orig.pkl
-    orig_copy = os.path.join(outputs_dir, 'target_code_analysis_data.orig.pkl')
-    updated_copy = os.path.join(outputs_dir, 'target_code_analysis_data.updated.pkl')
+    # Canonical, stable filenames (idempotent): overwrite canonical and keep stable updated/ orig copies
+    pickle_path = os.path.join(outputs_dir, 'target_analysis_data.pkl')
+    # Stable backup names (no timestamps); keep previous run as .orig.pkl and provide an _updated stable copy
+    orig_copy = os.path.join(outputs_dir, 'target_analysis_data.orig.pkl')
+    updated_copy = os.path.join(outputs_dir, 'target_analysis_data_updated.pkl')
 
     try:
         # If an existing canonical pickle exists, move/copy it to the stable orig path
@@ -1278,7 +1308,7 @@ if __name__ == '__main__':
         # project root 1_apcd_input_data path for notebooks or callers that
         # still expect the old location (pre-outputs migration).
         try:
-            legacy_path = os.path.join(project_root, '1_apcd_input_data', 'target_code_analysis_data.pkl')
+            legacy_path = os.path.join(project_root, '1_apcd_input_data', 'target_analysis_data.pkl')
             shutil.copy2(pickle_path, legacy_path)
             print(f"💾 Back-compat pickle written to legacy path '{legacy_path}'")
         except Exception as e:
