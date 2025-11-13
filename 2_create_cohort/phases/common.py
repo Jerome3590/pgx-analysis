@@ -152,6 +152,10 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
             procedure_code,
             cpt_mod_1_code,
             cpt_mod_2_code,
+            -- HCG fields for ED visit identification
+            hcg_setting,
+            hcg_line,
+            hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
         FROM read_parquet('s3://pgxdatalake/gold/medical/age_band={age_band}/event_year={event_year}/medical_data.parquet')
@@ -227,10 +231,15 @@ def ensure_unified_views(conn, logger):
 
         icd_conditions = []
         if target_icd_codes:
+            # Exact match (codes are normalized to F1120 format in gold tier)
             icd_conditions.append(f"primary_icd_diagnosis_code IN {tuple(target_icd_codes)}")
         for pref in target_icd_prefixes:
-            like = pref if ('%' in pref or '_' in pref) else (pref + '%')
-            icd_conditions.append(f"primary_icd_diagnosis_code LIKE '{like}'")
+            # Normalize prefix and use LIKE with ESCAPE for wildcard safe match
+            norm_pref = pref.upper().replace('.', '').replace(' ', '')
+            like = norm_pref if ('%' in norm_pref or '_' in norm_pref) else (norm_pref + '%')
+            icd_conditions.append(
+                f"REPLACE(REPLACE(UPPER(primary_icd_diagnosis_code), '.', ''), ' ', '') LIKE '{like}'"
+            )
 
         cpt_conditions = []
         if target_cpt_codes:
@@ -242,15 +251,36 @@ def ensure_unified_views(conn, logger):
                 f"procedure_code LIKE '{like}' OR cpt_mod_1_code LIKE '{like}' OR cpt_mod_2_code LIKE '{like}'"
             )
 
+        # HCG-based ED visit identification (for ED_NON_OPIOID cohort)
+        # ED visits are identified by HCG line codes per README documentation
+        ed_hcg_lines = [
+            "P51 - ER Visits and Observation Care",
+            "O11 - Emergency Room",
+            "P33 - Urgent Care Visits"
+        ]
+        ed_hcg_condition = f"hcg_line IN {tuple(ed_hcg_lines)}"
+        
+        # Default classification falls back to opioid_ed vs ed_non_opioid
+        # Priority: 1) Opioid ICD codes → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
         default_case = f"""
             CASE 
                 WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
                 ELSE 'ed_non_opioid'
             END
         """
+        
+        # If any env targets are provided, build a generic target/non_target classification
+        # Priority: 1) Target ICD/CPT codes → target, 2) HCG ED visits → ed_non_opioid, 3) Other → non_target
         if icd_conditions or cpt_conditions:
             where_clause = " OR ".join(filter(None, icd_conditions + cpt_conditions)) or "1=0"
-            classification_sql = f"CASE WHEN ({where_clause}) THEN 'target' ELSE 'non_target' END"
+            classification_sql = f"""
+                CASE 
+                    WHEN ({where_clause}) THEN 'target'
+                    WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
+                    ELSE 'non_target'
+                END
+            """
         else:
             classification_sql = default_case
 
@@ -270,6 +300,10 @@ def ensure_unified_views(conn, logger):
             primary_icd_diagnosis_code,
             NULL as drug_name,
             NULL as therapeutic_class_1,
+            -- HCG fields for ED visit identification
+            hcg_setting,
+            hcg_line,
+            hcg_detail,
             {classification_sql} as event_classification,
             ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
         FROM medical
@@ -291,6 +325,10 @@ def ensure_unified_views(conn, logger):
             NULL as primary_icd_diagnosis_code,
             drug_name,
             therapeutic_class_1,
+            -- HCG fields not present in pharmacy (set NULLs)
+            NULL as hcg_setting,
+            NULL as hcg_line,
+            NULL as hcg_detail,
             {classification_sql} as event_classification,
             ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
         FROM pharmacy
@@ -325,22 +363,35 @@ def ensure_unified_views(conn, logger):
 
 
 def ensure_cohort_views(conn, logger):
-    """Ensure Phase 3 cohort views exist: opioid_ed_cohort and ed_non_opioid_cohort."""
+    """Ensure Phase 3 cohort views exist: opioid_ed_cohort and ed_non_opioid_cohort.
+    
+    Uses dynamic classification labels matching Phase 3 logic (target/non_target vs opioid_ed/ed_non_opioid).
+    """
+    import os
+    # Determine classification labels based on dynamic targeting env (same logic as Phase 3)
+    target_icd = os.getenv("PGX_TARGET_ICD_CODES", "").strip() or os.getenv("PGX_TARGET_ICD_PREFIXES", "").strip()
+    target_cpt = os.getenv("PGX_TARGET_CPT_CODES", "").strip() or os.getenv("PGX_TARGET_CPT_PREFIXES", "").strip()
+    dynamic_targeting = bool(target_icd or target_cpt)
+    label_target = 'target' if dynamic_targeting else 'opioid_ed'
+    # ED_NON_OPIOID always uses 'ed_non_opioid' because HCG ED visits are always classified as 'ed_non_opioid'
+    # regardless of dynamic targeting (see Phase 2 classification logic)
+    label_ed_non_opioid = 'ed_non_opioid'
+    
     # opioid_ed_cohort
     try:
         conn.sql("SELECT 1 FROM opioid_ed_cohort LIMIT 1").fetchone()
     except Exception:
-        opioid_ed_cohort_sql = """
+        opioid_ed_cohort_sql = f"""
         CREATE OR REPLACE VIEW opioid_ed_cohort AS
         WITH target_cases AS (
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE event_classification = 'opioid_ed'
+            WHERE event_classification = '{label_target}'
         ),
         control_candidates AS (
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE event_classification != 'opioid_ed'
+            WHERE event_classification != '{label_target}'
               AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
         ),
         sampled_controls AS (
@@ -353,6 +404,10 @@ def ensure_cohort_views(conn, logger):
             uef.*,
             1 as target,
             'OPIOID_ED' as cohort_name,
+            CASE 
+                WHEN tc.mi_person_key IS NOT NULL THEN 'OPIOID_ED'
+                ELSE 'NON_ED'
+            END as cohort,
             CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
         FROM unified_event_fact_table uef
         LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
@@ -360,24 +415,35 @@ def ensure_cohort_views(conn, logger):
         WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
         """
         execute_sql_with_dev_validation(conn, logger, opioid_ed_cohort_sql)
-        logger.info("[ensure_cohort_views] Created view: opioid_ed_cohort")
+        logger.info(f"[ensure_cohort_views] Created view: opioid_ed_cohort (using classification='{label_target}')")
 
     # ed_non_opioid_cohort
     try:
         conn.sql("SELECT 1 FROM ed_non_opioid_cohort LIMIT 1").fetchone()
     except Exception:
-        ed_non_opioid_cohort_sql = """
+        # Exclude patients with opioid ICD codes from ED_NON_OPIOID target cases
+        from helpers_1997_13.constants import OPIOID_ICD_CODES
+        ed_non_opioid_cohort_sql = f"""
         CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
-        WITH target_cases AS (
+        WITH opioid_patients AS (
+            -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID targets
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE event_classification = 'ed_non_opioid'
+            WHERE primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)}
+        ),
+        target_cases AS (
+            SELECT DISTINCT mi_person_key
+            FROM unified_event_fact_table
+            WHERE event_classification = '{label_ed_non_opioid}'
+              AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
         ),
         control_candidates AS (
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE event_classification != 'ed_non_opioid'
+            WHERE event_classification != '{label_ed_non_opioid}'
               AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
+              AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+              -- Exclude opioid patients from controls as well - complete separation
         ),
         sampled_controls AS (
             SELECT mi_person_key
@@ -389,6 +455,11 @@ def ensure_cohort_views(conn, logger):
             uef.*,
             1 as target,
             'ED_NON_OPIOID' as cohort_name,
+            CASE 
+                WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
+                WHEN uef.event_type = 'medical' AND uef.hcg_line IS NULL THEN 'NON_ED'
+                ELSE 'NON_ED'
+            END as cohort,
             CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
         FROM unified_event_fact_table uef
         LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
@@ -396,4 +467,4 @@ def ensure_cohort_views(conn, logger):
         WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
         """
         execute_sql_with_dev_validation(conn, logger, ed_non_opioid_cohort_sql)
-        logger.info("[ensure_cohort_views] Created view: ed_non_opioid_cohort")
+        logger.info(f"[ensure_cohort_views] Created view: ed_non_opioid_cohort (using classification='{label_ed_non_opioid}')")

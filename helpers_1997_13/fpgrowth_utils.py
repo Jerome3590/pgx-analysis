@@ -58,7 +58,7 @@ from helpers_1997_13.data_utils import (
     is_excluded_code
 )
 
-from helpers_1997_13.drug_name_utils import (
+from helpers_1997_13.drug_utils import (
     clean_drug_name,
     encode_drug_name,
     encode_pattern_numeric,

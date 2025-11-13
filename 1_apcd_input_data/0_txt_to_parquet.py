@@ -23,7 +23,7 @@ try:
         stop_mp_logging,
     )
     from helpers_1997_13.duckdb_utils import create_simple_duckdb_connection
-    from helpers_1997_13.pipeline_state import PipelineState
+    from helpers_1997_13.pipeline_utils import PipelineState
 except Exception:
     # Fallback if helpers path not available; will use local logger
     setup_logging = None

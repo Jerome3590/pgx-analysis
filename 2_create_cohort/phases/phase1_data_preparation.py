@@ -54,6 +54,10 @@ def run_phase1_data_preparation(context):
             procedure_code,
             cpt_mod_1_code,
             cpt_mod_2_code,
+            -- HCG fields for ED visit identification
+            hcg_setting,
+            hcg_line,
+            hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
         FROM read_parquet('s3://pgxdatalake/gold/medical/age_band={age_band}/event_year={event_year}/medical_data.parquet')
@@ -122,6 +126,22 @@ def run_phase1_data_preparation(context):
         
         logger.info(f"→ [PHASE 1] QA: Medical records: {medical_count:,}")
         logger.info(f"→ [PHASE 1] QA: Pharmacy records: {pharmacy_count:,}")
+        
+        # F1120-specific check in raw medical data
+        f1120_medical = cohort_conn_duckdb.sql("""
+        SELECT 
+            COUNT(*) as total_f1120_records,
+            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+        FROM medical
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        """).fetchone()
+        
+        if f1120_medical and f1120_medical[0] > 0:
+            logger.info(f"→ [PHASE 1] F1120 CHECK in medical data:")
+            logger.info(f"  Total F1120 records: {f1120_medical[0]:,}")
+            logger.info(f"  Distinct F1120 patients: {f1120_medical[1]:,}")
+        else:
+            logger.warning(f"→ [PHASE 1] F1120 CHECK: No F1120 records found in medical data")
         
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)

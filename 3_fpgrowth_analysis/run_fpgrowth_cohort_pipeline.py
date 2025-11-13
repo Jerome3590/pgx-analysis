@@ -14,17 +14,17 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from helpers.constants import (
+from helpers_1997_13.constants import (
     AGE_BANDS, EVENT_YEARS, TOP_K, MIN_SUPPORT_THRESHOLD, MIN_CONFIDENCE_MEDIUM, TIMEOUT_SECONDS
 )
-from helpers.duckdb_utils import setup_duckdb_environment
+from helpers_1997_13.duckdb_utils import get_duckdb_connection
 
-from helpers.fpgrowth_utils import (
+from helpers_1997_13.fpgrowth_utils import (
     run_fpgrowth_drug_token_with_fallback,
     convert_frozensets,
 )
 
-from helpers.s3_utils import (
+from helpers_1997_13.s3_utils import (
     get_output_paths,
     save_to_s3_json,
     save_to_s3_parquet,
@@ -32,7 +32,7 @@ from helpers.s3_utils import (
     get_cohort_parquet_path,
 )
 
-from helpers.visualization_utils import create_network_visualization
+from helpers_1997_13.visualization_utils import create_network_visualization
 
 
 def create_cohort_logger(name: str) -> logging.Logger:
@@ -54,7 +54,7 @@ def log_usage(logger: logging.Logger, stage: str) -> None:
 
 def load_curated_cohort(cohort_name: str, age_band: str, event_year: str, logger: logging.Logger) -> pd.DataFrame:
     """Load curated cohort parquet from GOLD cohorts_clean."""
-    con = setup_duckdb_environment(logger)
+    con = get_duckdb_connection(logger=logger)
     cohort_path = get_cohort_parquet_path(cohort_name, age_band, event_year)
     df = con.execute(f"SELECT mi_person_key, drug_name FROM read_parquet('{cohort_path}')").df()
     con.close()

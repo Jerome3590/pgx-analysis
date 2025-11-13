@@ -1,6 +1,4 @@
-"""
-Visualization utilities for data analysis and reporting.
-"""
+"""Visualization utilities for data analysis and reporting."""
 
 import os
 import sys
@@ -14,14 +12,13 @@ if project_root not in sys.path:
 # Standard library imports
 import json
 import logging
-import io
-from typing import Dict, List, Optional, Any
+import re
+from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
 
 # Third-party imports
 import networkx as nx
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from jinja2 import Template
@@ -33,10 +30,6 @@ from helpers_1997_13.data_utils import convert_json_serializable
 from helpers_1997_13.s3_utils import (
     save_to_s3_html,
     get_output_paths,
-    write_parquet_and_csv_latest,
-    write_drug_frequency_latest,
-    write_drug_pairs_latest,
-    write_target_code_latest,
 )
 
 
@@ -112,12 +105,13 @@ def format_for_quicksight(df, column, logger=None):
 
 # Determine path relative to this script file
 js_path = os.path.join(os.path.dirname(__file__), "js", "cytoscape.min.js")
+filesaver_path = os.path.join(os.path.dirname(__file__), "js", "FileSaver.min.js")
 
 # Load Cytoscape and FileSaver from local files
 with open(js_path, "r", encoding="utf-8") as f:
-    cytoscape_js = f.read()
-with open(js_path, "r", encoding="utf-8") as f:
-    filesaver_js = f.read()
+  cytoscape_js = f.read()
+with open(filesaver_path, "r", encoding="utf-8") as f:
+  filesaver_js = f.read()
 
 
 # Define HTML template for network visualization
@@ -309,10 +303,6 @@ html_template = Template("""
 </html>
 """)
 
-
-from collections import defaultdict
-import networkx as nx
-import json
 
 def create_network_visualization(rules_df, title, cohort_name, age_band, event_year, itemsets_counts=None, logger=None):
     """
@@ -748,7 +738,7 @@ def plot_stacked_by_year(
     if ordered_targets is not None:
         pivot = pivot.reindex(ordered_targets)
     ax = pivot.plot(kind="bar", stacked=True, width=0.82)
-    base_title = f"Stacked Frequency by Year"
+    base_title = "Stacked Frequency by Year"
     if title_suffix:
         base_title += f" - {title_suffix}"
     plt.title(base_title, fontsize=16, fontweight="bold", pad=20)
@@ -1081,3 +1071,207 @@ def create_plotly_frequency_dashboard(
 # Reusable frequency visualization helpers
 
 # writers now re-exported from s3_utils
+
+
+def plot_icd_variant_trend(
+  u_df: pd.DataFrame,
+  code_of_interest: str,
+  target_col: str = 'target_code',
+  year_col: str = 'event_year',
+  freq_col: str = 'frequency',
+  system_col: Optional[str] = 'target_system',
+  figsize: tuple = (10, 6),
+  title: Optional[str] = None,
+  save_path: Optional[str] = None,
+  logger: Optional[logging.Logger] = None,
+) -> Optional[plt.Figure]:
+  """
+  Plot trend(s) for an ICD code and its flattened variants.
+
+  Behavior:
+  - Flatten codes by removing non-alphanumeric characters and uppercasing (e.g. 'F11.20' -> 'F1120').
+  - Find all target_code values whose flattened form startswith the flattened needle.
+  - If a single variant is found, plot a simple bar chart of frequency by year.
+  - If multiple variants are found, plot a stacked bar chart (columns = variants) by year.
+
+  Returns the matplotlib Figure or None if no matches were found.
+  """
+  if logger is None:
+    logger = logging.getLogger(__name__)
+
+  required = {target_col, year_col, freq_col}
+  missing = [c for c in required if c not in u_df.columns]
+  if missing:
+    logger.warning(f"DataFrame missing required columns for plotting: {missing}")
+    return None
+
+  def _flatten(s: Any) -> str:
+    if pd.isna(s):
+      return ""
+    return re.sub(r'[^A-Za-z0-9]', '', str(s)).upper()
+
+  needle = _flatten(code_of_interest)
+  if not needle:
+    logger.warning("Empty code_of_interest provided to plot_icd_variant_trend")
+    return None
+
+  df = u_df.copy()
+  df['_flattened_target'] = df[target_col].map(_flatten)
+
+  # Match flattened variants that start with the needle (e.g., F1120 matches F11205)
+  mask = df['_flattened_target'].str.startswith(needle)
+  matches = df.loc[mask, target_col].dropna().unique().tolist()
+
+  if not matches:
+    logger.info(f"No variants found for '{code_of_interest}' (needle='{needle}').")
+    return None
+
+  years = sorted(df[year_col].dropna().unique().tolist())
+  if not title:
+    title = f"Variant trend for {code_of_interest} ({len(matches)} variant{'s' if len(matches)>1 else ''})"
+
+  fig, ax = plt.subplots(figsize=figsize)
+
+  if len(matches) == 1:
+    tgt = matches[0]
+    grp = (
+      df.loc[df[target_col] == tgt]
+      .groupby(year_col)[freq_col]
+      .sum()
+      .reindex(years, fill_value=0)
+    )
+    sns.barplot(x=list(grp.index), y=grp.values, ax=ax, color='#2b8cbe')
+    ax.set_title(title)
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Frequency')
+    for p in ax.patches:
+      h = p.get_height()
+      if h > 0:
+        ax.annotate(f"{h:.0f}", (p.get_x() + p.get_width() / 2., h), ha='center', va='bottom', fontsize=8)
+  else:
+    # Multiple variants -> stacked bar chart by year
+    pivot = (
+      df.loc[df[target_col].isin(matches)]
+      .groupby([year_col, target_col])[freq_col]
+      .sum()
+      .reset_index()
+      .pivot(index=year_col, columns=target_col, values=freq_col)
+      .reindex(years, fill_value=0)
+      .fillna(0)
+    )
+    pivot.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
+    ax.set_title(title)
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Frequency')
+    ax.legend(title=target_col, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+  plt.tight_layout()
+
+  if save_path:
+    try:
+      fig.savefig(save_path, dpi=300, bbox_inches='tight')
+      logger.info(f"Saved ICD variant trend plot to {save_path}")
+    except Exception as e:
+      logger.warning(f"Failed to save plot to {save_path}: {e}")
+
+  return fig
+
+
+def plot_icd_variant_heatmap(
+    u_df: pd.DataFrame,
+    code_of_interest: str,
+    target_col: str = 'target_code',
+    year_col: str = 'event_year',
+    freq_col: str = 'frequency',
+    system_col: Optional[str] = 'target_system',
+    figsize: tuple = (10, 6),
+    cmap: str = 'viridis',
+    annot: bool = True,
+    fmt: str = '.0f',
+    title: Optional[str] = None,
+    save_path: Optional[str] = None,
+    export_csv_path: Optional[str] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[Optional[plt.Figure], Optional[pd.DataFrame]]:
+  """
+  Create a heatmap of variants (rows) by year (columns) for an ICD needle.
+
+  Behavior:
+    - Flatten codes by removing non-alphanumeric characters and uppercasing.
+    - Match flattened codes by exact equality to the flattened needle (no substring matching).
+    - Build a pivot table (index=target_code, columns=year, values=frequency).
+
+  Returns a tuple: (matplotlib Figure or None, pivot DataFrame or None).
+  """
+  if logger is None:
+    logger = logging.getLogger(__name__)
+
+  req = {target_col, year_col, freq_col}
+  missing = [c for c in req if c not in u_df.columns]
+  if missing:
+    logger.warning(f"DataFrame missing required columns for heatmap: {missing}")
+    return (None, None)
+
+  df = u_df.copy()
+  # Narrow to ICD-like systems
+  if system_col and system_col in df.columns:
+    df = df[df[system_col].astype(str).str.lower().str.contains('icd', na=False)].copy()
+
+  # Flatten codes
+  df['_code_flat'] = df[target_col].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
+  needle = re.sub(r'[^A-Z0-9]', '', str(code_of_interest)).upper()
+  if not needle:
+    logger.warning("Empty code_of_interest provided to plot_icd_variant_heatmap")
+    return (None, None)
+
+  # exact flattened equality matching (no substring matching)
+  mask = df['_code_flat'] == needle
+  if not mask.any():
+    logger.info(f"No matching variants for needle '{code_of_interest}' (flat='{needle}')")
+    return (None, None)
+
+  sel = df.loc[mask, [target_col, year_col, freq_col]].copy()
+  # Ensure numeric types
+  sel[year_col] = pd.to_numeric(sel[year_col], errors='coerce').astype('Int64')
+  sel[freq_col] = pd.to_numeric(sel[freq_col], errors='coerce').fillna(0.0)
+
+  # Pivot: rows=target_code, cols=year, values=frequency (sum)
+  pivot = (
+    sel.groupby([target_col, year_col])[freq_col]
+    .sum()
+    .reset_index()
+    .pivot(index=target_col, columns=year_col, values=freq_col)
+    .fillna(0.0)
+  )
+
+  if pivot.empty:
+    logger.info(f"Pivot table empty for needle '{code_of_interest}'")
+    return (None, None)
+
+  # Optionally export pivot to CSV
+  if export_csv_path:
+    try:
+      pivot.to_csv(export_csv_path)
+      logger.info(f"Exported pivot CSV to {export_csv_path}")
+    except Exception as e:
+      logger.warning(f"Failed to export pivot CSV to {export_csv_path}: {e}")
+
+  fig, ax = plt.subplots(figsize=figsize)
+  sns.heatmap(pivot, ax=ax, cmap=cmap, annot=annot, fmt=fmt, cbar_kws={'label': 'Frequency'})
+  ax.set_xlabel('Year')
+  ax.set_ylabel(target_col)
+  if not title:
+    title = f"Variants matching {code_of_interest} — heatmap"
+  ax.set_title(title)
+  plt.tight_layout()
+
+  if save_path:
+    try:
+      fig.savefig(save_path, dpi=300, bbox_inches='tight')
+      logger.info(f"Saved ICD variant heatmap to {save_path}")
+    except Exception as e:
+      logger.warning(f"Failed to save heatmap to {save_path}: {e}")
+
+  # Optionally export pivot to CSV (already supported)
+  # Return both figure and pivot DataFrame for interactive export/filtering.
+  return fig, pivot

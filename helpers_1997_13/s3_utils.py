@@ -1078,7 +1078,7 @@ def get_output_paths(cohort_name, age_band, event_year, bucket_name="pgxdatalake
         if isinstance(age_band, str) and age_band.startswith('age_band='):
             age_band = age_band.replace('age_band=', '')
 
-        partitions = f"cohort_name={cohort_name}/age_band={age_band}/event_year={event_year}"
+        partitions = f"cohort_name={cohort_name}/event_year={event_year}/age_band={age_band}"
         network_plot_name = f"{cohort_name}_{age_band}_{event_year}_drug_network.html"
 
         # Final deliverables: write FP-Growth artifacts under GOLD fpgrowth/cohort
@@ -1146,6 +1146,15 @@ def _sanitize_target_slug(raw: str) -> str:
     s = s.strip("_")
     return s or "custom"
 
+from helpers_1997_13.constants import (
+    PGX_TARGET_NAME,
+    PGX_TARGET_ICD_CODES,
+    PGX_TARGET_CPT_CODES,
+    PGX_TARGET_ICD_PREFIXES,
+    PGX_TARGET_CPT_PREFIXES,
+)
+
+
 def _derive_target_slug_from_env() -> str | None:
     """Derive a target slug from env vars if provided.
 
@@ -1156,23 +1165,23 @@ def _derive_target_slug_from_env() -> str | None:
     Returns sanitized slug or None if nothing set.
     """
     try:
-        name = os.getenv("PGX_TARGET_NAME", "").strip()
+        name = PGX_TARGET_NAME
         if name:
             return _sanitize_target_slug(name)
 
-        icd_codes = [c.strip() for c in os.getenv("PGX_TARGET_ICD_CODES", "").split(',') if c.strip()]
+        icd_codes = [c.strip() for c in PGX_TARGET_ICD_CODES.split(',') if c.strip()]
         if icd_codes:
             return _sanitize_target_slug(icd_codes[0])
 
-        cpt_codes = [c.strip() for c in os.getenv("PGX_TARGET_CPT_CODES", "").split(',') if c.strip()]
+        cpt_codes = [c.strip() for c in PGX_TARGET_CPT_CODES.split(',') if c.strip()]
         if cpt_codes:
             return _sanitize_target_slug(cpt_codes[0])
 
-        icd_pref = [p.strip() for p in os.getenv("PGX_TARGET_ICD_PREFIXES", "").split(',') if p.strip()]
+        icd_pref = [p.strip() for p in PGX_TARGET_ICD_PREFIXES.split(',') if p.strip()]
         if icd_pref:
             return _sanitize_target_slug(icd_pref[0])
 
-        cpt_pref = [p.strip() for p in os.getenv("PGX_TARGET_CPT_PREFIXES", "").split(',') if p.strip()]
+        cpt_pref = [p.strip() for p in PGX_TARGET_CPT_PREFIXES.split(',') if p.strip()]
         if cpt_pref:
             return _sanitize_target_slug(cpt_pref[0])
     except Exception:
@@ -1198,7 +1207,11 @@ def get_cohort_parquet_path(
     bucket_name: str = S3_BUCKET,
     target_slug: str | None = None,
 ) -> str:
-    """Build S3 path to GOLD cohorts_clean parquet for a cohort partition.
+    """Build S3 path to GOLD cohorts parquet for a cohort partition.
+    
+    Structure: cohorts_{target}/cohort_name={cohort}/event_year={year}/age_band={age_band}/cohort.parquet
+    
+    Organized by cohort name first, then by year and age-band partitions.
 
     If a target slug is available (either passed or from environment), put it into the directory name
     as cohorts_{slug} and write standard filename cohort.parquet. Otherwise, use default cohorts_clean directory.
@@ -1212,7 +1225,7 @@ def get_cohort_parquet_path(
     base_dir = f"s3://{bucket_name}/gold/cohorts_{dir_slug}/"
     return (
         f"{base_dir}"
-        f"cohort_name={cohort_slug}/age_band={age_band}/event_year={event_year}/cohort.parquet"
+        f"cohort_name={cohort_slug}/event_year={event_year}/age_band={age_band}/cohort.parquet"
     )
 
 

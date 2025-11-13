@@ -9,8 +9,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from helpers.s3_utils import save_to_s3_json, load_from_s3_json, save_to_s3_csv
-from helpers.drug_name_utils import encode_drug_name
+from helpers_1997_13.s3_utils import save_to_s3_json, load_from_s3_json, save_to_s3_csv
+from helpers_1997_13.drug_utils import encode_drug_name
 import logging
 
 
@@ -94,7 +94,7 @@ def calculate_word_features(word, fpgrowth_metrics=None, logger=None):
     }
     
     # Use the same cleaning as encode_drug_name to ensure consistency
-    from helpers.drug_name_utils import clean_drug_name
+    from helpers_1997_13.drug_utils import clean_drug_name
     cleaned_word = clean_drug_name(word) if word else ""
     
     # Get first letter from cleaned word (same as encode_drug_name)
@@ -110,7 +110,7 @@ def calculate_word_features(word, fpgrowth_metrics=None, logger=None):
     num_hyphens_underscores = sum(1 for char in cleaned_word if char in ['-', '_'])
     
     # Advanced linguistic features
-    from helpers.drug_name_utils import count_chemical_suffixes, count_consonant_clusters, calculate_repetition_factor
+    from helpers_1997_13.drug_utils import count_chemical_suffixes, count_consonant_clusters, calculate_repetition_factor
     num_chemical_suffixes = count_chemical_suffixes(cleaned_word)
     num_consonant_clusters = count_consonant_clusters(cleaned_word)
     repetition_factor = calculate_repetition_factor(cleaned_word)

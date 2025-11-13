@@ -56,16 +56,51 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
         
+        # F1120-specific checks in final cohorts
+        f1120_opioid_final = cohort_conn_duckdb.sql("""
+        SELECT 
+            COUNT(*) as total_f1120_records,
+            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+        FROM opioid_ed_cohort
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        """).fetchone()
+        
+        f1120_ed_non_opioid_final = cohort_conn_duckdb.sql("""
+        SELECT 
+            COUNT(*) as total_f1120_records,
+            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+        FROM ed_non_opioid_cohort
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        """).fetchone()
+        
+        logger.info(f"→ [PHASE 4] F1120 IN FINAL COHORTS:")
+        logger.info(f"  OPIOID_ED: {f1120_opioid_final[0]:,} records, {f1120_opioid_final[1]:,} patients")
+        logger.info(f"  ED_NON_OPIOID: {f1120_ed_non_opioid_final[0]:,} records, {f1120_ed_non_opioid_final[1]:,} patients")
+        
+        # Warn if cohorts are empty
+        if opioid_ed_count == 0:
+            logger.warning(f"⚠️ [PHASE 4] WARNING: OPIOID_ED cohort is empty for {age_band}/{event_year}")
+        if ed_non_opioid_count == 0:
+            logger.warning(f"⚠️ [PHASE 4] WARNING: ED_NON_OPIOID cohort is empty for {age_band}/{event_year}")
+        
         # Save to S3
         from helpers_1997_13.s3_utils import get_output_paths, get_cohort_parquet_path
         
-        # Save OPIOID_ED cohort
+        # Save OPIOID_ED cohort (always save, even if control-only)
         opioid_ed_out = get_cohort_parquet_path("opioid_ed", age_band, event_year)
-        cohort_conn_duckdb.sql(f"""
-        COPY opioid_ed_cohort TO '{opioid_ed_out}' 
-        (FORMAT PARQUET, COMPRESSION SNAPPY)
-        """)
-        logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved to S3: {opioid_ed_out}")
+        if opioid_ed_count > 0:
+            cohort_conn_duckdb.sql(f"""
+            COPY opioid_ed_cohort TO '{opioid_ed_out}' 
+            (FORMAT PARQUET, COMPRESSION SNAPPY)
+            """)
+            # Check if it's control-only
+            target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
+            if target_count_check == 0:
+                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_out}")
+            else:
+                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved to S3: {opioid_ed_out}")
+        else:
+            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty OPIOID_ED cohort to {opioid_ed_out}")
 
         # Optional: run QA notebook for opioid_ed cohort if configured
         qa_nb = os.environ.get("PGX_QA_NOTEBOOK")
@@ -85,13 +120,21 @@ def run_phase4_complete_pipeline(context):
             except Exception as nb_e:
                 logger.warning(f"⚠ QA notebook failed for opioid_ed: {nb_e}")
         
-        # Save ED_NON_OPIOID cohort
+        # Save ED_NON_OPIOID cohort (always save, even if control-only)
         ed_non_opioid_out = get_cohort_parquet_path("ed_non_opioid", age_band, event_year)
-        cohort_conn_duckdb.sql(f"""
-        COPY ed_non_opioid_cohort TO '{ed_non_opioid_out}' 
-        (FORMAT PARQUET, COMPRESSION SNAPPY)
-        """)
-        logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved to S3: {ed_non_opioid_out}")
+        if ed_non_opioid_count > 0:
+            cohort_conn_duckdb.sql(f"""
+            COPY ed_non_opioid_cohort TO '{ed_non_opioid_out}' 
+            (FORMAT PARQUET, COMPRESSION SNAPPY)
+            """)
+            # Check if it's control-only
+            target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
+            if target_count_check == 0:
+                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_out}")
+            else:
+                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved to S3: {ed_non_opioid_out}")
+        else:
+            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty ED_NON_OPIOID cohort to {ed_non_opioid_out}")
 
         # Optional: run QA notebook for ed_non_opioid cohort if configured
         qa_nb = os.environ.get("PGX_QA_NOTEBOOK")

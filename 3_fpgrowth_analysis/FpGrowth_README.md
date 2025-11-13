@@ -115,7 +115,7 @@ from mlxtend.preprocessing import TransactionEncoder
 # Project utilities
 from helpers.common_imports import s3_client, get_logger, pd
 from helpers.duckdb_utils import get_duckdb_connection, execute_duckdb_query
-from helpers.drug_name_utils import encode_drug_name, save_drug_encoding_map
+from helpers_1997_13.drug_utils import encode_drug_name, save_drug_encoding_map
 from helpers.s3_utils import save_to_s3_json, save_to_s3_parquet
 from helpers.fpgrowth_utils import *
 from helpers.visualization_utils import create_network_visualization
@@ -587,7 +587,7 @@ test_integration()
 
 - **FP-Growth Algorithm**: [MLxtend Documentation](https://rasbt.github.io/mlxtend/user_guide/frequent_patterns/fpgrowth/)
 - **Association Rules**: [MLxtend Association Rules](https://rasbt.github.io/mlxtend/user_guide/frequent_patterns/association_rules/)
-- **Drug Encoding**: See `helpers/drug_name_utils.py`
+- **Drug Encoding**: See `helpers_1997_13/drug_utils.py`
 - **Network Visualization**: See `helpers/visualization_utils.py`
 
 ## 📞 Support

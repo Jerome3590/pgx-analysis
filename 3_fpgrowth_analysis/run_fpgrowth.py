@@ -13,16 +13,17 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Project utilities
-from helpers.common_imports import (
-    s3_client, 
-    S3_BUCKET, 
-    List, 
-    get_logger, 
+from helpers_1997_13.common_imports import (
+    s3_client,
+    S3_BUCKET,
+    List,
     ClientError,
     pd
 )
 
-from helpers.s3_utils import (
+# logging utilities are available in helpers_1997_13.logging_utils (use within functions as needed)
+
+from helpers_1997_13.s3_utils import (
     s3_exists,
     parse_s3_path,
     parse_path_params,
@@ -31,7 +32,7 @@ from helpers.s3_utils import (
     save_to_s3_json
 )
 
-from helpers.constants import (
+from helpers_1997_13.constants import (
     RICHMOND_ZIP_CODES,
     EXCLUDED_CODES,
     TOP_K,
@@ -40,30 +41,27 @@ from helpers.constants import (
     METRIC_COLUMNS
 )
 
-from helpers.aws_utils import (
+from helpers_1997_13.aws_utils import (
     get_instance_id,
     notify_error,
     send_email
 )
 
-from helpers.duckdb_utils import (
-    setup_duckdb_environment,
+from helpers_1997_13.duckdb_utils import (
     get_duckdb_connection,
-    get_richmond_filter_sql,
-    execute_duckdb_query
 )
 
-from helpers.data_utils import (
+from helpers_1997_13.data_utils import (
     is_excluded_code,
     handle_empty_filtered_cohort
 )
 
-from helpers.cohort_utils import (
+from helpers_1997_13.cohort_utils import (
     get_cohort_paths,
     check_cohort_needs_processing
 )
 
-from helpers.fpgrowth_utils import (
+from helpers_1997_13.fpgrowth_utils import (
     extract_tokens,
     run_fpgrowth_drug_token_with_fallback,
     generate_rules_from_itemsets,
@@ -73,12 +71,12 @@ from helpers.fpgrowth_utils import (
     save_feature_artifacts
 )
 
-from helpers.drug_utils import (
+from helpers_1997_13.drug_utils import (
     encode_drug_name,
     save_drug_encoding_map
 )
 
-from helpers.visualization_utils import create_network_visualization
+from helpers_1997_13.visualization_utils import create_network_visualization
 
 
 def feature_engineer(cohort_name, age_band, event_year, paths, logger, bucket_name="pgxdatalake"):
@@ -90,7 +88,7 @@ def feature_engineer(cohort_name, age_band, event_year, paths, logger, bucket_na
             return None
 
         # Use DuckDB to read the actual file
-        con = setup_duckdb_environment(logger)
+        con = get_duckdb_connection(logger=logger)
         df = con.execute(f"SELECT * FROM read_parquet('{cohort_file_path}')").df()
         df.columns = [col.lower() for col in df.columns]
 

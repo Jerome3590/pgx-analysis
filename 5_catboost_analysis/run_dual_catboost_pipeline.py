@@ -24,33 +24,33 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Import existing utilities
-from helpers.common_imports import (
+from helpers_1997_13.common_imports import (
     s3_client, 
     S3_BUCKET, 
     get_logger, 
     ClientError
 )
 
-from helpers.duckdb_utils import (
+from helpers_1997_13.duckdb_utils import (
     get_duckdb_connection,
     execute_duckdb_query,
     setup_duckdb_environment
 )
 
-from helpers.s3_utils import (
+from helpers_1997_13.s3_utils import (
     save_to_s3_parquet,
     save_to_s3_json,
     parse_s3_path,
     get_output_paths
 )
 
-from helpers.constants import (
+from helpers_1997_13.constants import (
     S3_BUCKET,
     METRICS_BUCKET,
     NOTIFICATION_EMAIL
 )
 
-from helpers.aws_utils import (
+from helpers_1997_13.aws_utils import (
     notify_error,
     send_email
 )

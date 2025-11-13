@@ -146,9 +146,9 @@ python 1_apcd_input_data/3_apcd_clean.py \
   if drug_pickle is None:
     drug_pickle = '1_apcd_input_data/outputs/drug_analysis_data.pkl'
 
-  target_pickle = find_preferred_pickle('1_apcd_input_data', 'target_code_analysis_data.pkl')
+  target_pickle = find_preferred_pickle('1_apcd_input_data', 'target_analysis_data.pkl')
   if target_pickle is None:
-    target_pickle = '1_apcd_input_data/outputs/target_code_analysis_data.pkl'
+    target_pickle = '1_apcd_input_data/outputs/target_analysis_data.pkl'
 
   df = None
   high_freq_df = None
@@ -279,9 +279,10 @@ python 1_apcd_input_data/3_apcd_clean.py \
   legacy_base = '1_apcd_input_data'
 
   # Preferred resolution order: outputs/<name> then legacy <base>/<name>
-  canonical_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.pkl')
-  orig_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.orig.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.orig.pkl')
-  updated_pk = find_preferred_pickle(outputs_dir, 'target_code_analysis_data.updated.pkl') or find_preferred_pickle(legacy_base, 'target_code_analysis_data.updated.pkl')
+  canonical_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data.pkl') or find_preferred_pickle(legacy_base, 'target_analysis_data.pkl')
+  orig_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data.orig.pkl') or find_preferred_pickle(legacy_base, 'target_analysis_data.orig.pkl')
+  # The pipeline writes an updated artifact with a stable name (underscore before 'updated')
+  updated_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data_updated.pkl') or find_preferred_pickle(legacy_base, 'target_analysis_data_updated.pkl')
 
   # Base path used for writing the comparison CSV (keeps legacy location)
   base = legacy_base
@@ -335,7 +336,7 @@ python 1_apcd_input_data/3_apcd_clean.py \
     raise FileNotFoundError(
       "Canonical updated target-code artifact not found. Generate the pickles by running:\n"
       "  python 1_apcd_input_data/6_target_frequency_analysis.py --codes-of-interest \"F11.20\"\n"
-      "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_code_analysis_data.updated.pkl``)."
+      "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_analysis_data_updated.pkl``)."
     )
 
   if t_orig is None:
@@ -1193,9 +1194,9 @@ This analysis confirms that all our DuckDB fixes are working correctly and the p
 **Inputs:**
 - `s3://pgxdatalake/gold/medical/age_band=*/event_year=*/medical_data.parquet`
 
-**Outputs:**
+- **Outputs:**
 - Console frequency reports
-- `outputs/target_code_analysis_data.pkl` for notebook visualization
+- `outputs/target_analysis_data.pkl` for notebook visualization
 - CSV/Parquet files with frequency data
 
 ### **Cell 34: Target Variable Frequency Analysis**
@@ -1226,9 +1227,9 @@ import duckdb
 
 # Stable paths (script now writes .orig.pkl and .updated.pkl alongside canonical)
 base = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
-canonical_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.pkl')
-orig_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.orig.pkl')
-updated_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.updated.pkl')
+  canonical_pk = os.path.join(base, 'outputs', 'target_analysis_data.pkl')
+  orig_pk = os.path.join(base, 'outputs', 'target_analysis_data.orig.pkl')
+  updated_pk = os.path.join(base, 'outputs', 'target_analysis_data_updated.pkl')
 s3_parquet = "s3://pgxdatalake/gold/target_code/target_code_latest.parquet"
 
 def load_pickle(path):
@@ -1294,7 +1295,7 @@ t_orig = normalize_to_all_targets(pd_orig)
     raise FileNotFoundError(
       "Canonical updated target-code artifact not found. Generate the pickles by running:\n"
       "  python 1_apcd_input_data/6_target_frequency_analysis.py --codes-of-interest \"F11.20\"\n"
-      "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_code_analysis_data.updated.pkl``)."
+  "This will write the canonical artifacts under `1_apcd_input_data/outputs/` (including ``target_analysis_data_updated.pkl``)."
     )
 
 if t_orig is None:
@@ -1373,8 +1374,8 @@ import duckdb
 
 # Paths (adjust if your environment differs)
 base = '/home/pgx3874/pgx-analysis/1_apcd_input_data'
-orig_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.orig.pkl')
-updated_pk = os.path.join(base, 'outputs', 'target_code_analysis_data.updated.pkl')
+orig_pk = os.path.join(base, 'outputs', 'target_analysis_data.orig.pkl')
+updated_pk = os.path.join(base, 'outputs', 'target_analysis_data_updated.pkl')
 out_json = '/home/pgx3874/pgx-analysis/docs/target_pickles_diff.json'
 
 def load_pickle(path):

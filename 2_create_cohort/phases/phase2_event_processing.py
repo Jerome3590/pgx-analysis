@@ -49,13 +49,19 @@ def run_phase2_step1_event_fact_table(context):
         target_cpt_prefixes = [p.strip() for p in os.getenv("PGX_TARGET_CPT_PREFIXES", "").split(',') if p.strip()]
 
         # Compose SQL condition for ICD-based targeting
+        # Codes are normalized to F1120 format (no dots, no prefixes) via 7_update_codes.py
+        # Verified: gold tier contains 'F1120' format codes
         icd_conditions = []
         if target_icd_codes:
+            # Exact match (codes are normalized to F1120 format in gold tier)
             icd_conditions.append(f"primary_icd_diagnosis_code IN {tuple(target_icd_codes)}")
         for pref in target_icd_prefixes:
-            # Use LIKE with ESCAPE for wildcard safe match (assumes % in prefix if desired)
-            like = pref if ('%' in pref or '_' in pref) else (pref + '%')
-            icd_conditions.append(f"primary_icd_diagnosis_code LIKE '{like}'")
+            # Normalize prefix and use LIKE with ESCAPE for wildcard safe match
+            norm_pref = pref.upper().replace('.', '').replace(' ', '')
+            like = norm_pref if ('%' in norm_pref or '_' in norm_pref) else (norm_pref + '%')
+            icd_conditions.append(
+                f"REPLACE(REPLACE(UPPER(primary_icd_diagnosis_code), '.', ''), ' ', '') LIKE '{like}'"
+            )
 
         # Compose SQL condition for CPT-based targeting (medical rows only)
         cpt_conditions = []
@@ -68,18 +74,36 @@ def run_phase2_step1_event_fact_table(context):
                 f"procedure_code LIKE '{like}' OR cpt_mod_1_code LIKE '{like}' OR cpt_mod_2_code LIKE '{like}'"
             )
 
-        # Default classification falls back to opioid_ed vs ed_non_opioid using OPIOID_ICD_CODES
+        # HCG-based ED visit identification (for ED_NON_OPIOID cohort)
+        # ED visits are identified by HCG line codes per README documentation
+        ed_hcg_lines = [
+            "P51 - ER Visits and Observation Care",
+            "O11 - Emergency Room",
+            "P33 - Urgent Care Visits"
+        ]
+        ed_hcg_condition = f"hcg_line IN {tuple(ed_hcg_lines)}"
+        
+        # Default classification falls back to opioid_ed vs ed_non_opioid
+        # Priority: 1) Opioid ICD codes → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
         default_case = f"""
             CASE 
                 WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
                 ELSE 'ed_non_opioid'
             END
         """
 
         # If any env targets are provided, build a generic target/non_target classification
+        # Priority: 1) Target ICD/CPT codes → target, 2) HCG ED visits → ed_non_opioid, 3) Other → non_target
         if icd_conditions or cpt_conditions:
             where_clause = " OR ".join(filter(None, icd_conditions + cpt_conditions)) or "1=0"
-            classification_sql = f"CASE WHEN ({where_clause}) THEN 'target' ELSE 'non_target' END"
+            classification_sql = f"""
+                CASE 
+                    WHEN ({where_clause}) THEN 'target'
+                    WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
+                    ELSE 'non_target'
+                END
+            """
         else:
             classification_sql = default_case
         
@@ -104,6 +128,10 @@ def run_phase2_step1_event_fact_table(context):
             procedure_code,
             cpt_mod_1_code,
             cpt_mod_2_code,
+            -- HCG fields for ED visit identification
+            hcg_setting,
+            hcg_line,
+            hcg_detail,
             -- Event classification (dynamic via env or default)
             {classification_sql} as event_classification,
             -- First event flags
@@ -131,6 +159,10 @@ def run_phase2_step1_event_fact_table(context):
             NULL as procedure_code,
             NULL as cpt_mod_1_code,
             NULL as cpt_mod_2_code,
+            -- HCG fields not present in pharmacy (set NULLs)
+            NULL as hcg_setting,
+            NULL as hcg_line,
+            NULL as hcg_detail,
             -- Use same classification expression to preserve target logic across union
             {classification_sql} as event_classification,
             ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
@@ -151,6 +183,36 @@ def run_phase2_step1_event_fact_table(context):
         
         logger.info(f"→ [PHASE 2 STEP 1] QA: Total events: {total_events:,}")
         logger.info(f"→ [PHASE 2 STEP 1] QA: Event type distribution: {dict(event_type_dist)}")
+        
+        # F1120-specific checks
+        f1120_total = cohort_conn_duckdb.sql("""
+        SELECT 
+            COUNT(*) as total_f1120_records,
+            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+        FROM unified_event_fact_table
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        """).fetchone()
+        
+        f1120_by_class = cohort_conn_duckdb.sql("""
+        SELECT 
+            event_classification,
+            COUNT(*) as count_by_classification
+        FROM unified_event_fact_table
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        GROUP BY event_classification
+        ORDER BY count_by_classification DESC
+        """).fetchall()
+        
+        if f1120_total and f1120_total[0] > 0:
+            logger.info(f"→ [PHASE 2 STEP 1] F1120 CHECK:")
+            logger.info(f"  Total F1120 records: {f1120_total[0]:,}")
+            logger.info(f"  Distinct F1120 patients: {f1120_total[1]:,}")
+            if f1120_by_class:
+                logger.info(f"  F1120 by classification:")
+                for row in f1120_by_class:
+                    logger.info(f"    '{row[0]}': {row[1]:,} records")
+        else:
+            logger.warning(f"→ [PHASE 2 STEP 1] F1120 CHECK: No F1120 records found in unified_event_fact_table")
         
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)

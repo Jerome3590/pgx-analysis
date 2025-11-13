@@ -18,6 +18,13 @@ import re
 import json
 import argparse
 from typing import Optional, List, Tuple
+
+
+# Set root of project (e.g., /home/pgx3874/pgx-analysis)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
 # Visualization helpers (plots saved to S3)
 from helpers_1997_13.visualization_utils import (
     plot_stacked_by_year,
@@ -27,6 +34,7 @@ from helpers_1997_13.visualization_utils import (
 )
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
+from collections import defaultdict
 warnings.filterwarnings('ignore')
 
 
@@ -415,6 +423,206 @@ def run_analysis(years=(2016, 2020), out_dir="/home/pgx3874/pgx-analysis/1_apcd_
 
 
 # Note: This script does not normalize or apply mappings; it only computes frequencies
+
+
+def precompute_cohort_target_averages(conn=None, aws_profile=None):
+    """
+    Pre-compute target averages (F1120 and HCG ED visits) across all partitions.
+    Saves results to cohort_target_averages.json for use in cohort creation pipeline.
+
+    This function is called as part of target frequency analysis to ensure
+    averages are computed before cohort creation begins.
+
+    Args:
+        conn: Optional DuckDB connection (will create if not provided)
+        aws_profile: Optional AWS profile name
+
+    Returns:
+        dict: Configuration dictionary with averages and per-partition counts
+    """
+    print("\n" + "=" * 80)
+    print("PRE-COMPUTING COHORT TARGET AVERAGES")
+    print("=" * 80)
+
+    if aws_profile:
+        os.environ['AWS_PROFILE'] = aws_profile
+        print(f"\nUsing AWS profile: {aws_profile}")
+    else:
+        aws_profile = os.environ.get('AWS_PROFILE', 'default')
+        print(f"\nUsing AWS profile: {aws_profile} (default)")
+
+    results = {
+        'f1120': defaultdict(lambda: defaultdict(int)),
+        'hcg_ed': defaultdict(lambda: defaultdict(int)),
+    }
+
+    ed_hcg_lines = [
+        "P51 - ER Visits and Observation Care",
+        "O11 - Emergency Room",
+        "P33 - Urgent Care Visits"
+    ]
+
+    try:
+        if conn is None:
+            from helpers_1997_13.duckdb_utils import get_duckdb_connection
+            conn = get_duckdb_connection()
+            close_conn = True
+        else:
+            close_conn = False
+
+        print("\nQuerying all partitions efficiently using glob pattern...")
+
+        # Use glob pattern to query all partitions at once
+        from helpers_1997_13.constants import S3_BUCKET, AGE_BANDS, EVENT_YEARS
+        glob_pattern = f"s3://{S3_BUCKET}/gold/medical/age_band=*/event_year=*/medical_data.parquet"
+
+        # Single query for F1120 counts per partition
+        print("  Calculating F1120 targets...")
+        f1120_query = f"""
+        SELECT
+            age_band,
+            event_year,
+            COUNT(DISTINCT mi_person_key) as distinct_patients
+        FROM read_parquet('{glob_pattern}')
+        WHERE primary_icd_diagnosis_code = 'F1120'
+        GROUP BY age_band, event_year
+        ORDER BY age_band, event_year
+        """
+
+        f1120_results = conn.sql(f1120_query).fetchall()
+        for age_band, event_year, count in f1120_results:
+            results['f1120'][age_band][int(event_year)] = count
+
+        # Single query for HCG ED visit counts per partition
+        print("  Calculating HCG ED visit targets...")
+        ed_query = f"""
+        SELECT
+            age_band,
+            event_year,
+            COUNT(DISTINCT mi_person_key) as distinct_patients
+        FROM read_parquet('{glob_pattern}')
+        WHERE hcg_line IN {tuple(ed_hcg_lines)}
+        GROUP BY age_band, event_year
+        ORDER BY age_band, event_year
+        """
+
+        ed_results = conn.sql(ed_query).fetchall()
+        for age_band, event_year, count in ed_results:
+            results['hcg_ed'][age_band][int(event_year)] = count
+
+        # Fill in zeros for missing partitions
+        for age_band in AGE_BANDS:
+            for event_year in EVENT_YEARS:
+                if age_band not in results['f1120'] or event_year not in results['f1120'][age_band]:
+                    results['f1120'][age_band][event_year] = 0
+                if age_band not in results['hcg_ed'] or event_year not in results['hcg_ed'][age_band]:
+                    results['hcg_ed'][age_band][event_year] = 0
+
+        if close_conn:
+            conn.close()
+
+        # Calculate statistics
+        print("\n" + "=" * 80)
+        print("CALCULATING STATISTICS")
+        print("=" * 80)
+
+        # F1120 stats
+        f1120_all_counts = [results['f1120'][ab][y] for ab in AGE_BANDS for y in EVENT_YEARS]
+        f1120_non_zero = [c for c in f1120_all_counts if c > 0]
+
+        f1120_stats = {
+            'total_partitions': len(f1120_all_counts),
+            'partitions_with_targets': len(f1120_non_zero),
+            'partitions_with_zero': len(f1120_all_counts) - len(f1120_non_zero),
+            'average': sum(f1120_non_zero) / len(f1120_non_zero) if f1120_non_zero else 0,
+            'median': sorted(f1120_non_zero)[len(f1120_non_zero)//2] if f1120_non_zero else 0,
+            'min': min(f1120_non_zero) if f1120_non_zero else 0,
+            'max': max(f1120_non_zero) if f1120_non_zero else 0,
+        }
+
+        # HCG ED stats
+        hcg_all_counts = [results['hcg_ed'][ab][y] for ab in AGE_BANDS for y in EVENT_YEARS]
+        hcg_non_zero = [c for c in hcg_all_counts if c > 0]
+
+        hcg_stats = {
+            'total_partitions': len(hcg_all_counts),
+            'partitions_with_targets': len(hcg_non_zero),
+            'partitions_with_zero': len(hcg_all_counts) - len(hcg_non_zero),
+            'average': sum(hcg_non_zero) / len(hcg_non_zero) if hcg_non_zero else 0,
+            'median': sorted(hcg_non_zero)[len(hcg_non_zero)//2] if hcg_non_zero else 0,
+            'min': min(hcg_non_zero) if hcg_non_zero else 0,
+            'max': max(hcg_non_zero) if hcg_non_zero else 0,
+        }
+
+        # Combined stats
+        combined_counts = [results['f1120'][ab][y] + results['hcg_ed'][ab][y] for ab in AGE_BANDS for y in EVENT_YEARS]
+        combined_non_zero = [c for c in combined_counts if c > 0]
+
+        combined_stats = {
+            'total_partitions': len(combined_counts),
+            'partitions_with_targets': len(combined_non_zero),
+            'partitions_with_zero': len(combined_counts) - len(combined_non_zero),
+            'average': sum(combined_non_zero) / len(combined_non_zero) if combined_non_zero else 0,
+            'median': sorted(combined_non_zero)[len(combined_non_zero)//2] if combined_non_zero else 0,
+            'min': min(combined_non_zero) if combined_non_zero else 0,
+            'max': max(combined_non_zero) if combined_non_zero else 0,
+        }
+
+        # Print summary
+        print("\nF1120 Targets:")
+        print(f"  Average (non-zero): {f1120_stats['average']:,.0f}")
+        print(f"  Median (non-zero): {f1120_stats['median']:,.0f}")
+        print(f"  Partitions with targets: {f1120_stats['partitions_with_targets']}")
+        print(f"  Partitions with zero: {f1120_stats['partitions_with_zero']}")
+
+        print("\nHCG ED Visit Targets:")
+        print(f"  Average (non-zero): {hcg_stats['average']:,.0f}")
+        print(f"  Median (non-zero): {hcg_stats['median']:,.0f}")
+        print(f"  Partitions with targets: {hcg_stats['partitions_with_targets']}")
+        print(f"  Partitions with zero: {hcg_stats['partitions_with_zero']}")
+
+        print("\nCombined (F1120 + HCG ED) Targets:")
+        print(f"  Average (non-zero): {combined_stats['average']:,.0f}")
+        print(f"  Median (non-zero): {combined_stats['median']:,.0f}")
+        print(f"  Partitions with targets: {combined_stats['partitions_with_targets']}")
+        print(f"  Partitions with zero: {combined_stats['partitions_with_zero']}")
+
+        # Save to JSON config file
+        config = {
+            'averages': {
+                'f1120': f1120_stats,
+                'hcg_ed': hcg_stats,
+                'combined': combined_stats,
+            },
+            'per_partition': {
+                'f1120': {ab: {str(y): results['f1120'][ab][y] for y in EVENT_YEARS} for ab in AGE_BANDS},
+                'hcg_ed': {ab: {str(y): results['hcg_ed'][ab][y] for y in EVENT_YEARS} for ab in AGE_BANDS},
+            },
+            'metadata': {
+                'computed_at': datetime.now().isoformat(),
+                'aws_profile': aws_profile,
+                's3_bucket': S3_BUCKET,
+            }
+        }
+
+        # Save config file in project root
+        config_file = os.path.join(project_root, 'cohort_target_averages.json')
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+
+        print("\n" + "=" * 80)
+        print(f"SAVED CONFIG: {config_file}")
+        print("=" * 80)
+        print(f"\nUse this average for control-only cohorts: {combined_stats['average']:,.0f}")
+        print("Phase 3 will automatically load this config file.")
+
+        return config
+
+    except Exception as e:
+        print(f"\n✗ Error computing cohort target averages: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def get_icd_frequency_data(conn, path, y0, y1):
@@ -942,7 +1150,19 @@ def main(codes_of_interest: Optional[List[str]] = None, years: Tuple[int, int] =
         cpt_agg_df        = _concat_and_sum([r[4] for r in results], ['event_year','target_code','frequency'])
         cpt_age_df        = _concat_and_sum([r[5] for r in results], ['event_year','target_code','age_band','frequency'])
 
-        return _aggregate_and_write_outputs(icd_by_position_df, icd_agg_df, icd_age_df, cpt_by_field_df, cpt_agg_df, cpt_age_df, codes_of_interest=codes_of_interest, log_s3=log_s3)
+        result = _aggregate_and_write_outputs(icd_by_position_df, icd_agg_df, icd_age_df, cpt_by_field_df, cpt_agg_df, cpt_age_df, codes_of_interest=codes_of_interest, log_s3=log_s3)
+
+        # Pre-compute cohort target averages after parallel analysis completes
+        print("\n" + "=" * 80)
+        print("PRE-COMPUTING COHORT TARGET AVERAGES")
+        print("=" * 80)
+        try:
+            precompute_cohort_target_averages(conn=None, aws_profile=None)
+        except Exception as e:
+            print(f"⚠️ Failed to pre-compute cohort target averages: {e}")
+            print("  Cohort creation pipeline will use fallback averages if config file is missing.")
+
+        return result
 
     conn = create_duckdb_conn() # Fallback: single-connection path
 
@@ -1231,10 +1451,30 @@ if __name__ == '__main__':
     parser.add_argument('--max-year', type=int, default=2020)
     parser.add_argument('--log-cpu', action='store_true', help='Log per-worker CPU affinity/context')
     parser.add_argument('--log-s3', action='store_true', help='Log S3 throughput for final COPY outputs')
+    parser.add_argument('--profile', type=str, help='AWS profile to use (e.g., bedrock)')
     args = parser.parse_args()
     coi = [c.strip() for c in args.codes_of_interest.split(',') if c.strip()] if args.codes_of_interest else None
 
     data = main(codes_of_interest=coi, years=(args.min_year, args.max_year), workers=args.workers, log_cpu=args.log_cpu, log_s3=args.log_s3)
+
+    # Pre-compute cohort target averages (F1120 and HCG ED visits) for cohort creation pipeline
+    print("\n" + "=" * 80)
+    print("PRE-COMPUTING COHORT TARGET AVERAGES")
+    print("=" * 80)
+    try:
+        # Check for AWS profile in command line args
+        aws_profile = None
+        if '--profile' in sys.argv:
+            idx = sys.argv.index('--profile')
+            if idx + 1 < len(sys.argv):
+                aws_profile = sys.argv[idx + 1]
+
+        precompute_cohort_target_averages(conn=None, aws_profile=aws_profile)
+    except Exception as e:
+        print(f"⚠️ Failed to pre-compute cohort target averages: {e}")
+        print("  Cohort creation pipeline will use fallback averages if config file is missing.")
+        import traceback
+        traceback.print_exc()
 
     # Apply target ICD mappings at source as a best-effort normalization step
     # so saved artifacts contain canonical target codes (e.g., AF1120 -> F1120).

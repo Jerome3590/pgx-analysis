@@ -16,7 +16,7 @@ if project_root not in sys.path:
 try:
     from helpers_1997_13.logging_utils import setup_logging, save_logs_to_s3
     from helpers_1997_13.duckdb_utils import create_simple_duckdb_connection
-    from helpers_1997_13.pipeline_state import PipelineState
+    from helpers_1997_13.pipeline_utils import PipelineState
 except Exception:
     setup_logging = None
     save_logs_to_s3 = None

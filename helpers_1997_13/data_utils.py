@@ -20,7 +20,7 @@ if project_root not in sys.path:
 
 from helpers_1997_13.common_imports import *
 from helpers_1997_13.duckdb_utils import get_duckdb_connection
-from helpers_1997_13.constants import EXCLUDED_CODES
+from helpers_1997_13.constants import EXCLUDED_CODES, DEFAULT_TARGET_OUTPUTS_DIR
 
 
 def is_excluded_code(code):
@@ -1007,17 +1007,49 @@ def find_preferred_pickle(base_dir: str, name: str = 'target_analysis_data.pkl')
     """Return path to preferred pickle file.
 
     Preference order:
-      1. <base_dir>/outputs/<name>
-      2. <base_dir>/<name> (legacy)
+    Preference: only consider canonical location under <base_dir>/outputs/<name>.
 
-    Returns None if not found.
+    For safety, if a legacy file exists at <base_dir>/<name> we log a warning so
+    maintainers can migrate it; we DO NOT return legacy paths. Callers should
+    treat a None return as a hard-missing artifact and fail loudly.
+    
+    Returns the outputs path if present, otherwise None.
     """
-    outputs_path = os.path.join(base_dir, 'outputs', name)
-    legacy_path = os.path.join(base_dir, name)
+    # Support callers that either pass the project base (e.g. '1_apcd_input_data')
+    # or the explicit outputs directory (e.g. '1_apcd_input_data/outputs'). If
+    # `base_dir` already ends with 'outputs' use it as the canonical directory;
+    # otherwise append 'outputs'.
+    if os.path.basename(os.path.normpath(base_dir)) == 'outputs':
+        outputs_path = os.path.join(base_dir, name)
+        legacy_path = os.path.join(os.path.dirname(base_dir), name)
+    else:
+        outputs_path = os.path.join(base_dir, 'outputs', name)
+        legacy_path = os.path.join(base_dir, name)
+
     if os.path.exists(outputs_path):
         return outputs_path
+
+    # Don't silently return legacy pickles. Instead, log a helpful message for
+    # maintainers so they can migrate the file to the canonical outputs/ directory.
     if os.path.exists(legacy_path):
-        return legacy_path
+        try:
+            # Prefer the module-level `logger` if present; otherwise fall back
+            # to creating a local logger so we don't raise NameError here.
+            _logger = globals().get('logger')
+            if _logger is None:
+                import logging
+                _logger = logging.getLogger(__name__)
+            _logger.warning(
+                "Found legacy pickle at %s — please move it to %s. "
+                "This helper will not return legacy paths.",
+                legacy_path,
+                outputs_path,
+            )
+        except Exception:
+            # If logging fails for some reason, ignore and continue — we still
+            # do not return the legacy path.
+            pass
+
     return None
 
 
@@ -1161,16 +1193,21 @@ def normalize_to_all_targets(obj: object) -> Optional[pd.DataFrame]:
     return None
 
 
-def load_target_artifacts(outputs_dir: str = os.path.join('1_apcd_input_data', 'outputs'),
+def load_target_artifacts(outputs_dir: Optional[str] = None,
                           s3_parquet: Optional[str] = 's3://pgxdatalake/gold/target_code/target_code_latest.parquet') -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Resolve and load target-code analysis artifacts.
 
     Returns a tuple (t_orig, t_updated) where each item is a normalized
     DataFrame (see :func:`normalize_to_all_targets`). The function prefers
-    pickles under `outputs_dir`. If the updated/canonical pickle is missing
-    and `s3_parquet` is provided, it may attempt to read the parquet via
-    DuckDB (when enabled).
+    pickles under `outputs_dir`. By default the outputs dir is taken from
+    the environment-aware constant `DEFAULT_TARGET_OUTPUTS_DIR` defined in
+    `helpers_1997_13.constants` (env var PGX_TARGET_OUTPUTS_DIR).
+    If the updated/canonical pickle is missing and `s3_parquet` is provided,
+    it may attempt to read the parquet via DuckDB (when enabled).
     """
+    # Resolve default outputs dir from constants/env when caller doesn't pass one
+    if outputs_dir is None:
+        outputs_dir = DEFAULT_TARGET_OUTPUTS_DIR
     # Resolve paths
     # Only consult the canonical outputs directory; do not fall back to legacy_base
     canonical_pk = find_preferred_pickle(outputs_dir, 'target_analysis_data.pkl')

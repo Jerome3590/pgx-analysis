@@ -33,7 +33,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from helpers.constants import (
+from helpers_1997_13.constants import (
     MAX_RETRIES,
     RETRY_DELAY,
     DICTIONARY_SIZE_LIMIT_PERCENT,
@@ -42,7 +42,7 @@ from helpers.constants import (
     S3_BUCKET
 )
 
-from helpers.s3_utils import (
+from helpers_1997_13.s3_utils import (
     sanitize_for_s3_key,
     validate_s3_source_paths,
     s3_exists,
@@ -66,15 +66,15 @@ from helpers.s3_utils import (
     _scan_available_checkpoints
 )
 
-from helpers.data_utils import (
+from helpers_1997_13.data_utils import (
     collect_validation_metrics,
     validate_cohort_name,
     generate_qa_report
 )
-from helpers.common_imports import get_logger
+from helpers_1997_13.common_imports import get_logger
 
 # Import optimized DuckDB utilities
-from helpers.duckdb_utils import (
+from helpers_1997_13.duckdb_utils import (
     create_ec2_optimized_connection,
     cleanup_duckdb_temp_files,
     monitor_disk_space,
@@ -91,11 +91,11 @@ from helpers.duckdb_utils import (
     setup_duckdb_environment
 )
 
-from helpers.common_imports import s3_client
+from helpers_1997_13.common_imports import s3_client
 
 import boto3
-from helpers.aws_utils import notify_error, notify_success
-from helpers.cohort_utils import check_cohort_exists, check_and_fix_mismatched_sets, check_cohort_exists_and_delete_message
+from helpers_1997_13.aws_utils import notify_error, notify_success
+from helpers_1997_13.cohort_utils import check_cohort_exists, check_and_fix_mismatched_sets, check_cohort_exists_and_delete_message
 
 
 def run_step1_lock_acquisition_optimized(context):
@@ -1210,7 +1210,7 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
         
         # Save to S3
-        from helpers.s3_utils import get_output_paths
+        from helpers_1997_13.s3_utils import get_output_paths
         
         # Save OPIOID_ED cohort
         opioid_ed_paths = get_output_paths(age_band, event_year, "opioid_ed")

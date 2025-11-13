@@ -7,6 +7,15 @@ This guide shows how to build frequency datasets for `drug_name` and `target_cod
 - Python environment with `duckdb`, `pandas`, `matplotlib`, `seaborn`, and Plotly (Plotly is loaded from CDN in the dashboard HTML)
 - Repository path added to `sys.path` in notebooks when importing helpers
 
+Environment note: the canonical local outputs directory used by helpers is
+`1_apcd_input_data/outputs` by default. You can override this per-environment
+by setting the `PGX_TARGET_OUTPUTS_DIR` environment variable to an absolute
+or relative path (useful on EC2 or CI):
+
+```bash
+export PGX_TARGET_OUTPUTS_DIR=/home/pgx3874/pgx-analysis/1_apcd_input_data/outputs
+```
+
 ---
 
 ## 1) Build Frequency Datasets (latest Parquet/CSV in S3)
@@ -344,7 +353,7 @@ duckdb.sql("COPY all_targets TO 's3://pgxdatalake/gold/target_code/target_code_l
 #### Cell t1b: Optional - load precomputed pickle for extended outputs (age-band)
 ```python
 import pickle
-pk_path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/target_code_analysis_data.pkl'
+pk_path = '1_apcd_input_data/outputs/target_analysis_data.pkl'
 with open(pk_path, 'rb') as f:
     tdata = pickle.load(f)
 

@@ -26,10 +26,10 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Import existing utilities
-from helpers.common_imports import get_logger
-from helpers.constants import S3_BUCKET
-from helpers.aws_utils import notify_error
-from helpers.s3_utils import upload_file_to_s3, get_output_paths, save_to_s3_json, save_to_s3_parquet
+from helpers_1997_13.common_imports import get_logger
+from helpers_1997_13.constants import S3_BUCKET
+from helpers_1997_13.aws_utils import notify_error
+from helpers_1997_13.s3_utils import upload_file_to_s3, get_output_paths, save_to_s3_json, save_to_s3_parquet
 
 
 def setup_logging(age_band, event_year):
@@ -285,7 +285,7 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
     feature_importance.to_csv(feature_importance_path, index=False)
     
     # Get standardized S3 paths using get_output_paths
-    from helpers.s3_utils import get_output_paths, save_to_s3_json, save_to_s3_parquet
+    from helpers_1997_13.s3_utils import get_output_paths, save_to_s3_json, save_to_s3_parquet
     
     try:
         # Get output paths for this cohort
@@ -323,7 +323,7 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
         s3_model_key = f"catboost_models/opioid_ed/{age_band.replace('-', '_')}_{event_year}/model.cbm"
         s3_model_path = f"s3://{S3_BUCKET}/{s3_model_key}"
         
-        from helpers.s3_utils import upload_file_to_s3
+        from helpers_1997_13.s3_utils import upload_file_to_s3
         upload_file_to_s3(model_path, S3_BUCKET, s3_model_key)
         
         logger.info(f"✓ Model artifacts uploaded to S3:")

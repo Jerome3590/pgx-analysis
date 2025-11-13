@@ -66,7 +66,7 @@ from helpers_1997_13.duckdb_utils import (
 )
 
 # Import new centralized checkpoint system
-from helpers_1997_13.pipeline_state import PipelineState, GlobalPipelineTracker
+from helpers_1997_13.pipeline_utils import PipelineState, GlobalPipelineTracker
 
 from helpers_1997_13.common_imports import s3_client
 

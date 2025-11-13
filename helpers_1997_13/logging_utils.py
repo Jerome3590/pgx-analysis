@@ -399,6 +399,22 @@ def setup_mp_logging(component: str,
     return logger, log_buffer, log_queue, listener
 
 
+def get_logger(name: str, band: Optional[str] = "all", year: Optional[str] = "all"):
+    """Compatibility helper that returns a logger instance.
+
+    This preserves the older get_logger(name, band, year) API used across scripts.
+    It prefers setup_logging when cohort-like args are passed; otherwise it falls
+    back to a simple stream logger.
+    """
+    try:
+        # Try to use setup_logging if it accepts these args (returns logger, buffer)
+        logger, _ = setup_logging(name, band, year)
+        return logger
+    except Exception:
+        # Fallback: create lightweight logger
+        return create_fpgrowth_logger(name)
+
+
 def get_worker_queue_logger(log_queue: mp.Queue,
                             name: Optional[str] = None,
                             level: int = logging.INFO) -> logging.Logger:

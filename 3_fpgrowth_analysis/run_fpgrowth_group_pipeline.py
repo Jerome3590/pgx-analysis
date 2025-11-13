@@ -11,20 +11,19 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from helpers.constants import AGE_BANDS, EVENT_YEARS
-from helpers.duckdb_utils import setup_duckdb_environment
-from helpers.fpgrowth_utils import (
+from helpers_1997_13.constants import AGE_BANDS, EVENT_YEARS, TIMEOUT_SECONDS
+from helpers_1997_13.duckdb_utils import get_duckdb_connection
+from helpers_1997_13.fpgrowth_utils import (
     fpgrowth_with_timeout,
     generate_rules_from_itemsets,
     convert_frozensets,
     save_drug_encoding_map
 )
-from helpers.s3_utils import (
+from helpers_1997_13.s3_utils import (
     get_global_base_path,
     save_to_s3_json
 )
-from helpers.drug_name_utils import encode_drug_name
-from helpers.constants import TIMEOUT_SECONDS
+from helpers_1997_13.drug_utils import encode_drug_name
 
 
 def create_fpgrowth_logger(name):
@@ -42,7 +41,7 @@ def load_pharmacy_subset(group, logger):
     """Load pharmacy rows from SILVER zone for the given group.
     Early/middle may span multiple years; we pass explicit partitioned paths.
     """
-    con = setup_duckdb_environment(logger)
+    con = get_duckdb_connection(logger=logger)
 
     age_band = group["age_band"]
     period = group["period"]
@@ -71,7 +70,7 @@ def load_pharmacy_subset(group, logger):
 
 def load_medical_subset(group, logger):
     """Load medical rows from SILVER zone for the given group (for context/logging)."""
-    con = setup_duckdb_environment(logger)
+    con = get_duckdb_connection(logger=logger)
 
     age_band = group["age_band"]
     period = group["period"]
@@ -144,9 +143,9 @@ def run_group_fpgrowth(group):
         te = TransactionEncoder()
         df_tf = pd.DataFrame(te.fit(transactions).transform(transactions), columns=te.columns_)
 
-    logger.info(f"[DIAG] Transactions passed to FP-Growth: {df_tf.shape[0]}")
-    logger.info(f"[DIAG] Unique tokens (columns) passed to FP-Growth: {df_tf.shape[1]}")
-    itemsets = fpgrowth_with_timeout(df_tf, min_support=0.01, timeout=TIMEOUT_SECONDS)
+        logger.info(f"[DIAG] Transactions passed to FP-Growth: {df_tf.shape[0]}")
+        logger.info(f"[DIAG] Unique tokens (columns) passed to FP-Growth: {df_tf.shape[1]}")
+        itemsets = fpgrowth_with_timeout(df_tf, min_support=0.01, timeout=TIMEOUT_SECONDS)
         if itemsets is None:
             itemsets = pd.DataFrame(columns=["support", "itemsets"])
         rules = generate_rules_from_itemsets(itemsets, metric="confidence", min_threshold=0.5)

@@ -1,0 +1,125 @@
+```python
+import subprocess
+import concurrent.futures
+import boto3
+import traceback
+import sys
+import os
+import threading
+import queue
+import time
+
+
+# Script configuration
+# Use the promoted entrypoint `0_create_cohort.py` (repository-relative) so this script
+# is portable across hosts. Use the current Python interpreter.
+script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '0_create_cohort.py'))
+python_bin = sys.executable
+
+# Prefer an S3 bucket constant from the project's constants module when available
+try:
+    from helpers_1997_13 import constants as _const
+    S3_BUCKET = getattr(_const, "S3_BUCKET", "pgxdatalake")
+except Exception:
+    S3_BUCKET = "pgxdatalake"
+
+# Import orchestration helpers from shared utilities
+from helpers_1997_13.cohort_utils import check_existing_cohorts, run_cohort
+
+# Target ICD(s) override via environment variable. Default remains F1120 for backward compatibility.
+TARGET_ICD = os.environ.get("PGX_TARGET_ICD_CODES", "F1120")
+
+# Note: the detailed reader and runner implementations were moved to
+# helpers_1997_13.cohort_utils to avoid duplication and make them reusable.
+
+
+# Check S3 for cohorts and locks
+jobs_to_process = check_existing_cohorts()
+
+if not jobs_to_process:
+    print("\nAll cohorts already exist or are locked. No jobs to run.")
+    exit(0)
+
+# Limit the number of workers to keep lock contention low
+MAX_WORKERS = min(2, len(jobs_to_process))
+print(f"\nStarting {len(jobs_to_process)} cohort processing jobs with {MAX_WORKERS} parallel workers...", flush=True)
+print(f"{'='*80}", flush=True)
+
+
+def process_job_batch(job_batch, batch_num, total_batches):
+    results = []
+    job_statuses = {}
+    
+    print(f"\nProcessing batch {batch_num}/{total_batches} with {len(job_batch)} jobs...", flush=True)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # pass script_path, python_bin and TARGET_ICD to the shared run_cohort helper
+        future_to_job = {executor.submit(run_cohort, job, script_path, python_bin, TARGET_ICD): job for job in job_batch}
+        total_jobs = len(future_to_job)
+        completed = 0
+        
+        for future in concurrent.futures.as_completed(future_to_job):
+            job = future_to_job[future]
+            job_id = f"{job['age_band']}/{job['event_year']}"
+            completed += 1
+            
+            try:
+                result = future.result()
+                results.append(result)
+                job_statuses[job_id] = result
+                print(f"\n[{completed}/{total_jobs}] Job status: {result}", flush=True)
+            except Exception as e:
+                error_msg = f"Job execution error for {job_id}: {str(e)}"
+                print(f"\n[{completed}/{total_jobs}] {error_msg}", flush=True)
+                print(traceback.format_exc(), flush=True)
+                results.append(f"ERROR: {job_id} - {str(e)}")
+                job_statuses[job_id] = f"ERROR: {str(e)}"
+            
+            print(f"\nProgress: {completed}/{total_jobs} jobs completed ({100*completed/total_jobs:.1f}%)", flush=True)
+            print(f"{'='*80}", flush=True)
+    
+    return results, job_statuses
+
+
+# Split the jobs into smaller batches for better management
+BATCH_SIZE = 2
+all_job_batches = [jobs_to_process[i:i+BATCH_SIZE] for i in range(0, len(jobs_to_process), BATCH_SIZE)]
+all_results = []
+all_job_statuses = {}
+
+for batch_num, job_batch in enumerate(all_job_batches, 1):
+    batch_results, batch_statuses = process_job_batch(job_batch, batch_num, len(all_job_batches))
+    all_results.extend(batch_results)
+    all_job_statuses.update(batch_statuses)
+    
+    print(f"\nBatch {batch_num}/{len(all_job_batches)} complete.", flush=True)
+    if batch_num < len(all_job_batches):
+        print(f"Pausing briefly before starting next batch...", flush=True)
+        time.sleep(5)
+
+
+# Summarize all results
+print("\n" + "="*80)
+print("FINAL SUMMARY OF RESULTS:")
+print("="*80)
+success_count = sum(1 for r in all_results if r.startswith("SUCCESS"))
+locked_count = sum(1 for r in all_results if r.startswith("SKIPPED_LOCKED"))
+failed_count = sum(1 for r in all_results if r.startswith("FAILED") or r.startswith("ERROR"))
+
+print(f"✓ Successful: {success_count}")
+print(f"⚠ Skipped (locked): {locked_count}")
+print(f"✗ Failed: {failed_count}")
+
+if all_job_statuses:
+    print("\nDetailed status by job:")
+    for job_id, status in sorted(all_job_statuses.items()):
+        if status.startswith("SUCCESS"):
+            status_icon = "✓"
+        elif status.startswith("SKIPPED"):
+            status_icon = "⚠"
+        else:
+            status_icon = "✗"
+        print(f"{status_icon} {job_id}: {status}")
+
+print("="*80)
+```

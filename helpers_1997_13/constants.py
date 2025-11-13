@@ -1,3 +1,20 @@
+# Environment-aware defaults
+import os
+
+# Default outputs directory for target artifacts. Can be overridden by setting
+# the environment variable PGX_TARGET_OUTPUTS_DIR (useful on EC2 or CI).
+DEFAULT_TARGET_OUTPUTS_DIR = os.environ.get(
+    'PGX_TARGET_OUTPUTS_DIR', os.path.join('1_apcd_input_data', 'outputs')
+)
+
+# Environment-driven target selection (these mirror PGX_TARGET_* env vars)
+# Use these constants throughout the codebase instead of calling os.getenv() everywhere.
+PGX_TARGET_NAME = os.environ.get('PGX_TARGET_NAME', '').strip()
+PGX_TARGET_ICD_CODES = os.environ.get('PGX_TARGET_ICD_CODES', '').strip()
+PGX_TARGET_CPT_CODES = os.environ.get('PGX_TARGET_CPT_CODES', '').strip()
+PGX_TARGET_ICD_PREFIXES = os.environ.get('PGX_TARGET_ICD_PREFIXES', '').strip()
+PGX_TARGET_CPT_PREFIXES = os.environ.get('PGX_TARGET_CPT_PREFIXES', '').strip()
+
 # Richmond, VA zip codes
 RICHMOND_ZIP_CODES = {
     '23173', '23218', '23219', '23220', '23221', '23222', '23223', '23224',

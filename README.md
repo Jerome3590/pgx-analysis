@@ -135,7 +135,7 @@ graph TD
     I --> I3[common_imports.py]
     I --> I4[constants.py]
     I --> I5[data_utils.py]
-    I --> I6[drug_name_utils.py]
+   I --> I6[drug_utils.py]
     I --> I7[duckdb_utils.py]
     I --> I8[fpgrowth_utils.py]
     I --> I9[js]
@@ -274,7 +274,7 @@ This architecture ensures maintainability, reduces bugs, and provides a clean se
 - `common_imports.py` - Common import statements and configurations
 - `constants.py` - Global constants and configuration values
 - `data_utils.py` - Data processing and manipulation utilities
-- `drug_name_utils.py` - Drug name processing and standardization
+- `helpers_1997_13/drug_utils.py` - Drug name processing and standardization
 - `duckdb_utils.py` - DuckDB database utilities
 - `fpgrowth_utils.py` - FpGrowth algorithm utilities
 - `logging_utils.py` - Logging configuration and utilities
