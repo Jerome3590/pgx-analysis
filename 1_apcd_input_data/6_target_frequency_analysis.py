@@ -59,9 +59,8 @@ def create_duckdb_conn(threads: int = 1):
     try:
         t = max(1, int(threads))
         conn.sql(f"PRAGMA threads={t}")
-        s3_conn_env = os.getenv('PGX_S3_MAX_CONNECTIONS')
-        if s3_conn_env and s3_conn_env.isdigit() and int(s3_conn_env) > 0:
-            conn.sql(f"SET s3_max_connections={int(s3_conn_env)}")
+        # Note: s3_max_connections is not a valid DuckDB parameter
+        # S3 parallelization is handled automatically by DuckDB
     except Exception:
         pass
     return conn
@@ -464,51 +463,45 @@ def precompute_cohort_target_averages(conn=None, aws_profile=None):
 
     try:
         if conn is None:
-            from helpers_1997_13.duckdb_utils import get_duckdb_connection
-            conn = get_duckdb_connection()
+            # Create a dedicated connection with parallelization enabled
+            import duckdb
+            conn = duckdb.connect(database=':memory:')
+            conn.sql("LOAD httpfs; LOAD aws;")
+            conn.sql("CALL load_aws_credentials();")
+            conn.sql("SET s3_region='us-east-1'; SET s3_url_style='path';")
+            # Enable parallelization - use more threads since we're not in multiprocessing mode
+            threads = int(os.getenv('PGX_THREADS_PER_WORKER', '8'))
+            conn.sql(f"PRAGMA threads={threads}")
             close_conn = True
+            print(f"  Using {threads} threads for parallel query execution")
         else:
             close_conn = False
 
-        print("\nQuerying all partitions efficiently using glob pattern...")
+        print("\nQuerying all partitions efficiently using glob pattern with parallelization...")
 
         # Use glob pattern to query all partitions at once
         from helpers_1997_13.constants import S3_BUCKET, AGE_BANDS, EVENT_YEARS
         glob_pattern = f"s3://{S3_BUCKET}/gold/medical/age_band=*/event_year=*/medical_data.parquet"
 
-        # Single query for F1120 counts per partition
-        print("  Calculating F1120 targets...")
-        f1120_query = f"""
+        # Single efficient query that calculates both counts in one pass using conditional aggregation
+        # This is more efficient than two separate scans or a FULL OUTER JOIN
+        print("  Calculating F1120 and HCG ED visit targets in single parallelized query...")
+        combined_query = f"""
         SELECT
             age_band,
             event_year,
-            COUNT(DISTINCT mi_person_key) as distinct_patients
+            COUNT(DISTINCT CASE WHEN primary_icd_diagnosis_code = 'F1120' THEN mi_person_key END) as f1120_count,
+            COUNT(DISTINCT CASE WHEN hcg_line IN {tuple(ed_hcg_lines)} THEN mi_person_key END) as hcg_ed_count
         FROM read_parquet('{glob_pattern}')
-        WHERE primary_icd_diagnosis_code = 'F1120'
+        WHERE primary_icd_diagnosis_code = 'F1120' OR hcg_line IN {tuple(ed_hcg_lines)}
         GROUP BY age_band, event_year
         ORDER BY age_band, event_year
         """
 
-        f1120_results = conn.sql(f1120_query).fetchall()
-        for age_band, event_year, count in f1120_results:
-            results['f1120'][age_band][int(event_year)] = count
-
-        # Single query for HCG ED visit counts per partition
-        print("  Calculating HCG ED visit targets...")
-        ed_query = f"""
-        SELECT
-            age_band,
-            event_year,
-            COUNT(DISTINCT mi_person_key) as distinct_patients
-        FROM read_parquet('{glob_pattern}')
-        WHERE hcg_line IN {tuple(ed_hcg_lines)}
-        GROUP BY age_band, event_year
-        ORDER BY age_band, event_year
-        """
-
-        ed_results = conn.sql(ed_query).fetchall()
-        for age_band, event_year, count in ed_results:
-            results['hcg_ed'][age_band][int(event_year)] = count
+        combined_results = conn.sql(combined_query).fetchall()
+        for age_band, event_year, f1120_count, hcg_ed_count in combined_results:
+            results['f1120'][age_band][int(event_year)] = int(f1120_count) if f1120_count else 0
+            results['hcg_ed'][age_band][int(event_year)] = int(hcg_ed_count) if hcg_ed_count else 0
 
         # Fill in zeros for missing partitions
         for age_band in AGE_BANDS:

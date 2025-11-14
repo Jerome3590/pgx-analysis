@@ -493,7 +493,20 @@ def create_duckdb_conn(threads: Optional[int] = 1, tmp_dir: Optional[str] = None
         con.sql("SET http_timeout=300000")  # 5 minute timeout (up from 30s default)
         con.sql("SET http_retries=5")  # Retry failed requests
         con.sql("SET http_retry_wait_ms=1000")  # Wait 1s between retries
-        con.sql("SET s3_uploader_max_filesize='100GB'")  # Support very large files
+        
+        # S3 uploader configuration (optional, via environment variables)
+        # Default values should suffice for most use cases
+        s3_uploader_max_filesize = os.getenv('PGX_S3_UPLOADER_MAX_FILESIZE', '100GB')
+        con.sql(f"SET s3_uploader_max_filesize='{s3_uploader_max_filesize}'")
+        
+        s3_uploader_thread_limit = os.getenv('PGX_S3_UPLOADER_THREAD_LIMIT')
+        if s3_uploader_thread_limit and s3_uploader_thread_limit.isdigit():
+            con.sql(f"SET s3_uploader_thread_limit={int(s3_uploader_thread_limit)}")
+        
+        s3_uploader_max_parts_per_file = os.getenv('PGX_S3_UPLOADER_MAX_PARTS_PER_FILE')
+        if s3_uploader_max_parts_per_file and s3_uploader_max_parts_per_file.isdigit():
+            con.sql(f"SET s3_uploader_max_parts_per_file={int(s3_uploader_max_parts_per_file)}")
+        
         print(f"[duckdb-{worker_pid}] ✅ S3 configuration complete", flush=True)
         
         # Dynamic memory limit calculation to avoid aggregate oversubscription

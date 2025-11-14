@@ -143,12 +143,22 @@ def run_phase3_step3_final_cohort_fact(context):
         # If no targets, create control-only cohort using average target count
         if target_case_count > 0:
             # Normal case: has targets
+            # Calculate first target event dates and days_to_target_event
             opioid_ed_cohort_sql = f"""
             CREATE OR REPLACE VIEW opioid_ed_cohort AS
             WITH target_cases AS (
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
                 WHERE event_classification = '{label_target}'
+            ),
+            first_target_dates AS (
+                -- Find first target event date per patient
+                SELECT 
+                    mi_person_key,
+                    MIN(event_date) as first_opioid_ed_date
+                FROM unified_event_fact_table
+                WHERE event_classification = '{label_target}'
+                GROUP BY mi_person_key
             ),
             control_candidates AS (
                 SELECT DISTINCT mi_person_key
@@ -157,10 +167,29 @@ def run_phase3_step3_final_cohort_fact(context):
                   AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
             ),
             sampled_controls AS (
-                SELECT mi_person_key
+                -- Sample distinct controls only (no reuse WITHIN this cohort to maintain statistical independence)
+                -- NOTE: Same controls CAN be reused ACROSS cohorts (OPIOID_ED vs ED_NON_OPIOID) as they are independent studies
+                -- Use all available controls if fewer than 5:1 ratio (expected only for small partitions)
+                -- Should achieve 5:1 ratio unless partition (age_band + event_year) is genuinely small
+                WITH target_count AS (
+                    SELECT COUNT(*) as target_cnt FROM target_cases
+                ),
+                needed_count AS (
+                    SELECT tc.target_cnt * 5 as needed FROM target_count tc
+                ),
+                available_controls AS (
+                    SELECT COUNT(*) as available FROM control_candidates
+                )
+                SELECT 
+                    mi_person_key
                 FROM control_candidates
                 ORDER BY RANDOM()
-                LIMIT (SELECT COUNT(*) * 5 FROM target_cases)
+                LIMIT (
+                    SELECT LEAST(
+                        (SELECT needed FROM needed_count),
+                        (SELECT available FROM available_controls)
+                    )
+                )
             )
             SELECT 
                 uef.*,
@@ -170,10 +199,18 @@ def run_phase3_step3_final_cohort_fact(context):
                     WHEN tc.mi_person_key IS NOT NULL THEN 'OPIOID_ED'
                     ELSE 'NON_ED'
                 END as cohort,
-                CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
+                CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+                -- Ensure all columns match: controls get NULL for target-specific fields
+                CASE 
+                    WHEN tc.mi_person_key IS NOT NULL THEN ftd.first_opioid_ed_date
+                    ELSE NULL
+                END as first_opioid_ed_date,
+                NULL as first_ed_non_opioid_date,
+                NULL as days_to_target_event  -- Not needed for opioid_ed; can be calculated from event_date and first_opioid_ed_date
             FROM unified_event_fact_table uef
             LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
             LEFT JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+            LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
             WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
             """
         else:
@@ -198,7 +235,11 @@ def run_phase3_step3_final_cohort_fact(context):
                 0 as target,  -- All controls, no targets
                 'OPIOID_ED' as cohort_name,
                 'NON_ED' as cohort,  -- All controls are non-ED
-                0 as is_target_case  -- All are controls
+                0 as is_target_case,  -- All are controls
+                -- No target dates for control-only cohort
+                NULL as first_opioid_ed_date,
+                NULL as first_ed_non_opioid_date,
+                NULL as days_to_target_event
             FROM unified_event_fact_table uef
             INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
             """
@@ -212,6 +253,7 @@ def run_phase3_step3_final_cohort_fact(context):
         if ed_non_opioid_case_count > 0:
             # Normal case: has targets
             # Exclude patients who have opioid ICD codes from ED_NON_OPIOID target cases
+            # Apply 30-day lookback window for drug events (per README documentation)
             from helpers_1997_13.constants import OPIOID_ICD_CODES
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
@@ -227,6 +269,16 @@ def run_phase3_step3_final_cohort_fact(context):
                 WHERE event_classification = '{label_ed_non_opioid}'
                   AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
             ),
+            first_target_dates AS (
+                -- Find first ED_NON_OPIOID target event date per patient
+                SELECT 
+                    mi_person_key,
+                    MIN(event_date) as first_ed_non_opioid_date
+                FROM unified_event_fact_table
+                WHERE event_classification = '{label_ed_non_opioid}'
+                  AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+                GROUP BY mi_person_key
+            ),
             control_candidates AS (
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
@@ -236,25 +288,117 @@ def run_phase3_step3_final_cohort_fact(context):
                   -- Exclude opioid patients from controls as well - complete separation
             ),
             sampled_controls AS (
-                SELECT mi_person_key
+                -- Sample distinct controls only (no reuse WITHIN this cohort to maintain statistical independence)
+                -- NOTE: Same controls CAN be reused ACROSS cohorts (OPIOID_ED vs ED_NON_OPIOID) as they are independent studies
+                -- Use all available controls if fewer than 5:1 ratio (expected only for small partitions)
+                -- Should achieve 5:1 ratio unless partition (age_band + event_year) is genuinely small
+                WITH target_count AS (
+                    SELECT COUNT(*) as target_cnt FROM target_cases
+                ),
+                needed_count AS (
+                    SELECT tc.target_cnt * 5 as needed FROM target_count tc
+                ),
+                available_controls AS (
+                    SELECT COUNT(*) as available FROM control_candidates
+                )
+                SELECT 
+                    mi_person_key
                 FROM control_candidates
                 ORDER BY RANDOM()
-                LIMIT (SELECT COUNT(*) * 5 FROM target_cases)
+                LIMIT (
+                    SELECT LEAST(
+                        (SELECT needed FROM needed_count),
+                        (SELECT available FROM available_controls)
+                    )
+                )
+            ),
+            control_reference_dates AS (
+                -- For controls, use first non-ED medical event as reference date (similar to target date for cases)
+                -- This ensures balanced temporal windows between targets and controls
+                -- Fallback to first medical event if no non-ED medical events exist
+                WITH non_ed_reference AS (
+                    SELECT 
+                        uef.mi_person_key,
+                        MIN(uef.event_date) as reference_date
+                    FROM unified_event_fact_table uef
+                    INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+                    WHERE uef.event_type = 'medical'
+                      AND (uef.hcg_line IS NULL OR uef.hcg_line NOT IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits'))
+                    GROUP BY uef.mi_person_key
+                ),
+                fallback_reference AS (
+                    SELECT 
+                        uef.mi_person_key,
+                        MIN(uef.event_date) as reference_date
+                    FROM unified_event_fact_table uef
+                    INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+                    WHERE uef.event_type = 'medical'
+                      AND uef.mi_person_key NOT IN (SELECT mi_person_key FROM non_ed_reference)
+                    GROUP BY uef.mi_person_key
+                )
+                SELECT * FROM non_ed_reference
+                UNION ALL
+                SELECT * FROM fallback_reference
+            ),
+            events_with_dates AS (
+                -- Calculate days_to_target_event for all events
+                -- For targets: days to first ED_NON_OPIOID event
+                -- For controls: days to reference date (first non-ED medical event) to balance temporal windows
+                SELECT 
+                    uef.*,
+                    ftd.first_ed_non_opioid_date,
+                    crd.reference_date as control_reference_date,
+                    -- Calculate days_to_target_event
+                    -- For targets: days to first target event
+                    -- For controls: days to reference date (to balance temporal windows)
+                    CASE 
+                        WHEN ftd.first_ed_non_opioid_date IS NOT NULL AND uef.event_date IS NOT NULL
+                        THEN CAST(datediff(ftd.first_ed_non_opioid_date::DATE, uef.event_date::DATE) AS INTEGER)
+                        WHEN crd.reference_date IS NOT NULL AND uef.event_date IS NOT NULL
+                        THEN CAST(datediff(crd.reference_date::DATE, uef.event_date::DATE) AS INTEGER)
+                        ELSE NULL
+                    END as days_to_target_event
+                FROM unified_event_fact_table uef
+                LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
+                LEFT JOIN control_reference_dates crd ON uef.mi_person_key = crd.mi_person_key
             )
             SELECT 
-                uef.*,
+                ewd.*,
                 1 as target,
                 'ED_NON_OPIOID' as cohort_name,
                 CASE 
                     WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
-                    WHEN uef.event_type = 'medical' AND uef.hcg_line IS NULL THEN 'NON_ED'
+                    WHEN ewd.event_type = 'medical' AND ewd.hcg_line IS NULL THEN 'NON_ED'
                     ELSE 'NON_ED'
                 END as cohort,
-                CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
-            FROM unified_event_fact_table uef
-            LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
-            LEFT JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
-            WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
+                CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+                -- Ensure all columns match: controls get NULL for target-specific fields
+                NULL as first_opioid_ed_date,
+                CASE 
+                    WHEN tc.mi_person_key IS NOT NULL THEN ewd.first_ed_non_opioid_date
+                    ELSE NULL
+                END as first_ed_non_opioid_date
+            FROM events_with_dates ewd
+            LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
+            LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
+            WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
+              -- Apply balanced 30-day lookback window to both targets and controls
+              -- For target cases: medical events OR drug events within 30 days before target
+              -- For controls: medical events OR drug events within 30 days before reference date
+              AND (
+                  -- Target cases: include medical events OR drug events within 30 days before target
+                  (tc.mi_person_key IS NOT NULL AND (
+                      ewd.event_type = 'medical' 
+                      OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
+                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+                  ))
+                  -- Controls: apply same temporal logic for balanced comparison
+                  OR (sc.mi_person_key IS NOT NULL AND (
+                      ewd.event_type = 'medical'
+                      OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
+                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+                  ))
+              );
             """
         else:
             # Zero targets: create control-only cohort
@@ -287,12 +431,38 @@ def run_phase3_step3_final_cohort_fact(context):
                  0 as target,  -- All controls, no targets
                  'ED_NON_OPIOID' as cohort_name,
                  'NON_ED' as cohort,  -- All controls are non-ED
-                 0 as is_target_case  -- All are controls
+                 0 as is_target_case,  -- All are controls
+                 -- No target dates for control-only cohort
+                 NULL as first_opioid_ed_date,
+                 NULL as first_ed_non_opioid_date,
+                 NULL as days_to_target_event
              FROM unified_event_fact_table uef
             INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
             """
         execute_sql_with_dev_validation(cohort_conn_duckdb, logger, ed_non_opioid_cohort_sql)
         logger.info("→ [PHASE 3 STEP 3] ED_NON_OPIOID cohort created")
+        
+        # Log drug window statistics for ed_non_opioid cohort
+        if ed_non_opioid_case_count > 0:
+            try:
+                drug_window_stats = cohort_conn_duckdb.sql("""
+                SELECT 
+                    COUNT(*) as total_drug_events,
+                    COUNT(DISTINCT mi_person_key) as patients_with_drugs,
+                    COUNT(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 30 THEN 1 END) as drugs_in_30day_window,
+                    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 30 THEN days_to_target_event END) as avg_days_in_window
+                FROM ed_non_opioid_cohort
+                WHERE event_type = 'pharmacy' AND is_target_case = 1
+                """).fetchone()
+                if drug_window_stats and drug_window_stats[0] > 0:
+                    logger.info(f"→ [PHASE 3 STEP 3] ED_NON_OPIOID Drug Window Stats (target cases):")
+                    logger.info(f"  Total drug events: {drug_window_stats[0]:,}")
+                    logger.info(f"  Patients with drugs: {drug_window_stats[1]:,}")
+                    logger.info(f"  Drugs in 30-day window: {drug_window_stats[2]:,}")
+                    if drug_window_stats[3]:
+                        logger.info(f"  Avg days in window: {drug_window_stats[3]:.1f}")
+            except Exception as e:
+                logger.debug(f"Could not calculate drug window stats: {e}")
         
         # QA checks
         opioid_ed_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort").fetchone()[0]
@@ -320,6 +490,22 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"→ [PHASE 3 STEP 3] QA: ED_NON_OPIOID records: {ed_non_opioid_count:,}")
         logger.info(f"→ [PHASE 3 STEP 3] QA: OPIOID_ED control ratio: {opioid_ed_control_ratio:.2f}:1")
         logger.info(f"→ [PHASE 3 STEP 3] QA: ED_NON_OPIOID control ratio: {ed_non_opioid_control_ratio:.2f}:1")
+        
+        # Warn if ratio is below 5:1 (expected only for small partitions: age_band + event_year)
+        # This should rarely occur unless the partition is genuinely small
+        if opioid_ed_ratio[0] > 0 and opioid_ed_control_ratio < 5.0:
+            logger.warning(
+                f"⚠️ [PHASE 3 STEP 3] OPIOID_ED cohort has control ratio {opioid_ed_control_ratio:.2f}:1 "
+                f"(target: 5:1). This is expected for small partitions ({age_band}/{event_year}). "
+                f"All available controls used: Target cases: {opioid_ed_ratio[0]:,}, Control cases: {opioid_ed_ratio[1]:,}"
+            )
+        
+        if ed_non_opioid_ratio[0] > 0 and ed_non_opioid_control_ratio < 5.0:
+            logger.warning(
+                f"⚠️ [PHASE 3 STEP 3] ED_NON_OPIOID cohort has control ratio {ed_non_opioid_control_ratio:.2f}:1 "
+                f"(target: 5:1). This is expected for small partitions ({age_band}/{event_year}). "
+                f"All available controls used: Target cases: {ed_non_opioid_ratio[0]:,}, Control cases: {ed_non_opioid_ratio[1]:,}"
+            )
         
         # F1120-specific checks in cohorts
         f1120_opioid_check = cohort_conn_duckdb.sql("""

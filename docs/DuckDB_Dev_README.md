@@ -433,25 +433,42 @@ conn.sql("SET threads = 1")
 
 ### 3. S3 Uploader Configuration (CRITICAL)
 
-**❌ Avoid Manual S3 Uploader Settings:**
+**✅ Recommended: Let DuckDB Auto-Configure (Default):**
 ```python
-# DON'T: Manual S3 uploader settings cause memory issues
-conn.sql("SET s3_uploader_max_filesize='5368709120'")
-conn.sql("SET s3_uploader_max_parts_per_file='10000'")
-```
-
-**✅ Let DuckDB Auto-Configure:**
-```python
-# DO: Let DuckDB handle S3 upload optimization
+# DO: Let DuckDB handle S3 upload optimization automatically
 # DuckDB automatically configures based on:
 # - Available memory
 # - File sizes
 # - Network conditions
-# No manual S3 uploader configuration needed
+# Default values should suffice for most use cases
+```
+
+**⚠️ Optional: Manual Configuration (Use Sparingly):**
+If you need to tune upload performance, these parameters are available but should be used sparingly:
+
+| Parameter | Description | Environment Variable | Example |
+| :-- | :-- | :-- | :-- |
+| `s3_uploader_thread_limit` | Maximum number of uploader threads | `PGX_S3_UPLOADER_THREAD_LIMIT` | `16` |
+| `s3_uploader_max_filesize` | Max file size for part size calculation | `PGX_S3_UPLOADER_MAX_FILESIZE` | `"5368709120"` (5GB) |
+| `s3_uploader_max_parts_per_file` | Max parts per file for part calculation | `PGX_S3_UPLOADER_MAX_PARTS_PER_FILE` | `10000` |
+
+```python
+# Optional: Configure via environment variables or direct SET
+# Only use if default behavior doesn't meet your needs
+import os
+thread_limit = os.getenv('PGX_S3_UPLOADER_THREAD_LIMIT')
+if thread_limit:
+    conn.sql(f"SET s3_uploader_thread_limit={int(thread_limit)}")
+```
+
+**❌ Invalid Parameter (Will Cause Errors):**
+```python
+# DON'T: s3_max_connections is NOT a valid DuckDB parameter
+conn.sql("SET s3_max_connections=32")  # ❌ This will fail!
 ```
 
 **Key Discovery (October 2025):**
-Manual S3 uploader parameters were identified as the **second major cause of memory issues**, after fixing the connection chaining problems. DuckDB's auto-configuration for S3 uploads is superior to manual tuning.
+Manual S3 uploader parameters were identified as the **second major cause of memory issues**, after fixing the connection chaining problems. DuckDB's auto-configuration for S3 uploads is superior to manual tuning. **Default values should suffice for most use cases.** Only configure these parameters if you have specific performance requirements and have benchmarked the impact.
 
 ### 4. Connection Isolation
 
@@ -714,7 +731,9 @@ conn.sql("SELECT COUNT(*) FROM 's3://bucket/partition/**/*.parquet'")
 3. **Always Set Threads=1**: Critical for multiprocessing environments to avoid over-subscription
    - `conn.sql("SET threads = 1")` in every worker connection
 4. **Let DuckDB Handle Memory**: Avoid manual memory limits, let DuckDB auto-detect
-5. **No S3 Uploader Settings**: DuckDB auto-configures S3 uploads optimally
+5. **S3 Uploader Settings**: DuckDB auto-configures S3 uploads optimally (default values suffice)
+   - Optional: Configure `s3_uploader_thread_limit`, `s3_uploader_max_filesize`, `s3_uploader_max_parts_per_file` via environment variables if needed
+   - **Never use `s3_max_connections`** (invalid parameter, will cause errors)
 6. **Isolate Connections**: Each worker gets its own connection
 7. **Optimize Queries**:
    - Filter BEFORE computing aggregations
@@ -773,8 +792,12 @@ Threads and Memory
 - Let DuckDB auto-detect memory; avoid manual `SET memory_limit` in our pipeline
 
 S3 Uploader
-- Avoid manual uploader tuning; let DuckDB autotune
-- Do not set `s3_max_connections` (invalid); if benchmarking, prefer `s3_uploader_thread_limit` sparingly
+- **Recommended:** Let DuckDB autotune (default values suffice for most cases)
+- **Optional tuning:** If needed, configure via environment variables:
+  - `PGX_S3_UPLOADER_THREAD_LIMIT` → `SET s3_uploader_thread_limit={value}`
+  - `PGX_S3_UPLOADER_MAX_FILESIZE` → `SET s3_uploader_max_filesize='{value}'`
+  - `PGX_S3_UPLOADER_MAX_PARTS_PER_FILE` → `SET s3_uploader_max_parts_per_file={value}`
+- **Invalid:** Do not set `s3_max_connections` (not a valid parameter, will cause errors)
 
 COPY guidance
 - Use `COPY (...query...) TO 's3://...'(FORMAT PARQUET, ROW_GROUP_SIZE 100000, OVERWRITE_OR_IGNORE TRUE)`

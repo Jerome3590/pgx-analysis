@@ -298,6 +298,9 @@ def main():
     logger.info("=" * 80)
     logger.info(f"{SYMBOLS['config']} DUCKDB OPTIMIZATIONS APPLIED:")
     logger.info("   - EC2-optimized connections (32-core 1TB RAM)")
+    logger.info("   - Multi-threaded DuckDB execution (configurable via PGX_THREADS_PER_WORKER)")
+    logger.info("   - S3 uploader parallelization (multi-part uploads)")
+    logger.info("   - Operation-type specific optimizations")
     logger.info("   - Advanced temp file management")
     logger.info("   - Memory optimization for large datasets")
     logger.info("   - S3 performance tuning")
@@ -328,9 +331,44 @@ def main():
                 logger.warning(f"Could not save logs to S3 on early exit: {e}")
             return
 
-        # Setup simplified DuckDB connection (helpers_1997_13)
+        # Setup optimized DuckDB connection with parallelization
+        # Since we're processing a single partition, use multiple threads for better performance
         cohort_conn_duckdb = get_duckdb_connection(logger=logger)
-        
+
+        # Configure DuckDB for optimal parallelization based on operation type
+        threads = int(os.getenv('PGX_THREADS_PER_WORKER', '8'))  # Default 8 threads for single partition processing
+        cohort_conn_duckdb.sql(f"PRAGMA threads={threads}")
+        logger.info(f"→ [CONFIG] DuckDB threads: {threads}")
+
+        # Configure S3 uploader settings for optimal parallel uploads
+        # These settings optimize multi-part uploads when saving large cohort files to S3
+        s3_uploader_thread_limit = os.getenv('PGX_S3_UPLOADER_THREAD_LIMIT')
+        if s3_uploader_thread_limit and s3_uploader_thread_limit.isdigit():
+            cohort_conn_duckdb.sql(f"SET s3_uploader_thread_limit={int(s3_uploader_thread_limit)}")
+            logger.info(f"→ [CONFIG] S3 uploader thread limit: {s3_uploader_thread_limit}")
+        # Default values should suffice for most use cases, but can be overridden if needed
+        s3_uploader_max_filesize = os.getenv('PGX_S3_UPLOADER_MAX_FILESIZE')
+        if s3_uploader_max_filesize:
+            cohort_conn_duckdb.sql(f"SET s3_uploader_max_filesize='{s3_uploader_max_filesize}'")
+            logger.info(f"→ [CONFIG] S3 uploader max filesize: {s3_uploader_max_filesize}")
+        s3_uploader_max_parts_per_file = os.getenv('PGX_S3_UPLOADER_MAX_PARTS_PER_FILE')
+        if s3_uploader_max_parts_per_file and s3_uploader_max_parts_per_file.isdigit():
+            cohort_conn_duckdb.sql(f"SET s3_uploader_max_parts_per_file={int(s3_uploader_max_parts_per_file)}")
+            logger.info(f"→ [CONFIG] S3 uploader max parts per file: {s3_uploader_max_parts_per_file}")
+
+        # Apply operation-type specific optimizations
+        if args.operation_type == "s3_heavy":
+            # Increase uploader threads for parallel uploads
+            if not s3_uploader_thread_limit:
+                cohort_conn_duckdb.sql("SET s3_uploader_thread_limit=16")
+                logger.info("→ [CONFIG] S3-heavy mode: increased uploader threads to 16")
+            logger.info("→ [CONFIG] S3-heavy mode: optimized for S3 operations")
+        elif args.operation_type == "large_processing":
+            # Use more threads for large processing
+            large_threads = max(threads, 16)
+            cohort_conn_duckdb.sql(f"PRAGMA threads={large_threads}")
+            logger.info(f"→ [CONFIG] Large processing mode: increased threads to {large_threads}")
+
         # Query profiling not supported in simplified helpers; skip
         
         # Create context with pipeline state

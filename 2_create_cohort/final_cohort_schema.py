@@ -16,7 +16,9 @@ final_cohort_schema = [
     ("event_date", "str", "Date of event (YYYY-MM-DD)"),
     ("event_type", "str", "Type of event: 'medical', 'drug', etc."),
     ("data_source", "str", "Source of event data (claims, pharmacy, etc.)"),
-    ("days_to_target_event", "int", "Days from event to target event (if applicable)"),
+    # NOTE: days_to_target_event is NULL for OPIOID_ED cohort (can be calculated from event_date and first_opioid_ed_date)
+    # NOTE: days_to_target_event is calculated for ED_NON_OPIOID cohort (used for 30-day lookback window filtering)
+    ("days_to_target_event", "int", "Days from event to target event - NULL for OPIOID_ED, calculated for ED_NON_OPIOID"),
     # Demographics
     ("age_imputed", "int", "Imputed age at event (1-114)"),
     ("member_gender", "str", "Gender of member"),
@@ -45,8 +47,10 @@ final_cohort_schema = [
     ("therapeutic_class_2", "str", "Therapeutic class level 2 (drug events only)"),
     ("therapeutic_class_3", "str", "Therapeutic class level 3 (drug events only)"),
     # Cohort-specific event dates
-    ("first_opioid_ed_date", "str", "Date of first opioid ED event (if any)"),
-    ("first_ed_non_opioid_date", "str", "Date of first non-opioid ED event (if any)"),
+    # NOTE: first_opioid_ed_date is populated for OPIOID_ED cohort only (NULL for ED_NON_OPIOID)
+    # NOTE: first_ed_non_opioid_date is populated for ED_NON_OPIOID cohort only (NULL for OPIOID_ED)
+    ("first_opioid_ed_date", "str", "Date of first opioid ED event (if any) - OPIOID_ED cohort only"),
+    ("first_ed_non_opioid_date", "str", "Date of first non-opioid ED event (if any) - ED_NON_OPIOID cohort only"),
     # Metadata
     ("created_at", "str", "Timestamp when row was created"),
     ("age_band_filter", "str", "Age band filter used for cohort selection"),

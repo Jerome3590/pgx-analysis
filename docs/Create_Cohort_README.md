@@ -48,7 +48,7 @@ Following the October 2025 refactor, the pipeline has been fully modularized int
 | :-- | :-- | :-- | :-- |
 | Phase 1 | `phase1_data_preparation.py` | `run_phase1_data_preparation()` | Load and integrate medical + pharmacy data from APCD |
 | Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified event fact table and drug exposure |
-| Phase 3 | `phase3_cohort_creation.py` | `run_phase3_cohort_creation()` | Build final cohort fact table (5:1 control ratio) |
+| Phase 3 | `phase3_cohort_creation.py` | `run_phase3_step3_final_cohort_fact()` | Build final cohort fact table (target 5:1 control ratio, statistical independence, balanced temporal windows) |
 | Phase 4 | `phase4_finalization.py` | `run_phase4_finalization()` | Validate QA and export to S3 |
 
 **Key Benefits**
@@ -131,6 +131,87 @@ The `cohort` column tracks three types:
 - **NON_OPIOID_ED:** Target cases in ed_non_opioid_cohort (HCG-based ED visits without opioid codes)
 - **NON_ED:** Controls in both cohorts (non-ED visits)
 
+### Temporal Fields and Drug Window Analysis
+
+The pipeline includes temporal analysis fields that differ between cohorts:
+
+#### Temporal Fields
+
+| Field | Type | Description | OPIOID_ED | ED_NON_OPIOID |
+| :-- | :-- | :-- | :-- | :-- |
+| `first_opioid_ed_date` | STRING | Date of first opioid ED event (if any) | ✅ Populated | ❌ NULL |
+| `first_ed_non_opioid_date` | STRING | Date of first non-opioid ED event (if any) | ❌ NULL | ✅ Populated |
+| `days_to_target_event` | INTEGER | Days from event to first target event | ❌ NULL* | ✅ Calculated |
+| `event_date` | STRING | Date of the event | ✅ All events | ✅ All events |
+| `event_sequence` | INTEGER | Sequential order of events per patient | ✅ All events | ✅ All events |
+
+\* For OPIOID_ED cohort, `days_to_target_event` is NULL. Users can calculate it from `event_date` and `first_opioid_ed_date` if needed.
+
+#### Cohort-Specific Temporal Behavior
+
+**OPIOID_ED Cohort:**
+- **Complete Drug History:** Includes ALL drug events for target cases (no time restriction)
+- **No Drug Window Filtering:** All pharmacy events are included regardless of timing
+- **Temporal Analysis:** Use `event_date` and `event_sequence` for temporal analysis
+- **First Target Date:** `first_opioid_ed_date` is populated for all patients with target events
+- **Days Calculation:** `days_to_target_event` is NULL; calculate manually if needed:
+  ```sql
+  SELECT 
+    event_date,
+    first_opioid_ed_date,
+    datediff(first_opioid_ed_date::DATE, event_date::DATE) as days_to_target
+  FROM opioid_ed_cohort
+  WHERE first_opioid_ed_date IS NOT NULL
+  ```
+
+**ED_NON_OPIOID Cohort:**
+- **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
+- **Target Cases:** 
+  - Reference date: First ED_NON_OPIOID event
+  - Includes: Medical events OR drug events within 30 days before target
+- **Controls:**
+  - Reference date: First non-ED medical event (fallback to first medical event if none)
+  - Includes: Medical events OR drug events within 30 days before reference date
+  - **Balanced temporal windows** ensure fair comparison between targets and controls
+- **First Target Date:** `first_ed_non_opioid_date` is populated for target cases only (NULL for controls)
+- **Days Calculation:** `days_to_target_event` is pre-calculated for all events
+  - For targets: Days to first ED_NON_OPIOID event
+  - For controls: Days to reference date (first non-ED medical event)
+  - Positive values: Event occurred before reference date (included in 30-day window)
+  - Zero: Event occurred on reference date
+  - Negative values: Event occurred after reference date (filtered out for drug events)
+
+#### Drug Window Filtering Logic
+
+For ED_NON_OPIOID cohort, the pipeline applies balanced temporal filtering to BOTH targets and controls:
+```sql
+-- Target cases: include medical events OR drug events within 30 days before target
+-- Controls: include medical events OR drug events within 30 days before reference date
+WHERE (
+  (is_target_case = 1 AND (
+    event_type = 'medical' 
+    OR (event_type = 'pharmacy' 
+        AND days_to_target_event IS NOT NULL 
+        AND days_to_target_event >= 0 
+        AND days_to_target_event <= 30)
+  ))
+  OR (is_target_case = 0 AND (
+    event_type = 'medical'
+    OR (event_type = 'pharmacy' 
+        AND days_to_target_event IS NOT NULL 
+        AND days_to_target_event >= 0 
+        AND days_to_target_event <= 30)
+  ))
+)
+```
+
+This ensures:
+- **Balanced Comparison:** Both targets and controls have the same temporal window structure
+- **Causality Assessment:** Only drugs prescribed within 30 days before the reference event are considered
+- **Risk Window Analysis:** Supports identification of high-risk drug exposure periods
+- **Temporal Relationships:** Enables analysis of drug exposure timing relative to reference events
+- **Statistical Validity:** Prevents bias from unequal temporal data between targets and controls
+
 ***
 
 ## 📈 Control Sampling: 5:1 Ratio
@@ -140,7 +221,18 @@ Control selection ensures matched demographics:
 - Age, gender, and race matching
 - Geographical alignment (ZIP/county)
 - Payer-type consistency
-- No patient overlap across cohorts
+- **Target cases:** No overlap (opioid patients excluded from ED_NON_OPIOID)
+- **Controls:** Can be reused across cohorts (same control can appear in both OPIOID_ED and ED_NON_OPIOID)
+
+### Statistical Independence
+
+**Important:** Controls are sampled **without replacement WITHIN each cohort** to maintain statistical independence:
+- **Within a cohort:** Each control patient appears only once (no reuse within OPIOID_ED or ED_NON_OPIOID)
+- **Across cohorts:** Same controls CAN be reused between OPIOID_ED and ED_NON_OPIOID cohorts (they are independent studies)
+- Should achieve 5:1 ratio unless partition (age_band + event_year) is genuinely small
+- If fewer than 5:1 ratio is available, all available controls are used
+- Warnings are logged when ratio falls below 5:1 (expected only for small partitions)
+- This ensures valid statistical inference and prevents overfitting in ML models
 
 ### Control-Only Cohorts
 
@@ -249,7 +341,7 @@ s3://pgxdatalake/gold/cohorts_{TARGET_NAME}/
 ## 🧪 QA and Validation Checks
 
 - 100% imputed demographics
-- Cohort exclusivity (no overlap)
+- Cohort exclusivity for targets (opioid patients excluded from ED_NON_OPIOID), controls can overlap
 - 5:1 control ratio (or control-only cohorts when targets = 0)
 - Event classification integrity
 - **Dual-target validation:** F1120 ICD codes and HCG ED visits
@@ -405,6 +497,26 @@ python 0_create_cohort.py \
 ```
 
 **Note:** When environment variables are set, the pipeline uses generic `'target'`/`'non_target'` classification labels. When unset, it defaults to `'opioid_ed'`/`'ed_non_opioid'` classification.
+
+### DuckDB Parallelization Configuration
+
+The pipeline supports parallelization via environment variables:
+
+| Variable | Description | Default |
+| :-- | :-- | :-- |
+| `PGX_THREADS_PER_WORKER` | Number of DuckDB threads for query execution | `8` |
+| `PGX_S3_UPLOADER_THREAD_LIMIT` | Maximum uploader threads for S3 multi-part uploads | DuckDB default |
+| `PGX_S3_UPLOADER_MAX_FILESIZE` | Max file size for part size calculation (e.g., "5368709120" for 5GB) | DuckDB default |
+| `PGX_S3_UPLOADER_MAX_PARTS_PER_FILE` | Max parts per file for part size calculation | DuckDB default |
+
+**Important:** `s3_max_connections` is **not** a valid DuckDB configuration parameter and will cause errors. S3 parallelization is handled automatically by DuckDB. Use `s3_uploader_thread_limit` if you need to tune upload performance.
+
+**Example:**
+```bash
+export PGX_THREADS_PER_WORKER=16
+export PGX_S3_UPLOADER_THREAD_LIMIT=16
+python 0_create_cohort.py --age-band "65-74" --event-year 2019 --operation-type s3_heavy
+```
 
 ## 🏁 Summary
 

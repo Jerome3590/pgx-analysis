@@ -25,6 +25,7 @@ if project_root not in sys.path:
 from helpers_1997_13.logging_utils import setup_logging, save_logs_to_s3
 from helpers_1997_13.duckdb_utils import create_simple_duckdb_connection
 from helpers_1997_13.s3_utils import get_cohort_parquet_path, save_to_s3_json
+from helpers_1997_13.constants import OPIOID_ICD_CODES
 
 
 def build_qa_output_path(cohort_name: str, age_band: str, event_year: int, bucket: str = "pgxdatalake") -> str:
@@ -77,9 +78,98 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
 
         required = [
             "mi_person_key", "event_date", "event_year", "drug_name",
+            "cohort_name", "age_band", "is_target_case", "target"
         ]
         missing = [c for c in required if c not in cols]
         results["schema"]["required_columns_missing"] = missing
+        
+        # Cohort group validation: check cohort_name column exists and has correct values
+        cohort_validation = {
+            "cohort_name_exists": "cohort_name" in cols,
+            "cohort_name_values": {},
+            "cohort_name_mismatch": False,
+            "is_control_only": False
+        }
+        
+        if "cohort_name" in cols:
+            try:
+                # Get distinct cohort_name values
+                cohort_names = conn.sql(
+                    """
+                    SELECT DISTINCT cohort_name, COUNT(*) as count
+                    FROM cohort_qa
+                    GROUP BY cohort_name
+                    ORDER BY count DESC
+                    """
+                ).fetchall()
+                cohort_validation["cohort_name_values"] = {name: count for name, count in cohort_names}
+                
+                # Expected cohort_name based on file being checked
+                expected_cohort_name = "OPIOID_ED" if cohort_name == "opioid_ed" else "ED_NON_OPIOID"
+                
+                # Check if all records have the correct cohort_name
+                mismatch_count = conn.sql(
+                    f"""
+                    SELECT COUNT(*) 
+                    FROM cohort_qa 
+                    WHERE cohort_name != '{expected_cohort_name}'
+                    """
+                ).fetchone()[0]
+                cohort_validation["cohort_name_mismatch"] = mismatch_count > 0
+                cohort_validation["expected_cohort_name"] = expected_cohort_name
+                cohort_validation["mismatch_count"] = mismatch_count
+                
+                if mismatch_count > 0:
+                    logger.warning(
+                        f"⚠️  Cohort name mismatch: Found {mismatch_count} records with cohort_name != '{expected_cohort_name}'"
+                    )
+            except Exception as e:
+                logger.debug(f"Could not validate cohort_name: {e}")
+                cohort_validation["error"] = str(e)
+        
+        results["cohort_validation"] = cohort_validation
+        
+        # Partition validation: check age_band and event_year match partition
+        partition_validation = {
+            "age_band_match": True,
+            "event_year_match": True,
+            "age_band_mismatch_count": 0,
+            "event_year_mismatch_count": 0
+        }
+        
+        if "age_band" in cols:
+            try:
+                age_band_mismatch = conn.sql(
+                    f"""
+                    SELECT COUNT(*) 
+                    FROM cohort_qa 
+                    WHERE age_band != '{age_band}'
+                    """
+                ).fetchone()[0]
+                partition_validation["age_band_mismatch_count"] = age_band_mismatch
+                partition_validation["age_band_match"] = age_band_mismatch == 0
+                if age_band_mismatch > 0:
+                    logger.warning(f"⚠️  Age band mismatch: Found {age_band_mismatch} records with age_band != '{age_band}'")
+            except Exception as e:
+                logger.debug(f"Could not validate age_band: {e}")
+        
+        if "event_year" in cols:
+            try:
+                event_year_mismatch = conn.sql(
+                    f"""
+                    SELECT COUNT(*) 
+                    FROM cohort_qa 
+                    WHERE event_year != {event_year}
+                    """
+                ).fetchone()[0]
+                partition_validation["event_year_mismatch_count"] = event_year_mismatch
+                partition_validation["event_year_match"] = event_year_mismatch == 0
+                if event_year_mismatch > 0:
+                    logger.warning(f"⚠️  Event year mismatch: Found {event_year_mismatch} records with event_year != {event_year}")
+            except Exception as e:
+                logger.debug(f"Could not validate event_year: {e}")
+        
+        results["partition_validation"] = partition_validation
 
         # Build enriched view with normalized drug name for frequency analysis
         try:
@@ -114,23 +204,118 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
             "latest_event": str(row[3]),
         })
 
-        # Control/target ratio if available
+        # Control/target ratio and validation
         ctrl_ratio = None
+        target_cases = 0
+        control_cases = 0
+        is_target_case_validation = {
+            "column_exists": "is_target_case" in cols,
+            "valid_values": True,
+            "invalid_value_count": 0,
+            "is_control_only": False
+        }
+        
         try:
-            row2 = conn.sql(
-                """
-                SELECT
-                  COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as target_cases,
-                  COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases
-                FROM cohort_qa
-                """
-            ).fetchone()
-            if row2 and row2[0] and row2[0] > 0:
-                ctrl_ratio = row2[1] / row2[0]
-        except Exception:
-            ctrl_ratio = None
+            if "is_target_case" in cols:
+                # Check for invalid values (should only be 0 or 1)
+                invalid_values = conn.sql(
+                    """
+                    SELECT COUNT(*) 
+                    FROM cohort_qa 
+                    WHERE is_target_case NOT IN (0, 1) OR is_target_case IS NULL
+                    """
+                ).fetchone()[0]
+                is_target_case_validation["invalid_value_count"] = invalid_values
+                is_target_case_validation["valid_values"] = invalid_values == 0
+                
+                if invalid_values > 0:
+                    logger.warning(f"⚠️  Invalid is_target_case values: Found {invalid_values} records with values not in (0, 1)")
+                
+                # Get target/control counts
+                row2 = conn.sql(
+                    """
+                    SELECT
+                      COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as target_cases,
+                      COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases
+                    FROM cohort_qa
+                    """
+                ).fetchone()
+                
+                if row2:
+                    target_cases = row2[0] or 0
+                    control_cases = row2[1] or 0
+                    
+                    # Check if control-only cohort
+                    is_target_case_validation["is_control_only"] = target_cases == 0 and control_cases > 0
+                    
+                    if target_cases > 0:
+                        ctrl_ratio = control_cases / target_cases
+                    elif control_cases > 0:
+                        # Control-only cohort
+                        ctrl_ratio = None
+                        logger.info(f"ℹ️  Control-only cohort detected: {control_cases} controls, 0 targets")
+                    else:
+                        logger.warning("⚠️  Empty cohort: no target cases and no control cases")
+                
+                # Validate 5:1 ratio (with tolerance for control-only cohorts)
+                if target_cases > 0:
+                    ratio_validation = {
+                        "expected_ratio": 5.0,
+                        "actual_ratio": ctrl_ratio,
+                        "ratio_within_tolerance": False,
+                        "tolerance": 0.5  # Allow 4.5:1 to 5.5:1
+                    }
+                    if ctrl_ratio:
+                        ratio_validation["ratio_within_tolerance"] = (
+                            4.5 <= ctrl_ratio <= 5.5
+                        )
+                        if not ratio_validation["ratio_within_tolerance"]:
+                            logger.warning(
+                                f"⚠️  Control-to-target ratio out of tolerance: {ctrl_ratio:.2f}:1 "
+                                f"(expected ~5:1, tolerance ±0.5)"
+                            )
+                    results["metrics"]["ratio_validation"] = ratio_validation
+                    
+        except Exception as e:
+            logger.debug(f"Could not validate is_target_case or ratio: {e}")
+            is_target_case_validation["error"] = str(e)
 
         results["metrics"]["control_to_target_ratio"] = ctrl_ratio
+        results["metrics"]["target_cases"] = target_cases
+        results["metrics"]["control_cases"] = control_cases
+        results["is_target_case_validation"] = is_target_case_validation
+        
+        # Cohort separation validation: check that opioid patients don't appear in ed_non_opioid cohort
+        cohort_separation_validation = {
+            "opioid_patients_in_ed_non_opioid": 0,
+            "separation_valid": True
+        }
+        
+        if cohort_name == "ed_non_opioid" and "primary_icd_diagnosis_code" in cols:
+            try:
+                # Check for opioid ICD codes in ed_non_opioid cohort
+                # Create a tuple string for SQL IN clause
+                opioid_codes_tuple = "(" + ", ".join([f"'{code}'" for code in OPIOID_ICD_CODES]) + ")"
+                opioid_patients = conn.sql(
+                    f"""
+                    SELECT COUNT(DISTINCT mi_person_key) 
+                    FROM cohort_qa 
+                    WHERE primary_icd_diagnosis_code IN {opioid_codes_tuple}
+                    """
+                ).fetchone()[0]
+                cohort_separation_validation["opioid_patients_in_ed_non_opioid"] = opioid_patients
+                cohort_separation_validation["separation_valid"] = opioid_patients == 0
+                
+                if opioid_patients > 0:
+                    logger.error(
+                        f"❌ Cohort separation violation: Found {opioid_patients} opioid patients "
+                        f"in ed_non_opioid cohort (should be 0)"
+                    )
+            except Exception as e:
+                logger.debug(f"Could not validate cohort separation: {e}")
+                cohort_separation_validation["error"] = str(e)
+        
+        results["cohort_separation_validation"] = cohort_separation_validation
 
         # Event type distribution (if present)
         try:
@@ -229,7 +414,37 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
         except Exception:
             pass
 
-        results["status"] = "PASS" if not missing else "WARN"
+        # Determine overall status
+        status_issues = []
+        
+        if missing:
+            status_issues.append(f"Missing required columns: {missing}")
+        
+        if cohort_validation.get("cohort_name_mismatch", False):
+            status_issues.append("Cohort name mismatch detected")
+        
+        if not partition_validation.get("age_band_match", True):
+            status_issues.append("Age band mismatch detected")
+        
+        if not partition_validation.get("event_year_match", True):
+            status_issues.append("Event year mismatch detected")
+        
+        if not is_target_case_validation.get("valid_values", True):
+            status_issues.append("Invalid is_target_case values detected")
+        
+        if not cohort_separation_validation.get("separation_valid", True):
+            status_issues.append("Cohort separation violation detected")
+        
+        if status_issues:
+            results["status"] = "FAIL"
+            results["status_issues"] = status_issues
+            logger.error(f"❌ QA FAILED for {cohort_name} ({age_band}, {event_year}): {len(status_issues)} issue(s)")
+        elif missing:
+            results["status"] = "WARN"
+        else:
+            results["status"] = "PASS"
+            logger.info(f"✅ QA PASSED for {cohort_name} ({age_band}, {event_year})")
+        
         return results
 
     except Exception as e:
@@ -318,9 +533,35 @@ def main():
         for year in event_years:
             for name in cohorts:
                 r = all_results["results"][band][year][name]
+                status = r.get('status', 'UNKNOWN')
+                metrics = r.get('metrics', {})
+                ratio = metrics.get('control_to_target_ratio')
+                ratio_str = f"{ratio:.2f}:1" if ratio else "N/A (control-only)" if metrics.get('control_cases', 0) > 0 else "N/A"
+                
+                # Add validation status indicators
+                cohort_val = r.get('cohort_validation', {})
+                partition_val = r.get('partition_validation', {})
+                separation_val = r.get('cohort_separation_validation', {})
+                
+                validation_flags = []
+                if cohort_val.get('cohort_name_mismatch', False):
+                    validation_flags.append("COHORT_NAME_MISMATCH")
+                if not partition_val.get('age_band_match', True):
+                    validation_flags.append("AGE_BAND_MISMATCH")
+                if not partition_val.get('event_year_match', True):
+                    validation_flags.append("EVENT_YEAR_MISMATCH")
+                if not separation_val.get('separation_valid', True):
+                    validation_flags.append("SEPARATION_VIOLATION")
+                
+                flags_str = f" [{', '.join(validation_flags)}]" if validation_flags else ""
+                
                 logger.info(
-                    f"{band} {year} {name} → status={r.get('status')} records={r.get('metrics',{}).get('total_records')} "
-                    f"patients={r.get('metrics',{}).get('distinct_patients')} ratio={r.get('metrics',{}).get('control_to_target_ratio')}"
+                    f"{band} {year} {name} → status={status}{flags_str} "
+                    f"records={metrics.get('total_records')} "
+                    f"patients={metrics.get('distinct_patients')} "
+                    f"targets={metrics.get('target_cases', 0)} "
+                    f"controls={metrics.get('control_cases', 0)} "
+                    f"ratio={ratio_str}"
                 )
 
 

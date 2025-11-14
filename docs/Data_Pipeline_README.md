@@ -254,7 +254,7 @@ Example:
 Each phase enforces:
 
 - 100% demographics coverage
-- No patient overlap between cohorts
+- No target overlap between cohorts (controls can be reused across cohorts)
 - 5:1 control-to-target ratio
 - Event classification verification
 - Imputation completeness validation

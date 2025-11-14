@@ -2,8 +2,8 @@
 
 This document provides a comprehensive reference for all SQL queries used in the Cohort Creation Pipeline. Each phase is documented with explanations, parameters, and example queries.
 
-**Last Updated:** 2025-11-13  
-**Version:** 4.2 (Dual-Target + Control-Only Cohorts + HCG Integration)
+**Last Updated:** 2025-01-XX  
+**Version:** 4.3 (Statistical Independence + Balanced Temporal Windows + Column Matching)
 
 ---
 
@@ -249,7 +249,14 @@ WHERE drug_name IS NOT NULL;
 ## Phase 3: Cohort Creation
 
 ### Overview
-Creates two cohorts (OPIOID_ED and ED_NON_OPIOID) with a 5:1 control-to-target ratio. Patients with opioid ICD codes are completely excluded from ED_NON_OPIOID cohort.
+Creates two cohorts (OPIOID_ED and ED_NON_OPIOID) with a target 5:1 control-to-target ratio. Patients with opioid ICD codes are completely excluded from ED_NON_OPIOID cohort.
+
+**Key Features:**
+- **Statistical Independence:** Controls are sampled without replacement (no reuse)
+- **Temporal Fields:** Calculates `first_opioid_ed_date`, `first_ed_non_opioid_date`, and `days_to_target_event`
+- **Balanced Windows:** ED_NON_OPIOID applies same 30-day lookback window to both targets and controls
+- **Column Matching:** All columns match between target cases and controls
+- **Ratio Warnings:** Logs warnings when ratio falls below 5:1
 
 ### OPIOID_ED Cohort (Normal Case - Has Targets)
 
@@ -262,6 +269,15 @@ WITH target_cases AS (
     FROM unified_event_fact_table
     WHERE event_classification = 'target'  -- or 'opioid_ed' if no dynamic targeting
 ),
+first_target_dates AS (
+    -- Find first target event date per patient
+    SELECT 
+        mi_person_key,
+        MIN(event_date) as first_opioid_ed_date
+    FROM unified_event_fact_table
+    WHERE event_classification = 'target'
+    GROUP BY mi_person_key
+),
 control_candidates AS (
     SELECT DISTINCT mi_person_key
     FROM unified_event_fact_table
@@ -269,10 +285,27 @@ control_candidates AS (
       AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
 ),
 sampled_controls AS (
-    SELECT mi_person_key
+    -- Sample distinct controls only (no reuse to maintain statistical independence)
+    -- Use all available controls if fewer than 5:1 ratio
+    WITH target_count AS (
+        SELECT COUNT(*) as target_cnt FROM target_cases
+    ),
+    needed_count AS (
+        SELECT tc.target_cnt * 5 as needed FROM target_count tc
+    ),
+    available_controls AS (
+        SELECT COUNT(*) as available FROM control_candidates
+    )
+    SELECT 
+        mi_person_key
     FROM control_candidates
     ORDER BY RANDOM()
-    LIMIT (SELECT COUNT(*) * 5 FROM target_cases)  -- 5:1 ratio
+    LIMIT (
+        SELECT LEAST(
+            (SELECT needed FROM needed_count),
+            (SELECT available FROM available_controls)
+        )
+    )
 )
 SELECT 
     uef.*,
@@ -282,17 +315,30 @@ SELECT
         WHEN tc.mi_person_key IS NOT NULL THEN 'OPIOID_ED'
         ELSE 'NON_ED'
     END as cohort,
-    CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
+    CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+    -- Temporal fields: targets get first_opioid_ed_date, controls get NULL
+    CASE 
+        WHEN tc.mi_person_key IS NOT NULL THEN ftd.first_opioid_ed_date
+        ELSE NULL
+    END as first_opioid_ed_date,
+    NULL as first_ed_non_opioid_date,
+    NULL as days_to_target_event  -- Can be calculated from event_date and first_opioid_ed_date if needed
 FROM unified_event_fact_table uef
 LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
 LEFT JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
 WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
 ```
 
 **Logic:**
 - **Target cases:** Patients with `event_classification = 'target'` (opioid ICD codes)
-- **Controls:** Random sample of 5x target count from non-target patients
+- **Controls:** Random sample of up to 5x target count from non-target patients (without replacement)
+- **Statistical Independence:** No control reuse - each control patient appears only once
+- **Temporal Fields:** 
+  - `first_opioid_ed_date`: Populated for targets only (NULL for controls)
+  - `days_to_target_event`: NULL (can be calculated manually if needed)
 - **Cohort column:** `'OPIOID_ED'` for targets, `'NON_ED'` for controls
+- **All Events Included:** Complete drug history for both targets and controls (no time restriction)
 
 ---
 
@@ -345,6 +391,16 @@ target_cases AS (
     WHERE event_classification = 'ed_non_opioid'
       AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)  -- Exclude opioid patients
 ),
+first_target_dates AS (
+    -- Find first ED_NON_OPIOID target event date per patient
+    SELECT 
+        mi_person_key,
+        MIN(event_date) as first_ed_non_opioid_date
+    FROM unified_event_fact_table
+    WHERE event_classification = 'ed_non_opioid'
+      AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+    GROUP BY mi_person_key
+),
 control_candidates AS (
     SELECT DISTINCT mi_person_key
     FROM unified_event_fact_table
@@ -353,32 +409,152 @@ control_candidates AS (
       AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)  -- Exclude opioid patients from controls
 ),
 sampled_controls AS (
-    SELECT mi_person_key
+    -- Sample distinct controls only (no reuse to maintain statistical independence)
+    -- Use all available controls if fewer than 5:1 ratio
+    WITH target_count AS (
+        SELECT COUNT(*) as target_cnt FROM target_cases
+    ),
+    needed_count AS (
+        SELECT tc.target_cnt * 5 as needed FROM target_count tc
+    ),
+    available_controls AS (
+        SELECT COUNT(*) as available FROM control_candidates
+    )
+    SELECT 
+        mi_person_key
     FROM control_candidates
     ORDER BY RANDOM()
-    LIMIT (SELECT COUNT(*) * 5 FROM target_cases)  -- 5:1 ratio
+    LIMIT (
+        SELECT LEAST(
+            (SELECT needed FROM needed_count),
+            (SELECT available FROM available_controls)
+        )
+    )
+),
+control_reference_dates AS (
+    -- For controls, use first non-ED medical event as reference date (similar to target date for cases)
+    -- This ensures balanced temporal windows between targets and controls
+    -- Fallback to first medical event if no non-ED medical events exist
+    WITH non_ed_reference AS (
+        SELECT 
+            uef.mi_person_key,
+            MIN(uef.event_date) as reference_date
+        FROM unified_event_fact_table uef
+        INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+        WHERE uef.event_type = 'medical'
+          AND (uef.hcg_line IS NULL OR uef.hcg_line NOT IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits'))
+        GROUP BY uef.mi_person_key
+    ),
+    fallback_reference AS (
+        SELECT 
+            uef.mi_person_key,
+            MIN(uef.event_date) as reference_date
+        FROM unified_event_fact_table uef
+        INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
+        WHERE uef.event_type = 'medical'
+          AND uef.mi_person_key NOT IN (SELECT mi_person_key FROM non_ed_reference)
+        GROUP BY uef.mi_person_key
+    )
+    SELECT * FROM non_ed_reference
+    UNION ALL
+    SELECT * FROM fallback_reference
+),
+events_with_dates AS (
+    -- Calculate days_to_target_event for all events
+    -- For targets: days to first ED_NON_OPIOID event
+    -- For controls: days to reference date (first non-ED medical event) to balance temporal windows
+    SELECT 
+        uef.*,
+        ftd.first_ed_non_opioid_date,
+        crd.reference_date as control_reference_date,
+        -- Calculate days_to_target_event
+        CASE 
+            WHEN ftd.first_ed_non_opioid_date IS NOT NULL AND uef.event_date IS NOT NULL
+            THEN CAST(datediff(ftd.first_ed_non_opioid_date::DATE, uef.event_date::DATE) AS INTEGER)
+            WHEN crd.reference_date IS NOT NULL AND uef.event_date IS NOT NULL
+            THEN CAST(datediff(crd.reference_date::DATE, uef.event_date::DATE) AS INTEGER)
+            ELSE NULL
+        END as days_to_target_event
+    FROM unified_event_fact_table uef
+    LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
+    LEFT JOIN control_reference_dates crd ON uef.mi_person_key = crd.mi_person_key
 )
 SELECT 
-    uef.*,
+    ewd.*,
     1 as target,
     'ED_NON_OPIOID' as cohort_name,
     CASE 
         WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
-        WHEN uef.event_type = 'medical' AND uef.hcg_line IS NULL THEN 'NON_ED'
+        WHEN ewd.event_type = 'medical' AND ewd.hcg_line IS NULL THEN 'NON_ED'
         ELSE 'NON_ED'
     END as cohort,
-    CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case
-FROM unified_event_fact_table uef
-LEFT JOIN target_cases tc ON uef.mi_person_key = tc.mi_person_key
-LEFT JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
-WHERE tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL;
+    CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+    -- Temporal fields: targets get first_ed_non_opioid_date, controls get NULL
+    NULL as first_opioid_ed_date,
+    CASE 
+        WHEN tc.mi_person_key IS NOT NULL THEN ewd.first_ed_non_opioid_date
+        ELSE NULL
+    END as first_ed_non_opioid_date
+FROM events_with_dates ewd
+LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
+LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
+WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
+  -- Apply balanced 30-day lookback window to both targets and controls
+  AND (
+      -- Target cases: include medical events OR drug events within 30 days before target
+      (tc.mi_person_key IS NOT NULL AND (
+          ewd.event_type = 'medical' 
+          OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
+              AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+      ))
+      -- Controls: apply same temporal logic for balanced comparison
+      OR (sc.mi_person_key IS NOT NULL AND (
+          ewd.event_type = 'medical'
+          OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
+              AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+      ))
+  );
 ```
 
 **Key Features:**
 - **Target cases:** Patients with HCG ED visits (`event_classification = 'ed_non_opioid'`)
 - **Exclusion:** Opioid patients are excluded from both targets AND controls
-- **Complete separation:** Ensures no overlap with OPIOID_ED cohort
+- **Complete separation for targets:** Ensures no opioid patients in ED_NON_OPIOID targets (controls can overlap)
+- **Statistical Independence:** Controls sampled without replacement WITHIN cohort (can reuse across cohorts)
+- **Balanced Temporal Windows:** Both targets and controls use 30-day lookback window
+  - Targets: Reference date = first ED_NON_OPIOID event
+  - Controls: Reference date = first non-ED medical event
+- **Temporal Fields:**
+  - `first_ed_non_opioid_date`: Populated for targets only (NULL for controls)
+  - `days_to_target_event`: Calculated for both (days to reference date)
 - **Cohort column:** `'NON_OPIOID_ED'` for targets, `'NON_ED'` for controls
+
+---
+
+### Phase 3 Summary: Key Improvements
+
+**Statistical Soundness:**
+- ✅ **No Control Reuse Within Cohorts:** Controls sampled without replacement WITHIN each cohort maintains statistical independence
+- ✅ **Cross-Cohort Reuse Allowed:** Same controls CAN be reused between OPIOID_ED and ED_NON_OPIOID (independent studies)
+- ✅ **Balanced Temporal Windows:** ED_NON_OPIOID applies same 30-day lookback to targets and controls
+- ✅ **Column Matching:** All columns match between target cases and controls (NULL for cohort-specific fields)
+- ✅ **Ratio Transparency:** Warnings logged when ratio falls below 5:1
+
+**Temporal Field Differences:**
+
+| Cohort | `first_opioid_ed_date` | `first_ed_non_opioid_date` | `days_to_target_event` | Temporal Window |
+| :-- | :-- | :-- | :-- | :-- |
+| **OPIOID_ED** | ✅ Targets only | ❌ NULL | ❌ NULL* | None (all events) |
+| **ED_NON_OPIOID** | ❌ NULL | ✅ Targets only | ✅ Both (calculated) | 30-day (both) |
+
+\* Can be calculated manually from `event_date` and `first_opioid_ed_date` if needed.
+
+**Control Sampling Logic:**
+- Uses `LEAST(needed_count, available_count)` to prevent over-sampling
+- Should achieve 5:1 ratio unless partition (age_band + event_year) is genuinely small
+- If fewer controls available than needed, uses all available (logs warning - expected only for small partitions)
+- **Within-cohort:** No reuse ensures each control patient appears exactly once per cohort
+- **Across-cohort:** Same controls can appear in both OPIOID_ED and ED_NON_OPIOID (independent studies)
 
 ---
 
@@ -463,13 +639,41 @@ SELECT COUNT(*) FROM ed_non_opioid_cohort;
 ```sql
 SELECT 
     COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as target_cases,
-    COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases
+    COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases,
+    CAST(COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) AS FLOAT) / 
+         NULLIF(COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END), 0) as control_ratio
 FROM opioid_ed_cohort;
 
 SELECT 
     COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as target_cases,
-    COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases
+    COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as control_cases,
+    CAST(COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) AS FLOAT) / 
+         NULLIF(COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END), 0) as control_ratio
 FROM ed_non_opioid_cohort;
+```
+
+**Verify temporal fields:**
+
+```sql
+-- Check OPIOID_ED temporal fields
+SELECT 
+    COUNT(*) as total_records,
+    COUNT(CASE WHEN first_opioid_ed_date IS NOT NULL THEN 1 END) as records_with_target_date,
+    COUNT(CASE WHEN is_target_case = 1 AND first_opioid_ed_date IS NOT NULL THEN 1 END) as targets_with_date,
+    COUNT(CASE WHEN is_target_case = 0 AND first_opioid_ed_date IS NULL THEN 1 END) as controls_with_null_date
+FROM opioid_ed_cohort;
+
+-- Check ED_NON_OPIOID temporal fields and balanced windows
+SELECT 
+    is_target_case,
+    COUNT(*) as total_events,
+    COUNT(CASE WHEN event_type = 'pharmacy' THEN 1 END) as drug_events,
+    COUNT(CASE WHEN event_type = 'pharmacy' AND days_to_target_event IS NOT NULL 
+               AND days_to_target_event >= 0 AND days_to_target_event <= 30 THEN 1 END) as drugs_in_window,
+    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 
+             AND days_to_target_event <= 30 THEN days_to_target_event END) as avg_days_in_window
+FROM ed_non_opioid_cohort
+GROUP BY is_target_case;
 ```
 
 **Check F1120 presence:**
@@ -531,10 +735,105 @@ The `cohort` column tracks three types:
 
 ### 5:1 Control Ratio
 
-- For each target case, 5 controls are randomly sampled
+- For each target case, up to 5 controls are randomly sampled
 - Controls are selected from patients who are NOT target cases
 - Random sampling ensures unbiased control selection
+- **Statistical Independence:** Controls are sampled **without replacement** (no reuse)
+  - Each control patient appears only once
+  - If fewer than 5:1 ratio is available, all available controls are used
+  - Warnings are logged when ratio falls below 5:1
 - Ratio is maintained even in control-only cohorts (using average target count)
+
+### Temporal Fields and Drug Window Analysis
+
+The pipeline calculates temporal relationships between events and target events, with different behavior for each cohort:
+
+#### Temporal Fields Schema
+
+| Field | Type | OPIOID_ED | ED_NON_OPIOID | Description |
+| :-- | :-- | :-- | :-- | :-- |
+| `first_opioid_ed_date` | STRING | ✅ Populated | ❌ NULL | Date of first opioid ED event per patient |
+| `first_ed_non_opioid_date` | STRING | ❌ NULL | ✅ Populated | Date of first non-opioid ED event per patient |
+| `days_to_target_event` | INTEGER | ❌ NULL | ✅ Calculated | Days from event to first target event |
+| `event_date` | STRING | ✅ All | ✅ All | Date of the event |
+| `event_sequence` | INTEGER | ✅ All | ✅ All | Sequential order of events per patient |
+
+#### OPIOID_ED Cohort Temporal Behavior
+
+- **Complete Drug History:** All drug events included (no time restriction)
+- **No Filtering:** All pharmacy and medical events included regardless of timing
+- **First Target Date:** Calculated as `MIN(event_date)` where `event_classification = 'opioid_ed'`
+- **Days Calculation:** `days_to_target_event` is NULL; calculate manually if needed:
+  ```sql
+  SELECT 
+    event_date,
+    first_opioid_ed_date,
+    datediff(first_opioid_ed_date::DATE, event_date::DATE) as days_to_target
+  FROM opioid_ed_cohort
+  WHERE first_opioid_ed_date IS NOT NULL
+  ```
+
+#### ED_NON_OPIOID Cohort Temporal Behavior
+
+- **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
+- **Target Cases:**
+  - Reference date: First ED_NON_OPIOID event
+  - Includes: Medical events OR drug events within 30 days before target
+- **Controls:**
+  - Reference date: First non-ED medical event (fallback to first medical event)
+  - Includes: Medical events OR drug events within 30 days before reference date
+- **Drug Event Filtering:** Applied via SQL WHERE clause:
+  ```sql
+  WHERE (
+    -- Target cases: medical events OR drugs within 30 days before target
+    (is_target_case = 1 AND (
+      event_type = 'medical' 
+      OR (event_type = 'pharmacy' 
+          AND days_to_target_event >= 0 
+          AND days_to_target_event <= 30)
+    ))
+    -- Controls: same temporal logic for balanced comparison
+    OR (is_target_case = 0 AND (
+      event_type = 'medical'
+      OR (event_type = 'pharmacy' 
+          AND days_to_target_event >= 0 
+          AND days_to_target_event <= 30)
+    ))
+  )
+  ```
+- **First Target Date:** Calculated as `MIN(event_date)` where `event_classification = 'ed_non_opioid'` (excluding opioid patients)
+- **Control Reference Date:** Calculated as `MIN(event_date)` for first non-ED medical event per control
+- **Days Calculation:** Pre-calculated as `datediff(reference_date::DATE, event_date::DATE)`
+  - For targets: Days to first ED_NON_OPIOID event
+  - For controls: Days to reference date (first non-ED medical event)
+  - Positive values: Event before reference date (included in 30-day window)
+  - Zero: Event on reference date
+  - Negative values: Event after reference date (excluded for drug events)
+
+#### SQL Implementation Example
+
+```sql
+-- First target dates calculation (OPIOID_ED)
+WITH first_target_dates AS (
+    SELECT 
+        mi_person_key,
+        MIN(event_date) as first_opioid_ed_date
+    FROM unified_event_fact_table
+    WHERE event_classification = 'opioid_ed'
+    GROUP BY mi_person_key
+)
+
+-- Days calculation (ED_NON_OPIOID)
+SELECT 
+    uef.*,
+    CASE 
+        WHEN ftd.first_ed_non_opioid_date IS NOT NULL AND uef.event_date IS NOT NULL
+        THEN CAST(datediff(ftd.first_ed_non_opioid_date::DATE, uef.event_date::DATE) AS INTEGER)
+        ELSE NULL
+    END as days_to_target_event
+FROM unified_event_fact_table uef
+LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
+```
 
 ---
 
