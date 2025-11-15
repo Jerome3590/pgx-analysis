@@ -422,6 +422,6 @@ jupyter notebook 4_bupaR_analysis/bupaR_pipeline.ipynb
 
 ---
 
-*Last Updated: January 2025*
-*Pipeline Version: 2.0*
+*Last Updated: November 15, 2025*
+*Pipeline Version: 3.0*
 
