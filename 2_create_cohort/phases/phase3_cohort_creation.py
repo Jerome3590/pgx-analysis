@@ -355,9 +355,9 @@ def run_phase3_step3_final_cohort_fact(context):
                     -- For controls: days to reference date (to balance temporal windows)
                     CASE 
                         WHEN ftd.first_ed_non_opioid_date IS NOT NULL AND uef.event_date IS NOT NULL
-                        THEN CAST(datediff(ftd.first_ed_non_opioid_date::DATE, uef.event_date::DATE) AS INTEGER)
+                        THEN CAST(datediff('day', uef.event_date::DATE, ftd.first_ed_non_opioid_date::DATE) AS INTEGER)
                         WHEN crd.reference_date IS NOT NULL AND uef.event_date IS NOT NULL
-                        THEN CAST(datediff(crd.reference_date::DATE, uef.event_date::DATE) AS INTEGER)
+                        THEN CAST(datediff('day', uef.event_date::DATE, crd.reference_date::DATE) AS INTEGER)
                         ELSE NULL
                     END as days_to_target_event
                 FROM unified_event_fact_table uef
