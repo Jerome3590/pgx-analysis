@@ -26,7 +26,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Import constants (helpers_1997_13)
-from helpers_1997_13.constants import OPIOID_ICD_CODES
+from helpers_1997_13.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
 
 # Provide no-op shims for advanced duckdb utils to match simplified helpers
 def cleanup_duckdb_temp_files(logger):
@@ -261,10 +261,12 @@ def ensure_unified_views(conn, logger):
         ed_hcg_condition = f"hcg_line IN {tuple(ed_hcg_lines)}"
         
         # Default classification falls back to opioid_ed vs ed_non_opioid
-        # Priority: 1) Opioid ICD codes → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
+        # Priority: 1) Opioid ICD codes (ANY position) → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
+        # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         default_case = f"""
             CASE 
-                WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {opioid_icd_condition} THEN 'opioid_ed'
                 WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
                 ELSE 'ed_non_opioid'
             END
@@ -422,14 +424,15 @@ def ensure_cohort_views(conn, logger):
         conn.sql("SELECT 1 FROM ed_non_opioid_cohort LIMIT 1").fetchone()
     except Exception:
         # Exclude patients with opioid ICD codes from ED_NON_OPIOID target cases
-        from helpers_1997_13.constants import OPIOID_ICD_CODES
+        # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         ed_non_opioid_cohort_sql = f"""
         CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
         WITH opioid_patients AS (
-            -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID targets
+            -- Patients with opioid ICD codes (F1120, etc.) in ANY diagnosis position - exclude from ED_NON_OPIOID targets
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)}
+            WHERE {opioid_icd_condition}
         ),
         target_cases AS (
             SELECT DISTINCT mi_person_key

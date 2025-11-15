@@ -127,8 +127,8 @@ DuckDB handling has been fully aligned with the standardized system from the pha
 ### Cohort Classification Column
 
 The `cohort` column tracks three types:
-- **OPIOID_ED:** Target cases in opioid_ed_cohort (patients with opioid ICD codes)
-- **NON_OPIOID_ED:** Target cases in ed_non_opioid_cohort (HCG-based ED visits without opioid codes)
+- **OPIOID_ED:** Target cases in opioid_ed_cohort (patients with opioid ICD codes in **ANY of the 10 ICD diagnosis columns**)
+- **NON_OPIOID_ED:** Target cases in ed_non_opioid_cohort (HCG-based ED visits without opioid codes - checked across **ALL 10 ICD diagnosis columns**)
 - **NON_ED:** Controls in both cohorts (non-ED visits)
 
 ### Temporal Fields and Drug Window Analysis
@@ -221,7 +221,7 @@ Control selection ensures matched demographics:
 - Age, gender, and race matching
 - Geographical alignment (ZIP/county)
 - Payer-type consistency
-- **Target cases:** No overlap (opioid patients excluded from ED_NON_OPIOID)
+- **Target cases:** No overlap (opioid patients excluded from ED_NON_OPIOID - **checked across ALL 10 ICD diagnosis columns**)
 - **Controls:** Can be reused across cohorts (same control can appear in both OPIOID_ED and ED_NON_OPIOID)
 
 ### Statistical Independence
@@ -341,12 +341,13 @@ s3://pgxdatalake/gold/cohorts_{TARGET_NAME}/
 ## 🧪 QA and Validation Checks
 
 - 100% imputed demographics
-- Cohort exclusivity for targets (opioid patients excluded from ED_NON_OPIOID), controls can overlap
+- Cohort exclusivity for targets (opioid patients excluded from ED_NON_OPIOID **checked across ALL 10 ICD diagnosis columns**), controls can overlap
 - 5:1 control ratio (or control-only cohorts when targets = 0)
 - Event classification integrity
-- **Dual-target validation:** F1120 ICD codes and HCG ED visits
+- **Dual-target validation:** F1120 ICD codes (checked in **ALL 10 ICD diagnosis columns**) and HCG ED visits
 - **HCG field presence:** hcg_setting, hcg_line, hcg_detail loaded from gold tier
 - **Cohort column values:** OPIOID_ED, NON_OPIOID_ED, NON_ED
+- **Comprehensive ICD checking:** All opioid code validations check all 10 ICD diagnosis columns
 - QA summary logged in checkpoints
 
 Example QA log:
@@ -453,6 +454,7 @@ The pipeline uses two independent target identification methods:
    - Primary: F1120 (Opioid Use Disorder, Uncomplicated)
    - Configurable via environment variables (see below)
    - Codes normalized to F1120 format in gold tier (no dots, no spaces)
+   - **Comprehensive checking:** All 10 ICD diagnosis columns are checked (primary through ten), not just `primary_icd_diagnosis_code`
 
 2. **HCG-Based ED Visit Targets** (ED_NON_OPIOID cohort):
    - Uses Healthcare Cost Group (HCG) line codes:
@@ -461,13 +463,16 @@ The pipeline uses two independent target identification methods:
      - `P33 - Urgent Care Visits`
    - Identifies ED visits regardless of diagnosis codes
    - Always classified as `'ed_non_opioid'` in event classification
+   - **Opioid exclusion:** All opioid patients are excluded by checking ALL 10 ICD diagnosis columns
 
 ### Classification Priority
 
 Event classification follows this priority:
-1. **Target ICD/CPT codes** → `'target'` (or `'opioid_ed'` if no dynamic targeting)
+1. **Target ICD/CPT codes** → `'target'` (or `'opioid_ed'` if no dynamic targeting) - **Checks ALL 10 ICD diagnosis columns**
 2. **HCG ED visits** → `'ed_non_opioid'`
 3. **Other events** → `'non_target'` (or `'ed_non_opioid'` if default mode)
+
+**Important:** The implementation uses a helper function `get_opioid_icd_sql_condition()` from `helpers_1997_13/constants.py` to generate comprehensive SQL that checks all 10 ICD diagnosis columns (`primary_icd_diagnosis_code`, `two_icd_diagnosis_code`, ..., `ten_icd_diagnosis_code`). This ensures no opioid-related events are missed regardless of which diagnosis position the code appears in.
 
 ### Environment Variables for Dynamic Targeting
 
@@ -520,9 +525,10 @@ python 0_create_cohort.py --age-band "65-74" --event-year 2019 --operation-type 
 
 ## 🏁 Summary
 
-The **Cohort Creation Pipeline v4.2+** now features:
+The **Cohort Creation Pipeline v4.3+** now features:
 - **Modular, checkpoint-enabled architecture** with 4 clean phases
 - **Dual-target system** (ICD codes + HCG ED visits) for comprehensive cohort identification
+- **Comprehensive ICD diagnosis checking** across all 10 ICD diagnosis columns (primary through ten) to ensure no opioid patients are missed or misclassified
 - **Control-only cohort logic** ensuring complete partition coverage for model training
 - **Pre-computed averages** for efficient control-only cohort sizing
 - **HCG field integration** (hcg_setting, hcg_line, hcg_detail) from gold tier
@@ -531,8 +537,8 @@ The **Cohort Creation Pipeline v4.2+** now features:
 
 The pipeline achieves improved testability, maintainability, and resilience—while reducing runtime and resource usage by over 50%.
 
-**Last Updated:** 2025-11-13
-**Version:** 4.2 (Dual-Target + Control-Only Cohorts + HCG Integration)
+**Last Updated:** 2025-11-15
+**Version:** 4.3 (Dual-Target + Control-Only Cohorts + HCG Integration + Comprehensive ICD Diagnosis Checking)
 **Status:** Production-Ready
 **Authors:** PGx Analytics Engineering Team
 

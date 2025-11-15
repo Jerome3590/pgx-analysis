@@ -15,7 +15,7 @@ from .common import (
     ensure_gold_views,
     ensure_unified_views,
 )
-from helpers_1997_13.constants import S3_BUCKET
+from helpers_1997_13.constants import S3_BUCKET, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS, OPIOID_ICD_CODES
 import os
 
 
@@ -60,12 +60,13 @@ def run_phase3_step3_final_cohort_fact(context):
         """).fetchone()[0]
         
         # Count ED_NON_OPIOID targets AFTER excluding opioid patients
-        from helpers_1997_13.constants import OPIOID_ICD_CODES
+        # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         ed_non_opioid_case_count_query = f"""
         WITH opioid_patients AS (
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
-            WHERE primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)}
+            WHERE {opioid_icd_condition}
         )
         SELECT COUNT(DISTINCT mi_person_key) 
         FROM unified_event_fact_table
@@ -254,14 +255,15 @@ def run_phase3_step3_final_cohort_fact(context):
             # Normal case: has targets
             # Exclude patients who have opioid ICD codes from ED_NON_OPIOID target cases
             # Apply 30-day lookback window for drug events (per README documentation)
-            from helpers_1997_13.constants import OPIOID_ICD_CODES
+            # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+            opioid_icd_condition = get_opioid_icd_sql_condition()
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
             WITH opioid_patients AS (
-                -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID targets
+                -- Patients with opioid ICD codes (F1120, etc.) in ANY diagnosis position - exclude from ED_NON_OPIOID targets
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
-                WHERE primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)}
+                WHERE {opioid_icd_condition}
             ),
             target_cases AS (
                 SELECT DISTINCT mi_person_key
@@ -405,14 +407,15 @@ def run_phase3_step3_final_cohort_fact(context):
             logger.info(f"→ [PHASE 3 STEP 3] Creating control-only ED_NON_OPIOID cohort (no targets found)")
             control_limit = avg_target_count * 5 if avg_target_count else 5000  # Default 5000 controls
             # Exclude opioid patients from controls as well
-            from helpers_1997_13.constants import OPIOID_ICD_CODES
+            # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+            opioid_icd_condition = get_opioid_icd_sql_condition()
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
             WITH opioid_patients AS (
-                -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID entirely
+                -- Patients with opioid ICD codes (F1120, etc.) in ANY diagnosis position - exclude from ED_NON_OPIOID entirely
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
-                WHERE primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)}
+                WHERE {opioid_icd_condition}
             ),
             control_candidates AS (
                 SELECT DISTINCT mi_person_key

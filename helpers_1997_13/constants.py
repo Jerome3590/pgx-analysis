@@ -69,6 +69,60 @@ OPIOID_ICD_CODES = {
     'T4060', 'T4061', 'T4062', 'T4063', 'T4064', 'T4065', 'T4066', 'T4067', 'T4068', 'T4069'
 }
 
+# All ICD diagnosis code column names (positions 1-10)
+ALL_ICD_DIAGNOSIS_COLUMNS = [
+    'primary_icd_diagnosis_code',
+    'two_icd_diagnosis_code',
+    'three_icd_diagnosis_code',
+    'four_icd_diagnosis_code',
+    'five_icd_diagnosis_code',
+    'six_icd_diagnosis_code',
+    'seven_icd_diagnosis_code',
+    'eight_icd_diagnosis_code',
+    'nine_icd_diagnosis_code',
+    'ten_icd_diagnosis_code'
+]
+
+
+def get_opioid_icd_sql_condition(table_alias=None):
+    """
+    Generate SQL condition to check for opioid ICD codes across ALL diagnosis code positions.
+    
+    Args:
+        table_alias: Optional table alias (e.g., 'uef' for 'uef.primary_icd_diagnosis_code')
+    
+    Returns:
+        SQL WHERE condition string checking all 10 ICD diagnosis columns
+    
+    Example:
+        >>> get_opioid_icd_sql_condition()
+        "(primary_icd_diagnosis_code IN ('F1120', ...) OR two_icd_diagnosis_code IN (...) OR ...)"
+    """
+    prefix = f"{table_alias}." if table_alias else ""
+    codes_tuple = tuple(OPIOID_ICD_CODES)
+    
+    conditions = [f"{prefix}{col} IN {codes_tuple}" for col in ALL_ICD_DIAGNOSIS_COLUMNS]
+    return "(" + " OR ".join(conditions) + ")"
+
+
+def get_icd_codes_sql_condition(icd_codes, table_alias=None):
+    """
+    Generate SQL condition to check for specific ICD codes across ALL diagnosis code positions.
+    
+    Args:
+        icd_codes: Set or list of ICD codes to check
+        table_alias: Optional table alias
+    
+    Returns:
+        SQL WHERE condition string checking all 10 ICD diagnosis columns
+    """
+    prefix = f"{table_alias}." if table_alias else ""
+    codes_tuple = tuple(icd_codes)
+    
+    conditions = [f"{prefix}{col} IN {codes_tuple}" for col in ALL_ICD_DIAGNOSIS_COLUMNS]
+    return "(" + " OR ".join(conditions) + ")"
+
+
 # FpGrowth
 TOP_K = 50
 MIN_SUPPORT_THRESHOLD = 0.025

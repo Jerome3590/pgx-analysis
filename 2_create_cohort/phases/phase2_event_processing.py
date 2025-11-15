@@ -16,6 +16,7 @@ from .common import (
     execute_sql_with_dev_validation,
     ensure_gold_views,
 )
+from helpers_1997_13.constants import get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
 
 
 def run_phase2_step1_event_fact_table(context):
@@ -84,10 +85,12 @@ def run_phase2_step1_event_fact_table(context):
         ed_hcg_condition = f"hcg_line IN {tuple(ed_hcg_lines)}"
         
         # Default classification falls back to opioid_ed vs ed_non_opioid
-        # Priority: 1) Opioid ICD codes → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
+        # Priority: 1) Opioid ICD codes (ANY position) → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid
+        # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         default_case = f"""
             CASE 
-                WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {opioid_icd_condition} THEN 'opioid_ed'
                 WHEN {ed_hcg_condition} THEN 'ed_non_opioid'
                 ELSE 'ed_non_opioid'
             END

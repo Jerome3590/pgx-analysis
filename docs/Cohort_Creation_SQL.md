@@ -2,8 +2,8 @@
 
 This document provides a comprehensive reference for all SQL queries used in the Cohort Creation Pipeline. Each phase is documented with explanations, parameters, and example queries.
 
-**Last Updated:** 2025-01-XX  
-**Version:** 4.3 (Statistical Independence + Balanced Temporal Windows + Column Matching)
+**Last Updated:** 2025-11-15  
+**Version:** 4.4 (Statistical Independence + Balanced Temporal Windows + Column Matching + Comprehensive ICD Diagnosis Checking)
 
 ---
 
@@ -143,11 +143,16 @@ The classification logic uses a priority-based CASE statement:
 2. **HCG ED visits** → `'ed_non_opioid'`
 3. **Other events** → `'non_target'` (or `'ed_non_opioid'` if default mode)
 
+**Important:** ICD code checking now includes **ALL 10 ICD diagnosis columns** (primary through ten), not just `primary_icd_diagnosis_code`. This ensures no opioid-related events are missed regardless of which diagnosis position the code appears in.
+
 **Dynamic Classification (when `PGX_TARGET_ICD_CODES` is set):**
 
 ```sql
 CASE 
     WHEN (primary_icd_diagnosis_code IN ('F1120', ...) 
+          OR two_icd_diagnosis_code IN ('F1120', ...)
+          OR three_icd_diagnosis_code IN ('F1120', ...)
+          -- ... through ten_icd_diagnosis_code
           OR procedure_code IN (...)) THEN 'target'
     WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
                       'O11 - Emergency Room', 
@@ -160,13 +165,19 @@ END
 
 ```sql
 CASE 
-    WHEN primary_icd_diagnosis_code IN ('F1120', 'F1121', ...) THEN 'opioid_ed'
+    WHEN primary_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+         OR two_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+         OR three_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+         -- ... through ten_icd_diagnosis_code
+         THEN 'opioid_ed'
     WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
                       'O11 - Emergency Room', 
                       'P33 - Urgent Care Visits') THEN 'ed_non_opioid'
     ELSE 'ed_non_opioid'
 END
 ```
+
+**Note:** The actual implementation uses a helper function `get_opioid_icd_sql_condition()` from `helpers_1997_13/constants.py` to generate the comprehensive SQL condition across all 10 ICD diagnosis columns.
 
 ---
 
@@ -381,9 +392,13 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
 WITH opioid_patients AS (
     -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID entirely
+    -- Checks ALL 10 ICD diagnosis columns to ensure complete opioid patient exclusion
     SELECT DISTINCT mi_person_key
     FROM unified_event_fact_table
-    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)  -- OPIOID_ICD_CODES
+    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)
+       OR two_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)
+       OR three_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)
+       -- ... through ten_icd_diagnosis_code IN (...)
 ),
 target_cases AS (
     SELECT DISTINCT mi_person_key
@@ -566,9 +581,13 @@ WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
 CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
 WITH opioid_patients AS (
     -- Patients with opioid ICD codes (F1120, etc.) - exclude from ED_NON_OPIOID entirely
+    -- Checks ALL 10 ICD diagnosis columns to ensure complete opioid patient exclusion
     SELECT DISTINCT mi_person_key
     FROM unified_event_fact_table
-    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', ...)  -- OPIOID_ICD_CODES
+    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR two_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR three_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       -- ... through ten_icd_diagnosis_code IN (...)
 ),
 control_candidates AS (
     SELECT DISTINCT mi_person_key
@@ -676,7 +695,7 @@ FROM ed_non_opioid_cohort
 GROUP BY is_target_case;
 ```
 
-**Check F1120 presence:**
+**Check F1120 presence (across ALL 10 ICD diagnosis columns):**
 
 ```sql
 SELECT 
@@ -685,19 +704,38 @@ SELECT
     COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as f1120_target_patients,
     COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) as f1120_control_patients
 FROM opioid_ed_cohort
-WHERE primary_icd_diagnosis_code = 'F1120';
+WHERE primary_icd_diagnosis_code = 'F1120'
+   OR two_icd_diagnosis_code = 'F1120'
+   OR three_icd_diagnosis_code = 'F1120'
+   OR four_icd_diagnosis_code = 'F1120'
+   OR five_icd_diagnosis_code = 'F1120'
+   OR six_icd_diagnosis_code = 'F1120'
+   OR seven_icd_diagnosis_code = 'F1120'
+   OR eight_icd_diagnosis_code = 'F1120'
+   OR nine_icd_diagnosis_code = 'F1120'
+   OR ten_icd_diagnosis_code = 'F1120';
 ```
 
-**Verify cohort separation (no overlap):**
+**Verify cohort separation (no overlap - checks ALL 10 ICD diagnosis columns):**
 
 ```sql
 -- Check if any opioid patients appear in ED_NON_OPIOID cohort
+-- Checks all 10 ICD diagnosis columns to ensure complete separation
 SELECT COUNT(DISTINCT mi_person_key) as opioid_patients_in_ed_non_opioid
 FROM ed_non_opioid_cohort
 WHERE mi_person_key IN (
     SELECT DISTINCT mi_person_key
     FROM unified_event_fact_table
-    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', ...)  -- OPIOID_ICD_CODES
+    WHERE primary_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR two_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR three_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR four_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR five_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR six_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR seven_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR eight_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR nine_icd_diagnosis_code IN ('F1120', 'F1121', ...)
+       OR ten_icd_diagnosis_code IN ('F1120', 'F1121', ...)
 );
 -- Should return 0
 ```
@@ -714,9 +752,10 @@ WHERE mi_person_key IN (
 
 ### Cohort Separation
 
-- **OPIOID_ED cohort:** Patients with opioid ICD codes (F1120, etc.)
-- **ED_NON_OPIOID cohort:** Patients with HCG ED visits, **excluding** all opioid patients
+- **OPIOID_ED cohort:** Patients with opioid ICD codes (F1120, etc.) in **ANY of the 10 ICD diagnosis columns**
+- **ED_NON_OPIOID cohort:** Patients with HCG ED visits, **excluding** all opioid patients (checked across all 10 ICD diagnosis columns)
 - **Complete separation:** Opioid patients cannot appear in ED_NON_OPIOID as targets or controls
+- **Comprehensive checking:** All 10 ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) are checked to ensure no opioid patients are missed or misclassified
 
 ### Control-Only Cohorts
 
