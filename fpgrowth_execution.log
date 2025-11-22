@@ -1,0 +1,132 @@
+nohup: ignoring input
+==========================================
+FPGrowth Analysis - Optimized for Omen
+==========================================
+
+Hardware:
+  CPU: 14 cores / 20 threads
+  RAM: 32GB (12.8GB available)
+  GPU: RTX 3080 Ti (16GB) - Not used
+
+Configuration:
+  Global: Sequential (handles full dataset)
+  Cohort: 10 parallel workers
+
+⚠️  mlxtend not found in current Python
+    Installing packages in Jupyter kernel...
+WARNING: Error parsing dependencies of mermaid: Expected matching RIGHT_PARENTHESIS for LEFT_PARENTHESIS, after version specifier
+    torch (>=1.7torchvision)
+          ~~~~~~^
+
+[notice] A new release of pip is available: 25.0.1 -> 25.3
+[notice] To update, run: python.exe -m pip install --upgrade pip
+Starting execution...
+
+==========================================
+STEP 1: Global FPGrowth Analysis
+==========================================
+Processing: drug_name, icd_code, cpt_code
+Estimated time: 30-60 minutes
+
+[NbConvertApp] Converting notebook 3_fpgrowth_analysis/global_fpgrowth_feature_importance.ipynb to notebook
+C:\Program Files\Python312\Lib\site-packages\zmq\_future.py:687: RuntimeWarning: Proactor event loop does not implement add_reader family of methods required for zmq. Registering an additional selector thread for add_reader support via tornado. Use `asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())` to avoid this warning.
+  self._get_loop()
+Assertion failed: Socket operation on non-socket [10038] (C:\Users\runneradmin\AppData\Local\Temp\tmpcdaojh_k\build\_deps\bundled_libzmq-src\src\signaler.cpp:345)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Program Files\Python312\Scripts\jupyter-nbconvert.EXE\__main__.py", line 7, in <module>
+  File "C:\Program Files\Python312\Lib\site-packages\jupyter_core\application.py", line 283, in launch_instance
+    super().launch_instance(argv=argv, **kwargs)
+  File "C:\Program Files\Python312\Lib\site-packages\traitlets\config\application.py", line 1075, in launch_instance
+    app.start()
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\nbconvertapp.py", line 420, in start
+    self.convert_notebooks()
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\nbconvertapp.py", line 597, in convert_notebooks
+    self.convert_single_notebook(notebook_filename)
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\nbconvertapp.py", line 563, in convert_single_notebook
+    output, resources = self.export_single_notebook(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\nbconvertapp.py", line 487, in export_single_notebook
+    output, resources = self.exporter.from_filename(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\exporters\exporter.py", line 201, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\exporters\exporter.py", line 220, in from_file
+    return self.from_notebook_node(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\exporters\notebook.py", line 36, in from_notebook_node
+    nb_copy, resources = super().from_notebook_node(nb, resources, **kw)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\exporters\exporter.py", line 154, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\exporters\exporter.py", line 353, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\preprocessors\base.py", line 48, in __call__
+    return self.preprocess(nb, resources)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\preprocessors\execute.py", line 103, in preprocess
+    self.preprocess_cell(cell, resources, index)
+  File "C:\Program Files\Python312\Lib\site-packages\nbconvert\preprocessors\execute.py", line 124, in preprocess_cell
+    cell = self.execute_cell(cell, index, store_history=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\jupyter_core\utils\__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\asyncio\base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\site-packages\nbclient\client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "C:\Program Files\Python312\Lib\site-packages\nbclient\client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+import os
+import sys
+import json
+import pandas as pd
+import numpy as np
+from datetime import datetime
+import logging
+from pathlib import Path
+import time
+
+# MLxtend for FP-Growth
+from mlxtend.frequent_patterns import fpgrowth, association_rules
+from mlxtend.preprocessing import TransactionEncoder
+
+# Project root
+project_root = Path.cwd().parent if Path.cwd().name == '3_fpgrowth_analysis' else Path.cwd()
+sys.path.insert(0, str(project_root))
+
+# Project utilities
+from helpers_1997_13.common_imports import s3_client, S3_BUCKET
+from helpers_1997_13.duckdb_utils import get_duckdb_connection
+from helpers_1997_13.s3_utils import save_to_s3_json, save_to_s3_parquet
+from helpers_1997_13.drug_utils import encode_drug_name
+from helpers_1997_13.visualization_utils import create_network_visualization
+
+print(f"\u2713 Project root: {project_root}")
+print(f"\u2713 All imports successful")
+print(f"\u2713 Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+------------------
+
+
+[1;31m---------------------------------------------------------------------------[0m
+[1;31mModuleNotFoundError[0m                       Traceback (most recent call last)
+Cell [1;32mIn[1], line 12[0m
+[0;32m      9[0m [38;5;28;01mimport[39;00m[38;5;250m [39m[38;5;21;01mtime[39;00m
+[0;32m     11[0m [38;5;66;03m# MLxtend for FP-Growth[39;00m
+[1;32m---> 12[0m [38;5;28;01mfrom[39;00m[38;5;250m [39m[38;5;21;01mmlxtend[39;00m[38;5;21;01m.[39;00m[38;5;21;01mfrequent_patterns[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m fpgrowth, association_rules
+[0;32m     13[0m [38;5;28;01mfrom[39;00m[38;5;250m [39m[38;5;21;01mmlxtend[39;00m[38;5;21;01m.[39;00m[38;5;21;01mpreprocessing[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m TransactionEncoder
+[0;32m     15[0m [38;5;66;03m# Project root[39;00m
+
+[1;31mModuleNotFoundError[0m: No module named 'mlxtend'
+
+
+✗ Global analysis failed - check executed_global_fpgrowth.ipynb for errors
