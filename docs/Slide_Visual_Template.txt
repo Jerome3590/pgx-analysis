@@ -1,0 +1,77 @@
+═══════════════════════════════════════════════════════════════════════════
+                    TRANSLATING HEALTHCARE CLAIMS DATA
+              INTO CLINICALLY ACTIONABLE INSIGHTS
+        Multi-Method Framework for Drug Pattern Analysis & Outcome Prediction
+═══════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                           │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌────────────────┐ │
+│  │                      │  │                      │  │                │ │
+│  │   THE CHALLENGE      │  │    OUR SOLUTION      │  │    IMPACT      │ │
+│  │                      │  │                      │  │                │ │
+│  │  [Database Icon]     │  │                      │  │  [Checkmarks]  │ │
+│  │                      │  │     ┌─────────┐      │  │                │ │
+│  │  Rich Claims Data    │  │     │FPGrowth │      │  │  CLINICAL     │ │
+│  │  Complex Patterns    │  │     └────┬────┘      │  │  INSIGHTS     │ │
+│  │                      │  │          │            │  │                │ │
+│  │  Q1: Drug Window?    │  │     ┌────▼────┐      │  │  • High-risk   │ │
+│  │  Q2: ICD/CPT Codes? │  │     │  BupaR  │      │  │    patterns    │ │
+│  │                      │  │     └────┬────┘      │  │  • Predictive  │ │
+│  │  Need: Translate     │  │          │            │  │    codes      │ │
+│  │  Data → Insights     │  │     ┌────▼────┐      │  │  • Trajectory  │ │
+│  │                      │  │     │CatBoost │      │  │    clusters    │ │
+│  │                      │  │     └────┬────┘      │  │                │ │
+│  │                      │  │          │            │  │  APPLICATIONS  │ │
+│  │                      │  │     ┌────▼────┐      │  │                │ │
+│  │                      │  │     │   DTW   │      │  │  • Early      │ │
+│  │                      │  │     └────┬────┘      │  │    warnings   │ │
+│  │                      │  │          │            │  │  • Risk       │ │
+│  │                      │  │     ┌────▼────┐      │  │    stratify    │ │
+│  │                      │  │     │Enhanced │      │  │  • Personalize │ │
+│  │                      │  │     │CatBoost │      │  │                │ │
+│  │                      │  │     └─────────┘      │  │                │ │
+│  └──────────────────────┘  └──────────────────────┘  └────────────────┘ │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐ │
+│  │  KEY TAKEAWAY: Multi-method integration transforms claims data →    │ │
+│  │  clinical insights for drug safety & outcome prediction            │ │
+│  └─────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════
+                          VISUAL ELEMENTS TO ADD:
+═══════════════════════════════════════════════════════════════════════════
+
+LEFT PANEL:
+  • Large database/cloud icon
+  • Two question bubbles with cohort names
+  • Arrow pointing right → 
+
+CENTER PANEL:
+  • Circular flow diagram connecting 5 methods
+  • Method icons/logos
+  • Flow arrows showing progression
+  • Brief output examples (e.g., "Top 5 drugs: X, Y, Z")
+
+RIGHT PANEL:
+  • Checkmark icons
+  • Three impact pillars (visual boxes)
+  • Arrow showing translation pathway
+  • Brief metrics (e.g., "AUC: 0.XX")
+
+BOTTOM BANNER:
+  • Method logos/icons in horizontal row
+  • Bold, readable text
+
+═══════════════════════════════════════════════════════════════════════════
+                          COLOR SCHEME:
+═══════════════════════════════════════════════════════════════════════════
+
+LEFT PANEL:    Blue background (challenge/problem)
+CENTER PANEL:  Green background (solution/methods) - MOST VISUAL
+RIGHT PANEL:   Orange background (impact/results)
+BOTTOM:        Dark gray/black background
+
+═══════════════════════════════════════════════════════════════════════════
+

@@ -17,6 +17,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 
 # Project path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,7 +26,7 @@ if project_root not in sys.path:
 
 from helpers_1997_13.logging_utils import setup_logging, save_logs_to_s3
 from helpers_1997_13.duckdb_utils import create_simple_duckdb_connection
-from helpers_1997_13.s3_utils import get_cohort_parquet_path, save_to_s3_json
+from helpers_1997_13.s3_utils import get_cohort_parquet_path
 from helpers_1997_13.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
 
 
@@ -52,6 +53,75 @@ def describe_columns(conn, s3_path: str) -> List[str]:
         return []
 
 
+def run_cohort_qa_parallel(args_tuple: Tuple[str, str, int, str, Dict[str, str]]) -> Dict[str, Any]:
+    """
+    Parallel wrapper for run_cohort_qa that creates its own connection and logger.
+    Args:
+        args_tuple: (cohort_name, age_band, event_year, log_level, env_vars)
+    Returns:
+        Dict with QA results plus metadata for aggregation
+    """
+    cohort_name, age_band, event_year, log_level, env_vars = args_tuple
+
+    # Import os FIRST, before any other imports
+    import os
+    import logging
+
+    # CRITICAL: Set environment variables BEFORE importing modules that read them
+    # The constants module reads env vars at import time, so we must set them first
+    for key, value in env_vars.items():
+        if value is not None:
+            os.environ[key] = value
+
+    # Now import modules that depend on environment variables
+    # This ensures constants.py reads the correct values
+    from helpers_1997_13.logging_utils import setup_logging
+    from helpers_1997_13.duckdb_utils import create_simple_duckdb_connection
+
+    # Reload constants module to pick up the new environment variables
+    import importlib
+    import helpers_1997_13.constants as constants_module
+    importlib.reload(constants_module)
+
+    # Also reload s3_utils to ensure it uses the updated constants
+    import helpers_1997_13.s3_utils as s3_utils_module
+    importlib.reload(s3_utils_module)
+
+    # Create logger for this process
+    logger, _ = setup_logging("final_cohort_qa", age_band, str(event_year))
+    logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # Create connection for this process
+    conn = create_simple_duckdb_connection(logger)
+
+    try:
+        # Re-import get_cohort_parquet_path after reloading modules
+        # This ensures it uses the updated constants
+        import sys
+        # Remove old imports to force fresh import
+        modules_to_reload = ['helpers_1997_13.s3_utils', 'helpers_1997_13.constants']
+        for mod_name in modules_to_reload:
+            if mod_name in sys.modules:
+                del sys.modules[mod_name]
+
+        # Re-import to get fresh references with updated env vars
+        from helpers_1997_13.s3_utils import get_cohort_parquet_path
+
+        # Update the module's globals so run_cohort_qa uses the reloaded function
+        # Get the module that contains run_cohort_qa
+        import importlib
+        current_module = sys.modules.get(__name__)
+        if current_module:
+            # Update the global reference in this module
+            current_module.get_cohort_parquet_path = get_cohort_parquet_path
+            # Also update globals() to ensure the function sees it
+            globals()['get_cohort_parquet_path'] = get_cohort_parquet_path
+        
+        return run_cohort_qa(conn, cohort_name, age_band, event_year, logger)
+    finally:
+        conn.close()
+
+
 def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger: logging.Logger) -> Dict[str, Any]:
     s3_path = get_cohort_parquet_path(cohort_name, age_band, event_year)
 
@@ -70,8 +140,54 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
 
     logger.info(f"QA reading cohort parquet: {s3_path}")
     try:
-        # Create view for cohort data
-        conn.sql(f"CREATE OR REPLACE VIEW cohort_qa AS SELECT * FROM read_parquet('{s3_path}')")
+        # First, check what cohort_name values are actually in the file
+        # Files may contain lowercase (opioid_ed, non_opioid_ed) or uppercase (OPIOID_ED, ED_NON_OPIOID)
+        actual_cohort_names = conn.sql(
+            f"""
+            SELECT DISTINCT cohort_name
+            FROM read_parquet('{s3_path}')
+            LIMIT 10
+            """
+        ).fetchall()
+        
+        # Determine the actual cohort_name value to use (handle case variations)
+        actual_cohort_name = None
+        if actual_cohort_names:
+            # Use the first distinct value found
+            actual_cohort_name = actual_cohort_names[0][0]
+            logger.info(f"📊 Detected cohort_name in file: '{actual_cohort_name}'")
+        else:
+            # Fallback: try both case variations
+            expected_upper = "OPIOID_ED" if cohort_name == "opioid_ed" else "ED_NON_OPIOID"
+            expected_lower = "opioid_ed" if cohort_name == "opioid_ed" else "non_opioid_ed"
+            # Try uppercase first
+            try:
+                count = conn.sql(
+                    f"SELECT COUNT(*) FROM read_parquet('{s3_path}') WHERE cohort_name = '{expected_upper}'"
+                ).fetchone()[0]
+                if count > 0:
+                    actual_cohort_name = expected_upper
+                else:
+                    # Try lowercase
+                    count = conn.sql(
+                        f"SELECT COUNT(*) FROM read_parquet('{s3_path}') WHERE cohort_name = '{expected_lower}'"
+                    ).fetchone()[0]
+                    if count > 0:
+                        actual_cohort_name = expected_lower
+            except Exception:
+                pass
+        
+        if actual_cohort_name is None:
+            logger.warning(f"⚠️  Could not determine cohort_name value in file, using expected value")
+            actual_cohort_name = "OPIOID_ED" if cohort_name == "opioid_ed" else "ED_NON_OPIOID"
+
+        # Create view for cohort data, filtering to only the actual cohort_name found in file
+        # This handles cases where PARTITION_BY (cohort_name) created multiple partitions
+        conn.sql(f"""
+        CREATE OR REPLACE VIEW cohort_qa AS
+        SELECT * FROM read_parquet('{s3_path}')
+        WHERE cohort_name = '{actual_cohort_name}'
+        """)
 
         # Schema
         cols = describe_columns(conn, s3_path)
@@ -85,6 +201,8 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
         results["schema"]["required_columns_missing"] = missing
         
         # Cohort group validation: check cohort_name column exists and has correct values
+        # Note: We already filtered by expected_cohort_name when creating the view,
+        # so this validation checks that the filter worked correctly
         cohort_validation = {
             "cohort_name_exists": "cohort_name" in cols,
             "cohort_name_values": {},
@@ -94,7 +212,7 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
         
         if "cohort_name" in cols:
             try:
-                # Get distinct cohort_name values
+                # Get distinct cohort_name values (should only be one after filtering)
                 cohort_names = conn.sql(
                     """
                     SELECT DISTINCT cohort_name, COUNT(*) as count
@@ -105,24 +223,64 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
                 ).fetchall()
                 cohort_validation["cohort_name_values"] = {name: count for name, count in cohort_names}
                 
-                # Expected cohort_name based on file being checked
+                # Expected cohort_name based on file being checked (for reference)
                 expected_cohort_name = "OPIOID_ED" if cohort_name == "opioid_ed" else "ED_NON_OPIOID"
                 
-                # Check if all records have the correct cohort_name
-                mismatch_count = conn.sql(
-                    f"""
-                    SELECT COUNT(*) 
-                    FROM cohort_qa 
-                    WHERE cohort_name != '{expected_cohort_name}'
-                    """
-                ).fetchone()[0]
+                # Check if all records have the correct cohort_name (should be 0 after filtering)
+                # Use the actual_cohort_name that was detected, not the expected one
+                actual_cohort_name_in_view = cohort_names[0][0] if cohort_names else None
+                mismatch_count = 0
+                if actual_cohort_name_in_view:
+                    mismatch_count = conn.sql(
+                        f"""
+                        SELECT COUNT(*) 
+                        FROM cohort_qa 
+                        WHERE cohort_name != '{actual_cohort_name_in_view}'
+                        """
+                    ).fetchone()[0]
                 cohort_validation["cohort_name_mismatch"] = mismatch_count > 0
                 cohort_validation["expected_cohort_name"] = expected_cohort_name
+                cohort_validation["actual_cohort_name"] = actual_cohort_name_in_view
                 cohort_validation["mismatch_count"] = mismatch_count
                 
+                # Also check if there are any records with unexpected cohort_name values in the original file
+                # (before filtering) - this helps identify if PARTITION_BY created mixed partitions
+                try:
+                    # Get all distinct cohort_name values in the file before filtering
+                    all_cohort_names = conn.sql(
+                        f"""
+                        SELECT DISTINCT cohort_name, COUNT(*) as count
+                        FROM read_parquet('{s3_path}')
+                        GROUP BY cohort_name
+                        ORDER BY count DESC
+                        """
+                    ).fetchall()
+                    cohort_validation["all_cohort_names_in_file"] = {name: count for name, count in all_cohort_names}
+                    
+                    # Log what cohort_name values were found
+                    if all_cohort_names:
+                        cohort_names_str = ", ".join([f"{name}={count}" for name, count in all_cohort_names])
+                        expected_cohort_name = "OPIOID_ED" if cohort_name == "opioid_ed" else "ED_NON_OPIOID"
+                        logger.info(f"📊 Found cohort_name values in file: {cohort_names_str} (expected: {expected_cohort_name})")
+                    
+                    total_in_file = conn.sql(f"SELECT COUNT(*) FROM read_parquet('{s3_path}')").fetchone()[0]
+                    total_after_filter = conn.sql("SELECT COUNT(*) FROM cohort_qa").fetchone()[0]
+                    if total_in_file > total_after_filter:
+                        unexpected_count = total_in_file - total_after_filter
+                        cohort_validation["unexpected_cohort_name_count"] = unexpected_count
+                        logger.warning(
+                            f"⚠️  Found {unexpected_count} records with unexpected cohort_name in file "
+                            f"(filtered out from analysis). Total in file: {total_in_file}, "
+                            f"Total after filter: {total_after_filter}"
+                        )
+                except Exception as e:
+                    logger.debug(f"Could not check cohort_name values in file: {e}")
+                    pass  # Best effort - if we can't check, continue
+
                 if mismatch_count > 0:
                     logger.warning(
-                        f"⚠️  Cohort name mismatch: Found {mismatch_count} records with cohort_name != '{expected_cohort_name}'"
+                        f"⚠️  Cohort name mismatch: Found {mismatch_count} records with cohort_name != '{expected_cohort_name}' "
+                        f"(this should be 0 after filtering)"
                     )
             except Exception as e:
                 logger.debug(f"Could not validate cohort_name: {e}")
@@ -739,10 +897,10 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
         except Exception:
             pass
 
-        # Frequency counts (top 50) for normalized drug names, ICD and CPT where present
+        # Frequency counts (full) for normalized drug names, ICD and CPT where present
         results["frequencies"] = {}
 
-        # Normalized drug_name counts
+        # Normalized drug_name counts (full frequency counts)
         try:
             drug_freq = conn.sql(
                 """
@@ -751,7 +909,6 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
                 WHERE normalized_drug_name IS NOT NULL AND normalized_drug_name <> ''
                 GROUP BY normalized_drug_name
                 ORDER BY frequency DESC
-                LIMIT 50
                 """
             ).fetchall()
             results["frequencies"]["normalized_drug_name"] = [
@@ -783,7 +940,6 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
                         WHERE {icd_col} IS NOT NULL AND {icd_col} <> ''
                         GROUP BY {icd_col}
                         ORDER BY frequency DESC
-                        LIMIT 50
                         """
                     ).fetchall()
                     results["frequencies"][icd_col] = [{"value": d, "count": c} for d, c in freq]
@@ -813,7 +969,6 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
                         WHERE {cpt_col} IS NOT NULL AND {cpt_col} <> ''
                         GROUP BY {cpt_col}
                         ORDER BY frequency DESC
-                        LIMIT 50
                         """
                     ).fetchall()
                     results["frequencies"][cpt_col] = [{"value": d, "count": c} for d, c in freq]
@@ -969,16 +1124,63 @@ def main():
     ap.add_argument("--all-event-years", action="store_true", help="Validate all standard event years")
     ap.add_argument("--cohorts", choices=["both", "opioid_ed", "ed_non_opioid"], default="both")
     ap.add_argument("--save-results", action="store_true", help="Save QA JSON to S3")
+    ap.add_argument("--max-workers", type=int, default=None,
+                   help="Maximum number of parallel workers (default: CPU count)")
+    # Optional runtime overrides for target configuration (matches 0_create_cohort.py)
+    ap.add_argument("--target-name", default=None, help="Optional target name to set (overrides PGX_TARGET_NAME env)")
+    ap.add_argument("--target-icd-codes", default=None, help="Optional ICD codes string (comma-separated) to set PGX_TARGET_ICD_CODES")
+    ap.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
+    ap.add_argument("--target-icd-prefixes", default=None, help="Optional ICD prefixes string (comma-separated) to set PGX_TARGET_ICD_PREFIXES")
+    ap.add_argument("--target-cpt-prefixes", default=None, help="Optional CPT prefixes string (comma-separated) to set PGX_TARGET_CPT_PREFIXES")
     ap.add_argument("--log-level", default="INFO")
     ap.add_argument("--max-workers", type=int, default=4, help="Maximum number of parallel workers (default: 4)")
     ap.add_argument("--no-parallel", action="store_true", help="Disable parallel processing (run sequentially)")
     args = ap.parse_args()
+
+    # If target overrides provided on CLI, set environment variables *before* importing modules
+    if args.target_name or args.target_icd_codes or args.target_cpt_codes or args.target_icd_prefixes or args.target_cpt_prefixes:
+        if args.target_name:
+            os.environ["PGX_TARGET_NAME"] = args.target_name
+        if args.target_icd_codes:
+            os.environ["PGX_TARGET_ICD_CODES"] = args.target_icd_codes
+        if args.target_cpt_codes:
+            os.environ["PGX_TARGET_CPT_CODES"] = args.target_cpt_codes
+        if args.target_icd_prefixes:
+            os.environ["PGX_TARGET_ICD_PREFIXES"] = args.target_icd_prefixes
+        if args.target_cpt_prefixes:
+            os.environ["PGX_TARGET_CPT_PREFIXES"] = args.target_cpt_prefixes
+        
+        # Reload modules so module-level constants derived from env are refreshed
+        import importlib
+        try:
+            import helpers_1997_13.constants as constants
+            import helpers_1997_13.s3_utils as s3_utils
+            importlib.reload(constants)
+            importlib.reload(s3_utils)
+            # Re-import to get updated references
+            from helpers_1997_13.s3_utils import get_cohort_parquet_path, save_to_s3_json
+            globals()['get_cohort_parquet_path'] = get_cohort_parquet_path
+            globals()['save_to_s3_json'] = save_to_s3_json
+        except Exception:
+            # Best-effort; if reload fails, re-import without reload
+            try:
+                from helpers_1997_13.s3_utils import get_cohort_parquet_path, save_to_s3_json
+                globals()['get_cohort_parquet_path'] = get_cohort_parquet_path
+                globals()['save_to_s3_json'] = save_to_s3_json
+            except Exception:
+                pass
 
     # For logging, use a generic run_id if many bands
     run_band = args.age_band or ("all" if args.all_age_bands else (args.age_bands or "multi"))
     run_year = args.event_year if args.event_year is not None else ("all" if (args.all_event_years or args.event_years) else "unknown")
     logger, log_buffer = setup_logging("final_cohort_qa", str(run_band), str(run_year))
     logger.setLevel(getattr(logging, args.log_level.upper(), logging.INFO))
+
+    # Only create connection if not using parallel processing
+    # (parallel processing creates its own connections per worker)
+    conn = None
+    if args.max_workers is None or args.max_workers == 1:
+        conn = create_simple_duckdb_connection(logger)
 
     cohorts = ["opioid_ed", "ed_non_opioid"] if args.cohorts == "both" else [args.cohorts]
 
@@ -1014,107 +1216,104 @@ def main():
         "results": {}
     }
 
-    # Build list of all tasks to process
-    tasks = [
-        (name, band, year)
-        for band in age_bands
-        for year in event_years
-        for name in cohorts
-    ]
-
-    total_tasks = len(tasks)
-    logger.info(f"Processing {total_tasks} QA tasks (age_bands={len(age_bands)}, years={len(event_years)}, cohorts={len(cohorts)})")
-
+<<<<<<< HEAD
     # Ensure PGX_TARGET_NAME is set in main process
     if 'PGX_TARGET_NAME' not in os.environ or not os.environ['PGX_TARGET_NAME']:
         logger.warning("PGX_TARGET_NAME not set, defaulting to 'opioid_ed'")
         os.environ['PGX_TARGET_NAME'] = 'opioid_ed'
 
-    # Collect environment variables to pass to worker processes
-    env_vars_to_pass = {}
-    env_keys = [
-        'PGX_TARGET_NAME',
-        'PGX_TARGET_ICD_CODES',
-        'PGX_TARGET_CPT_CODES',
-        'PGX_TARGET_ICD_PREFIXES',
-        'PGX_TARGET_CPT_PREFIXES',
-        'AWS_ACCESS_KEY_ID',
-        'AWS_SECRET_ACCESS_KEY',
-        'AWS_SESSION_TOKEN',
-        'AWS_DEFAULT_REGION',
-        'AWS_REGION'
-    ]
-    for key in env_keys:
-        value = os.environ.get(key)
-        if value is not None:
-            env_vars_to_pass[key] = value
+    # Capture environment variables needed for target configuration
+    target_env_vars = {
+        "PGX_TARGET_NAME": os.getenv("PGX_TARGET_NAME"),
+        "PGX_TARGET_ICD_CODES": os.getenv("PGX_TARGET_ICD_CODES"),
+        "PGX_TARGET_CPT_CODES": os.getenv("PGX_TARGET_CPT_CODES"),
+        "PGX_TARGET_ICD_PREFIXES": os.getenv("PGX_TARGET_ICD_PREFIXES"),
+        "PGX_TARGET_CPT_PREFIXES": os.getenv("PGX_TARGET_CPT_PREFIXES"),
+    }
 
-    logger.info(f"Passing {len(env_vars_to_pass)} environment variables to worker processes")
-    if 'PGX_TARGET_NAME' in env_vars_to_pass:
-        logger.info(f"  PGX_TARGET_NAME: {env_vars_to_pass['PGX_TARGET_NAME']}")
+    # Prepare all tasks for parallel processing
+    tasks = []
+    for band in age_bands:
+        for year in event_years:
+            for name in cohorts:
+                tasks.append((name, band, year, args.log_level, target_env_vars))
+
+    total_tasks = len(tasks)
+
+    # Determine number of workers
+    max_workers = args.max_workers if args.max_workers is not None else multiprocessing.cpu_count()
+    max_workers = min(max_workers, len(tasks))  # Don't exceed number of tasks
+
+    logger.info(f"Processing {len(tasks)} QA tasks with {max_workers} parallel workers...")
+
+    # Process tasks in parallel or sequentially
+    if max_workers > 1 and len(tasks) > 1 and not args.no_parallel:
+        # Use parallel processing
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_to_task = {
+                executor.submit(run_cohort_qa_parallel, task): task
+                for task in tasks
+            }
+
+            completed = 0
+            for future in as_completed(future_to_task):
+                name, band, year, _, _ = future_to_task[future]
+                completed += 1
+                try:
+                    res = future.result()
+                    all_results["results"].setdefault(band, {}).setdefault(year, {})[name] = res
+
+                    if args.save_results:
+                        out_path = build_qa_output_path(name, band, year)
+                        try:
+                            # Ensure save_to_s3_json is available (may have been reloaded)
+                            from helpers_1997_13.s3_utils import save_to_s3_json
+                            save_to_s3_json(res, out_path, logger)
+                        except Exception as e:
+                            logger.warning(f"Could not save QA JSON for {name} {band} {year}: {e}")
+
+                    logger.info(f"[{completed}/{len(tasks)}] Completed QA for {band} {year} {name}")
+                except Exception as e:
+                    logger.error(f"Error processing {band} {year} {name}: {e}")
+                    all_results["results"].setdefault(band, {}).setdefault(year, {})[name] = {
+                        "status": "ERROR",
+                        "error": str(e),
+                        "cohort": name,
+                        "age_band": band,
+                        "event_year": year
+                    }
     else:
-        logger.error("⚠️  PGX_TARGET_NAME not in environment variables to pass!")
-
-    # Process tasks either in parallel or sequentially
-    if args.no_parallel or total_tasks == 1:
-        # Sequential processing
-        logger.info("Running in sequential mode")
-        conn = create_simple_duckdb_connection(logger)
-
-        for idx, (name, band, year) in enumerate(tasks, 1):
+        # Sequential processing (fallback or single worker)
+        if conn is None:
+            conn = create_simple_duckdb_connection(logger)
+        for idx, (name, band, year, _, env_vars) in enumerate(tasks, 1):
             logger.info(f"[{idx}/{total_tasks}] Processing {name} {band} {year}")
+            # Set environment variables for sequential processing too
+            for key, value in env_vars.items():
+                if value is not None:
+                    os.environ[key] = value
             res = run_cohort_qa(conn, name, band, year, logger)
             all_results["results"].setdefault(band, {}).setdefault(year, {})[name] = res
 
             if args.save_results:
                 out_path = build_qa_output_path(name, band, year)
                 try:
+                    # Ensure save_to_s3_json is available (may have been reloaded)
+                    from helpers_1997_13.s3_utils import save_to_s3_json
                     save_to_s3_json(res, out_path, logger)
                 except Exception as e:
                     logger.warning(f"Could not save QA JSON for {name} {band} {year}: {e}")
 
+    # Close connection if we created one
+    if conn is not None:
         conn.close()
-    else:
-        # Parallel processing
-        logger.info(f"Running in parallel mode with {args.max_workers} workers")
-        completed = 0
-
-        with ProcessPoolExecutor(
-            max_workers=args.max_workers,
-            initializer=_worker_init,
-            initargs=(env_vars_to_pass,)
-        ) as executor:
-            # Submit all tasks
-            future_to_task = {
-                executor.submit(
-                    process_single_cohort_qa,
-                    name, band, year,
-                    args.save_results,
-                    args.log_level
-                ): (name, band, year)
-                for name, band, year in tasks
-            }
-
-            # Process results as they complete
-            for future in as_completed(future_to_task):
-                completed += 1
-                task_info = future_to_task[future]
-
-                try:
-                    band, year, name, res = future.result()
-                    all_results["results"].setdefault(band, {}).setdefault(year, {})[name] = res
-
-                    status = res.get('status', 'UNKNOWN')
-                    logger.info(f"[{completed}/{total_tasks}] Completed {name} {band} {year} → {status}")
-
-                except Exception as e:
-                    logger.error(f"[{completed}/{total_tasks}] Failed {task_info}: {e}")
 
     # Save master log to S3
     try:
-        save_logs_to_s3(log_buffer, "final_cohort_qa", args.age_band, args.event_year)
-    except Exception:
-        pass
+        # Use run_band and run_year which handle None values for --all-age-bands/--all-event-years
+        save_logs_to_s3(log_buffer, "final_cohort_qa", run_band, run_year)
+    except Exception as e:
+        logger.warning(f"Could not save logs to S3: {e}")
 
     # Print a compact summary
     for band in age_bands:

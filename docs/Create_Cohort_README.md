@@ -280,9 +280,6 @@ This creates `cohort_target_averages.json` in the project root, which Phase 3 us
 ```bash
 # Run with pre-computed averages (recommended)
 python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
-
-# Or use orchestration script
-python run_create_cohorts.py
 ```
 
 
