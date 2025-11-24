@@ -440,52 +440,52 @@ def main():
             logger.info(f"  ▶ Queued for processing")
             items_to_process.append(item_type)
     
-    # Process item types in PARALLEL (x2iedn.8xlarge has 1TB RAM - can handle 3 concurrent jobs!)
+    # Process item types SEQUENTIALLY (prevents OOM errors - each job needs ~300-500 GB peak)
     if items_to_process:
         logger.info(f"\n{'='*80}")
-        logger.info(f"PARALLEL PROCESSING: {len(items_to_process)} item types")
-        logger.info(f"Workers: {len(items_to_process)} (one per item type)")
+        logger.info(f"SEQUENTIAL PROCESSING: {len(items_to_process)} item types")
+        logger.info(f"Processing one at a time to avoid memory exhaustion")
+        logger.info(f"Expected runtime: 50-85 minutes total")
         logger.info(f"{'='*80}\n")
         
-        # Define wrapper function for parallel execution
-        def process_wrapper(item_type):
-            """Wrapper to pass all required parameters."""
-            return process_item_type(
-                item_type=item_type,
-                local_data_path=LOCAL_DATA_PATH,
-                s3_output_base=S3_OUTPUT_BASE,
-                min_support=MIN_SUPPORT,
-                min_confidence=MIN_CONFIDENCE,
-                logger=logging.getLogger(f'fpgrowth_{item_type}')  # Separate logger per worker
-            )
-        
-        # Execute in parallel using ProcessPoolExecutor
-        with ProcessPoolExecutor(max_workers=len(items_to_process)) as executor:
-            # Submit all jobs
-            future_to_item = {
-                executor.submit(process_wrapper, item_type): item_type
-                for item_type in items_to_process
-            }
+        # Process each item type sequentially
+        for idx, item_type in enumerate(items_to_process, 1):
+            logger.info(f"\n{'='*80}")
+            logger.info(f"Processing {idx}/{len(items_to_process)}: {item_type.upper()}")
+            logger.info(f"{'='*80}\n")
             
-            # Collect results as they complete
-            for future in as_completed(future_to_item):
-                item_type = future_to_item[future]
-                try:
-                    metrics = future.result()
-                    all_metrics.append(metrics)
+            try:
+                # Use item-specific parameters
+                actual_min_support = MIN_SUPPORT_CPT if item_type == 'cpt_code' else MIN_SUPPORT
+                actual_min_confidence = MIN_CONFIDENCE_CPT if item_type == 'cpt_code' else MIN_CONFIDENCE
+                
+                metrics = process_item_type(
+                    item_type=item_type,
+                    local_data_path=LOCAL_DATA_PATH,
+                    s3_output_base=S3_OUTPUT_BASE,
+                    min_support=actual_min_support,
+                    min_confidence=actual_min_confidence,
+                    logger=logger
+                )
+                all_metrics.append(metrics)
+                
+                if 'error' not in metrics:
+                    logger.info(f"\n✓ {item_type.upper()} COMPLETE:")
+                    logger.info(f"  - Frequent itemsets: {metrics['frequent_itemsets']:,}")
+                    logger.info(f"  - Association rules: {metrics['association_rules']:,}")
+                    logger.info(f"  - TARGET_ICD rules: {metrics.get('rules_by_target', {}).get('TARGET_ICD', 0):,}")
+                    logger.info(f"  - TARGET_ED rules: {metrics.get('rules_by_target', {}).get('TARGET_ED', 0):,}")
+                    logger.info(f"  - CONTROL rules: {metrics.get('rules_by_target', {}).get('CONTROL', 0):,}")
+                    logger.info(f"  - Runtime: {metrics.get('total_time_seconds', 0):.1f}s")
+                else:
+                    logger.info(f"\n✗ {item_type.upper()} FAILED: {metrics['error']}")
                     
-                    if 'error' not in metrics:
-                        logger.info(f"✓ {item_type.upper()} complete: "
-                                  f"{metrics['frequent_itemsets']:,} itemsets, "
-                                  f"{metrics['association_rules']:,} rules "
-                                  f"(ICD: {metrics.get('rules_by_target', {}).get('TARGET_ICD', 0)}, "
-                                  f"ED: {metrics.get('rules_by_target', {}).get('TARGET_ED', 0)}, "
-                                  f"Control: {metrics.get('rules_by_target', {}).get('CONTROL', 0)})")
-                    else:
-                        logger.info(f"✗ {item_type.upper()} failed: {metrics['error']}")
-                except Exception as e:
-                    logger.error(f"✗ {item_type.upper()} exception: {e}")
-                    all_metrics.append({'item_type': item_type, 'error': str(e)})
+            except Exception as e:
+                logger.error(f"\n✗ {item_type.upper()} EXCEPTION: {e}", exc_info=True)
+                all_metrics.append({'item_type': item_type, 'error': str(e)})
+                
+            logger.info(f"\nCompleted {idx}/{len(items_to_process)} item types")
+            logger.info("="*80)
     else:
         logger.info("\n⏭ All item types already exist in S3 - nothing to process")
     
