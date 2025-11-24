@@ -1,16 +1,39 @@
-# FPGrowth Analysis
+# FPGrowth Analysis - Target-Focused Rule Mining
 
-**Last Updated:** November 23, 2025  
-**Pipeline Version:** 3.0
+**Last Updated:** November 24, 2025  
+**Pipeline Version:** 4.0 (Target-Focused)
 
 ---
 
 ## Overview
 
-This directory contains FP-Growth analysis tools for discovering frequent patterns and associations in patient healthcare data. FP-Growth identifies:
-- **Frequent itemsets**: Items that commonly appear together
-- **Association rules**: Relationships between items (e.g., "if X then Y")
-- **Feature importance**: Support and confidence scores for ML feature engineering
+This directory contains **Target-Focused FP-Growth analysis** tools for discovering patterns that **predict specific outcomes** in patient healthcare data. This is predictive analytics, not just descriptive statistics.
+
+### What's New: Target-Focused Mining 🎯
+
+Instead of finding ALL possible associations, we generate rules that **predict target outcomes**:
+
+**Target 1: Opioid Dependence** (ICD codes F11.20-F11.29)  
+**Target 2: ED Visits** (HCG Line codes: P51, O11, P33)
+
+### Three Types of Rules Generated:
+
+1. **`rules_TARGET_ICD.json`** - Patterns that predict opioid dependence
+   - Example: `{Gabapentin, Tramadol, Hydrocodone} → {OPIOID_DEPENDENCE}` (72% confidence, 4.5x lift)
+
+2. **`rules_TARGET_ED.json`** - Patterns that predict ED visits
+   - Example: `{99213: Office Visit, J0670: Morphine} → {ED_VISIT}` (68% confidence, 3.8x lift)
+
+3. **`rules_CONTROL.json`** - Patterns that DON'T predict targets (baseline/protective)
+   - Example: `{Lisinopril, Metoprolol} → {Aspirin}` (standard cardiac care)
+
+### Why This Matters:
+
+- ✅ **Actionable Insights**: Know what patterns lead to bad outcomes
+- ✅ **Comparative Analysis**: Target vs Control differences
+- ✅ **Risk Prediction**: Use rules as features for CatBoost
+- ✅ **Process Mining**: Pathways TO target outcomes (BupaR)
+- ✅ **Clinical Utility**: Identify high-risk medication combinations
 
 ---
 
@@ -65,14 +88,26 @@ pip install mlxtend duckdb pandas boto3 jupyter
 aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/
 ```
 
-### 2. Configuration
+### 2. Configuration (Quality-Focused Parameters)
 
 Edit parameters in scripts/notebooks as needed:
 
 ```python
-MIN_SUPPORT = 0.01      # Items must appear in 1% of patients
-MIN_CONFIDENCE = 0.01   # Rules must have 1% confidence
-MAX_WORKERS = 5         # Parallel workers (cohort analysis only)
+# Quality-focused thresholds (not quantity!)
+MIN_SUPPORT = 0.01       # Global: 1% (57K patients), Cohort: 5%
+MIN_CONFIDENCE = 0.4     # Global: 40%, Cohort: 50% (strong associations only)
+MIN_CONFIDENCE_CPT = 0.5 # Even higher for procedures (50-60%)
+
+# Target-focused mining (ENABLED by default)
+TARGET_FOCUSED = True
+TARGET_ICD_CODES = ['F11.20', 'F11.21', 'F11.22', 'F11.23', 'F11.24', 'F11.25', 'F11.29']
+TARGET_HCG_LINES = ['P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits']
+
+# Rule limits (top rules by lift)
+MAX_RULES_PER_COHORT = 1000  # Cohort: 1000 rules max
+MAX_RULES_PER_ITEM_TYPE = 5000  # Global: 5000 rules max
+
+MAX_WORKERS = 2  # Parallel workers (reduced for memory stability)
 ```
 
 ### 3. Run Analysis
@@ -147,16 +182,18 @@ cohorts_F1120/
 
 ---
 
-## Output Structure
+## Output Structure (Target-Focused)
 
 ### Global Analysis
 ```
 s3://pgxdatalake/gold/fpgrowth/global/
 ├── drug_name/
-│   ├── encoding_map.json      # Feature encodings for ML
-│   ├── itemsets.json          # Frequent drug combinations
-│   ├── rules.json             # Association rules
-│   └── metrics.json           # Processing statistics
+│   ├── encoding_map.json          # Feature encodings for ML
+│   ├── itemsets.json              # Frequent drug combinations
+│   ├── rules_TARGET_ICD.json      # ← NEW: Rules predicting opioid dependence
+│   ├── rules_TARGET_ED.json       # ← NEW: Rules predicting ED visits
+│   ├── rules_CONTROL.json         # ← NEW: Non-target patterns (baseline)
+│   └── metrics.json               # Processing statistics + target counts
 ├── icd_code/
 │   └── (same files)
 └── cpt_code/
@@ -170,14 +207,56 @@ s3://pgxdatalake/gold/fpgrowth/cohort/
 │   └── cohort_name=opioid_ed/
 │       └── age_band=25-44/
 │           └── event_year=2017/
-│               ├── encoding_map.json
 │               ├── itemsets.json
-│               ├── rules.json
-│               └── metrics.json
+│               ├── rules_TARGET_ICD.json    # ← Opioid rules only
+│               ├── rules_TARGET_ED.json     # ← ED rules only
+│               ├── rules_CONTROL.json       # ← Control patterns
+│               └── summary.json             # Includes rules_by_target counts
 ├── icd_code/
 │   └── (same structure)
 └── cpt_code/
     └── (same structure)
+```
+
+### File Contents
+
+**`rules_TARGET_ICD.json`** - Rules predicting opioid dependence:
+```json
+[
+  {
+    "antecedents": ["Gabapentin", "Tramadol", "Hydrocodone"],
+    "consequents": ["TARGET_ICD:OPIOID_DEPENDENCE"],
+    "support": 0.08,
+    "confidence": 0.72,
+    "lift": 4.5
+  }
+]
+```
+
+**`rules_TARGET_ED.json`** - Rules predicting ED visits:
+```json
+[
+  {
+    "antecedents": ["99213", "J0670", "99285"],
+    "consequents": ["TARGET_ED:EMERGENCY_DEPT"],
+    "support": 0.12,
+    "confidence": 0.68,
+    "lift": 3.8
+  }
+]
+```
+
+**`rules_CONTROL.json`** - Non-target patterns (baseline care):
+```json
+[
+  {
+    "antecedents": ["Lisinopril", "Metoprolol"],
+    "consequents": ["Aspirin"],
+    "support": 0.15,
+    "confidence": 0.68,
+    "lift": 2.3
+  }
+]
 ```
 
 ---
@@ -266,41 +345,155 @@ aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/
 
 ---
 
-## Using Results in ML Models
+## Using Target-Focused Results
 
-### Load Encoding Map
-```python
-import json
+### 1. Load Target-Specific Rules
 
-# Load global encoding map
-with open('data/gold/fpgrowth/global/drug_name/encoding_map.json') as f:
-    drug_encodings = json.load(f)
-
-# Apply to features
-df['drug_support'] = df['drug_name'].map(lambda x: drug_encodings.get(x, {}).get('support', 0))
-df['drug_rank'] = df['drug_name'].map(lambda x: drug_encodings.get(x, {}).get('rank', 999999))
-```
-
-### Load Association Rules
 ```python
 import pandas as pd
 
-# Load rules
-rules = pd.read_json('data/gold/fpgrowth/global/drug_name/rules.json')
+# Load opioid dependence predictors
+opioid_rules = pd.read_json('s3://pgxdatalake/gold/fpgrowth/global/drug_name/rules_TARGET_ICD.json')
+print(f"Opioid rules: {len(opioid_rules)}")
 
-# Find high-lift rules
-top_rules = rules.nlargest(10, 'lift')
-print(top_rules[['antecedents', 'consequents', 'lift', 'confidence']])
+# Load ED visit predictors
+ed_rules = pd.read_json('s3://pgxdatalake/gold/fpgrowth/global/drug_name/rules_TARGET_ED.json')
+print(f"ED rules: {len(ed_rules)}")
+
+# Load control patterns (baseline)
+control_rules = pd.read_json('s3://pgxdatalake/gold/fpgrowth/global/drug_name/rules_CONTROL.json')
+print(f"Control rules: {len(control_rules)}")
+
+# Find highest-risk patterns
+top_risk = opioid_rules.nlargest(10, 'lift')
+print(top_risk[['antecedents', 'consequents', 'lift', 'confidence']])
 ```
+
+### 2. Comparative Analysis (Target vs Control)
+
+```python
+# Get all drugs in target rules
+target_drugs = set()
+for _, rule in opioid_rules.iterrows():
+    target_drugs.update(rule['antecedents'])
+
+# Get all drugs in control rules
+control_drugs = set()
+for _, rule in control_rules.iterrows():
+    control_drugs.update(rule['antecedents'])
+
+# Risk factors: in target but not control
+risk_factors = target_drugs - control_drugs
+print(f"High-risk medications: {risk_factors}")
+
+# Protective factors: in control but not target
+protective = control_drugs - target_drugs
+print(f"Potentially protective: {protective}")
+```
+
+### 3. Feature Engineering for CatBoost
+
+```python
+def patient_matches_rule(patient_meds, rule_antecedents):
+    """Check if patient has all antecedents in rule."""
+    return all(med in patient_meds for med in rule_antecedents)
+
+# Create risk features from opioid rules
+for idx, rule in opioid_rules.head(20).iterrows():
+    feature_name = f"opioid_risk_rule_{idx}"
+    df[feature_name] = df['medications'].apply(
+        lambda meds: patient_matches_rule(meds, rule['antecedents'])
+    )
+
+# Create protective features from control rules
+for idx, rule in control_rules.head(20).iterrows():
+    feature_name = f"control_pattern_{idx}"
+    df[feature_name] = df['medications'].apply(
+        lambda meds: patient_matches_rule(meds, rule['antecedents'])
+    )
+```
+
+### 4. BupaR Process Mining (R Example)
+
+```r
+# Load target-focused rules for process maps
+library(jsonlite)
+library(bupaR)
+
+# Opioid pathway analysis
+opioid_rules <- fromJSON("s3://pgxdatalake/gold/fpgrowth/cohort/drug_name/.../rules_TARGET_ICD.json")
+
+# Create process map showing pathways TO opioid dependence
+# (Not random co-occurrences!)
+process_map <- create_process_map(opioid_rules)
+
+# Compare with control pathways
+control_rules <- fromJSON("s3://pgxdatalake/gold/fpgrowth/cohort/drug_name/.../rules_CONTROL.json")
+control_map <- create_process_map(control_rules)
+
+# Identify divergence points
+compare_processes(process_map, control_map)
+```
+
+---
+
+## Key Implementation Details
+
+### Target Detection
+
+The notebooks automatically add target markers to patient transactions:
+
+```python
+# For each patient, add special items:
+if patient_has_opioid_icd_code:
+    transaction.append('TARGET_ICD:OPIOID_DEPENDENCE')
+
+if patient_has_ed_visit:  # HCG Line in [P51, O11, P33]
+    transaction.append('TARGET_ED:EMERGENCY_DEPT')
+```
+
+Example patient transaction:
+```python
+# Before
+['Gabapentin', 'Tramadol', 'Hydrocodone', 'Lisinopril']
+
+# After (if they developed opioid dependence)
+['Gabapentin', 'Tramadol', 'Hydrocodone', 'Lisinopril', 'TARGET_ICD:OPIOID_DEPENDENCE']
+```
+
+### Rule Filtering
+
+After generating ALL rules, we split them:
+
+```python
+# Target rules: consequent contains TARGET_ICD: or TARGET_ED:
+target_mask = rules['consequents'].apply(
+    lambda x: any(item.startswith(('TARGET_ICD:', 'TARGET_ED:')) for item in x)
+)
+
+rules_target = rules[target_mask]      # Predictive rules
+rules_control = rules[~target_mask]    # Baseline rules
+```
+
+### Why This Works
+
+**Traditional FPGrowth**: `{Aspirin} → {Ibuprofen}` (so what?)  
+**Target-Focused**: `{Gabapentin, Tramadol} → {OPIOID_DEPENDENCE}` (actionable!)
+
+- **Drastically fewer rules**: 1,000 target rules vs 100,000+ all rules
+- **Clinically meaningful**: Every rule predicts an outcome
+- **Comparative**: Can compare target vs control patterns
 
 ---
 
 ## Next Steps
 
-1. **Verify Outputs**: Check S3 for generated JSON files
+1. **Verify Outputs**: Check S3 for `rules_TARGET_ICD.json`, `rules_TARGET_ED.json`, `rules_CONTROL.json`
 2. **Download Results**: `aws s3 sync s3://pgxdatalake/gold/fpgrowth/ data/gold/fpgrowth/`
-3. **Integrate with ML**: Use encoding maps and rules in CatBoost/neural network models
-4. **Process Mining**: Use `BupaR` for detailed patient journey analysis
+3. **Compare Targets**: Analyze differences between opioid and ED predictors
+4. **Risk Stratification**: Use rules to identify high-risk patient patterns
+5. **Process Mining**: Map pathways TO target outcomes (not random associations)
+6. **Feature Engineering**: Create rule-based features for CatBoost
 
 ---
 
