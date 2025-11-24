@@ -16,6 +16,7 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import boto3
 from mlxtend.frequent_patterns import fpgrowth, association_rules
@@ -412,34 +413,99 @@ def main():
         logger.error(f"  Run: aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/")
         sys.exit(1)
     
-    # Process each item type
+    # Check which item types need processing (skip if already in S3)
     all_metrics = []
     overall_start = time.time()
+    skipped = 0
     
+    # Helper function to check S3 existence
+    def check_s3_results_exist(s3_output_base: str, item_type: str) -> bool:
+        """Check if results already exist in S3 (by checking for metrics.json)."""
+        s3 = boto3.client('s3')
+        key = f"gold/fpgrowth/global/{item_type}/metrics.json"
+        try:
+            s3.head_object(Bucket='pgxdatalake', Key=key)
+            return True
+        except:
+            return False
+    
+    items_to_process = []
     for item_type in ITEM_TYPES:
-        metrics = process_item_type(
-            item_type=item_type,
-            local_data_path=LOCAL_DATA_PATH,
-            s3_output_base=S3_OUTPUT_BASE,
-            min_support=MIN_SUPPORT,
-            min_confidence=MIN_CONFIDENCE,
-            logger=logger
-        )
-        all_metrics.append(metrics)
+        logger.info(f"Checking {item_type.upper()}...")
+        if check_s3_results_exist(S3_OUTPUT_BASE, item_type):
+            logger.info(f"  ⏭ Already exists in S3 - SKIPPING")
+            skipped += 1
+            all_metrics.append({'item_type': item_type, 'status': 'skipped'})
+        else:
+            logger.info(f"  ▶ Queued for processing")
+            items_to_process.append(item_type)
+    
+    # Process item types in PARALLEL (x2iedn.8xlarge has 1TB RAM - can handle 3 concurrent jobs!)
+    if items_to_process:
+        logger.info(f"\n{'='*80}")
+        logger.info(f"PARALLEL PROCESSING: {len(items_to_process)} item types")
+        logger.info(f"Workers: {len(items_to_process)} (one per item type)")
+        logger.info(f"{'='*80}\n")
+        
+        # Define wrapper function for parallel execution
+        def process_wrapper(item_type):
+            """Wrapper to pass all required parameters."""
+            return process_item_type(
+                item_type=item_type,
+                local_data_path=LOCAL_DATA_PATH,
+                s3_output_base=S3_OUTPUT_BASE,
+                min_support=MIN_SUPPORT,
+                min_confidence=MIN_CONFIDENCE,
+                logger=logging.getLogger(f'fpgrowth_{item_type}')  # Separate logger per worker
+            )
+        
+        # Execute in parallel using ProcessPoolExecutor
+        with ProcessPoolExecutor(max_workers=len(items_to_process)) as executor:
+            # Submit all jobs
+            future_to_item = {
+                executor.submit(process_wrapper, item_type): item_type
+                for item_type in items_to_process
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_item):
+                item_type = future_to_item[future]
+                try:
+                    metrics = future.result()
+                    all_metrics.append(metrics)
+                    
+                    if 'error' not in metrics:
+                        logger.info(f"✓ {item_type.upper()} complete: "
+                                  f"{metrics['frequent_itemsets']:,} itemsets, "
+                                  f"{metrics['association_rules']:,} rules "
+                                  f"(ICD: {metrics.get('rules_by_target', {}).get('TARGET_ICD', 0)}, "
+                                  f"ED: {metrics.get('rules_by_target', {}).get('TARGET_ED', 0)}, "
+                                  f"Control: {metrics.get('rules_by_target', {}).get('CONTROL', 0)})")
+                    else:
+                        logger.info(f"✗ {item_type.upper()} failed: {metrics['error']}")
+                except Exception as e:
+                    logger.error(f"✗ {item_type.upper()} exception: {e}")
+                    all_metrics.append({'item_type': item_type, 'error': str(e)})
+    else:
+        logger.info("\n⏭ All item types already exist in S3 - nothing to process")
     
     # Final summary
-    total_time = time.time() - overall_start
+    total_elapsed = time.time() - overall_start
+    
     logger.info("\n" + "="*80)
-    logger.info("GLOBAL ANALYSIS COMPLETE")
+    logger.info("GLOBAL FPGROWTH ANALYSIS - COMPLETE")
     logger.info("="*80)
-    logger.info(f"Total Runtime: {total_time/60:.1f} minutes")
-    
-    for metrics in all_metrics:
-        if 'error' in metrics:
-            logger.info(f"  ✗ {metrics['item_type']}: FAILED - {metrics['error']}")
+    logger.info(f"Total time: {total_elapsed:.1f}s ({total_elapsed/60:.1f}min)")
+    logger.info(f"Processed: {len([m for m in all_metrics if m.get('status') != 'skipped'])}")
+    logger.info(f"Skipped: {skipped}")
+    logger.info("\nResults Summary:")
+    for m in all_metrics:
+        if m.get('status') == 'skipped':
+            logger.info(f"  ⏭ {m['item_type']}: SKIPPED (already in S3)")
+        elif 'error' not in m:
+            logger.info(f"  ✓ {m['item_type']}: {m['frequent_itemsets']:,} itemsets, {m['association_rules']:,} rules")
         else:
-            logger.info(f"  ✓ {metrics['item_type']}: {metrics['frequent_itemsets']:,} itemsets, {metrics['association_rules']:,} rules")
-    
+            logger.info(f"  ✗ {m['item_type']}: ERROR - {m['error']}")
     logger.info("="*80)
     
     # EC2 Auto-Shutdown (optional)
