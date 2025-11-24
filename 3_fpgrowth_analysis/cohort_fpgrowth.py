@@ -20,14 +20,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import boto3
 import psutil
+import duckdb
 from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
-from helpers_1997_13.duckdb_utils import get_duckdb_connection
 
 # =============================================================================
 # CONFIGURATION
@@ -56,6 +55,11 @@ TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in 
 
 # Processing parameters
 MAX_WORKERS = 1  # Sequential processing to prevent memory issues
+
+# DRY RUN MODE (test with limited cohorts first)
+DRY_RUN = True  # Set to False to process all cohorts
+DRY_RUN_LIMIT = 5  # Number of cohort combinations to process in dry run
+
 COHORTS_TO_PROCESS = ['opioid_ed', 'ed_non_opioid']  # Specify cohorts to process
 
 ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
@@ -130,8 +134,9 @@ def process_single_cohort(
     start_time = time.time()
     
     try:
-        # Get DuckDB connection
-        con = get_duckdb_connection(logger=logger)
+        # Simple in-memory connection (no AWS needed for local parquet reads)
+        con = duckdb.connect(':memory:')
+        con.sql("SET threads = 1")
         
         # Build path to cohort parquet file
         parquet_file = local_data_path / f"cohort_name={cohort_name}" / f"event_year={event_year}" / f"age_band={age_band}" / "cohort.parquet"
@@ -360,8 +365,17 @@ def main():
                 for event_year in EVENT_YEARS:
                     cohort_jobs.append((item_type, cohort_name, age_band, event_year))
     
+    # Apply DRY_RUN limit if enabled
+    if DRY_RUN and len(cohort_jobs) > DRY_RUN_LIMIT:
+        logger.info(f"⚠️  DRY RUN: Limiting from {len(cohort_jobs)} to {DRY_RUN_LIMIT} cohort combinations")
+        cohort_jobs = cohort_jobs[:DRY_RUN_LIMIT]
+    
     total_jobs = len(cohort_jobs)
     logger.info(f"Total cohort jobs: {total_jobs}")
+    if DRY_RUN:
+        logger.info(f"DRY RUN MODE: Processing only {DRY_RUN_LIMIT} combinations (set DRY_RUN = False for full run)")
+    else:
+        logger.info(f"FULL RUN MODE: Processing all cohorts")
     logger.info("="*80)
     
     # Process cohorts in parallel
