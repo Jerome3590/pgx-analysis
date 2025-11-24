@@ -1,292 +1,384 @@
-# FPGrowth Initial Filtering for Cohort Analysis
+# Target-Focused FPGrowth: Predictive Rule Mining
 
-## Overview
-
-This module provides **FPGrowth-based initial filtering** for drugs, ICD codes, and CPT codes before downstream analysis (CatBoost, BupaR). It discovers frequent patterns and association rules that can be used to:
-
-1. **Filter features** before CatBoost modeling
-2. **Identify patterns** for BupaR process mining
-3. **Discover associations** for predictive modeling
-
-## 🎯 Purpose
-
-### For ED_NON_OPIOID Cohort
-- **Drug Window Analysis**: Finds frequent drug patterns within the 30-day lookback window
-- **Temporal Drug Associations**: Identifies which drugs co-occur before non-opioid ED visits
-- **Feature Filtering**: Reduces drug feature space for CatBoost by focusing on frequent patterns
-
-### For OPIOID_ED Cohort
-- **ICD Code Patterns**: Discovers frequent diagnosis code combinations that predict opioid ED events
-- **CPT Code Patterns**: Identifies procedure code patterns associated with opioid ED visits
-- **Predictive Features**: Creates filtered feature sets for CatBoost modeling
-
-## 📁 Module Structure
-
-```
-3_fpgrowth_analysis/
-├── run_fpgrowth_cohort_filtering.py  # Main filtering pipeline
-├── FPGrowth_Filtering_README.md      # This documentation
-└── (uses existing fpgrowth_utils.py)
-```
-
-## 🚀 Quick Start
-
-### Basic Usage
-
-```bash
-# Process all cohorts and item types
-python run_fpgrowth_cohort_filtering.py
-
-# Process specific cohort
-python run_fpgrowth_cohort_filtering.py --cohort ED_NON_OPIOID
-
-# Process specific item type
-python run_fpgrowth_cohort_filtering.py --cohort OPIOID_ED --item-type icd
-
-# Process specific age band and year
-python run_fpgrowth_cohort_filtering.py --cohort ED_NON_OPIOID --item-type drug --age-band "65-74" --event-year 2020
-```
-
-### Cohort-Specific Item Types
-
-| Cohort | Available Item Types | Notes |
-|--------|---------------------|-------|
-| **ED_NON_OPIOID** | `drug` | Only drugs within 30-day window |
-| **OPIOID_ED** | `icd`, `cpt` | All ICD codes and CPT codes |
-
-## 📊 Output Structure
-
-Results are saved to S3 with the following structure:
-
-```
-s3://pgxdatalake/fpgrowth_features/
-├── cohort_name=ed_non_opioid/
-│   ├── age_band=65-74/
-│   │   └── event_year=2020/
-│   │       ├── itemsets_drug.json      # Frequent drug itemsets
-│   │       ├── rules_drug.json         # Drug association rules
-│   │       └── encoding_drug.parquet   # Drug encoding map
-│   └── ...
-└── cohort_name=opioid_ed/
-    ├── age_band=65-74/
-    │   └── event_year=2020/
-    │       ├── itemsets_icd.json       # Frequent ICD itemsets
-    │       ├── rules_icd.json          # ICD association rules
-    │       ├── encoding_icd.parquet     # ICD encoding map
-    │       ├── itemsets_cpt.json       # Frequent CPT itemsets
-    │       ├── rules_cpt.json          # CPT association rules
-    │       └── encoding_cpt.parquet    # CPT encoding map
-    └── ...
-```
-
-## 🔧 Integration with Downstream Analysis
-
-### 1. CatBoost Feature Filtering
-
-Use FPGrowth results to filter features before CatBoost modeling:
-
-```python
-import json
-from helpers_1997_13.s3_utils import load_from_s3_json
-
-# Load frequent itemsets
-itemsets_path = "s3://pgxdatalake/fpgrowth_features/cohort_name=ed_non_opioid/age_band=65-74/event_year=2020/itemsets_drug.json"
-itemsets = load_from_s3_json(itemsets_path)
-
-# Extract top frequent drugs
-top_drugs = set()
-for itemset in itemsets[:50]:  # Top 50 itemsets
-    items = itemset.get('itemsets', [])
-    for item in items:
-        drug_name = item.replace('drug_', '')
-        top_drugs.add(drug_name)
-
-# Filter cohort data to only include top frequent drugs
-filtered_df = cohort_df[cohort_df['drug_name'].isin(top_drugs)]
-```
-
-### 2. BupaR Process Mining
-
-Use association rules for process flow analysis:
-
-```python
-# Load association rules
-rules_path = "s3://pgxdatalake/fpgrowth_features/cohort_name=opioid_ed/age_band=65-74/event_year=2020/rules_icd.json"
-rules = load_from_s3_json(rules_path)
-
-# Filter high-confidence rules
-high_conf_rules = [
-    r for r in rules 
-    if r.get('confidence', 0) > 0.7 and r.get('lift', 0) > 1.5
-]
-
-# Use for BupaR event log creation
-# Rules indicate likely transitions: ICD_A -> ICD_B -> OPIOID_ED
-```
-
-### 3. Feature Importance Pre-filtering
-
-Use support/confidence metrics to prioritize features:
-
-```python
-import pandas as pd
-from helpers_1997_13.s3_utils import load_from_s3_parquet
-
-# Load encoding map with metrics
-encoding_path = "s3://pgxdatalake/fpgrowth_features/cohort_name=opioid_ed/age_band=65-74/event_year=2020/encoding_icd.parquet"
-encoding_df = load_from_s3_parquet(encoding_path)
-
-# Filter to high-support items
-high_support_items = encoding_df[
-    encoding_df['support'] > 0.05
-]['item_name'].tolist()
-
-# Use these items as features in CatBoost
-```
-
-## 📈 Analysis Workflow
-
-### Complete Pipeline
-
-```python
-# Step 1: Run FPGrowth filtering
-# python run_fpgrowth_cohort_filtering.py --cohort ED_NON_OPIOID --item-type drug
-
-# Step 2: Load results for CatBoost
-from run_fpgrowth_cohort_filtering import load_cohort_data
-import pandas as pd
-
-# Load filtered drug patterns
-itemsets = load_from_s3_json("s3://.../itemsets_drug.json")
-rules = load_from_s3_json("s3://.../rules_drug.json")
-
-# Step 3: Use in CatBoost
-# Filter features based on FPGrowth results
-# Train CatBoost model with filtered features
-
-# Step 4: Use in BupaR
-# Create event log with FPGrowth pattern enrichment
-# Analyze process flows with association rules
-```
-
-## ⚙️ Configuration
-
-### Default Parameters
-
-```python
-MIN_SUPPORT_THRESHOLD = 0.05      # Minimum support for itemsets
-MIN_CONFIDENCE_MEDIUM = 0.3       # Minimum confidence for rules
-TOP_K = 30                        # Top K itemsets to extract
-TIMEOUT_SECONDS = 300             # Timeout per FP-Growth run
-```
-
-### Custom Parameters
-
-```bash
-python run_fpgrowth_cohort_filtering.py \
-    --cohort OPIOID_ED \
-    --item-type icd \
-    --min-support-threshold 0.03 \
-    --timeout-seconds 600
-```
-
-## 🔍 Key Features
-
-### ED_NON_OPIOID Drug Filtering
-
-- **30-Day Window**: Only includes drugs within 30 days before target event
-- **Balanced Windows**: Applies same temporal logic to targets and controls
-- **Temporal Patterns**: Discovers drug sequences leading to ED visits
-
-### OPIOID_ED Code Filtering
-
-- **ICD Patterns**: Finds diagnosis code combinations predictive of opioid ED
-- **CPT Patterns**: Identifies procedure patterns associated with opioid ED
-- **Full History**: Includes all historical codes (no temporal filtering)
-
-## 📋 Prerequisites
-
-### Data Requirements
-- **Cohort Data**: `s3://pgxdatalake/cohort_clean/**/*.parquet`
-- **Required Columns**: 
-  - `mi_person_key`, `drug_name` (for drugs)
-  - `primary_icd_diagnosis_code` (for ICD)
-  - `procedure_code` (for CPT)
-  - `days_to_target_event` (for ED_NON_OPIOID drugs)
-
-### System Requirements
-- Python 3.8+
-- mlxtend library
-- DuckDB with S3 extension
-- AWS S3 access
-
-## 🛠️ Usage Examples
-
-### Example 1: Filter Drugs for ED_NON_OPIOID
-
-```bash
-# Run FPGrowth for drugs
-python run_fpgrowth_cohort_filtering.py \
-    --cohort ED_NON_OPIOID \
-    --item-type drug \
-    --age-band "65-74" \
-    --event-year 2020
-
-# Results saved to:
-# s3://pgxdatalake/fpgrowth_features/cohort_name=ed_non_opioid/age_band=65-74/event_year=2020/itemsets_drug.json
-```
-
-### Example 2: Filter ICD Codes for OPIOID_ED
-
-```bash
-# Run FPGrowth for ICD codes
-python run_fpgrowth_cohort_filtering.py \
-    --cohort OPIOID_ED \
-    --item-type icd \
-    --age-band "65-74" \
-    --event-year 2020
-
-# Results saved to:
-# s3://pgxdatalake/fpgrowth_features/cohort_name=opioid_ed/age_band=65-74/event_year=2020/itemsets_icd.json
-```
-
-### Example 3: Process All Cohorts and Types
-
-```bash
-# Process everything
-python run_fpgrowth_cohort_filtering.py
-
-# This will:
-# - Process ED_NON_OPIOID: drugs
-# - Process OPIOID_ED: icd, cpt
-# - Process all age bands and years
-```
-
-## 🔗 Integration Points
-
-### Before CatBoost Analysis
-1. Run FPGrowth filtering: `python run_fpgrowth_cohort_filtering.py`
-2. Load frequent itemsets/rules
-3. Filter cohort features based on FPGrowth results
-4. Train CatBoost with filtered features
-
-### Before BupaR Analysis
-1. Run FPGrowth filtering for relevant item types
-2. Load association rules
-3. Create event log enriched with FPGrowth patterns
-4. Analyze process flows with pattern-based transitions
-
-## 📚 References
-
-- **FP-Growth Algorithm**: [MLxtend Documentation](https://rasbt.github.io/mlxtend/user_guide/frequent_patterns/fpgrowth/)
-- **Association Rules**: [MLxtend Association Rules](https://rasbt.github.io/mlxtend/user_guide/frequent_patterns/association_rules/)
-- **Cohort Creation**: See `docs/Create_Cohort_README.md`
-- **CatBoost Integration**: See `3_fpgrowth_analysis/CatBoost_README.md`
-- **BupaR Integration**: See `3_fpgrowth_analysis/BupaR_README.md`
+**Last Updated:** November 24, 2025  
+**Version:** 4.0 (Target-Focused)
 
 ---
 
-*Last Updated: January 2025*
-*Module Version: 1.0*
-*Compatible with: pgx_analysis pipeline v2+*
+## 🎯 Overview
 
+This module implements **Target-Focused FPGrowth** - a predictive analytics approach that discovers patterns leading to specific outcomes, not just any co-occurrences.
+
+### The Paradigm Shift
+
+**❌ Old Approach (Descriptive)**:  
+Generate ALL possible association rules  
+→ Results: 100,000+ rules like `{Aspirin} → {Ibuprofen}` (so what?)
+
+**✅ New Approach (Predictive)**:  
+Generate ONLY rules that predict target outcomes  
+→ Results: 50-1,000 rules like `{Gabapentin, Tramadol} → {OPIOID_DEPENDENCE}` (actionable!)
+
+---
+
+## 🎯 Target Outcomes
+
+### Target 1: Opioid Dependence (ICD Codes)
+
+**Codes**: F11.20, F11.21, F11.22, F11.23, F11.24, F11.25, F11.29  
+**Marker**: `TARGET_ICD:OPIOID_DEPENDENCE`
+
+**Example Rules**:
+```json
+{
+  "antecedents": ["Gabapentin", "Tramadol", "Hydrocodone"],
+  "consequents": ["TARGET_ICD:OPIOID_DEPENDENCE"],
+  "support": 0.08,
+  "confidence": 0.72,
+  "lift": 4.5
+}
+```
+**Interpretation**: "Patients on this medication combo have 72% chance of developing opioid dependence (4.5x higher than baseline)"
+
+### Target 2: Emergency Department Visits (HCG Line)
+
+**HCG Lines**:  
+- `P51 - ER Visits and Observation Care`
+- `O11 - Emergency Room`
+- `P33 - Urgent Care Visits`
+
+**Marker**: `TARGET_ED:EMERGENCY_DEPT`
+
+**Example Rules**:
+```json
+{
+  "antecedents": ["99213", "J0670", "99285"],
+  "consequents": ["TARGET_ED:EMERGENCY_DEPT"],
+  "support": 0.12,
+  "confidence": 0.68,
+  "lift": 3.8
+}
+```
+**Interpretation**: "This care pattern leads to 68% ED return rate (3.8x baseline)"
+
+---
+
+## 📁 Output Files (3 Types)
+
+### 1. `rules_TARGET_ICD.json` - Opioid Dependence Predictors
+
+Contains rules where **consequent = TARGET_ICD:OPIOID_DEPENDENCE**
+
+**Use Cases**:
+- Identify high-risk medication combinations
+- Early warning system for providers
+- Feature engineering for opioid risk prediction models
+- Process mining: pathways TO dependence
+
+### 2. `rules_TARGET_ED.json` - ED Visit Predictors
+
+Contains rules where **consequent = TARGET_ED:EMERGENCY_DEPT**
+
+**Use Cases**:
+- Identify care patterns leading to ED visits
+- Improve discharge planning protocols
+- Predict ED return risk
+- Process mining: pathways TO ED
+
+### 3. `rules_CONTROL.json` - Baseline Patterns
+
+Contains rules where **consequent is NOT a target**
+
+**Use Cases**:
+- Identify normal/safe healthcare utilization patterns
+- Protective factors (in control but not target)
+- Comparative analysis (target vs control)
+- Baseline for risk stratification
+
+---
+
+## 🔬 How It Works
+
+### Step 1: Add Target Markers
+
+For each patient, append special items to their transaction:
+
+```python
+# Original transaction
+patient_123 = ['Gabapentin', 'Tramadol', 'Hydrocodone', 'Lisinopril']
+
+# Add targets if applicable
+if patient_has_opioid_code(patient_123):
+    patient_123.append('TARGET_ICD:OPIOID_DEPENDENCE')
+
+if patient_has_ed_visit(patient_123):
+    patient_123.append('TARGET_ED:EMERGENCY_DEPT')
+
+# Final transaction
+# ['Gabapentin', 'Tramadol', 'Hydrocodone', 'Lisinopril', 'TARGET_ICD:OPIOID_DEPENDENCE']
+```
+
+### Step 2: Generate ALL Rules (as before)
+
+```python
+from mlxtend.frequent_patterns import fpgrowth, association_rules
+
+# FP-Growth finds frequent itemsets
+itemsets = fpgrowth(transactions, min_support=0.05)
+
+# Generate ALL rules
+all_rules = association_rules(itemsets, metric="confidence", min_threshold=0.5)
+```
+
+### Step 3: Split by Target Type
+
+```python
+# Target rules: consequent contains target marker
+target_mask = all_rules['consequents'].apply(
+    lambda x: any(item.startswith(('TARGET_ICD:', 'TARGET_ED:')) for item in x)
+)
+
+rules_target = all_rules[target_mask]      # Predictive rules
+rules_control = all_rules[~target_mask]    # Baseline rules
+
+# Further split target rules by outcome type
+rules_icd = rules_target[rules_target['consequents'].apply(
+    lambda x: any('TARGET_ICD:' in str(item) for item in x)
+)]
+
+rules_ed = rules_target[rules_target['consequents'].apply(
+    lambda x: any('TARGET_ED:' in str(item) for item in x)
+)]
+```
+
+### Step 4: Save Separately
+
+```python
+# Save each type to separate file
+save_json(rules_icd, 's3://.../rules_TARGET_ICD.json')
+save_json(rules_ed, 's3://.../rules_TARGET_ED.json')
+save_json(rules_control, 's3://.../rules_CONTROL.json')
+```
+
+---
+
+## 💡 Usage Examples
+
+### 1. Identify High-Risk Patterns
+
+```python
+import pandas as pd
+
+# Load opioid risk rules
+opioid_rules = pd.read_json('s3://.../rules_TARGET_ICD.json')
+
+# Find highest-risk combinations
+top_risk = opioid_rules.nlargest(20, 'lift')
+
+print("Top 20 Opioid Risk Patterns:")
+for _, rule in top_risk.iterrows():
+    print(f"  {rule['antecedents']} → {rule['consequents']}")
+    print(f"    Confidence: {rule['confidence']:.1%}, Lift: {rule['lift']:.1f}")
+```
+
+### 2. Comparative Analysis (Target vs Control)
+
+```python
+# Load both
+target_rules = pd.read_json('s3://.../rules_TARGET_ICD.json')
+control_rules = pd.read_json('s3://.../rules_CONTROL.json')
+
+# Get all items from each
+def extract_items(rules_df):
+    items = set()
+    for _, rule in rules_df.iterrows():
+        items.update(rule['antecedents'])
+        items.update(rule['consequents'])
+    return items
+
+target_items = extract_items(target_rules)
+control_items = extract_items(control_rules)
+
+# Risk factors: in target but NOT in control
+risk_factors = target_items - control_items
+print(f"High-risk medications: {risk_factors}")
+
+# Protective factors: in control but NOT in target
+protective = control_items - target_items
+print(f"Potentially protective: {protective}")
+```
+
+### 3. Feature Engineering for CatBoost
+
+```python
+def patient_matches_rule(patient_meds, antecedents):
+    """Check if patient has all items in antecedents."""
+    return all(med in patient_meds for med in antecedents)
+
+# Load opioid risk rules
+opioid_rules = pd.read_json('s3://.../rules_TARGET_ICD.json')
+
+# Create binary features for top 50 rules
+for idx, rule in opioid_rules.head(50).iterrows():
+    feature_name = f"opioid_risk_rule_{idx}"
+    
+    # For each patient, check if they match this risky pattern
+    df[feature_name] = df['medications'].apply(
+        lambda meds: patient_matches_rule(meds, rule['antecedents'])
+    )
+
+# Now use these features in CatBoost
+from catboost import CatBoostClassifier
+
+model = CatBoostClassifier()
+model.fit(df[feature_cols], df['target'])
+```
+
+### 4. BupaR Process Mining (R)
+
+```r
+library(jsonlite)
+library(bupaR)
+library(processmapR)
+
+# Load target rules
+opioid_rules <- fromJSON("s3://.../rules_TARGET_ICD.json")
+
+# Create process map showing pathways TO opioid dependence
+# (Not random co-occurrences, but actual pathways to bad outcome!)
+process_map <- create_process_map(opioid_rules, 
+                                  type = "frequency",
+                                  rankdir = "LR")
+
+# Visualize high-risk pathways
+plot(process_map)
+
+# Compare with control pathways
+control_rules <- fromJSON("s3://.../rules_CONTROL.json")
+control_map <- create_process_map(control_rules)
+
+# Where do pathways diverge?
+compare_process_maps(process_map, control_map)
+```
+
+---
+
+## 🎯 Quality-Focused Parameters
+
+### Why High Thresholds?
+
+We use **higher confidence thresholds** than traditional FPGrowth:
+
+**Traditional**: `min_confidence = 0.01` (1%) → 100,000+ weak rules  
+**Target-Focused**: `min_confidence = 0.5` (50%) → 50-1,000 strong rules
+
+### Configuration
+
+```python
+# Global analysis (5.7M patients)
+MIN_SUPPORT = 0.01       # 1% = 57,000 occurrences
+MIN_CONFIDENCE = 0.4     # 40% confidence
+MIN_CONFIDENCE_CPT = 0.5 # 50% for procedures
+MAX_RULES_PER_ITEM_TYPE = 5000  # Top 5000 by lift
+
+# Cohort analysis (per cohort)
+MIN_SUPPORT = 0.05       # 5% within cohort
+MIN_CONFIDENCE = 0.5     # 50% confidence
+MIN_CONFIDENCE_CPT = 0.6 # 60% for procedures
+MAX_RULES_PER_COHORT = 1000  # Top 1000 by lift
+```
+
+**Rationale**:
+- ✅ **Meaningful patterns only**: 50%+ confidence = strong associations
+- ✅ **Clinically actionable**: Can actually intervene on high-confidence patterns
+- ✅ **Interpretable**: Can review 1,000 rules, not 100,000
+- ✅ **Top by lift**: Most important patterns ranked first
+
+---
+
+## 📊 Expected Results
+
+### Rule Counts
+
+| Cohort Type | TARGET_ICD | TARGET_ED | CONTROL | Total |
+|-------------|------------|-----------|---------|-------|
+| **Global** (5.7M patients) | ~1,000-2,000 | ~800-1,500 | ~2,000-3,000 | ~5,000 |
+| **Cohort** (per age/year) | ~50-400 | ~50-300 | ~200-500 | ~1,000 |
+
+### File Sizes
+
+| File | Typical Size | Load Time |
+|------|--------------|-----------|
+| `rules_TARGET_ICD.json` | 50-500 KB | <1 sec |
+| `rules_TARGET_ED.json` | 40-400 KB | <1 sec |
+| `rules_CONTROL.json` | 100-800 KB | <1 sec |
+
+**Compare to old approach**: 500 MB+ files that couldn't load!
+
+---
+
+## 🔍 Quality Metrics
+
+Each `summary.json` includes:
+
+```json
+{
+  "total_rules": 850,
+  "rules_by_target": {
+    "TARGET_ICD": 320,
+    "TARGET_ED": 280,
+    "CONTROL": 250
+  },
+  "min_support": 0.05,
+  "min_confidence": 0.5,
+  "max_rules_limit": 1000,
+  "rules_truncated": false,
+  "target_focused": true,
+  "target_icd_codes": ["F11.20", "F11.21", ...],
+  "target_hcg_lines": ["P51 - ER Visits and Observation Care", ...]
+}
+```
+
+---
+
+## 🎉 Why This Matters
+
+### For Clinicians
+- **Risk Stratification**: Identify high-risk patients early
+- **Intervention Points**: Know which patterns to disrupt
+- **Clinical Decision Support**: Alert on risky combinations
+
+### For Researchers
+- **Comparative Analysis**: Target vs control differences
+- **Protective Factors**: What patterns DON'T lead to bad outcomes
+- **Process Mining**: Map pathways TO outcomes (not random associations)
+
+### For ML Engineers
+- **Better Features**: Predictive patterns as features
+- **Reduced Dimensionality**: 1,000 rules vs 100,000+
+- **Interpretable**: Can explain why model predicts risk
+
+### For Healthcare Systems
+- **Quality Improvement**: Identify problematic care patterns
+- **Cost Reduction**: Prevent ED visits and complications
+- **Population Health**: Risk stratify entire populations
+
+---
+
+## 📚 References
+
+### Implementation Details
+- `global_fpgrowth_feature_importance.ipynb` - Global analysis notebook
+- `cohort_fpgrowth_feature_importance.ipynb` - Cohort analysis notebook
+- `global_fpgrowth.py` - Global analysis script
+- `cohort_fpgrowth.py` - Cohort analysis script
+
+### Related Documentation
+- `README.md` - Quick start guide
+- `README_fprgrowth.md` - FPGrowth algorithm details
+- `README_bupaR.md` - Process mining with BupaR
+- `README_catboost.md` - ML integration
+
+---
+
+**Questions?** Review the main `README.md` or check the notebooks for detailed implementation.
