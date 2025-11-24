@@ -19,6 +19,7 @@ from typing import Dict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import boto3
+import psutil
 from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 
@@ -54,7 +55,7 @@ TARGET_HCG_LINES = [
 TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in transactions
 
 # Processing parameters
-MAX_WORKERS = 2  # Reduced from 4 to prevent memory pressure
+MAX_WORKERS = 1  # Sequential processing to prevent memory issues
 COHORTS_TO_PROCESS = ['opioid_ed', 'ed_non_opioid']  # Specify cohorts to process
 
 ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
@@ -82,6 +83,27 @@ def setup_logger(name: str = 'cohort_fpgrowth') -> logging.Logger:
 # COHORT PROCESSING
 # =============================================================================
 
+def log_memory(logger, stage=""):
+    """Log current memory usage."""
+    try:
+        mem = psutil.virtual_memory()
+        mem_used_gb = mem.used / (1024**3)
+        mem_total_gb = mem.total / (1024**3)
+        mem_percent = mem.percent
+        mem_avail_gb = mem.available / (1024**3)
+        
+        logger.info(f"[MEMORY {stage}] Used: {mem_used_gb:.1f} GB / {mem_total_gb:.1f} GB ({mem_percent:.1f}%) | Available: {mem_avail_gb:.1f} GB")
+        
+        # Warning if memory usage is high
+        if mem_percent > 85:
+            logger.warning(f"⚠️  HIGH MEMORY USAGE: {mem_percent:.1f}% - May cause OOM!")
+        
+        return mem_percent
+    except Exception as e:
+        logger.error(f"Error getting memory info: {e}")
+        return 0.0
+
+
 def process_single_cohort(
     item_type: str,
     cohort_name: str,
@@ -103,6 +125,7 @@ def process_single_cohort(
     
     cohort_id = f"{cohort_name}/{age_band}/{event_year}"
     logger.info(f"Processing {item_type} for {cohort_id}")
+    log_memory(logger, "START")
     
     start_time = time.time()
     
@@ -167,6 +190,7 @@ def process_single_cohort(
         
         # Load data
         df = con.execute(query).df()
+        log_memory(logger, "After data extraction")
         con.close()
         
         if len(df) == 0:
@@ -200,10 +224,12 @@ def process_single_cohort(
         te = TransactionEncoder()
         te_ary = te.fit(transactions).transform(transactions)
         df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+        log_memory(logger, "After encoding")
         
         # Run FP-Growth
         itemsets = fpgrowth(df_encoded, min_support=min_support, use_colnames=True)
         itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
+        log_memory(logger, "After FP-Growth")
         
         if len(itemsets) == 0:
             logger.warning(f"✗ No frequent itemsets for {cohort_id}")
@@ -218,6 +244,7 @@ def process_single_cohort(
         # Generate association rules
         rules = association_rules(itemsets, metric="confidence", min_threshold=min_confidence)
         rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
+        log_memory(logger, "After rule generation")
         
         # Create encoding map
         encoding_map = {}
@@ -285,6 +312,7 @@ def process_single_cohort(
         )
         
         elapsed = time.time() - start_time
+        log_memory(logger, "END")
         logger.info(f"✓ {cohort_id} {item_type}: {len(itemsets):,} itemsets, {len(rules):,} rules in {elapsed:.1f}s")
         
         return metrics
