@@ -15,7 +15,7 @@ import time
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import Dict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import boto3
@@ -32,17 +32,34 @@ from helpers_1997_13.duckdb_utils import get_duckdb_connection
 # CONFIGURATION
 # =============================================================================
 
-MIN_SUPPORT = 0.01      # Items must appear in 1% of patients
-MIN_CONFIDENCE = 0.01   # Rules must have 1% confidence
-MAX_WORKERS = 5         # Parallel processing workers
+# FP-Growth parameters (higher threshold for cohort-specific patterns)
+MIN_SUPPORT = 0.05       # 5% support (items must appear in 5% of patients within cohort)
+MIN_CONFIDENCE = 0.5     # 50% confidence - only strong associations
+
+# CPT-specific parameters (prevent memory exhaustion from millions of rules)
+MIN_SUPPORT_CPT = 0.15   # 15% support for CPT codes (focuses on common patterns)
+MIN_CONFIDENCE_CPT = 0.6 # 60% confidence for CPT (very strong associations only)
+
+# Rule limits (focus on most important rules)
+MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
+
+# Target-focused rule mining
+TARGET_FOCUSED = True  # Only generate rules that predict target outcomes
+TARGET_ICD_CODES = ['F11.20', 'F11.21', 'F11.22', 'F11.23', 'F11.24', 'F11.25', 'F11.29']  # Opioid dependence codes
+TARGET_HCG_LINES = [
+    "P51 - ER Visits and Observation Care",
+    "O11 - Emergency Room",
+    "P33 - Urgent Care Visits"
+]  # ED visits (HCG Line codes)
+TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in transactions
+
+# Processing parameters
+MAX_WORKERS = 2  # Reduced from 4 to prevent memory pressure
+COHORTS_TO_PROCESS = ['opioid_ed', 'ed_non_opioid']  # Specify cohorts to process
+
 ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
-LOCAL_DATA_PATH = PROJECT_ROOT / "data" / "gold" / "cohorts_F1120"
-
-# Cohort definitions
-COHORT_NAMES = ['opioid_ed', 'non_opioid_ed']
-AGE_BANDS = ['0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-94', '95-114']
-EVENT_YEARS = [2016, 2017, 2018, 2019, 2020]
+LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fast I/O)
 
 # =============================================================================
 # SETUP LOGGING
@@ -380,6 +397,94 @@ def main():
             total_itemsets = sum(m['frequent_itemsets'] for m in item_metrics)
             total_rules = sum(m['association_rules'] for m in item_metrics)
             logger.info(f"  {item_type}: {len(item_metrics)} cohorts, {total_itemsets:,} itemsets, {total_rules:,} rules")
+    
+    # EC2 Auto-Shutdown (optional)
+    shutdown_ec2(logger)
+
+
+def shutdown_ec2(logger: logging.Logger, enable: bool = False):
+    """
+    Automatically shutdown EC2 instance after analysis completes.
+    
+    Args:
+        logger: Logger instance
+        enable: Set to True to enable auto-shutdown, False to skip
+    """
+    if not enable:
+        logger.info("\n" + "="*80)
+        logger.info("EC2 Auto-Shutdown: DISABLED")
+        logger.info("="*80)
+        logger.info("To enable auto-shutdown, set enable=True in shutdown_ec2() call")
+        logger.info("Instance will continue running.")
+        logger.info("\nTo manually stop this instance later:")
+        logger.info("  aws ec2 stop-instances --instance-ids $(ec2-metadata --instance-id | cut -d ' ' -f 2)")
+        logger.info("Or use AWS Console: EC2 > Instances > Select instance > Instance State > Stop")
+        return
+    
+    logger.info("\n" + "="*80)
+    logger.info("Shutting down EC2 instance...")
+    logger.info("="*80)
+    
+    import subprocess
+    import requests
+    import shutil
+    
+    # Get instance ID from EC2 metadata service
+    try:
+        response = requests.get(
+            "http://169.254.169.254/latest/meta-data/instance-id",
+            timeout=2
+        )
+        if response.status_code == 200:
+            instance_id = response.text.strip()
+            logger.info(f"Instance ID: {instance_id}")
+            
+            # Find AWS CLI
+            aws_cmd = shutil.which("aws")
+            if not aws_cmd:
+                # Try common paths
+                for path in ["/usr/local/bin/aws", "/usr/bin/aws", 
+                           "/home/ec2-user/.local/bin/aws", 
+                           "/home/ubuntu/.local/bin/aws"]:
+                    if Path(path).exists():
+                        aws_cmd = path
+                        break
+            
+            if aws_cmd:
+                # Stop the instance (use terminate-instances for permanent deletion)
+                shutdown_cmd = [aws_cmd, "ec2", "stop-instances", "--instance-ids", instance_id]
+                
+                logger.info(f"Running: {' '.join(shutdown_cmd)}")
+                result = subprocess.run(shutdown_cmd, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    logger.info("✓ EC2 instance stop command sent successfully")
+                    logger.info("Instance will stop in a few moments.")
+                    logger.info("Note: This is a STOP (not terminate), so you can restart it later.")
+                    if result.stdout:
+                        logger.info(f"\nAWS Response:\n{result.stdout}")
+                else:
+                    logger.error(f"✗ EC2 stop command failed with exit code {result.returncode}")
+                    if result.stderr:
+                        logger.error(f"Error: {result.stderr}")
+                    logger.error("Check AWS credentials and IAM permissions.")
+            else:
+                logger.error("✗ AWS CLI not found. Cannot shutdown instance.")
+                logger.error("Install AWS CLI or ensure it's in your PATH.")
+                logger.error("Manual shutdown: aws ec2 stop-instances --instance-ids " + instance_id)
+        else:
+            logger.error(f"✗ Metadata service returned status code {response.status_code}")
+            logger.error("Could not retrieve instance ID.")
+    
+    except requests.exceptions.RequestException as e:
+        logger.error("✗ Could not retrieve instance ID from metadata service.")
+        logger.error(f"Error: {e}")
+        logger.error("If running on EC2, check that metadata service is accessible.")
+        logger.error("\nManual shutdown command:")
+        logger.error("  aws ec2 stop-instances --instance-ids <your-instance-id>")
+    
+    except Exception as e:
+        logger.error(f"✗ Unexpected error during shutdown: {e}")
 
 
 if __name__ == "__main__":
