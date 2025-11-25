@@ -25,19 +25,70 @@ def create_simple_duckdb_connection(logger, tmp_dir: Optional[str] = None, s3_re
         conn = duckdb.connect(database=':memory:')
         
         # Basic S3 setup only
-        # Try to LOAD extensions first to avoid INSTALLing on every worker startup.
-        # Installing extensions repeatedly is slow and unnecessary when the
-        # extension is already available in the environment.
+        # Check if extensions are already installed before attempting to install
+        # This prevents unnecessary INSTALL operations when extensions are already available
+        
+        # Check and load httpfs extension
         try:
+            # First try to load (fast if already installed)
             conn.sql("LOAD httpfs;")
-        except Exception:
-            # Fallback to install if load fails (first-time setup)
-            conn.sql("INSTALL httpfs; LOAD httpfs;")
+            logger.debug("✅ Loaded httpfs extension (already installed)")
+        except Exception as load_error:
+            # Load failed - check if extension is installed but not loaded
+            try:
+                # Check if extension is installed (but not loaded)
+                result = conn.sql("SELECT * FROM duckdb_extensions() WHERE extension_name = 'httpfs'").fetchall()
+                if result:
+                    # Extension is installed, try loading again
+                    try:
+                        conn.sql("LOAD httpfs;")
+                        logger.info("✅ Loaded httpfs extension (was installed)")
+                    except Exception:
+                        # Still fails, install fresh
+                        logger.info("httpfs load failed, reinstalling...")
+                        conn.sql("INSTALL httpfs; LOAD httpfs;")
+                        logger.info("✅ Installed and loaded httpfs extension")
+                else:
+                    # Extension not installed, install it
+                    logger.info("httpfs not installed, installing...")
+                    conn.sql("INSTALL httpfs; LOAD httpfs;")
+                    logger.info("✅ Installed and loaded httpfs extension")
+            except Exception:
+                # If check fails, fall back to install
+                logger.info("httpfs check failed, installing...")
+                conn.sql("INSTALL httpfs; LOAD httpfs;")
+                logger.info("✅ Installed and loaded httpfs extension")
 
+        # Check and load aws extension
         try:
+            # First try to load (fast if already installed)
             conn.sql("LOAD aws;")
-        except Exception:
-            conn.sql("INSTALL aws; LOAD aws;")
+            logger.debug("✅ Loaded aws extension (already installed)")
+        except Exception as load_error:
+            # Load failed - check if extension is installed but not loaded
+            try:
+                # Check if extension is installed (but not loaded)
+                result = conn.sql("SELECT * FROM duckdb_extensions() WHERE extension_name = 'aws'").fetchall()
+                if result:
+                    # Extension is installed, try loading again
+                    try:
+                        conn.sql("LOAD aws;")
+                        logger.info("✅ Loaded aws extension (was installed)")
+                    except Exception:
+                        # Still fails, install fresh
+                        logger.info("aws load failed, reinstalling...")
+                        conn.sql("INSTALL aws; LOAD aws;")
+                        logger.info("✅ Installed and loaded aws extension")
+                else:
+                    # Extension not installed, install it
+                    logger.info("aws not installed, installing...")
+                    conn.sql("INSTALL aws; LOAD aws;")
+                    logger.info("✅ Installed and loaded aws extension")
+            except Exception:
+                # If check fails, fall back to install
+                logger.info("aws check failed, installing...")
+                conn.sql("INSTALL aws; LOAD aws;")
+                logger.info("✅ Installed and loaded aws extension")
         conn.sql("CALL load_aws_credentials();")
         conn.sql(f"SET s3_region='{s3_region}'")
         conn.sql("SET s3_url_style='path'")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ADE CatBoost Model Script
-Runs ADE (Adverse Drug Event) CatBoost models with temporal filtering, Optuna optimization, and proper artifact saving.
+Opioid ED CatBoost Model Script
+Runs Opioid ED CatBoost models with temporal filtering, Optuna optimization, and proper artifact saving.
 """
 
 import os
@@ -11,12 +11,11 @@ import argparse
 import pandas as pd
 import numpy as np
 import duckdb
-from catboost import CatBoostClassifier, Pool
+from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score, log_loss
 from sklearn.model_selection import train_test_split
 import optuna
 import shap
-import matplotlib.pyplot as plt
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
@@ -27,46 +26,25 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Import existing utilities
-from helpers_1997_13.common_imports import (
-    s3_client, 
-    S3_BUCKET, 
-    get_logger, 
-    ClientError
-)
-
-from helpers_1997_13.constants import (
-    S3_BUCKET,
-    METRICS_BUCKET,
-    NOTIFICATION_EMAIL
-)
-
-from helpers_1997_13.aws_utils import (
-    notify_error,
-    send_email
-)
-
-from helpers_1997_13.s3_utils import (
-    upload_file_to_s3,
-    download_file_from_s3,
-    get_output_paths,
-    save_to_s3_json,
-    save_to_s3_parquet
-)
-
-from helpers_1997_13.model_utils import (
-    save_model_artifacts,
-    load_model_artifacts
-)
+from helpers_1997_13.common_imports import get_logger
+from helpers_1997_13.constants import S3_BUCKET
+from helpers_1997_13.aws_utils import notify_error
+from helpers_1997_13.s3_utils import upload_file_to_s3, get_output_paths, save_to_s3_json, save_to_s3_parquet
+import sys
+import os
+# Add current directory to path for feature_importance_scaled import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from feature_importance_scaled import calculate_scaled_feature_importance_single_model, get_top_features
 
 
 def setup_logging(age_band, event_year):
     """Setup logging for the model run"""
-    return get_logger(f"ade_catboost_{age_band}_{event_year}", "all", "all")
+    return get_logger(f"opioid_catboost_{age_band}_{event_year}", "all", "all")
 
 
 def load_cohort_data(age_band, event_year, logger):
     """Load cohort data from S3"""
-    logger.info(f"Loading ADE cohort data for {age_band}/{event_year}")
+    logger.info(f"Loading Opioid ED cohort data for {age_band}/{event_year}")
     
     # Enable S3/httpfs support in DuckDB
     con = duckdb.connect()
@@ -106,7 +84,7 @@ def apply_temporal_filtering(df, logger):
 
 def prepare_features(df, logger):
     """Prepare features for modeling"""
-    logger.info("Preparing features for ADE modeling")
+    logger.info("Preparing features for Opioid ED modeling")
     
     # Drop high-cardinality and not-needed columns
     not_needed_high_card = [
@@ -285,7 +263,7 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
     logger.info("Saving model artifacts")
     
     # Create local output directory
-    output_dir = f"catboost_models/ed_non_opioid/{age_band.replace('-', '_')}_{event_year}"
+    output_dir = f"catboost_models/opioid_ed/{age_band.replace('-', '_')}_{event_year}"
     os.makedirs(output_dir, exist_ok=True)
     
     # Save model files locally
@@ -294,7 +272,7 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
     
     # Save model info locally
     model_info = {
-        'model_type': 'ade_ed',
+        'model_type': 'opioid_ed',
         'age_band': age_band,
         'event_year': event_year,
         'timestamp': datetime.now().isoformat(),
@@ -312,13 +290,16 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
     feature_importance.to_csv(feature_importance_path, index=False)
     
     # Get standardized S3 paths using get_output_paths
-    paths = get_output_paths(
-        cohort_name="ed_non_opioid",
-        age_band=age_band,
-        event_year=event_year
-    )
+    from helpers_1997_13.s3_utils import get_output_paths, save_to_s3_json, save_to_s3_parquet
     
     try:
+        # Get output paths for this cohort
+        paths = get_output_paths(
+            cohort_name="opioid_ed",
+            age_band=age_band,
+            event_year=event_year
+        )
+        
         # Save model artifacts to S3 using standardized paths
         logger.info("Uploading model artifacts to S3...")
         
@@ -344,9 +325,10 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
         )
         
         # Upload the actual model file (not in get_output_paths, so use custom path)
-        s3_model_key = f"catboost_models/ed_non_opioid/{age_band.replace('-', '_')}_{event_year}/model.cbm"
+        s3_model_key = f"catboost_models/opioid_ed/{age_band.replace('-', '_')}_{event_year}/model.cbm"
         s3_model_path = f"s3://{S3_BUCKET}/{s3_model_key}"
         
+        from helpers_1997_13.s3_utils import upload_file_to_s3
         upload_file_to_s3(model_path, S3_BUCKET, s3_model_key)
         
         logger.info(f"✓ Model artifacts uploaded to S3:")
@@ -362,13 +344,13 @@ def save_model_artifacts(model, metrics, feature_importance, best_params,
     return output_dir
 
 
-def run_catboost_ade_ed(age_band, event_year):
-    """Main function to run ADE CatBoost model"""
+def run_catboost_opioid_ed(age_band, event_year):
+    """Main function to run Opioid ED CatBoost model"""
     try:
         # Setup logging
         logger = setup_logging(age_band, event_year)
         logger.info("="*80)
-        logger.info(f"ADE CATBOOST MODEL: {age_band}/{event_year}")
+        logger.info(f"OPIOID ED CATBOOST MODEL: {age_band}/{event_year}")
         logger.info("="*80)
         
         # Load data
@@ -400,43 +382,73 @@ def run_catboost_ade_ed(age_band, event_year):
         metrics = evaluate_model(model, X_test, y_test, logger)
         
         # Generate SHAP explanations
-        shap_values, feature_importance, explainer = generate_shap_explanations(
+        shap_values, feature_importance_shap, explainer = generate_shap_explanations(
             model, X_test, categorical_cols, logger
         )
         
-        # Save artifacts
+        # Calculate scaled feature importance (normalized and scaled by best model's Recall)
+        # Based on: https://github.com/Jerome3590/phts/tree/main/graft-loss/feature_importance
+        logger.info("Calculating scaled feature importance (normalized * best Recall)")
+        feature_importance_scaled = calculate_scaled_feature_importance_single_model(
+            model=model,
+            X_test=X_test,
+            y_test=y_test,
+            importance_type='PredictionValuesChange',
+            metric='recall'
+        )
+        
+        # Log top features
+        logger.info("Top 10 features by scaled importance:")
+        for idx, row in feature_importance_scaled.head(10).iterrows():
+            logger.info(f"  {row['feature']}: scaled={row['importance_scaled']:.6f}, "
+                       f"normalized={row['importance_normalized']:.4f}, "
+                       f"raw={row['importance_raw']:.4f}")
+        
+        # Use scaled importance as primary feature importance
+        feature_importance = feature_importance_scaled[['feature', 'importance_scaled']].rename(
+            columns={'importance_scaled': 'importance'}
+        )
+        
+        # Save artifacts (including both SHAP and scaled importance)
         output_dir = save_model_artifacts(
             model, metrics, feature_importance, best_params, age_band, event_year, logger
         )
         
+        # Also save scaled importance separately
+        scaled_importance_path = os.path.join(output_dir, "feature_importance_scaled.csv")
+        feature_importance_scaled.to_csv(scaled_importance_path, index=False)
+        logger.info(f"Saved scaled feature importance to: {scaled_importance_path}")
+        
         logger.info("="*80)
-        logger.info("ADE CATBOOST MODEL COMPLETE")
+        logger.info("OPIOID ED CATBOOST MODEL COMPLETE")
         logger.info("="*80)
         
         return {
             'status': 'success',
             'output_dir': output_dir,
             'metrics': metrics,
-            'model': model
+            'model': model,
+            'feature_importance_scaled': feature_importance_scaled,
+            'top_features': get_top_features(feature_importance_scaled, top_n=1000)
         }
         
     except Exception as e:
-        error_msg = f"ADE CatBoost model failed for {age_band}/{event_year}: {str(e)}"
+        error_msg = f"Opioid ED CatBoost model failed for {age_band}/{event_year}: {str(e)}"
         logger.error(error_msg)
-        notify_error("ade_catboost_model", error_msg, logger)
+        notify_error("opioid_catboost_model", error_msg, logger)
         raise
 
 
 def main():
     """Command line entry point"""
-    parser = argparse.ArgumentParser(description='Run ADE CatBoost model')
+    parser = argparse.ArgumentParser(description='Run Opioid ED CatBoost model')
     parser.add_argument('--age-band', required=True, help='Age band to process')
     parser.add_argument('--event-year', type=int, required=True, help='Event year to process')
     
     args = parser.parse_args()
     
-    result = run_catboost_ade_ed(args.age_band, args.event_year)
-    print(f"ADE model completed: {result['status']}")
+    result = run_catboost_opioid_ed(args.age_band, args.event_year)
+    print(f"Opioid ED model completed: {result['status']}")
 
 
 if __name__ == "__main__":

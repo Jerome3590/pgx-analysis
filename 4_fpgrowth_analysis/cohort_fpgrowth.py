@@ -15,9 +15,10 @@ import time
 import json
 import logging
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
+import numpy as np
 import boto3
 import psutil
 import duckdb
@@ -56,11 +57,19 @@ TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in 
 # Processing parameters
 MAX_WORKERS = 1  # Sequential processing to prevent memory issues
 
+# Transaction density bins (based on histogram/percentiles)
+DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
+
+# Itemset filtering (remove common/trivial itemsets)
+MIN_ITEMSET_LIFT = 1.1  # Filter itemsets with lift < 1.1 (items are independent/not interesting)
+
 # DRY RUN MODE (test with limited cohorts first)
 DRY_RUN = True  # Set to False to process all cohorts
 DRY_RUN_LIMIT = 5  # Number of cohort combinations to process in dry run
 
-COHORTS_TO_PROCESS = ['opioid_ed', 'ed_non_opioid']  # Specify cohorts to process
+logger.info(f"Min Itemset Lift: {MIN_ITEMSET_LIFT} (filtering common/trivial itemsets)")
+
+COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 
 ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
@@ -106,6 +115,171 @@ def log_memory(logger, stage=""):
     except Exception as e:
         logger.error(f"Error getting memory info: {e}")
         return 0.0
+
+
+def assign_transaction_density(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
+    """
+    Calculate transaction sizes per patient and assign Transaction_Density bins.
+    
+    Args:
+        df: DataFrame with mi_person_key and item columns
+        logger: Logger instance
+    
+    Returns:
+        DataFrame with Transaction_Density column added
+    """
+    # Calculate transaction size per patient
+    logger.info(f"Calculating transaction sizes per patient...")
+    transaction_sizes = df.groupby('mi_person_key')['item'].size().reset_index(name='transaction_size')
+    
+    # Calculate percentiles for binning
+    sizes = transaction_sizes['transaction_size'].values
+    p25 = np.percentile(sizes, 25)
+    p50 = np.percentile(sizes, 50)
+    p75 = np.percentile(sizes, 75)
+    p95 = np.percentile(sizes, 95)
+    
+    logger.info(f"Transaction size percentiles:")
+    logger.info(f"  P25: {p25:.1f} items")
+    logger.info(f"  P50 (median): {p50:.1f} items")
+    logger.info(f"  P75: {p75:.1f} items")
+    logger.info(f"  P95: {p95:.1f} items")
+    logger.info(f"  Max: {max(sizes):,} items")
+    
+    # Assign density bins based on percentiles
+    def assign_density(size):
+        if size <= p25:
+            return 'low'
+        elif size <= p50:
+            return 'medium'
+        elif size <= p95:
+            return 'high'
+        else:
+            return 'extreme'
+    
+    transaction_sizes['Transaction_Density'] = transaction_sizes['transaction_size'].apply(assign_density)
+    
+    # Log distribution
+    density_counts = transaction_sizes['Transaction_Density'].value_counts()
+    logger.info(f"Transaction density distribution:")
+    for density in DENSITY_BINS:
+        count = density_counts.get(density, 0)
+        pct = (count / len(transaction_sizes)) * 100 if len(transaction_sizes) > 0 else 0
+        logger.info(f"  {density}: {count:,} ({pct:.1f}%)")
+    
+    # Merge density back to original dataframe
+    df_with_density = df.merge(
+        transaction_sizes[['mi_person_key', 'Transaction_Density', 'transaction_size']],
+        on='mi_person_key',
+        how='left'
+    )
+    
+    return df_with_density
+
+
+def get_transactions_by_density(df: pd.DataFrame, density: str, logger: logging.Logger) -> List[List[str]]:
+    """
+    Get transactions for a specific density level.
+    
+    Args:
+        df: DataFrame with mi_person_key, item, and Transaction_Density columns
+        density: Density level ('low', 'medium', 'high', 'extreme')
+        logger: Logger instance
+    
+    Returns:
+        List of transactions (each transaction is a list of items)
+    """
+    df_density = df[df['Transaction_Density'] == density]
+    
+    if len(df_density) == 0:
+        return []
+    
+    transactions = (
+        df_density.groupby('mi_person_key')['item']
+        .apply(lambda x: sorted(set(x.tolist())))
+        .tolist()
+    )
+    
+    logger.info(f"  {density}: {len(transactions):,} transactions")
+    
+    return transactions
+
+
+def filter_itemsets_by_lift(
+    itemsets: pd.DataFrame,
+    df_encoded: pd.DataFrame,
+    min_lift: float,
+    logger: logging.Logger
+) -> pd.DataFrame:
+    """
+    Filter itemsets by lift to remove common/trivial itemsets.
+    
+    Lift measures how much more likely items are to appear together than by chance.
+    Lift = 1.0 means items are independent (not interesting)
+    Lift > 1.0 means positive association (interesting)
+    Lift < 1.0 means negative association (also interesting, but we filter these out)
+    
+    Args:
+        itemsets: DataFrame with 'itemsets' and 'support' columns
+        df_encoded: Encoded transaction DataFrame (needed to calculate individual item supports)
+        min_lift: Minimum lift threshold (e.g., 1.1 = 10% more likely than chance)
+        logger: Logger instance
+    
+    Returns:
+        Filtered DataFrame with only itemsets above min_lift threshold
+    """
+    if len(itemsets) == 0:
+        return itemsets
+    
+    logger.info(f"Filtering {len(itemsets):,} itemsets by lift (min_lift={min_lift})...")
+    
+    # Calculate individual item supports (needed for lift calculation)
+    item_supports = {}
+    total_transactions = len(df_encoded)
+    
+    for col in df_encoded.columns:
+        item_supports[col] = df_encoded[col].sum() / total_transactions
+    
+    # Calculate lift for each itemset
+    def calculate_lift(row):
+        itemset = row['itemsets']
+        itemset_support = row['support']
+        
+        # For single-item itemsets, lift is undefined (or 1.0 by convention)
+        if len(itemset) == 1:
+            return 1.0  # Single items don't have lift
+        
+        # For multi-item itemsets: lift = itemset_support / (item1_support * item2_support * ...)
+        expected_support = 1.0
+        for item in itemset:
+            if item in item_supports:
+                expected_support *= item_supports[item]
+            else:
+                # Item not found in transactions (shouldn't happen, but handle gracefully)
+                return 0.0
+        
+        if expected_support == 0:
+            return 0.0
+        
+        lift = itemset_support / expected_support
+        return lift
+    
+    itemsets['lift'] = itemsets.apply(calculate_lift, axis=1)
+    
+    # Filter by lift threshold
+    original_count = len(itemsets)
+    itemsets_filtered = itemsets[itemsets['lift'] >= min_lift].copy()
+    filtered_count = len(itemsets_filtered)
+    removed_count = original_count - filtered_count
+    
+    logger.info(f"  Original itemsets: {original_count:,}")
+    logger.info(f"  Filtered itemsets: {filtered_count:,} (lift >= {min_lift})")
+    logger.info(f"  Removed common/trivial: {removed_count:,} ({removed_count/original_count*100:.1f}%)")
+    
+    if filtered_count > 0:
+        logger.info(f"  Lift range: {itemsets_filtered['lift'].min():.3f} - {itemsets_filtered['lift'].max():.3f}")
+    
+    return itemsets_filtered.drop(columns=['lift'])  # Remove lift column (not needed in output)
 
 
 def process_single_cohort(
@@ -208,35 +382,76 @@ def process_single_cohort(
                 'error': 'No data'
             }
         
-        # Create transactions
-        transactions = (
-            df.groupby('mi_person_key')['item']
-            .apply(lambda x: sorted(set(x.tolist())))
-            .tolist()
-        )
+        # Assign Transaction_Density based on histogram/percentiles
+        logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
+        df = assign_transaction_density(df, logger)
+        log_memory(logger, "After density assignment")
         
-        if len(transactions) < 10:
-            logger.warning(f"✗ Insufficient transactions ({len(transactions)}) for {cohort_id}")
-            return {
-                'item_type': item_type,
-                'cohort_name': cohort_name,
-                'age_band': age_band,
-                'event_year': event_year,
-                'error': f'Insufficient transactions: {len(transactions)}'
-            }
+        # Process transactions by density in order: low -> medium -> high -> extreme
+        all_itemsets = []
+        all_rules = []
+        density_counts = {}
         
-        # Encode transactions
-        te = TransactionEncoder()
-        te_ary = te.fit(transactions).transform(transactions)
-        df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
-        log_memory(logger, "After encoding")
+        logger.info(f"Processing transactions by density level...")
+        for density in DENSITY_BINS:
+            transactions = get_transactions_by_density(df, density, logger)
+            density_counts[density] = len(transactions)
+            
+            if len(transactions) < 10:
+                logger.warning(f"⚠️  Insufficient {density} density transactions ({len(transactions)}) - skipping")
+                continue
+            
+            try:
+                logger.info(f"Processing {density} density transactions...")
+                
+                # Encode transactions
+                te = TransactionEncoder()
+                te_ary = te.fit(transactions).transform(transactions)
+                df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+                log_memory(logger, f"After encoding ({density})")
+                
+                # Adjust support threshold based on density (lower support for extreme)
+                density_support = min_support
+                if density == 'extreme':
+                    density_support = max(min_support * 0.5, 0.01)  # At least 1% support
+                    logger.info(f"Using adjusted support threshold {density_support:.4f} for {density} density")
+                
+                # Run FP-Growth
+                itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
+                itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
+                
+                # Filter out common/trivial itemsets by lift BEFORE generating rules
+                if len(itemsets_density) > 0:
+                    itemsets_density = filter_itemsets_by_lift(
+                        itemsets_density, 
+                        df_encoded, 
+                        MIN_ITEMSET_LIFT, 
+                        logger
+                    )
+                    log_memory(logger, f"After filtering itemsets by lift ({density})")
+                
+                if len(itemsets_density) > 0:
+                    all_itemsets.append(itemsets_density)
+                    log_memory(logger, f"After FP-Growth ({density})")
+                    
+                    # Generate association rules
+                    rules_density = association_rules(itemsets_density, metric="confidence", min_threshold=min_confidence)
+                    rules_density = rules_density.sort_values('lift', ascending=False).reset_index(drop=True)
+                    all_rules.append(rules_density)
+                    log_memory(logger, f"After rule generation ({density})")
+                else:
+                    logger.warning(f"No itemsets remaining after lift filtering for {density} density")
+                    continue
+                    
+            except MemoryError as e:
+                logger.error(f"⚠️  Memory error processing {density} density transactions: {e}")
+                logger.warning(f"   Skipping {density} density transactions due to memory constraints")
+            except Exception as e:
+                logger.error(f"⚠️  Error processing {density} density transactions: {e}")
+                logger.warning(f"   Skipping {density} density transactions")
         
-        # Run FP-Growth
-        itemsets = fpgrowth(df_encoded, min_support=min_support, use_colnames=True)
-        itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
-        log_memory(logger, "After FP-Growth")
-        
-        if len(itemsets) == 0:
+        # Combine results
+        if len(all_itemsets) == 0:
             logger.warning(f"✗ No frequent itemsets for {cohort_id}")
             return {
                 'item_type': item_type,
@@ -246,10 +461,18 @@ def process_single_cohort(
                 'error': 'No frequent itemsets'
             }
         
-        # Generate association rules
-        rules = association_rules(itemsets, metric="confidence", min_threshold=min_confidence)
-        rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
-        log_memory(logger, "After rule generation")
+        # Combine itemsets (deduplicate if needed)
+        itemsets = pd.concat(all_itemsets, ignore_index=True)
+        itemsets = itemsets.drop_duplicates(subset=['itemsets'])
+        itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
+        
+        # Combine rules
+        if len(all_rules) > 0:
+            rules = pd.concat(all_rules, ignore_index=True)
+            rules = rules.drop_duplicates(subset=['antecedents', 'consequents'])
+            rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
+        else:
+            rules = pd.DataFrame()
         
         # Create encoding map
         encoding_map = {}
@@ -303,7 +526,8 @@ def process_single_cohort(
             'age_band': age_band,
             'event_year': event_year,
             'unique_items': len(df['item'].unique()),
-            'total_transactions': len(transactions),
+            'total_transactions': sum(density_counts.values()),
+            'density_distribution': density_counts,
             'frequent_itemsets': len(itemsets),
             'association_rules': len(rules),
             'encoding_map_size': len(encoding_map),
@@ -345,6 +569,7 @@ def main():
     logger.info("="*80)
     logger.info(f"Min Support: {MIN_SUPPORT}")
     logger.info(f"Min Confidence: {MIN_CONFIDENCE}")
+    logger.info(f"Min Itemset Lift: {MIN_ITEMSET_LIFT} (filtering common/trivial itemsets)")
     logger.info(f"Max Workers: {MAX_WORKERS}")
     logger.info(f"Item Types: {ITEM_TYPES}")
     logger.info(f"S3 Output: {S3_OUTPUT_BASE}")

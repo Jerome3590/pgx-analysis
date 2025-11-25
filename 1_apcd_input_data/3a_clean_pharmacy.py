@@ -126,7 +126,7 @@ def build_optimized_pipeline(age_band: str, event_year: int, pharmacy_input: str
     # Use imputed partitioned data directly (discovery already confirmed it exists)
     logger.info("✅ Using imputed partitioned data - optimized loading")
     
-    # Use imputed partitioned data (much more efficient)
+    # Use imputed partitioned data (much more efficient) - direct S3 access, no Glue
     conn.sql(f"""
         CREATE OR REPLACE TABLE pharmacy_filtered_{run_id} AS
         SELECT *
