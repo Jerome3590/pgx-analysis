@@ -486,7 +486,7 @@ dtw_features = pd.DataFrame({
 ## 📚 References
 
 - DTW Analysis Scripts: `6_dtw_analysis/dtw_cohort_analysis.py`, `6_dtw_analysis/dtw_trajectory_analysis.py`
-- Final Model: `7_final_model/README_final_model.md`
+- Final Model: `docs/README_final_model.md`
 - Feature Importance: `3_feature_importance/`
 - FPGrowth Analysis: `../4_fpgrowth_analysis/`
 - BupaR Analysis: `../5_bupaR_analysis/`

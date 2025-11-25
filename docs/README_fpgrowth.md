@@ -120,11 +120,11 @@ Generate ONLY rules that predict target outcomes
 
 ### 📖 Documentation
 
-- **`README_fpgrowth.md`** (this file) - Comprehensive guide
+- **`docs/README_fpgrowth.md`** (this file) - Comprehensive guide
 - **`README_local_notebook.md`** - Comprehensive local setup guide
 - **`README_fprgrowth.md`** - FP-Growth algorithm details
 - **`README_parallelization.md`** - Parallel processing guide
-- **`README_bupaR.md`** - BupaR process mining (R-based)
+- **`docs/README_bupaR.md`** - BupaR process mining (R-based)
 - **`README_catboost.md`** - CatBoost ML integration
 
 ---
@@ -1023,7 +1023,7 @@ pip install mlxtend pandas numpy duckdb boto3 jupyter
 ### Related Documentation
 - `README_local_notebook.md` - Comprehensive local setup guide
 - `README_parallelization.md` - Parallel processing guide
-- `README_bupaR.md` - Process mining with BupaR
+- `docs/README_bupaR.md` - Process mining with BupaR
 - `README_catboost.md` - ML integration
 
 ### External References

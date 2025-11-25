@@ -255,7 +255,7 @@ s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_ana
 - `outputs/{cohort}_{age}_{year}_feature_importance_aggregated.csv` - Combined
 
 ### Documentation
-- `README_feature_importance.md` - Complete analysis documentation
+- `docs/README_feature_importance.md` - Complete analysis documentation
 - `feature_importance_mc_cv.ipynb` - Analysis notebook
 - `create_visualizations.R` - Per-cohort visualization script
 - `create_cross_ageband_heatmap.R` - Cross-age-band comparison
