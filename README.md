@@ -419,7 +419,7 @@ Enhanced pipeline for analyzing prescription drug patterns with hospitalization 
 **1. Drug Event Explosion Strategy** ⭐ **NEW**
 - **Patient-Level → Drug-Level Transformation**: Each drug prescription becomes a separate row
 - **Context Duplication**: Patient demographics and clinical data duplicated per drug event
-- **Sequence Modeling Ready**: Enables FpGrowth, LSTM, DTW, and symbolic reasoning analysis
+- **Sequence Modeling Ready**: Enables FpGrowth, bupaR, DTW, and symbolic reasoning analysis
 - **Temporal Tracking**: Maintains `days_to_ade` and `days_to_opioid_ed` relationships
 
 **2. Cohort Exclusivity Enforcement** ⭐ **NEW**
@@ -436,10 +436,9 @@ Enhanced pipeline for analyzing prescription drug patterns with hospitalization 
 
 **4. Sequence Modeling Capabilities** ⭐ **NEW**
 - **FpGrowth Pattern Mining**: Market basket analysis on drug sequences
-- **LSTM Sequence Modeling**: Temporal drug sequence prediction
-- **Dynamic Time Warping (DTW)**: Drug sequence similarity analysis
+- **BupaR Process Mining**: Process discovery and pathway analysis for temporal sequences
+- **Dynamic Time Warping (DTW)**: Drug sequence similarity analysis and trajectory clustering
 - **Symbolic Reasoning**: Interpretable drug pattern analysis
-- **BupaR Process Mining**: Process discovery and pathway analysis
 
 ### **Impact on Analysis Pipeline**
 
@@ -849,7 +848,7 @@ flowchart TD
 
 **4. Sequence Modeling Ready**
 - FpGrowth pattern mining
-- LSTM sequence modeling
+- BupaR process mining
 - Dynamic Time Warping (DTW)
 - Symbolic reasoning support
 
@@ -892,7 +891,7 @@ flowchart TD
 - **Opioid Cohort (OPIOID_ED)**: Extracts all drug prescriptions for the entire time period
 - **Temporal Relationships**: Calculates `days_to_ade`, `days_to_opioid_ed` for sequence modeling
 - **Data Source Tracking**: Distinguishes between `cohort_event` and `drug_exposure` rows
-- **Sequence Modeling Ready**: Enables FpGrowth, LSTM, DTW, and symbolic reasoning analysis
+- **Sequence Modeling Ready**: Enables FpGrowth, bupaR, DTW, and symbolic reasoning analysis
 
 **Step 8.8: Cohort Exclusivity Enforcement** ⭐ **NEW**
 - **OPIOID_ED Priority**: Processes opioid_ed cohort first
@@ -970,7 +969,7 @@ The enhanced cohort creation process now includes comprehensive drug exposure an
 - **Temporal Analysis**: Calculates `days_to_ade` for each drug prescription
 - **Causality Assessment**: Enables analysis of drug exposure timing relative to adverse events
 - **Risk Window Analysis**: Supports identification of high-risk drug exposure periods
-- **Sequence Modeling**: Ready for FpGrowth, LSTM, and DTW analysis
+- **Sequence Modeling**: Ready for FpGrowth, bupaR, and DTW analysis
 
 **Opioid ED Events**
 - **Complete Drug History**: Extracts all drug prescriptions for the entire time period
@@ -1014,7 +1013,7 @@ ORDER BY prescription_count DESC;
 - **Temporal Sequencing**: Understand drug exposure timing and sequence patterns
 - **Risk Factor Identification**: Identify high-risk drug combinations and exposure windows
 - **Sequence Mining**: Enable FpGrowth analysis on drug sequences
-- **Pattern Recognition**: Support LSTM and DTW analysis for drug patterns
+- **Pattern Recognition**: Support bupaR and DTW analysis for drug patterns
 
 **Sequence Modeling Capabilities**
 ```sql
@@ -1029,7 +1028,7 @@ FROM ade_drug_exposure
 WHERE data_source = 'drug_exposure'
 ORDER BY mi_person_key, days_to_ade;
 
--- Prepare data for LSTM sequence modeling
+-- Prepare data for bupaR and DTW sequence modeling
 SELECT 
     mi_person_key,
     ARRAY_AGG(drug_name ORDER BY days_to_opioid_ed) as drug_sequence,
@@ -1059,7 +1058,7 @@ GROUP BY mi_person_key;
 - Develop models predicting adverse events based on drug exposure patterns
 - Identify high-risk drug combinations and exposure windows
 - Support personalized medicine approaches
-- Enable sequence-based risk prediction using LSTM and DTW
+- Enable sequence-based risk prediction using bupaR and DTW
 
 **Clinical Decision Support**
 - Provide evidence for drug safety monitoring protocols
@@ -3343,10 +3342,10 @@ assert not set(opioid_ed_ids).intersection(ed_non_opioid_ids)
 - Identifies co-occurring drug patterns
 - Supports association rule generation
 
-**2. LSTM Sequence Modeling**
-- Provides temporal drug sequences
-- Enables prediction of next drug in sequence
-- Supports drug interaction modeling
+**2. BupaR Process Mining**
+- Provides temporal drug sequences and process discovery
+- Enables pathway analysis and process flow identification
+- Supports event log analysis and conformance checking
 
 **3. Dynamic Time Warping (DTW)**
 - Enables similarity analysis of drug sequences
