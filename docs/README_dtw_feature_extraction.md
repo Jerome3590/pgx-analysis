@@ -4,6 +4,8 @@ This module provides Dynamic Time Warping (DTW) analysis capabilities for compar
 
 ## Overview
 
+Dynamic Time Warping (DTW) analysis adds a crucial dimension to the analysis pipeline by **developing patient trajectories** - temporal sequences that capture how patients progress through their healthcare journey. Unlike FPGrowth (which finds frequent patterns) or BupaR (which analyzes process flows), DTW focuses on **identifying similar patient trajectories** even when sequences vary in timing or length.
+
 DTW analysis helps identify patients with similar drug exposure patterns by measuring the similarity between temporal sequences that may vary in timing and length. This is particularly useful for:
 
 - **Patient Clustering**: Group patients with similar drug histories
@@ -11,6 +13,47 @@ DTW analysis helps identify patients with similar drug exposure patterns by meas
 - **Pattern Discovery**: Find common drug exposure patterns
 - **Risk Assessment**: Compare new patients to known high-risk patterns
 - **Feature Engineering**: Extract trajectory features for machine learning models
+
+## 🎯 Key Advantages of DTW for Trajectory Analysis
+
+### 1. **Handles Variable-Length Sequences**
+- **FPGrowth**: Requires fixed patterns, doesn't handle timing variations well
+- **BupaR**: Focuses on process flows, less flexible with sequence variations
+- **DTW**: Handles sequences of different lengths and timing variations
+
+### 2. **Temporal Warping**
+- Aligns sequences that are similar but occur at different speeds
+- Example: Patient A takes Drug X → Drug Y → Drug Z over 30 days
+- Patient B takes the same sequence over 60 days
+- DTW recognizes these as similar trajectories
+
+### 3. **Trajectory Clustering**
+- Groups patients with similar healthcare journeys
+- Creates trajectory archetypes (representative patterns)
+- Enables personalized medicine approaches
+
+### 4. **Multi-Modal Trajectories**
+- Can combine drugs, ICD codes, and CPT codes
+- Creates comprehensive patient journey models
+- Captures complex healthcare pathways
+
+## 🔄 Integration with Existing Pipeline
+
+```
+Cohort Creation → FPGrowth Filtering → DTW Trajectories → CatBoost → BupaR
+                      ↓                      ↓
+                 Frequent Patterns    Patient Clusters
+                      ↓                      ↓
+                 Feature Filtering    Trajectory Features
+```
+
+### How DTW Complements Other Methods
+
+| Method | Purpose | DTW Enhancement |
+|--------|---------|----------------|
+| **FPGrowth** | Find frequent patterns | Use FPGrowth patterns to initialize trajectory analysis |
+| **CatBoost** | Predict outcomes | Add trajectory cluster membership as features |
+| **BupaR** | Analyze process flows | Use DTW clusters for cluster-specific process mining |
 
 ## Installation
 
@@ -109,6 +152,70 @@ This DTW analysis complements the existing pipeline by:
 2. **Supporting BupaR Analysis**: DTW clusters can be used for cluster-specific process mining
 3. **Enhancing Feature Engineering**: DTW similarity scores can become model features
 4. **Providing Clinical Insights**: Identifies similar patient patterns for clinical decision support
+
+## 📊 Use Cases
+
+### 1. **ED_NON_OPIOID: Drug Window Trajectories**
+
+**Question**: What are the common drug trajectories leading to non-opioid ED visits?
+
+**What it does**:
+- Creates drug trajectories using `days_to_target_event` for temporal alignment
+- Clusters patients with similar drug sequences in the 30-day window
+- Identifies trajectory archetypes (common patterns)
+
+**Output**:
+- Trajectory clusters (groups of similar patients)
+- Archetype trajectories (representative patterns)
+- Trajectory patterns (common sequences per cluster)
+
+### 2. **OPIOID_ED: ICD/CPT Trajectories**
+
+**Question**: What diagnostic/procedure trajectories predict opioid ED events?
+
+**What it does**:
+- Creates ICD/CPT trajectories from historical events
+- Clusters patients with similar diagnostic/procedure patterns
+- Identifies high-risk trajectory patterns
+
+## 📈 Trajectory Development Process
+
+### 1. **Temporal Alignment**
+
+For **ED_NON_OPIOID**:
+- Uses `days_to_target_event` to align trajectories
+- All trajectories end at day 0 (target event)
+- Sequences are aligned backwards: 30 → 29 → ... → 1 → 0
+
+For **OPIOID_ED**:
+- Uses `event_date` for temporal ordering
+- Sequences progress forward in time
+- Captures full historical patterns
+
+### 2. **Sequence Encoding**
+
+```python
+# Example trajectory encoding
+Patient A: [Drug_X, Drug_Y, Drug_Z]
+  Temporal: [30, 15, 5]  # days before target
+
+Patient B: [Drug_X, Drug_Y, Drug_Z]
+  Temporal: [25, 12, 3]  # days before target
+
+# DTW recognizes these as similar despite timing differences
+```
+
+### 3. **Trajectory Clustering**
+
+- Groups patients with similar sequences
+- Creates cluster-specific archetypes
+- Enables trajectory-based risk assessment
+
+### 4. **Archetype Extraction**
+
+- Identifies representative trajectory per cluster
+- Uses median-length trajectory as archetype
+- Provides interpretable trajectory patterns
 
 ## Advanced Usage
 

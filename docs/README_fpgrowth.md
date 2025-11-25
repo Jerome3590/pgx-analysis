@@ -123,7 +123,7 @@ Generate ONLY rules that predict target outcomes
 - **`docs/README_fpgrowth.md`** (this file) - Comprehensive guide
 - **`README_local_notebook.md`** - Comprehensive local setup guide
 - **`README_fprgrowth.md`** - FP-Growth algorithm details
-- **`README_parallelization.md`** - Parallel processing guide
+- **`docs/README_parallelization_pipeline.md`** - Parallel processing guide
 - **`docs/README_bupaR.md`** - BupaR process mining (R-based)
 - **`README_catboost.md`** - CatBoost ML integration
 
@@ -984,7 +984,7 @@ for cohort in ["opioid_ed", "non_opioid_ed"]:
 - No resource contention between cohorts
 - Easier to debug and monitor
 
-For details on parallel and SQS-based execution, see [`README_parallelization.md`](./README_parallelization.md).
+For details on parallel and SQS-based execution, see [`docs/README_parallelization_pipeline.md`](/docs/README_parallelization_pipeline.md).
 
 ---
 
@@ -1022,7 +1022,7 @@ pip install mlxtend pandas numpy duckdb boto3 jupyter
 
 ### Related Documentation
 - `README_local_notebook.md` - Comprehensive local setup guide
-- `README_parallelization.md` - Parallel processing guide
+- `docs/README_parallelization_pipeline.md` - Parallel processing guide
 - `docs/README_bupaR.md` - Process mining with BupaR
 - `README_catboost.md` - ML integration
 
