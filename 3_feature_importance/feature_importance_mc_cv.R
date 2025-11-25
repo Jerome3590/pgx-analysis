@@ -92,8 +92,12 @@ if (N_WORKERS < 1) {
   cat(sprintf("Using %d workers\n", N_WORKERS))
 }
 
-# Increase future.globals.maxSize for large MC-CV splits
-options(future.globals.maxSize = 20 * 1024^3)  # 20 GB
+# Increase future.globals.maxSize for large MC-CV splits object
+# With 1TB RAM on EC2, we can handle large transfers
+# Note: MC-CV splits object can be 227GB+ for 100 splits with large feature matrices
+# With 1TB RAM, set to 800GB (leave 200GB for system + worker overhead)
+options(future.globals.maxSize = 800 * 1024^3)  # 800 GB limit (with 1TB RAM)
+cat("Set future.globals.maxSize to 800 GB\n")
 plan(multisession, workers = N_WORKERS)
 
 # ============================================================================
@@ -464,26 +468,67 @@ for (method in methods) {
   cat(sprintf("Saved: %s\n", output_file))
 }
 
-# Aggregate across models
+# Aggregate across models using UNION of Top 50 from each model
 cat("\n========================================\n")
-cat("Aggregating Results Across Models\n")
+cat("Aggregating Results: Union of Top 50 Features\n")
 cat("========================================\n")
 
-combined_df <- bind_rows(all_results)
+# Step 1: Get top 50 from each model WITH performance scaling
+top50_per_model <- list()
+model_recalls <- list()
 
-# Aggregate by feature (average scaled importance)
-aggregated <- combined_df %>%
+for (method in names(all_results)) {
+  # Get average recall for this model across all features
+  model_recall <- mean(all_results[[method]]$mc_cv_recall_mean, na.rm = TRUE)
+  model_recalls[[method]] <- model_recall
+  
+  top50 <- all_results[[method]] %>%
+    arrange(desc(importance_normalized)) %>%  # Use normalized permutation importance
+    head(50) %>%
+    mutate(
+      importance_scaled = importance_normalized * mc_cv_recall_mean,  # Scale by feature's recall
+      model = method,
+      model_recall = model_recall
+    ) %>%
+    select(feature, importance_normalized, importance_scaled, model, model_recall, 
+           mc_cv_recall_mean, mc_cv_recall_std)
+  
+  top50_per_model[[method]] <- top50
+  cat(sprintf("✓ %s: Top 50 features | Mean Recall = %.4f\n", method, model_recall))
+}
+
+# Step 2: Union of features from both models
+all_top_features <- bind_rows(top50_per_model)
+cat(sprintf("\nTotal feature-model combinations: %d\n", nrow(all_top_features)))
+
+# Step 3: Aggregate by feature - SUM scaled importances where overlap
+aggregated <- all_top_features %>%
   group_by(feature) %>%
   summarise(
-    importance_raw = mean(importance_raw),
-    importance_normalized = mean(importance_normalized),
-    importance_scaled = mean(importance_scaled),
-    mc_cv_recall_mean = mean(mc_cv_recall_mean),
+    importance_normalized = sum(importance_normalized),  # SUM normalized importances
+    importance_scaled = sum(importance_scaled),  # SUM Recall-scaled importances
+    n_models = n(),  # How many models included this feature
+    models = paste(model, collapse = ", "),  # Which models
+    mc_cv_recall_mean = mean(mc_cv_recall_mean),  # Average feature recall across models
     mc_cv_recall_std = mean(mc_cv_recall_std),
     .groups = 'drop'
   ) %>%
-  arrange(desc(importance_scaled)) %>%
+  arrange(desc(importance_scaled)) %>%  # Rank by scaled importance (quality-weighted)
   mutate(rank = row_number())
+
+# Print summary
+cat(sprintf("\nUnion Summary:\n"))
+cat(sprintf("  Total unique features: %d\n", nrow(aggregated)))
+cat(sprintf("  Features in both models: %d (%.1f%%)\n", 
+            sum(aggregated$n_models == 2),
+            100 * sum(aggregated$n_models == 2) / nrow(aggregated)))
+cat(sprintf("  Features in CatBoost only: %d\n", 
+            sum(aggregated$n_models == 1 & grepl("catboost", aggregated$models, ignore.case = TRUE))))
+cat(sprintf("  Features in Random Forest only: %d\n", 
+            sum(aggregated$n_models == 1 & grepl("random", aggregated$models, ignore.case = TRUE))))
+cat(sprintf("\nRanking Method: Sum of Recall-scaled importances (quality-weighted)\n"))
+cat(sprintf("  - Each feature's importance is scaled by its MC-CV Recall\n"))
+cat(sprintf("  - When a feature appears in both models, scaled importances are summed\n"))
 
 # Save aggregated results
 output_file <- file.path(OUTPUT_DIR, sprintf("%s_%s_%d_feature_importance_aggregated.csv",
@@ -496,13 +541,13 @@ cat("\n========================================\n")
 cat("Summary\n")
 cat("========================================\n")
 cat(sprintf("Total features: %d\n", nrow(aggregated)))
-cat(sprintf("Models used: %s\n", paste(methods, collapse = ", ")))
+cat(sprintf("Models used: %s\n", paste(names(all_results), collapse = ", ")))
 cat(sprintf("Mean MC-CV Recall: %.4f\n", mean(aggregated$mc_cv_recall_mean)))
-cat("\nTop 10 features:\n")
-top10 <- head(aggregated, 10)
-for (i in 1:nrow(top10)) {
+cat("\nTop 50 features:\n")
+top50 <- head(aggregated, 50)
+for (i in 1:nrow(top50)) {
   cat(sprintf("  %2d. %-40s | scaled=%.6f | recall=%.4f\n",
-              top10$rank[i], top10$feature[i], top10$importance_scaled[i], top10$mc_cv_recall_mean[i]))
+              top50$rank[i], top50$feature[i], top50$importance_scaled[i], top50$mc_cv_recall_mean[i]))
 }
 
 # Close parallel processing

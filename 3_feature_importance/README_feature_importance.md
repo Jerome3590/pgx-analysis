@@ -1,0 +1,575 @@
+# Feature Importance Analysis
+
+**Date:** November 25, 2025  
+**Project:** PGx Analysis - Feature Importance with Monte Carlo Cross-Validation  
+**Notebook:** `feature_importance_mc_cv.ipynb`
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Methodology](#methodology)
+4. [Aggregation Method](#aggregation-method)
+5. [Output Files](#output-files)
+6. [Visualization](#visualization)
+7. [Cross-Age-Band Analysis](#cross-age-band-analysis)
+8. [Usage Examples](#usage-examples)
+9. [Best Practices](#best-practices)
+10. [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+
+This project calculates scaled feature importance for predicting opioid dependence using:
+- **Models:** CatBoost and Random Forest
+- **Validation:** Monte Carlo Cross-Validation (100–1000 splits)
+- **Scaling:** Permutation-based importance weighted by model Recall
+- **Aggregation:** Union of top 50 features from each model with summed importances
+
+### Key Features
+
+✅ **Monte Carlo Cross-Validation** – Up to 1000 random train/test splits  
+✅ **Stratified Sampling** – Maintains target distribution  
+✅ **Parallel Processing** – Fast execution (30 workers on EC2)  
+✅ **Quality Weighting** – Features scaled by model performance (Recall)  
+✅ **Model Consensus** – Union-based aggregation rewards agreement  
+✅ **Publication-Ready Plots** – 4 visualization types with S3 upload
+
+---
+
+## Quick Start
+
+### Local Testing (5 splits, ~5 minutes)
+
+```r
+# In feature_importance_mc_cv.ipynb
+DEBUG_MODE <- TRUE
+COHORT_NAME <- "opioid_ed"
+AGE_BAND <- "25-44"
+EVENT_YEAR <- 2016
+
+# Run all cells
+```
+
+### Production Run (100 splits, ~1-2 hours on EC2)
+
+```r
+DEBUG_MODE <- FALSE
+N_SPLITS <- 100  # or 1000 for publication
+
+# Set up EC2:
+# - x2iedn.8xlarge (32 cores, 1TB RAM)
+# - Data in /mnt/nvme/cohorts/
+# - Auto-shutdown enabled
+```
+
+### Command Line (Python equivalent - future)
+
+```bash
+Rscript feature_importance_mc_cv.R \
+  --cohort opioid_ed \
+  --age-band 25-44 \
+  --year 2016 \
+  --splits 100
+```
+
+---
+
+## Methodology
+
+### Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Load Cohort Data (parquet)                              │
+│    - Drugs, ICD codes, CPT codes                           │
+│    - Target: is_target_case (opioid dependence)            │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Feature Engineering                                      │
+│    - Patient-level aggregation                             │
+│    - CatBoost: Categorical factors                         │
+│    - Random Forest: Binary 0/1                             │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Monte Carlo Cross-Validation (100–1000 splits)          │
+│    ┌────────────────────┐  ┌────────────────────┐         │
+│    │   CatBoost         │  │  Random Forest     │         │
+│    │                    │  │                    │         │
+│    │  Per split:        │  │  Per split:        │         │
+│    │  - Train (80%)     │  │  - Train (80%)     │         │
+│    │  - Test (20%)      │  │  - Test (20%)      │         │
+│    │  - Recall          │  │  - Recall          │         │
+│    │  - Feature imp     │  │  - Feature imp     │         │
+│    └────────────────────┘  └────────────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Union-Based Aggregation                                  │
+│    - Top 50 from CatBoost                                   │
+│    - Top 50 from Random Forest                              │
+│    - Scale by Recall                                        │
+│    - SUM where overlap                                      │
+│    - Rank by summed importance                              │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Outputs                                                   │
+│    - Aggregated CSV (final rankings)                        │
+│    - Visualizations (4 plots)                               │
+│    - S3 upload                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Models
+
+**CatBoost:**
+- Handles categorical features natively
+- Feature format: Each column is a factor with item name as level
+- Importance: Permutation-based (PredictionValuesChange)
+
+**Random Forest:**
+- Requires numeric features
+- Feature format: Binary 0/1 encoding
+- Importance: Gini importance
+
+Both models use **permutation importance** for fair comparison.
+
+---
+
+## Aggregation Method
+
+### Step-by-Step Process
+
+#### 1. Train Models with MC-CV
+
+For each model type (CatBoost, Random Forest):
+- Create 100–1000 stratified Monte Carlo cross-validation splits
+- Train model on each training set (80%)
+- Evaluate Recall on each test set (20%)
+- Extract **permutation-based feature importance** for each split
+- Aggregate across splits to get:
+  - `importance_normalized` - Feature importance normalized to [0, 1]
+  - `mc_cv_recall_mean` - Mean Recall across all splits
+  - `mc_cv_recall_std` - Standard deviation of Recall
+
+#### 2. Select Top 50 from Each Model
+
+For each model:
+- Rank features by `importance_normalized` (permutation-based)
+- Select **top 50 features**
+- Scale importance by MC-CV Recall:
+
+```r
+importance_scaled = importance_normalized × mc_cv_recall_mean
+```
+
+#### 3. Union of Features
+
+- Take the **union** of top 50 from CatBoost and top 50 from Random Forest
+- Results in up to 100 features (if no overlap) or as few as 50 (if complete overlap)
+
+#### 4. Sum Importances for Overlapping Features
+
+For each feature in the union:
+
+**If feature appears in both models:**
+- Sum the scaled importances: `importance_scaled = catboost_scaled + rf_scaled`
+- Sum the normalized importances: `importance_normalized = catboost_norm + rf_norm`
+- Average the Recall: `mc_cv_recall_mean = (catboost_recall + rf_recall) / 2`
+
+**If feature appears in only one model:**
+- Use that model's values directly
+
+#### 5. Rank by Summed Scaled Importance
+
+- Sort features by `importance_scaled` (descending)
+- Assign rank (1 = most important)
+
+### Why This Approach?
+
+#### ✅ Advantages
+
+1. **Model Agreement Rewarded**
+   - Features important in **both** models get higher scores (summed importances)
+   - Reduces risk of model-specific artifacts
+
+2. **Quality Weighting**
+   - Features are scaled by model performance (Recall)
+   - Better-performing models contribute more to final scores
+
+3. **Permutation-Based Importance**
+   - Uses true feature importance (not tree-based Gini/gain)
+   - Measures actual predictive contribution
+
+4. **Top-N Focus**
+   - Only considers top 50 from each model
+   - Filters out noise from low-importance features
+   - Computationally efficient
+
+5. **No Arbitrary Weights**
+   - No manual weighting of models required
+   - Performance-based scaling is automatic and objective
+
+#### ⚠️ Considerations
+
+1. **Summing Favors Overlap**
+   - Features in both models will typically rank higher
+   - This is intentional (consensus is valuable)
+   - But model-specific features can still rank high if importance × recall is large
+
+2. **Top-50 Cutoff**
+   - Features ranked 51+ in all models are excluded
+   - Ensure cutoff is appropriate for your use case
+   - Can be adjusted in code
+
+3. **Recall as Quality Metric**
+   - Appropriate for imbalanced classification (opioid dependence)
+   - For other use cases, consider alternative metrics (F1, AUC-ROC)
+
+### Example Calculation
+
+**Scenario:**
+- CatBoost top 50: Feature "HYDROCODONE-ACETAMINOPHEN"
+  - `importance_normalized` = 0.95
+  - `mc_cv_recall` = 0.82
+  - `importance_scaled` = 0.95 × 0.82 = **0.779**
+
+- Random Forest top 50: Same feature "HYDROCODONE-ACETAMINOPHEN"
+  - `importance_normalized` = 0.88
+  - `mc_cv_recall` = 0.80
+  - `importance_scaled` = 0.88 × 0.80 = **0.704**
+
+**Final Aggregated Value:**
+- `importance_normalized` = 0.95 + 0.88 = **1.83**
+- `importance_scaled` = 0.779 + 0.704 = **1.483** ← Used for ranking
+- `n_models` = 2
+- `models` = "catboost, random_forest"
+
+**Interpretation:** This feature is highly important in both models and performs well, earning a high final score.
+
+### Comparison to Alternative Methods
+
+| Method | Formula | Problem |
+|--------|---------|---------|
+| **Averaging** ❌ | `(cb + rf) / 2` | Treats poor and good models equally |
+| **Concatenation** ❌ | `union(all_features)` | No weighting, noisy features dilute results |
+| **Intersection** ❌ | `intersect(cb, rf)` | Too restrictive, misses model-specific features |
+| **Union + Sum + QW** ✅ | `sum(cb_scaled, rf_scaled)` | Rewards agreement, weights by performance |
+
+---
+
+## Output Files
+
+### 1. Aggregated Feature Importance CSV
+
+**Location:**
+- Local: `outputs/{cohort}_{age}_{year}_feature_importance_aggregated.csv`
+- S3: `s3://pgxdatalake/gold/feature_importance/cohort_name={cohort}/age_band={age}/event_year={year}/`
+
+**Columns:**
+
+| Column | Description | Range |
+|--------|-------------|-------|
+| `rank` | Final rank by `importance_scaled` | 1, 2, 3, ... |
+| `feature` | Feature name (drug, ICD, CPT) | String |
+| `importance_normalized` | Sum of normalized importances | 0.0 – 2.0 |
+| `importance_scaled` | Sum of Recall-scaled importances | 0.0 – ~1.6 |
+| `n_models` | Number of models including feature | 1 or 2 |
+| `models` | Which models | "catboost", "random_forest", or both |
+| `mc_cv_recall_mean` | Average Recall across models | 0.0 – 1.0 |
+| `mc_cv_recall_std` | Recall std dev | 0.0 – 1.0 |
+
+**Key Metric:** `importance_scaled` - Used for final ranking and visualization.
+
+**Example:**
+```csv
+rank,feature,importance_normalized,importance_scaled,n_models,models,mc_cv_recall_mean,mc_cv_recall_std
+1,HYDROCODONE-ACETAMINOPHEN,1.8234,1.5012,2,"catboost, random_forest",0.8234,0.0156
+2,TRAMADOL HCL,1.6821,1.3856,2,"catboost, random_forest",0.8234,0.0156
+3,F11.20,0.9234,0.7603,1,catboost,0.8234,0.0156
+```
+
+### 2. Per-Model CSVs
+
+**Files:**
+- `{cohort}_{age}_{year}_catboost_feature_importance.csv`
+- `{cohort}_{age}_{year}_random_forest_feature_importance.csv`
+
+**Purpose:** Debugging, model comparison, reproducibility
+
+---
+
+## Visualization
+
+Four publication-ready plots are automatically generated:
+
+### 1. Top 50 Features (Bar Chart)
+- **File:** `{cohort}_{age}_{year}_top50_features.png`
+- **Size:** 12" × 14"
+- **Shows:** Scaled importance, ranked
+
+### 2. Top 50 with Recall Confidence
+- **File:** `{cohort}_{age}_{year}_top50_with_recall.png`
+- **Size:** 12" × 14"
+- **Color:** Orange (lower Recall) → Dark Blue (higher Recall)
+- **Shows:** Importance + model quality
+
+### 3. Normalized vs Recall-Scaled (Top 50)
+- **File:** `{cohort}_{age}_{year}_normalized_vs_scaled.png`
+- **Size:** 12" × 14"
+- **Shows:** Impact of quality weighting (side-by-side comparison)
+
+### 4. Feature Category Distribution
+- **File:** `{cohort}_{age}_{year}_category_distribution.png`
+- **Size:** 12" × 10"
+- **Shows:** Drug / ICD / CPT breakdown of top features
+
+**Location:**
+- Local: `outputs/plots/`
+- S3: `s3://pgxdatalake/gold/feature_importance/cohort_name={cohort}/age_band={age}/event_year={year}/plots/`
+
+---
+
+## Cross-Age-Band Analysis
+
+After running feature importance for multiple age bands, create comparison heatmaps:
+
+```r
+source("create_cross_ageband_heatmap.R")
+
+create_ageband_heatmap(
+  cohort_name = "opioid_ed",
+  event_year = 2016,
+  age_bands = c("13-24", "25-44", "45-54", "55-64", "65-74"),
+  top_n = 50
+)
+```
+
+**Outputs:**
+- Heatmap: Features × Age bands (color = importance)
+- Summary CSV: Variability metrics (CV, consistency)
+- Insights: Universal vs age-specific features
+
+**Use Cases:**
+- Identify universal risk factors (low CV)
+- Find age-specific features (high CV)
+- Decide between age-agnostic vs age-stratified models
+
+**See:** `README_CROSS_AGEBAND_ANALYSIS.md` for details
+
+---
+
+## Usage Examples
+
+### 1. Feature Selection for Downstream ML
+
+```r
+# Load aggregated results
+features <- read_csv("opioid_ed_25-44_2016_feature_importance_aggregated.csv")
+
+# Strategy 1: Top N features
+top_features <- features %>% head(20) %>% pull(feature)
+
+# Strategy 2: Features in both models (high consensus)
+consensus_features <- features %>% 
+  filter(n_models == 2) %>% 
+  head(20) %>% 
+  pull(feature)
+
+# Strategy 3: Threshold by importance
+important_features <- features %>%
+  filter(importance_scaled > 0.5) %>%
+  pull(feature)
+
+# Use in CatBoost
+train_pool <- catboost.load_pool(
+  data = patient_data %>% select(all_of(top_features)),
+  label = patient_data$target
+)
+```
+
+### 2. Compare Cohorts
+
+```r
+# Load both cohorts
+opioid <- read_csv("opioid_ed_25-44_2016_feature_importance_aggregated.csv")
+non_opioid <- read_csv("non_opioid_ed_25-44_2016_feature_importance_aggregated.csv")
+
+# Find common features
+common_features <- intersect(
+  head(opioid, 50)$feature,
+  head(non_opioid, 50)$feature
+)
+
+# Find opioid-specific features
+opioid_specific <- setdiff(
+  head(opioid, 50)$feature,
+  head(non_opioid, 50)$feature
+)
+```
+
+### 3. Validate Model Quality
+
+```r
+features <- read_csv("opioid_ed_25-44_2016_feature_importance_aggregated.csv")
+
+# Check model overlap
+overlap_pct <- 100 * sum(features$n_models == 2) / nrow(features)
+cat(sprintf("Model overlap: %.1f%%\n", overlap_pct))
+
+# Check Recall values
+cat(sprintf("Mean Recall: %.3f ± %.3f\n",
+            mean(features$mc_cv_recall_mean),
+            mean(features$mc_cv_recall_std)))
+
+# Top features should make clinical sense
+head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
+```
+
+---
+
+## Best Practices
+
+### 1. Data Quality
+
+✅ **Do:**
+- Remove NA target values before MC-CV
+- Verify target distribution (check for class imbalance)
+- Check for patient-level target consistency
+
+❌ **Don't:**
+- Use event-level data (must aggregate to patient-level)
+- Include features that leak target information
+- Run without stratified sampling
+
+### 2. Computational Resources
+
+**For DEBUG_MODE = TRUE (5 splits):**
+- Any machine (4+ cores)
+- ~5 minutes
+- Good for testing
+
+**For 100 splits (development):**
+- EC2 x2iedn.8xlarge (32 cores, 1TB RAM)
+- ~1-2 hours
+- Recommended for development
+
+**For 1000 splits (publication):**
+- Same EC2 instance
+- ~10-20 hours
+- Use for final results only
+
+### 3. Feature Count
+
+**Too Many Features (>20k):**
+- Consider pre-filtering (e.g., min frequency)
+- Use larger `future.globals.maxSize`
+- May require more RAM
+
+**Too Few Features (<100):**
+- Results may be unstable
+- Consider including more data or feature types
+
+### 4. Model Interpretation
+
+✅ **Do:**
+- Look at `n_models` column (2 = high confidence)
+- Check if top features make clinical sense
+- Review Recall values (should be reasonable, e.g., >0.6)
+- Compare across age bands for consistency
+
+❌ **Don't:**
+- Use features ranked 100+ without inspection
+- Ignore model-specific features (n_models = 1)
+- Trust results without domain validation
+
+---
+
+## Troubleshooting
+
+### Issue: "test_idx is empty after removing NAs"
+
+**Cause:** `rsample::mc_cv()` bug with NA targets
+
+**Fix:** Already implemented - NA targets removed before MC-CV. See `docs/RSAMPLE_BUG_WORKAROUND.md`
+
+### Issue: "future.globals.maxSize exceeded"
+
+**Cause:** Feature matrix too large for parallel processing
+
+**Fix:**
+```r
+options(future.globals.maxSize = 97 * 1024^3)  # 97 GB
+```
+
+### Issue: Low Recall values (<0.5)
+
+**Possible causes:**
+- Severe class imbalance
+- Features don't predict target well
+- Model hyperparameters need tuning
+
+**Actions:**
+- Check target distribution
+- Review feature engineering
+- Try different model parameters
+
+### Issue: No overlap between models (all n_models = 1)
+
+**Possible causes:**
+- Models finding different patterns (may be valid)
+- Different feature representations (CatBoost vs RF)
+- Very noisy data
+
+**Actions:**
+- Review per-model CSVs
+- Check if features make sense
+- Consider using only one model
+
+### Issue: OOM error during execution
+
+**Causes:**
+- Too many features
+- Too many workers
+- Insufficient RAM
+
+**Fixes:**
+```r
+# Reduce workers
+N_WORKERS <- 15  # instead of 30
+
+# Reduce splits for testing
+N_SPLITS <- 50  # instead of 100
+
+# Use larger instance
+# x2iedn.16xlarge (64 cores, 2TB RAM)
+```
+
+---
+
+## References
+
+- **Permutation Importance:** Breiman, L. (2001). Random Forests. Machine Learning, 45(1), 5-32.
+- **Monte Carlo Cross-Validation:** Picard, R. R., & Cook, R. D. (1984). Cross-validation of regression models. JASA.
+- **Model Ensembling:** Dietterich, T. G. (2000). Ensemble methods in machine learning. MCS 2000.
+
+---
+
+## Related Documentation
+
+- **Main Notebook:** `feature_importance_mc_cv.ipynb`
+- **Visualization Script:** `create_visualizations.R`
+- **Cross-Age-Band Analysis:** `README_CROSS_AGEBAND_ANALYSIS.md`
+- **S3 Output Structure:** `S3_OUTPUT_STRUCTURE.md`
+- **rsample Bug:** `docs/RSAMPLE_BUG_WORKAROUND.md`
+
+---
+
+**Questions or Issues?** See main project README or open an issue.
+
