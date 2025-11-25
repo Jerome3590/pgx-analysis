@@ -4,149 +4,58 @@
 
 ```mermaid
 graph TD
-    A[pgx_analysis] --> B[apcd]
-    A --> C[bupaR_analysis]
-    A --> D[catboost_analysis]
-    A --> E[cohort_analysis]
-    A --> F[faers]
-    A --> G[ffa_analysis]
-    A --> H[fpgrowth_analysis]
-    A --> I[helpers]
-    A --> J[pgx_cohort_pipeline.ipynb]
+    A[pgx_analysis] --> B[1_apcd_input_data]
+    A --> C[2_create_cohort]
+    A --> D[3_feature_importance]
+    A --> E[4_fpgrowth_analysis]
+    A --> F[5_bupaR_analysis]
+    A --> G[6_dtw_analysis]
+    A --> H[7_final_model]
+    A --> I[8_ffa_analysis]
+    A --> J[helpers_1997_13]
+    A --> K[pgx_cohort_pipeline.ipynb]
     
     B --> B1[medical]
     B --> B2[pharmacy]
-    B1 --> B1A[medical.qmd]
-    B2 --> B2A[pharmacy.qmd]
+    B --> B3[0_txt_to_parquet.py]
+    B --> B4[3_apcd_clean.py]
+    B --> B5[drug_mappings]
+    B --> B6[claim_mappings]
     
-    C --> C1[bupaR_pipeline.ipynb]
-    C --> C2[sankey_plot.html]
+    C --> C1[0_create_cohort.py]
+    C --> C2[2_step2_data_quality_qa.py]
+    C --> C3[phases]
+    C --> C4[table_mappings]
     
-    D --> D1[catboost_info]
-    D --> D2[catboost_models]
-    D --> D3[catboost_r.ipynb]
-    D --> D4[run_ade_targets.py]
-    D --> D5[run_catboost_ade.py]
-    D --> D6[run_catboost_ade_ed.py]
-    D --> D7[run_catboost_opioid_ed.py]
-    D --> D8[run_dual_catboost_pipeline.py]
-    D --> D9[run_opioid_targets.py]
+    D --> D1[feature_importance_mc_cv.ipynb]
+    D --> D2[feature_importance_mc_cv.R]
+    D --> D3[create_visualizations.R]
     
-    D1 --> D1A[catboost_training.json]
-    D1 --> D1B[learn]
-    D1 --> D1C[test]
-    D1 --> D1D[tmp]
+    E --> E1[global_fpgrowth.py]
+    E --> E2[cohort_fpgrowth.py]
+    E --> E3[global_fpgrowth_feature_importance.ipynb]
+    E --> E4[cohort_fpgrowth_feature_importance.ipynb]
     
-    D2 --> D2A[ed_non_opioid]
-    D2A --> D2A1[cohort6]
-    D2A1 --> D2A1A[catboost_model_info_r.json]
-    D2A1 --> D2A1B[catboost_model_py.json]
-    D2A1 --> D2A1C[catboost_model_r.json]
-    D2A1 --> D2A1D[model.cbm]
-    D2A1 --> D2A1E[model_info.json]
-    D2A1 --> D2A1F[tree_rules.json]
+    F --> F1[bupaR_pipeline.ipynb]
+    F --> F2[sankey_plot.html]
     
-    E --> E1[claim_mappings]
-    E --> E2[clean_medical.py]
-    E --> E3[clean_pharmacy.py]
-    E --> E4[create_cohort.py]
-    E --> E5[drug_mappings]
-    E --> E6[qa_cohort.py]
-    E --> E7[pipeline_steps]
-    E --> E8[sql]
+    G --> G1[dtw_cohort_analysis.py]
+    G --> G2[dtw_trajectory_analysis.py]
+    G --> G3[README.md]
     
-    E1 --> E1A[icd_mappings.json]
+    H --> H1[catboost_r.ipynb]
+    H --> H2[run_catboost_opioid_ed.py]
+    H --> H3[run_catboost_ade_ed.py]
+    H --> H4[final_feature_schema.json]
+    H --> H5[catboost_models]
     
-    E5 --> E5A[a_mappings.json]
-    E5 --> E5B[b_mappings.json]
-    E5 --> E5C[c_mappings.json]
-    E5 --> E5D[d_mappings.json]
-    E5 --> E5E[e_mappings.json]
-    E5 --> E5F[f_mappings.json]
-    E5 --> E5G[g_mappings.json]
-    E5 --> E5H[h_mappings.json]
-    E5 --> E5I[i_mappings.json]
-    E5 --> E5J[j_mappings.json]
-    E5 --> E5K[k_mappings.json]
-    E5 --> E5L[l_mappings.json]
-    E5 --> E5M[m_mappings.json]
-    E5 --> E5N[n_mappings.json]
-    E5 --> E5O[o_mappings.json]
-    E5 --> E5P[p_mappings.json]
-    E5 --> E5Q[q_mappings.json]
-    E5 --> E5R[r_mappings.json]
-    E5 --> E5S[s_mappings.json]
-    E5 --> E5T[t_mappings.json]
-    E5 --> E5U[u_mappings.json]
-    E5 --> E5V[v_mappings.json]
-    E5 --> E5W[w_mappings.json]
-    E5 --> E5X[x_mappings.json]
-    E5 --> E5Y[y_mappings.json]
-    E5 --> E5Z[z_mappings.json]
-    E5 --> E5MS[medical_supplies_mappings.json]
+    I --> I1[catboost_axp_explainer.py]
+    I --> I2[ffa_analysis.py]
     
-    E7 --> E7A[pipeline_step1.py]
-    E7 --> E7B[pipeline_step2.py]
-    E7 --> E7C[pipeline_step3.py]
-    E7 --> E7D[pipeline_step4.py]
-    E7 --> E7E[pipeline_step5.py]
-    E7 --> E7F[pipeline_step6.py]
-    E7 --> E7G[pipeline_step7.py]
-    E7 --> E7H[pipeline_step8.py]
-    E7 --> E7I[pipeline_step9.py]
-    E7 --> E7J[pipeline_step10.py]
-    E7 --> E7K[pipeline_step11.py]
-    E7 --> E7L[pipeline_step12.py]
-    E7 --> E7M[pipeline_step13.py]
-    E7 --> E7N[pipeline_step14.py]
-    E7 --> E7O[pipeline_step15.py]
-    
-    E8 --> E8A[step1.txt]
-    E8 --> E8B[step2.txt]
-    E8 --> E8C[step3.txt]
-    E8 --> E8D[step4.txt]
-    E8 --> E8E[step5.txt]
-    E8 --> E8F[step6.txt]
-    E8 --> E8G[step7.txt]
-    E8 --> E8H[step8.txt]
-    E8 --> E8I[step9.txt]
-    E8 --> E8J[step10.txt]
-    E8 --> E8K[step11.txt]
-    E8 --> E8L[step12.txt]
-    E8 --> E8M[step13.txt]
-    E8 --> E8N[step14.txt]
-    
-    F --> F1[faers.qmd]
-    F --> F2[faers_duckdb_demo.qmd]
-    F --> F3[faers_eda.qmd]
-    F --> F4[normalize_drug_names.py]
-    
-    G --> G1[catboost_axp_explainer.py]
-    G --> G2[catboost_axp_explainer2.py]
-    G --> G3[ffa_analysis.py]
-    G --> G4[ed_non_opioid]
-    G4 --> G4A[cohort6]
-    G4A --> G4A1[ffa_output]
-    
-    H --> H1[run_fpgrowth.py]
-    
-    I --> I1[aws_utils.py]
-    I --> I2[cohort_utils.py]
-    I --> I3[common_imports.py]
-    I --> I4[constants.py]
-    I --> I5[data_utils.py]
-   I --> I6[drug_utils.py]
-    I --> I7[duckdb_utils.py]
-    I --> I8[fpgrowth_utils.py]
-    I --> I9[js]
-    I --> I10[logging_utils.py]
-    I --> I11[model_utils.py]
-    I --> I12[notebook_utils.py]
-    I --> I13[s3_utils.py]
-    I --> I14[visualization_utils.py]
-    
-    I9 --> I9A[cytoscape.min.js]
-    I9 --> I9B[FileSaver.min.js]
+    J --> J1[common_imports.py]
+    J --> J2[duckdb_utils.py]
+    J --> J3[s3_utils.py]
+    J --> J4[constants.py]
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#bbf,stroke:#333,stroke-width:2px
@@ -156,42 +65,218 @@ graph TD
     style F fill:#bbf,stroke:#333,stroke-width:2px
     style G fill:#bbf,stroke:#333,stroke-width:2px
     style H fill:#bbf,stroke:#333,stroke-width:2px
-    style I fill:#bfb,stroke:#333,stroke-width:2px
-    style J fill:#fbb,stroke:#333,stroke-width:2px
+    style I fill:#bbf,stroke:#333,stroke-width:2px
+    style J fill:#bfb,stroke:#333,stroke-width:2px
+    style K fill:#fbb,stroke:#333,stroke-width:2px
+```
+
+## High-Level Workflow
+
+End-to-end workflow for feature discovery, noise reduction, and causal-oriented modeling using drug exposures, ICD/CPT codes, and classification outcomes.
+
+### Overview
+
+This project builds a classification model on a large, noisy healthcare dataset, then uses model-based feature importance plus pattern- and process-mining to derive a stable covariate set and interpretable tree ensembles for causal analyses.
+
+**High-level phases:**
+
+1. **Feature Screening** with tree ensembles (CatBoost, Random Forest) + Monte Carlo cross-validation
+2. **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
+3. **Final Model Development** combining features from all analysis methods for prediction and causal inference
+
+### Workflow Pipeline
+
+```mermaid
+flowchart TD
+    subgraph "Phase 1: Data Preparation"
+        A1[APCD Input Data] --> A2[Data Cleaning]
+        A2 --> A3[Cohort Creation]
+        A3 --> A4[Quality Assurance]
+    end
+    
+    subgraph "Phase 2: Feature Discovery"
+        A4 --> B1[Monte Carlo CV]
+        B1 --> B2[Feature Importance<br/>CatBoost + Random Forest]
+        B2 --> B3[Top Features Selection]
+    end
+    
+    subgraph "Phase 3: Pattern Mining"
+        B3 --> C1[FPGrowth Analysis<br/>Frequent Itemsets]
+        C1 --> C2[BupaR Process Mining<br/>Temporal Pathways]
+        C2 --> C3[DTW Trajectory Analysis<br/>Patient Clustering]
+    end
+    
+    subgraph "Phase 4: Feature Engineering"
+        C1 --> D1[FPGrowth Features<br/>Itemsets & Rules]
+        C2 --> D2[BupaR Features<br/>Process Patterns]
+        C3 --> D3[DTW Features<br/>Trajectory Clusters]
+        D1 --> D4[Final Feature Schema]
+        D2 --> D4
+        D3 --> D4
+    end
+    
+    subgraph "Phase 5: Final Model"
+        D4 --> E1[Feature Integration]
+        E1 --> E2[CatBoost Training]
+        E1 --> E3[Random Forest Training]
+        E2 --> E4[Model Evaluation]
+        E3 --> E4
+        E4 --> E5[Feature Attribution]
+    end
+    
+    subgraph "Phase 6: Causal Analysis"
+        E5 --> F1[Tree Export JSON]
+        F1 --> F2[Subgroup Identification]
+        F2 --> F3[Causal Inference]
+    end
+    
+    style A1 fill:#f9f,stroke:#333,stroke-width:2px
+    style B2 fill:#bbf,stroke:#333,stroke-width:2px
+    style C1 fill:#bfb,stroke:#333,stroke-width:2px
+    style C2 fill:#bfb,stroke:#333,stroke-width:2px
+    style C3 fill:#bfb,stroke:#333,stroke-width:2px
+    style D4 fill:#fbb,stroke:#333,stroke-width:2px
+    style E2 fill:#fbb,stroke:#333,stroke-width:2px
+    style E3 fill:#fbb,stroke:#333,stroke-width:2px
+    style F3 fill:#f9f,stroke:#333,stroke-width:2px
+```
+
+### Phase 1: Monte Carlo CV + Feature Importance
+
+**Goal**: Robust, model-agnostic feature ranking on noisy, high-dimensional data.
+
+**Process**:
+1. **Monte Carlo Cross-Validation**: Random splits (70/30, stratified by outcome) across multiple iterations
+2. **Model Training**: Fit CatBoost and Random Forest classifiers on each split
+3. **Feature Importance**: Compute normalized importance scores per model
+4. **Aggregation**: Combine importance across models and iterations, weighted by validation performance
+5. **Feature Screening**: Select top features based on combined importance and stability
+
+**Output**: Ranked feature list with combined importance and stability statistics
+
+**Location**: `3_feature_importance/`
+
+### Phase 2: Pattern & Process Mining + DTW
+
+**Goal**: Exploit structure in selected features and further reduce noise.
+
+**Components**:
+
+1. **FPGrowth Analysis** (`4_fpgrowth_analysis/`)
+   - Frequent pattern mining on drug/ICD/CPT codes
+   - Target-focused association rules (predicting opioid dependence, ED visits)
+   - Itemset metrics and feature encoding
+
+2. **BupaR Process Mining** (`5_bupaR_analysis/`)
+   - Event log creation from patient sequences
+   - Process flow discovery and pathway analysis
+   - Temporal pattern identification
+
+3. **DTW Trajectory Analysis** (`6_dtw_analysis/`)
+   - Patient trajectory clustering
+   - Similarity scoring and archetype matching
+   - Multi-modal trajectory features
+
+**Output**: Refined feature set that participates in frequent patterns, stable pathways, and respects process timing
+
+### Phase 3: Final Model Development
+
+**Goal**: Integrate features from all analysis methods into final prediction model.
+
+**Process**:
+1. **Feature Integration**: Combine FPGrowth itemsets, BupaR patterns, and DTW trajectories
+2. **Feature Schema**: Unified patient-level feature matrix (~185-750 features)
+3. **Model Training**: CatBoost and Random Forest on integrated features
+4. **Model Evaluation**: Performance metrics and feature importance analysis
+
+**Output**: Trained models with interpretable feature sets
+
+**Location**: `7_final_model/`
+
+### Data and Variables
+
+- **Unit of analysis**: Patient-episode or encounter
+- **Outcome (Y)**: Binary classification target (e.g., opioid dependence, ED visit)
+- **Treatments (A)**: Drug exposure indicators
+- **Covariates (X)**:
+  - ICD diagnosis codes (grouped/rolled up)
+  - CPT procedure codes
+  - Demographics and baseline attributes
+- **Temporal info**: Timestamps for diagnoses, procedures, and drug administrations
+
+**Separation**:
+- Pre-treatment covariates (for confounding control)
+- Treatment variables (drugs)
+- Post-treatment variables (mediators/outcomes)
+
+### Repository Structure
+
+```
+pgx-analysis/
+├── 1_apcd_input_data/          # Data preprocessing and cleaning
+├── 2_create_cohort/            # Cohort creation and QA
+├── 3_feature_importance/       # MC-CV feature importance analysis
+├── 4_fpgrowth_analysis/        # Frequent pattern mining
+├── 5_bupaR_analysis/           # Process mining
+├── 6_dtw_analysis/            # Trajectory analysis
+├── 7_final_model/              # Final model development
+├── 8_ffa_analysis/             # Feature attribution analysis
+├── helpers_1997_13/           # Utility functions
+└── docs/                       # Documentation
 ```
 
 ## Project Components
 
 ### Core Analysis Modules
 
-**📊 APCD Analysis (`apcd/`)**
-- `medical/medical.qmd` - Medical claims analysis and processing
-- `pharmacy/pharmacy.qmd` - Pharmacy claims analysis and processing
+**📊 1_apcd_input_data: APCD Data Processing**
+- `0_txt_to_parquet.py` - Convert text files to Parquet format
+- `3_apcd_clean.py` - Main data cleaning script
+- `3a_clean_pharmacy.py` - Pharmacy data cleaning
+- `3b_clean_medical.py` - Medical data cleaning
+- `drug_mappings/` - Drug name standardization mappings (A-Z + medical supplies)
+- `claim_mappings/` - ICD code mappings and classifications
 
-**🔄 BupaR Process Mining (`bupaR_analysis/`)**
+**👥 2_create_cohort: Cohort Creation**
+- `0_create_cohort.py` - Main cohort creation pipeline (orchestrator)
+- `2_step2_data_quality_qa.py` - Cohort quality assurance and validation
+- `phases/` - Individual pipeline phase implementations
+- `table_mappings/` - Table mapping configurations
+
+**📈 3_feature_importance: Feature Screening**
+- `feature_importance_mc_cv.ipynb` - Monte Carlo CV feature importance analysis
+- `feature_importance_mc_cv.R` - R script for MC-CV analysis
+- `create_visualizations.R` - Visualization utilities
+- Uses CatBoost and Random Forest for robust feature ranking
+
+**🔍 4_fpgrowth_analysis: Frequent Pattern Mining**
+- `global_fpgrowth.py` - Global pattern mining across all patients
+- `cohort_fpgrowth.py` - Cohort-specific pattern mining
+- `global_fpgrowth_feature_importance.ipynb` - Global analysis notebook
+- `cohort_fpgrowth_feature_importance.ipynb` - Cohort analysis notebook
+- Target-focused rule mining (TARGET_ICD, TARGET_ED, CONTROL)
+
+**🔄 5_bupaR_analysis: Process Mining**
 - `bupaR_pipeline.ipynb` - Process mining pipeline using BupaR
 - `sankey_plot.html` - Interactive Sankey diagram visualizations
+- Event log creation and process flow discovery
 
-**🤖 CatBoost Machine Learning (`catboost_analysis/`)**
-- `catboost_r.ipynb` - R-based CatBoost model training and analysis
-- `run_ade_targets.py` - ADE (Adverse Drug Event) target processing
-- `run_catboost_ade.py` - CatBoost model for ADE prediction
-- `run_catboost_ade_ed.py` - Combined ADE and ED analysis
+**📊 6_dtw_analysis: Trajectory Analysis**
+- `dtw_cohort_analysis.py` - DTW analysis for drug sequence similarity
+- `dtw_trajectory_analysis.py` - Enhanced trajectory development
+- Patient clustering and similarity scoring
+
+**🤖 7_final_model: Final Model Development**
+- `catboost_r.ipynb` - R-based CatBoost model training
 - `run_catboost_opioid_ed.py` - Opioid ED event prediction
-- `run_dual_catboost_pipeline.py` - Dual pipeline for multiple targets
-- `run_opioid_targets.py` - Opioid target processing
+- `run_catboost_ade_ed.py` - Combined ADE and ED analysis
+- `final_feature_schema.json` - Comprehensive feature schema
 - `catboost_models/` - Trained model artifacts and metadata
-- `catboost_info/` - Training logs and performance metrics
 
-**👥 Cohort Analysis (`create_cohort/`)**
-- `create_cohort.py` - Main cohort creation pipeline (orchestrator)
-- `clean_medical.py` - Medical data cleaning and preprocessing
-- `clean_pharmacy.py` - Pharmacy data cleaning and preprocessing
-- `qa_cohort.py` - Cohort quality assurance and validation
-- `claim_mappings/` - ICD code mappings and classifications
-- `drug_mappings/` - Drug name standardization mappings (A-Z + medical supplies)
-- `pipeline_steps/` - Individual pipeline step implementations (pipeline_step1.py through pipeline_step15.py)
-- `sql/` - SQL query files for each pipeline step (step1.txt through step14.txt)
+**🎯 8_ffa_analysis: Feature Attribution**
+- `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
+- `ffa_analysis.py` - Feature Filtering and Analysis pipeline
+- Tree export and causal inference
 
 ### Pipeline Architecture
 
@@ -253,38 +338,13 @@ This replaces the older `scripts/validate_silver_inputs.py` script which was rem
 
 This architecture ensures maintainability, reduces bugs, and provides a clean separation of concerns with modular step implementations.
 
-**📈 FAERS Integration (`faers/`)**
-- `faers.qmd` - FAERS (FDA Adverse Event Reporting System) analysis
-- `faers_duckdb_demo.qmd` - DuckDB integration demonstration
-- `faers_eda.qmd` - Exploratory data analysis of FAERS data
-- `normalize_drug_names.py` - Drug name normalization utilities
-
-**🔍 FFA Analysis (`ffa_analysis/`)**
-- `ffa_analysis.py` - Feature Filtering and Analysis pipeline
-- `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
-- `catboost_axp_explainer2.py` - Enhanced AXP analysis with additional features
-- `ed_non_opioid/` - Analysis results for non-opioid ED events
-
-**📊 FpGrowth Pattern Mining (`fpgrowth_analysis/`)**
-- `run_fpgrowth.py` - Frequent pattern mining using FpGrowth algorithm
-
-**🛠️ Helper Utilities (`helpers/`)**
-- `aws_utils.py` - AWS S3 and cloud service utilities
-- `cohort_utils.py` - Cohort processing utilities
+**🛠️ helpers_1997_13: Utility Functions**
 - `common_imports.py` - Common import statements and configurations
 - `constants.py` - Global constants and configuration values
-- `data_utils.py` - Data processing and manipulation utilities
-- `helpers_1997_13/drug_utils.py` - Drug name processing and standardization
 - `duckdb_utils.py` - DuckDB database utilities
-- `fpgrowth_utils.py` - FpGrowth algorithm utilities
-- `logging_utils.py` - Logging configuration and utilities
-- `model_utils.py` - Machine learning model utilities
-- `notebook_utils.py` - Jupyter notebook utilities
 - `s3_utils.py` - S3 storage utilities
-- `visualization_utils.py` - Data visualization utilities
-- `js/` - JavaScript libraries for interactive visualizations
-  - `cytoscape.min.js` - Network visualization library
-  - `FileSaver.min.js` - File download utilities
+- `logging_utils.py` - Logging configuration and utilities
+- Additional utility modules for data processing, model training, and visualization
 
 **📓 Main Pipeline (`pgx_cohort_pipeline.ipynb`)**
 - Comprehensive Jupyter notebook for the complete PGx analysis pipeline
@@ -565,14 +625,14 @@ def compare_cluster_processes(cluster_process_maps):
 **Data Flow Integration:**
 ```mermaid
 flowchart LR
-    A[Drug Event Explosion] --> B[DTW Sequence Analysis]
-    A --> C[BupaR Process Mining]
+    A[2_create_cohort:<br/>Drug Event Explosion] --> B[6_dtw_analysis:<br/>DTW Sequence Analysis]
+    A --> C[5_bupaR_analysis:<br/>BupaR Process Mining]
     B --> D[Patient Clustering]
     C --> E[Process Discovery]
     D --> F[Cluster-Specific BupaR]
     E --> G[Cross-Cluster Comparison]
     F --> G
-    G --> H[Integrated Insights]
+    G --> H[7_final_model:<br/>Integrated Insights]
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#bbf,stroke:#333,stroke-width:2px
@@ -708,29 +768,29 @@ Creates partitioned Parquet files in S3:
 s3://pgxdatalake/pharmacy-clean-drug-names/age_band={age_band}/event_year={event_year}/clean.parquet
 ```
 
-### 2. Medical Data Processing and Cohort Creation (`create_cohort.py`)
+### 2. Medical Data Processing and Cohort Creation (`2_create_cohort/`)
 
-This script processes medical data and creates comprehensive cohorts with drug exposure tracking using DuckDB. It performs the following operations:
+This module processes medical data and creates comprehensive cohorts with drug exposure tracking using DuckDB. It performs the following operations:
 
 #### **Enhanced Cohort Creation Process**
 
 ```mermaid
 flowchart TD
-    subgraph "Data Loading & Preparation"
+    subgraph "1_apcd_input_data: Data Loading & Preparation"
         A[Medical Data] --> B[Medical Filtering]
         C[Pharmacy Data] --> D[Pharmacy Clean]
         B --> E[Age Imputation]
         D --> E
     end
     
-    subgraph "Event Classification & Tagging"
+    subgraph "2_create_cohort: Event Classification & Tagging"
         E --> F[Unified Cohort Features]
         F --> G[Event Classification]
         G --> H[First Event Resolution]
         H --> I[Tagged Cohort Events]
     end
     
-    subgraph "Drug Exposure & Explosion"
+    subgraph "2_create_cohort: Drug Exposure & Explosion"
         I --> J[Drug Exposure Views]
         J --> J1[ADE Drug Exposure<br/>30-day window]
         J --> J2[Opioid Drug Exposure<br/>No time restriction]
@@ -739,7 +799,7 @@ flowchart TD
         K --> K1[1 row per drug prescription<br/>Patient context duplicated]
     end
     
-    subgraph "Cohort Exclusivity"
+    subgraph "2_create_cohort: Cohort Exclusivity"
         I --> L[First Events Analysis]
         L --> M[Select OPIOID_ED First]
         M --> N[Remove OPIOID_ED from Pool]
@@ -2047,14 +2107,14 @@ Each rule takes the form:
 
 ```mermaid
 flowchart TD
-    subgraph "Data Processing"
+    subgraph "1_apcd_input_data: Data Processing"
         A[Pharmacy Data] --> B[Clean Pharmacy Data]
         C[Medical Data] --> D[Process Medical Data]
-        B --> E[Create Cohorts]
+        B --> E[2_create_cohort: Create Cohorts]
         D --> E
     end
 
-    subgraph "Cohort Classification"
+    subgraph "2_create_cohort: Cohort Classification"
         E --> E1[Event Classification]
         E1 --> E2[OPIOID_ED Cohort<br/>ICD Codes: F11.x, T40.x, Y12.x<br/>Drug Window: Complete History]
         E1 --> E3[ED_NON_OPIOID Cohort<br/>HCG Codes: P51, O11, P33<br/>Drug Window: 30 Days Prior]
@@ -2063,32 +2123,46 @@ flowchart TD
         E4 --> E5[Drug Event Explosion<br/>1 Row per Drug Prescription]
     end
 
-    subgraph "Feature Engineering"
-        E5 --> F[Global FpGrowth Analysis]
-        F --> F1[Global Drug Pattern Discovery]
-        F1 --> G[Global Encoding Map Creation]
-        G --> H[Association Rules]
+    subgraph "3_feature_importance: Feature Screening"
+        E5 --> F1[Monte Carlo CV]
+        F1 --> F2[Feature Importance<br/>CatBoost + Random Forest]
+        F2 --> F3[Top Features Selection]
     end
 
-    subgraph "Modeling & Analysis"
-        H --> I[CatBoost Model Training]
-        I --> I1[Temporal Filtering]
-        I1 --> J[Feature Importance Analysis]
-        J --> K[Process Mining with BupaR]
+    subgraph "4_fpgrowth_analysis: Pattern Mining"
+        F3 --> G[FPGrowth Analysis]
+        G --> G1[Frequent Itemsets]
+        G1 --> G2[Target-Focused Rules]
+        G2 --> G3[Global Encoding Map]
     end
 
-    subgraph "Visualization & Output"
-        K --> L[Network Visualization]
-        K --> M[Process Maps]
-        I --> N[Risk Predictions]
-        J --> O[Feature Importance Plots]
+    subgraph "5_bupaR_analysis: Process Mining"
+        G3 --> H[BupaR Process Mining]
+        H --> H1[Event Log Creation]
+        H1 --> H2[Process Flow Discovery]
     end
 
-    subgraph "Validation & Metrics"
-        L --> P[Performance Metrics]
-        M --> P
-        N --> P
-        O --> P
+    subgraph "6_dtw_analysis: Trajectory Analysis"
+        H2 --> I[DTW Trajectory Analysis]
+        I --> I1[Patient Clustering]
+        I1 --> I2[Similarity Scoring]
+    end
+
+    subgraph "7_final_model: Final Model"
+        G3 --> J[Feature Integration]
+        H2 --> J
+        I2 --> J
+        J --> J1[Final Feature Schema]
+        J1 --> J2[CatBoost Training]
+        J1 --> J3[Random Forest Training]
+        J2 --> J4[Model Evaluation]
+        J3 --> J4
+    end
+
+    subgraph "8_ffa_analysis: Attribution"
+        J4 --> K[Feature Attribution]
+        K --> K1[Tree Export]
+        K1 --> K2[Causal Inference]
     end
 
     style A fill:#f9f,stroke:#333,stroke-width:2px

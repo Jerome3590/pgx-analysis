@@ -1,0 +1,761 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Final Model Feature Schema",
+  "description": "Comprehensive feature schema combining FPGrowth, BupaR, and DTW features for patient-level prediction models",
+  "type": "object",
+  "properties": {
+    "patient_identifier": {
+      "type": "object",
+      "description": "Patient identification fields",
+      "properties": {
+        "mi_person_key": {
+          "type": "string",
+          "description": "Unique masked person identifier (primary key)"
+        },
+        "cohort_name": {
+          "type": "string",
+          "enum": ["opioid_ed", "ed_non_opioid"],
+          "description": "Cohort assignment"
+        },
+        "age_band": {
+          "type": "string",
+          "pattern": "^\\d+-\\d+$",
+          "description": "Age band (e.g., '65-74')"
+        },
+        "event_year": {
+          "type": "integer",
+          "minimum": 2010,
+          "maximum": 2030,
+          "description": "Event year"
+        }
+      },
+      "required": ["mi_person_key", "cohort_name", "age_band", "event_year"]
+    },
+    "target": {
+      "type": "object",
+      "description": "Target variable for classification",
+      "properties": {
+        "is_target_case": {
+          "type": "integer",
+          "enum": [0, 1],
+          "description": "Binary target: 1=case, 0=control"
+        },
+        "target_type": {
+          "type": "string",
+          "enum": ["OPIOID_DEPENDENCE", "ED_VISIT", null],
+          "description": "Type of target event (null for controls)"
+        },
+        "first_target_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date of first target event (null for controls)"
+        }
+      },
+      "required": ["is_target_case"]
+    },
+    "demographics": {
+      "type": "object",
+      "description": "Demographic features",
+      "properties": {
+        "age_imputed": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 114,
+          "description": "Imputed age at event"
+        },
+        "member_gender": {
+          "type": ["string", "null"],
+          "description": "Gender"
+        },
+        "member_race": {
+          "type": ["string", "null"],
+          "description": "Race/ethnicity"
+        },
+        "member_zip_code_dos": {
+          "type": ["string", "null"],
+          "description": "ZIP code at date of service"
+        },
+        "member_county_dos": {
+          "type": ["string", "null"],
+          "description": "County at date of service"
+        },
+        "payer_type": {
+          "type": ["string", "null"],
+          "description": "Insurance payer type"
+        }
+      }
+    },
+    "fpgrowth_features": {
+      "type": "object",
+      "description": "Features derived from FP-Growth frequent pattern mining",
+      "properties": {
+        "drug_features": {
+          "type": "object",
+          "description": "Drug-related FPGrowth features",
+          "properties": {
+            "frequent_itemsets": {
+              "type": "object",
+              "description": "Binary features for each frequent drug itemset",
+              "patternProperties": {
+                "^itemset_drug_.+$": {
+                  "type": "integer",
+                  "enum": [0, 1],
+                  "description": "Binary indicator: 1 if patient has this itemset, 0 otherwise"
+                }
+              },
+              "additionalProperties": false
+            },
+            "association_rules": {
+              "type": "object",
+              "description": "Features from association rules matching",
+              "properties": {
+                "rules_target_icd_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of opioid dependence prediction rules matched"
+                },
+                "rules_target_ed_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of ED visit prediction rules matched"
+                },
+                "rules_control_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of control/baseline rules matched"
+                },
+                "max_rule_confidence_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Maximum confidence of matched opioid dependence rules"
+                },
+                "max_rule_confidence_target_ed": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Maximum confidence of matched ED visit rules"
+                },
+                "max_rule_lift_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Maximum lift of matched opioid dependence rules"
+                },
+                "max_rule_lift_target_ed": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Maximum lift of matched ED visit rules"
+                },
+                "avg_rule_confidence_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Average confidence of matched opioid dependence rules"
+                },
+                "avg_rule_confidence_target_ed": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Average confidence of matched ED visit rules"
+                }
+              }
+            },
+            "itemset_metrics": {
+              "type": "object",
+              "description": "Aggregated metrics from patient's itemsets",
+              "properties": {
+                "total_unique_drugs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of unique drugs in patient's itemsets"
+                },
+                "total_itemsets": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of frequent itemsets patient matches"
+                },
+                "avg_itemset_support": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Average support of matched itemsets"
+                },
+                "max_itemset_support": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Maximum support of matched itemsets"
+                }
+              }
+            },
+            "drug_encoding": {
+              "type": "object",
+              "description": "Global drug encoding features",
+              "properties": {
+                "encoded_drug_names": {
+                  "type": "string",
+                  "description": "Comma-separated list of encoded drug names (for CatBoost categorical feature)"
+                },
+                "drug_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of unique drugs"
+                }
+              }
+            }
+          }
+        },
+        "icd_features": {
+          "type": "object",
+          "description": "ICD code-related FPGrowth features",
+          "properties": {
+            "frequent_itemsets": {
+              "type": "object",
+              "description": "Binary features for each frequent ICD itemset",
+              "patternProperties": {
+                "^itemset_icd_.+$": {
+                  "type": "integer",
+                  "enum": [0, 1],
+                  "description": "Binary indicator: 1 if patient has this itemset, 0 otherwise"
+                }
+              },
+              "additionalProperties": false
+            },
+            "association_rules": {
+              "type": "object",
+              "description": "Features from ICD association rules matching",
+              "properties": {
+                "rules_target_icd_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of opioid dependence prediction rules matched"
+                },
+                "rules_target_ed_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of ED visit prediction rules matched"
+                },
+                "max_rule_confidence_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Maximum confidence of matched opioid dependence rules"
+                },
+                "max_rule_lift_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Maximum lift of matched opioid dependence rules"
+                }
+              }
+            },
+            "itemset_metrics": {
+              "type": "object",
+              "description": "Aggregated metrics from patient's ICD itemsets",
+              "properties": {
+                "total_unique_icd_codes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of unique ICD codes"
+                },
+                "total_itemsets": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of frequent ICD itemsets matched"
+                },
+                "avg_itemset_support": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Average support of matched itemsets"
+                }
+              }
+            }
+          }
+        },
+        "cpt_features": {
+          "type": "object",
+          "description": "CPT/procedure code-related FPGrowth features",
+          "properties": {
+            "frequent_itemsets": {
+              "type": "object",
+              "description": "Binary features for each frequent CPT itemset",
+              "patternProperties": {
+                "^itemset_cpt_.+$": {
+                  "type": "integer",
+                  "enum": [0, 1],
+                  "description": "Binary indicator: 1 if patient has this itemset, 0 otherwise"
+                }
+              },
+              "additionalProperties": false
+            },
+            "association_rules": {
+              "type": "object",
+              "description": "Features from CPT association rules matching",
+              "properties": {
+                "rules_target_icd_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of opioid dependence prediction rules matched"
+                },
+                "rules_target_ed_match": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of ED visit prediction rules matched"
+                },
+                "max_rule_confidence_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Maximum confidence of matched opioid dependence rules"
+                },
+                "max_rule_lift_target_icd": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Maximum lift of matched opioid dependence rules"
+                }
+              }
+            },
+            "itemset_metrics": {
+              "type": "object",
+              "description": "Aggregated metrics from patient's CPT itemsets",
+              "properties": {
+                "total_unique_cpt_codes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of unique CPT codes"
+                },
+                "total_itemsets": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Total number of frequent CPT itemsets matched"
+                },
+                "avg_itemset_support": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Average support of matched itemsets"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "bupar_features": {
+      "type": "object",
+      "description": "Features derived from BupaR process mining analysis",
+      "properties": {
+        "process_flow_features": {
+          "type": "object",
+          "description": "Process flow pattern features",
+          "properties": {
+            "path_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of activities in patient's process path"
+            },
+            "unique_activities": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unique activities in patient's path"
+            },
+            "path_diversity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Diversity of activities (unique_activities / path_length)"
+            },
+            "most_frequent_activity": {
+              "type": ["string", "null"],
+              "description": "Most frequently occurring activity"
+            },
+            "most_frequent_activity_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of most frequent activity"
+            }
+          }
+        },
+        "temporal_features": {
+          "type": "object",
+          "description": "Temporal process mining features",
+          "properties": {
+            "throughput_time_days": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Total time from first to last activity (days)"
+            },
+            "waiting_time_days": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Total waiting time between activities (days)"
+            },
+            "active_time_days": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Total active time (throughput - waiting)"
+            },
+            "avg_time_between_activities": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Average time between consecutive activities (days)"
+            }
+          }
+        },
+        "activity_frequencies": {
+          "type": "object",
+          "description": "Frequency of each activity type",
+          "patternProperties": {
+            "^activity_.+$": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of this activity type"
+            }
+          },
+          "additionalProperties": false
+        },
+        "sequence_patterns": {
+          "type": "object",
+          "description": "Sequence pattern features",
+          "properties": {
+            "has_repetition": {
+              "type": "integer",
+              "enum": [0, 1],
+              "description": "Binary: 1 if patient has repeated activities, 0 otherwise"
+            },
+            "repetition_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of repeated activity sequences"
+            },
+            "sequence_complexity": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Measure of sequence complexity (entropy-based)"
+            },
+            "common_pattern_match": {
+              "type": "integer",
+              "enum": [0, 1],
+              "description": "Binary: 1 if patient matches common process patterns, 0 otherwise"
+            }
+          }
+        },
+        "drug_sequence_features": {
+          "type": "object",
+          "description": "Drug-specific sequence features (if applicable)",
+          "properties": {
+            "drug_sequence_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Length of drug sequence"
+            },
+            "unique_drugs_in_sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unique drugs in sequence"
+            },
+            "drug_switches": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of drug switches in sequence"
+            },
+            "concurrent_drugs_max": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum number of concurrent drugs"
+            }
+          }
+        }
+      }
+    },
+    "dtw_features": {
+      "type": "object",
+      "description": "Features derived from Dynamic Time Warping trajectory analysis",
+      "properties": {
+        "drug_trajectory": {
+          "type": "object",
+          "description": "Drug trajectory features",
+          "properties": {
+            "trajectory_cluster": {
+              "type": ["integer", "null"],
+              "description": "Drug trajectory cluster ID (null if not assigned)"
+            },
+            "trajectory_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of drug events in trajectory"
+            },
+            "trajectory_diversity": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unique drugs in trajectory"
+            },
+            "trajectory_temporal_span_days": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Days between first and last drug event"
+            },
+            "trajectory_temporal_density": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Events per month (length / (span / 30))"
+            },
+            "dtw_distance_to_archetype": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "DTW distance to cluster archetype trajectory"
+            },
+            "archetype_match_score": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Normalized match to archetype (1 / (1 + dtw_distance))"
+            },
+            "cluster_target_rate": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Proportion of target cases in drug cluster"
+            },
+            "cluster_size": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Number of patients in drug cluster"
+            },
+            "avg_dtw_distance_to_targets": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Average DTW distance to all target cases"
+            },
+            "min_dtw_distance_to_targets": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Minimum DTW distance to any target case"
+            },
+            "first_event_days_before_target": {
+              "type": ["integer", "null"],
+              "description": "Days from first drug event to target (ED_NON_OPIOID only)"
+            },
+            "last_event_days_before_target": {
+              "type": ["integer", "null"],
+              "description": "Days from last drug event to target (ED_NON_OPIOID only)"
+            },
+            "trajectory_has_temporal_alignment": {
+              "type": "integer",
+              "enum": [0, 1],
+              "description": "Binary: 1 if days_to_target_event available, 0 otherwise"
+            }
+          }
+        },
+        "icd_trajectory": {
+          "type": "object",
+          "description": "ICD code trajectory features",
+          "properties": {
+            "trajectory_cluster": {
+              "type": ["integer", "null"],
+              "description": "ICD trajectory cluster ID"
+            },
+            "trajectory_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of ICD events in trajectory"
+            },
+            "trajectory_diversity": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unique ICD codes in trajectory"
+            },
+            "trajectory_temporal_span_days": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Days between first and last ICD event"
+            },
+            "trajectory_temporal_density": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Events per month"
+            },
+            "dtw_distance_to_archetype": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "DTW distance to ICD cluster archetype"
+            },
+            "archetype_match_score": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Normalized match to ICD archetype"
+            },
+            "cluster_target_rate": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Proportion of target cases in ICD cluster"
+            },
+            "cluster_size": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Number of patients in ICD cluster"
+            }
+          }
+        },
+        "cpt_trajectory": {
+          "type": "object",
+          "description": "CPT/procedure trajectory features",
+          "properties": {
+            "trajectory_cluster": {
+              "type": ["integer", "null"],
+              "description": "CPT trajectory cluster ID"
+            },
+            "trajectory_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of CPT events in trajectory"
+            },
+            "trajectory_diversity": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of unique CPT codes in trajectory"
+            },
+            "trajectory_temporal_span_days": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Days between first and last CPT event"
+            },
+            "trajectory_temporal_density": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "Events per month"
+            },
+            "dtw_distance_to_archetype": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "description": "DTW distance to CPT cluster archetype"
+            },
+            "archetype_match_score": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Normalized match to CPT archetype"
+            },
+            "cluster_target_rate": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Proportion of target cases in CPT cluster"
+            },
+            "cluster_size": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Number of patients in CPT cluster"
+            }
+          }
+        },
+        "multi_modal_features": {
+          "type": "object",
+          "description": "Cross-modal trajectory relationships",
+          "properties": {
+            "drug_icd_cluster_match": {
+              "type": "integer",
+              "enum": [0, 1],
+              "description": "Binary: 1 if drug and ICD clusters are correlated"
+            },
+            "drug_cpt_cluster_match": {
+              "type": "integer",
+              "enum": [0, 1],
+              "description": "Binary: 1 if drug and CPT clusters are correlated"
+            },
+            "multi_modal_cluster_consistency": {
+              "type": ["string", "null"],
+              "enum": ["all_same", "mixed", "all_different", null],
+              "description": "Consistency across trajectory types"
+            }
+          }
+        }
+      }
+    },
+    "temporal_features": {
+      "type": "object",
+      "description": "Temporal and event date features",
+      "properties": {
+        "first_event_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date of first event"
+        },
+        "last_event_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Date of last event"
+        },
+        "total_event_span_days": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Total days between first and last event"
+        },
+        "days_to_target_event": {
+          "type": ["integer", "null"],
+          "description": "Days from event to target event (ED_NON_OPIOID only)"
+        },
+        "event_month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Month of event (1-12)"
+        },
+        "event_quarter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Quarter of event (1-4)"
+        },
+        "event_season": {
+          "type": "string",
+          "enum": ["Spring", "Summer", "Fall", "Winter"],
+          "description": "Season of event"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Feature engineering metadata",
+      "properties": {
+        "feature_engineering_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When features were engineered"
+        },
+        "fpgrowth_version": {
+          "type": "string",
+          "description": "FPGrowth analysis version"
+        },
+        "bupar_version": {
+          "type": "string",
+          "description": "BupaR analysis version"
+        },
+        "dtw_version": {
+          "type": "string",
+          "description": "DTW analysis version"
+        },
+        "feature_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of features"
+        },
+        "missing_value_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of missing values"
+        }
+      }
+    }
+  },
+  "required": [
+    "patient_identifier",
+    "target",
+    "fpgrowth_features",
+    "bupar_features",
+    "dtw_features"
+  ]
+}
+
