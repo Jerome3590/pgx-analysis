@@ -156,6 +156,171 @@ These rules represent:
 - **Sequential relationships**: Temporal ordering of drug exposures
 - **Clinical relevance**: Patterns that may indicate treatment protocols or adverse interactions
 
+## Feature Importance Visualizations
+
+The pipeline generates comprehensive feature importance visualizations from Monte Carlo Cross-Validation (MC-CV) analysis using CatBoost and Random Forest models. These visualizations help identify the most predictive features and understand their relative importance across different model quality metrics.
+
+### 1. Top 50 Features Bar Chart
+
+**File:** `{cohort}_{age}_{year}_top50_features.png`  
+**Size:** 12" × 14"  
+**Format:** Horizontal bar chart
+
+**Description:**
+- Displays the top 50 features ranked by scaled importance
+- Features are sorted by `importance_scaled` (Recall-weighted importance)
+- Bar height represents the scaled importance value
+- Includes subtitle showing mean MC-CV Recall across models
+
+**Interpretation:**
+- Higher bars indicate features with greater predictive power
+- Features appearing in both CatBoost and Random Forest models typically have higher importance
+- Use this chart to identify the most critical features for model predictions
+
+**Example Features Shown:**
+- Drug names (e.g., HYDROCODONE-ACETAMINOPHEN, TRAMADOL HCL)
+- ICD diagnosis codes (e.g., F11.20, F11.21)
+- CPT procedure codes (e.g., 99281, 99282)
+
+### 2. Top 50 Features with Recall Confidence
+
+**File:** `{cohort}_{age}_{year}_top50_with_recall.png`  
+**Size:** 12" × 14"  
+**Format:** Horizontal bar chart with color gradient
+
+**Description:**
+- Shows top 50 features with dual encoding:
+  - **Bar height**: Scaled importance value
+  - **Bar color**: MC-CV Recall quality (with 95% confidence intervals)
+- Color gradient: Orange (lower Recall) → Dark Blue (higher Recall)
+- Includes error bars or confidence intervals for Recall estimates
+
+**Interpretation:**
+- **High importance + High Recall (Dark Blue)**: Highly predictive and reliable features
+- **High importance + Low Recall (Orange)**: Predictive but less reliable features
+- **Low importance + High Recall**: Reliable but less predictive features
+- Use this chart to balance feature importance with model confidence
+
+**Key Insights:**
+- Features with both high importance and high Recall are most valuable
+- Features with high importance but low Recall may need further investigation
+- Helps prioritize features for clinical interpretation and model refinement
+
+### 3. Normalized vs Recall-Scaled Comparison
+
+**File:** `{cohort}_{age}_{year}_normalized_vs_scaled.png`  
+**Size:** 12" × 14"  
+**Format:** Side-by-side grouped bar chart
+
+**Description:**
+- Compares two importance metrics for top 50 features:
+  - **Gray bars**: Normalized importance (raw sum across models)
+  - **Blue bars**: Recall-scaled importance (weighted by model quality)
+- Features sorted by scaled importance
+- Shows impact of quality weighting on feature rankings
+
+**Interpretation:**
+- **Large difference**: Model quality weighting significantly affects feature ranking
+- **Small difference**: Feature importance is consistent regardless of model quality
+- Features that rank higher in scaled importance are more reliable predictors
+- Helps understand which features benefit most from quality weighting
+
+**Use Cases:**
+- Identify features that are important but unreliable (high normalized, low scaled)
+- Find features that are both important and reliable (high in both metrics)
+- Understand the impact of model quality weighting on feature selection
+
+### 4. Feature Category Distribution
+
+**File:** `{cohort}_{age}_{year}_category_distribution.png`  
+**Size:** 10" × 6"  
+**Format:** Bar chart by category
+
+**Description:**
+- Shows distribution of top 50 features across three categories:
+  - **Drug Names**: Prescription medications
+  - **ICD Codes**: Diagnosis codes (e.g., F11.20)
+  - **CPT Codes**: Procedure codes (e.g., 99281)
+- Color-coded by category (steelblue, darkgreen, darkorange)
+
+**Interpretation:**
+- Reveals which feature types dominate the top features
+- Helps understand the relative importance of different data sources
+- Can identify if certain feature types are underrepresented
+
+**Key Insights:**
+- High drug name count: Medication patterns are most predictive
+- High ICD code count: Diagnosis patterns are most predictive
+- Balanced distribution: Multiple data sources contribute to predictions
+
+### 5. Cross-Age-Band Heatmaps
+
+**File:** `{cohort}_{year}_ageband_heatmap_top50.png`  
+**Format:** Heatmap (Features × Age Bands)
+
+**Description:**
+- Compares feature importance across multiple age bands
+- Rows: Top N features (typically 50)
+- Columns: Age bands (e.g., 13-24, 25-44, 45-54, 55-64, 65-74)
+- Color intensity: Scaled importance value
+- Includes summary metrics (CV, consistency)
+
+**Interpretation:**
+- **Dark cells**: High importance for that age band
+- **Light cells**: Low importance for that age band
+- **Consistent rows**: Universal features (important across all age bands)
+- **Variable rows**: Age-specific features (important only for certain age bands)
+
+**Key Insights:**
+- **Universal Risk Factors**: Features with consistent high importance across age bands
+  - Low coefficient of variation (CV)
+  - Suitable for age-agnostic models
+- **Age-Specific Features**: Features with variable importance across age bands
+  - High CV
+  - May require age-stratified models
+- **Missing Patterns**: Features important in some age bands but not others
+
+**Use Cases:**
+- Identify universal vs age-specific risk factors
+- Decide between age-agnostic vs age-stratified models
+- Understand how feature importance varies with patient age
+- Validate model generalizability across age groups
+
+**Example Analysis:**
+```r
+source("create_cross_ageband_heatmap.R")
+
+create_ageband_heatmap(
+  cohort_name = "opioid_ed",
+  event_year = 2016,
+  age_bands = c("13-24", "25-44", "45-54", "55-64", "65-74"),
+  top_n = 50
+)
+```
+
+**Outputs:**
+- Heatmap visualization: Features × Age bands (color = importance)
+- Summary CSV: Variability metrics (CV, consistency, mean importance)
+- Insights: Universal vs age-specific features
+
+### Storage Locations
+
+**Local Storage:**
+- `outputs/plots/` directory
+- Files named: `{cohort}_{age}_{year}_{plot_type}.png`
+
+**S3 Storage:**
+- `s3://pgxdatalake/gold/feature_importance/cohort_name={cohort}/age_band={age}/event_year={year}/plots/`
+- Automatically uploaded after generation
+
+### Best Practices for Interpretation
+
+1. **Compare Multiple Visualizations**: Use all four charts together for comprehensive understanding
+2. **Consider Model Quality**: Prioritize features with both high importance and high Recall
+3. **Check Consistency**: Features appearing in multiple visualizations are more reliable
+4. **Age Band Analysis**: Use cross-age-band heatmaps to understand generalizability
+5. **Clinical Context**: Always interpret feature importance in clinical context
+
 ## Visualization Insights
 
 ### Pattern Analysis Visualizations
