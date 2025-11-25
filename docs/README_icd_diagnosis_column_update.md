@@ -61,7 +61,7 @@ def get_icd_codes_sql_condition(icd_codes, table_alias=None):
    - Added explanatory notes about comprehensive ICD checking
    - Updated version to 4.4
 
-6. **`docs/Create_Cohort_README.md`**
+6. **`docs/README_create_cohort.md`**
    - Updated documentation to emphasize all 10 columns are checked
    - Added notes in multiple sections about comprehensive checking
    - Updated version to 4.3
@@ -169,7 +169,7 @@ All 10 columns follow this naming pattern:
 ## Related Documentation
 
 - `docs/Cohort_Creation_SQL.md` - Updated SQL reference
-- `docs/Create_Cohort_README.md` - Updated pipeline guide
+- `docs/README_create_cohort.md` - Updated pipeline guide
 - `helpers_1997_13/constants.py` - Helper functions
 - `2_create_cohort/2_step2_data_quality_qa.py` - QA validation
 

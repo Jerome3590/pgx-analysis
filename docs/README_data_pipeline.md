@@ -380,7 +380,7 @@ Conflicting lock is held in /usr/local/bin/python3.11 (PID 80256)
 ## 📚 Linked Documentation
 
 - `DuckDB_Dev_README.md` – DuckDB configuration, optimization, profiling, and troubleshooting (consolidated)
-- `Create_Cohort_README.md` – Cohort pipeline logic and event schema
+- `docs/README_create_cohort.md` – Cohort pipeline logic and event schema
 - `Cohort_Pipeline_Updates.md` – Latest modular phase updates
 - `Pipeline_Optimization_README.md` – Core standards and resource rules
 

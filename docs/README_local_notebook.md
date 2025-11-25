@@ -493,7 +493,7 @@ aws configure
 - **FPGrowth Algorithm:** [mlxtend documentation](http://rasbt.github.io/mlxtend/user_guide/frequent_patterns/fpgrowth/)
 - **DuckDB:** [DuckDB Python documentation](https://duckdb.org/docs/api/python/overview)
 - **Project Pipeline:** See `docs/Analysis_Workflow_README.md`
-- **Cohort Creation:** See `docs/Create_Cohort_README.md`
+- **Cohort Creation:** See `docs/README_create_cohort.md`
 
 ---
 

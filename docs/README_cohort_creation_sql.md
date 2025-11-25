@@ -894,7 +894,7 @@ When set, the pipeline uses generic `'target'`/`'non_target'` classification. Wh
 
 ## Related Documentation
 
-- `Create_Cohort_README.md` - Comprehensive pipeline guide
+- `docs/README_create_cohort.md` - Comprehensive pipeline guide
 - `control_only_cohort_analysis.md` - Control-only cohort strategy analysis
 - `precompute_target_averages.py` - Pre-computation script for target averages
 

@@ -312,8 +312,8 @@ done
 
 - **DTW Algorithm**: [dtaidistance Documentation](https://dtaidistance.readthedocs.io/)
 - **Trajectory Clustering**: Hierarchical clustering on DTW distances
-- **Cohort Creation**: See `docs/Create_Cohort_README.md`
-- **FPGrowth Integration**: See `3_fpgrowth_analysis/FPGrowth_Filtering_README.md`
+- **Cohort Creation**: See `docs/README_create_cohort.md`
+- **FPGrowth Integration**: See `4_fpgrowth_analysis/README_fpgrowth.md`
 
 ---
 

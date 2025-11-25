@@ -415,10 +415,10 @@ jupyter notebook 4_bupaR_analysis/bupaR_pipeline.ipynb
 
 ## 📚 Documentation References
 
-- **FPGrowth Filtering**: `3_fpgrowth_analysis/FPGrowth_Filtering_README.md`
-- **CatBoost Analysis**: `3_fpgrowth_analysis/CatBoost_README.md`
-- **BupaR Analysis**: `3_fpgrowth_analysis/BupaR_README.md`
-- **Cohort Creation**: `docs/Create_Cohort_README.md`
+- **FPGrowth Analysis**: `4_fpgrowth_analysis/README_fpgrowth.md`
+- **CatBoost Analysis**: `docs/README_catboost.md`
+- **BupaR Analysis**: `5_bupaR_analysis/README_bupaR.md`
+- **Cohort Creation**: `docs/README_create_cohort.md`
 
 ---
 
