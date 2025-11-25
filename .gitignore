@@ -10,3 +10,5 @@ __pycache__/
 Notes/*
 logs/
 *.xlsx
+*.Rhistory
+medical_head.txt
