@@ -296,19 +296,19 @@ This architecture ensures maintainability, reduces bugs, and provides a clean se
 
 ## Recent Enhancements
 
-### Drug Event Explosion Strategy ⭐ **NEW**
+### Drug Event Explosion Strategy
 - **Patient-Level → Drug-Level Transformation**: Each drug prescription becomes a separate row
 - **Context Duplication**: Patient demographics and clinical data duplicated per drug event
 - **Sequence Modeling Ready**: Enables FpGrowth, bupaR, DTW, and symbolic reasoning analysis
 - **Temporal Tracking**: Maintains `days_to_ade` and `days_to_opioid_ed` relationships
 
-### Cohort Exclusivity Enforcement ⭐ **NEW**
+### Cohort Exclusivity Enforcement
 - **OPIOID_ED Priority**: Processes opioid_ed cohort first
 - **Mutual Exclusivity**: Ensures no patient appears in both cohorts
 - **Quality Assurance**: Validates cohort separation and logs metrics
 - **Data Integrity**: Prevents data leakage between cohorts
 
-### DTW and BupaR Integration ⭐ **NEW**
+### DTW and BupaR Integration
 
 **DTW (Dynamic Time Warping)** and **BupaR (Process Mining)** serve different but complementary purposes in temporal sequence analysis:
 
