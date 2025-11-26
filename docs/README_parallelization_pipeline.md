@@ -87,7 +87,7 @@ Env-aware behavior:
 
 Under the hood, the script enumerates partitions and runs analysis per-partition in a `ProcessPoolExecutor`, then reduces partial results.
 
-### 2) Code normalization updates (`1_apcd_input_data/7_update_codes.py`)
+### 2) Code normalization updates (`1_apcd_input_data/8_update_codes.py`)
 
 - Flags:
   - `--workers`: global override for both datasets
@@ -114,7 +114,7 @@ Under the hood, the script enumerates partitions and submits each file to a `Pro
 export PGX_WORKERS_MEDICAL=16
 export PGX_THREADS_PER_WORKER=1
 
-python 1_apcd_input_data/6_target_frequency_analysis.py \
+python 1_apcd_input_data/7_target_frequency_analysis.py \
   --workers ${PGX_WORKERS_MEDICAL} \
   --min-year 2016 --max-year 2020
 ```
@@ -131,7 +131,7 @@ export PGX_WORKERS_MEDICAL=16
 export PGX_WORKERS_PHARMACY=48
 export PGX_THREADS_PER_WORKER=1
 
-python 1_apcd_input_data/7_update_codes.py \
+python 1_apcd_input_data/8_update_codes.py \
   --years "2016,2017,2018,2019,2020" \
   --workers-medical ${PGX_WORKERS_MEDICAL} \
   --workers-pharmacy ${PGX_WORKERS_PHARMACY} \
@@ -225,12 +225,12 @@ python 1_apcd_input_data/3_apcd_clean.py \
   --log-level INFO
 
 echo "🚀 Target frequency analysis (parallel)"
-python 1_apcd_input_data/6_target_frequency_analysis.py \
+python 1_apcd_input_data/7_target_frequency_analysis.py \
   --workers ${PGX_WORKERS_MEDICAL} \
   --min-year 2016 --max-year 2020
 
 echo "🚀 Code normalization updates (parallel)"
-python 1_apcd_input_data/7_update_codes.py \
+python 1_apcd_input_data/8_update_codes.py \
   --years "2016,2017,2018,2019,2020" \
   --workers-medical ${PGX_WORKERS_MEDICAL} \
   --workers-pharmacy ${PGX_WORKERS_PHARMACY} \

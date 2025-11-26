@@ -253,7 +253,7 @@ Before running the cohort pipeline, run the target frequency analysis script (wh
 
 ```bash
 # Analyze target codes and automatically pre-compute averages for cohort creation
-python 1_apcd_input_data/6_target_frequency_analysis.py --profile bedrock
+python 1_apcd_input_data/7_target_frequency_analysis.py --profile mushin
 ```
 
 This creates `cohort_target_averages.json` in the project root, which Phase 3 uses for control-only cohort sizing. The pre-computation happens automatically as part of the target frequency analysis.
@@ -287,7 +287,7 @@ python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
 
 ```bash
 # With custom AWS profile
-python precompute_target_averages.py --profile bedrock
+python precompute_target_averages.py --profile mushin
 
 # Pipeline with custom settings
 python 0_create_cohort.py \
@@ -401,7 +401,7 @@ print(state.get_progress())
 
 **Pre-computation:**
 
-- Target averages are automatically computed by `6_target_frequency_analysis.py` (run this before cohort creation)
+- Target averages are automatically computed by `7_target_frequency_analysis.py` (run this before cohort creation)
 - Re-run if gold tier data changes significantly
 - Check `cohort_target_averages.json` exists before batch runs
 
@@ -436,7 +436,7 @@ print(state.get_progress())
 - `docs/README_duckdb_dev.md` — Database performance tuning
 - `docs/README_preprocessing.md` — Pre-imputation overview
 - `2_create_cohort/phases/` — Phase-level logic reference
-- `1_apcd_input_data/6_target_frequency_analysis.py` — Target frequency analysis (includes automatic pre-computation of cohort target averages)
+- `1_apcd_input_data/7_target_frequency_analysis.py` — Target frequency analysis (includes automatic pre-computation of cohort target averages)
 - `control_only_cohort_analysis.md` — Detailed analysis of control-only cohort strategy
 
 ***

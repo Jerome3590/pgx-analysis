@@ -30,6 +30,11 @@ run_mc_cv_method <- function(data, method, split_indices, data_rf = NULL) {
 
   feature_names <- colnames(X_all)
   n_obs <- length(y_all)
+  
+  # Ensure N_SPLITS is available (should be in globals)
+  if (!exists("N_SPLITS") || is.null(N_SPLITS)) {
+    stop("N_SPLITS is not defined in run_mc_cv_method. Ensure it's in globals.")
+  }
 
   # Progress bar --------------------------------------------------------------
   p <- progressr::progressor(steps = N_SPLITS)
@@ -37,15 +42,68 @@ run_mc_cv_method <- function(data, method, split_indices, data_rf = NULL) {
   # Core MC-CV loop -----------------------------------------------------------
   # Use split_indices instead of mc_splits to avoid passing large object
   # Memory optimization: split_indices is ~few MB vs mc_splits ~11GB
+  
+  # Validate split_indices before processing
+  if (is.null(split_indices) || length(split_indices) == 0) {
+    stop("split_indices is NULL or empty. Cannot proceed with MC-CV.")
+  }
+  if (length(split_indices) < N_SPLITS) {
+    stop(sprintf("split_indices has %d elements but N_SPLITS=%d. Mismatch detected.",
+                length(split_indices), N_SPLITS))
+  }
+  
   results <- furrr::future_map(
     1:N_SPLITS,
     function(i) {
       p()
 
       # Get indices for this split (lightweight - just integers)
+      # Validate index access
+      if (i > length(split_indices)) {
+        stop(sprintf("Split index %d exceeds split_indices length (%d)", i, length(split_indices)))
+      }
+      
       indices <- split_indices[[i]]
+      if (is.null(indices)) {
+        stop(sprintf("split_indices[[%d]] is NULL", i))
+      }
+      if (!is.list(indices) || !"train_idx" %in% names(indices) || !"test_idx" %in% names(indices)) {
+        stop(sprintf("split_indices[[%d]] is not a valid list with train_idx/test_idx. Got: %s",
+                    i, paste(names(indices), collapse=", ")))
+      }
+      
       train_idx <- indices$train_idx
       test_idx <- indices$test_idx
+      
+      # Validate indices
+      if (is.null(train_idx) || length(train_idx) == 0) {
+        stop(sprintf("train_idx is NULL or empty for split %d", i))
+      }
+      if (is.null(test_idx) || length(test_idx) == 0) {
+        stop(sprintf("test_idx is NULL or empty for split %d", i))
+      }
+      
+      # Validate indices are within bounds
+      max_train_idx <- max(train_idx, na.rm = TRUE)
+      max_test_idx <- max(test_idx, na.rm = TRUE)
+      
+      if (method == "catboost") {
+        if (is.null(data_full) || nrow(data_full) == 0) {
+          stop(sprintf("data_full is NULL or empty for split %d", i))
+        }
+        if (max_train_idx > nrow(data_full) || max_test_idx > nrow(data_full)) {
+          stop(sprintf("Index out of bounds for split %d: max(train_idx)=%d, max(test_idx)=%d, nrow(data_full)=%d",
+                      i, max_train_idx, max_test_idx, nrow(data_full)))
+        }
+      } else {
+        if (is.null(X_all) || nrow(X_all) == 0) {
+          stop(sprintf("X_all is NULL or empty for split %d", i))
+        }
+        if (max_train_idx > nrow(X_all) || max_test_idx > nrow(X_all)) {
+          stop(sprintf("Index out of bounds for split %d: max(train_idx)=%d, max(test_idx)=%d, nrow(X_all)=%d",
+                      i, max_train_idx, max_test_idx, nrow(X_all)))
+        }
+      }
 
       # Slice train/test based on method
       if (method == "catboost") {
@@ -111,12 +169,15 @@ run_mc_cv_method <- function(data, method, split_indices, data_rf = NULL) {
       # Only pass what's needed: split_indices, X_all, y_all, data_full, method, feature_names
       # and helper functions/constants
       globals = c("split_indices", "X_all", "y_all", "data_full", "method", "feature_names",
-                  "MODEL_PARAMS", "SCALING_METRIC",
+                  "N_SPLITS", "MODEL_PARAMS", "SCALING_METRIC",
                   "train_catboost_r", "train_random_forest_r",
                   "predict_catboost_r", "predict_random_forest_r",
                   "predict_proba_catboost_r", "predict_proba_random_forest_r",
                   "get_importance_catboost_r", "get_importance_random_forest_r",
-                  "calculate_recall", "calculate_logloss")
+                  "calculate_recall", "calculate_logloss"),
+      # Ensure required packages are available in worker environments
+      packages = c("rsample", "furrr", "progressr", "catboost", "randomForest", 
+                   "dplyr", "tibble", "purrr", "tidyr")
     )
   )
 

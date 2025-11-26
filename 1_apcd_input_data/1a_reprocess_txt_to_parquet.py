@@ -303,18 +303,31 @@ def _sanitize_rejects_to_s3(input_uri: str, dataset: str, bronze_root: str, logg
     return fixed_uri, bad2_uri, stats
 
 
-def _reprocess_worker(t: Tuple[str, str, str, int, Optional[str], bool, bool, str]) -> Tuple[str, bool, str]:
+def _reprocess_worker(t: Tuple[str, str, str, int, Optional[str], bool, bool, str, bool]) -> Tuple[str, bool, str]:
     """Top-level worker for ProcessPoolExecutor (must be picklable).
 
-    Args tuple: (in_uri, out_uri, dataset, duckdb_threads, tmp_dir, proceed_on_errors, sanitize, bronze_root)
+    Args tuple: (in_uri, out_uri, dataset, duckdb_threads, tmp_dir, proceed_on_errors, sanitize, bronze_root, cleanup_source)
     Returns: (out_uri, success, message)
     """
-    in_uri, out_uri, ds, duckdb_threads, tmp_dir, proceed_on_errors, sanitize, bronze_root = t
+    in_uri, out_uri, ds, duckdb_threads, tmp_dir, proceed_on_errors, sanitize, bronze_root, cleanup_source = t
     logger = setup_logger()
+    s3_client = boto3.client("s3")
+    fixed_uri = None  # Track sanitized file for cleanup
+    
     try:
         out_bucket, out_key = _parse_s3_uri(out_uri)
         if s3_exists(out_bucket, out_key):
+            # Idempotency: if output exists, check if we should clean up source
+            if cleanup_source:
+                try:
+                    in_bucket, in_key = _parse_s3_uri(in_uri)
+                    if s3_exists(in_bucket, in_key):
+                        s3_client.delete_object(Bucket=in_bucket, Key=in_key)
+                        logger.info(f"Cleaned up source (output exists): {in_uri}")
+                except Exception as cleanup_err:
+                    logger.warning(f"Could not clean up source {in_uri}: {cleanup_err}")
             return out_uri, True, "skipped_exists"
+        
         # optional sanitize
         src_uri = in_uri
         if sanitize:
@@ -324,9 +337,32 @@ def _reprocess_worker(t: Tuple[str, str, str, int, Optional[str], bool, bool, st
                 src_uri = fixed_uri
             except Exception as se:
                 return out_uri, False, f"sanitize_error: {se}"
+        
+        # Convert to parquet
         convert_rejects_to_parquet(src_uri, out_uri, duckdb_threads, tmp_dir, proceed_on_errors, logger)
+        
         if not s3_exists(out_bucket, out_key):
             return out_uri, False, "post_write_missing"
+        
+        # Cleanup source files after successful conversion (idempotent)
+        if cleanup_source:
+            try:
+                # Clean up original input file
+                in_bucket, in_key = _parse_s3_uri(in_uri)
+                if s3_exists(in_bucket, in_key):
+                    s3_client.delete_object(Bucket=in_bucket, Key=in_key)
+                    logger.info(f"Cleaned up source: {in_uri}")
+                
+                # Clean up sanitized file if it was created
+                if fixed_uri and fixed_uri != in_uri:
+                    fixed_bucket, fixed_key = _parse_s3_uri(fixed_uri)
+                    if s3_exists(fixed_bucket, fixed_key):
+                        s3_client.delete_object(Bucket=fixed_bucket, Key=fixed_key)
+                        logger.info(f"Cleaned up sanitized file: {fixed_uri}")
+            except Exception as cleanup_err:
+                logger.warning(f"Could not clean up source files: {cleanup_err}")
+                # Don't fail the conversion if cleanup fails
+        
         return out_uri, True, "converted"
     except Exception as e:
         return out_uri, False, f"error: {e}"
@@ -342,6 +378,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--tmp-dir", default=None)
     ap.add_argument("--proceed-on-errors", action="store_true")
     ap.add_argument("--sanitize", action="store_true", help="Auto-fix rejects using known headers; track unfixable lines to _rejects2")
+    ap.add_argument("--cleanup-source", action="store_true", default=True, help="Delete source files after successful conversion (default: True, makes idempotent)")
+    ap.add_argument("--no-cleanup-source", dest="cleanup_source", action="store_false", help="Keep source files after conversion")
     ap.add_argument("--aggregate-root", default="s3://pgxdatalake/pgx_pipeline/", help="S3 root for aggregated run summaries (for BI)")
 
     args = ap.parse_args(argv)
@@ -354,7 +392,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         log_buffer = []
 
     try:
-        logger.info("🚀 Reprocessing corrected rejects → Parquet parts")
+        logger.info("🚀 Reprocessing corrected rejects → Parquet parts (in part_files folder)")
+        logger.info(f"Cleanup source files: {args.cleanup_source}")
         run_started = time.time()
         agg = {"tx": "repro", "run_id": run_id, "start_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "appended": 0, "skipped": 0, "errors": 0}
         # Optional pipeline state
@@ -378,16 +417,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                     kw = {"Bucket": fixed_bucket, "Prefix": prefix}
                     if token:
                         kw["ContinuationToken"] = token
-                    resp = s3.list_objects_v2(**kw)
+                    resp = s3_client.list_objects_v2(**kw)
                     for obj in resp.get("Contents", []):
                         key = obj["Key"]
                         if key.lower().endswith(".txt"):
                             base = os.path.basename(key)
                             name, _ = os.path.splitext(base)
                             # Append part name based on ETag for idempotency
+                            # Write to part_files folder to keep bronze clean
                             et = get_etag(fixed_bucket, key)[:8] or run_id
                             out_bucket, out_root = _parse_s3_uri(args.bronze_root)
-                            out_key = f"{out_root.rstrip('/')}/{ds}/{name}.part_{et}.parquet" if out_root else f"{ds}/{name}.part_{et}.parquet"
+                            out_key = f"{out_root.rstrip('/')}/{ds}/part_files/{name}.part_{et}.parquet" if out_root else f"{ds}/part_files/{name}.part_{et}.parquet"
                             in_uri = f"s3://{fixed_bucket}/{key}"
                             out_uri = f"s3://{out_bucket}/{out_key}"
                             tasks.append((in_uri, out_uri, ds))
@@ -407,7 +447,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                         name, _ = os.path.splitext(base)
                     et = get_etag(in_bucket, in_key)[:8] or run_id
                     out_bucket, out_root = _parse_s3_uri(args.bronze_root)
-                    out_key = f"{out_root.rstrip('/')}/{ds}/{name}.part_{et}.parquet" if out_root else f"{ds}/{name}.part_{et}.parquet"
+                    # Write to part_files folder to keep bronze clean
+                    out_key = f"{out_root.rstrip('/')}/{ds}/part_files/{name}.part_{et}.parquet" if out_root else f"{ds}/part_files/{name}.part_{et}.parquet"
                     out_uri = f"s3://{out_bucket}/{out_key}"
                     tasks.append((rej, out_uri, ds))
 
@@ -422,7 +463,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             logger.info(f"Starting parallel reprocess with {args.workers} workers…")
             # Build worker args to avoid capturing non-picklable closures
             worker_args = [
-                (in_uri, out_uri, ds, args.duckdb_threads, args.tmp_dir, args.proceed_on_errors, args.sanitize, args.bronze_root)
+                (in_uri, out_uri, ds, args.duckdb_threads, args.tmp_dir, args.proceed_on_errors, args.sanitize, args.bronze_root, args.cleanup_source)
                 for (in_uri, out_uri, ds) in tasks
             ]
             with cf.ProcessPoolExecutor(max_workers=args.workers) as ex:
@@ -449,6 +490,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                         agg["skipped"] += 1
                         continue
                     src_uri = in_uri
+                    fixed_uri = None
                     if args.sanitize:
                         try:
                             fixed_uri, bad2_uri, st = _sanitize_rejects_to_s3(in_uri, ds, args.bronze_root, logger)
@@ -463,6 +505,25 @@ def main(argv: Optional[List[str]] = None) -> int:
                         logger.error(f"post_write_missing: {out_uri}")
                         agg["errors"] += 1
                         continue
+                    
+                    # Cleanup source files after successful conversion (idempotent)
+                    if args.cleanup_source:
+                        try:
+                            in_bucket, in_key = _parse_s3_uri(in_uri)
+                            if s3_exists(in_bucket, in_key):
+                                s3_client.delete_object(Bucket=in_bucket, Key=in_key)
+                                logger.info(f"Cleaned up source: {in_uri}")
+                            
+                            # Clean up sanitized file if it was created
+                            if fixed_uri and fixed_uri != in_uri:
+                                fixed_bucket, fixed_key = _parse_s3_uri(fixed_uri)
+                                if s3_exists(fixed_bucket, fixed_key):
+                                    s3_client.delete_object(Bucket=fixed_bucket, Key=fixed_key)
+                                    logger.info(f"Cleaned up sanitized file: {fixed_uri}")
+                        except Exception as cleanup_err:
+                            logger.warning(f"Could not clean up source files: {cleanup_err}")
+                            # Don't fail the conversion if cleanup fails
+                    
                     logger.info(f"✓ {out_uri}")
                     processed += 1
                     agg["appended"] += 1

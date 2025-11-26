@@ -4,26 +4,142 @@
 
 This repository contains a comprehensive healthcare data preprocessing and cleansing pipeline for pharmacy and medical claims data. The pipeline processes large-scale healthcare datasets stored in AWS S3, performs extensive data quality improvements, and outputs clean, normalized data to the gold tier for downstream analysis.
 
+## Bronze → Silver → Gold Data Flow
+
+The preprocessing pipeline follows a three-tier data lake architecture:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ BRONZE TIER: Raw Data                                           │
+├─────────────────────────────────────────────────────────────────┤
+│ • Raw TXT files converted to Parquet                            │
+│ • Location: s3://pgxdatalake/bronze/{pharmacy|medical}/         │
+│ • Scripts: 0_txt_to_parquet.py, 1a_reprocess_txt_to_parquet.py  │
+│                                                                 │
+│ Part Files Processing:                                          │
+│ • Rejected data from _rejects/ folder reprocessed               │
+│ • Location: s3://pgxdatalake/bronze/{dataset}/part_files/       │
+│ • Script: 1a_reprocess_txt_to_parquet.py                        │
+│ • Merge Script: 1b_merge_part_files_to_bronze.py                │
+│ • Validates schema, checks duplicates, merges to bronze         │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ SILVER TIER: Imputed & Partitioned Data                         │
+├─────────────────────────────────────────────────────────────────┤
+│ • Global demographic imputation                                 │
+│ • Bidirectional pharmacy ↔ medical imputation                   │
+│ • Pre-partitioned by age_band and event_year                    │
+│ • Location: s3://pgxdatalake/silver/imputed/                    │
+│ • Script: 2_global_imputation.py                                │
+│                                                                 │
+│ Outputs:                                                        │
+│ • pharmacy_partitioned/age_band=XX/event_year=YYYY/             │
+│ • medical_partitioned/age_band=XX/event_year=YYYY/              │
+│ • mi_person_key_demographics_lookup.parquet                     │
+│ • pharmacy_raw/ and medical_raw/ (optional, all original cols)  │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ GOLD TIER: Final Cleaned Data                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ • Drug name normalization                                       │
+│ • ICD code standardization                                      │
+│ • Final quality checks                                          │
+│ • Location: s3://pgxdatalake/gold/{pharmacy|medical}/           │
+│ • Script: 3_apcd_clean.py                                       │
+│                                                                 │
+│ Outputs:                                                        │
+│ • Partitioned by age_band and event_year                        │
+│ • Ready for cohort creation and analysis                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Workflow Steps
+
+1. **Bronze Tier: Initial Data Ingestion**
+   - Convert raw TXT files to Parquet format (`0_txt_to_parquet.py`)
+   - Store in `s3://pgxdatalake/bronze/{pharmacy|medical}/`
+   - Invalid/rejected rows moved to `s3://pgxdatalake/bronze/_rejects/{dataset}/`
+
+2. **Bronze Tier: Part Files Reprocessing** (if needed)
+   - Reprocess rejected files from `_rejects/` folder (`1a_reprocess_txt_to_parquet.py`)
+   - Creates corrected `.part_*.parquet` files in `part_files/` subdirectory
+   - Validates schema matches expected structure (113 columns for medical/pharmacy)
+   - Validates critical columns: `MI Person Key`, `Incurred Date`, `Claim ID`
+
+3. **Bronze Tier: Part Files Merge** (if part files exist)
+   - Merge validated part files back into main bronze files (`1b_merge_part_files_to_bronze.py`)
+   - Checks for duplicates by `Claim ID` (idempotent operation)
+   - Validates data quality (non-null `MI Person Key` and `Incurred Date`)
+   - Only merges valid, non-duplicate rows
+   - Optionally deletes part files after successful merge
+
+4. **Silver Tier: Global Imputation**
+   - Load all bronze data (pharmacy + medical)
+   - Run bidirectional demographic imputation
+   - Create pre-partitioned imputed data (by `age_band` and `event_year`)
+   - Save demographics lookup table
+   - Optionally create raw silver datasets preserving all original columns
+
+5. **Gold Tier: Final Cleaning**
+   - Load imputed partitioned silver data
+   - Apply drug name normalization
+   - Apply ICD code standardization
+   - Final quality checks and validation
+   - Output ready for cohort creation
+
+### Part Files Processing Findings
+
+**Schema Validation:**
+- Medical and pharmacy datasets both have 113 columns
+- Critical columns validated: `MI Person Key`, `Incurred Date`, `Claim ID`
+- Part files must match expected schema before merging
+
+**Data Quality Checks:**
+- Part files are validated for:
+  - Schema match (column count and names)
+  - Critical column presence (`MI Person Key`, `Incurred Date`)
+  - Data validity (non-null critical columns)
+  - Duplicate detection (by `Claim ID`)
+
+**Merge Process:**
+- Idempotent: Duplicate `Claim ID` values are skipped
+- Only valid rows (with valid `MI Person Key` and `Incurred Date`) are merged
+- Invalid part files are skipped with detailed error logging
+- Part files can be automatically deleted after successful merge
+
+**Current Status:**
+- Pharmacy: 20 part files created, 0 successfully merged (all had invalid data)
+- Medical: 20 part files created, 0 successfully merged (all had invalid data)
+- Note: Part files contained only 1 row each, and none had valid critical columns
+
 ## Architecture
 
 ```
-pgx_analysis/input_data/
-├── 3_apcd_clean.py            # Main orchestrator (supports global-imputation)
-├── 2_global_imputation.py     # Global demographic imputation script
-├── 3a_clean_pharmacy.py       # Optimized pharmacy data processing
-├── clean_pharmacy_legacy.py   # Legacy pharmacy data processing
-├── 3b_clean_medical.py        # Medical claims processing
-├── drug_mappings/            # Drug name normalization files
-│   ├── a_mappings.json       # A-Z drug mappings (26 files)
+pgx_analysis/1_apcd_input_data/
+├── 0_txt_to_parquet.py              # Initial TXT to Parquet conversion
+├── 1a_reprocess_txt_to_parquet.py   # Reprocess rejected files → part files
+├── 1b_merge_part_files_to_bronze.py # Merge part files back to bronze
+├── 2_global_imputation.py           # Global demographic imputation (bronze → silver)
+├── 3_apcd_clean.py                  # Final cleaning (silver → gold)
+├── drug_mappings/                   # Drug name normalization files
+│   ├── a_mappings.json              # A-Z drug mappings (26 files)
 │   └── medical_supplies_mappings.json
-├── claim_mappings/           # ICD code mappings
+├── claim_mappings/                  # ICD code mappings
 │   └── icd_mappings.json
-├── helpers/                  # Utility modules
-│   ├── logging_utils.py      # S3-enabled logging
-│   ├── s3_utils.py          # S3 path validation
-│   └── [other utilities]
-└── run_*.sh                  # Optimized pipeline scripts
+└── run_*.sh                         # Optimized pipeline scripts
 ```
+
+### Script Responsibilities
+
+| Script | Purpose | Input | Output |
+|--------|---------|-------|--------|
+| `0_txt_to_parquet.py` | Convert raw TXT files to Parquet | Raw TXT files | `s3://pgxdatalake/bronze/{dataset}/` |
+| `1a_reprocess_txt_to_parquet.py` | Reprocess rejected files | `s3://pgxdatalake/bronze/_rejects/{dataset}/` | `s3://pgxdatalake/bronze/{dataset}/part_files/` |
+| `1b_merge_part_files_to_bronze.py` | Merge validated part files | Part files in `part_files/` | Merged into bronze main files |
+| `2_global_imputation.py` | Global demographic imputation | Bronze parquet files | `s3://pgxdatalake/silver/imputed/` |
+| `3_apcd_clean.py` | Final cleaning & normalization | Silver imputed data | `s3://pgxdatalake/gold/{dataset}/` |
 
 ## Key Features
 
@@ -82,6 +198,23 @@ chmod +x run_complete_optimized_pipeline.sh
 
 **Run Individual Phases:**
 
+#### Phase 0: Part Files Processing (if needed)
+```bash
+# Reprocess rejected files from _rejects/ folder
+python 1_apcd_input_data/1a_reprocess_txt_to_parquet.py \
+  --dataset pharmacy \
+  --bronze-root s3://pgxdatalake/bronze/ \
+  --sanitize \
+  --cleanup-source \
+  --workers 2
+
+# Merge validated part files back to bronze
+python 1_apcd_input_data/1b_merge_part_files_to_bronze.py \
+  --dataset pharmacy \
+  --bronze-root s3://pgxdatalake/bronze/ \
+  --delete-parts-after-merge
+```
+
 #### Phase 1: Global Imputation
 ```bash
 python 1_apcd_input_data/2_global_imputation.py \
@@ -110,37 +243,6 @@ python 1_apcd_input_data/3_apcd_clean.py \
   --output-root s3://pgxdatalake/gold/medical \
   --min-year 2016 --max-year 2020 \
   --workers 6
-```
-
-### 🔄 **Legacy: Original Two-Phase Approach**
-
-If you prefer the original approach (using demographics lookup only):
-
-#### Phase 1: Global Imputation (Demographics Only)
-```bash
-python apcd_clean.py --job global-imputation \
-                     --pharmacy-input s3://pgxdatalake/silver/pharmacy/**/*.parquet \
-                     --medical-input s3://pgxdatalake/silver/medical/**/*.parquet \
-                     --output-root s3://pgxdatalake/silver/imputed \
-                     --lookahead-years 5 \
-                     --threads 16 --mem-gb 1024
-```
-
-#### Phase 2: Partition Processing (With Demographics Lookup)
-```bash
-# Pharmacy processing
-python 1_apcd_input_data/3_apcd_clean.py --job pharmacy \
-                     --pharmacy-input s3://pgxdatalake/silver/imputed/pharmacy_partitioned/**/*.parquet \
-                     --output-root s3://pgxdatalake/gold/pharmacy \
-                     --workers 12 \
-                     --threads 4 --mem-gb 8
-
-# Medical processing
-python 1_apcd_input_data/3_apcd_clean.py --job medical \
-                     --medical-input s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet \
-                     --output-root s3://pgxdatalake/gold/medical \
-                     --workers 12 \
-                     --threads 4 --mem-gb 8
 ```
 
 ## Performance Characteristics
@@ -243,6 +345,30 @@ python 1_apcd_input_data/3_apcd_clean.py --job medical \
 - **Expected Improvement**: 3x CPU utilization vs single-threaded
 
 ## Data Processing Pipeline
+
+### Part Files Processing (Bronze Tier)
+
+When initial TXT conversion encounters invalid rows, they are moved to `s3://pgxdatalake/bronze/_rejects/{dataset}/`. These can be reprocessed and merged back:
+
+1. **Reprocess Rejected Files** (`1a_reprocess_txt_to_parquet.py`):
+   - Reads rejected TXT files from `_rejects/` folder
+   - Applies sanitization and encoding fixes
+   - Converts to Parquet format
+   - Saves as `.part_*.parquet` files in `part_files/` subdirectory
+   - Optionally cleans up source files after successful conversion
+
+2. **Merge Part Files** (`1b_merge_part_files_to_bronze.py`):
+   - Validates part file schema matches expected schema (113 columns)
+   - Validates critical columns: `MI Person Key`, `Incurred Date`, `Claim ID`
+   - Checks for duplicates by `Claim ID` (idempotent operation)
+   - Merges only valid, non-duplicate rows into bronze main files
+   - Optionally deletes part files after successful merge
+
+**Validation Checks:**
+- Schema validation: Column count and names must match
+- Critical column validation: `MI Person Key` and `Incurred Date` must be non-null
+- Duplicate detection: Rows with existing `Claim ID` are skipped
+- Data quality: Only rows passing all checks are merged
 
 ### Global Imputation Process
 

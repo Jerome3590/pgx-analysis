@@ -10,6 +10,10 @@
 
 1. [Overview](#overview)
 2. [Quick Start](#quick-start)
+   - [Local Testing](#local-testing-5-splits-5-minutes)
+   - [Production Run](#production-run-100-splits-1-2-hours-on-ec2)
+   - [Parallel Execution](#parallel-execution-default)
+   - [Single Cohort Execution](#single-cohort-execution-optional)
 3. [Methodology](#methodology)
 4. [Aggregation Method](#aggregation-method)
 5. [Output Files](#output-files)
@@ -64,6 +68,75 @@ N_SPLITS <- 100  # or 1000 for publication
 # - x2iedn.8xlarge (32 cores, 1TB RAM)
 # - Data in /mnt/nvme/cohorts/
 # - Auto-shutdown enabled
+```
+
+### Parallel Execution (Default)
+
+The notebook (Cell 5) runs all combinations defined in `COHORT_NAMES` × `AGE_BANDS` in parallel. Each task processes one cohort/age-band combination using the `run_cohort_analysis()` function.
+
+**Configuration:**
+- Automatically handles multiple cohorts and age-bands
+- Idempotent: Skips already-processed combinations (checks local files and S3)
+- Nested parallelism: Optimizes worker allocation between task-level and MC-CV level
+- Cross-age-band aggregation: Only runs when all combinations are complete
+
+### Single Cohort Execution (Optional)
+
+If you want to run a single cohort/age-band combination instead of parallel execution, you can call `run_cohort_analysis()` directly after sourcing the helper functions:
+
+```r
+# Source helper functions first (from Cell 2)
+source(file.path(helpers_dir, "constants.R"))
+source(file.path(helpers_dir, "logging_utils.R"))
+source(file.path(helpers_dir, "metrics.R"))
+source(file.path(helpers_dir, "model_helpers.R"))
+source(file.path(helpers_dir, "mc_cv_helpers.R"))
+source(file.path(helpers_dir, "run_cohort_analysis.R"))
+
+# Set configuration (from Cell 3)
+DEBUG_MODE <- FALSE
+N_SPLITS <- 200
+TEST_SIZE <- 0.2
+TRAIN_PROP <- 1 - TEST_SIZE
+SCALING_METRIC <- "recall"
+N_WORKERS <- 30  # Adjust based on available cores
+
+MODEL_PARAMS <- list(
+  catboost = list(
+    iterations = 100,
+    learning_rate = 0.1,
+    depth = 6,
+    verbose = 0L,
+    random_seed = 42
+  ),
+  random_forest = list(
+    ntree = 100,
+    mtry = NULL,
+    nodesize = 1,
+    maxnodes = NULL
+  )
+)
+
+# Run single cohort/age-band analysis
+result <- run_cohort_analysis(
+  cohort_name = "opioid_ed",
+  age_band = "25-44",
+  event_year = 2016,
+  n_splits = N_SPLITS,
+  train_prop = TRAIN_PROP,
+  n_workers = N_WORKERS,
+  scaling_metric = SCALING_METRIC,
+  model_params = MODEL_PARAMS,
+  debug_mode = DEBUG_MODE
+)
+
+# Check results
+if (result$status == "success") {
+  cat(sprintf("✓ Analysis complete. Features: %d\n", nrow(result$aggregated)))
+  cat(sprintf("Output file: %s\n", result$output_file))
+} else {
+  cat(sprintf("✗ Analysis failed: %s\n", result$error))
+}
 ```
 
 ### Command Line (Python equivalent - future)

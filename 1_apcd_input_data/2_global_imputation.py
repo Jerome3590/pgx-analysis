@@ -97,26 +97,26 @@ def log_data_loss(step_name: str, before_count: int, after_count: int, logger,
     else:
         logger.info(f"📊 {step_name}: {before_count:,} → {after_count:,} rows ({lost_count:,} lost, {loss_pct:.1f}%)")
 
-def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: str, 
-                         lookahead_years: int, tmp_dir: str, logger, log_buffer, 
-                         create_demographics_lookup: bool = True):
-    """Run global demographic imputation across all data"""
+def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_root: str,
+                               duckdb_conn, logger, log_buffer):
+    """Create raw silver datasets preserving ALL original columns from bronze."""
     
-    logger.info("🚀 Starting Global Demographic Imputation")
-    logger.info("🔧 Using Version 1997 + 12 - Global Imputation (DuckDB Lessons Learned Applied)")
     logger.info("=" * 80)
-
-    # Build proper silver paths
-    silver_paths = get_silver_imputed_paths(output_root)
-    logger.info(f"📁 Silver imputed paths:")
-    logger.info(f"   • Base path: {silver_paths['base_path']}")
-    logger.info(f"   • mi_person_key demographics lookup: {silver_paths['demographics_lookup']}")
-
-    # Check if imputed partitioned data already exists (more important than demographics lookup)
-    pharmacy_partitioned_path = f"{silver_paths['base_path']}/pharmacy_partitioned"
-    medical_partitioned_path = f"{silver_paths['base_path']}/medical_partitioned"
+    logger.info("CREATING RAW SILVER DATASETS (All Original Columns)")
+    logger.info("=" * 80)
     
-    # Check if both partitioned datasets exist
+    # Determine raw silver paths
+    raw_base = output_root.replace("/imputed", "").replace("/silver", "/silver")
+    if not raw_base.endswith("/silver"):
+        raw_base = f"{raw_base}/silver" if not raw_base.endswith("/") else f"{raw_base}silver"
+    
+    pharmacy_raw_path = f"{raw_base}/pharmacy_raw"
+    medical_raw_path = f"{raw_base}/medical_raw"
+    
+    logger.info(f"Pharmacy raw output: {pharmacy_raw_path}")
+    logger.info(f"Medical raw output: {medical_raw_path}")
+    
+    # Check if raw silver datasets already exist (idempotency)
     from urllib.parse import urlparse
     import subprocess
     
@@ -131,6 +131,264 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
         else:
             return os.path.exists(s3_path)
     
+    pharmacy_raw_exists = check_s3_path_exists(pharmacy_raw_path)
+    medical_raw_exists = check_s3_path_exists(medical_raw_path)
+    
+    # Check what needs to be created (idempotent - only create missing datasets)
+    if pharmacy_raw_exists and medical_raw_exists:
+        logger.info(f"✅ Raw silver datasets already exist:")
+        logger.info(f"   • Pharmacy: {pharmacy_raw_path}")
+        logger.info(f"   • Medical: {medical_raw_path}")
+        logger.info(f"   Skipping raw silver dataset creation (idempotent).")
+        return {
+            "pharmacy_raw_path": pharmacy_raw_path,
+            "medical_raw_path": medical_raw_path,
+            "pharmacy_raw_count": None,  # Not counted if skipped
+            "medical_raw_count": None,
+            "skipped": True
+        }
+    
+    # Determine what needs to be created
+    create_pharmacy = not pharmacy_raw_exists
+    create_medical = not medical_raw_exists
+    
+    if create_pharmacy:
+        logger.info(f"📊 Will create: {pharmacy_raw_path}")
+    else:
+        logger.info(f"✅ Already exists (skipping): {pharmacy_raw_path}")
+    
+    if create_medical:
+        logger.info(f"📊 Will create: {medical_raw_path}")
+    else:
+        logger.info(f"✅ Already exists (skipping): {medical_raw_path}")
+    
+    # Create raw pharmacy with all original columns (only if missing)
+    pharmacy_raw_count = None
+    if create_pharmacy:
+        logger.info("Creating raw pharmacy dataset with all original columns...")
+        # Explicitly list all columns from pharmacy_head.txt to ensure correct column names
+        # This prevents DuckDB from inferring column names from data values
+        duckdb_conn.sql(f"""
+            CREATE OR REPLACE VIEW pharmacy_raw_with_partitions AS
+            SELECT 
+                "Incurred Date",
+                "Claim ID",
+                "MI Person Key",
+                "Payer LOB",
+                "Payer Type",
+                "Claim Status",
+                "Primary Insurance Flag",
+                "Member Zip Code DOS",
+                "Member County DOS",
+                "Member State ENROLL",
+                "Member Age DOS",
+                "Member Age Band DOS",
+                "ADULT_FLAG",
+                "Member Gender",
+                "Member Race",
+                "Hispanic Indicator",
+                "HCG Setting",
+                "HCG Line",
+                "HCG Detail",
+                "Therapeutic Class 1",
+                "Therapeutic Class 2",
+                "Therapeutic Class 3",
+                "NDC",
+                "Drug Code",
+                "Drug Name",
+                "GPI",
+                "GPI Generic Name",
+                "Manufacturer",
+                "Strength",
+                "Dosage Form",
+                "Billing Provider NPI",
+                "Billing Provider Specialty",
+                "Billing Provider ZIP",
+                "Billing Provider County",
+                "Billing Provider State",
+                "Billing Provider MSA",
+                "Billing Provider Taxonomy",
+                "Billing Provider TIN",
+                "Service Provider Name",
+                "Service Provider NPI",
+                "Service Provider Specialty",
+                "Service Provider ZIP",
+                "Service Provider County",
+                "Service Provider State",
+                "Service Provider MSA",
+                "Service Provider Taxonomy",
+                "Service Provider TIN",
+                "Total Allowed",
+                "Total Utilization",
+                "Total RX Paid",
+                "Total RX Days Supply",
+                -- Derive age_band from Member Age DOS
+                CASE
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 0  AND 12  THEN '0-12'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 13 AND 24  THEN '13-24'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 25 AND 44  THEN '25-44'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 45 AND 54  THEN '45-54'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    ELSE 'Other'
+                END AS age_band,
+                -- Derive event_year from Incurred Date
+                TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d')) AS INTEGER) AS event_year
+            FROM (
+                SELECT * EXCLUDE (filename)
+                FROM read_parquet('{pharmacy_input}', union_by_name=true, filename=true)
+                WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+            )
+            WHERE "MI Person Key" IS NOT NULL
+              AND "Incurred Date" IS NOT NULL
+              AND regexp_matches(CAST("Incurred Date" AS VARCHAR), '^[0-9]{{8}}$')
+              AND TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d') IS NOT NULL
+              AND TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d')) AS INTEGER) BETWEEN 2016 AND 2020
+        """)
+        
+        pharmacy_raw_count = duckdb_conn.sql("SELECT COUNT(*) FROM pharmacy_raw_with_partitions").fetchone()[0]
+        logger.info(f"Pharmacy raw records: {pharmacy_raw_count:,}")
+        
+        # Write partitioned parquet (exclude partition columns from data to avoid Glue duplicates)
+        logger.info(f"Writing partitioned pharmacy raw data to: {pharmacy_raw_path}")
+        duckdb_conn.sql(f"""
+            COPY pharmacy_raw_with_partitions
+            TO '{pharmacy_raw_path}'
+            (FORMAT PARQUET, 
+            PARTITION_BY (age_band, event_year), 
+            WRITE_PARTITION_COLUMNS FALSE,
+            OVERWRITE_OR_IGNORE true)
+        """)
+        logger.info("✅ Pharmacy raw dataset created successfully")
+    else:
+        logger.info("⏭️ Skipping pharmacy raw dataset (already exists)")
+    
+    # Create raw medical with all original columns (only if missing)
+    medical_raw_count = None
+    if create_medical:
+        logger.info("Creating raw medical dataset with all original columns...")
+        duckdb_conn.sql(f"""
+            CREATE OR REPLACE VIEW medical_raw_with_partitions AS
+            SELECT 
+                *,
+                -- Derive age_band from Member Age DOS
+                CASE
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 0  AND 12  THEN '0-12'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 13 AND 24  THEN '13-24'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 25 AND 44  THEN '25-44'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 45 AND 54  THEN '45-54'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    ELSE 'Other'
+                END AS age_band,
+                -- Derive event_year from Incurred Date
+                TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d')) AS INTEGER) AS event_year
+            FROM (
+                SELECT * EXCLUDE (filename)
+                FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+                WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+            )
+            WHERE "MI Person Key" IS NOT NULL
+              AND "Incurred Date" IS NOT NULL
+              AND regexp_matches(CAST("Incurred Date" AS VARCHAR), '^[0-9]{{8}}$')
+              AND TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d') IS NOT NULL
+              AND TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d')) AS INTEGER) BETWEEN 2016 AND 2020
+        """)
+        
+        medical_raw_count = duckdb_conn.sql("SELECT COUNT(*) FROM medical_raw_with_partitions").fetchone()[0]
+        logger.info(f"Medical raw records: {medical_raw_count:,}")
+        
+        # Write partitioned parquet (exclude partition columns from data to avoid Glue duplicates)
+        logger.info(f"Writing partitioned medical raw data to: {medical_raw_path}")
+        duckdb_conn.sql(f"""
+            COPY medical_raw_with_partitions
+            TO '{medical_raw_path}'
+            (FORMAT PARQUET, 
+            PARTITION_BY (age_band, event_year), 
+            WRITE_PARTITION_COLUMNS FALSE,
+            OVERWRITE_OR_IGNORE true)
+        """)
+        logger.info("✅ Medical raw dataset created successfully")
+    else:
+        logger.info("⏭️ Skipping medical raw dataset (already exists)")
+    
+    logger.info("=" * 80)
+    logger.info("RAW SILVER DATASETS CREATION COMPLETE")
+    logger.info("=" * 80)
+    if pharmacy_raw_count is not None:
+        logger.info(f"Pharmacy raw: {pharmacy_raw_path} ({pharmacy_raw_count:,} records)")
+    else:
+        logger.info(f"Pharmacy raw: {pharmacy_raw_path} (skipped - already exists)")
+    
+    if medical_raw_count is not None:
+        logger.info(f"Medical raw: {medical_raw_path} ({medical_raw_count:,} records)")
+    else:
+        logger.info(f"Medical raw: {medical_raw_path} (skipped - already exists)")
+    
+    return {
+        "pharmacy_raw_path": pharmacy_raw_path,
+        "medical_raw_path": medical_raw_path,
+        "pharmacy_raw_count": pharmacy_raw_count,
+        "medical_raw_count": medical_raw_count,
+        "skipped": not create_pharmacy and not create_medical  # True if both were skipped
+    }
+
+def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: str, 
+                         lookahead_years: int, tmp_dir: str, logger, log_buffer, 
+                         create_demographics_lookup: bool = True, create_raw_silver: bool = False):
+    """Run global demographic imputation across all data"""
+    
+    logger.info("🚀 Starting Global Demographic Imputation")
+    logger.info("🔧 Using Version 1997 + 12 - Global Imputation (DuckDB Lessons Learned Applied)")
+    logger.info("=" * 80)
+
+    # Build proper silver paths
+    silver_paths = get_silver_imputed_paths(output_root)
+    logger.info(f"📁 Silver imputed paths:")
+    logger.info(f"   • Base path: {silver_paths['base_path']}")
+    logger.info(f"   • mi_person_key demographics lookup: {silver_paths['demographics_lookup']}")
+
+    # Initialize helper function for checking S3 paths
+    from urllib.parse import urlparse
+    import subprocess
+    
+    def check_s3_path_exists(s3_path):
+        if s3_path.startswith('s3://'):
+            parsed = urlparse(s3_path)
+            bucket = parsed.netloc
+            key = parsed.path.lstrip('/')
+            check_cmd = ["aws", "s3", "ls", f"s3://{bucket}/{key}/"]
+            result = subprocess.run(check_cmd, capture_output=True, text=True)
+            return result.returncode == 0
+        else:
+            return os.path.exists(s3_path)
+    
+    # Step 0: Create raw silver datasets if requested (preserves all original columns)
+    # This runs independently of partitioned data existence - force creation if requested
+    raw_results = None
+    if create_raw_silver:
+        logger.info("=" * 80)
+        logger.info("STEP 0: Creating Raw Silver Datasets")
+        logger.info("=" * 80)
+        logger.info("Note: Raw silver creation is independent of partitioned data existence")
+        
+        # Initialize DuckDB early for raw silver creation
+        duckdb_conn = init_duckdb(tmp_dir, logger=logger)
+        save_logs_checkpoint(log_buffer, "global_imputation", "global", "all", "step0a_raw_silver_started", logger=logger)
+        raw_results = create_raw_silver_datasets(pharmacy_input, medical_input, output_root, duckdb_conn, logger, log_buffer)
+        save_logs_checkpoint(log_buffer, "global_imputation", "global", "all", "step0b_raw_silver_complete", logger=logger)
+        logger.info("✅ Raw silver datasets creation complete")
+    
+    # Check if imputed partitioned data already exists (more important than demographics lookup)
+    pharmacy_partitioned_path = f"{silver_paths['base_path']}/pharmacy_partitioned"
+    medical_partitioned_path = f"{silver_paths['base_path']}/medical_partitioned"
+    
     pharmacy_exists = check_s3_path_exists(pharmacy_partitioned_path)
     medical_exists = check_s3_path_exists(medical_partitioned_path)
     
@@ -138,6 +396,11 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
         logger.info(f"✅ Imputed partitioned data already exists:")
         logger.info(f"   • Pharmacy: {pharmacy_partitioned_path}")
         logger.info(f"   • Medical: {medical_partitioned_path}")
+        
+        # If we only wanted to create raw silver, we're done
+        if create_raw_silver and not create_demographics_lookup:
+            logger.info(f"📊 Raw silver creation complete. Partitioned data already exists. Exiting.")
+            return
         
         if create_demographics_lookup:
             # Check if demographics lookup exists
@@ -157,7 +420,8 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
         if not medical_exists:
             logger.info(f"   • Missing: {medical_partitioned_path}")
     
-    # Initialize DuckDB with simplified settings
+    # Initialize DuckDB with simplified settings (if not already initialized for raw silver)
+    if not create_raw_silver:
     duckdb_conn = init_duckdb(tmp_dir, logger=logger)
     
     # Save initial checkpoint
@@ -169,13 +433,23 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     initial_pharmacy_count = duckdb_conn.sql(f"SELECT COUNT(*) FROM read_parquet('{pharmacy_input}', union_by_name=true)").fetchone()[0]
     # Track rows with missing MI Person Key (to be dropped)
     pharmacy_missing_key = duckdb_conn.sql(
-        f"SELECT COUNT(*) FROM read_parquet('{pharmacy_input}', union_by_name=true) WHERE \"MI Person Key\" IS NULL"
+        f"""
+        SELECT COUNT(*) 
+        FROM read_parquet('{pharmacy_input}', union_by_name=true, filename=true)
+        WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+          AND "MI Person Key" IS NULL
+        """
     ).fetchone()[0]
     logger.info(f"🗑️ Pharmacy rows dropped (missing MI Person Key): {pharmacy_missing_key:,}")
     
     # Parquet preserves source column names; quote exact names. Count distinct present keys
     initial_pharmacy_patients = duckdb_conn.sql(
-        f"SELECT COUNT(DISTINCT \"MI Person Key\") FROM read_parquet('{pharmacy_input}', union_by_name=true) WHERE \"MI Person Key\" IS NOT NULL"
+        f"""
+        SELECT COUNT(DISTINCT "MI Person Key") 
+        FROM read_parquet('{pharmacy_input}', union_by_name=true, filename=true)
+        WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+          AND "MI Person Key" IS NOT NULL
+        """
     ).fetchone()[0]
     
     logger.info(f"📊 Initial pharmacy records: {initial_pharmacy_count:,}")
@@ -201,7 +475,11 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
             "Drug Name" AS drug_name,
             "Incurred Date" AS incurred_date,
             "Total Utilization" AS total_utilization
-        FROM read_parquet('{pharmacy_input}', union_by_name=true)
+        FROM (
+            SELECT * EXCLUDE (filename)
+            FROM read_parquet('{pharmacy_input}', union_by_name=true, filename=true)
+            WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+        )
         WHERE "MI Person Key" IS NOT NULL
           AND "Incurred Date" IS NOT NULL
           AND regexp_matches(CAST("Incurred Date" AS VARCHAR), '^[0-9]{{8}}$')
@@ -219,15 +497,30 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     # Step 2: Load and normalize medical data
     logger.info("📊 Step 2: Loading and normalizing medical data...")
     
-    initial_medical_count = duckdb_conn.sql(f"SELECT COUNT(*) FROM read_parquet('{medical_input}', union_by_name=true)").fetchone()[0]
+    # Filter out .part_*.parquet files which have incorrect schemas
+    initial_medical_count = duckdb_conn.sql(f"""
+        SELECT COUNT(*) 
+        FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+        WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+    """).fetchone()[0]
     # Track rows with missing MI Person Key (to be dropped)
     medical_missing_key = duckdb_conn.sql(
-        f"SELECT COUNT(*) FROM read_parquet('{medical_input}', union_by_name=true) WHERE \"MI Person Key\" IS NULL"
+        f"""
+        SELECT COUNT(*) 
+        FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+        WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+          AND "MI Person Key" IS NULL
+        """
     ).fetchone()[0]
     logger.info(f"🗑️ Medical rows dropped (missing MI Person Key): {medical_missing_key:,}")
     
     initial_medical_patients = duckdb_conn.sql(
-        f"SELECT COUNT(DISTINCT \"MI Person Key\") FROM read_parquet('{medical_input}', union_by_name=true) WHERE \"MI Person Key\" IS NOT NULL"
+        f"""
+        SELECT COUNT(DISTINCT "MI Person Key") 
+        FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+        WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+          AND "MI Person Key" IS NOT NULL
+        """
     ).fetchone()[0]
     
     logger.info(f"📊 Initial medical records: {initial_medical_count:,}")
@@ -238,7 +531,12 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     logger.info("🔍 Checking medical data schema...")
     try:
         # Get column names as they appear in the raw Parquet file
-        medical_columns = duckdb_conn.sql(f"DESCRIBE SELECT * FROM read_parquet('{medical_input}') LIMIT 1").fetchall()
+        medical_columns = duckdb_conn.sql(f"""
+            DESCRIBE SELECT * EXCLUDE (filename)
+            FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+            WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+            LIMIT 1
+        """).fetchall()
         logger.info(f"📊 Raw medical columns (Parquet metadata): {[col[0] for col in medical_columns]}")
         
         # Show how they'll appear after DuckDB processing (lowercase)
@@ -248,7 +546,12 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     
     # Detect available medical columns dynamically (like clean_medical.py)
     try:
-        src_columns_df = duckdb_conn.sql(f"SELECT * FROM read_parquet('{medical_input}') LIMIT 0").df()
+        src_columns_df = duckdb_conn.sql(f"""
+            SELECT * EXCLUDE (filename)
+            FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+            WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+            LIMIT 0
+        """).df()
         src_cols = set(src_columns_df.columns)
     except Exception:
         src_cols = set()
@@ -573,8 +876,10 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     pharmacy_partitioned_path = f"{silver_paths['base_path']}/pharmacy_partitioned"
     logger.info(f"📊 Saving imputed pharmacy data with partitions to: {pharmacy_partitioned_path}")
     
-    duckdb_conn.sql(f"""
-        COPY (
+    # Create view with partition columns - PARTITION_BY needs them, but WRITE_PARTITION_COLUMNS FALSE
+    # prevents them from being written as data columns (avoiding Glue schema duplicates)
+    duckdb_conn.sql("""
+        CREATE OR REPLACE VIEW pharmacy_partitioned_temp AS
             SELECT 
                 mi_person_key,
                 incurred_date,
@@ -612,7 +917,12 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
               AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
               AND TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')) AS INTEGER) BETWEEN 2016 AND 2020
               AND age_imputed IS NOT NULL
-        )
+    """)
+    
+    # Use view directly - WRITE_PARTITION_COLUMNS FALSE excludes partition columns from parquet data
+    # but PARTITION_BY can still access them from the view
+    duckdb_conn.sql(f"""
+        COPY pharmacy_partitioned_temp
         TO '{pharmacy_partitioned_path}'
         (FORMAT PARQUET, 
         PARTITION_BY (age_band, event_year), 
@@ -629,8 +939,10 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     medical_partitioned_path = f"{silver_paths['base_path']}/medical_partitioned"
     logger.info(f"📊 Saving imputed medical data with partitions to: {medical_partitioned_path}")
     
-    duckdb_conn.sql(f"""
-        COPY (
+    # Create view with partition columns - PARTITION_BY needs them, but WRITE_PARTITION_COLUMNS FALSE
+    # prevents them from being written as data columns (avoiding Glue schema duplicates)
+    duckdb_conn.sql("""
+        CREATE OR REPLACE VIEW medical_partitioned_temp AS
             SELECT 
                 mi_person_key,
                 claim_id,
@@ -721,7 +1033,12 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
               AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
               AND TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')) AS INTEGER) BETWEEN 2016 AND 2020
               AND age_imputed IS NOT NULL
-        )
+    """)
+    
+    # Use view directly - WRITE_PARTITION_COLUMNS FALSE excludes partition columns from parquet data
+    # but PARTITION_BY can still access them from the view
+    duckdb_conn.sql(f"""
+        COPY medical_partitioned_temp
         TO '{medical_partitioned_path}'
         (FORMAT PARQUET, 
         PARTITION_BY (age_band, event_year), 
@@ -892,12 +1209,22 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
         logger.info("📁 Silver mi_person_key demographics lookup: (skipped)")
     logger.info(f"📁 Silver base path: {silver_paths['base_path']}")
     
-    return {
+    result = {
         "demographics_output_path": demographics_output_path,
         "base_path": silver_paths["base_path"],
         "demographics_count": demographics_count,
         "demographics_patients": demographics_patients
     }
+    
+    # Add raw silver results if created
+    if raw_results:
+        result["raw_silver"] = raw_results
+        logger.info("")
+        logger.info("📁 Raw Silver Datasets Created:")
+        logger.info(f"   • Pharmacy raw: {raw_results['pharmacy_raw_path']} ({raw_results['pharmacy_raw_count']:,} records)")
+        logger.info(f"   • Medical raw: {raw_results['medical_raw_path']} ({raw_results['medical_raw_count']:,} records)")
+    
+    return result
 
 def main():
     parser = argparse.ArgumentParser(description="Global Demographic Imputation Preprocessing")
@@ -914,6 +1241,7 @@ def main():
     # Removed --threads and --mem-gb arguments - DuckDB auto-detects optimal settings
     parser.add_argument("--tmp-dir", help="Temporary directory for DuckDB")
     parser.add_argument("--no-demographics-lookup", action="store_true", help="Skip creating demographics lookup table (optimized mode)")
+    parser.add_argument("--create-raw-silver", action="store_true", help="Also create raw silver datasets with all original columns (pharmacy_raw, medical_raw)")
     parser.add_argument("--log-level", default="INFO", help="Logging level")
     parser.add_argument("--aggregate-root", default="s3://pgxdatalake/pgx_pipeline/", help="S3 root for aggregated run summaries (for BI)")
     
@@ -933,6 +1261,7 @@ def main():
     logger.info(f"📊 Medical input: {args.medical_input}")
     logger.info(f"📊 Output root: {args.output_root}")
     logger.info(f"📊 Lookahead years: {args.lookahead_years}")
+    logger.info(f"📊 Create raw silver: {args.create_raw_silver}")
 
     logger.info("📊 DuckDB will auto-detect optimal memory and thread settings")
     
@@ -945,7 +1274,8 @@ def main():
             args.tmp_dir,
             logger,
             log_buffer,
-            create_demographics_lookup=not args.no_demographics_lookup
+            create_demographics_lookup=not args.no_demographics_lookup,
+            create_raw_silver=args.create_raw_silver
         )
         if results is None:
             results = {}
