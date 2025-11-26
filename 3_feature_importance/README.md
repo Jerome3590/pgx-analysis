@@ -157,29 +157,29 @@ Rscript feature_importance_mc_cv.R \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. Load Cohort Data (parquet)                              │
-│    - Drugs, ICD codes, CPT codes                           │
-│    - Target: is_target_case (opioid dependence)            │
+│ 1. Load Cohort Data (parquet)                               │
+│    - Drugs, ICD codes, CPT codes                            │
+│    - Target: is_target_case (opioid dependence)             │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. Feature Engineering                                      │
-│    - Patient-level aggregation                             │
-│    - CatBoost: Categorical factors                         │
-│    - Random Forest: Binary 0/1                             │
+│    - Patient-level aggregation                              │
+│    - CatBoost: Categorical factors                          │
+│    - Random Forest: Binary 0/1                              │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. Monte Carlo Cross-Validation (100–1000 splits)          │
-│    ┌────────────────────┐  ┌────────────────────┐         │
-│    │   CatBoost         │  │  Random Forest     │         │
-│    │                    │  │                    │         │
-│    │  Per split:        │  │  Per split:        │         │
-│    │  - Train (80%)     │  │  - Train (80%)     │         │
-│    │  - Test (20%)      │  │  - Test (20%)      │         │
-│    │  - Recall          │  │  - Recall          │         │
-│    │  - Feature imp     │  │  - Feature imp     │         │
-│    └────────────────────┘  └────────────────────┘         │
+│ 3. Monte Carlo Cross-Validation (100–1000 splits)           │
+│    ┌────────────────────┐  ┌────────────────────┐           │
+│    │   CatBoost         │  │  Random Forest     │           │
+│    │                    │  │                    │           │
+│    │  Per split:        │  │  Per split:        │           │
+│    │  - Train (80%)     │  │  - Train (80%)     │           │
+│    │  - Test (20%)      │  │  - Test (20%)      │           │
+│    │  - Recall          │  │  - Recall          │           │
+│    │  - Feature imp     │  │  - Feature imp     │           │
+│    └────────────────────┘  └────────────────────┘           │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -289,7 +289,7 @@ For each feature in the union:
    - No manual weighting of models required
    - Performance-based scaling is automatic and objective
 
-#### ⚠️ Considerations
+#### Considerations
 
 1. **Summing Favors Overlap**
    - Features in both models will typically rank higher
@@ -561,68 +561,6 @@ head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
 - Use features ranked 100+ without inspection
 - Ignore model-specific features (n_models = 1)
 - Trust results without domain validation
-
----
-
-## Troubleshooting
-
-### Issue: "test_idx is empty after removing NAs"
-
-**Cause:** `rsample::mc_cv()` bug with NA targets
-
-**Fix:** Already implemented - NA targets removed before MC-CV. See `docs/RSAMPLE_BUG_WORKAROUND.md`
-
-### Issue: "future.globals.maxSize exceeded"
-
-**Cause:** Feature matrix too large for parallel processing
-
-**Fix:**
-```r
-options(future.globals.maxSize = 97 * 1024^3)  # 97 GB
-```
-
-### Issue: Low Recall values (<0.5)
-
-**Possible causes:**
-- Severe class imbalance
-- Features don't predict target well
-- Model hyperparameters need tuning
-
-**Actions:**
-- Check target distribution
-- Review feature engineering
-- Try different model parameters
-
-### Issue: No overlap between models (all n_models = 1)
-
-**Possible causes:**
-- Models finding different patterns (may be valid)
-- Different feature representations (CatBoost vs RF)
-- Very noisy data
-
-**Actions:**
-- Review per-model CSVs
-- Check if features make sense
-- Consider using only one model
-
-### Issue: OOM error during execution
-
-**Causes:**
-- Too many features
-- Too many workers
-- Insufficient RAM
-
-**Fixes:**
-```r
-# Reduce workers
-N_WORKERS <- 15  # instead of 30
-
-# Reduce splits for testing
-N_SPLITS <- 50  # instead of 100
-
-# Use larger instance
-# x2iedn.16xlarge (64 cores, 2TB RAM)
-```
 
 ---
 
