@@ -192,7 +192,7 @@ Rscript feature_importance_mc_cv.R \
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. Outputs                                                   │
+│ 5. Outputs                                                  │
 │    - Aggregated CSV (final rankings)                        │
 │    - Visualizations (4 plots)                               │
 │    - S3 upload                                              │
