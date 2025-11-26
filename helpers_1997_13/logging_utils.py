@@ -447,3 +447,106 @@ def stop_mp_logging(listener: QueueListener) -> None:
         pass
 
 
+# ============================================================================
+# Feature Importance Logging Utilities
+# ============================================================================
+
+def setup_r_logging(cohort_name: str, age_band: str, event_year: int) -> dict:
+    """
+    Setup logging for feature importance analysis (R-style API)
+    
+    Args:
+        cohort_name: Name of the cohort
+        age_band: Age band (e.g., "25-44")
+        event_year: Event year
+        
+    Returns:
+        Dictionary with 'logger' and 'log_file_path'
+    """
+    # Create log directory
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create log file name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_name = f"feature_importance_{cohort_name}_{age_band}_{event_year}_{timestamp}.log"
+    log_file_path = str(log_dir / log_file_name)
+    
+    # Create logger
+    logger_name = f"feature_importance_{cohort_name}_{age_band}_{event_year}"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers
+    logger.handlers.clear()
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+    
+    return {
+        'logger': logger,
+        'log_file_path': log_file_path
+    }
+
+
+def save_logs_to_s3_r(log_file_path: str, cohort_name: str, age_band: str, event_year: int, logger):
+    """
+    Save log file to S3 (R-style API)
+    
+    Args:
+        log_file_path: Path to local log file
+        cohort_name: Name of the cohort
+        age_band: Age band
+        event_year: Event year
+        logger: Logger instance
+    """
+    if not os.path.exists(log_file_path):
+        logger.warning("Log file not found: %s", log_file_path)
+        return
+    
+    try:
+        s3_key = f"logs/feature_importance/cohort_name={cohort_name}/age_band={age_band}/event_year={event_year}/{os.path.basename(log_file_path)}"
+        
+        with open(log_file_path, 'rb') as f:
+            s3_client.put_object(
+                Bucket=S3_BUCKET,
+                Key=s3_key,
+                Body=f
+            )
+        
+        logger.info("Saved log to S3: s3://%s/%s", S3_BUCKET, s3_key)
+    except Exception as e:
+        logger.error("Failed to save log to S3: %s", str(e))
+
+
+def check_memory_usage_r(logger, label: str):
+    """
+    Check and log memory usage (R-style API)
+    
+    Args:
+        logger: Logger instance
+        label: Label for this memory check
+    """
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        memory_info = process.memory_info()
+        memory_mb = memory_info.rss / 1024 / 1024
+        logger.info("Memory usage [%s]: %.1f MB", label, memory_mb)
+    except ImportError:
+        pass  # psutil not available
+    except Exception as e:
+        logger.warning("Could not check memory usage: %s", str(e))
+
+

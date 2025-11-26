@@ -170,6 +170,11 @@ EVENT_YEARS = [
     '2016', '2017', '2018', '2019', '2020'
 ]
 
+# Cohort names for feature importance analysis
+COHORT_NAMES = [
+    'opioid_ed', 'non_opioid_ed'
+]
+
 # Processing Configuration
 LOCK_TIMEOUT_HOURS = 6  # Hours before considering a lock stale
 DEFAULT_SAMPLE_RATIO = 5  # Default 5x controls per positive case

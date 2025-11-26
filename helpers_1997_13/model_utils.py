@@ -211,4 +211,91 @@ def save_model_metrics(metrics, age_band, event_year, cohort):
         return True
     except Exception as e:
         print(f"Error saving metrics: {str(e)}")
-        return False 
+        return False
+
+
+# ============================================================================
+# Feature Importance Metrics
+# ============================================================================
+
+def calculate_recall(y_true, y_pred):
+    """
+    Calculate Recall (Sensitivity)
+    
+    Args:
+        y_true: True binary labels (0/1)
+        y_pred: Predicted binary labels (0/1)
+        
+    Returns:
+        Recall score (0-1), or 0 if calculation fails
+    """
+    from sklearn.metrics import recall_score
+    
+    # Check inputs
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    if len(y_true) != len(y_pred):
+        print(f"Warning: Length mismatch: y_true={len(y_true)}, y_pred={len(y_pred)}")
+        return 0.0
+    
+    # Remove NA values from both arrays
+    valid_idx = ~(np.isnan(y_true) | np.isnan(y_pred))
+    
+    if np.sum(valid_idx) == 0:
+        print(f"Warning: No valid predictions for recall calculation")
+        return 0.0
+    
+    y_true_clean = y_true[valid_idx]
+    y_pred_clean = y_pred[valid_idx]
+    
+    # Check if we have any valid data
+    if len(y_true_clean) == 0:
+        print("Warning: No valid data after filtering NAs")
+        return 0.0
+    
+    # Use sklearn for robust calculation
+    try:
+        return recall_score(y_true_clean, y_pred_clean, zero_division=0.0)
+    except Exception as e:
+        print(f"Warning: Error calculating recall: {e}")
+        return 0.0
+
+
+def calculate_logloss(y_true, y_pred_proba):
+    """
+    Calculate LogLoss (logarithmic loss)
+    Lower is better, so we'll invert it for scaling (1/logloss)
+    
+    Args:
+        y_true: True binary labels (0/1)
+        y_pred_proba: Predicted probabilities (0-1)
+        
+    Returns:
+        LogLoss score, or Inf if calculation fails
+    """
+    from sklearn.metrics import log_loss
+    
+    y_true = np.array(y_true)
+    y_pred_proba = np.array(y_pred_proba)
+    
+    # Remove NA values
+    valid_idx = ~(np.isnan(y_true) | np.isnan(y_pred_proba))
+    if np.sum(valid_idx) == 0:
+        print("Warning: No valid predictions for logloss calculation")
+        return np.inf  # Return Inf so 1/logloss = 0
+    
+    y_true_clean = y_true[valid_idx]
+    y_pred_proba_clean = y_pred_proba[valid_idx]
+    
+    # Clip probabilities to avoid log(0) or log(1)
+    y_pred_proba_clean = np.clip(y_pred_proba_clean, 1e-15, 1 - 1e-15)
+    
+    # Calculate logloss using sklearn
+    try:
+        logloss = log_loss(y_true_clean, y_pred_proba_clean)
+    except Exception as e:
+        print(f"Warning: Error calculating logloss: {e}")
+        return np.inf
+    
+    return logloss 

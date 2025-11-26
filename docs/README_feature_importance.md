@@ -28,18 +28,39 @@
 ## Overview
 
 This project calculates scaled feature importance for predicting opioid dependence using:
-- **Models:** CatBoost and Random Forest
-- **Validation:** Monte Carlo Cross-Validation (100–1000 splits)
+- **Models:** CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)
+- **Validation:** Monte Carlo Cross-Validation (100–1000 splits) with temporal validation
 - **Scaling:** Permutation-based importance weighted by model Recall
 - **Aggregation:** Union of top 50 features from each model with summed importances
+
+### Temporal Validation Strategy
+
+**Important:** This analysis uses a strict temporal validation approach to avoid data leakage and COVID-19 impact:
+
+- **Training Data:** Years 2016-2018 (combined)
+- **Test Data:** Year 2019 (holdout set, never used for training)
+- **Excluded:** Year 2020 (COVID-19 pandemic year)
+
+**Rationale:**
+1. **Prevents Data Leakage:** 2019 data is never seen during training, ensuring true temporal validation
+2. **Maintains Temporal Order:** Train on past data, test on future data
+3. **Avoids COVID Impact:** 2020 excluded due to pandemic-related changes in healthcare patterns
+4. **Consistent with Final Model:** Feature importance results generalize to final model which also trains on 2016-2018 and tests on 2019
+
+**MC-CV Implementation:**
+- Each MC-CV split samples a different subset from the 2016-2018 training data
+- All splits evaluate on the same 2019 test set
+- This provides robust feature importance estimates while maintaining temporal integrity
 
 ### Key Features
 
 ✅ **Monte Carlo Cross-Validation** – Up to 1000 random train/test splits  
+✅ **Temporal Validation** – Train on 2016-2018, test on 2019 (avoids COVID year 2020)  
 ✅ **Stratified Sampling** – Maintains target distribution  
 ✅ **Parallel Processing** – Fast execution (30 workers on EC2)  
 ✅ **Quality Weighting** – Features scaled by model performance (Recall)  
 ✅ **Model Consensus** – Union-based aggregation rewards agreement  
+✅ **Multiple Models** – Tree ensembles (CatBoost, RF, XGBoost, LightGBM, ExtraTrees) and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)  
 ✅ **Publication-Ready Plots** – 4 visualization types with S3 upload
 
 ---
@@ -48,27 +69,32 @@ This project calculates scaled feature importance for predicting opioid dependen
 
 ### Local Testing (5 splits, ~5 minutes)
 
-```r
-# In feature_importance_mc_cv.ipynb
-DEBUG_MODE <- TRUE
-COHORT_NAME <- "opioid_ed"
-AGE_BAND <- "25-44"
-EVENT_YEAR <- 2016
+```python
+# In feature_importance_mc_cv_python.ipynb
+DEBUG_MODE = True
+TRAIN_YEARS = [2016, 2017, 2018]  # Training data years
+TEST_YEAR = 2019  # Test data year (never used for training)
 
 # Run all cells
 ```
 
+**Note:** The Python notebook uses temporal validation (train on 2016-2018, test on 2019). The R notebook (`feature_importance_mc_cv.ipynb`) uses single-year splits and should be updated to match this strategy.
+
 ### Production Run (100 splits, ~1-2 hours on EC2)
 
-```r
-DEBUG_MODE <- FALSE
-N_SPLITS <- 100  # or 1000 for publication
+```python
+DEBUG_MODE = False
+N_SPLITS = 200  # or 1000 for publication
+TRAIN_YEARS = [2016, 2017, 2018]  # Training data years
+TEST_YEAR = 2019  # Test data year (never used for training)
 
 # Set up EC2:
 # - x2iedn.8xlarge (32 cores, 1TB RAM)
 # - Data in /mnt/nvme/cohorts/
 # - Auto-shutdown enabled
 ```
+
+**Temporal Validation:** Each MC-CV split samples from 2016-2018 training data, but all splits evaluate on the same 2019 test set. This ensures robust feature importance estimates while maintaining temporal integrity.
 
 ### Parallel Execution (Default)
 
@@ -158,6 +184,9 @@ Rscript feature_importance_mc_cv.R \
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Load Cohort Data (parquet)                              │
+│    - Training: Years 2016-2018 (combined)                  │
+│    - Test: Year 2019 (holdout, never used for training)    │
+│    - Excluded: Year 2020 (COVID-19 pandemic)               │
 │    - Drugs, ICD codes, CPT codes                           │
 │    - Target: is_target_case (opioid dependence)            │
 └─────────────────────────────────────────────────────────────┘
@@ -166,17 +195,24 @@ Rscript feature_importance_mc_cv.R \
 │ 2. Feature Engineering                                      │
 │    - Patient-level aggregation                             │
 │    - CatBoost: Categorical factors                         │
-│    - Random Forest: Binary 0/1                             │
+│    - Random Forest/XGBoost: Binary 0/1                     │
+│    - Consistent feature space across train/test             │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 3. Monte Carlo Cross-Validation (100–1000 splits)          │
+│    - Each split samples from 2016-2018 training data        │
+│    - All splits evaluate on same 2019 test set              │
 │    ┌────────────────────┐  ┌────────────────────┐         │
-│    │   CatBoost         │  │  Random Forest     │         │
+│    │   Multiple Models  │  │  Multiple Models   │         │
+│    │   (CatBoost, RF,   │  │  (XGBoost, LGBM,   │         │
+│    │    XGBoost, etc.)  │  │   ExtraTrees, etc.)│         │
 │    │                    │  │                    │         │
 │    │  Per split:        │  │  Per split:        │         │
-│    │  - Train (80%)     │  │  - Train (80%)     │         │
-│    │  - Test (20%)      │  │  - Test (20%)      │         │
+│    │  - Train: Sample   │  │  - Train: Sample   │         │
+│    │    from 2016-2018  │  │    from 2016-2018  │         │
+│    │  - Test: Always    │  │  - Test: Always    │         │
+│    │    2019 (same)     │  │    2019 (same)     │         │
 │    │  - Recall          │  │  - Recall          │         │
 │    │  - Feature imp     │  │  - Feature imp     │         │
 │    └────────────────────┘  └────────────────────┘         │

@@ -10,6 +10,22 @@ The final model integrates three complementary analysis methods to create compre
 2. **BupaR** - Process mining (sequence patterns, temporal flows)
 3. **DTW** - Trajectory analysis (patient clustering, similarity scores)
 
+### Temporal Validation Strategy
+
+**Important:** The final model uses a strict temporal validation approach consistent with feature importance analysis:
+
+- **Training Data:** Years 2016-2018 (full training set)
+- **Test Data:** Year 2019 (holdout set, never used for training)
+- **Excluded:** Year 2020 (COVID-19 pandemic year)
+
+**Rationale:**
+1. **Prevents Data Leakage:** 2019 data is never seen during training, ensuring true temporal validation
+2. **Maintains Temporal Order:** Train on past data, test on future data
+3. **Avoids COVID Impact:** 2020 excluded due to pandemic-related changes in healthcare patterns
+4. **Consistent with Feature Importance:** Same train/test split as feature importance analysis ensures selected features generalize well
+
+**Note:** This validation strategy matches the feature importance analysis pipeline, ensuring that features identified as important during MC-CV will perform well in the final model.
+
 ## Goals
 
 - Build cohort-level prediction models for target outcomes (opioid dependence, ED visits)

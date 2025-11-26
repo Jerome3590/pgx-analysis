@@ -171,57 +171,57 @@ def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_r
         duckdb_conn.sql(f"""
             CREATE OR REPLACE VIEW pharmacy_raw_with_partitions AS
             SELECT 
-                "Incurred Date",
-                "Claim ID",
-                "MI Person Key",
-                "Payer LOB",
-                "Payer Type",
-                "Claim Status",
-                "Primary Insurance Flag",
-                "Member Zip Code DOS",
-                "Member County DOS",
-                "Member State ENROLL",
-                "Member Age DOS",
-                "Member Age Band DOS",
-                "ADULT_FLAG",
-                "Member Gender",
-                "Member Race",
-                "Hispanic Indicator",
-                "HCG Setting",
-                "HCG Line",
-                "HCG Detail",
-                "Therapeutic Class 1",
-                "Therapeutic Class 2",
-                "Therapeutic Class 3",
-                "NDC",
-                "Drug Code",
-                "Drug Name",
-                "GPI",
-                "GPI Generic Name",
-                "Manufacturer",
-                "Strength",
-                "Dosage Form",
-                "Billing Provider NPI",
-                "Billing Provider Specialty",
-                "Billing Provider ZIP",
-                "Billing Provider County",
-                "Billing Provider State",
-                "Billing Provider MSA",
-                "Billing Provider Taxonomy",
-                "Billing Provider TIN",
-                "Service Provider Name",
-                "Service Provider NPI",
-                "Service Provider Specialty",
-                "Service Provider ZIP",
-                "Service Provider County",
-                "Service Provider State",
-                "Service Provider MSA",
-                "Service Provider Taxonomy",
-                "Service Provider TIN",
-                "Total Allowed",
-                "Total Utilization",
-                "Total RX Paid",
-                "Total RX Days Supply",
+                "Incurred Date" AS incurred_date,
+                "Claim ID" AS claim_id,
+                "MI Person Key" AS mi_person_key,
+                "Payer LOB" AS payer_lob,
+                "Payer Type" AS payer_type,
+                "Claim Status" AS claim_status,
+                "Primary Insurance Flag" AS primary_insurance_flag,
+                "Member Zip Code DOS" AS member_zip_code_dos,
+                "Member County DOS" AS member_county_dos,
+                "Member State ENROLL" AS member_state_enroll,
+                "Member Age DOS" AS member_age_dos,
+                "Member Age Band DOS" AS member_age_band_dos,
+                "ADULT_FLAG" AS adult_flag,
+                "Member Gender" AS member_gender,
+                "Member Race" AS member_race,
+                "Hispanic Indicator" AS hispanic_indicator,
+                "HCG Setting" AS hcg_setting,
+                "HCG Line" AS hcg_line,
+                "HCG Detail" AS hcg_detail,
+                "Therapeutic Class 1" AS therapeutic_class_1,
+                "Therapeutic Class 2" AS therapeutic_class_2,
+                "Therapeutic Class 3" AS therapeutic_class_3,
+                "NDC" AS ndc,
+                "Drug Code" AS drug_code,
+                "Drug Name" AS drug_name,
+                "GPI" AS gpi,
+                "GPI Generic Name" AS gpi_generic_name,
+                "Manufacturer" AS manufacturer,
+                "Strength" AS strength,
+                "Dosage Form" AS dosage_form,
+                "Billing Provider NPI" AS billing_provider_npi,
+                "Billing Provider Specialty" AS billing_provider_specialty,
+                "Billing Provider ZIP" AS billing_provider_zip,
+                "Billing Provider County" AS billing_provider_county,
+                "Billing Provider State" AS billing_provider_state,
+                "Billing Provider MSA" AS billing_provider_msa,
+                "Billing Provider Taxonomy" AS billing_provider_taxonomy,
+                "Billing Provider TIN" AS billing_provider_tin,
+                "Service Provider Name" AS service_provider_name,
+                "Service Provider NPI" AS service_provider_npi,
+                "Service Provider Specialty" AS service_provider_specialty,
+                "Service Provider ZIP" AS service_provider_zip,
+                "Service Provider County" AS service_provider_county,
+                "Service Provider State" AS service_provider_state,
+                "Service Provider MSA" AS service_provider_msa,
+                "Service Provider Taxonomy" AS service_provider_taxonomy,
+                "Service Provider TIN" AS service_provider_tin,
+                "Total Allowed" AS total_allowed,
+                "Total Utilization" AS total_utilization,
+                "Total RX Paid" AS total_rx_paid,
+                "Total RX Days Supply" AS total_rx_days_supply,
                 -- Derive age_band from Member Age DOS
                 CASE
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 0  AND 12  THEN '0-12'
@@ -270,10 +270,46 @@ def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_r
     medical_raw_count = None
     if create_medical:
         logger.info("Creating raw medical dataset with all original columns...")
+
+        # Get column names from parquet and convert to snake_case
+        logger.info("Getting medical column names and converting to snake_case...")
+        try:
+            # Get column names from parquet file
+            col_info = duckdb_conn.sql(f"""
+                DESCRIBE SELECT * EXCLUDE (filename)
+                FROM read_parquet('{medical_input}', union_by_name=true, filename=true)
+                WHERE NOT regexp_matches(filename, '\.part_[^/]*\.parquet$')
+                LIMIT 0
+            """).fetchall()
+
+            # Build column aliases: convert spaces to underscores, preserve existing underscores
+            def to_snake_case(col_name):
+                """Convert column name to snake_case"""
+                # Replace spaces with underscores
+                result = col_name.replace(' ', '_')
+                # Convert to lowercase
+                result = result.lower()
+                # Handle multiple consecutive underscores
+                while '__' in result:
+                    result = result.replace('__', '_')
+                return result.strip('_')
+
+            column_aliases = []
+            for col in col_info:
+                original_name = col[0]
+                snake_name = to_snake_case(original_name)
+                column_aliases.append(f'"{original_name}" AS {snake_name}')
+
+            columns_sql = ',\n                '.join(column_aliases)
+            logger.info(f"Converted {len(column_aliases)} medical columns to snake_case")
+        except Exception as e:
+            logger.warning(f"Could not dynamically get column names: {e}. Using SELECT * (columns will have spaces)")
+            columns_sql = '*'
+
         duckdb_conn.sql(f"""
             CREATE OR REPLACE VIEW medical_raw_with_partitions AS
             SELECT 
-                *,
+                {columns_sql},
                 -- Derive age_band from Member Age DOS
                 CASE
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 0  AND 12  THEN '0-12'
@@ -422,7 +458,7 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
     
     # Initialize DuckDB with simplified settings (if not already initialized for raw silver)
     if not create_raw_silver:
-    duckdb_conn = init_duckdb(tmp_dir, logger=logger)
+        duckdb_conn = init_duckdb(tmp_dir, logger=logger)
     
     # Save initial checkpoint
     save_logs_checkpoint(log_buffer, "global_imputation", "global", "all", "step0_pipeline_started", logger=logger)

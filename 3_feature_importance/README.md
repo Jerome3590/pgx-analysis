@@ -28,10 +28,29 @@
 ## Overview
 
 This project calculates scaled feature importance for predicting opioid dependence using:
-- **Models:** CatBoost and Random Forest
-- **Validation:** Monte Carlo Cross-Validation (100–1000 splits)
+- **Models:** CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)
+- **Validation:** Monte Carlo Cross-Validation (100–1000 splits) with temporal validation
 - **Scaling:** Permutation-based importance weighted by model Recall
 - **Aggregation:** Union of top 50 features from each model with summed importances
+
+### Temporal Validation Strategy
+
+**Important:** This analysis uses a strict temporal validation approach to avoid data leakage and COVID-19 impact:
+
+- **Training Data:** Years 2016-2018 (combined)
+- **Test Data:** Year 2019 (holdout set, never used for training)
+- **Excluded:** Year 2020 (COVID-19 pandemic year)
+
+**Rationale:**
+1. **Prevents Data Leakage:** 2019 data is never seen during training, ensuring true temporal validation
+2. **Maintains Temporal Order:** Train on past data, test on future data
+3. **Avoids COVID Impact:** 2020 excluded due to pandemic-related changes in healthcare patterns
+4. **Consistent with Final Model:** Feature importance results generalize to final model which also trains on 2016-2018 and tests on 2019
+
+**MC-CV Implementation:**
+- Each MC-CV split samples a different subset from the 2016-2018 training data
+- All splits evaluate on the same 2019 test set
+- This provides robust feature importance estimates while maintaining temporal integrity
 
 ### Key Features
 

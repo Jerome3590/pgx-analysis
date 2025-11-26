@@ -2360,3 +2360,64 @@ def write_target_code_latest(df: pd.DataFrame) -> None:
         s3_csv_path='s3://pgxdatalake/gold/target_code/target_code_latest.csv',
     )
 
+
+# ============================================================================
+# Feature Importance S3 Utilities
+# ============================================================================
+
+def check_feature_importance_results_exist(cohort_name: str, age_band: str, event_year: int) -> bool:
+    """
+    Check if feature importance results already exist in S3 (idempotency check)
+    
+    Args:
+        cohort_name: Cohort name
+        age_band: Age band
+        event_year: Event year (test year)
+        
+    Returns:
+        True if results exist, False otherwise
+    """
+    s3_base = "s3://pgxdatalake/gold/feature_importance"
+    s3_key = f"cohort_name={cohort_name}/age_band={age_band}/event_year={event_year}/{cohort_name}_{age_band}_{event_year}_feature_importance_aggregated.csv"
+    
+    try:
+        bucket = S3_BUCKET
+        
+        # Extract key from s3:// path
+        if s3_key.startswith('s3://'):
+            s3_key = s3_key.replace(f's3://{bucket}/', '')
+        
+        # Check if object exists
+        s3_client.head_object(Bucket=bucket, Key=s3_key)
+        return True
+    except Exception:
+        # File doesn't exist or error occurred
+        return False
+
+
+def check_cohort_file_exists(cohort_name: str, age_band: str, event_year: int) -> bool:
+    """
+    Check if cohort parquet file exists locally
+    
+    Args:
+        cohort_name: Cohort name
+        age_band: Age band
+        event_year: Event year
+        
+    Returns:
+        True if file exists, False otherwise
+    """
+    local_data_path = os.getenv("LOCAL_DATA_PATH", "/mnt/nvme/cohorts")
+    if not os.path.exists(local_data_path):
+        local_data_path = os.getenv("LOCAL_DATA_PATH", "C:/Projects/pgx-analysis/data/gold/cohorts_F1120")
+    
+    parquet_file = os.path.join(
+        local_data_path,
+        f"cohort_name={cohort_name}",
+        f"event_year={event_year}",
+        f"age_band={age_band}",
+        "cohort.parquet"
+    )
+    
+    return os.path.exists(parquet_file)
+
