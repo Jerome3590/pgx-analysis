@@ -452,8 +452,9 @@ def run_cohort_analysis(
             constant_features_df.to_csv(constant_features_file, index=False)
             logger.info("Saved constant features list: %s", constant_features_file)
             
-            # Upload to S3 (model_metadata folder)
-            s3_key_const = f"gold/feature_importance/model_metadata/{cohort_name}/{age_band}_constant_features.csv"
+            # Upload to S3 alongside other feature-importance artifacts
+            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/constant_features.csv
+            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/constant_features.csv"
             if upload_csv_to_s3(constant_features_file, s3_key_const):
                 logger.info("Uploaded constant features to S3: s3://pgxdatalake/%s", s3_key_const)
             else:
