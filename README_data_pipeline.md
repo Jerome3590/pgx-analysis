@@ -118,12 +118,21 @@ The data pipeline processes large-scale healthcare datasets from APCD (All-Payer
 10. **Feature Importance Analysis**
     - Loads CatBoost model feature importance results
     - Identifies significant features using support and coverage metrics
-    - Prepares data for process mining:
-      - Filters to important features
-      - Maintains temporal information
-      - Preserves case and activity identifiers
-    - Creates separate datasets for target and control groups
-    - Enables process mining analysis of significant event patterns
+    - Prepares data for downstream pattern and process mining via `model_data/`:
+      - For the **target cohort** (`opioid_ed`):
+        - Reads aggregated feature-importance CSVs to get important `item_*` features.
+        - Filters event-level GOLD cohort data (2016–2019) to rows where any important item appears
+          in `drug_name`, ICD diagnosis columns 1–9, or `procedure_code`.
+        - Writes filtered events to:
+          - `model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet`
+      - For the **control cohort** (`non_opioid_ed`):
+        - Loads full event-level cohorts for matching age bands and years.
+        - Randomly samples patients to maintain an approximate **5:1 control:target ratio**.
+        - Keeps all events for sampled control patients (no feature filtering).
+        - Writes control events to:
+          - `model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
+      - Maintains temporal information, `mi_person_key`, and item codes required for FP-Growth,
+        BupaR, and DTW analyses.
 
 ## Cohort Creation Pipeline
 

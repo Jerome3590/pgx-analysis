@@ -222,7 +222,7 @@ This document maps the research questions to the analysis workflow, verifying th
 - Filters to top predictive patterns
 
 **Cohort Data Used:**
-- `primary_icd_diagnosis_code` (ICD patterns)
+- All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) (ICD patterns)
 - `procedure_code` (CPT patterns)
 - `drug_name` (drug patterns)
 - `is_target_case` (outcome association)
@@ -247,7 +247,7 @@ This document maps the research questions to the analysis workflow, verifying th
 - Identifies process flows (ICD → CPT → Drug → OPIOID_ED)
 
 **Cohort Data Used:**
-- `primary_icd_diagnosis_code` (ICD sequences)
+- All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) (ICD sequences)
 - `procedure_code` (CPT sequences)
 - `drug_name` (drug sequences)
 - `event_date` (temporal ordering)
@@ -271,7 +271,7 @@ This document maps the research questions to the analysis workflow, verifying th
 - Identifies top predictive features
 
 **Cohort Data Used:**
-- `primary_icd_diagnosis_code` (ICD features)
+- All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) (ICD features)
 - `procedure_code` (CPT features)
 - `drug_name` (drug features)
 - `target` / `is_target_case` (outcome)
@@ -297,7 +297,7 @@ This document maps the research questions to the analysis workflow, verifying th
 - Identifies high-risk trajectory patterns
 
 **Cohort Data Used:**
-- `primary_icd_diagnosis_code` (ICD trajectories)
+- All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) (ICD trajectories)
 - `procedure_code` (CPT trajectories)
 - `drug_name` (drug trajectories)
 - `event_date` (temporal ordering)
@@ -344,7 +344,7 @@ This document maps the research questions to the analysis workflow, verifying th
 
 | Component | Analysis Step | Cohort Data | Answer |
 |-----------|---------------|-------------|--------|
-| **Which ICD codes?** | FPGrowth Filtering | `primary_icd_diagnosis_code` | ✅ YES |
+| **Which ICD codes?** | FPGrowth Filtering | All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) | ✅ YES |
 | **Which CPT codes?** | FPGrowth Filtering | `procedure_code` | ✅ YES |
 | **Which drugs?** | FPGrowth Filtering | `drug_name` | ✅ YES |
 | **Predictive patterns?** | BupaR Pattern Mining | ICD/CPT/Drug sequences | ✅ YES |
@@ -375,7 +375,7 @@ This document maps the research questions to the analysis workflow, verifying th
 
 | Required Data | Available in Cohort | Used By |
 |---------------|---------------------|---------|
-| ICD codes | ✅ `primary_icd_diagnosis_code` | FPGrowth, BupaR, CatBoost, DTW |
+| ICD codes | ✅ All ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) | FPGrowth, BupaR, CatBoost, DTW |
 | CPT codes | ✅ `procedure_code` | FPGrowth, BupaR, CatBoost, DTW |
 | Drug names | ✅ `drug_name` | FPGrowth, BupaR, CatBoost, DTW |
 | Reference date | ✅ `first_opioid_ed_date` | DTW |

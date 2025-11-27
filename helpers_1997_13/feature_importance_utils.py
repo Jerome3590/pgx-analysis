@@ -212,6 +212,11 @@ def run_cohort_analysis(
                     three_icd_diagnosis_code,
                     four_icd_diagnosis_code,
                     five_icd_diagnosis_code,
+                    six_icd_diagnosis_code,
+                    seven_icd_diagnosis_code,
+                    eight_icd_diagnosis_code,
+                    nine_icd_diagnosis_code,
+                    ten_icd_diagnosis_code,
                     procedure_code,
                     event_type
                 FROM read_parquet('{parquet_file}')
@@ -254,6 +259,11 @@ def run_cohort_analysis(
                 three_icd_diagnosis_code,
                 four_icd_diagnosis_code,
                 five_icd_diagnosis_code,
+                six_icd_diagnosis_code,
+                seven_icd_diagnosis_code,
+                eight_icd_diagnosis_code,
+                nine_icd_diagnosis_code,
+                ten_icd_diagnosis_code,
                 procedure_code,
                 event_type
             FROM read_parquet('{test_parquet_file}')
@@ -271,9 +281,16 @@ def run_cohort_analysis(
         
         train_patient_items = train_cohort_data.melt(
             id_vars=['mi_person_key'],
-            value_vars=['drug_name', 'primary_icd_diagnosis_code', 'two_icd_diagnosis_code',
-                       'three_icd_diagnosis_code', 'four_icd_diagnosis_code',
-                       'five_icd_diagnosis_code', 'procedure_code', 'event_type'],
+            value_vars=[
+                'drug_name',
+                'primary_icd_diagnosis_code', 'two_icd_diagnosis_code',
+                'three_icd_diagnosis_code', 'four_icd_diagnosis_code',
+                'five_icd_diagnosis_code', 'six_icd_diagnosis_code',
+                'seven_icd_diagnosis_code', 'eight_icd_diagnosis_code',
+                'nine_icd_diagnosis_code', 'ten_icd_diagnosis_code',
+                'procedure_code',
+                'event_type'
+            ],
             var_name='feature_type',
             value_name='item'
         ).dropna(subset=['item'])[['mi_person_key', 'item']].drop_duplicates()
@@ -291,9 +308,16 @@ def run_cohort_analysis(
         
         test_patient_items = test_cohort_data.melt(
             id_vars=['mi_person_key'],
-            value_vars=['drug_name', 'primary_icd_diagnosis_code', 'two_icd_diagnosis_code',
-                       'three_icd_diagnosis_code', 'four_icd_diagnosis_code',
-                       'five_icd_diagnosis_code', 'procedure_code', 'event_type'],
+            value_vars=[
+                'drug_name',
+                'primary_icd_diagnosis_code', 'two_icd_diagnosis_code',
+                'three_icd_diagnosis_code', 'four_icd_diagnosis_code',
+                'five_icd_diagnosis_code', 'six_icd_diagnosis_code',
+                'seven_icd_diagnosis_code', 'eight_icd_diagnosis_code',
+                'nine_icd_diagnosis_code', 'ten_icd_diagnosis_code',
+                'procedure_code',
+                'event_type'
+            ],
             var_name='feature_type',
             value_name='item'
         ).dropna(subset=['item'])[['mi_person_key', 'item']].drop_duplicates()
@@ -368,10 +392,11 @@ def run_cohort_analysis(
                 # All columns are already strings with empty string defaults, no need to fillna
                 logger.info("CatBoost feature matrix created: %d rows × %d features", len(data), len([c for c in data.columns if c.startswith('item_')]))
             else:
-                # Random Forest/XGBoost format: binary features
+                # Random Forest / XGBoost / ExtraTrees format: binary features
                 patient_items_with_value = patient_items.copy()
                 patient_items_with_value['value'] = 1
-                
+
+                # Pivot only for patients that have at least one item
                 feature_matrix = patient_items_with_value.pivot_table(
                     index='mi_person_key',
                     columns='item',
@@ -379,22 +404,30 @@ def run_cohort_analysis(
                     aggfunc='sum',
                     fill_value=0
                 ).reset_index()
-                
-                # Add missing items as 0 columns
+
+                # Ensure we have one row for EVERY patient in patient_targets,
+                # even those with zero items (they’ll get all zeros)
+                all_patients = patient_targets[['mi_person_key']].drop_duplicates()
+                feature_matrix = all_patients.merge(feature_matrix, on='mi_person_key', how='left')
+
+                # Make sure all item columns exist
                 for item in all_item_list:
                     if item not in feature_matrix.columns:
                         feature_matrix[item] = 0
-                
-                # Add prefix
+
+                # Fill any remaining NaNs in feature columns with 0
                 feature_cols = [col for col in feature_matrix.columns if col != 'mi_person_key']
+                feature_matrix[feature_cols] = feature_matrix[feature_cols].fillna(0)
+
+                # Add 'item_' prefix
                 feature_matrix = feature_matrix.rename(
                     columns={col: f'item_{col}' for col in feature_cols}
                 )
-                
-                # Join with targets
+
+                # Join with targets (now one row per patient, matching CatBoost)
                 data = feature_matrix.merge(patient_targets, on='mi_person_key', how='left')
-                
-                # Drop mi_person_key - it's not a feature, only used for joining
+
+                # Drop mi_person_key - it's not a feature
                 if 'mi_person_key' in data.columns:
                     data = data.drop(columns=['mi_person_key'])
             
@@ -471,8 +504,8 @@ def run_cohort_analysis(
             logger.info("Saved constant features list: %s", constant_features_file)
             
             # Upload to S3 alongside other feature-importance artifacts
-            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_constant_features.csv
-            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_constant_features.csv"
+            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_constant_features.csv
+            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_constant_features.csv"
             if upload_csv_to_s3(constant_features_file, s3_key_const):
                 logger.info("Uploaded constant features to S3: s3://pgxdatalake/%s", s3_key_const)
             else:
@@ -543,7 +576,8 @@ def run_cohort_analysis(
             # Check if this model's results already exist (idempotency)
             # Check local file first, then S3
             local_file = os.path.join(output_dir, f"{cohort_name}_{age_band_fname}_{method}_feature_importance.csv")
-            s3_key_method = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv"
+            # S3 key uses age_band in the folder name and age_band_fname (hyphens -> underscores) in the filename
+            s3_key_method = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_{method}_feature_importance.csv"
             
             # Check local file first
             if os.path.exists(local_file):
@@ -623,8 +657,8 @@ def run_cohort_analysis(
             logger.info("Saved locally: %s", output_file)
             
             # Upload to S3
-            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv
-            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv"
+            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_{method}_feature_importance.csv
+            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_{method}_feature_importance.csv"
             if upload_csv_to_s3(output_file, s3_key):
                 logger.info("Uploaded to S3: s3://pgxdatalake/%s", s3_key)
             else:
@@ -647,8 +681,8 @@ def run_cohort_analysis(
         logger.info("Saved aggregated results locally: %s", output_file)
         
         # Upload aggregated results to S3
-        # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_aggregated_feature_importance.csv
-        s3_key_agg = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_aggregated_feature_importance.csv"
+        # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv
+        s3_key_agg = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
         if upload_csv_to_s3(output_file, s3_key_agg):
             logger.info("Uploaded aggregated results to S3: s3://pgxdatalake/%s", s3_key_agg)
         else:

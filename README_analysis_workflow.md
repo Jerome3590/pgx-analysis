@@ -25,6 +25,31 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 
 **Location**: `3_feature_importance/`
 
+### Model Data Extraction (Target vs Control)
+
+After feature importance is computed for each `(cohort, age_band)` pair, we create a compact
+**model-ready event dataset** that downstream methods (FP-Growth, BupaR, DTW) consume:
+
+- **Target cohort (opioid_ed)**:
+  - Read `*_aggregated_feature_importance.csv` to get the top important `item_*` features.
+  - Strip the `item_` prefix to recover raw drug / ICD / procedure codes.
+  - For each age band and event year, filter GOLD cohort events to **only those rows where at least one important item appears** in:
+    - `drug_name`
+    - `primary_icd_diagnosis_code` through `nine_icd_diagnosis_code`
+    - `procedure_code`
+  - Write filtered events to:
+    - `model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet`
+
+- **Control cohort (non_opioid_ed)**:
+  - Load full, unfiltered control cohort events for the same age band and years.
+  - Sample control patients to maintain an approximate **5:1 control:target person-level ratio**.
+  - Keep **all events** for sampled control patients (no feature filtering).
+  - Write to:
+    - `model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
+
+These paired `model_events.parquet` files provide a consistent, size-controlled input for FP-Growth,
+process mining (BupaR), and DTW trajectory analyses in Phase 2.
+
 ## Phase 2: Pattern & Process Mining + DTW
 
 **Goal**: Exploit structure in selected features and further reduce noise.

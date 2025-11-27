@@ -76,19 +76,21 @@ def run_single_split(
     """
     try:
         # Use separate test data if provided, otherwise use same data
+        X_train = X_train_all.iloc[train_idx].copy()
+        y_train = y_train_all[train_idx]
+
         if X_test_all is not None and y_test_all is not None:
-            X_train = X_train_all.iloc[train_idx].copy()
-            X_test = X_test_all.iloc[test_idx].copy()
-            y_train = y_train_all[train_idx]
-            y_test = y_test_all[test_idx]
+            # For ALL models, evaluate on the full temporal holdout set (e.g., all 2019)
+            # in every split. Splits only change which rows are used for training.
+            X_test = X_test_all.copy()
+            y_test = y_test_all.copy()
+
             # Ensure test features match train features (same columns, same order)
             # Add missing columns as zeros, remove extra columns
             X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
         else:
             # Original behavior: use same data for train and test
-            X_train = X_train_all.iloc[train_idx].copy()
             X_test = X_train_all.iloc[test_idx].copy()
-            y_train = y_train_all[train_idx]
             y_test = y_train_all[test_idx]
         
         # Drop mi_person_key if present (not a feature)
@@ -100,15 +102,17 @@ def run_single_split(
         # Train model
         if method == 'catboost':
             if data_catboost is not None:
-                X_train_cb = data_catboost.iloc[train_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in data_catboost.columns else ['target'])
+                X_train_cb = data_catboost.iloc[train_idx].drop(
+                    columns=['target', 'mi_person_key'] if 'mi_person_key' in data_catboost.columns else ['target']
+                )
             else:
                 X_train_cb = X_train
-            
-            # Use test data if provided
+
+            # Use the full temporal holdout set for CatBoost as well
             if test_data_catboost is not None:
-                X_test_cb = test_data_catboost.iloc[test_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in test_data_catboost.columns else ['target'])
-            elif data_catboost is not None:
-                X_test_cb = data_catboost.iloc[test_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in data_catboost.columns else ['target'])
+                X_test_cb = test_data_catboost.drop(
+                    columns=['target', 'mi_person_key'] if 'mi_person_key' in test_data_catboost.columns else ['target']
+                )
             else:
                 X_test_cb = X_test
             

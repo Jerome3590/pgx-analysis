@@ -67,13 +67,26 @@ MIN_ITEMSET_LIFT = 1.1  # Filter itemsets with lift < 1.1 (items are independent
 DRY_RUN = True  # Set to False to process all cohorts
 DRY_RUN_LIMIT = 5  # Number of cohort combinations to process in dry run
 
-logger.info(f"Min Itemset Lift: {MIN_ITEMSET_LIFT} (filtering common/trivial itemsets)")
-
 COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 
-ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
+ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code', 'medical_code']
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
 LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fast I/O)
+
+# Optional model_data root (filtered to important features + 5:1 control ratio).
+# If a model_data file exists for a given (cohort, age_band), FP-Growth will
+# prefer it over the raw GOLD cohorts parquet.
+MODEL_DATA_ROOT = PROJECT_ROOT / "model_data"
+USE_MODEL_DATA_IF_AVAILABLE = True
+
+# Local FP-Growth outputs (mirrors feature-importance naming with cohort + age_band)
+LOCAL_OUTPUT_ROOT = PROJECT_ROOT / "4_fpgrowth_analysis" / "outputs"
+
+# Optional model_data root (filtered to important features + 5:1 control ratio).
+# If a model_data file exists for a given (cohort, age_band), FP-Growth will
+# prefer it over the raw GOLD cohorts parquet.
+MODEL_DATA_ROOT = PROJECT_ROOT / "model_data"
+USE_MODEL_DATA_IF_AVAILABLE = True
 
 # =============================================================================
 # SETUP LOGGING
@@ -311,10 +324,27 @@ def process_single_cohort(
         # Simple in-memory connection (no AWS needed for local parquet reads)
         con = duckdb.connect(':memory:')
         con.sql("SET threads = 1")
-        
-        # Build path to cohort parquet file
-        parquet_file = local_data_path / f"cohort_name={cohort_name}" / f"event_year={event_year}" / f"age_band={age_band}" / "cohort.parquet"
-        
+
+        # Prefer filtered model_data (if available) over raw GOLD cohorts parquet
+        model_data_file = (
+            MODEL_DATA_ROOT
+            / f"cohort_name={cohort_name}"
+            / f"age_band={age_band}"
+            / "model_events.parquet"
+        )
+
+        if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
+            parquet_file = model_data_file
+            logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
+        else:
+            parquet_file = (
+                local_data_path
+                / f"cohort_name={cohort_name}"
+                / f"event_year={event_year}"
+                / f"age_band={age_band}"
+                / "cohort.parquet"
+            )
+
         if not parquet_file.exists():
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
             return {
@@ -325,44 +355,123 @@ def process_single_cohort(
                 'error': 'File not found'
             }
         
-        # Build query based on item type
+        # Build query based on item type. Always include `target` so we can run
+        # a separate target-only FP-Growth pass (within-case patterns).
         if item_type == 'drug_name':
             query = f"""
-            SELECT mi_person_key, drug_name as item
+            SELECT mi_person_key, drug_name as item, target
             FROM read_parquet('{parquet_file}')
-            WHERE drug_name IS NOT NULL AND drug_name != '' AND event_type = 'pharmacy'
+            WHERE
+                drug_name IS NOT NULL
+                AND drug_name != ''
+                AND event_type = 'pharmacy'
+                AND event_year = {event_year}
             """
         elif item_type == 'icd_code':
-            # Collect from first 5 ICD diagnosis columns
+            # Collect from ALL ICD diagnosis columns (primary through ten)
             query = f"""
             WITH all_icds AS (
-                SELECT mi_person_key, primary_icd_diagnosis_code as icd 
+                SELECT mi_person_key, primary_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND event_type = 'medical'
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
                 UNION ALL
-                SELECT mi_person_key, two_icd_diagnosis_code as icd 
+                SELECT mi_person_key, two_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE two_icd_diagnosis_code IS NOT NULL AND event_type = 'medical'
+                WHERE two_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
                 UNION ALL
-                SELECT mi_person_key, three_icd_diagnosis_code as icd 
+                SELECT mi_person_key, three_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE three_icd_diagnosis_code IS NOT NULL AND event_type = 'medical'
+                WHERE three_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
                 UNION ALL
-                SELECT mi_person_key, four_icd_diagnosis_code as icd 
+                SELECT mi_person_key, four_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE four_icd_diagnosis_code IS NOT NULL AND event_type = 'medical'
+                WHERE four_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
                 UNION ALL
-                SELECT mi_person_key, five_icd_diagnosis_code as icd 
+                SELECT mi_person_key, five_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE five_icd_diagnosis_code IS NOT NULL AND event_type = 'medical'
+                WHERE five_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, six_icd_diagnosis_code as icd, target
+                FROM read_parquet('{parquet_file}') 
+                WHERE six_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, seven_icd_diagnosis_code as icd, target
+                FROM read_parquet('{parquet_file}') 
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, eight_icd_diagnosis_code as icd, target
+                FROM read_parquet('{parquet_file}') 
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, nine_icd_diagnosis_code as icd, target
+                FROM read_parquet('{parquet_file}') 
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, ten_icd_diagnosis_code as icd, target
+                FROM read_parquet('{parquet_file}') 
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
             )
-            SELECT mi_person_key, icd as item FROM all_icds WHERE icd != ''
+            SELECT mi_person_key, icd as item, target FROM all_icds WHERE icd != ''
             """
         elif item_type == 'cpt_code':
             query = f"""
-            SELECT mi_person_key, procedure_code as item
+            SELECT mi_person_key, procedure_code as item, target
             FROM read_parquet('{parquet_file}')
-            WHERE procedure_code IS NOT NULL AND procedure_code != '' AND event_type = 'medical'
+            WHERE
+                procedure_code IS NOT NULL
+                AND procedure_code != ''
+                AND event_type = 'medical'
+                AND event_year = {event_year}
+            """
+        elif item_type == 'medical_code':
+            # Combined ICD (all 10 diagnosis positions) + CPT codes in a single transaction space
+            query = f"""
+            WITH all_med_codes AS (
+                SELECT mi_person_key, primary_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, two_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, three_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, four_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, five_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, six_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, seven_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, eight_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, nine_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, ten_icd_diagnosis_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                UNION ALL
+                SELECT mi_person_key, procedure_code as code, target
+                FROM read_parquet('{parquet_file}')
+                WHERE procedure_code IS NOT NULL AND procedure_code != '' AND event_type = 'medical' AND event_year = {event_year}
+            )
+            SELECT mi_person_key, code as item, target FROM all_med_codes WHERE code != ''
             """
         else:
             raise ValueError(f"Unknown item_type: {item_type}")
@@ -539,11 +648,133 @@ def process_single_cohort(
             Key=f"{prefix}/metrics.json",
             Body=json.dumps(metrics, indent=2)
         )
-        
+
+        # ------------------------------------------------------------------
+        # Save local copies for COMBINED view
+        # Directory layout: outputs/{cohort_name}/combined/{age_band_fname}/{event_year}/
+        # ------------------------------------------------------------------
+        try:
+            age_band_fname = age_band.replace("-", "_")
+            combined_dir = LOCAL_OUTPUT_ROOT / cohort_name / "combined" / age_band_fname / str(event_year)
+            combined_dir.mkdir(parents=True, exist_ok=True)
+
+            # encoding_map
+            (combined_dir / f"{item_type}_encoding_map.json").write_text(
+                json.dumps(encoding_map, indent=2)
+            )
+
+            # itemsets
+            itemsets_json.to_json(
+                combined_dir / f"{item_type}_itemsets.json",
+                orient="records",
+                indent=2,
+            )
+
+            # rules
+            rules_json.to_json(
+                combined_dir / f"{item_type}_rules.json",
+                orient="records",
+                indent=2,
+            )
+
+            # metrics
+            (combined_dir / f"{item_type}_metrics.json").write_text(
+                json.dumps(metrics, indent=2)
+            )
+
+            logger.info(f"Saved local FP-Growth (combined) outputs under {combined_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to write local FP-Growth combined outputs: {e}")
+
+        # ------------------------------------------------------------------
+        # Target-only FP-Growth: within-target patterns (target == 1)
+        # ------------------------------------------------------------------
+        try:
+            if 'target' in df.columns:
+                logger.info("Running target-only FP-Growth (target == 1)...")
+                df_target = df[df["target"] == 1].copy()
+                if len(df_target) == 0:
+                    logger.warning("No target=1 rows; skipping target-only FP-Growth.")
+                else:
+                    # Build transactions for target-only cohort (no density stratification)
+                    tx_target = (
+                        df_target.groupby('mi_person_key')['item']
+                        .apply(lambda x: sorted(set(x.tolist())))
+                        .tolist()
+                    )
+                    if len(tx_target) < 10:
+                        logger.warning(f"Insufficient target-only transactions ({len(tx_target)}); skipping.")
+                    else:
+                        te_t = TransactionEncoder()
+                        te_ary_t = te_t.fit(tx_target).transform(tx_target)
+                        df_enc_t = pd.DataFrame(te_ary_t, columns=te_t.columns_)
+
+                        itemsets_t = fpgrowth(
+                            df_enc_t,
+                            min_support=min_support,
+                            use_colnames=True,
+                        )
+                        if len(itemsets_t) > 0:
+                            itemsets_t = filter_itemsets_by_lift(
+                                itemsets_t, df_enc_t, MIN_ITEMSET_LIFT, logger
+                            )
+
+                        try:
+                            rules_t = association_rules(
+                                itemsets_t,
+                                metric="confidence",
+                                min_threshold=min_confidence,
+                            )
+                        except Exception as e_rules:
+                            logger.warning(f"Target-only association_rules failed: {e_rules}")
+                            rules_t = pd.DataFrame(columns=['antecedents', 'consequents'])
+
+                        # Convert to JSON-friendly forms
+                        itemsets_t_json = itemsets_t.copy()
+                        if 'itemsets' in itemsets_t_json.columns:
+                            itemsets_t_json['itemsets'] = itemsets_t_json['itemsets'].apply(lambda x: list(x))
+
+                        rules_t_json = rules_t.copy()
+                        if 'antecedents' in rules_t_json.columns:
+                            rules_t_json['antecedents'] = rules_t_json['antecedents'].apply(lambda x: list(x))
+                        if 'consequents' in rules_t_json.columns:
+                            rules_t_json['consequents'] = rules_t_json['consequents'].apply(lambda x: list(x))
+
+                        # S3: write alongside combined, with *_target_only.json suffix
+                        s3_client.put_object(
+                            Bucket=bucket,
+                            Key=f"{prefix}/itemsets_target_only.json",
+                            Body=itemsets_t_json.to_json(orient='records', indent=2),
+                        )
+                        s3_client.put_object(
+                            Bucket=bucket,
+                            Key=f"{prefix}/rules_target_only.json",
+                            Body=rules_t_json.to_json(orient='records', indent=2),
+                        )
+
+                        # Local: outputs/{cohort_name}/target/{age_band_fname}/{event_year}/
+                        target_dir = LOCAL_OUTPUT_ROOT / cohort_name / "target" / age_band_fname / str(event_year)
+                        target_dir.mkdir(parents=True, exist_ok=True)
+
+                        itemsets_t_json.to_json(
+                            target_dir / f"{item_type}_itemsets_target_only.json",
+                            orient="records",
+                            indent=2,
+                        )
+                        rules_t_json.to_json(
+                            target_dir / f"{item_type}_rules_target_only.json",
+                            orient="records",
+                            indent=2,
+                        )
+
+                        logger.info(f"Saved target-only FP-Growth outputs under {target_dir}")
+        except Exception as e:
+            logger.warning(f"Target-only FP-Growth encountered an error: {e}")
+
         elapsed = time.time() - start_time
         log_memory(logger, "END")
         logger.info(f"✓ {cohort_id} {item_type}: {len(itemsets):,} itemsets, {len(rules):,} rules in {elapsed:.1f}s")
-        
+
         return metrics
         
     except Exception as e:
@@ -575,17 +806,20 @@ def main():
     logger.info(f"S3 Output: {S3_OUTPUT_BASE}")
     logger.info(f"Local Data: {LOCAL_DATA_PATH}")
     logger.info(f"Local Data Exists: {LOCAL_DATA_PATH.exists()}")
+    logger.info(f"Model Data Root: {MODEL_DATA_ROOT} (exists={MODEL_DATA_ROOT.exists()})")
     logger.info("="*80)
     
-    if not LOCAL_DATA_PATH.exists():
+    if not LOCAL_DATA_PATH.exists() and not MODEL_DATA_ROOT.exists():
         logger.error(f"✗ Local data path does not exist: {LOCAL_DATA_PATH}")
+        logger.error(f"✗ Model data root does not exist: {MODEL_DATA_ROOT}")
         logger.error(
             "  On EC2, sync from S3 with:\n"
             "    aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ /mnt/nvme/cohorts/"
         )
         logger.error(
             "  For local development, sync to ./data/cohorts_F1120/ and "
-            "either set LOCAL_DATA_PATH accordingly or export LOCAL_DATA_PATH."
+            "either set LOCAL_DATA_PATH accordingly or export LOCAL_DATA_PATH, "
+            "or generate filtered model_data first."
         )
         sys.exit(1)
     
