@@ -471,8 +471,8 @@ def run_cohort_analysis(
             logger.info("Saved constant features list: %s", constant_features_file)
             
             # Upload to S3 alongside other feature-importance artifacts
-            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/constant_features.csv
-            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/constant_features.csv"
+            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_constant_features.csv
+            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_constant_features.csv"
             if upload_csv_to_s3(constant_features_file, s3_key_const):
                 logger.info("Uploaded constant features to S3: s3://pgxdatalake/%s", s3_key_const)
             else:
@@ -543,7 +543,7 @@ def run_cohort_analysis(
             # Check if this model's results already exist (idempotency)
             # Check local file first, then S3
             local_file = os.path.join(output_dir, f"{cohort_name}_{age_band_fname}_{method}_feature_importance.csv")
-            s3_key_method = f"gold/feature_importance/{cohort_name}/{age_band}/{method}_feature_importance.csv"
+            s3_key_method = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv"
             
             # Check local file first
             if os.path.exists(local_file):
@@ -623,7 +623,8 @@ def run_cohort_analysis(
             logger.info("Saved locally: %s", output_file)
             
             # Upload to S3
-            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{method}_feature_importance.csv"
+            # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv
+            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_{method}_feature_importance.csv"
             if upload_csv_to_s3(output_file, s3_key):
                 logger.info("Uploaded to S3: s3://pgxdatalake/%s", s3_key)
             else:
@@ -646,7 +647,8 @@ def run_cohort_analysis(
         logger.info("Saved aggregated results locally: %s", output_file)
         
         # Upload aggregated results to S3
-        s3_key_agg = f"gold/feature_importance/{cohort_name}/{age_band}/aggregated_feature_importance.csv"
+        # Folder pattern: gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_aggregated_feature_importance.csv
+        s3_key_agg = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band}_aggregated_feature_importance.csv"
         if upload_csv_to_s3(output_file, s3_key_agg):
             logger.info("Uploaded aggregated results to S3: s3://pgxdatalake/%s", s3_key_agg)
         else:
