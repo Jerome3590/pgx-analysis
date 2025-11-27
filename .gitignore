@@ -12,6 +12,8 @@ logs/
 *.xlsx
 *.Rhistory
 medical_head.txt
-pharmacy_head.txt.venv311/
+pharmacy_head.txt
+.venv/
+.venv311/
 __pycache__/
 *.pyc
