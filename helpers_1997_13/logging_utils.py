@@ -1,6 +1,7 @@
 import logging
 import io
 import sys
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -516,6 +517,7 @@ def save_logs_to_s3_r(log_file_path: str, cohort_name: str, age_band: str, event
         return
     
     try:
+        from helpers_1997_13.constants import S3_BUCKET
         s3_key = f"logs/feature_importance/cohort_name={cohort_name}/age_band={age_band}/event_year={event_year}/{os.path.basename(log_file_path)}"
         
         with open(log_file_path, 'rb') as f:

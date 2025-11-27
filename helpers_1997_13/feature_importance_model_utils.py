@@ -11,6 +11,8 @@ from catboost import CatBoostClassifier, Pool
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
+from sklearn.exceptions import ConvergenceWarning
+from sklearn.inspection import permutation_importance
 import xgboost as xgb
 try:
     import lightgbm as lgb
@@ -33,6 +35,92 @@ from helpers_1997_13.common_imports import *
 
 
 # ============================================================================
+# Unified Permutation Importance (for fair comparison across all models)
+# ============================================================================
+
+def get_permutation_importance(model, X_test, y_test, feature_names, scoring='recall', n_repeats=5, random_state=42):
+    """
+    Calculate permutation-based feature importance for any model.
+    This provides fair comparison across all model types.
+    
+    Args:
+        model: Trained model (any sklearn-compatible model, including CatBoost)
+        X_test: Test features (DataFrame or array)
+        y_test: Test labels (array)
+        feature_names: List of feature names
+        scoring: Scoring function ('recall', 'log_loss', or callable)
+        n_repeats: Number of permutation repeats (default: 5)
+        random_state: Random seed for reproducibility
+        
+    Returns:
+        DataFrame with columns: ['feature', 'importance']
+    """
+    # Check if this is a CatBoost model
+    is_catboost = isinstance(model, CatBoostClassifier)
+    
+    if is_catboost:
+        # For CatBoost, use CatBoost's built-in permutation importance
+        # CatBoost has get_feature_importance with Pool that handles categoricals properly
+        categorical_features = [col for col in X_test.columns if col.startswith('item_')]
+        cat_indices = [X_test.columns.get_loc(col) for col in categorical_features] if categorical_features else None
+        
+        test_pool = Pool(
+            data=X_test,
+            label=y_test,
+            cat_features=cat_indices
+        )
+        
+        # Use CatBoost's built-in permutation-based importance
+        importance = model.get_feature_importance(
+            data=test_pool,
+            type='PredictionValuesChange'  # Permutation-based importance
+        )
+        
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        
+        return importance_df
+    else:
+        # For other models, use sklearn's permutation_importance
+        # Convert to numpy array
+        if isinstance(X_test, pd.DataFrame):
+            X_test_for_perm = X_test.values
+        else:
+            X_test_for_perm = X_test
+        
+        # Define scoring function
+        if scoring == 'recall':
+            from sklearn.metrics import recall_score, make_scorer
+            scorer = make_scorer(recall_score, zero_division=0)
+        elif scoring == 'log_loss':
+            from sklearn.metrics import log_loss, make_scorer
+            def neg_log_loss(y_true, y_pred_proba):
+                return -log_loss(y_true, y_pred_proba)
+            scorer = make_scorer(neg_log_loss, needs_proba=True)
+        else:
+            scorer = scoring
+        
+        # Calculate permutation importance
+        perm_importance = permutation_importance(
+            model, X_test_for_perm, y_test,
+            scoring=scorer,
+            n_repeats=n_repeats,
+            random_state=random_state,
+            n_jobs=1
+        )
+        
+        # Create DataFrame
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': perm_importance.importances_mean
+        }).sort_values('importance', ascending=False)
+        
+        return importance_df
+
+
+# ============================================================================
 # CatBoost
 # ============================================================================
 
@@ -48,15 +136,32 @@ def train_catboost(X_train, y_train, params):
     Returns:
         Trained CatBoost model
     """
-    # Identify categorical columns (object/string type)
-    categorical_features = list(X_train.select_dtypes(include=['object', 'category']).columns)
-    cat_indices = [X_train.columns.get_loc(col) for col in categorical_features]
+    # Filter out constant features (all same value) - CatBoost requires at least one non-constant feature
+    if isinstance(X_train, pd.DataFrame):
+        # Find constant features (zero variance)
+        constant_features = []
+        for col in X_train.columns:
+            if X_train[col].nunique() <= 1:
+                constant_features.append(col)
+        
+        if constant_features:
+            X_train = X_train.drop(columns=constant_features)
+            if len(X_train.columns) == 0:
+                raise ValueError("All features are constant. Cannot train CatBoost model.")
+    
+    # Identify categorical columns (string/object type)
+    # CatBoost requires all categorical columns to be explicitly listed
+    # For our feature importance, all item_* columns are categorical (item names or empty strings)
+    categorical_features = [col for col in X_train.columns if col.startswith('item_')]
+    
+    # Convert to indices (CatBoost uses 0-based indices)
+    cat_indices = [X_train.columns.get_loc(col) for col in categorical_features] if categorical_features else None
     
     # Create CatBoost Pool
     train_pool = Pool(
         data=X_train,
         label=y_train,
-        cat_features=cat_indices if cat_indices else None
+        cat_features=cat_indices  # All item_* columns are categorical
     )
     
     # Set up CatBoost parameters
@@ -80,12 +185,14 @@ def train_catboost(X_train, y_train, params):
 
 def predict_catboost(model, X_test):
     """Predict with CatBoost - returns binary predictions"""
-    categorical_features = list(X_test.select_dtypes(include=['object', 'category']).columns)
-    cat_indices = [X_test.columns.get_loc(col) for col in categorical_features]
+    # All item_* columns are categorical (item names or empty strings)
+    categorical_features = [col for col in X_test.columns if col.startswith('item_')]
+    
+    cat_indices = [X_test.columns.get_loc(col) for col in categorical_features] if categorical_features else None
     
     test_pool = Pool(
         data=X_test,
-        cat_features=cat_indices if cat_indices else None
+        cat_features=cat_indices  # All item_* columns are categorical
     )
     
     pred_proba = model.predict_proba(test_pool)[:, 1]
@@ -119,16 +226,78 @@ def predict_proba_catboost(model, X_test):
     return pred_proba
 
 
-def get_importance_catboost(model, feature_names):
-    """Get feature importance from CatBoost model"""
-    importance = model.get_feature_importance()
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_catboost(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from CatBoost model using CatBoost's built-in method.
+    Uses CatBoost's get_feature_importance with Pool for permutation-based calculation.
+    """
+    if X_test is not None and y_test is not None:
+        # Ensure X_test is a DataFrame
+        if not isinstance(X_test, pd.DataFrame):
+            X_test = pd.DataFrame(X_test, columns=feature_names)
+        
+        # Ensure y_test is a numpy array and has correct length
+        if not isinstance(y_test, np.ndarray):
+            y_test = np.array(y_test)
+        
+        # Verify lengths match
+        if len(X_test) != len(y_test):
+            raise ValueError(
+                f"X_test and y_test length mismatch: X_test has {len(X_test)} rows, "
+                f"y_test has {len(y_test)} values"
+            )
+        
+        # Get the features that the model was actually trained on
+        # CatBoost models store feature names in feature_names_ attribute
+        if hasattr(model, 'feature_names_'):
+            model_feature_names = model.feature_names_
+        else:
+            # Fallback: use feature_names passed in (should match training features)
+            model_feature_names = feature_names
+        
+        # Align X_test to only include features the model was trained on
+        # This is important because train_catboost removes constant features per split
+        X_test_aligned = X_test[model_feature_names].copy()
+        
+        # Use CatBoost's built-in permutation importance
+        # Create Pool for test data
+        categorical_features = [col for col in X_test_aligned.columns if col.startswith('item_')]
+        cat_indices = [X_test_aligned.columns.get_loc(col) for col in categorical_features] if categorical_features else None
+        
+        test_pool = Pool(
+            data=X_test_aligned,
+            label=y_test,
+            cat_features=cat_indices
+        )
+        
+        # Get permutation-based importance using PredictionValuesChange (permutation-based)
+        # This is CatBoost's built-in permutation importance
+        importance = model.get_feature_importance(
+            data=test_pool,
+            type='PredictionValuesChange'  # Permutation-based importance
+        )
+        
+        # Verify lengths match
+        if len(importance) != len(model_feature_names):
+            raise ValueError(
+                f"Feature importance length ({len(importance)}) doesn't match model features length ({len(model_feature_names)}). "
+                f"X_test had {len(X_test.columns)} columns, but model was trained on {len(model_feature_names)} features."
+            )
+        
+        importance_df = pd.DataFrame({
+            'feature': model_feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        
+        return importance_df
+    else:
+        # Fallback to native importance (for backward compatibility)
+        importance = model.get_feature_importance()
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -182,16 +351,21 @@ def predict_proba_random_forest(model, X_test):
     return pred_proba
 
 
-def get_importance_random_forest(model, feature_names):
-    """Get feature importance from Random Forest model"""
-    importance = model.feature_importances_
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_random_forest(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from Random Forest model.
+    Falls back to Gini importance if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        return get_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to Gini importance (for backward compatibility)
+        importance = model.feature_importances_
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -272,16 +446,21 @@ def predict_proba_xgboost(model, X_test):
     return pred_proba
 
 
-def get_importance_xgboost(model, feature_names):
-    """Get feature importance from XGBoost model"""
-    importance = model.feature_importances_
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_xgboost(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from XGBoost model.
+    Falls back to gain importance if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        return get_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to gain importance (for backward compatibility)
+        importance = model.feature_importances_
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -316,7 +495,7 @@ def train_lightgbm(X_train, y_train, params):
         lgb_params,
         train_data,
         num_boost_round=num_boost_round,
-        verbose_eval=False
+        callbacks=[lgb.log_evaluation(period=0)]  # Suppress output (replaces verbose_eval)
     )
     
     return model
@@ -347,13 +526,98 @@ def predict_proba_lightgbm(model, X_test):
     return pred_proba
 
 
-def get_importance_lightgbm(model, feature_names):
-    """Get feature importance from LightGBM model"""
-    importance = model.feature_importance(importance_type='gain')
+def get_importance_lightgbm(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from LightGBM model.
+    Uses custom permutation importance since LightGBM Booster is not sklearn-compatible.
+    Falls back to gain importance if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        # LightGBM Booster doesn't work with sklearn's permutation_importance
+        # Use custom permutation importance
+        return get_lightgbm_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to gain importance (for backward compatibility)
+        importance = model.feature_importance(importance_type='gain')
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
+
+
+def get_lightgbm_permutation_importance(model, X_test, y_test, feature_names, scoring='recall', n_repeats=5, random_state=42):
+    """
+    Custom permutation importance for LightGBM Booster object.
     
+    Args:
+        model: Trained LightGBM Booster model
+        X_test: Test features (DataFrame or array)
+        y_test: Test labels (array)
+        feature_names: List of feature names
+        scoring: Scoring function ('recall' or 'log_loss')
+        n_repeats: Number of permutation repeats
+        random_state: Random seed
+        
+    Returns:
+        DataFrame with columns: ['feature', 'importance']
+    """
+    import numpy as np
+    from sklearn.metrics import recall_score, log_loss
+    
+    # Ensure X_test is a numpy array
+    if isinstance(X_test, pd.DataFrame):
+        X_test_array = X_test.values
+    else:
+        X_test_array = X_test
+    
+    # Ensure y_test is numpy array
+    if not isinstance(y_test, np.ndarray):
+        y_test = np.array(y_test)
+    
+    # Get baseline score
+    if scoring == 'recall':
+        y_pred_baseline = predict_lightgbm(model, X_test_array)
+        baseline_score = recall_score(y_test, y_pred_baseline, zero_division=0)
+    elif scoring == 'log_loss':
+        y_pred_proba_baseline = predict_proba_lightgbm(model, X_test_array)
+        baseline_score = -log_loss(y_test, y_pred_proba_baseline)  # Negate for consistency
+    else:
+        raise ValueError(f"Unsupported scoring: {scoring}")
+    
+    # Calculate importance for each feature
+    importances = []
+    np.random.seed(random_state)
+    
+    for feature_idx, feature_name in enumerate(feature_names):
+        feature_importances = []
+        
+        for repeat in range(n_repeats):
+            # Shuffle the feature
+            X_test_shuffled = X_test_array.copy()
+            shuffled_values = X_test_shuffled[:, feature_idx].copy()
+            np.random.shuffle(shuffled_values)
+            X_test_shuffled[:, feature_idx] = shuffled_values
+            
+            # Calculate score with shuffled feature
+            if scoring == 'recall':
+                y_pred_shuffled = predict_lightgbm(model, X_test_shuffled)
+                shuffled_score = recall_score(y_test, y_pred_shuffled, zero_division=0)
+            elif scoring == 'log_loss':
+                y_pred_proba_shuffled = predict_proba_lightgbm(model, X_test_shuffled)
+                shuffled_score = -log_loss(y_test, y_pred_proba_shuffled)
+            
+            # Importance is the drop in score (baseline - shuffled)
+            importance = baseline_score - shuffled_score
+            feature_importances.append(importance)
+        
+        # Average importance across repeats
+        importances.append(np.mean(feature_importances))
+    
+    # Create DataFrame
     importance_df = pd.DataFrame({
         'feature': feature_names,
-        'importance': importance
+        'importance': importances
     }).sort_values('importance', ascending=False)
     
     return importance_df
@@ -410,16 +674,21 @@ def predict_proba_extratrees(model, X_test):
     return pred_proba
 
 
-def get_importance_extratrees(model, feature_names):
-    """Get feature importance from ExtraTrees model"""
-    importance = model.feature_importances_
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_extratrees(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from ExtraTrees model.
+    Falls back to Gini importance if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        return get_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to Gini importance (for backward compatibility)
+        importance = model.feature_importances_
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -432,7 +701,7 @@ def train_logistic_regression(X_train, y_train, params):
         'penalty': params.get('penalty', 'l2'),
         'C': params.get('C', 1.0),
         'solver': params.get('solver', 'lbfgs'),
-        'max_iter': params.get('max_iter', 1000),
+        'max_iter': params.get('max_iter', 5000),  # Increased for small datasets
         'random_state': params.get('random_seed', 42),
         'n_jobs': 1,  # Use 1 thread per worker
         'verbose': 0
@@ -444,8 +713,11 @@ def train_logistic_regression(X_train, y_train, params):
     elif lr_params['penalty'] == 'elasticnet':
         lr_params['solver'] = 'saga'  # Only solver that supports elasticnet
     
-    model = LogisticRegression(**lr_params)
-    model.fit(X_train, y_train)
+    # Suppress convergence warnings for small datasets
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+        model = LogisticRegression(**lr_params)
+        model.fit(X_train, y_train)
     
     return model
 
@@ -474,16 +746,21 @@ def predict_proba_logistic_regression(model, X_test):
     return pred_proba
 
 
-def get_importance_logistic_regression(model, feature_names):
-    """Get feature importance from LogisticRegression model (uses absolute value of coefficients)"""
-    importance = np.abs(model.coef_[0])
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_logistic_regression(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from LogisticRegression model.
+    Falls back to coefficient magnitude if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        return get_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to coefficient magnitude (for backward compatibility)
+        importance = np.abs(model.coef_[0])
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -496,14 +773,17 @@ def train_linearsvc(X_train, y_train, params):
         'penalty': params.get('penalty', 'l2'),
         'C': params.get('C', 1.0),
         'loss': params.get('loss', 'squared_hinge'),
-        'max_iter': params.get('max_iter', 1000),
+        'max_iter': params.get('max_iter', 5000),  # Increased for small datasets
         'random_state': params.get('random_seed', 42),
         'dual': params.get('dual', True),
         'verbose': 0
     }
     
-    model = LinearSVC(**svc_params)
-    model.fit(X_train, y_train)
+    # Suppress convergence warnings for small datasets
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+        model = LinearSVC(**svc_params)
+        model.fit(X_train, y_train)
     
     return model
 
@@ -535,16 +815,21 @@ def predict_proba_linearsvc(model, X_test):
     return pred_proba
 
 
-def get_importance_linearsvc(model, feature_names):
-    """Get feature importance from LinearSVC model (uses absolute value of coefficients)"""
-    importance = np.abs(model.coef_[0])
-    
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-    
-    return importance_df
+def get_importance_linearsvc(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """
+    Get permutation-based feature importance from LinearSVC model.
+    Falls back to coefficient magnitude if X_test/y_test not provided.
+    """
+    if X_test is not None and y_test is not None:
+        return get_permutation_importance(model, X_test, y_test, feature_names, scoring=scoring)
+    else:
+        # Fallback to coefficient magnitude (for backward compatibility)
+        importance = np.abs(model.coef_[0])
+        importance_df = pd.DataFrame({
+            'feature': feature_names,
+            'importance': importance
+        }).sort_values('importance', ascending=False)
+        return importance_df
 
 
 # ============================================================================
@@ -558,14 +843,17 @@ def train_elasticnet(X_train, y_train, params):
         'C': params.get('C', 1.0),
         'l1_ratio': params.get('l1_ratio', 0.5),
         'solver': 'saga',  # Only solver that supports elasticnet
-        'max_iter': params.get('max_iter', 1000),
+        'max_iter': params.get('max_iter', 5000),  # Increased for small datasets
         'random_state': params.get('random_seed', 42),
         'n_jobs': 1,  # Use 1 thread per worker
         'verbose': 0
     }
     
-    model = LogisticRegression(**en_params)
-    model.fit(X_train, y_train)
+    # Suppress convergence warnings for small datasets
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+        model = LogisticRegression(**en_params)
+        model.fit(X_train, y_train)
     
     return model
 
@@ -580,9 +868,9 @@ def predict_proba_elasticnet(model, X_test):
     return predict_proba_logistic_regression(model, X_test)
 
 
-def get_importance_elasticnet(model, feature_names):
-    """Get feature importance from ElasticNet - uses LogisticRegression importance"""
-    return get_importance_logistic_regression(model, feature_names)
+def get_importance_elasticnet(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """Get permutation-based feature importance from ElasticNet model"""
+    return get_importance_logistic_regression(model, feature_names, X_test, y_test, scoring)
 
 
 # ============================================================================
@@ -595,14 +883,17 @@ def train_lasso(X_train, y_train, params):
         'penalty': 'l1',
         'C': params.get('C', 1.0),
         'solver': 'liblinear',  # Only solver that supports L1
-        'max_iter': params.get('max_iter', 1000),
+        'max_iter': params.get('max_iter', 5000),  # Increased for small datasets
         'random_state': params.get('random_seed', 42),
         'n_jobs': 1,  # Use 1 thread per worker
         'verbose': 0
     }
     
-    model = LogisticRegression(**lasso_params)
-    model.fit(X_train, y_train)
+    # Suppress convergence warnings for small datasets
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=ConvergenceWarning)
+        model = LogisticRegression(**lasso_params)
+        model.fit(X_train, y_train)
     
     return model
 
@@ -617,7 +908,7 @@ def predict_proba_lasso(model, X_test):
     return predict_proba_logistic_regression(model, X_test)
 
 
-def get_importance_lasso(model, feature_names):
-    """Get feature importance from LASSO - uses LogisticRegression importance"""
-    return get_importance_logistic_regression(model, feature_names)
+def get_importance_lasso(model, feature_names, X_test=None, y_test=None, scoring='recall'):
+    """Get permutation-based feature importance from LASSO model"""
+    return get_importance_logistic_regression(model, feature_names, X_test, y_test, scoring)
 

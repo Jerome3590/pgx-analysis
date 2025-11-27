@@ -2407,9 +2407,18 @@ def check_cohort_file_exists(cohort_name: str, age_band: str, event_year: int) -
     Returns:
         True if file exists, False otherwise
     """
-    local_data_path = os.getenv("LOCAL_DATA_PATH", "/mnt/nvme/cohorts")
-    if not os.path.exists(local_data_path):
-        local_data_path = os.getenv("LOCAL_DATA_PATH", "C:/Projects/pgx-analysis/data/gold/cohorts_F1120")
+    # Try environment variable first
+    local_data_path = os.getenv("LOCAL_DATA_PATH")
+    
+    # If not set, try common locations
+    if not local_data_path:
+        # Check Windows path first (for local development)
+        windows_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "cohorts_F1120")
+        if os.path.exists(windows_path):
+            local_data_path = windows_path
+        else:
+            # Fall back to EC2 path
+            local_data_path = "/mnt/nvme/cohorts"
     
     parquet_file = os.path.join(
         local_data_path,

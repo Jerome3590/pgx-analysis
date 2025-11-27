@@ -28,7 +28,8 @@
 ## Overview
 
 This project calculates scaled feature importance for predicting opioid dependence using:
-- **Models:** CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)
+- **Tree Ensemble Models:** CatBoost, Random Forest, XGBoost, XGBoost RF, LightGBM, ExtraTrees
+- **Linear Models:** LogisticRegression, LinearSVC, ElasticNet, LASSO
 - **Validation:** Monte Carlo Cross-Validation (100–1000 splits) with temporal validation
 - **Scaling:** Permutation-based importance weighted by model Recall
 - **Aggregation:** Union of top 50 features from each model with summed importances
@@ -220,17 +221,63 @@ Rscript feature_importance_mc_cv.R \
 
 ### Models
 
-**CatBoost:**
-- Handles categorical features natively
-- Feature format: Each column is a factor with item name as level
-- Importance: Permutation-based (PredictionValuesChange)
+**Tree Ensemble Models:**
 
-**Random Forest:**
-- Requires numeric features
-- Feature format: Binary 0/1 encoding
-- Importance: Gini importance
+1. **CatBoost:**
+   - Handles categorical features natively
+   - Feature format: Each column is a factor with item name as level
+   - Importance: Permutation-based (PredictionValuesChange)
 
-Both models use **permutation importance** for fair comparison.
+2. **Random Forest:**
+   - Requires numeric features
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Permutation-based
+
+3. **XGBoost:**
+   - Gradient boosting with tree-based learners
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Permutation-based
+
+4. **XGBoost RF Mode:**
+   - Random Forest mode of XGBoost
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Permutation-based
+
+5. **LightGBM:**
+   - Gradient boosting optimized for speed and efficiency
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Permutation-based
+
+6. **ExtraTrees (Extremely Randomized Trees):**
+   - Similar to Random Forest but with more randomization
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Permutation-based
+
+**Linear Models:**
+
+7. **LogisticRegression:**
+   - Linear model for binary classification
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Absolute value of coefficients (scaled)
+
+8. **LinearSVC (Linear Support Vector Classification):**
+   - Linear SVM for classification
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Absolute value of coefficients (scaled)
+
+9. **ElasticNet:**
+   - Linear model with L1 + L2 regularization
+   - Feature format: Binary 0/1 encoding (one-hot)
+   - Importance: Absolute value of coefficients (scaled)
+   - Performs feature selection (drives some coefficients to zero)
+
+10. **LASSO:**
+    - Linear model with L1 regularization
+    - Feature format: Binary 0/1 encoding (one-hot)
+    - Importance: Absolute value of coefficients (scaled)
+    - Performs feature selection (drives some coefficients to zero)
+
+**Note:** All models use **permutation importance** for fair comparison, except linear models which use coefficient magnitudes (scaled to [0,1] range) as a proxy for importance.
 
 ---
 
@@ -240,11 +287,11 @@ Both models use **permutation importance** for fair comparison.
 
 #### 1. Train Models with MC-CV
 
-For each model type (CatBoost, Random Forest):
+For each model type (CatBoost, Random Forest, XGBoost, XGBoost RF, LightGBM, ExtraTrees, LogisticRegression, LinearSVC, ElasticNet, LASSO):
 - Create 100–1000 stratified Monte Carlo cross-validation splits
-- Train model on each training set (80%)
-- Evaluate Recall on each test set (20%)
-- Extract **permutation-based feature importance** for each split
+- Train model on each training set (80% sampled from 2016-2018)
+- Evaluate Recall on 2019 test set (temporal validation)
+- Extract **permutation-based feature importance** for each split (or coefficient magnitudes for linear models)
 - Aggregate across splits to get:
   - `importance_normalized` - Feature importance normalized to [0, 1]
   - `mc_cv_recall_mean` - Mean Recall across all splits
@@ -253,27 +300,29 @@ For each model type (CatBoost, Random Forest):
 #### 2. Select Top 50 from Each Model
 
 For each model:
-- Rank features by `importance_normalized` (permutation-based)
+- Rank features by `importance_normalized` (permutation-based or coefficient-based)
 - Select **top 50 features**
 - Scale importance by MC-CV Recall:
 
-```r
+```python
 importance_scaled = importance_normalized × mc_cv_recall_mean
 ```
 
 #### 3. Union of Features
 
-- Take the **union** of top 50 from CatBoost and top 50 from Random Forest
-- Results in up to 100 features (if no overlap) or as few as 50 (if complete overlap)
+- Take the **union** of top 50 from all 10 models
+- Results in up to 500 features (if no overlap) or as few as 50 (if complete overlap)
+- In practice, typically results in 100-200 unique features due to model agreement
 
 #### 4. Sum Importances for Overlapping Features
 
 For each feature in the union:
 
-**If feature appears in both models:**
-- Sum the scaled importances: `importance_scaled = catboost_scaled + rf_scaled`
-- Sum the normalized importances: `importance_normalized = catboost_norm + rf_norm`
-- Average the Recall: `mc_cv_recall_mean = (catboost_recall + rf_recall) / 2`
+**If feature appears in multiple models:**
+- Sum the scaled importances: `importance_scaled = sum(all_model_scaled_importances)`
+- Sum the normalized importances: `importance_normalized = sum(all_model_normalized_importances)`
+- Average the Recall: `mc_cv_recall_mean = mean(all_model_recalls)`
+- Track which models: `models = "catboost, random_forest, xgboost, ..."`
 
 **If feature appears in only one model:**
 - Use that model's values directly
@@ -372,8 +421,8 @@ For each feature in the union:
 | `feature` | Feature name (drug, ICD, CPT) | String |
 | `importance_normalized` | Sum of normalized importances | 0.0 – 2.0 |
 | `importance_scaled` | Sum of Recall-scaled importances | 0.0 – ~1.6 |
-| `n_models` | Number of models including feature | 1 or 2 |
-| `models` | Which models | "catboost", "random_forest", or both |
+| `n_models` | Number of models including feature | 1 to 10 |
+| `models` | Which models | Comma-separated list (e.g., "catboost, random_forest, xgboost") |
 | `mc_cv_recall_mean` | Average Recall across models | 0.0 – 1.0 |
 | `mc_cv_recall_std` | Recall std dev | 0.0 – 1.0 |
 

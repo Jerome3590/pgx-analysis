@@ -285,14 +285,42 @@ def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_r
             # Build column aliases: convert spaces to underscores, preserve existing underscores
             def to_snake_case(col_name):
                 """Convert column name to snake_case"""
+                # Mapping for ordinal number prefixes (1st, 2nd, 3rd, etc.) to cardinal numbers
+                ordinal_map = {
+                    '1st': 'one', '2nd': 'two', '3rd': 'three', '4th': 'four',
+                    '5th': 'five', '6th': 'six', '7th': 'seven', '8th': 'eight',
+                    '9th': 'nine', '10th': 'ten', '11th': 'eleven', '12th': 'twelve',
+                    '13th': 'thirteen', '14th': 'fourteen', '15th': 'fifteen',
+                    '16th': 'sixteen', '17th': 'seventeen', '18th': 'eighteen',
+                    '19th': 'nineteen', '20th': 'twenty'
+                }
+                
                 # Replace spaces with underscores
                 result = col_name.replace(' ', '_')
                 # Convert to lowercase
                 result = result.lower()
+                
+                # Check if column name starts with an ordinal number (e.g., "2nd_", "3rd_", "10th_")
+                for ordinal, word in ordinal_map.items():
+                    if result.startswith(ordinal + '_'):
+                        result = result.replace(ordinal + '_', word + '_', 1)
+                        break
+                    elif result.startswith(ordinal):
+                        # Handle case where ordinal is at the start but not followed by underscore
+                        # Check if next character is underscore or end of string
+                        if len(result) == len(ordinal) or result[len(ordinal)] == '_':
+                            result = result.replace(ordinal, word, 1)
+                        break
+                
                 # Handle multiple consecutive underscores
                 while '__' in result:
                     result = result.replace('__', '_')
-                return result.strip('_')
+                result = result.strip('_')
+                
+                # SQL identifiers can't start with a number - prefix with underscore if still starts with digit
+                if result and result[0].isdigit():
+                    result = '_' + result
+                return result
 
             column_aliases = []
             for col in col_info:

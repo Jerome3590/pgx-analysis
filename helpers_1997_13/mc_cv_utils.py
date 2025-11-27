@@ -77,90 +77,109 @@ def run_single_split(
     try:
         # Use separate test data if provided, otherwise use same data
         if X_test_all is not None and y_test_all is not None:
-            X_train = X_train_all.iloc[train_idx]
-            X_test = X_test_all.iloc[test_idx]
+            X_train = X_train_all.iloc[train_idx].copy()
+            X_test = X_test_all.iloc[test_idx].copy()
             y_train = y_train_all[train_idx]
             y_test = y_test_all[test_idx]
+            # Ensure test features match train features (same columns, same order)
+            # Add missing columns as zeros, remove extra columns
+            X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
         else:
             # Original behavior: use same data for train and test
-            X_train = X_train_all.iloc[train_idx]
-            X_test = X_train_all.iloc[test_idx]
+            X_train = X_train_all.iloc[train_idx].copy()
+            X_test = X_train_all.iloc[test_idx].copy()
             y_train = y_train_all[train_idx]
             y_test = y_train_all[test_idx]
+        
+        # Drop mi_person_key if present (not a feature)
+        if 'mi_person_key' in X_train.columns:
+            X_train = X_train.drop(columns=['mi_person_key'])
+        if 'mi_person_key' in X_test.columns:
+            X_test = X_test.drop(columns=['mi_person_key'])
         
         # Train model
         if method == 'catboost':
             if data_catboost is not None:
-                X_train_cb = data_catboost.iloc[train_idx].drop(columns=['target'])
+                X_train_cb = data_catboost.iloc[train_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in data_catboost.columns else ['target'])
             else:
                 X_train_cb = X_train
             
             # Use test data if provided
             if test_data_catboost is not None:
-                X_test_cb = test_data_catboost.iloc[test_idx].drop(columns=['target'])
+                X_test_cb = test_data_catboost.iloc[test_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in test_data_catboost.columns else ['target'])
             elif data_catboost is not None:
-                X_test_cb = data_catboost.iloc[test_idx].drop(columns=['target'])
+                X_test_cb = data_catboost.iloc[test_idx].drop(columns=['target', 'mi_person_key'] if 'mi_person_key' in data_catboost.columns else ['target'])
             else:
                 X_test_cb = X_test
             
             model = train_catboost(X_train_cb, y_train, model_params.get('catboost', {}))
             y_pred = predict_catboost(model, X_test_cb)
             y_pred_proba = predict_proba_catboost(model, X_test_cb)
-            feature_importance = get_importance_catboost(model, X_train_cb.columns.tolist())
+            # Use permutation importance for fair comparison (requires X_test and y_test)
+            feature_importance = get_importance_catboost(model, X_train_cb.columns.tolist(), X_test=X_test_cb, y_test=y_test)
             
         elif method == 'random_forest':
             model = train_random_forest(X_train, y_train, model_params.get('random_forest', {}))
             y_pred = predict_random_forest(model, X_test)
             y_pred_proba = predict_proba_random_forest(model, X_test)
-            feature_importance = get_importance_random_forest(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_random_forest(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'xgboost':
             model = train_xgboost(X_train, y_train, model_params.get('xgboost', {}))
             y_pred = predict_xgboost(model, X_test)
             y_pred_proba = predict_proba_xgboost(model, X_test)
-            feature_importance = get_importance_xgboost(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_xgboost(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'xgboost_rf':
             model = train_xgboost_rf(X_train, y_train, model_params.get('xgboost_rf', {}))
             y_pred = predict_xgboost(model, X_test)
             y_pred_proba = predict_proba_xgboost(model, X_test)
-            feature_importance = get_importance_xgboost(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_xgboost(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'lightgbm':
             model = train_lightgbm(X_train, y_train, model_params.get('lightgbm', {}))
             y_pred = predict_lightgbm(model, X_test)
             y_pred_proba = predict_proba_lightgbm(model, X_test)
-            feature_importance = get_importance_lightgbm(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_lightgbm(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'extratrees':
             model = train_extratrees(X_train, y_train, model_params.get('extratrees', {}))
             y_pred = predict_extratrees(model, X_test)
             y_pred_proba = predict_proba_extratrees(model, X_test)
-            feature_importance = get_importance_extratrees(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_extratrees(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'logistic_regression':
             model = train_logistic_regression(X_train, y_train, model_params.get('logistic_regression', {}))
             y_pred = predict_logistic_regression(model, X_test)
             y_pred_proba = predict_proba_logistic_regression(model, X_test)
-            feature_importance = get_importance_logistic_regression(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_logistic_regression(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'linearsvc':
             model = train_linearsvc(X_train, y_train, model_params.get('linearsvc', {}))
             y_pred = predict_linearsvc(model, X_test)
             y_pred_proba = predict_proba_linearsvc(model, X_test)
-            feature_importance = get_importance_linearsvc(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_linearsvc(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'elasticnet':
             model = train_elasticnet(X_train, y_train, model_params.get('elasticnet', {}))
             y_pred = predict_elasticnet(model, X_test)
             y_pred_proba = predict_proba_elasticnet(model, X_test)
-            feature_importance = get_importance_elasticnet(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_elasticnet(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         elif method == 'lasso':
             model = train_lasso(X_train, y_train, model_params.get('lasso', {}))
             y_pred = predict_lasso(model, X_test)
             y_pred_proba = predict_proba_lasso(model, X_test)
-            feature_importance = get_importance_lasso(model, X_train.columns.tolist())
+            # Use permutation importance for fair comparison
+            feature_importance = get_importance_lasso(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         else:
             raise ValueError(f"Unknown method: {method}")
@@ -283,9 +302,14 @@ def run_mc_cv_method(
     
     # Aggregate results
     successful_splits = [r for r in results if r['status'] == 'success']
+    failed_splits = [r for r in results if r['status'] == 'error']
     
     if len(successful_splits) == 0:
-        raise ValueError(f"No successful splits for method {method}")
+        # Log first few errors for debugging
+        error_samples = failed_splits[:5] if len(failed_splits) > 0 else []
+        error_messages = [f"Split {r['split']}: {r.get('error', 'Unknown error')}" for r in error_samples]
+        error_summary = "\n".join(error_messages)
+        raise ValueError(f"No successful splits for method {method}. Sample errors:\n{error_summary}")
     
     # Combine feature importance from all splits
     all_importance = pd.concat([r['feature_importance'] for r in successful_splits], ignore_index=True)
@@ -313,7 +337,7 @@ def run_mc_cv_method(
     # Sort by scaled importance
     aggregated = aggregated.sort_values('scaled_importance_mean', ascending=False)
     
-    print(f"✓ Completed {len(successful_splits)}/{n_splits} splits for {method}")
+    print(f"Completed {len(successful_splits)}/{n_splits} splits for {method}")
     print(f"  Mean Recall: {aggregated['recall_mean'].iloc[0]:.4f}")
     print(f"  Mean LogLoss: {aggregated['logloss_mean'].iloc[0]:.4f}")
     
