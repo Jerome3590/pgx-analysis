@@ -161,6 +161,9 @@ def run_cohort_analysis(
     logger.info("="*80)
     
     try:
+        # Normalize age-band for local filenames (convert hyphens to underscores)
+        age_band_fname = age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
+
         # Load data
         logger.info("Loading cohort data...")
         check_memory_usage_r(logger, "Before Data Loading")
@@ -444,7 +447,7 @@ def run_cohort_analysis(
             os.makedirs(output_dir, exist_ok=True)
             constant_features_file = os.path.join(
                 output_dir,
-                f"{cohort_name}_{age_band}_constant_features.csv"
+                f"{cohort_name}_{age_band_fname}_constant_features.csv"
             )
             constant_features_df.to_csv(constant_features_file, index=False)
             logger.info("Saved constant features list: %s", constant_features_file)
@@ -520,7 +523,7 @@ def run_cohort_analysis(
         for method in methods:
             # Check if this model's results already exist (idempotency)
             # Check local file first, then S3
-            local_file = os.path.join(output_dir, f"{cohort_name}_{age_band}_{method}_feature_importance.csv")
+            local_file = os.path.join(output_dir, f"{cohort_name}_{age_band_fname}_{method}_feature_importance.csv")
             s3_key_method = f"gold/feature_importance/{cohort_name}/{age_band}/{method}_feature_importance.csv"
             
             # Check local file first
@@ -595,7 +598,7 @@ def run_cohort_analysis(
             os.makedirs(output_dir, exist_ok=True)
             output_file = os.path.join(
                 output_dir,
-                f"{cohort_name}_{age_band}_{method}_feature_importance.csv"
+                f"{cohort_name}_{age_band_fname}_{method}_feature_importance.csv"
             )
             result.to_csv(output_file, index=False)
             logger.info("Saved locally: %s", output_file)
@@ -618,7 +621,7 @@ def run_cohort_analysis(
         # Save aggregated results locally
         output_file = os.path.join(
             output_dir,
-            f"{cohort_name}_{age_band}_aggregated_feature_importance.csv"
+            f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
         )
         aggregated.to_csv(output_file, index=False)
         logger.info("Saved aggregated results locally: %s", output_file)

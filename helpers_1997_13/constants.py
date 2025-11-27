@@ -175,6 +175,11 @@ COHORT_NAMES = [
     'opioid_ed', 'non_opioid_ed'
 ]
 
+# Helper function: convert age-band to filename-safe format
+def age_band_to_fname(age_band: str) -> str:
+    """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
+    return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
+
 # Processing Configuration
 LOCK_TIMEOUT_HOURS = 6  # Hours before considering a lock stale
 DEFAULT_SAMPLE_RATIO = 5  # Default 5x controls per positive case

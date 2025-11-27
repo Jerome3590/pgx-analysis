@@ -468,13 +468,14 @@ def setup_r_logging(cohort_name: str, age_band: str, event_year: int) -> dict:
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
     
-    # Create log file name
+    # Create log file name (use underscore-safe form for local filenames)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_name = f"feature_importance_{cohort_name}_{age_band}_{event_year}_{timestamp}.log"
+    age_band_fname = age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
+    log_file_name = f"feature_importance_{cohort_name}_{age_band_fname}_{event_year}_{timestamp}.log"
     log_file_path = str(log_dir / log_file_name)
-    
-    # Create logger
-    logger_name = f"feature_importance_{cohort_name}_{age_band}_{event_year}"
+
+    # Create logger (use underscore-safe age band in logger name to avoid '-' in logger ids)
+    logger_name = f"feature_importance_{cohort_name}_{age_band_fname}_{event_year}"
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
     

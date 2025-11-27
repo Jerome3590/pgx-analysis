@@ -24,6 +24,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from helpers_1997_13.feature_importance_utils import run_cohort_analysis
+from helpers_1997_13.constants import AGE_BANDS, age_band_to_fname
 
 # Configuration
 COHORT_NAME = "opioid_ed"
