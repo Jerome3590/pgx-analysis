@@ -8,9 +8,11 @@ import sys
 import pandas as pd
 import numpy as np
 import duckdb
+import multiprocessing
 from pathlib import Path
 from typing import Dict, Optional, List
 from sklearn.model_selection import StratifiedShuffleSplit
+from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -313,28 +315,48 @@ def run_cohort_analysis(
             """Create feature matrix with consistent feature space"""
             if is_catboost:
                 # CatBoost format: categorical features with item names as values
-                # Create a value column with the item name for pivot
-                patient_items_pivot = patient_items.copy()
-                patient_items_pivot['value'] = patient_items_pivot['item']
-                
-                feature_matrix = patient_items_pivot.pivot_table(
-                    index='mi_person_key',
-                    columns='item',
-                    values='value',
-                    aggfunc='first',
-                    fill_value=None
-                ).reset_index()
-                
-                # Add missing items as None columns
-                for item in all_item_list:
-                    if item not in feature_matrix.columns:
-                        feature_matrix[item] = None
-                
-                # Add prefix
-                feature_cols = [col for col in feature_matrix.columns if col != 'mi_person_key']
-                feature_matrix = feature_matrix.rename(
-                    columns={col: f'item_{col}' for col in feature_cols}
+                # Optimized approach: use groupby instead of pivot_table to reduce memory
+                # First, get unique patients
+                unique_patients = patient_targets['mi_person_key'].unique()
+                n_patients = len(unique_patients)
+                n_features = len(all_item_list)
+
+                logger.info("Building CatBoost feature matrix: %d patients × %d features", n_patients, n_features)
+
+                # Create base DataFrame with all patients and empty string defaults
+                # Use more memory-efficient approach: build column by column
+                data_dict = {'mi_person_key': unique_patients}
+
+                # Group by patient and item, take first value (in case of duplicates)
+                # Use drop_duplicates instead to avoid the reset_index issue
+                patient_item_map = patient_items[['mi_person_key', 'item']].drop_duplicates()
+
+                # Build columns more efficiently using groupby
+                # Parallelize column creation for better performance on multi-core systems
+                def build_feature_column(item):
+                    """Build a single feature column"""
+                    # Get patient keys that have this item
+                    item_patients = patient_item_map[patient_item_map['item'] == item]['mi_person_key'].values
+
+                    # Create full series with all patients, filling missing with empty string
+                    full_series = pd.Series('', index=unique_patients, dtype='string')
+                    if len(item_patients) > 0:
+                        # Set item name for patients that have this item
+                        full_series.loc[item_patients] = item
+                    return f'item_{item}', full_series.values
+
+                # Use parallel processing for column creation (leaves 2 cores free)
+                n_workers_matrix = max(1, multiprocessing.cpu_count() - 2)
+                column_results = Parallel(n_jobs=n_workers_matrix, verbose=0)(
+                    delayed(build_feature_column)(item) for item in all_item_list
                 )
+
+                # Add columns to dictionary
+                for col_name, col_values in column_results:
+                    data_dict[col_name] = col_values
+                
+                # Create DataFrame from dict (more memory efficient than pivot_table)
+                feature_matrix = pd.DataFrame(data_dict)
                 
                 # Join with targets
                 data = feature_matrix.merge(patient_targets, on='mi_person_key', how='left')
@@ -343,12 +365,8 @@ def run_cohort_analysis(
                 if 'mi_person_key' in data.columns:
                     data = data.drop(columns=['mi_person_key'])
                 
-                # Convert to categorical for CatBoost
-                # Replace NaN/None with empty string (CatBoost accepts empty strings as a category level)
-                for col in data.columns:
-                    if col.startswith('item_') and col != 'target':
-                        data[col] = data[col].fillna('').astype(str)
-                        # Keep as string - CatBoost will handle it as categorical when we specify cat_features
+                # All columns are already strings with empty string defaults, no need to fillna
+                logger.info("CatBoost feature matrix created: %d rows × %d features", len(data), len([c for c in data.columns if c.startswith('item_')]))
             else:
                 # Random Forest/XGBoost format: binary features
                 patient_items_with_value = patient_items.copy()
