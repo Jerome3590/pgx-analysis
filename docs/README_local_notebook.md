@@ -88,18 +88,17 @@ print(f'✓ boto3 {boto3.__version__}')
 ```
 C:\Projects\pgx-analysis\
 └── data\
-    └── gold\
-        └── cohorts_F1120\
-            ├── cohort_name=opioid_ed\
-            │   ├── event_year=2016\
-            │   │   ├── age_band=0-12\
-            │   │   │   └── cohort.parquet
-            │   │   ├── age_band=13-24\
-            │   │   │   └── cohort.parquet
-            │   │   └── ...
-            │   └── ...
-            └── cohort_name=non_opioid_ed\
-                └── ...
+    └── cohorts_F1120\
+        ├── cohort_name=opioid_ed\
+        │   ├── event_year=2016\
+        │   │   ├── age_band=0-12\
+        │   │   │   └── cohort.parquet
+        │   │   ├── age_band=13-24\
+        │   │   │   └── cohort.parquet
+        │   │   └── ...
+        │   └── ...
+        └── cohort_name=non_opioid_ed\
+            └── ...
 ```
 
 ### Data Statistics
@@ -115,13 +114,29 @@ C:\Projects\pgx-analysis\
 
 ```bash
 # Initial sync (one-time, ~7 GB)
-aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/ \
+aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/cohorts_F1120/ \
   --exclude "*.log" \
   --exclude "*.json"
 
 # Verify sync
-du -sh data/gold/cohorts_F1120/
+du -sh data/cohorts_F1120/
 # Expected: ~7.0 GB
+```
+
+### Python Dependencies (pip install)
+
+Create/activate your environment, then install the required Python libraries:
+
+```bash
+python -m pip install --upgrade pip
+
+python -m pip install \
+  numpy pandas scipy scikit-learn \
+  xgboost lightgbm catboost \
+  duckdb pyarrow \
+  boto3 botocore tenacity certifi urllib3 requests \
+  mlxtend networkx matplotlib seaborn jinja2 \
+  joblib tqdm psutil ipython jupyter
 ```
 
 ---
@@ -141,8 +156,8 @@ ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code']
 # Output location
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/global"
 
-# Local data path
-LOCAL_DATA_PATH = "C:\Projects\pgx-analysis\data\gold\cohorts_F1120"
+# Local data path (for Windows local development)
+LOCAL_DATA_PATH = "C:\\Projects\\pgx-analysis\\data\\cohorts_F1120"
 ```
 
 ### Cohort FPGrowth Parameters

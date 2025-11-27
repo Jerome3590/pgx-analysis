@@ -137,8 +137,8 @@ Generate ONLY rules that predict target outcomes
 # Install dependencies
 pip install mlxtend duckdb pandas boto3 jupyter
 
-# Sync data from S3
-aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/
+# Sync data from S3 (local development)
+aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/cohorts_F1120/
 ```
 
 ### 2. Configuration (Quality-Focused Parameters)
@@ -219,7 +219,7 @@ jupyter nbconvert \
 ## Input Data
 
 ### Source
-- **Local Path**: `data/gold/cohorts_F1120/`
+- **Local Path**: `data/cohorts_F1120/`
 - **S3 Path**: `s3://pgxdatalake/gold/cohorts_F1120/`
 - **Format**: Hive-partitioned Parquet files
 - **Size**: ~7 GB, 947 million events
@@ -904,7 +904,7 @@ pip install mlxtend
 
 ### Issue: "Local data path does not exist"
 ```bash
-aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/
+aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/cohorts_F1120/
 ```
 
 ### Issue: "0 records found" or "No data"

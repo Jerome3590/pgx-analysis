@@ -80,6 +80,26 @@ TEST_YEAR = 2019  # Test data year (never used for training)
 
 **Note:** The Python notebook uses temporal validation (train on 2016-2018, test on 2019). The R notebook (`feature_importance_mc_cv.ipynb`) uses single-year splits and should be updated to match this strategy.
 
+## Prerequisites (on EC2)
+
+From your EC2 instance:
+
+```bash
+cd /home/ec2-user/pgx-analysis   # or your actual clone path
+
+# 1) Ensure cohort parquet data is local on NVMe
+aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ /mnt/nvme/cohorts/ \
+  --exclude "*.log" --exclude "*.json"
+
+# 2) Activate your analysis environment (example)
+conda activate pgx-analysis   # or source your venv
+
+# 3) Start Jupyter
+jupyter notebook
+```
+
+Then open this notebook: `3_feature_importance/run_feature_importance_cohorts.ipynb`.
+
 ### Production Run (100 splits, ~1-2 hours on EC2)
 
 ```python
@@ -174,6 +194,7 @@ Rscript feature_importance_mc_cv.R \
   --year 2016 \
   --splits 100
 ```
+
 
 ---
 

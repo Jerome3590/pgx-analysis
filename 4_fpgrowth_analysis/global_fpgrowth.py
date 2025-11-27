@@ -648,7 +648,14 @@ def main():
     
     if not LOCAL_DATA_PATH.exists():
         logger.error(f"✗ Local data path does not exist: {LOCAL_DATA_PATH}")
-        logger.error(f"  Run: aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ data/gold/cohorts_F1120/")
+        logger.error(
+            "  On EC2, sync from S3 with:\n"
+            "    aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ /mnt/nvme/cohorts/"
+        )
+        logger.error(
+            "  For local development, sync to ./data/cohorts_F1120/ and "
+            "either set LOCAL_DATA_PATH accordingly or export LOCAL_DATA_PATH."
+        )
         sys.exit(1)
     
     # Check which item types need processing (skip if already in S3)

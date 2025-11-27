@@ -2,6 +2,16 @@
 """
 Run feature importance for cohort 1 (opioid_ed), age band 13-24
 """
+
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path so local helpers_1997_13 package is importable
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from helpers_1997_13.feature_importance_utils import run_cohort_analysis
 
 COHORT_NAME = "opioid_ed"

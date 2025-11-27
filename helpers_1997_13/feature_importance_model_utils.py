@@ -5,6 +5,23 @@ Supports CatBoost, Random Forest, XGBoost, XGBoost RF mode, LightGBM, ExtraTrees
 LogisticRegression, LinearSVC, ElasticNet, and LASSO
 """
 
+import sys
+import site
+
+# Ensure user site-packages (where xgboost/catboost may be installed) are visible
+try:
+    user_site = site.getusersitepackages()
+    if isinstance(user_site, str):
+        candidate_paths = [user_site]
+    else:
+        candidate_paths = list(user_site)
+    for p in candidate_paths:
+        if p and p not in sys.path:
+            sys.path.append(p)
+except Exception:
+    # If anything goes wrong here, fall back to default sys.path behavior
+    pass
+
 import numpy as np
 import pandas as pd
 from catboost import CatBoostClassifier, Pool
