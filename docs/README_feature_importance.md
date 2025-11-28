@@ -275,6 +275,84 @@ Rscript feature_importance_mc_cv.R \
 
 All three models use **permutation-based importance** for fair comparison.
 
+### Runtime and Performance Considerations
+
+Because this pipeline is designed for **health data** and downstream causal/clinical interpretation, the Monte Carlo feature importance step is intentionally **computationally heavy**:
+
+- **Data scale (per cohort/age_band):**
+  - \~10,000–15,000 patients in the 2016–2018 training window
+  - \~3,000–5,000 patients in the 2019 holdout
+  - \~10,000–15,000 binary/categorical features after feature engineering
+- **MC-CV configuration:**
+  - `N_SPLITS = 50` Monte Carlo splits per model (per cohort, per age band)
+  - For each split:
+    - Train on an 80% sample of **2016–2018** patients
+    - Evaluate on the **full 2019 holdout** (no subsampling)
+- **Permutation importance:**
+  - For every split and every model, we run **permutation-based importance** on the **entire 2019 holdout**
+  - With `n_repeats = 5` and \~10k features, this implies on the order of:
+    - 10,000 features × 5 permutations = 50,000 perturbations
+    - Each perturbation requires a full prediction over all 2019 patients
+  - This is repeated across **50 splits × 3 models (CatBoost, XGBoost, XGBoost RF)**.
+
+In practice this means:
+
+- It is **normal** to see logs like:
+  - `[Parallel(n_jobs=30)]: Done   3 out of 50 | elapsed: 338.1min ...`
+  - This reflects the fact that each XGBoost split with full permutation importance can take **tens of minutes** on large cohorts, even with 30 workers.
+- The cost is buying you:
+  - Stable **mean recall/log-loss** and standard deviations across many temporal resamples
+  - Feature importance estimates that are **robust to train-sample perturbations**
+  - Consensus importance across three strong models with different inductive biases
+
+If you need to reduce runtime while retaining robustness, the **safest levers** are:
+
+- Keep `N_SPLITS = 50`, but:
+  - Reduce permutation `n_repeats` from 5 → 2–3 in `get_permutation_importance`, or
+  - Pre-filter to a smaller candidate feature set (e.g., minimum frequency) **after** verifying this does not materially change the top features.
+- Keep all three models, but use lighter MC-CV settings:
+  - e.g., `n_estimators: 200` for XGBoost / XGBoost RF during feature importance,
+  - Retain larger `n_estimators` only for the **final model training** in `7_final_model/`.
+
+We do **not** recommend dropping to a single model or a handful of splits for publication‑grade health analyses; the current defaults intentionally favor **stability and reproducibility** over wall-clock speed.
+
+#### Concrete Timing Example
+
+An example from a real run (single cohort/age_band, XGBoost MC‑CV only):
+
+- **Start of MC‑CV (XGBoost):**
+  - `2025-11-28 06:08:27,123 - INFO - Running MC-CV for xgboost...`
+- **Mid-run joblib progress logs:**
+  - `[Parallel(n_jobs=30)]: Done   3 out of  50 | elapsed: 338.1min remaining: 5296.9min`
+  - `[Parallel(n_jobs=30)]: Done  27 out of  50 | elapsed: 384.9min remaining: 327.9min`
+- **Interpretation:**
+  - By 27 completed splits, total elapsed time was \~385 minutes (\~6.4 hours).
+  - Estimated remaining time for the last 23 splits was \~328 minutes (\~5.5 hours).
+  - Total expected wall-clock time for **50 XGBoost splits with full permutation importance** on this cohort was \~12 hours (from \~06:08 to \~18:00 on the same day).
+
+These numbers are **in line with expectations** for:
+
+- Large per-patient feature matrices (\~10k+ features),
+- 50 Monte Carlo splits,
+- Full permutation importance over all features on the entire 2019 holdout,
+- Three-core-model ensemble (CatBoost + XGBoost + XGBoost RF) repeated across multiple cohorts and age bands.
+
+### Cohort Focus for Full MC-CV Runs
+
+To keep runtimes tractable while preserving robustness for health analyses, we **focus full MC‑CV + permutation importance on specific cohort groups** rather than the entire cohort × age-band grid:
+
+- **Cohort Group 1 – Opioid ED focus (`opioid_ed`)**
+  - Primary goal: detailed feature discovery around opioid‑related ED visits.
+  - Age-band “cohorts” 1–5 (you can interpret these as the younger to mid‑age bands in `AGE_BANDS`).
+  - These receive the *full* 3‑model MC‑CV treatment (CatBoost, XGBoost, XGBoost RF) with 50 splits and full permutation importance.
+
+- **Cohort Group 2 – Polypharmacy ED visits (non‑opioid ED focus)**
+  - Primary goal: detailed feature discovery around polypharmacy‑related ED patterns in older adults.
+  - Age-band “cohorts” 6–8 (you can interpret these as the older age bands in `AGE_BANDS`).
+  - These also receive full MC‑CV + permutation importance, but are conceptually treated as a separate analysis program.
+
+Other `(cohort, age_band)` combinations can still be run with lighter settings (fewer splits, fewer models, or restricted feature sets), but the **publication‑grade, health‑critical analysis is concentrated in these two cohort groups**.
+
 ---
 
 ## Aggregation Method

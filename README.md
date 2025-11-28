@@ -100,10 +100,28 @@ flowchart TD
 - **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
 - **Final Model Development** combining features from all analysis methods for prediction and causal inference
 
+## Cohort Focus Strategy
+
+Because full Monte Carlo CV + permutation importance is computationally intensive, the
+project focuses the heaviest feature-importance analysis on two clinically motivated
+cohort groups:
+
+- **Cohort Group 1 – Opioid ED (`opioid_ed`)**  
+  - Age bands: cohorts 1–5 (younger and mid-age adults; roughly 0–64).  
+  - Use case: detailed feature discovery for opioid-related ED visits and opioid use disorder.
+
+- **Cohort Group 2 – Polypharmacy ED (`non_opioid_ed`)**  
+  - Age bands: cohorts 6–8 (older adults; roughly 65–94).  
+  - Use case: detailed feature discovery for polypharmacy-related ED utilization.
+
+Other cohort/age-band combinations can be explored with lighter configurations, but
+publication-grade, health outcomes–oriented modeling is anchored on these two groups.
+
 ## Related Documentation
 
 - [`docs/README_create_cohort.md`](docs/README_create_cohort.md) - Comprehensive cohort creation guide
 - [`docs/README_feature_importance.md`](docs/README_feature_importance.md) - Feature importance analysis
+- [`docs/README_healthcare_outcomes.md`](docs/README_healthcare_outcomes.md) - Healthcare outcomes rationale for cohort design
 - [`docs/README_fpgrowth.md`](docs/README_fpgrowth.md) - FP-Growth pattern mining
 - [`docs/README_bupaR.md`](docs/README_bupaR.md) - Process mining with BupaR
 - [`docs/README_dtw_feature_extraction.md`](docs/README_dtw_feature_extraction.md) - DTW trajectory analysis

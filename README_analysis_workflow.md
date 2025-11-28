@@ -25,6 +25,24 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 
 **Location**: `3_feature_importance/`
 
+### Cohort Focus Strategy
+
+Because full MC‑CV + permutation importance is computationally intensive but critical for
+health‑grade robustness, we focus the heaviest analysis on two cohort groups:
+
+- **Cohort Group 1 – Opioid ED (`opioid_ed`)**
+  - “Cohorts 1–5”: the younger and mid‑age bands in `AGE_BANDS` (e.g., 0–12 through 55–64).
+  - These runs use the full 3‑model ensemble (CatBoost, XGBoost, XGBoost RF) with 50 splits
+    and permutation importance on the full 2019 holdout.
+
+- **Cohort Group 2 – Polypharmacy ED visits (non‑opioid ED focus)**
+  - “Cohorts 6–8”: the older age bands in `AGE_BANDS` (e.g., 65–74 through 85–94).
+  - These runs also use the full 3‑model ensemble, targeting polypharmacy‑related ED patterns.
+
+Other cohort/age-band combinations may be explored with lighter settings (fewer splits or
+reduced model sets), but **interpretation for publication and downstream causal analysis
+is anchored on these two cohort groups**.
+
 ### Model Data Extraction (Target vs Control)
 
 After feature importance is computed for each `(cohort, age_band)` pair, we create a compact
