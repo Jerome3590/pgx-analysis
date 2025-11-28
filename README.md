@@ -49,7 +49,7 @@ flowchart TD
     
     subgraph "Phase 2: Feature Discovery"
         A4 --> B1[Monte Carlo CV]
-        B1 --> B2[Feature Importance - Model Ensemble (CatBoost, RF, XGBoost, LightGBM, ExtraTrees, Linear Models)]
+        B1 --> B2[Feature Importance - Model Ensemble]
         B2 --> B3[Top Features Selection]
     end
     
