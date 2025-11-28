@@ -57,6 +57,9 @@ TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in 
 # Processing parameters
 MAX_WORKERS = 1  # Sequential processing to prevent memory issues
 
+# Training window for FP-Growth-based feature engineering
+TRAIN_YEARS = [2016, 2017, 2018]  # Aggregate training cohort (2016–2018)
+
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
 
@@ -333,17 +336,39 @@ def process_single_cohort(
             / "model_events.parquet"
         )
 
-        if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
-            parquet_file = model_data_file
-            logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
+        # Special handling for aggregated training window ("train" = 2016–2018)
+        event_label = str(event_year)
+        if event_label == "train":
+            # Training FP-Growth should always use model_data (filtered important
+            # items + 5:1 control). This keeps memory usage manageable.
+            if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
+                parquet_file = model_data_file
+                logger.info(f"Using model_data file for TRAIN FP-Growth (2016–2018): {parquet_file}")
+            else:
+                logger.warning(
+                    f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
+                    f"but model_data file not found at {model_data_file}. "
+                    "Run create_model_data.py first for this cohort/age_band."
+                )
+                return {
+                    'item_type': item_type,
+                    'cohort_name': cohort_name,
+                    'age_band': age_band,
+                    'event_year': event_year,
+                    'error': 'TRAIN model_data not found'
+                }
         else:
-            parquet_file = (
-                local_data_path
-                / f"cohort_name={cohort_name}"
-                / f"event_year={event_year}"
-                / f"age_band={age_band}"
-                / "cohort.parquet"
-            )
+            if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
+                parquet_file = model_data_file
+                logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
+            else:
+                parquet_file = (
+                    local_data_path
+                    / f"cohort_name={cohort_name}"
+                    / f"event_year={event_year}"
+                    / f"age_band={age_band}"
+                    / "cohort.parquet"
+                )
 
         if not parquet_file.exists():
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
@@ -355,6 +380,14 @@ def process_single_cohort(
                 'error': 'File not found'
             }
         
+        # Determine event_year filter (single year vs aggregated TRAIN window).
+        event_label = str(event_year)
+        if event_label == "train":
+            year_list = ", ".join(str(y) for y in TRAIN_YEARS)
+            event_filter = f"event_year IN ({year_list})"
+        else:
+            event_filter = f"event_year = {event_year}"
+
         # Build query based on item type. Always include `target` so we can run
         # a separate target-only FP-Growth pass (within-case patterns).
         if item_type == 'drug_name':
@@ -365,7 +398,7 @@ def process_single_cohort(
                 drug_name IS NOT NULL
                 AND drug_name != ''
                 AND event_type = 'pharmacy'
-                AND event_year = {event_year}
+                AND {event_filter}
             """
         elif item_type == 'icd_code':
             # Collect from ALL ICD diagnosis columns (primary through ten)
@@ -373,43 +406,43 @@ def process_single_cohort(
             WITH all_icds AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE two_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE two_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE three_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE three_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE four_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE four_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE five_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE five_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE six_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE six_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE seven_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE eight_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE nine_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE ten_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND event_year = {event_year}
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND event_type = 'medical' AND {event_filter}
             )
             SELECT mi_person_key, icd as item, target FROM all_icds WHERE icd != ''
             """
@@ -421,7 +454,7 @@ def process_single_cohort(
                 procedure_code IS NOT NULL
                 AND procedure_code != ''
                 AND event_type = 'medical'
-                AND event_year = {event_year}
+                AND {event_filter}
             """
         elif item_type == 'medical_code':
             # Combined ICD (all 10 diagnosis positions) + CPT codes in a single transaction space
@@ -429,47 +462,47 @@ def process_single_cohort(
             WITH all_med_codes AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND event_type = 'medical' AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, procedure_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE procedure_code IS NOT NULL AND procedure_code != '' AND event_type = 'medical' AND event_year = {event_year}
+                WHERE procedure_code IS NOT NULL AND procedure_code != '' AND event_type = 'medical' AND {event_filter}
             )
             SELECT mi_person_key, code as item, target FROM all_med_codes WHERE code != ''
             """
@@ -828,8 +861,11 @@ def main():
     for item_type in ITEM_TYPES:
         for cohort_name in COHORT_NAMES:
             for age_band in AGE_BANDS:
+                # Per-year jobs (2016–2020, etc.)
                 for event_year in EVENT_YEARS:
                     cohort_jobs.append((item_type, cohort_name, age_band, event_year))
+                # Aggregated TRAIN window (2016–2018), label as 'train' for feature engineering
+                cohort_jobs.append((item_type, cohort_name, age_band, "train"))
     
     # Apply DRY_RUN limit if enabled
     if DRY_RUN and len(cohort_jobs) > DRY_RUN_LIMIT:

@@ -456,34 +456,66 @@ def run_cohort_analysis(
         
         train_feature_cols = [col for col in train_data_catboost.columns if col not in ['target', 'mi_person_key']]
         constant_features = []
+        constant_features_file = os.path.join(
+            output_dir,
+            f"{cohort_name}_{age_band_fname}_constant_features.csv"
+        )
         
-        # Debug: Check a sample of items that appear in training
-        sample_train_items = list(train_items_set)[:5]
-        logger.info("Sample training items: %s", sample_train_items)
-        
-        for col in train_feature_cols:
-            # Extract item name from column (remove 'item_' prefix)
-            item_name = col.replace('item_', '', 1)
-            
-            # Only check for constants if this item appears in training data
-            # Items that only appear in test will be constant in train (all empty strings)
-            if item_name in train_items_set:
-                # For CatBoost categorical features, check unique values
-                # A feature is constant if ALL patients have the same value
-                # If some patients have the item name and some have empty strings, it's NOT constant
-                nunique = train_data_catboost[col].nunique()
+        # Idempotent handling: if constant-features file already exists (locally or in S3),
+        # load and reuse it instead of recomputing over all columns.
+        if os.path.exists(constant_features_file):
+            logger.info(
+                "Constant-features file already exists locally (%s); "
+                "loading instead of recomputing.", constant_features_file
+            )
+            constant_features_df = pd.read_csv(constant_features_file)
+            constant_features = constant_features_df['feature'].tolist()
+        else:
+            # Try S3 before recomputing
+            s3_key_const = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_constant_features.csv"
+            try:
+                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key_const)
+                logger.info(
+                    "Constant-features file exists in S3 (s3://%s/%s); "
+                    "downloading instead of recomputing.",
+                    S3_BUCKET, s3_key_const
+                )
+                import io
+                obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key_const)
+                constant_features_df = pd.read_csv(io.BytesIO(obj['Body'].read()))
+                constant_features = constant_features_df['feature'].tolist()
+                os.makedirs(output_dir, exist_ok=True)
+                constant_features_df.to_csv(constant_features_file, index=False)
+                logger.info("Saved constant-features list locally: %s", constant_features_file)
+            except Exception:
+                # Not available locally or in S3 → compute from scratch
+                # Debug: Check a sample of items that appear in training
+                sample_train_items = list(train_items_set)[:5]
+                logger.info("Sample training items: %s", sample_train_items)
                 
-                # Debug first few training items
-                if item_name in sample_train_items:
-                    logger.info("Item '%s': nunique=%d, sample values: %s", 
-                               item_name, nunique, train_data_catboost[col].value_counts().head(3).to_dict())
-                
-                # Feature is constant if it has <= 1 unique value (all same)
-                if nunique <= 1:
-                    constant_features.append(col)
-            else:
-                # Item only appears in test, will be constant in train - mark for removal
-                constant_features.append(col)
+                for col in train_feature_cols:
+                    # Extract item name from column (remove 'item_' prefix)
+                    item_name = col.replace('item_', '', 1)
+                    
+                    # Only check for constants if this item appears in training data
+                    # Items that only appear in test will be constant in train (all empty strings)
+                    if item_name in train_items_set:
+                        # For CatBoost categorical features, check unique values
+                        # A feature is constant if ALL patients have the same value
+                        # If some patients have the item name and some have empty strings, it's NOT constant
+                        nunique = train_data_catboost[col].nunique()
+                        
+                        # Debug first few training items
+                        if item_name in sample_train_items:
+                            logger.info("Item '%s': nunique=%d, sample values: %s", 
+                                       item_name, nunique, train_data_catboost[col].value_counts().head(3).to_dict())
+                        
+                        # Feature is constant if it has <= 1 unique value (all same)
+                        if nunique <= 1:
+                            constant_features.append(col)
+                    else:
+                        # Item only appears in test, will be constant in train - mark for removal
+                        constant_features.append(col)
         
         if constant_features:
             logger.info("Removing %d constant features (out of %d total)", len(constant_features), len(train_feature_cols))

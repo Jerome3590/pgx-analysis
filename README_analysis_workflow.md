@@ -52,7 +52,8 @@ process mining (BupaR), and DTW trajectory analyses in Phase 2.
 
 ## Phase 2: Pattern & Process Mining + DTW
 
-**Goal**: Exploit structure in selected features and further reduce noise.
+**Goal**: Exploit structure in selected features and further reduce noise, then
+derive per-patient sequence/trajectory features for the final model.
 
 ### Components
 
@@ -60,16 +61,25 @@ process mining (BupaR), and DTW trajectory analyses in Phase 2.
    - Frequent pattern mining on drug/ICD/CPT codes
    - Target-focused association rules (predicting opioid dependence, ED visits)
    - Itemset metrics and feature encoding
+   - **Step 2 output**: cohort-level itemsets/rules under `4_fpgrowth_analysis/outputs/...`
 
 2. **BupaR Process Mining** (`5_bupaR_analysis/`)
-   - Event log creation from patient sequences
-   - Process flow discovery and pathway analysis
-   - Temporal pattern identification
+   - Event log creation from filtered `model_data` (DRUG / ICD / CPT activities)
+   - Target-only process mining on **high-signal codes** (from FP-Growth target-only itemsets)
+   - Pre-/Post-F1120 analysis:
+     - `pre_F1120_eventlog` – sequences up to and including first ICD F1120
+     - `post_F1120_eventlog` – sequences after first ICD F1120
+   - Combined TARGET + CONTROL event log for Sankey-style process maps
+   - **Step 3 output**: per-patient sequence features (pre/post-F1120 counts and
+     complexity) written to `5_bupaR_analysis/outputs/{cohort}/{age_band_fname}/features/`
 
 3. **DTW Trajectory Analysis** (`6_dtw_analysis/`)
    - Patient trajectory clustering
    - Similarity scoring and archetype matching
    - Multi-modal trajectory features
+   - **Step 4 output**: per-patient DTW trajectory features (e.g. distances to
+     prototype trajectories) written to
+     `6_dtw_analysis/outputs/{cohort}/{age_band_fname}/features/`
 
 **Output**: Refined feature set that participates in frequent patterns, stable pathways, and respects process timing
 
@@ -78,7 +88,10 @@ process mining (BupaR), and DTW trajectory analyses in Phase 2.
 **Goal**: Integrate features from all analysis methods into final prediction model.
 
 **Process**:
-1. **Feature Integration**: Combine FPGrowth itemsets, BupaR patterns, and DTW trajectories
+1. **Feature Integration**: Combine feature-importance–filtered `model_data`,
+   FP-Growth pattern information, BupaR sequence features, and DTW trajectory
+   features into a single patient-level table (e.g. via
+   `7_final_model/build_final_features_opioid_ed_0_12.py`).
 2. **Feature Schema**: Unified patient-level feature matrix (~185-750 features)
 3. **Model Training**: CatBoost and Random Forest on integrated features
 4. **Model Evaluation**: Performance metrics and feature importance analysis

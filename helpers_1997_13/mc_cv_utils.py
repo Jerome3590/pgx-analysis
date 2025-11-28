@@ -75,6 +75,8 @@ def run_single_split(
         Dictionary with split results
     """
     try:
+        # Lightweight per-split logging to help debug long-running MC-CV jobs.
+        print(f"[MC-CV] Starting split {split_idx} for {method}")
         # Use separate test data if provided, otherwise use same data
         X_train = X_train_all.iloc[train_idx].copy()
         y_train = y_train_all[train_idx]
@@ -204,7 +206,10 @@ def run_single_split(
         feature_importance['split'] = split_idx
         feature_importance['recall'] = recall
         feature_importance['logloss'] = logloss
-        
+
+        print(f"[MC-CV] Completed split {split_idx} for {method} "
+              f"(recall={recall:.4f}, logloss={logloss:.4f})")
+
         return {
             'split': split_idx,
             'feature_importance': feature_importance,
@@ -214,6 +219,7 @@ def run_single_split(
         }
         
     except Exception as e:
+        print(f"[MC-CV] ERROR in split {split_idx} for {method}: {e}")
         return {
             'split': split_idx,
             'status': 'error',
@@ -285,8 +291,9 @@ def run_mc_cv_method(
     
     print(f"\n--- Running MC-CV for {method} ({n_splits} splits) ---")
     
-    # Run splits in parallel
-    results = Parallel(n_jobs=n_jobs, verbose=0)(
+    # Run splits in parallel. Use verbose logging so we can see progress
+    # (e.g., 'Done 10 out of 200' style messages) in long-running jobs.
+    results = Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(run_single_split)(
             i,
             split_indices[i]['train_idx'],

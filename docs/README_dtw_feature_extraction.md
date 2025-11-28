@@ -123,14 +123,39 @@ s3://{S3_BUCKET}/dtw_trajectories/{cohort_name}/{age_band}/{event_year}/
 └── patient_trajectories_{item_type}.parquet # Patient trajectories
 ```
 
-### 3. Analysis Results
+### 3. Analysis Results and Tabular Features
 
-The JSON results include:
+The JSON/parquet results include:
 - **Metadata**: Analysis parameters and summary statistics
 - **Clustering Results**: Cluster assignments and quality metrics
 - **Cluster Characteristics**: Detailed analysis of each cluster
 - **Trajectory Clusters**: Patient-to-cluster mappings
 - **Drug Encoding Map**: Mapping of drug names to numerical IDs (for drugs)
+
+In addition, DTW analysis now produces **patient-level feature tables** that can be
+merged directly into tabular model datasets. For each `(cohort_name, age_band, window)`
+(e.g. `opioid_ed`, `0-12`, `train`), the notebook
+`6_dtw_analysis/dtw_feature_engineering_cohort1_0_12.ipynb` writes:
+
+- **Local path**:
+  - `6_dtw_analysis/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_{window}_target_dtw_features.csv`
+- **S3 path** (if upload is enabled):
+  - `s3://{S3_BUCKET}/gold/dtw/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_{window}_target_dtw_features.csv`
+
+For cohort 1 (`opioid_ed`), age `0-12`, TRAIN window, this becomes:
+
+- `6_dtw_analysis/outputs/opioid_ed/0_12/opioid_ed_0_12_train_target_dtw_features.csv`
+
+These DTW feature tables currently include:
+
+- `mi_person_key` – patient identifier (to join with model_data)
+- `dtw_dist_proto_1`, `dtw_dist_proto_2`, ..., `dtw_dist_proto_K` –
+  DTW distances from each patient’s trajectory to a small set of **prototype
+  trajectories** (selected target patients). These serve as trajectory-based
+  features that capture similarity to representative patterns.
+
+You can extend this schema to include cluster IDs, silhouette scores, or other
+trajectory descriptors as needed.
 
 ## Key Metrics
 

@@ -48,21 +48,72 @@ event_log = log_converter.apply(df)
 ---
 
 
-## 3. Output Layout for BupaR (Long Table)
+## 3. Outputs and Features from BupaR
 
-- Each row: one drug event for a patient
-- Columns: `mi_person_key`, `drug_name`, `timestamp`, plus any cohort or demographic columns
-- **Best Practice:** Keep event log long; join to wide encoding table for drug features if needed.
+For each `(cohort_name, age_band, event_window)` (e.g. `opioid_ed`, `0-12`, `train`), the
+notebook `5_bupaR_analysis/bupaR_pipeline.ipynb` now produces:
+
+### 3.1 Event Logs
+
+- **Target-only event log**: `target_eventlog`
+  - Activities: `DRUG:<code>`, `ICD:<code>`, `CPT:<code>`
+  - Filtered to high-signal codes from FP-Growth target-only itemsets, plus `ICD:F1120`.
+- **Combined TARGET + CONTROL event log**: `sankey_eventlog`
+  - Same activity alphabet, with an additional `group` attribute (`\"target\"` / `\"control\"`)
+  - Used for Sankey-style process maps comparing flows between groups.
+- **Pre-/Post-F1120 event logs**:
+  - `pre_F1120_eventlog`: events up to and including first `ICD:F1120` per case.
+  - `post_F1120_eventlog`: events strictly after first `ICD:F1120`.
+
+### 3.2 Aggregate BupaR Outputs (Traces and Process Matrices)
+
+Saved locally under:
+
+```text
+5_bupaR_analysis/outputs/{cohort_name}/{age_band_fname}/
+```
+
+and to S3 under:
+
+```text
+s3://pgxdatalake/gold/bupar/{cohort_name}/{age_band}/
+```
+
+For example, for cohort 1 (`opioid_ed`), age `0-12`, TRAIN window:
+
+- **Target-only traces (pre-FP-Growth)**:
+  - `opioid_ed_0_12_train_target_traces_bupar.csv`
+- **Target-only process matrix**:
+  - `opioid_ed_0_12_train_target_process_matrix_bupar.csv`
+- **Combined TARGET + CONTROL process matrix (for Sankey)**:
+  - `opioid_ed_0_12_train_combined_process_matrix_bupar.csv`
+
+### 3.3 Per-Patient Features for Tabular Datasets
+
+From the pre-/post-F1120 event logs we derive **patient-level sequence features** and save
+them with the same naming conventions:
+
+- **Pre-F1120 features** (events up to and including first `ICD:F1120`):
+  - `opioid_ed_0_12_train_target_pre_f1120_patient_features_bupar.csv`
+  - Columns (per `case_id` / `mi_person_key`):
+    - `pre_n_events` – total events before/at F1120
+    - `pre_n_drug_events` – number of `DRUG:` activities
+    - `pre_n_icd_events` – number of `ICD:` activities
+    - `pre_n_cpt_events` – number of `CPT:` activities
+    - `pre_n_unique_activities` – distinct activities before/at F1120
+
+- **Post-F1120 features** (events after first `ICD:F1120`):
+  - `opioid_ed_0_12_train_target_post_f1120_patient_features_bupar.csv`
+  - Columns (per `case_id` / `mi_person_key`):
+    - `post_n_events` – total events after F1120
+    - `post_n_drug_events` – number of `DRUG:` activities
+    - `post_n_icd_events` – number of `ICD:` activities
+    - `post_n_cpt_events` – number of `CPT:` activities
+    - `post_n_unique_activities` – distinct activities after F1120
+
+These CSVs are intended to be **joined back into the tabular modeling dataset** on
+`mi_person_key` and used as additional sequence-aware features.
 
 ---
 
-
-## 4. Handoff from FP-Growth
-
-- The FP-Growth cohort pipeline produces event logs in the required long format for BupaR.
-- No further transformation is needed if columns match (`mi_person_key`, `drug_name`, `timestamp`).
-- For drug features, join event log to wide encoding table on `drug_name`.
-
----
-
-*This document is focused on BupaR process mining. For FP-Growth logic and outputs, see `FpGROWTH_README.md`.*
+*This document is focused on BupaR process mining. For FP-Growth logic and outputs, see `README_fpgrowth.md`.*
