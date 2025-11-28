@@ -91,8 +91,10 @@ flowchart TD
     style C2 fill:#bfb,stroke:#333,stroke-width:2px
     style C3 fill:#bfb,stroke:#333,stroke-width:2px
     style D4 fill:#fbb,stroke:#333,stroke-width:2px
-    style E2 fill:#fbb,stroke:#333,stroke-width:2px
-    style E3 fill:#fbb,stroke:#333,stroke-width:2px
+    %% Final model ensemble (distinct colors per model)
+    style E2 fill:#fbb,stroke:#333,stroke-width:2px    %% CatBoost
+    style E3 fill:#bbf,stroke:#333,stroke-width:2px    %% XGBoost
+    style E6 fill:#bfb,stroke:#333,stroke-width:2px    %% XGBoost RF mode
     style F3 fill:#f9f,stroke:#333,stroke-width:2px
 ```
 
