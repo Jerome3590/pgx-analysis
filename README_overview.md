@@ -80,7 +80,7 @@ This project builds a classification model on a large, noisy healthcare dataset,
 
 **High-level phases:**
 
-1. **Feature Screening** with tree ensembles (CatBoost, Random Forest) + Monte Carlo cross-validation
+1. **Feature Screening** with an ensemble of models (CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and regularized linear models such as LogisticRegression, LinearSVC, ElasticNet, LASSO) + Monte Carlo cross-validation
 2. **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
 3. **Final Model Development** combining features from all analysis methods for prediction and causal inference
 
@@ -179,7 +179,7 @@ pgx-analysis/
 - `feature_importance_mc_cv.ipynb` - Monte Carlo CV feature importance analysis
 - `feature_importance_mc_cv.R` - R script for MC-CV analysis
 - `create_visualizations.R` - Visualization utilities
-- Uses CatBoost and Random Forest for robust feature ranking
+- Uses an ensemble of models (CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and regularized linear models such as LogisticRegression, LinearSVC, ElasticNet, LASSO) for robust feature ranking
 
 **🔍 4_fpgrowth_analysis: Frequent Pattern Mining**
 - `global_fpgrowth.py` - Global pattern mining across all patients
