@@ -30,10 +30,10 @@ pgx-analysis/
 ├── 3_feature_importance/       # MC-CV feature importance analysis
 ├── 4_fpgrowth_analysis/        # Frequent pattern mining
 ├── 5_bupaR_analysis/           # Process mining
-├── 6_dtw_analysis/            # Trajectory analysis
+├── 6_dtw_analysis/             # Trajectory analysis
 ├── 7_final_model/              # Final model development
 ├── 8_ffa_analysis/             # Feature attribution analysis
-├── helpers_1997_13/           # Utility functions
+├── helpers_1997_13/            # Utility functions
 └── docs/                       # Documentation
 ```
 
@@ -49,7 +49,7 @@ flowchart TD
     
     subgraph "Phase 2: Feature Discovery"
         A4 --> B1[Monte Carlo CV]
-        B1 --> B2[Feature Importance<br/>CatBoost + Random Forest]
+        B1 --> B2[Feature Importance<br/>Model Ensemble<br/>(CatBoost, RF, XGBoost, LightGBM, ExtraTrees, Linear Models)]
         B2 --> B3[Top Features Selection]
     end
     
@@ -96,7 +96,7 @@ flowchart TD
 
 ## Key Features
 
-- **Feature Screening** with tree ensembles (CatBoost, Random Forest) + Monte Carlo cross-validation
+- **Feature Screening** with an ensemble of models (CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and regularized linear models such as LogisticRegression, LinearSVC, ElasticNet, LASSO) + Monte Carlo cross-validation
 - **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
 - **Final Model Development** combining features from all analysis methods for prediction and causal inference
 
