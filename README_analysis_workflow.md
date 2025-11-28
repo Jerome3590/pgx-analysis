@@ -6,7 +6,7 @@ Feature importance, pattern mining, and final model development for the Prescrip
 
 The analysis workflow implements a multi-stage approach to feature discovery, noise reduction, and model development:
 
-1. **Feature Screening** with tree ensembles (CatBoost, Random Forest) + Monte Carlo cross-validation
+1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
 2. **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
 3. **Final Model Development** combining features from all analysis methods for prediction and causal inference
 

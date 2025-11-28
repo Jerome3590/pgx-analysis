@@ -35,21 +35,14 @@ TRAIN_PROP = 0.8
 SCALING_METRIC = "recall"
 DEBUG_MODE = False
 
-# Model parameters (aligned with run_cohort_1_25_44.py)
+# Model parameters (core ensemble: CatBoost, XGBoost, XGBoost RF)
 MODEL_PARAMS = {
     'catboost': {
         'iterations': 500,
         'learning_rate': 0.1,
         'depth': 6,
         'verbose': False,
-        'random_seed': 42
-    },
-    'random_forest': {
-        'ntree': 500,
-        'mtry': None,
-        'nodesize': 1,
-        'maxnodes': None,
-        'random_seed': 42
+        'random_seed': 42,
     },
     'xgboost': {
         'max_depth': 6,
@@ -57,7 +50,7 @@ MODEL_PARAMS = {
         'n_estimators': 500,
         'subsample': 1.0,
         'colsample_bytree': 1.0,
-        'random_seed': 42
+        'random_seed': 42,
     },
     'xgboost_rf': {
         'max_depth': 6,
@@ -65,50 +58,8 @@ MODEL_PARAMS = {
         'n_estimators': 500,
         'subsample': 0.8,
         'max_features': None,
-        'random_seed': 42
+        'random_seed': 42,
     },
-    'lightgbm': {
-        'n_estimators': 500,
-        'learning_rate': 0.1,
-        'num_leaves': 31,
-        'feature_fraction': 1.0,
-        'bagging_fraction': 1.0,
-        'bagging_freq': 0,
-        'random_seed': 42
-    },
-    'extratrees': {
-        'n_estimators': 500,
-        'max_features': None,
-        'min_samples_leaf': 1,
-        'max_depth': None,
-        'random_seed': 42
-    },
-    'logistic_regression': {
-        'penalty': 'l2',
-        'C': 1.0,
-        'solver': 'lbfgs',
-        'max_iter': 1000,
-        'random_seed': 42
-    },
-    'linearsvc': {
-        'penalty': 'l2',
-        'C': 1.0,
-        'loss': 'squared_hinge',
-        'max_iter': 1000,
-        'dual': True,
-        'random_seed': 42
-    },
-    'elasticnet': {
-        'C': 1.0,
-        'l1_ratio': 0.5,
-        'max_iter': 1000,
-        'random_seed': 42
-    },
-    'lasso': {
-        'C': 1.0,
-        'max_iter': 1000,
-        'random_seed': 42
-    }
 }
 
 # Set up parallel processing

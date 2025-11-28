@@ -96,7 +96,7 @@ flowchart TD
 
 ## Key Features
 
-- **Feature Screening** with an ensemble of models (CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and regularized linear models such as LogisticRegression, LinearSVC, ElasticNet, LASSO) + Monte Carlo cross-validation
+- **Feature Screening** with a focused model ensemble (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
 - **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
 - **Final Model Development** combining features from all analysis methods for prediction and causal inference
 

@@ -75,20 +75,17 @@ def run_cohort_analysis(
     
     # Default model parameters
     if model_params is None:
+        # Primary model ensemble for feature importance and final evaluation:
+        # 1) CatBoost (categorical boosting)
+        # 2) XGBoost (gradient-boosted trees)
+        # 3) XGBoost RF mode (random-forest style trees)
         model_params = {
             'catboost': {
                 'iterations': 100 if debug_mode else 500,
                 'learning_rate': 0.1,
                 'depth': 6,
                 'verbose': False,
-                'random_seed': 42
-            },
-            'random_forest': {
-                'ntree': 100 if debug_mode else 500,
-                'mtry': None,  # Will be set to sqrt(n_features)
-                'nodesize': 1,
-                'maxnodes': None,
-                'random_seed': 42
+                'random_seed': 42,
             },
             'xgboost': {
                 'max_depth': 6,
@@ -96,7 +93,7 @@ def run_cohort_analysis(
                 'n_estimators': 100 if debug_mode else 500,
                 'subsample': 1.0,
                 'colsample_bytree': 1.0,
-                'random_seed': 42
+                'random_seed': 42,
             },
             'xgboost_rf': {
                 'max_depth': 6,
@@ -104,50 +101,8 @@ def run_cohort_analysis(
                 'n_estimators': 100 if debug_mode else 500,
                 'subsample': 0.8,
                 'max_features': None,  # Will be set to sqrt(n_features)
-                'random_seed': 42
+                'random_seed': 42,
             },
-            'lightgbm': {
-                'n_estimators': 100 if debug_mode else 500,
-                'learning_rate': 0.1,
-                'num_leaves': 31,
-                'feature_fraction': 1.0,
-                'bagging_fraction': 1.0,
-                'bagging_freq': 0,
-                'random_seed': 42
-            },
-            'extratrees': {
-                'n_estimators': 100 if debug_mode else 500,
-                'max_features': None,  # Will be set to sqrt(n_features)
-                'min_samples_leaf': 1,
-                'max_depth': None,
-                'random_seed': 42
-            },
-            'logistic_regression': {
-                'penalty': 'l2',
-                'C': 1.0,
-                'solver': 'lbfgs',
-                'max_iter': 1000,
-                'random_seed': 42
-            },
-            'linearsvc': {
-                'penalty': 'l2',
-                'C': 1.0,
-                'loss': 'squared_hinge',
-                'max_iter': 1000,
-                'dual': True,
-                'random_seed': 42
-            },
-            'elasticnet': {
-                'C': 1.0,
-                'l1_ratio': 0.5,
-                'max_iter': 1000,
-                'random_seed': 42
-            },
-            'lasso': {
-                'C': 1.0,
-                'max_iter': 1000,
-                'random_seed': 42
-            }
         }
     
     logger.info("="*80)
@@ -593,13 +548,10 @@ def run_cohort_analysis(
                    len(split_indices), ', '.join(map(str, train_years)), test_year)
         check_memory_usage_r(logger, "After MC-CV Split Creation")
         
-        # Run MC-CV for each method
+        # Run MC-CV for each method in the primary model ensemble
         logger.info("Running MC-CV analysis...")
-        methods = [
-            'catboost', 'random_forest', 'xgboost', 'xgboost_rf',
-            'lightgbm', 'extratrees', 'logistic_regression',
-            'linearsvc', 'elasticnet', 'lasso'
-        ]
+        # Restricted to three core models for both MC feature importance and final evaluation
+        methods = ['catboost', 'xgboost', 'xgboost_rf']
         all_results = {}
         
         check_memory_usage_r(logger, "Before MC-CV Execution")

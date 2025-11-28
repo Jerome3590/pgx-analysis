@@ -28,11 +28,10 @@
 ## Overview
 
 This project calculates scaled feature importance for predicting opioid dependence using:
-- **Tree Ensemble Models:** CatBoost, Random Forest, XGBoost, XGBoost RF, LightGBM, ExtraTrees
-- **Linear Models:** LogisticRegression, LinearSVC, ElasticNet, LASSO
+- **Core Tree Models:** CatBoost, XGBoost (boosted trees), XGBoost RF mode
 - **Validation:** Monte Carlo Cross-Validation (100–1000 splits) with temporal validation
 - **Scaling:** Permutation-based importance weighted by model Recall
-- **Aggregation:** Union of top 50 features from each model with summed importances
+- **Aggregation:** Union of top 50 features from each core model with summed importances
 
 ### Temporal Validation Strategy
 
@@ -186,20 +185,23 @@ Rscript feature_importance_mc_cv.R \
 │ 2. Feature Engineering                                      │
 │    - Patient-level aggregation                              │
 │    - CatBoost: Categorical factors                          │
-│    - Random Forest: Binary 0/1                              │
+│    - XGBoost / XGBoost RF: Binary 0/1                       │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 3. Monte Carlo Cross-Validation (100–1000 splits)           │
-│    ┌────────────────────┐  ┌────────────────────┐           │
-│    │   CatBoost         │  │  Random Forest     │           │
-│    │                    │  │                    │           │
-│    │  Per split:        │  │  Per split:        │           │
-│    │  - Train (80%)     │  │  - Train (80%)     │           │
-│    │  - Test (20%)      │  │  - Test (20%)      │           │
-│    │  - Recall          │  │  - Recall          │           │
-│    │  - Feature imp     │  │  - Feature imp     │           │
-│    └────────────────────┘  └────────────────────┘           │
+│    ┌──────────────────────────────┐                         │
+│    │   Core Models (3 total):     │                         │
+│    │   - CatBoost                 │                         │
+│    │   - XGBoost (boosted trees)  │                         │
+│    │   - XGBoost RF mode          │                         │
+│    │                              │                         │
+│    │  Per split:                  │                         │
+│    │  - Train (80%)               │                         │
+│    │  - Test (20%)                │                         │
+│    │  - Recall                    │                         │
+│    │  - Feature imp               │                         │
+│    └──────────────────────────────┘                         │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -221,63 +223,24 @@ Rscript feature_importance_mc_cv.R \
 
 ### Models
 
-**Tree Ensemble Models:**
+**Core Tree Models:**
 
 1. **CatBoost:**
    - Handles categorical features natively
    - Feature format: Each column is a factor with item name as level
    - Importance: Permutation-based (PredictionValuesChange)
 
-2. **Random Forest:**
-   - Requires numeric features
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Permutation-based
-
-3. **XGBoost:**
+2. **XGBoost (boosted trees):**
    - Gradient boosting with tree-based learners
    - Feature format: Binary 0/1 encoding (one-hot)
    - Importance: Permutation-based
 
-4. **XGBoost RF Mode:**
-   - Random Forest mode of XGBoost
+3. **XGBoost RF Mode:**
+   - Random-forest style configuration of XGBoost
    - Feature format: Binary 0/1 encoding (one-hot)
    - Importance: Permutation-based
 
-5. **LightGBM:**
-   - Gradient boosting optimized for speed and efficiency
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Permutation-based
-
-6. **ExtraTrees (Extremely Randomized Trees):**
-   - Similar to Random Forest but with more randomization
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Permutation-based
-
-**Linear Models:**
-
-7. **LogisticRegression:**
-   - Linear model for binary classification
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Absolute value of coefficients (scaled)
-
-8. **LinearSVC (Linear Support Vector Classification):**
-   - Linear SVM for classification
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Absolute value of coefficients (scaled)
-
-9. **ElasticNet:**
-   - Linear model with L1 + L2 regularization
-   - Feature format: Binary 0/1 encoding (one-hot)
-   - Importance: Absolute value of coefficients (scaled)
-   - Performs feature selection (drives some coefficients to zero)
-
-10. **LASSO:**
-    - Linear model with L1 regularization
-    - Feature format: Binary 0/1 encoding (one-hot)
-    - Importance: Absolute value of coefficients (scaled)
-    - Performs feature selection (drives some coefficients to zero)
-
-**Note:** All models use **permutation importance** for fair comparison, except linear models which use coefficient magnitudes (scaled to [0,1] range) as a proxy for importance.
+All three core models use **permutation-based importance** for fair comparison.
 
 ---
 
@@ -287,11 +250,11 @@ Rscript feature_importance_mc_cv.R \
 
 #### 1. Train Models with MC-CV
 
-For each model type (CatBoost, Random Forest, XGBoost, XGBoost RF, LightGBM, ExtraTrees, LogisticRegression, LinearSVC, ElasticNet, LASSO):
+For each **core** model type (CatBoost, XGBoost, XGBoost RF):
 - Create 100–1000 stratified Monte Carlo cross-validation splits
 - Train model on each training set (80% sampled from 2016-2018)
 - Evaluate Recall on 2019 test set (temporal validation)
-- Extract **permutation-based feature importance** for each split (or coefficient magnitudes for linear models)
+- Extract **permutation-based feature importance** for each split
 - Aggregate across splits to get:
   - `importance_normalized` - Feature importance normalized to [0, 1]
   - `mc_cv_recall_mean` - Mean Recall across all splits
@@ -310,9 +273,8 @@ importance_scaled = importance_normalized × mc_cv_recall_mean
 
 #### 3. Union of Features
 
-- Take the **union** of top 50 from all 10 models
-- Results in up to 500 features (if no overlap) or as few as 50 (if complete overlap)
-- In practice, typically results in 100-200 unique features due to model agreement
+- Take the **union** of top 50 from all 3 core models
+- Results in up to 150 features (if no overlap) or as few as 50 (if complete overlap)
 
 #### 4. Sum Importances for Overlapping Features
 
@@ -322,7 +284,7 @@ For each feature in the union:
 - Sum the scaled importances: `importance_scaled = sum(all_model_scaled_importances)`
 - Sum the normalized importances: `importance_normalized = sum(all_model_normalized_importances)`
 - Average the Recall: `mc_cv_recall_mean = mean(all_model_recalls)`
-- Track which models: `models = "catboost, random_forest, xgboost, ..."`
+- Track which models: `models = "catboost, xgboost, xgboost_rf"` (subset depending on which models selected it)
 
 **If feature appears in only one model:**
 - Use that model's values directly
@@ -419,10 +381,10 @@ For each feature in the union:
 |--------|-------------|-------|
 | `rank` | Final rank by `importance_scaled` | 1, 2, 3, ... |
 | `feature` | Feature name (drug, ICD, CPT) | String |
-| `importance_normalized` | Sum of normalized importances | 0.0 – 2.0 |
-| `importance_scaled` | Sum of Recall-scaled importances | 0.0 – ~1.6 |
-| `n_models` | Number of models including feature | 1 to 10 |
-| `models` | Which models | Comma-separated list (e.g., "catboost, random_forest, xgboost") |
+| `importance_normalized` | Sum of normalized importances | 0.0 – 3.0 |
+| `importance_scaled` | Sum of Recall-scaled importances | 0.0 – ~2.4 |
+| `n_models` | Number of models including feature | 1 to 3 |
+| `models` | Which models | Comma-separated list (e.g., "catboost, xgboost, xgboost_rf") |
 | `mc_cv_recall_mean` | Average Recall across models | 0.0 – 1.0 |
 | `mc_cv_recall_std` | Recall std dev | 0.0 – 1.0 |
 
@@ -431,9 +393,9 @@ For each feature in the union:
 **Example:**
 ```csv
 rank,feature,importance_normalized,importance_scaled,n_models,models,mc_cv_recall_mean,mc_cv_recall_std
-1,HYDROCODONE-ACETAMINOPHEN,1.8234,1.5012,2,"catboost, random_forest",0.8234,0.0156
-2,TRAMADOL HCL,1.6821,1.3856,2,"catboost, random_forest",0.8234,0.0156
-3,F11.20,0.9234,0.7603,1,catboost,0.8234,0.0156
+1,HYDROCODONE-ACETAMINOPHEN,2.45,1.98,3,"catboost, xgboost, xgboost_rf",0.84,0.012
+2,TRAMADOL HCL,1.80,1.50,2,"catboost, xgboost",0.83,0.016
+3,F11.20,0.92,0.76,1,"catboost",0.82,0.015
 ```
 
 ### 2. Per-Model CSVs
@@ -560,9 +522,9 @@ opioid_specific <- setdiff(
 ```r
 features <- read_csv("opioid_ed_25-44_2016_feature_importance_aggregated.csv")
 
-# Check model overlap
-overlap_pct <- 100 * sum(features$n_models == 2) / nrow(features)
-cat(sprintf("Model overlap: %.1f%%\n", overlap_pct))
+# Check model overlap (all 3 core models)
+overlap_pct <- 100 * sum(features$n_models == 3) / nrow(features)
+cat(sprintf("Model overlap (all 3 models): %.1f%%\n", overlap_pct))
 
 # Check Recall values
 cat(sprintf("Mean Recall: %.3f ± %.3f\n",

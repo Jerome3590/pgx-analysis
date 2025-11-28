@@ -28,10 +28,10 @@
 ## Overview
 
 This project calculates scaled feature importance for predicting opioid dependence using:
-- **Models:** CatBoost, Random Forest, XGBoost, LightGBM, ExtraTrees, and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)
+- **Models (core ensemble):** CatBoost, XGBoost (boosted trees), XGBoost RF mode
 - **Validation:** Monte Carlo Cross-Validation (100–1000 splits) with temporal validation
 - **Scaling:** Permutation-based importance weighted by model Recall
-- **Aggregation:** Union of top 50 features from each model with summed importances
+- **Aggregation:** Union of top features from each model with summed importances
 
 ### Temporal Validation Strategy
 
@@ -263,12 +263,17 @@ Rscript feature_importance_mc_cv.R \
 - Feature format: Each column is a factor with item name as level
 - Importance: Permutation-based (PredictionValuesChange)
 
-**Random Forest:**
-- Requires numeric features
+**XGBoost (boosted trees):**
+- Gradient boosting with tree-based learners
 - Feature format: Binary 0/1 encoding
-- Importance: Gini importance
+- Importance: Permutation-based
 
-Both models use **permutation importance** for fair comparison.
+**XGBoost RF mode:**
+- Random-forest style XGBoost configuration
+- Feature format: Binary 0/1 encoding
+- Importance: Permutation-based
+
+All three models use **permutation-based importance** for fair comparison.
 
 ---
 
