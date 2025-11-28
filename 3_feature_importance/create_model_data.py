@@ -37,6 +37,16 @@ from typing import List, Tuple
 import duckdb
 import pandas as pd
 
+from helpers_1997_13.constants import ALL_ICD_DIAGNOSIS_COLUMNS, S3_BUCKET
+
+try:
+    # Prefer shared s3_client if available
+    from helpers_1997_13.common_imports import s3_client
+except ImportError:
+    import boto3
+
+    s3_client = boto3.client("s3")
+
 
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUTS_DIR = PROJECT_ROOT / "3_feature_importance" / "outputs"
@@ -56,6 +66,33 @@ def resolve_local_data_path() -> Path:
 
     # EC2 default
     return Path("/mnt/nvme/cohorts")
+
+
+def upload_parquet_to_s3(local_path: Path, cohort_name: str, age_band: str) -> None:
+    """
+    Upload a model_events.parquet file to S3, mirroring the GOLD cohorts path
+    but under `gold/cohorts_model_data/...` instead of `gold/cohorts...`.
+
+    Local:
+      model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
+
+    S3:
+      s3://{S3_BUCKET}/gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
+    """
+    if not local_path.exists():
+        print(f"[WARN] Local parquet not found for upload: {local_path}")
+        return
+
+    s3_key = (
+        f"gold/cohorts_model_data/"
+        f"cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
+    )
+    try:
+        print(f"[INFO] Uploading model_events to s3://{S3_BUCKET}/{s3_key} ...")
+        s3_client.upload_file(str(local_path), S3_BUCKET, s3_key)
+        print("[INFO] S3 upload complete.")
+    except Exception as e:
+        print(f"[WARN] Failed to upload {local_path} to s3://{S3_BUCKET}/{s3_key}: {e}")
 
 
 def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
@@ -119,7 +156,10 @@ def filter_cohort_events_for_items(
     Filter GOLD cohort event-level data by important items and write to model_data/.
 
     - Reads cohort.parquet for the given (cohort_name, age_band, event_year ∈ years)
-    - Keeps rows where ANY of the item-bearing columns match an important item
+    - Keeps rows where ANY of the item-bearing columns match an important item:
+        - drug_name
+        - ALL ICD diagnosis columns (primary through ten) via ALL_ICD_DIAGNOSIS_COLUMNS
+        - procedure_code
     - Writes combined events to:
         model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
     """
@@ -147,21 +187,17 @@ def filter_cohort_events_for_items(
 
         print(f"[INFO] Filtering events for {cohort_name}/{age_band}/{year} using {len(important_items)} items...")
 
+        # Build ICD diagnosis conditions dynamically from ALL_ICD_DIAGNOSIS_COLUMNS
+        icd_conditions = " OR ".join(
+            f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+
         query = f"""
             SELECT *
             FROM read_parquet('{parquet_path}')
             WHERE
                 drug_name IN ({item_list_literal}) OR
-                primary_icd_diagnosis_code IN ({item_list_literal}) OR
-                two_icd_diagnosis_code IN ({item_list_literal}) OR
-                three_icd_diagnosis_code IN ({item_list_literal}) OR
-                four_icd_diagnosis_code IN ({item_list_literal}) OR
-                five_icd_diagnosis_code IN ({item_list_literal}) OR
-                six_icd_diagnosis_code IN ({item_list_literal}) OR
-                seven_icd_diagnosis_code IN ({item_list_literal}) OR
-                eight_icd_diagnosis_code IN ({item_list_literal}) OR
-                nine_icd_diagnosis_code IN ({item_list_literal}) OR
-                ten_icd_diagnosis_code IN ({item_list_literal}) OR
+                {icd_conditions} OR
                 procedure_code IN ({item_list_literal})
         """
         df_year = con.execute(query).df()
@@ -194,6 +230,9 @@ def filter_cohort_events_for_items(
     )
     con_out.close()
     print(f"[INFO] Done for {cohort_name}/{age_band}.")
+
+    # Upload to S3 under gold/cohorts_model_data/...
+    upload_parquet_to_s3(out_path, cohort_name, age_band)
 
     # Return number of unique patients in the filtered target set
     if "mi_person_key" in filtered_all.columns:
@@ -275,6 +314,8 @@ def export_control_events_for_age_band(
         )
         con.close()
         print(f"[INFO] Done exporting control for {control_cohort}/{age_band}.")
+        # Upload full control data to S3
+        upload_parquet_to_s3(out_path, control_cohort, age_band)
         return
 
     # Compute desired control patient count (5:1 ratio), bounded by available controls
@@ -313,6 +354,9 @@ def export_control_events_for_age_band(
     )
     con.close()
     print(f"[INFO] Done exporting control for {control_cohort}/{age_band}.")
+
+    # Upload sampled control data to S3
+    upload_parquet_to_s3(out_path, control_cohort, age_band)
 
 
 def main():
