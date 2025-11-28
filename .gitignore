@@ -18,4 +18,7 @@ pharmacy_head.txt
 .venv311/
 __pycache__/
 *.pyc
-model_data/
+
+# Per-patient feature-engineering artifacts (keyed by mi_person_key)
+5_bupaR_analysis/outputs/*/*/features/**
+6_dtw_analysis/outputs/*/*/features/**
