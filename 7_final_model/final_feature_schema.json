@@ -14,7 +14,7 @@
         },
         "cohort_name": {
           "type": "string",
-          "enum": ["opioid_ed", "ed_non_opioid"],
+          "enum": ["opioid_ed", "non_opioid_ed"],
           "description": "Cohort assignment"
         },
         "age_band": {
@@ -534,11 +534,11 @@
             },
             "first_event_days_before_target": {
               "type": ["integer", "null"],
-              "description": "Days from first drug event to target (ED_NON_OPIOID only)"
+              "description": "Days from first drug event to target (polypharmacy/non_opioid_ed cohort only)"
             },
             "last_event_days_before_target": {
               "type": ["integer", "null"],
-              "description": "Days from last drug event to target (ED_NON_OPIOID only)"
+              "description": "Days from last drug event to target (polypharmacy/non_opioid_ed cohort only)"
             },
             "trajectory_has_temporal_alignment": {
               "type": "integer",
@@ -695,7 +695,7 @@
         },
         "days_to_target_event": {
           "type": ["integer", "null"],
-          "description": "Days from event to target event (ED_NON_OPIOID only)"
+          "description": "Days from event to target event (polypharmacy/non_opioid_ed cohort only)"
         },
         "event_month": {
           "type": "integer",
