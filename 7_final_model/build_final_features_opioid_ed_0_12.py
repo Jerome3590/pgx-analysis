@@ -72,24 +72,36 @@ def build_final_features(project_root: Path) -> None:
         bupar_root
         / f"{cohort_name}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv"
     )
+    time_to_bupar_csv = (
+        bupar_root
+        / f"{cohort_name}_{age_band_fname}_train_target_time_to_f1120_features_bupar.csv"
+    )
 
     if not pre_bupar_csv.exists():
         raise FileNotFoundError(f"Pre-F1120 BupaR features not found: {pre_bupar_csv}")
     if not post_bupar_csv.exists():
         raise FileNotFoundError(f"Post-F1120 BupaR features not found: {post_bupar_csv}")
+    if not time_to_bupar_csv.exists():
+        raise FileNotFoundError(
+            f"Time-to-F1120 BupaR features not found: {time_to_bupar_csv}"
+        )
 
     pre_df = pd.read_csv(pre_bupar_csv)
     post_df = pd.read_csv(post_bupar_csv)
+    time_to_df = pd.read_csv(time_to_bupar_csv)
 
     # In BupaR outputs, the ID column is case_id
     if "case_id" in pre_df.columns:
         pre_df = pre_df.rename(columns={"case_id": "mi_person_key"})
     if "case_id" in post_df.columns:
         post_df = post_df.rename(columns={"case_id": "mi_person_key"})
+    if "case_id" in time_to_df.columns:
+        time_to_df = time_to_df.rename(columns={"case_id": "mi_person_key"})
 
     print(
-        f"[INFO] Loaded BupaR pre-F1120 features for {len(pre_df)} patients "
-        f"and post-F1120 features for {len(post_df)} patients"
+        f"[INFO] Loaded BupaR pre-F1120 features for {len(pre_df)} patients, "
+        f"post-F1120 features for {len(post_df)} patients, "
+        f"and time-to-F1120 features for {len(time_to_df)} patients"
     )
 
     # ------------------------------------------------------------------
@@ -118,6 +130,7 @@ def build_final_features(project_root: Path) -> None:
         base_df
         .merge(pre_df, on="mi_person_key", how="left")
         .merge(post_df, on="mi_person_key", how="left", suffixes=("_pre", "_post"))
+        .merge(time_to_df, on="mi_person_key", how="left")
         .merge(dtw_df, on="mi_person_key", how="left")
     )
 

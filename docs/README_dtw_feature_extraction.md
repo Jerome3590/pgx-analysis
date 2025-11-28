@@ -134,8 +134,9 @@ The JSON/parquet results include:
 
 In addition, DTW analysis now produces **patient-level feature tables** that can be
 merged directly into tabular model datasets. For each `(cohort_name, age_band, window)`
-(e.g. `opioid_ed`, `0-12`, `train`), the notebook
-`6_dtw_analysis/dtw_feature_engineering_cohort1_0_12.ipynb` writes:
+(e.g. `opioid_ed`, `0-12`, `train`), the cohort-specific DTW notebooks
+`6_dtw_analysis/dtw_pipeline_opioid_ed.ipynb` and
+`6_dtw_analysis/dtw_pipeline_non_opioid_ed.ipynb` write:
 
 - **Local path**:
   - `6_dtw_analysis/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_{window}_target_dtw_features.csv`

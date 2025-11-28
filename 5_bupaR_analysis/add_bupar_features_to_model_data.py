@@ -46,6 +46,10 @@ def add_bupar_features(
         bupar_output_dir
         / f"{cohort_name}_{age_band_fname}_{train_label}_target_post_f1120_patient_features_bupar.csv"
     )
+    time_to_features_csv = (
+        bupar_output_dir
+        / f"{cohort_name}_{age_band_fname}_{train_label}_target_time_to_f1120_features_bupar.csv"
+    )
 
     if not model_data_path.exists():
         raise FileNotFoundError(f"model_data parquet not found: {model_data_path}")
@@ -55,6 +59,11 @@ def add_bupar_features(
 
     if not post_features_csv.exists():
         raise FileNotFoundError(f"Post-F1120 BupaR features not found: {post_features_csv}")
+
+    if not time_to_features_csv.exists():
+        raise FileNotFoundError(
+            f"Time-to-F1120 BupaR features not found: {time_to_features_csv}"
+        )
 
     print(f"[INFO] Reading model_data from {model_data_path}")
     con = duckdb.connect()
@@ -76,17 +85,23 @@ def add_bupar_features(
     print(f"[INFO] Reading post-F1120 features from {post_features_csv}")
     post_df = pd.read_csv(post_features_csv)
 
+    print(f"[INFO] Reading time-to-F1120 features from {time_to_features_csv}")
+    time_to_df = pd.read_csv(time_to_features_csv)
+
     # Expect case_id column from BupaR outputs; rename to mi_person_key for consistency
     if "case_id" in pre_df.columns:
         pre_df = pre_df.rename(columns={"case_id": "mi_person_key"})
     if "case_id" in post_df.columns:
         post_df = post_df.rename(columns={"case_id": "mi_person_key"})
+    if "case_id" in time_to_df.columns:
+        time_to_df = time_to_df.rename(columns={"case_id": "mi_person_key"})
 
     # Merge features
     merged = (
         base_df
         .merge(pre_df, on="mi_person_key", how="left")
         .merge(post_df, on="mi_person_key", how="left")
+        .merge(time_to_df, on="mi_person_key", how="left")
     )
 
     out_dir = (
