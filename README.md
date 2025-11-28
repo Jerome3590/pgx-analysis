@@ -71,9 +71,11 @@ flowchart TD
     subgraph "Phase 5: Final Model"
         D4 --> E1[Feature Integration]
         E1 --> E2[CatBoost Training]
-        E1 --> E3[Random Forest Training]
+        E1 --> E3[XGBoost Training]
+        E1 --> E6[XGBoost RF Mode Training]
         E2 --> E4[Model Evaluation]
         E3 --> E4
+        E6 --> E4
         E4 --> E5[Feature Attribution]
     end
     
