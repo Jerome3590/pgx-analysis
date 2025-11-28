@@ -1,0 +1,870 @@
+[
+  {
+    "support":0.1818181818,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "NYSTATIN",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1363636364,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1363636364,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "OSELTAMIVIR PHOSPHATE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "BROMPHEN\/PSEUDOEPHEDRINE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "ONDANSETRON ODT",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "OSELTAMIVIR PHOSPHATE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "CETIRIZINE HYDROCHLORIDE",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AMPHETAMINE\/DEXTROAMPHETA",
+      "HYDROXYZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "CLONIDINE HYDROCHLORIDE",
+      "HYDROXYZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "SERTRALINE HCL",
+      "HYDROXYZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0909090909,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PREDNISOLONE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TAMIFLU",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "POLYMYXIN B SULFATE\/TRIME"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TAMIFLU",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "TAMIFLU",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "PREDNISOLONE SODIUM PHOSP",
+      "TAMIFLU"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "DIPHENHIST"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TAMIFLU",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "EPINEPHRINE",
+      "PREDNISOLONE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TOBRAMYCIN\/DEXAMETHASONE",
+      "EPINEPHRINE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TOBRAMYCIN\/DEXAMETHASONE",
+      "PREDNISOLONE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TOBRAMYCIN\/DEXAMETHASONE",
+      "EPINEPHRINE",
+      "PREDNISOLONE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "TAMIFLU",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TAMIFLU",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "TAMIFLU",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "TAMIFLU",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TAMIFLU"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TAMIFLU"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "TAMIFLU"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "TAMIFLU"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TAMIFLU",
+      "POLYMYXIN B SULFATE\/TRIME"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "CEFDINIR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "CEFDINIR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CEFDINIR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "POLYMYXIN B SULFATE\/TRIME"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "QVAR",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "QVAR",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "ONDANSETRON ODT",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "RANITIDINE HCL",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "FLUCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLUCONAZOLE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "FLUCONAZOLE",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "FLUCONAZOLE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLUCONAZOLE",
+      "AMOXICILLIN",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "FLUCONAZOLE",
+      "AMOXICILLIN",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLUCONAZOLE",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "QVAR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "CVS EYE ITCH RELIEF",
+      "AMOXICILLIN",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "QVAR",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "QVAR",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TAMIFLU",
+      "METHYLPHENIDATE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "QVAR",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "QVAR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "QVAR",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "QVAR",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "QVAR",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "QVAR"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CVS EYE ITCH RELIEF",
+      "AMOXICILLIN",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "QVAR",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "QVAR",
+      "RANITIDINE HCL",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "NYSTATIN",
+      "QVAR",
+      "RANITIDINE HCL"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "QVAR",
+      "ALBUTEROL SULFATE",
+      "RANITIDINE HCL",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "CVS EYE ITCH RELIEF"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CVS EYE ITCH RELIEF",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "CVS EYE ITCH RELIEF",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CVS EYE ITCH RELIEF",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "CVS EYE ITCH RELIEF",
+      "LORATADINE CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0769230769,
+    "itemsets":[
+      "TAMIFLU",
+      "OSELTAMIVIR PHOSPHATE"
+    ]
+  },
+  {
+    "support":0.0769230769,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "CEFDINIR"
+    ]
+  },
+  {
+    "support":0.0769230769,
+    "itemsets":[
+      "CEPHALEXIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0769230769,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AZELASTINE HCL"
+    ]
+  }
+]

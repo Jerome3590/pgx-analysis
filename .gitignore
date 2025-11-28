@@ -3,6 +3,7 @@
 .Rproj*
 .html
 data/*
+model_data/
 testing/*
 .ipynb_checkpoints/
 __pycache__/
@@ -17,3 +18,4 @@ pharmacy_head.txt
 .venv311/
 __pycache__/
 *.pyc
+model_data/

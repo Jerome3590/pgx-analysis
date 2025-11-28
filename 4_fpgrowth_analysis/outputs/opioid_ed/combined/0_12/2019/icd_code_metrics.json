@@ -1,0 +1,18 @@
+{
+  "item_type": "icd_code",
+  "cohort_name": "opioid_ed",
+  "age_band": "0-12",
+  "event_year": 2019,
+  "unique_items": 132,
+  "total_transactions": 53,
+  "density_distribution": {
+    "low": 15,
+    "medium": 14,
+    "high": 21,
+    "extreme": 3
+  },
+  "frequent_itemsets": 141,
+  "association_rules": 0,
+  "encoding_map_size": 0,
+  "processing_time_seconds": 0.8131980895996094
+}

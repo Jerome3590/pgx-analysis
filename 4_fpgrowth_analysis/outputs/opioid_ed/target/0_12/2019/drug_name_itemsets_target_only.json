@@ -1,0 +1,30 @@
+[
+  {
+    "support":0.0512820513,
+    "itemsets":[
+      "MUPIROCIN",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0769230769,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0512820513,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0512820513,
+    "itemsets":[
+      "CEPHALEXIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  }
+]

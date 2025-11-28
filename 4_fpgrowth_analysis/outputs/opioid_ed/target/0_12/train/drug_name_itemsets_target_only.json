@@ -1,0 +1,51 @@
+[
+  {
+    "support":0.06,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.06,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CEFDINIR"
+    ]
+  },
+  {
+    "support":0.06,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.08,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.06,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.08,
+    "itemsets":[
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.08,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN"
+    ]
+  }
+]

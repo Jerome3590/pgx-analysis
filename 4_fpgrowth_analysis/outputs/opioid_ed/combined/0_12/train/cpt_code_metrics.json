@@ -1,0 +1,18 @@
+{
+  "item_type": "cpt_code",
+  "cohort_name": "opioid_ed",
+  "age_band": "0-12",
+  "event_year": "train",
+  "unique_items": 239,
+  "total_transactions": 70,
+  "density_distribution": {
+    "low": 19,
+    "medium": 17,
+    "high": 30,
+    "extreme": 4
+  },
+  "frequent_itemsets": 6039,
+  "association_rules": 0,
+  "encoding_map_size": 0,
+  "processing_time_seconds": 1.4848103523254395
+}

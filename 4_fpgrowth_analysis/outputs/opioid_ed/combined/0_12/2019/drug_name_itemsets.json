@@ -1,0 +1,2775 @@
+[
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.1666666667,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ALLEGRA ALLERGY CHILDRENS",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CYPROHEPTADINE HYDROCHLOR",
+      "METHYLPHENIDATE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MONTELUKAST SODIUM",
+      "ALLEGRA ALLERGY CHILDRENS"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MONTELUKAST SODIUM",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MONTELUKAST SODIUM",
+      "ALLEGRA ALLERGY CHILDRENS",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "KETOCONAZOLE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "ONDANSETRON ODT"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OSELTAMIVIR PHOSPHATE",
+      "ONDANSETRON ODT",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HCL ALLERGY CH"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NYSTATIN",
+      "AMOXICILLIN",
+      "CETIRIZINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "KETOCONAZOLE",
+      "PROAIR HFA",
+      "CETIRIZINE HYDROCHLORIDE",
+      "AZITHROMYCIN",
+      "CETIRIZINE HCL ALLERGY CH",
+      "NYSTATIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "PERMETHRIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "ERYTHROMYCIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "AMOXICILLIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "PERMETHRIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AZITHROMYCIN",
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "OFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "FLOVENT HFA",
+      "PROVENTIL HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AZITHROMYCIN",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AMOXICILLIN\/CLAVULANATE P",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "PROVENTIL HFA",
+      "AMOXICILLIN",
+      "FLOVENT HFA"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "FLOVENT HFA",
+      "AMOXICILLIN",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "ERYTHROMYCIN",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "PERMETHRIN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "PERMETHRIN",
+      "OFLOXACIN",
+      "FLOVENT HFA",
+      "PROVENTIL HFA",
+      "ERYTHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "CEPHALEXIN",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "MUPIROCIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "CEPHALEXIN",
+      "MUPIROCIN",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "TRIAMCINOLONE ACETONIDE",
+      "POLYMYXIN B SULFATE\/TRIME"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "MUPIROCIN",
+      "DEXTROAMPHETAMINE SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN\/CLAVULANATE P",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0833333333,
+    "itemsets":[
+      "NEOMYCIN\/POLYMYXIN\/HYDROC",
+      "PREDNISOLONE SODIUM PHOSP",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "ERYTHROMYCIN",
+      "MUPIROCIN"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "PREDNISOLONE SODIUM PHOSP",
+      "PERMETHRIN"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "AMOXICILLIN",
+      "SULFATRIM PEDIATRIC"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "PROVENTIL HFA",
+      "ALBUTEROL SULFATE"
+    ]
+  },
+  {
+    "support":0.0555555556,
+    "itemsets":[
+      "POLYMYXIN B SULFATE\/TRIME",
+      "CEFDINIR"
+    ]
+  }
+]
