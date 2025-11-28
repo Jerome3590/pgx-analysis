@@ -132,69 +132,28 @@ X = final_features.drop(['mi_person_key', 'is_target_case'], axis=1)
 y = final_features['is_target_case']
 ```
 
-## Model Training
+## Model Training and Selection
 
-### CatBoost Integration
+Final model development uses the **same three-model ensemble** as feature importance:
 
-```python
-from catboost import CatBoostClassifier, Pool
+- **CatBoost** (gradient boosting on categorical features)
+- **XGBoost (boosted trees)**
+- **XGBoost RF mode** (random forest-style XGBoost)
 
-# Identify categorical features
-categorical_features = [
-    'cohort_name',
-    'age_band',
-    'member_gender',
-    'member_race',
-    'trajectory_cluster_drug',
-    'trajectory_cluster_icd',
-    'trajectory_cluster_cpt',
-    'encoded_drug_names',  # From FPGrowth
-    'most_frequent_activity',  # From BupaR
-    # ... other categorical features
-]
+These models are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018),
+then the best-performing base model is further tuned and calibrated before being evaluated on a strict 2019 holdout.
 
-# Create CatBoost pool
-train_pool = Pool(X_train, y_train, cat_features=categorical_features)
+See `final_model.ipynb` for the full Python workflow:
 
-# Train model
-model = CatBoostClassifier(
-    iterations=1000,
-    learning_rate=0.1,
-    depth=6,
-    cat_features=categorical_features,
-    verbose=100
-)
-model.fit(train_pool)
-```
+- MC-CV performance comparison and model selection by mean Recall
+- Optuna hyperparameter tuning on 2016–2018
+- Temporal probability calibration (train on 2016–2017, calibrate on 2018)
+- Final model export (joblib + native formats) locally and to S3 `gold/final_model/.../event_year=train/models/`
 
-### Random Forest Integration
+## Notebooks and Scripts
 
-```python
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import OneHotEncoder
-
-# One-hot encode categorical features
-encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
-X_encoded = encoder.fit_transform(X[categorical_features])
-
-# Combine with continuous features
-X_continuous = X.drop(categorical_features, axis=1)
-X_final = np.hstack([X_continuous, X_encoded])
-
-# Train Random Forest
-rf_model = RandomForestClassifier(
-    n_estimators=100,
-    max_depth=10,
-    random_state=42
-)
-rf_model.fit(X_final, y)
-```
-
-## Scripts
-
-- `run_ade_targets.py`: Orchestrates ADE/ED CatBoost runs across age bands/years
-- `run_catboost_*.py`: Entry points for specific target setups (opioid ED, ADE ED, etc.)
-- `feature_importance_scaled.py`: Feature importance calculation with MC-CV
+- `final_model.ipynb`: MC-CV comparison, Optuna tuning, temporal calibration, and final model export.
+- `build_final_features_opioid_ed_0_12.py`: Builds the cohort 1, age 0–12 final feature table from `model_data`, BupaR, and DTW outputs.
 
 ## Feature Validation
 

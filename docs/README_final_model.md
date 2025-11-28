@@ -116,69 +116,87 @@ X = final_features.drop(['mi_person_key', 'is_target_case'], axis=1)
 y = final_features['is_target_case']
 ```
 
-## Model Training
+## Model Training and Selection
 
-### CatBoost Integration
+Final model development uses the **same three-model ensemble** as feature importance:
 
-```python
-from catboost import CatBoostClassifier, Pool
+- **CatBoost** (gradient boosting on categorical features)
+- **XGBoost (boosted trees)**
+- **XGBoost RF mode** (random forest-style XGBoost)
 
-# Identify categorical features
-categorical_features = [
-    'cohort_name',
-    'age_band',
-    'member_gender',
-    'member_race',
-    'trajectory_cluster_drug',
-    'trajectory_cluster_icd',
-    'trajectory_cluster_cpt',
-    'encoded_drug_names',  # From FPGrowth
-    'most_frequent_activity',  # From BupaR
-    # ... other categorical features
-]
+These models are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018),
+then the best-performing base model is further tuned and calibrated before being evaluated on a strict 2019 holdout.
 
-# Create CatBoost pool
-train_pool = Pool(X_train, y_train, cat_features=categorical_features)
+### MC-CV and Model Selection (2016–2018 Train Window)
 
-# Train model
-model = CatBoostClassifier(
-    iterations=1000,
-    learning_rate=0.1,
-    depth=6,
-    cat_features=categorical_features,
-    verbose=100
-)
-model.fit(train_pool)
-```
+The `7_final_model/final_model.ipynb` notebook:
 
-### Random Forest Integration
+- Loads patient-level features from `7_final_model/outputs/{cohort}/{age_band}/..._train_final_features.csv`
+- Splits into `X` (features) and `y` (binary target)
+- Runs MC-CV across:
+  - **CatBoost**
+  - **XGBoost**
+  - **XGBoost RF mode**
+- Aggregates per-split metrics (`roc_auc`, `logloss`, `recall`) and computes:
+  - Mean and standard deviation by model
+  - **Model selection criterion:** highest mean **Recall**
 
-```python
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import OneHotEncoder
+The model with the highest mean Recall is chosen as the **base final model** for that cohort/age-band.
 
-# One-hot encode categorical features
-encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
-X_encoded = encoder.fit_transform(X[categorical_features])
+### Optuna Hyperparameter Optimization
 
-# Combine with continuous features
-X_continuous = X.drop(categorical_features, axis=1)
-X_final = np.hstack([X_continuous, X_encoded])
+Once the best base model is identified, the notebook runs an **Optuna** study on the 2016–2018 training window:
 
-# Train Random Forest
-rf_model = RandomForestClassifier(
-    n_estimators=100,
-    max_depth=10,
-    random_state=42
-)
-rf_model.fit(X_final, y)
-```
+- **Objective:** maximize mean Recall over 5-fold `StratifiedKFold` CV
+- **Search space (examples):**
+  - CatBoost: `iterations`, `learning_rate`, `depth`, `l2_leaf_reg`
+  - XGBoost / XGBoost RF: `n_estimators`, `max_depth`, `learning_rate`, `subsample`, `colsample_bytree`
+- **Output:** best trial parameters and recall score
 
-## Scripts
+The tuned hyperparameters are merged with sensible defaults and used to fit a **tuned final model**.
 
-- `run_ade_targets.py`: Orchestrates ADE/ED CatBoost runs across age bands/years
-- `run_catboost_*.py`: Entry points for specific target setups (opioid ED, ADE ED, etc.)
-- `feature_importance_scaled.py`: Feature importance calculation with MC-CV
+### Temporal Probability Calibration (2016–2018 Only)
+
+To ensure well-calibrated probabilities **without leaking test data**, we use a **temporal calibration strategy**:
+
+1. Use `model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` to determine each patient’s
+   latest `event_year` within 2016–2018.
+2. Define:
+   - **Train-for-calibration:** patients with `max_event_year` in **2016 or 2017**
+   - **Calibration set:** patients with `max_event_year == 2018`
+3. Refit the tuned model on the 2016–2017 group.
+4. Wrap it in `CalibratedClassifierCV` (`method="isotonic"`, `cv="prefit"`) and fit on the 2018 calibration group.
+5. Report a **Brier score** on the 2018 calibration set as a calibration quality check.
+
+The **2019 holdout (true test set) is never used** in tuning or calibration. It is reserved for final performance
+and calibration diagnostics.
+
+### Final Model Artifacts and S3 Layout
+
+For each cohort and age band, the notebook writes the following artifacts:
+
+- **Local (under `7_final_model/outputs/{cohort}/{age_band_fname}/`):**
+  - `{cohort}_{age_band_fname}_mc_cv_results.csv` – raw per-split MC-CV metrics
+  - `{cohort}_{age_band_fname}_final_model_{best_model_name}.joblib` – tuned, uncalibrated model
+  - `{cohort}_{age_band_fname}_final_model_{best_model_name}_calibrated.joblib` – calibrated model wrapper
+  - `{cohort}_{age_band_fname}_final_model_catboost.cbm` / `.json` – CatBoost native exports (when CatBoost wins)
+  - `{cohort}_{age_band_fname}_final_model_xgboost*.json` – XGBoost booster JSON (when XGBoost/XGBoost RF wins)
+
+- **S3 Gold (per-cohort, per-age-band, per-event_year=train):**
+
+  - `s3://pgxdatalake/gold/final_model/cohort_name={cohort}/age_band={age_band_fname}/event_year=train/models/`
+    - All of the above artifacts are uploaded here:
+      - `*_mc_cv_results.csv`
+      - `*_final_model_*.joblib`
+      - `*_final_model_*.cbm` / `*_final_model_*.json`
+
+This layout is aligned with the broader visualization and causal analysis outputs documented in
+`README_data_visualizations.md` and `8_ffa_analysis`.
+
+## Notebooks and Scripts
+
+- `7_final_model/final_model.ipynb`: MC-CV comparison (CatBoost, XGBoost, XGBoost RF), Optuna tuning, temporal calibration, and final model export.
+- `7_final_model/build_final_features_opioid_ed_0_12.py`: Builds the cohort 1, age 0–12 final feature table from `model_data`, BupaR, and DTW outputs.
 
 ## Feature Validation
 

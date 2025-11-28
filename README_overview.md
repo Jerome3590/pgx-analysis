@@ -44,11 +44,9 @@ graph TD
     G --> G2[dtw_trajectory_analysis.py]
     G --> G3[README.md]
     
-    H --> H1[catboost_r.ipynb]
-    H --> H2[run_catboost_opioid_ed.py]
-    H --> H3[run_catboost_ade_ed.py]
-    H --> H4[final_feature_schema.json]
-    H --> H5[catboost_models]
+    H --> H1[final_model.ipynb]
+    H --> H2[final_feature_schema.json]
+    H --> H3[catboost_models]
     
     I --> I1[catboost_axp_explainer.py]
     I --> I2[ffa_analysis.py]
@@ -199,11 +197,9 @@ pgx-analysis/
 - Patient clustering and similarity scoring
 
 **🤖 7_final_model: Final Model Development**
-- `catboost_r.ipynb` - R-based CatBoost model training
-- `run_catboost_opioid_ed.py` - Opioid ED event prediction
-- `run_catboost_ade_ed.py` - Combined ADE and ED analysis
+- `final_model.ipynb` - Python MC-CV, Optuna tuning, temporal calibration, and final model export (CatBoost / XGBoost / XGBoost RF)
 - `final_feature_schema.json` - Comprehensive feature schema
-- `catboost_models/` - Trained model artifacts and metadata
+- `catboost_models/` - Trained model artifacts and metadata (legacy CatBoost models)
 
 **🎯 8_ffa_analysis: Feature Attribution**
 - `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
