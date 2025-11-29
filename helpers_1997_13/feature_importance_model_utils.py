@@ -225,12 +225,13 @@ def predict_catboost(model, X_test):
 
 def predict_proba_catboost(model, X_test):
     """Predict probabilities with CatBoost"""
-    categorical_features = list(X_test.select_dtypes(include=['object', 'category']).columns)
-    cat_indices = [X_test.columns.get_loc(col) for col in categorical_features]
-    
+    # Treat all item_* columns as categorical, matching train_catboost / predict_catboost
+    categorical_features = [col for col in X_test.columns if col.startswith('item_')]
+    cat_indices = [X_test.columns.get_loc(col) for col in categorical_features] if categorical_features else None
+
     test_pool = Pool(
         data=X_test,
-        cat_features=cat_indices if cat_indices else None
+        cat_features=cat_indices
     )
     
     pred_proba = model.predict_proba(test_pool)[:, 1]

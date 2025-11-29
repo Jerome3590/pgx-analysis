@@ -354,9 +354,48 @@ def run_cohort_analysis(
         
         # Get all unique items from both train and test to ensure consistent feature space
         all_items = pd.concat([train_patient_items[['item']], test_patient_items[['item']]]).drop_duplicates()
+
+        # ------------------------------------------------------------------
+        # Dimensionality reduction: prune extremely rare items *before*
+        # building any feature matrices. This keeps memory usage in check
+        # while preserving the frequent signals we care about for screening.
+        # ------------------------------------------------------------------
+        # Count how many unique patients have each item in the TRAIN data.
+        item_patient_counts = (
+            train_patient_items
+            .groupby('item')['mi_person_key']
+            .nunique()
+        )
+        # Optional debug summary so we can see how heavy-tailed the item distribution is.
+        try:
+            n_items_ge_1 = int((item_patient_counts >= 1).sum())
+            n_items_ge_5 = int((item_patient_counts >= 5).sum())
+            n_items_ge_10 = int((item_patient_counts >= 10).sum())
+            n_items_ge_25 = int((item_patient_counts >= 25).sum())
+            logger.info(
+                "Item frequency summary (train only): "
+                ">=1 patients: %d, >=5: %d, >=10: %d, >=25: %d",
+                n_items_ge_1, n_items_ge_5, n_items_ge_10, n_items_ge_25,
+            )
+        except Exception:
+            # Best-effort debug; don't fail pipeline if this summary breaks.
+            pass
+        # Tunable threshold: minimum number of patients required for an item
+        # (drug / ICD / CPT / event token) to be kept as a feature. For pure
+        # screening, we can safely drop ultra-rare items.
+        MIN_PATIENTS_PER_ITEM = 25
+        frequent_items = item_patient_counts[item_patient_counts >= MIN_PATIENTS_PER_ITEM].index
+
+        n_items_before = len(all_items)
+        all_items = all_items[all_items['item'].isin(frequent_items)]
         all_item_list = all_items['item'].tolist()
-        
-        logger.info("Total unique items across train and test: %d", len(all_item_list))
+
+        logger.info(
+            "Total unique items across train and test: %d (after pruning rare items; min patients/item=%d, was %d)",
+            len(all_item_list),
+            MIN_PATIENTS_PER_ITEM,
+            n_items_before,
+        )
         
         # Helper function to create feature matrices
         def create_feature_matrix(patient_items, patient_targets, all_items, is_catboost=False):

@@ -9,6 +9,8 @@ from typing import Dict, List, Tuple, Optional
 from joblib import Parallel, delayed
 from tqdm import tqdm
 import warnings
+import logging
+
 warnings.filterwarnings('ignore')
 
 # Import from common helpers
@@ -33,6 +35,20 @@ from helpers_1997_13.feature_importance_model_utils import (
     get_importance_xgboost,
 )
 from helpers_1997_13.model_utils import calculate_recall, calculate_logloss
+
+
+logger = logging.getLogger(__name__)
+
+
+def _log_mc(message: str) -> None:
+    """
+    Helper for MC-CV logging: sends messages to both stdout (for interactive runs)
+    and the configured Python logger (for timestamped log files / S3 logs).
+    """
+    # Ensure users see progress in real time in long-running jobs
+    print(message, flush=True)
+    # And also capture it in the central log stream
+    logger.info(message)
 
 
 def run_single_split(
@@ -71,8 +87,7 @@ def run_single_split(
     """
     try:
         # Lightweight per-split logging to help debug long-running MC-CV jobs.
-        # Use flush=True so logs appear promptly in long-running jobs.
-        print(f"[MC-CV] Starting split {split_idx} for {method}", flush=True)
+        _log_mc(f"[MC-CV] Starting split {split_idx} for {method}")
         # Use separate test data if provided, otherwise use same data
         X_train = X_train_all.iloc[train_idx].copy()
         y_train = y_train_all[train_idx]
@@ -154,10 +169,9 @@ def run_single_split(
         feature_importance['recall'] = recall
         feature_importance['logloss'] = logloss
 
-        print(
+        _log_mc(
             f"[MC-CV] Completed split {split_idx} for {method} "
-            f"(recall={recall:.4f}, logloss={logloss:.4f})",
-            flush=True,
+            f"(recall={recall:.4f}, logloss={logloss:.4f})"
         )
 
         return {
@@ -169,7 +183,7 @@ def run_single_split(
         }
         
     except Exception as e:
-        print(f"[MC-CV] ERROR in split {split_idx} for {method}: {e}", flush=True)
+        _log_mc(f"[MC-CV] ERROR in split {split_idx} for {method}: {e}")
         return {
             'split': split_idx,
             'status': 'error',
@@ -236,9 +250,9 @@ def run_mc_cv_method(
     
     feature_names = X_train_all.columns.tolist()
     n_splits = len(split_indices)
-    
-    print(f"\n--- Running MC-CV for {method} ({n_splits} splits) ---")
-    
+
+    _log_mc(f"--- Running MC-CV for {method} ({n_splits} splits) ---")
+
     # Run splits in parallel. Use verbose logging so we can see progress
     # (e.g., 'Done 10 out of 200' style messages) in long-running jobs.
     results = Parallel(n_jobs=n_jobs, verbose=10)(
@@ -295,10 +309,10 @@ def run_mc_cv_method(
     
     # Sort by scaled importance
     aggregated = aggregated.sort_values('scaled_importance_mean', ascending=False)
-    
-    print(f"Completed {len(successful_splits)}/{n_splits} splits for {method}")
-    print(f"  Mean Recall: {aggregated['recall_mean'].iloc[0]:.4f}")
-    print(f"  Mean LogLoss: {aggregated['logloss_mean'].iloc[0]:.4f}")
+
+    _log_mc(f"Completed {len(successful_splits)}/{n_splits} splits for {method}")
+    _log_mc(f"  Mean Recall: {aggregated['recall_mean'].iloc[0]:.4f}")
+    _log_mc(f"  Mean LogLoss: {aggregated['logloss_mean'].iloc[0]:.4f}")
     
     return aggregated
 
