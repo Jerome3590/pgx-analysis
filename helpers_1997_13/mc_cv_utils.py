@@ -22,18 +22,15 @@ if str(project_root) not in sys.path:
 
 from helpers_1997_13.common_imports import *
 from helpers_1997_13.feature_importance_model_utils import (
-    train_catboost, train_random_forest, train_xgboost, train_xgboost_rf,
-    train_lightgbm, train_extratrees, train_logistic_regression,
-    train_linearsvc, train_elasticnet, train_lasso,
-    predict_catboost, predict_random_forest, predict_xgboost,
-    predict_lightgbm, predict_extratrees, predict_logistic_regression,
-    predict_linearsvc, predict_elasticnet, predict_lasso,
-    predict_proba_catboost, predict_proba_random_forest, predict_proba_xgboost,
-    predict_proba_lightgbm, predict_proba_extratrees, predict_proba_logistic_regression,
-    predict_proba_linearsvc, predict_proba_elasticnet, predict_proba_lasso,
-    get_importance_catboost, get_importance_random_forest, get_importance_xgboost,
-    get_importance_lightgbm, get_importance_extratrees, get_importance_logistic_regression,
-    get_importance_linearsvc, get_importance_elasticnet, get_importance_lasso
+    train_catboost,
+    train_xgboost,
+    train_xgboost_rf,
+    predict_catboost,
+    predict_xgboost,
+    predict_proba_catboost,
+    predict_proba_xgboost,
+    get_importance_catboost,
+    get_importance_xgboost,
 )
 from helpers_1997_13.model_utils import calculate_recall, calculate_logloss
 
@@ -61,9 +58,7 @@ def run_single_split(
         test_idx: Test indices (from test data, if separate test data provided)
         X_train_all: All training features (format depends on method)
         y_train_all: All training labels
-        method: Model type ('catboost', 'random_forest', 'xgboost', 'xgboost_rf',
-                           'lightgbm', 'extratrees', 'logistic_regression',
-                           'linearsvc', 'elasticnet', 'lasso')
+        method: Model type ('catboost', 'xgboost', 'xgboost_rf')
         model_params: Model parameters dictionary
         scaling_metric: Metric to use for scaling ('recall' or 'logloss')
         data_catboost: Optional CatBoost-formatted training data (for CatBoost method)
@@ -76,7 +71,8 @@ def run_single_split(
     """
     try:
         # Lightweight per-split logging to help debug long-running MC-CV jobs.
-        print(f"[MC-CV] Starting split {split_idx} for {method}")
+        # Use flush=True so logs appear promptly in long-running jobs.
+        print(f"[MC-CV] Starting split {split_idx} for {method}", flush=True)
         # Use separate test data if provided, otherwise use same data
         X_train = X_train_all.iloc[train_idx].copy()
         y_train = y_train_all[train_idx]
@@ -124,13 +120,6 @@ def run_single_split(
             # Use permutation importance for fair comparison (requires X_test and y_test)
             feature_importance = get_importance_catboost(model, X_train_cb.columns.tolist(), X_test=X_test_cb, y_test=y_test)
             
-        elif method == 'random_forest':
-            model = train_random_forest(X_train, y_train, model_params.get('random_forest', {}))
-            y_pred = predict_random_forest(model, X_test)
-            y_pred_proba = predict_proba_random_forest(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_random_forest(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
         elif method == 'xgboost':
             model = train_xgboost(X_train, y_train, model_params.get('xgboost', {}))
             y_pred = predict_xgboost(model, X_test)
@@ -144,48 +133,6 @@ def run_single_split(
             y_pred_proba = predict_proba_xgboost(model, X_test)
             # Use permutation importance for fair comparison
             feature_importance = get_importance_xgboost(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'lightgbm':
-            model = train_lightgbm(X_train, y_train, model_params.get('lightgbm', {}))
-            y_pred = predict_lightgbm(model, X_test)
-            y_pred_proba = predict_proba_lightgbm(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_lightgbm(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'extratrees':
-            model = train_extratrees(X_train, y_train, model_params.get('extratrees', {}))
-            y_pred = predict_extratrees(model, X_test)
-            y_pred_proba = predict_proba_extratrees(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_extratrees(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'logistic_regression':
-            model = train_logistic_regression(X_train, y_train, model_params.get('logistic_regression', {}))
-            y_pred = predict_logistic_regression(model, X_test)
-            y_pred_proba = predict_proba_logistic_regression(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_logistic_regression(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'linearsvc':
-            model = train_linearsvc(X_train, y_train, model_params.get('linearsvc', {}))
-            y_pred = predict_linearsvc(model, X_test)
-            y_pred_proba = predict_proba_linearsvc(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_linearsvc(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'elasticnet':
-            model = train_elasticnet(X_train, y_train, model_params.get('elasticnet', {}))
-            y_pred = predict_elasticnet(model, X_test)
-            y_pred_proba = predict_proba_elasticnet(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_elasticnet(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
-            
-        elif method == 'lasso':
-            model = train_lasso(X_train, y_train, model_params.get('lasso', {}))
-            y_pred = predict_lasso(model, X_test)
-            y_pred_proba = predict_proba_lasso(model, X_test)
-            # Use permutation importance for fair comparison
-            feature_importance = get_importance_lasso(model, X_train.columns.tolist(), X_test=X_test, y_test=y_test)
             
         else:
             raise ValueError(f"Unknown method: {method}")
@@ -207,8 +154,11 @@ def run_single_split(
         feature_importance['recall'] = recall
         feature_importance['logloss'] = logloss
 
-        print(f"[MC-CV] Completed split {split_idx} for {method} "
-              f"(recall={recall:.4f}, logloss={logloss:.4f})")
+        print(
+            f"[MC-CV] Completed split {split_idx} for {method} "
+            f"(recall={recall:.4f}, logloss={logloss:.4f})",
+            flush=True,
+        )
 
         return {
             'split': split_idx,
@@ -219,7 +169,7 @@ def run_single_split(
         }
         
     except Exception as e:
-        print(f"[MC-CV] ERROR in split {split_idx} for {method}: {e}")
+        print(f"[MC-CV] ERROR in split {split_idx} for {method}: {e}", flush=True)
         return {
             'split': split_idx,
             'status': 'error',
@@ -243,9 +193,7 @@ def run_mc_cv_method(
     
     Args:
         data: Training data frame with target column (format depends on method)
-        method: Model type ('catboost', 'random_forest', 'xgboost', 'xgboost_rf',
-                           'lightgbm', 'extratrees', 'logistic_regression',
-                           'linearsvc', 'elasticnet', 'lasso')
+        method: Model type ('catboost', 'xgboost', 'xgboost_rf')
         split_indices: List of dictionaries with 'train_idx' (from training data) and 'test_idx' (from test data)
         model_params: Model parameters dictionary
         scaling_metric: Metric to use for scaling ('recall' or 'logloss')
