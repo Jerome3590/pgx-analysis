@@ -121,6 +121,75 @@ def run_cohort_analysis(
         # Normalize age-band for local filenames (convert hyphens to underscores)
         age_band_fname = age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
 
+        # ------------------------------------------------------------------
+        # Fast idempotency check: if aggregated results already exist,
+        # skip ALL heavy work (data loading, feature matrix build, MC-CV).
+        # This lets run_cohort_* safely re-run without rebuilding matrices.
+        # ------------------------------------------------------------------
+        os.makedirs(output_dir, exist_ok=True)
+        aggregated_local = os.path.join(
+            output_dir,
+            f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv",
+        )
+        s3_key_agg = (
+            f"gold/feature_importance/{cohort_name}/{age_band}/"
+            f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+        )
+
+        if os.path.exists(aggregated_local):
+            logger.info(
+                "Aggregated feature-importance already exists locally (%s); "
+                "skipping full feature engineering and MC-CV.",
+                aggregated_local,
+            )
+            try:
+                agg_df = pd.read_csv(aggregated_local)
+                n_features = int(agg_df["feature"].nunique()) if "feature" in agg_df.columns else len(agg_df)
+            except Exception:
+                n_features = None
+
+            return {
+                "cohort": cohort_name,
+                "age_band": age_band,
+                "train_years": train_years,
+                "test_year": test_year,
+                "status": "skipped",
+                "reason": "Aggregated feature-importance already exists locally",
+                "output_file": aggregated_local,
+                "n_features": n_features,
+            }
+
+        # If not present locally, check S3 and download if available.
+        try:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key_agg)
+            logger.info(
+                "Aggregated feature-importance exists in S3 (s3://%s/%s); "
+                "downloading instead of recomputing.",
+                S3_BUCKET,
+                s3_key_agg,
+            )
+            import io
+
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key_agg)
+            agg_df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+            agg_df.to_csv(aggregated_local, index=False)
+            logger.info("Saved aggregated feature-importance locally: %s", aggregated_local)
+            n_features = int(agg_df["feature"].nunique()) if "feature" in agg_df.columns else len(agg_df)
+
+            return {
+                "cohort": cohort_name,
+                "age_band": age_band,
+                "train_years": train_years,
+                "test_year": test_year,
+                "status": "skipped",
+                "reason": "Aggregated feature-importance already exists in S3",
+                "output_file": aggregated_local,
+                "n_features": n_features,
+            }
+        except Exception:
+            # No aggregated results found locally or in S3 → proceed as normal.
+            pass
+
         # Load data
         logger.info("Loading cohort data...")
         check_memory_usage_r(logger, "Before Data Loading")

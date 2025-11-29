@@ -100,11 +100,11 @@ jupyter notebook
 
 Then open this notebook: `3_feature_importance/run_feature_importance_cohorts.ipynb`.
 
-### Production Run (100 splits, ~1-2 hours on EC2)
+### Production Run (25–50 splits on EC2)
 
 ```python
 DEBUG_MODE = False
-N_SPLITS = 200  # or 1000 for publication
+N_SPLITS = 25  # current default for cohort-level feature screening
 TRAIN_YEARS = [2016, 2017, 2018]  # Training data years
 TEST_YEAR = 2019  # Test data year (never used for training)
 
@@ -115,6 +115,8 @@ TEST_YEAR = 2019  # Test data year (never used for training)
 ```
 
 **Temporal Validation:** Each MC-CV split samples from 2016-2018 training data, but all splits evaluate on the same 2019 test set. This ensures robust feature importance estimates while maintaining temporal integrity.
+
+**Splits Sensitivity Check:** For the opioid_ed cohort we explicitly compared runs with **10, 20, 30, and 50 MC‑CV splits** and observed no material changes in the leading feature rankings—only minor reordering in the long tail. Based on this, we use **25 splits** as the default for **feature screening** (to filter out weak/noisy features and reduce model complexity for downstream FP‑Growth, bupaR, and DTW). For the **final ensemble and FFA analyses**, we reserve higher split counts (e.g., 50+) when tighter confidence bands on feature importance are required.
 
 ### Parallel Execution (Default)
 

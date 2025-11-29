@@ -22,3 +22,5 @@ __pycache__/
 # Per-patient feature-engineering artifacts (keyed by mi_person_key)
 5_bupaR_analysis/outputs/*/*/features/**
 6_dtw_analysis/outputs/*/*/features/**
+
+s3_outputs/
