@@ -64,7 +64,9 @@ MODEL_PARAMS = {
 
 # Set up parallel processing
 import multiprocessing
-N_WORKERS = max(1, multiprocessing.cpu_count() - 2)
+# Use a conservative number of workers to avoid exhausting memory during MC-CV.
+# Leave ~12 cores free for system / other processes.
+N_WORKERS = max(1, multiprocessing.cpu_count() - 12)
 
 print(f"Running feature importance analysis:")
 print(f"  Cohort: {COHORT_NAME}")

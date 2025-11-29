@@ -1,6 +1,6 @@
 # Feature Importance Analysis
 
-**Date:** November 25, 2025  
+**Date:** November 29, 2025  
 **Project:** PGx Analysis - Feature Importance with Monte Carlo Cross-Validation  
 **Notebook:** `feature_importance_mc_cv.ipynb`
 
@@ -57,7 +57,7 @@ This project calculates scaled feature importance for predicting opioid dependen
 ✅ **Monte Carlo Cross-Validation** – Up to 1000 random train/test splits  
 ✅ **Temporal Validation** – Train on 2016-2018, test on 2019 (avoids COVID year 2020)  
 ✅ **Stratified Sampling** – Maintains target distribution  
-✅ **Parallel Processing** – Fast execution (30 workers on EC2)  
+✅ **Parallel Processing** – Fast execution with **conservative worker counts** (see below)  
 ✅ **Quality Weighting** – Features scaled by model performance (Recall)  
 ✅ **Model Consensus** – Union-based aggregation rewards agreement  
 ✅ **Multiple Models** – Tree ensembles (CatBoost, RF, XGBoost, LightGBM, ExtraTrees) and linear models (LogisticRegression, LinearSVC, ElasticNet, LASSO)  
@@ -117,6 +117,14 @@ TEST_YEAR = 2019  # Test data year (never used for training)
 **Temporal Validation:** Each MC-CV split samples from 2016-2018 training data, but all splits evaluate on the same 2019 test set. This ensures robust feature importance estimates while maintaining temporal integrity.
 
 **Splits Sensitivity Check:** For the opioid_ed cohort we explicitly compared runs with **10, 20, 30, and 50 MC‑CV splits** and observed no material changes in the leading feature rankings—only minor reordering in the long tail. Based on this, we use **25 splits** as the default for **feature screening** (to filter out weak/noisy features and reduce model complexity for downstream FP‑Growth, bupaR, and DTW). For the **final ensemble and FFA analyses**, we reserve higher split counts (e.g., 50+) when tighter confidence bands on feature importance are required.
+
+**Feature-Matrix Pruning (Python MC‑CV helpers):** To keep MC‑CV tractable on large cohorts, we prune ultra‑rare items *before* building feature matrices. For each `(cohort, age_band)`:
+
+- Build a patient‑item table from drugs, ICD codes, CPT/procedure codes, and event types (excluding non‑informative tokens like `"pharmacy"`, `"medical"`, and the target code `F1120`).
+- Count, for each item, how many **distinct training patients** (2016–2018) have that item.
+- Keep only items that appear in **at least 25 patients**; drop items below that threshold from both CatBoost and RF/XGBoost feature spaces.
+
+This reduces the raw feature count from \~30k+ items per cohort/age band to a few thousand (e.g., 11k → ~1.1k for `opioid_ed 13–24`, 32k → ~5k for `opioid_ed 25–44`), dramatically shrinking the CatBoost and RF/XGBoost matrices while preserving clinically meaningful, sufficiently frequent codes.
 
 ### Parallel Execution (Default)
 
@@ -665,27 +673,26 @@ head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
 
 ### 2. Computational Resources
 
-**For DEBUG_MODE = TRUE (5 splits):**
+**For DEBUG_MODE = TRUE (5 splits, Python MC‑CV helpers):**
 - Any machine (4+ cores)
-- ~5 minutes
-- Good for testing
+- A few minutes per cohort/age band
+- Good for functional tests
 
-**For 100 splits (development):**
-- EC2 x2iedn.8xlarge (32 cores, 1TB RAM)
-- ~1-2 hours
-- Recommended for development
+**For 25–50 splits (development / screening, Python MC‑CV helpers):**
+- EC2 x2iedn.8xlarge (32 vCPUs, 1TB RAM) or comparable high‑RAM instance.
+- Python `run_cohort_*.py` scripts currently set:
+  - `N_SPLITS = 25` for cohort‑level feature screening.
+  - `N_WORKERS = max(1, multiprocessing.cpu_count() - 12)` so that, on a 20‑vCPU machine, **8 workers** are used for MC‑CV (`20 - 12 = 8`) to reduce OOM risk.
+- Expect **1–3 hours** per heavy cohort/age band under these settings, depending on feature count and prevalence.
 
-**For 1000 splits (publication):**
-- Same EC2 instance
-- ~10-20 hours
-- Use for final results only
+**For 50+ splits (final, publication‑grade runs):**
+- Same class of instance, but consider further reducing `N_WORKERS` or tightening the item‑frequency threshold if memory pressure is high.
 
 ### 3. Feature Count
 
 **Too Many Features (>20k):**
-- Consider pre-filtering (e.g., min frequency)
-- Use larger `future.globals.maxSize`
-- May require more RAM
+- The Python MC‑CV pipeline now **automatically pre‑filters** very rare items by requiring that each drug / ICD / CPT / event token appear in **≥ 25 training patients** before it is included as a feature.
+- This keeps the effective feature count in the **2k–5k** range per cohort/age band instead of 20k+ and significantly reduces CatBoost / XGBoost memory footprint.
 
 **Too Few Features (<100):**
 - Results may be unstable
