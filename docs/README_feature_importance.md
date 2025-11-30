@@ -272,6 +272,7 @@ Rscript feature_importance_mc_cv.R \
 - Handles categorical features natively
 - Feature format: Each column is a factor with item name as level
 - Importance: Permutation-based (PredictionValuesChange)
+- For feature-importance **screening runs**, we allow CatBoost to use a somewhat larger tree budget (more iterations) than XGBoost / XGBoost RF. This is acceptable because the goal here is robust feature discovery, not a strict algorithm bake-off.
 
 **XGBoost (boosted trees):**
 - Gradient boosting with tree-based learners
@@ -283,7 +284,7 @@ Rscript feature_importance_mc_cv.R \
 - Feature format: Binary 0/1 encoding
 - Importance: Permutation-based
 
-All three models use **permutation-based importance** for fair comparison.
+All three models use **permutation-based importance** for fair comparison. In the **final model evaluation and deployment pipeline** (see `7_final_model/`), we align key hyperparameters such as the number of trees (e.g., `iterations` / `n_estimators`) across CatBoost and XGBoost-family models when we want an apples-to-apples comparison of model performance. Here, in the feature-importance stage, we prioritize stability and coverage of signal for downstream PGx engineering, accepting small asymmetries in tree counts between models to keep wall-clock and memory usage manageable.
 
 ### Runtime and Performance Considerations
 

@@ -46,7 +46,7 @@ MODEL_PARAMS = {
     'xgboost': {
         'max_depth': 6,
         'learning_rate': 0.1,
-        'n_estimators': 500,
+        'n_estimators': 250,
         'subsample': 1.0,
         'colsample_bytree': 1.0,
         'random_seed': 42,
@@ -54,7 +54,7 @@ MODEL_PARAMS = {
     'xgboost_rf': {
         'max_depth': 6,
         'learning_rate': 0.1,
-        'n_estimators': 500,
+        'n_estimators': 250,
         'subsample': 0.8,
         'max_features': None,
         'random_seed': 42,
@@ -64,8 +64,8 @@ MODEL_PARAMS = {
 # Set up parallel processing
 import multiprocessing
 # Use a conservative number of workers to avoid exhausting memory during MC-CV.
-# Leave ~12 cores free for system / other processes.
-N_WORKERS = max(1, multiprocessing.cpu_count() - 12)
+# Leave ~24 cores free for system / other processes.
+N_WORKERS = max(1, multiprocessing.cpu_count() - 24)
 
 print(f"Running feature importance analysis:")
 print(f"  Cohort: {COHORT_NAME}")
