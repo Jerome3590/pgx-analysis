@@ -420,23 +420,38 @@ def run_cohort_analysis(
 
                 # Build columns more efficiently using groupby
                 # Parallelize column creation for better performance on multi-core systems
-                def build_feature_column(item):
-                    """Build a single feature column"""
-                    # Get patient keys that have this item
-                    item_patients = patient_item_map[patient_item_map['item'] == item]['mi_person_key'].values
+                def build_feature_columns_batch(items_batch):
+                    """Build multiple feature columns in a batch to reduce overhead"""
+                    batch_results = []
+                    for item in items_batch:
+                        # Get patient keys that have this item
+                        item_patients = patient_item_map[patient_item_map['item'] == item]['mi_person_key'].values
 
-                    # Create full series with all patients, filling missing with empty string
-                    full_series = pd.Series('', index=unique_patients, dtype='string')
-                    if len(item_patients) > 0:
-                        # Set item name for patients that have this item
-                        full_series.loc[item_patients] = item
-                    return f'item_{item}', full_series.values
+                        # Create full series with all patients, filling missing with empty string
+                        full_series = pd.Series('', index=unique_patients, dtype='string')
+                        if len(item_patients) > 0:
+                            # Set item name for patients that have this item
+                            full_series.loc[item_patients] = item
+                        batch_results.append((f'item_{item}', full_series.values))
+                    return batch_results
 
-                # Use parallel processing for column creation (leaves 2 cores free)
+                # Use parallel processing with batching to reduce overhead
+                # Batch size: aim for ~50-100 items per worker to balance overhead vs parallelism
                 n_workers_matrix = max(1, multiprocessing.cpu_count() - 2)
-                column_results = Parallel(n_jobs=n_workers_matrix, verbose=0)(
-                    delayed(build_feature_column)(item) for item in all_item_list
+                batch_size = max(1, len(all_item_list) // (n_workers_matrix * 4))  # ~4 batches per worker
+                batches = [all_item_list[i:i+batch_size] for i in range(0, len(all_item_list), batch_size)]
+                
+                logger.info("Feature matrix parallel workers: %d (CPU count: %d), batch size: %d, batches: %d", 
+                           n_workers_matrix, multiprocessing.cpu_count(), batch_size, len(batches))
+                
+                batch_results = Parallel(n_jobs=n_workers_matrix, verbose=10)(
+                    delayed(build_feature_columns_batch)(batch) for batch in batches
                 )
+                
+                # Flatten batch results
+                column_results = []
+                for batch_result in batch_results:
+                    column_results.extend(batch_result)
 
                 # Add columns to dictionary
                 for col_name, col_values in column_results:
