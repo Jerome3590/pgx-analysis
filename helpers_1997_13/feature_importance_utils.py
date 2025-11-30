@@ -437,16 +437,34 @@ def run_cohort_analysis(
 
                 # Use parallel processing with batching to reduce overhead
                 # Batch size: aim for ~50-100 items per worker to balance overhead vs parallelism
-                n_workers_matrix = max(1, multiprocessing.cpu_count() - 2)
+                # Limit workers to avoid oversubscription (each worker may use multiple threads internally)
+                n_workers_matrix = min(16, max(1, multiprocessing.cpu_count() - 2))  # Cap at 16 to avoid oversubscription
                 batch_size = max(1, len(all_item_list) // (n_workers_matrix * 4))  # ~4 batches per worker
                 batches = [all_item_list[i:i+batch_size] for i in range(0, len(all_item_list), batch_size)]
                 
                 logger.info("Feature matrix parallel workers: %d (CPU count: %d), batch size: %d, batches: %d", 
                            n_workers_matrix, multiprocessing.cpu_count(), batch_size, len(batches))
                 
-                batch_results = Parallel(n_jobs=n_workers_matrix, verbose=10)(
-                    delayed(build_feature_columns_batch)(batch) for batch in batches
-                )
+                # Set environment variables to limit threading in joblib workers
+                # This prevents each worker from spawning multiple threads (pandas/numpy)
+                import os
+                original_env = {}
+                threading_vars = ['OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'OPENBLAS_NUM_THREADS']
+                for var in threading_vars:
+                    original_env[var] = os.environ.get(var)
+                    os.environ[var] = '1'  # Force single-threaded in workers
+                
+                try:
+                    batch_results = Parallel(n_jobs=n_workers_matrix, verbose=10)(
+                        delayed(build_feature_columns_batch)(batch) for batch in batches
+                    )
+                finally:
+                    # Restore original environment
+                    for var, value in original_env.items():
+                        if value is None:
+                            os.environ.pop(var, None)
+                        else:
+                            os.environ[var] = value
                 
                 # Flatten batch results
                 column_results = []
@@ -514,12 +532,14 @@ def run_cohort_analysis(
             
             return data
         
-        # Create feature matrices for train and test
+        # Create feature matrices for train and test (BUILT ONCE, reused for all MC-CV splits)
+        logger.info("Building feature matrices (one-time operation, will be reused for all %d MC-CV splits)...", n_splits)
         train_data_catboost = create_feature_matrix(train_patient_items, train_patient_targets, all_item_list, is_catboost=True)
         train_data_rf = create_feature_matrix(train_patient_items, train_patient_targets, all_item_list, is_catboost=False)
         
         test_data_catboost = create_feature_matrix(test_patient_items, test_patient_targets, all_item_list, is_catboost=True)
         test_data_rf = create_feature_matrix(test_patient_items, test_patient_targets, all_item_list, is_catboost=False)
+        logger.info("Feature matrices complete. These will be indexed (not rebuilt) for each MC-CV split.")
         
         # Filter constant features globally (before creating splits)
         # Only check features that actually appear in training data
