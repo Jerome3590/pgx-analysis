@@ -21,7 +21,8 @@
 7. [Cross-Age-Band Analysis](#cross-age-band-analysis)
 8. [Usage Examples](#usage-examples)
 9. [Best Practices](#best-practices)
-10. [Troubleshooting](#troubleshooting)
+10. [EC2 Configuration and Optimizations](#ec2-configuration-and-optimizations)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -591,6 +592,196 @@ head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
 - Use features ranked 100+ without inspection
 - Ignore model-specific features (n_models = 1)
 - Trust results without domain validation
+
+---
+
+## EC2 Configuration and Optimizations
+
+### Instance Specifications
+
+**Recommended EC2 Instance:**
+- **Type:** `x2iedn.8xlarge` (or equivalent)
+- **CPU:** 32 cores
+- **RAM:** 1TB
+- **Storage:** NVMe SSD (for fast data access)
+- **Data Location:** `/mnt/nvme/cohorts/` (or set via `LOCAL_DATA_PATH` environment variable)
+
+### Parallel Processing Configuration
+
+The feature importance pipeline uses a two-level parallelization strategy optimized for 32-core EC2 instances:
+
+#### 1. MC-CV Worker Configuration
+
+**Workers:** 8 workers (configurable in `run_cohort_*.py` scripts)
+
+```python
+# In run_cohort_*.py
+N_WORKERS = max(1, multiprocessing.cpu_count() - 24)
+# On 32-core system: 32 - 24 = 8 workers
+```
+
+**Rationale:**
+- Leaves 24 cores free for system processes, other tasks, and overhead
+- 8 workers process MC-CV splits in parallel
+- Each worker handles one split at a time
+
+#### 2. Model Thread Configuration
+
+**Per-Model Threads:** 4 threads per model
+
+**Configuration:**
+- **CatBoost:** `thread_count: 4` (in `feature_importance_model_utils.py`)
+- **XGBoost:** `n_jobs: 4` (in `feature_importance_model_utils.py`)
+- **XGBoost RF:** `n_jobs: 4` (in `feature_importance_model_utils.py`)
+
+**Total CPU Usage:**
+- 8 workers × 4 threads = 32 cores fully utilized
+- No oversubscription or thread contention
+
+#### 3. Feature Matrix Building Optimization
+
+**Batching Strategy:** Columns are processed in batches to reduce joblib overhead
+
+**Configuration:**
+- **Workers:** `multiprocessing.cpu_count() - 2` (30 workers on 32-core system)
+- **Batch Size:** Automatically calculated as `items_per_worker * 4`
+- **Purpose:** Reduces process spawning overhead by processing multiple columns per worker
+
+**Example:** For 4,962 features with 30 workers:
+- Batch size: ~41 columns per batch
+- Total batches: ~121 batches
+- Each worker processes multiple batches sequentially
+
+**Verification:**
+Check logs for:
+```
+Feature matrix parallel workers: 30 (CPU count: 32), batch size: 41, batches: 121
+```
+
+### Monitoring Parallelization
+
+#### Check Worker Count
+
+```bash
+# Count Python processes (should see ~30+ during feature matrix building)
+ps aux | grep python3.11 | grep -v grep | wc -l
+
+# Check threads per process
+ps -p $(pgrep -f "run_cohort") -o pid,pcpu,pmem,nlwp,cmd
+```
+
+#### Check CPU Utilization
+
+```bash
+# Per-core CPU usage (should see 8-16 cores active at 50-80%)
+mpstat -P ALL 1 5
+
+# Overall CPU usage
+top -bn1 | grep "^%Cpu"
+```
+
+**Expected Behavior:**
+- **Feature Matrix Building:** 8-16 cores active at 50-80% (with batching)
+- **MC-CV Training:** 8 cores active at 80-100% (one per worker)
+- **Idle:** Most cores idle during I/O or single-threaded operations
+
+#### Troubleshooting Low CPU Usage
+
+**If only 1-2 cores are active:**
+
+1. **Check if batching is working:**
+   ```bash
+   # Look for batch size in logs
+   grep "batch size" /path/to/log/file
+   ```
+
+2. **Verify joblib is spawning workers:**
+   ```bash
+   # Should see 30+ Python processes during feature matrix building
+   ps aux | grep python3.11 | grep -v grep | wc -l
+   ```
+
+3. **Check for bottlenecks:**
+   ```bash
+   # Memory usage
+   free -h
+   
+   # I/O wait
+   iostat -x 1 3
+   ```
+
+**Common Issues:**
+- **Too many workers:** Reduce `n_workers_matrix` if memory is constrained
+- **Too few workers:** Increase batch size or reduce `multiprocessing.cpu_count() - 2`
+- **I/O bound:** Feature matrix building may be limited by disk speed
+
+### Model Configuration
+
+**Estimator Settings (for 32-core EC2):**
+
+```python
+MODEL_PARAMS = {
+    'catboost': {
+        'iterations': 500,  # CatBoost processes fast, can use more iterations
+        'learning_rate': 0.1,
+        'depth': 6,
+        'thread_count': 4,  # Set in feature_importance_model_utils.py
+    },
+    'xgboost': {
+        'n_estimators': 250,  # Balanced for speed/quality
+        'learning_rate': 0.1,
+        'max_depth': 6,
+        'n_jobs': 4,  # Set in feature_importance_model_utils.py
+    },
+    'xgboost_rf': {
+        'n_estimators': 250,
+        'learning_rate': 0.1,
+        'max_depth': 6,
+        'n_jobs': 4,  # Set in feature_importance_model_utils.py
+    },
+}
+```
+
+### Performance Expectations
+
+**Large Cohort (e.g., opioid_ed, 25-44 age band):**
+- **Patients:** ~78,000 training, ~50,000 test
+- **Features:** ~5,000 (after pruning)
+- **MC-CV Splits:** 25-100
+- **Expected Time:** 1.5-2 hours
+
+**Breakdown:**
+- Data loading: ~10 seconds
+- Feature engineering: ~20 seconds
+- Feature matrix building: ~15-20 minutes (with batching)
+- MC-CV execution: ~60-90 minutes (25 splits × 3 models)
+- Aggregation: ~2-3 minutes
+
+**Smaller Cohorts:**
+- Proportionally faster
+- Feature matrix building scales with number of features
+- MC-CV time scales with number of splits
+
+### Best Practices for EC2
+
+1. **Monitor Resource Usage:**
+   - Use `htop` or `top` to watch CPU/memory
+   - Check logs for parallelization messages
+   - Verify all cores are being utilized
+
+2. **Memory Management:**
+   - Large cohorts may use 10-20GB RAM
+   - Ensure sufficient swap space if needed
+   - Monitor for memory leaks in long-running jobs
+
+3. **Auto-Shutdown:**
+   - Set up EC2 auto-shutdown after job completion
+   - Save costs by stopping instance when not in use
+
+4. **Logging:**
+   - Logs are automatically saved to S3
+   - Check logs for parallelization confirmation
+   - Monitor for errors or warnings
 
 ---
 
