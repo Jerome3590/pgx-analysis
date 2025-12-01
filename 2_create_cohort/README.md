@@ -417,6 +417,46 @@ Taking `opioid_ed 25–44` as a **baseline** for downstream feature-importance c
 
 This means that, for a fixed MC‑CV configuration in the feature-importance pipeline (e.g., 25 splits, 3 tree models with permutation importance), **25–44 is by far the heaviest age band** in terms of **event workload**, with 45–74 at roughly half to 60% of that cost, and the youngest/oldest bands contributing only a tiny fraction of the total runtime despite having meaningful patient counts.
 
+### ED_NON_OPIOID (Polypharmacy) Age-Band Cohort Sizes (F1120, 2016–2019)
+
+For the polypharmacy ED cohort (`cohort_name=non_opioid_ed`), which is the primary focus for **older age bands** in downstream feature-importance analysis, the cohort parquet partitions in `data/cohorts_F1120/cohort_name=non_opioid_ed/` have substantially larger event workloads and patient counts:
+
+- **Event-level row counts (workload), train = 2016–2018, test = 2019:**
+  - **0–12**: train = 32,482,174, test = 13,095,946  
+  - **13–24**: train = 30,064,091, test = 12,717,593  
+  - **25–44**: train = 70,326,824, test = 29,280,711  
+  - **45–54**: train = 52,120,942, test = 20,750,036  
+  - **55–64**: train = 71,132,187, test = 29,816,173  
+  - **65–74**: train = 135,465,040, test = 50,047,383  
+  - **75–84**: train = 87,267,781, test = 32,780,611  
+  - **85–94**: train = 35,670,313, test = 12,278,221  
+  - **95–114**: train = 3,219,193, test = 1,185,156  
+
+- **Distinct patients, train = 2016–2018, test = 2019:**
+  - **0–12**: train = 1,215,320, test = 870,021  
+  - **13–24**: train = 954,442, test = 696,076  
+  - **25–44**: train = 1,542,990, test = 1,168,512  
+  - **45–54**: train = 831,967, test = 630,978  
+  - **55–64**: train = 884,664, test = 713,998  
+  - **65–74**: train = 919,654, test = 766,298  
+  - **75–84**: train = 462,222, test = 391,003  
+  - **85–94**: train = 181,679, test = 136,146  
+  - **95–114**: train = 21,546, test = 14,729  
+
+If we take `non_opioid_ed 65–74` as the **baseline** (it has the largest `(train + test)` event workload), the **relative event workload factors** are:
+
+- **0–12**: ≈ 0.25×  
+- **13–24**: ≈ 0.23×  
+- **25–44**: ≈ 0.54×  
+- **45–54**: ≈ 0.39×  
+- **55–64**: ≈ 0.54×  
+- **65–74**: 1.00× (baseline)  
+- **75–84**: ≈ 0.65×  
+- **85–94**: ≈ 0.26×  
+- **95–114**: ≈ 0.02×  
+
+For a fixed downstream feature-importance configuration (e.g., 25 splits, 3 tree models, exact XGBoost), **non_opioid_ed 65–74 is the heaviest polypharmacy age band** by event workload. Neighboring older bands (55–64, 75–84) are on the same order of magnitude, while younger and extreme-age bands contribute a smaller fraction of the total MC‑CV runtime despite covering large patient populations.
+
 ***
 
 ## 👩‍🔬 Testing and Debugging

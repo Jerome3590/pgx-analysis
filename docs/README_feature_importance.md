@@ -409,6 +409,46 @@ Since MC‑CV + permutation importance cost is dominated by the number of **rows
 - **75–84** is expected to take **~2–3 hours** (0.2×).  
 - **0–12, 85–94, 95–114** should complete in **minutes to well under an hour**, even though they still contain clinically meaningful patient cohorts.
 
+### Non_Opioid_ed (Polypharmacy) Age-Band Size and Expected Runtime (N_SPLITS = 25)
+
+For the **polypharmacy ED cohort** (`cohort_name=non_opioid_ed`), which is the primary focus for **older age bands**, the cohort parquet files in `data/cohorts_F1120/cohort_name=non_opioid_ed/` show substantially larger event workloads and patient counts:
+
+- **Event-level row counts (workload), train = 2016–2018, test = 2019:**
+  - **0–12**: train = 32,482,174, test = 13,095,946  
+  - **13–24**: train = 30,064,091, test = 12,717,593  
+  - **25–44**: train = 70,326,824, test = 29,280,711  
+  - **45–54**: train = 52,120,942, test = 20,750,036  
+  - **55–64**: train = 71,132,187, test = 29,816,173  
+  - **65–74**: train = 135,465,040, test = 50,047,383  
+  - **75–84**: train = 87,267,781, test = 32,780,611  
+  - **85–94**: train = 35,670,313, test = 12,278,221  
+  - **95–114**: train = 3,219,193, test = 1,185,156  
+
+- **Distinct patients, train = 2016–2018, test = 2019:**
+  - **0–12**: train = 1,215,320, test = 870,021  
+  - **13–24**: train = 954,442, test = 696,076  
+  - **25–44**: train = 1,542,990, test = 1,168,512  
+  - **45–54**: train = 831,967, test = 630,978  
+  - **55–64**: train = 884,664, test = 713,998  
+  - **65–74**: train = 919,654, test = 766,298  
+  - **75–84**: train = 462,222, test = 391,003  
+  - **85–94**: train = 181,679, test = 136,146  
+  - **95–114**: train = 21,546, test = 14,729  
+
+Taking `non_opioid_ed 65–74` as a **baseline** (largest `(train + test)` event workload), the **relative event workload factors** are approximately:
+
+- **0–12**: ≈ 0.25×  
+- **13–24**: ≈ 0.23×  
+- **25–44**: ≈ 0.54×  
+- **45–54**: ≈ 0.39×  
+- **55–64**: ≈ 0.54×  
+- **65–74**: 1.00× (baseline)  
+- **75–84**: ≈ 0.65×  
+- **85–94**: ≈ 0.26×  
+- **95–114**: ≈ 0.02×  
+
+For the same MC‑CV configuration (25 splits, 3 models, exact XGBoost), this implies that **non_opioid_ed 65–74 is the heaviest polypharmacy age band** by event workload, with **55–64 and 75–84** in a similar runtime regime, and younger / extreme-age bands contributing a smaller fraction of total compute despite very large underlying patient counts.
+
 ---
 
 ## Aggregation Method
