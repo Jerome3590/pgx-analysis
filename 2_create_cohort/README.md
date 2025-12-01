@@ -375,6 +375,34 @@ Example QA log:
 
 Runs efficiently on 8–16 GB memory and supports 10M+ events per cohort.
 
+### Opioid_ed Age-Band Cohort Sizes (F1120, 2016–2019)
+
+For the opioid ED cohort (`cohort_name=opioid_ed`) built in this pipeline, the **downstream feature-importance runtime** is strongly influenced by the size of the cohort parquet partitions in `data/cohorts_F1120/cohort_name=opioid_ed/`. Using **2016–2018 as training** and **2019 as test**, the **event-level row counts** per age band are:
+
+- **0–12**: train = 2,186, test = 1,936  
+- **13–24**: train = 435,982, test = 176,151  
+- **25–44**: train = 4,651,487, test = 3,044,733  
+- **45–54**: train = 2,770,352, test = 1,382,862  
+- **55–64**: train = 3,231,509, test = 1,392,618  
+- **65–74**: train = 2,857,618, test = 1,015,348  
+- **75–84**: train = 1,227,068, test = 370,364  
+- **85–94**: train = 274,315, test = 96,795  
+- **95–114**: train = 10,918, test = 2,754  
+
+Taking `opioid_ed 25–44` as a **baseline** for downstream feature-importance cost (factor = 1.0 for `(train + test)` rows), the **relative size factors** are approximately:
+
+- **0–12**: ≈ 0.001×  
+- **13–24**: ≈ 0.08×  
+- **25–44**: 1.00× (baseline)  
+- **45–54**: ≈ 0.54×  
+- **55–64**: ≈ 0.60×  
+- **65–74**: ≈ 0.50×  
+- **75–84**: ≈ 0.21×  
+- **85–94**: ≈ 0.05×  
+- **95–114**: ≈ 0.002×  
+
+This means that, for a fixed MC‑CV configuration in the feature-importance pipeline (e.g., 25 splits, 3 tree models with permutation importance), **25–44 is by far the heaviest age band**, with 45–74 at roughly half to 60% of that cost, and the youngest/oldest bands contributing only a tiny fraction of the total runtime.
+
 ***
 
 ## 👩‍🔬 Testing and Debugging

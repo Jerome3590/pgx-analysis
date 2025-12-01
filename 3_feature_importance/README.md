@@ -823,6 +823,39 @@ If future use cases prioritize throughput over rare-variant sensitivity, `tree_m
 - Feature matrix building scales with number of features
 - MC-CV time scales with number of splits
 
+### Opioid_ed Age-Band Size and Runtime Scaling (N_SPLITS = 25)
+
+Using the **raw cohort parquet files** in `data/cohorts_F1120/cohort_name=opioid_ed/` (train = 2016–2018, test = 2019), the **event-level row counts** per age band are:
+
+- **0–12**: train = 2,186, test = 1,936  
+- **13–24**: train = 435,982, test = 176,151  
+- **25–44**: train = 4,651,487, test = 3,044,733  
+- **45–54**: train = 2,770,352, test = 1,382,862  
+- **55–64**: train = 3,231,509, test = 1,392,618  
+- **65–74**: train = 2,857,618, test = 1,015,348  
+- **75–84**: train = 1,227,068, test = 370,364  
+- **85–94**: train = 274,315, test = 96,795  
+- **95–114**: train = 10,918, test = 2,754  
+
+If we take `opioid_ed 25–44` as the **baseline** (factor = 1.0 by definition), the **relative size factors** for `(train + test)` rows are:
+
+- **0–12**: ≈ 0.001×  
+- **13–24**: ≈ 0.08×  
+- **25–44**: 1.00× (baseline)  
+- **45–54**: ≈ 0.54×  
+- **55–64**: ≈ 0.60×  
+- **65–74**: ≈ 0.50×  
+- **75–84**: ≈ 0.21×  
+- **85–94**: ≈ 0.05×  
+- **95–114**: ≈ 0.002×  
+
+Since MC‑CV + permutation importance cost is dominated by the number of rows processed per split, **wall-clock runtime for a fixed configuration (25 splits, 3 models, exact XGBoost)** scales roughly with these factors. Concretely, if `opioid_ed 25–44` takes **~11–12 hours**, then:
+
+- **13–24** should be on the order of **~1 hour** (0.08×).  
+- **45–54 / 55–64 / 65–74** should each be around **~5–7 hours** (0.5–0.6×).  
+- **75–84** should be **~2–3 hours** (0.2×).  
+- **0–12, 85–94, 95–114** should complete in **minutes to well under an hour**, given their tiny relative size.
+
 ### Performance Monitoring and Expected Behavior
 
 When running on EC2 (32 cores, 1TB RAM), you should observe the following performance characteristics:
