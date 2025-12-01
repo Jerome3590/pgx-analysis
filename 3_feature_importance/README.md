@@ -745,6 +745,64 @@ MODEL_PARAMS = {
 }
 ```
 
+### CatBoost and Rare Variants
+
+CatBoost is the primary model used for **high-cardinality, sparse healthcare features** (e.g., ICD/CPT codes, medications) and has built-in mechanisms that handle **rare variants** in a statistically principled way.
+
+**How CatBoost encodes rare categories:**
+
+- CatBoost uses **ordered target statistics** (a form of target encoding) for categorical features instead of simple one-hot encoding.
+- For each category, it computes a smoothed estimate of the target rate using a **prior + data-driven update**:
+  - Common categories are driven mostly by their observed outcomes.
+  - Very rare categories are **shrunk toward the global mean**, which reduces overfitting to noise while still allowing strong, consistent rare signals to stand out.
+- The ordered construction (permutation-based) prevents **target leakage** while preserving signal from low-frequency codes.
+
+**Implications for feature importance:**
+
+- Rare variants are **not dropped**; they are encoded and can drive splits when they have a meaningful association with the outcome.
+- Extremely rare, noisy categories are intentionally **regularized**, so they do not dominate feature importance purely due to chance.
+- In the aggregated, multi-model feature-importance analysis, CatBoost plays a key role in:
+  - Capturing signal from **high-cardinality categorical structure**, including rare but real patterns.
+  - Providing a complementary view to XGBoost / XGBoost RF, which operate on binary 0/1 encodings.
+
+### Random Forest / XGBoost RF and Complementary Signals
+
+In prior work (e.g., graft-loss feature importance; see the per-model outputs in  
+[graft-loss/feature_importance/outputs](https://github.com/Jerome3590/phts/tree/main/graft-loss/feature_importance/outputs)), we observed that **random forest–style models** sometimes surface clinically plausible features that **do not appear in the top ranks of boosted models** (including CatBoost).
+
+**Why we include XGBoost RF in the core ensemble:**
+
+- Random forest / XGBoost RF rely on **bagging + randomized splits**, which makes them:
+  - More tolerant of **idiosyncratic but real patterns** that appear strongly in some subsamples but are not globally dominant.
+  - Sometimes better at surfacing additional, **model-specific but clinically meaningful** predictors.
+- By taking the **union of top features across CatBoost, XGBoost, and XGBoost RF**, and tracking `n_models`:
+  - Features found by **all three models** are treated as highly robust.
+  - Features found **only by RF/XGBoost RF** are still retained as candidates, instead of being silently discarded because CatBoost did not select them.
+- This design choice explicitly reflects the empirical finding that **random-forest style models can identify important features that boosting alone may miss**, and we want our final feature-importance results to capture that broader signal space.
+
+### XGBoost Tree Method and Rare Variants
+
+By design, **XGBoost in this feature-importance pipeline uses the exact tree-growing method** (i.e., we do **not** enable `tree_method="hist"`), even though histogram-based trees are substantially faster on large tabular datasets.
+
+**Rationale:**
+
+- Healthcare data naturally contains many **rare but clinically important variants** (e.g., infrequent CPT/ICD codes or medication patterns).
+- Histogram-based methods group feature values into bins before evaluating splits. This can make it harder for the model to **isolate very low-frequency patterns**, because rare values may be merged into bins dominated by common values.
+- Using the exact method preserves the **full split resolution** on these sparse, high-cardinality features, which is important for our goal of **maximizing visibility of rare yet meaningful predictors** in the feature-importance analysis.
+
+**Trade-off (explicitly accepted):**
+
+- **Pros:** Better ability to detect and rank rare variants in XGBoost / XGBoost RF feature importance.
+- **Cons:** **Longer runtime** (e.g., ~11–12 hours for large cohorts such as `opioid_ed, 25–44` with 25 MC-CV splits and 3 core models).
+
+We explicitly **accept this runtime cost** in order to:
+
+- Preserve sensitivity to rare variants.
+- Keep XGBoost / XGBoost RF as a complementary lens to CatBoost in the **robust, multi-model feature-importance ensemble**.
+
+If future use cases prioritize throughput over rare-variant sensitivity, `tree_method="hist"` (with a larger `max_bin`) can be considered as an alternative configuration, but that is **not** the default for the primary publication-quality runs described here.
+```
+
 ### Performance Expectations
 
 **Large Cohort (e.g., opioid_ed, 25-44 age band):**
