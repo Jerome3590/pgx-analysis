@@ -643,19 +643,19 @@ N_WORKERS = max(1, multiprocessing.cpu_count() - 24)
 **Batching Strategy:** Columns are processed in batches to reduce joblib overhead
 
 **Configuration:**
-- **Workers:** `multiprocessing.cpu_count() - 2` (30 workers on 32-core system)
-- **Batch Size:** Automatically calculated as `items_per_worker * 4`
+- **Workers:** `min(16, max(1, multiprocessing.cpu_count() - 2))` (16 workers on 32-core system, capped to avoid oversubscription)
+- **Batch Size:** Automatically calculated as `items_per_worker * 4` (~4 batches per worker)
 - **Purpose:** Reduces process spawning overhead by processing multiple columns per worker
 
-**Example:** For 4,962 features with 30 workers:
-- Batch size: ~41 columns per batch
-- Total batches: ~121 batches
+**Example:** For 4,962 features with 16 workers:
+- Batch size: ~77 columns per batch
+- Total batches: ~65 batches
 - Each worker processes multiple batches sequentially
 
 **Verification:**
 Check logs for:
 ```
-Feature matrix parallel workers: 30 (CPU count: 32), batch size: 41, batches: 121
+Feature matrix parallel workers: 16 (CPU count: 32), batch size: 77, batches: 65
 ```
 
 ### Monitoring Parallelization
@@ -663,7 +663,9 @@ Feature matrix parallel workers: 30 (CPU count: 32), batch size: 41, batches: 12
 #### Check Worker Count
 
 ```bash
-# Count Python processes (should see ~30+ during feature matrix building)
+# Count Python processes
+# - During feature matrix building: ~16+ processes (one per worker)
+# - During MC-CV execution: ~8 processes (one per MC-CV worker)
 ps aux | grep python3.11 | grep -v grep | wc -l
 
 # Check threads per process
@@ -681,8 +683,8 @@ top -bn1 | grep "^%Cpu"
 ```
 
 **Expected Behavior:**
-- **Feature Matrix Building:** 8-16 cores active at 50-80% (with batching)
-- **MC-CV Training:** 8 cores active at 80-100% (one per worker)
+- **Feature Matrix Building:** 16 workers active, 8-16 cores at 50-80% CPU (with batching, single-threaded per worker)
+- **MC-CV Training:** 8 workers active, 8 cores at 80-100% CPU (each worker uses 4 threads internally)
 - **Idle:** Most cores idle during I/O or single-threaded operations
 
 #### Troubleshooting Low CPU Usage
@@ -697,7 +699,8 @@ top -bn1 | grep "^%Cpu"
 
 2. **Verify joblib is spawning workers:**
    ```bash
-   # Should see 30+ Python processes during feature matrix building
+   # Should see ~16 Python processes during feature matrix building
+   # Should see ~8 Python processes during MC-CV execution
    ps aux | grep python3.11 | grep -v grep | wc -l
    ```
 
@@ -711,8 +714,8 @@ top -bn1 | grep "^%Cpu"
    ```
 
 **Common Issues:**
-- **Too many workers:** Reduce `n_workers_matrix` if memory is constrained
-- **Too few workers:** Increase batch size or reduce `multiprocessing.cpu_count() - 2`
+- **Too many workers:** Feature matrix workers are capped at 16; if memory is constrained, reduce further
+- **Too few workers:** Check that `multiprocessing.cpu_count()` returns correct value (should be 32 on EC2)
 - **I/O bound:** Feature matrix building may be limited by disk speed
 
 ### Model Configuration
@@ -824,10 +827,22 @@ MiB Mem: ~70GB per Python process (7% of 1TB total)
 - Processes running for expected duration
 
 ⚠️ **Potential Issues:**
-- Only 1-2 processes visible → Check worker configuration
-- CPU usage <30% → May indicate I/O bottleneck or insufficient parallelization
-- Load average >32 → Oversubscription, reduce workers
+
+**During MC-CV Execution (should see 8 processes):**
+- Only 1-2 processes visible → Check `N_WORKERS` configuration (should be 8 on 32-core system)
+- CPU usage <50% → May indicate I/O bottleneck or insufficient parallelization
+- Load average >32 → Oversubscription, reduce `N_WORKERS` or model thread counts
 - Memory usage growing → Potential memory leak
+
+**During Feature Matrix Building (should see ~16 processes):**
+- Only 1-2 processes visible → Check `n_workers_matrix` configuration (should be 16 on 32-core system)
+- CPU usage <30% → May indicate I/O bottleneck or insufficient parallelization
+- Load average >32 → Oversubscription, check if cap at 16 is working correctly
+- Memory usage growing → Potential memory leak
+
+**General:**
+- Processes stuck at same CPU% for >30 minutes → May indicate deadlock or infinite loop
+- Memory usage >200GB → May indicate memory leak or insufficient feature pruning
 
 #### Monitoring Commands
 
