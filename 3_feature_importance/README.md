@@ -762,6 +762,92 @@ MODEL_PARAMS = {
 - Feature matrix building scales with number of features
 - MC-CV time scales with number of splits
 
+### Performance Monitoring and Expected Behavior
+
+When running on EC2 (32 cores, 1TB RAM), you should observe the following performance characteristics:
+
+#### Expected System Metrics
+
+**During MC-CV Execution (8 workers active):**
+
+```bash
+# CPU Usage
+%Cpu(s): 70.4 us,  0.8 sy,  0.0 ni, 28.8 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+
+# Load Average
+load average: 15.88, 16.40, 16.79
+
+# Memory Usage (per process)
+MiB Mem: ~70GB per Python process (7% of 1TB total)
+```
+
+**Process Characteristics:**
+
+- **8 Python processes** running in parallel (one per MC-CV worker)
+- Each process using **200-370% CPU** (indicating 4 threads per process)
+- Each process using **~70GB RAM** (7% of total system memory)
+- **Total CPU utilization:** ~70% (good utilization without oversubscription)
+- **Load average:** ~16 (reasonable for 32 cores under heavy computation)
+
+#### Configuration Breakdown
+
+**Worker Configuration:**
+- **MC-CV Workers:** 8 workers (`multiprocessing.cpu_count() - 24 = 8`)
+- **Per-Model Threads:** 4 threads per model (CatBoost/XGBoost `thread_count=4` / `n_jobs=4`)
+- **Total Threads:** 8 workers × 4 threads = 32 threads (matches 32 cores)
+
+**What's Happening:**
+- 8 parallel MC-CV workers processing different splits simultaneously
+- Each worker trains 3 models sequentially per split (CatBoost, XGBoost, XGBoost RF)
+- Each model uses 4 threads internally, explaining the 200-370% CPU per process
+- The 70% CPU usage indicates healthy utilization with some I/O wait (data loading, model serialization)
+
+#### Runtime Estimates
+
+**For Large Cohort (opioid_ed, 25-44 age band, 25 MC-CV splits):**
+
+- **Total Runtime:** ~11-12 hours
+- **Breakdown:**
+  - Feature matrix building: ~2.5-3 minutes (one-time, parallelized)
+  - MC-CV execution: ~11 hours
+    - 25 splits × 3 models = 75 model training tasks
+    - ~8-9 minutes per model training task
+    - Parallelized across 8 workers
+
+**Status Indicators:**
+
+✅ **Good Performance:**
+- 8 Python processes visible in `top`
+- CPU usage 60-80%
+- Load average 12-20
+- Memory usage stable (~70GB per process)
+- Processes running for expected duration
+
+⚠️ **Potential Issues:**
+- Only 1-2 processes visible → Check worker configuration
+- CPU usage <30% → May indicate I/O bottleneck or insufficient parallelization
+- Load average >32 → Oversubscription, reduce workers
+- Memory usage growing → Potential memory leak
+
+#### Monitoring Commands
+
+```bash
+# Check running processes
+ps aux | grep python3.11 | grep run_cohort | grep -v grep
+
+# Check CPU and memory per process
+ps -p $(pgrep -f "run_cohort") -o pid,pcpu,pmem,nlwp,cmd
+
+# Check overall CPU usage
+top -bn1 | grep "^%Cpu"
+
+# Check per-core CPU usage
+grep "cpu[0-9]" /proc/stat | awk '{print $1": "$2+$3+$4+$5+$6+$7+$8+$9+$10+$11}'
+
+# Monitor load average
+uptime
+```
+
 ### Best Practices for EC2
 
 1. **Monitor Resource Usage:**
