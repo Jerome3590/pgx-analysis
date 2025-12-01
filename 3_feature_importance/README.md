@@ -825,19 +825,31 @@ If future use cases prioritize throughput over rare-variant sensitivity, `tree_m
 
 ### Opioid_ed Age-Band Size and Runtime Scaling (N_SPLITS = 25)
 
-Using the **raw cohort parquet files** in `data/cohorts_F1120/cohort_name=opioid_ed/` (train = 2016–2018, test = 2019), the **event-level row counts** per age band are:
+Using the **raw cohort parquet files** in `data/cohorts_F1120/cohort_name=opioid_ed/` (train = 2016–2018, test = 2019), we can summarize **both event workload and distinct patients** per age band:
 
-- **0–12**: train = 2,186, test = 1,936  
-- **13–24**: train = 435,982, test = 176,151  
-- **25–44**: train = 4,651,487, test = 3,044,733  
-- **45–54**: train = 2,770,352, test = 1,382,862  
-- **55–64**: train = 3,231,509, test = 1,392,618  
-- **65–74**: train = 2,857,618, test = 1,015,348  
-- **75–84**: train = 1,227,068, test = 370,364  
-- **85–94**: train = 274,315, test = 96,795  
-- **95–114**: train = 10,918, test = 2,754  
+- **Event-level row counts (workload):**
+  - **0–12**: train = 2,186, test = 1,936  
+  - **13–24**: train = 435,982, test = 176,151  
+  - **25–44**: train = 4,651,487, test = 3,044,733  
+  - **45–54**: train = 2,770,352, test = 1,382,862  
+  - **55–64**: train = 3,231,509, test = 1,392,618  
+  - **65–74**: train = 2,857,618, test = 1,015,348  
+  - **75–84**: train = 1,227,068, test = 370,364  
+  - **85–94**: train = 274,315, test = 96,795  
+  - **95–114**: train = 10,918, test = 2,754  
 
-If we take `opioid_ed 25–44` as the **baseline** (factor = 1.0 by definition), the **relative size factors** for `(train + test)` rows are:
+- **Distinct patients:**
+  - **0–12**: train = 78, test = 66  
+  - **13–24**: train = 9,834, test = 3,840  
+  - **25–44**: train = 78,296, test = 50,400  
+  - **45–54**: train = 32,070, test = 16,950  
+  - **55–64**: train = 31,507, test = 14,898  
+  - **65–74**: train = 23,356, test = 9,150  
+  - **75–84**: train = 8,477, test = 2,976  
+  - **85–94**: train = 1,878, test = 726  
+  - **95–114**: train = 77, test = 24  
+
+If we take `opioid_ed 25–44` as the **baseline** (factor = 1.0 for `(train + test)` event rows), the **relative size factors** for event workload are:
 
 - **0–12**: ≈ 0.001×  
 - **13–24**: ≈ 0.08×  
@@ -849,12 +861,12 @@ If we take `opioid_ed 25–44` as the **baseline** (factor = 1.0 by definition),
 - **85–94**: ≈ 0.05×  
 - **95–114**: ≈ 0.002×  
 
-Since MC‑CV + permutation importance cost is dominated by the number of rows processed per split, **wall-clock runtime for a fixed configuration (25 splits, 3 models, exact XGBoost)** scales roughly with these factors. Concretely, if `opioid_ed 25–44` takes **~11–12 hours**, then:
+Since MC‑CV + permutation importance cost is dominated by the number of **rows** processed per split, **wall-clock runtime for a fixed configuration (25 splits, 3 models, exact XGBoost)** scales roughly with these factors. Concretely, if `opioid_ed 25–44` takes **~11–12 hours**, then:
 
 - **13–24** should be on the order of **~1 hour** (0.08×).  
 - **45–54 / 55–64 / 65–74** should each be around **~5–7 hours** (0.5–0.6×).  
 - **75–84** should be **~2–3 hours** (0.2×).  
-- **0–12, 85–94, 95–114** should complete in **minutes to well under an hour**, given their tiny relative size.
+- **0–12, 85–94, 95–114** should complete in **minutes to well under an hour**, given their tiny relative size, even though they still contain clinically meaningful patient cohorts.
 
 ### Performance Monitoring and Expected Behavior
 
