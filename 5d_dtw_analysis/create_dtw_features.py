@@ -404,36 +404,42 @@ def create_all_dtw_features(
     allowed_codes = None  # None means use all codes in model_data
     logger.info("Using all events from model_data (already filtered by feature importances in Step 4a)")
     
-    # Get cutoff dates for all patients (target and control)
+    # Get cutoff dates for all patients using target event date fields
+    # For target patients: use first_opioid_ed_date or first_ed_non_opioid_date (cohort-specific)
+    # For control patients: use first event date as reference (no target event, so use all events before reference)
+    # NOTE: Anything after target code date is leakage - use target event date field directly
     con = duckdb.connect()
     
-    # For target patients: use F1120 date as cutoff (events before F1120)
-    # For control patients: use reference date (first event date)
+    # Determine which target date field to use based on cohort
+    # opioid_ed uses first_opioid_ed_date, non_opioid_ed uses first_ed_non_opioid_date
+    if "opioid" in cohort_name.lower():
+        target_date_field = "first_opioid_ed_date"
+    else:
+        target_date_field = "first_ed_non_opioid_date"
+    
     cutoff_dates_df = con.execute(f"""
-        WITH target_cutoffs AS (
+        WITH patient_target_dates AS (
             SELECT DISTINCT
                 mi_person_key,
-                MIN(CASE 
-                    WHEN primary_icd_diagnosis_code LIKE '%F1120%' 
-                    THEN event_date 
-                    END) as cutoff_date
+                target,
+                CAST({target_date_field} AS DATE) as target_event_date,
+                MIN(event_date) as first_event_date
             FROM read_parquet('{model_data_path}')
-            WHERE target = 1
-            GROUP BY mi_person_key
-            HAVING cutoff_date IS NOT NULL
-        ),
-        control_cutoffs AS (
-            SELECT 
-                mi_person_key,
-                MIN(event_date) as cutoff_date
-            FROM read_parquet('{model_data_path}')
-            WHERE target = 0
-            GROUP BY mi_person_key
+            GROUP BY mi_person_key, target, {target_date_field}
         )
-        SELECT mi_person_key, cutoff_date FROM target_cutoffs
-        UNION ALL
-        SELECT mi_person_key, cutoff_date FROM control_cutoffs
+        SELECT 
+            mi_person_key,
+            -- For target patients: use target event date (events before target = no leakage)
+            -- For control patients: use first event date (no target event, so use all events before first event as reference)
+            CASE 
+                WHEN target = 1 AND target_event_date IS NOT NULL 
+                THEN target_event_date
+                ELSE first_event_date
+            END as cutoff_date
+        FROM patient_target_dates
     """).df()
+    
+    logger.info(f"Using {target_date_field} for target patients, first_event_date for controls")
     
     # Get base patient list (both target and control)
     base_df = con.execute(
