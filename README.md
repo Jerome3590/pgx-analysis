@@ -62,7 +62,7 @@ flowchart TD
     subgraph "Phase 3: Pattern Mining + Protocol Filtering"
         B3 --> C1[FPGrowth Analysis<br/>Frequent Itemsets]
         C1 --> C2[BupaR Process Mining<br/>Temporal Pathways]
-        C2 --> C3[DTW Protocol Filtering<br/> Time-Window Rules)]
+        C2 --> C3[DTW Protocol Filtering<br/> Time-Window Rules]
     end
     
     subgraph "Phase 4: Feature Engineering"
