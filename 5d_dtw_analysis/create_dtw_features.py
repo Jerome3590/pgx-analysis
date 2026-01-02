@@ -3,13 +3,17 @@
 Create patient-level DTW trajectory features.
 
 This script extracts DTW-based trajectory features from patient sequences:
-- Builds patient trajectories from model_data (filtered by FP-Growth itemsets)
+- Builds patient trajectories from model_data (already filtered by aggregated feature importances in Step 4a)
 - Computes DTW distances to prototype trajectories
 - Creates patient-level features for model training
 
 Output:
 - Saves to: outputs/feature_engineering/dtw_features_{cohort}_{age_band}.csv
 - This intermediate file is then merged with other features by add_dtw_features_to_model_data.py
+
+NOTE: This script no longer requires FP-Growth itemsets. The model_data is already filtered
+by aggregated feature importances from Step 3, so all events in model_data are used for
+trajectory construction.
 """
 
 import sys
@@ -41,31 +45,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_fpgrowth_itemsets(itemsets_path: Path) -> Set[str]:
-    """Load FP-Growth itemsets and extract all unique codes."""
-    if not itemsets_path.exists():
-        logger.warning(f"Itemsets file not found: {itemsets_path}")
-        return set()
-    
-    try:
-        with open(itemsets_path, 'r') as f:
-            data = json.load(f)
-        
-        allowed_codes = set()
-        for row in data:
-            for code in row.get("itemsets", []):
-                allowed_codes.add(code)
-        
-        logger.info(f"Loaded {len(allowed_codes)} unique codes from {itemsets_path.name}")
-        return allowed_codes
-    except Exception as e:
-        logger.error(f"Error loading itemsets from {itemsets_path}: {e}")
-        return set()
+# NOTE: load_fpgrowth_itemsets function removed - no longer needed
+# model_data is already filtered by aggregated feature importances (Step 4a),
+# so we don't need to filter again using FP-Growth itemsets.
 
 
 def extract_patient_trajectories(
     model_data_path: Path,
-    allowed_codes: Set[str],
+    allowed_codes: Optional[Set[str]],
     cohort_name: str,
     item_type: str = "combined",
     target_filter: Optional[int] = None,
@@ -77,9 +64,10 @@ def extract_patient_trajectories(
     Parameters:
     -----------
     model_data_path : Path
-        Path to model_data parquet file
-    allowed_codes : Set[str]
-        Set of allowed activity codes (from FP-Growth itemsets)
+        Path to model_data parquet file (already filtered by feature importances in Step 4a)
+    allowed_codes : Optional[Set[str]]
+        Set of allowed activity codes (None = use all codes in model_data)
+        NOTE: model_data is already filtered, so this is typically None
     cohort_name : str
         Cohort name (e.g., opioid_ed)
     item_type : str
@@ -235,9 +223,8 @@ def extract_patient_trajectories(
         logger.warning("No trajectory data extracted")
         return {}
     
-    # Filter by allowed codes (from FP-Growth itemsets)
-    if allowed_codes:
-        df = df[df['activity'].isin(allowed_codes)]
+    # No filtering needed - model_data is already filtered by feature importances
+    # (allowed_codes is None, meaning use all events in model_data)
     
     # Exclude F1120 from trajectories (for final model)
     df = df[~df['activity'].str.contains('F1120', case=False, na=False)]
@@ -391,26 +378,10 @@ def create_all_dtw_features(
     
     age_band_fname = age_band.replace("-", "_")
 
-    # Base cohort for FP-Growth itemsets (extreme_density cohorts reuse base alphabets)
-    base_cohort = (
-        cohort_name[:-len("_extreme_density")]
-        if cohort_name.endswith("_extreme_density")
-        else cohort_name
-    )
-    
-    # FP-Growth output directory (target-only itemsets drive allowed codes)
-    fpgrowth_output_dir = (
-        project_root
-        / "5b_fpgrowth_analysis"
-        / "outputs"
-        / base_cohort
-        / split_type
-        / age_band_fname
-        / event_year
-    )
-    
     # Model data path (prefer protocol-filtered version if available).
     # Use canonical 4a_model_data for all cohorts.
+    # NOTE: model_data is already filtered by aggregated feature importances (Step 4a),
+    # so we don't need to filter again using FP-Growth itemsets.
     model_data_dir = (
         project_root
         / "4a_model_data"
@@ -428,34 +399,10 @@ def create_all_dtw_features(
         logger.error(f"Model data not found: {model_data_path}")
         return pd.DataFrame()
     
-    # Load FP-Growth itemsets to filter activities
-    allowed_codes = set()
-    
-    # Always include F1120 for opioid_ed (and its extreme-density subset)
-    if base_cohort == "opioid_ed":
-        allowed_codes.add("F1120")
-        allowed_codes.add("ICD:F1120")
-    
-    # Load itemsets
-    itemsets_files = {
-        "drug": fpgrowth_output_dir / "drug_name_itemsets_target_only.json",
-        "icd": fpgrowth_output_dir / "icd_code_itemsets_target_only.json",
-        "cpt": fpgrowth_output_dir / "cpt_code_itemsets_target_only.json",
-        "medical": fpgrowth_output_dir / "medical_code_itemsets_target_only.json"
-    }
-    
-    for item_type, itemsets_path in itemsets_files.items():
-        codes = load_fpgrowth_itemsets(itemsets_path)
-        allowed_codes.update(codes)
-        # Also add prefixed versions
-        if item_type == "drug":
-            allowed_codes.update(f"DRUG:{code}" for code in codes)
-        elif item_type == "icd":
-            allowed_codes.update(f"ICD:{code}" for code in codes)
-        elif item_type == "cpt":
-            allowed_codes.update(f"CPT:{code}" for code in codes)
-    
-    logger.info(f"Total allowed codes (including prefixes): {len(allowed_codes)}")
+    # No need to filter by itemsets - model_data is already filtered by feature importances
+    # Use all events in model_data for trajectory construction
+    allowed_codes = None  # None means use all codes in model_data
+    logger.info("Using all events from model_data (already filtered by feature importances in Step 4a)")
     
     # Get cutoff dates for all patients (target and control)
     con = duckdb.connect()
