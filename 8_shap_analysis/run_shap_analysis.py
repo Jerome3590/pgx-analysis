@@ -54,9 +54,10 @@ def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.S
     return X, y
 
 
-def _fit_models_for_shap(
-    X: pd.DataFrame, y: pd.Series, random_seed: int = 42
-):
+from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
+
+
+def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, random_seed: int = 42):
     """
     Fit XGBoost and CatBoost models with the same hyperparameters used in
     6b_final_model_selection/run_final_model.py for use in SHAP analysis.
@@ -66,6 +67,8 @@ def _fit_models_for_shap(
     final training.
     """
     import xgboost as xgb  # type: ignore
+
+    nthread = get_xgb_cpu_nthread()
 
     xgb_clf = xgb.XGBClassifier(
         n_estimators=500,
@@ -77,7 +80,7 @@ def _fit_models_for_shap(
         device="cuda",
         objective="binary:logistic",
         eval_metric="logloss",
-        n_jobs=-1,
+        n_jobs=nthread,
         random_state=random_seed,
     )
     try:

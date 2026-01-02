@@ -46,6 +46,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     mirror_log_to_s3,
 )
 from py_helpers.constants import age_band_to_fname
+from py_helpers.env_utils import get_mc_cv_n_runs
 from py_helpers.categorical_encoding import (  # noqa: E402
     encode_cpt_series,
     encode_drug_name_series,
@@ -480,7 +481,7 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
 
 
 def train_and_evaluate(
-    df: pd.DataFrame, cohort: str, age_band: str, n_runs: int = 1
+    df: pd.DataFrame, cohort: str, age_band: str, n_runs: int | None = None
 ) -> None:
     """
     Train XGBoost (GPU if available) and CatBoost on the assembled feature table,
@@ -589,6 +590,9 @@ def train_and_evaluate(
             f"{X_train.shape[1]} numeric features."
         )
 
+        from py_helpers.env_utils import get_xgb_cpu_nthread  # local import to avoid cycles
+        nthread = get_xgb_cpu_nthread()
+
         xgb_clf = xgb.XGBClassifier(
             n_estimators=500,
             max_depth=6,
@@ -599,7 +603,7 @@ def train_and_evaluate(
             device="cuda",
             objective="binary:logistic",
             eval_metric="logloss",
-            n_jobs=-1,
+            n_jobs=nthread,
             random_state=42 + run_idx,
         )
 
@@ -791,6 +795,9 @@ def train_and_evaluate(
     # Refit XGBoost on full data
     import xgboost as xgb  # type: ignore
 
+    from py_helpers.env_utils import get_xgb_cpu_nthread  # local import to avoid cycles
+    nthread = get_xgb_cpu_nthread()
+
     xgb_final = xgb.XGBClassifier(
         n_estimators=500,
         max_depth=6,
@@ -801,7 +808,7 @@ def train_and_evaluate(
         device="cuda",
         objective="binary:logistic",
         eval_metric="logloss",
-        n_jobs=-1,
+        n_jobs=nthread,
         random_state=1997,
     )
     try:
@@ -934,8 +941,8 @@ def main() -> None:
     parser.add_argument(
         "--n_runs",
         type=int,
-        default=1,
-        help="Number of Monte-Carlo CV runs (default: 1)",
+        default=None,
+        help="Number of Monte-Carlo CV runs (default: auto-detect from environment, 3 on EC2, 1 on Windows)",
     )
     args = parser.parse_args()
 
@@ -993,7 +1000,8 @@ def main() -> None:
         logger.info("Saved final features (no leakage) to %s", features_path)
 
         with step_block("final_model", "train_and_evaluate", logger=logger):
-            train_and_evaluate(df, args.cohort, args.age_band, n_runs=args.n_runs)
+            n_runs = args.n_runs if args.n_runs is not None else get_mc_cv_n_runs()
+            train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs)
 
     # Mirror log to pgx-repository/final_model_log (best-effort)
     try:

@@ -39,6 +39,7 @@ from py_helpers.feature_importance_model_utils import (  # noqa: E402
     predict_proba_catboost,
     predict_proba_xgboost,
 )
+from py_helpers.env_utils import get_sklearn_n_jobs, get_mc_cv_n_splits  # noqa: E402
 
 # Default model parameters (matching feature importance analysis)
 MODEL_PARAMS = {
@@ -49,7 +50,7 @@ MODEL_PARAMS = {
         "l2_leaf_reg": 3.0,
         "loss_function": "Logloss",
         "eval_metric": "Logloss",
-        "thread_count": 4,
+        "thread_count": get_sklearn_n_jobs(),
         "random_seed": 1997,
         "verbose": False,
         "task_type": "CPU",  # Disable GPU to avoid CUDA errors
@@ -61,7 +62,7 @@ MODEL_PARAMS = {
         "subsample": 0.8,
         "colsample_bytree": 0.8,
         "objective": "binary:logistic",
-        "n_jobs": 4,
+        "n_jobs": get_sklearn_n_jobs(),
         "random_state": 1997,
     },
     "xgboost_rf": {
@@ -71,7 +72,7 @@ MODEL_PARAMS = {
         "subsample": 0.8,
         "colsample_bytree": 0.8,
         "objective": "binary:logistic",
-        "n_jobs": 4,
+        "n_jobs": get_sklearn_n_jobs(),
         "random_state": 1997,
         "tree_method": "hist",
     },
@@ -155,7 +156,7 @@ def train_final_model(
     project_root: Path,
     cohort_name: str,
     age_band: str,
-    n_splits: int = 200,
+    n_splits: int | None = None,
 ) -> None:
     """Train final model for a cohort and age band."""
 
@@ -262,6 +263,8 @@ def train_final_model(
         X = X.fillna(0)
 
     # Run MC-CV
+    if n_splits is None:
+        n_splits = get_mc_cv_n_splits()
     print(f"\n[INFO] Running MC-CV with {n_splits} splits...")
     models = ["catboost", "xgboost", "xgboost_rf"]
     mc_cv_results = run_mc_cv(X, y, models, n_splits=n_splits)

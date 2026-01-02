@@ -94,6 +94,8 @@ OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAN
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Analysis configuration
+from py_helpers.env_utils import get_sklearn_n_jobs  # noqa: E402
+
 ANALYSIS_CONFIG = {
     'target_class': 1,
     'top_k_features': 20,
@@ -102,7 +104,8 @@ ANALYSIS_CONFIG = {
     'random_seed': 1997,
     'max_samples': 10000,  # Limit data samples to prevent OOM
     'max_explanation_samples': 1000,  # Limit number of instances for explanation generation
-    'n_jobs': 2,  # Limit parallel workers to reduce memory usage (use 1-2 instead of all CPUs)
+    # Limit parallel workers to reduce memory usage (use 1-4 instead of all CPUs)
+    'n_jobs': min(4, max(1, get_sklearn_n_jobs())),
     'batch_size': 100,  # Process explanations in batches
 }
 

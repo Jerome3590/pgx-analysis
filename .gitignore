@@ -10,6 +10,7 @@
 
 data/*
 testing/*
+from_s3/*
 
 # Ignore canonical 4a_model_data parquet cohorts (event-level model data),
 # but keep build code and documentation.

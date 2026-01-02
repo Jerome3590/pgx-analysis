@@ -41,6 +41,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from py_helpers.common_imports import *
+from py_helpers.env_utils import get_xgb_cpu_nthread
 
 logger = logging.getLogger(__name__)
 
@@ -424,6 +425,7 @@ def _xgb_device_params(params: dict) -> dict:
 
 def train_xgboost(X_train, y_train, params):
     """Train XGBoost model (gradient boosting mode, GPU if available)."""
+    nthread = get_xgb_cpu_nthread()
     xgb_params = {
         "objective": "binary:logistic",
         "eval_metric": "logloss",
@@ -433,7 +435,8 @@ def train_xgboost(X_train, y_train, params):
         "subsample": params.get("subsample", 1.0),
         "colsample_bytree": params.get("colsample_bytree", 1.0),
         "random_state": params.get("random_seed", 42),
-        "n_jobs": 2,  # keep conservative; outer MC-CV already parallelizes
+        # Use environment-aware CPU threads; outer MC-CV may also parallelize.
+        "n_jobs": nthread,
         "verbosity": 0,
     }
 
@@ -452,6 +455,7 @@ def train_xgboost_rf(X_train, y_train, params):
     if max_features is None:
         max_features = int(np.sqrt(n_features))
 
+    nthread = get_xgb_cpu_nthread()
     xgb_rf_params = {
         "objective": "binary:logistic",
         "eval_metric": "logloss",
@@ -461,7 +465,7 @@ def train_xgboost_rf(X_train, y_train, params):
         "subsample": params.get("subsample", 0.8),  # RF typically uses subsampling
         "colsample_bytree": max_features / n_features,  # RF-style feature sampling
         "random_state": params.get("random_seed", 42),
-        "n_jobs": 2,
+        "n_jobs": nthread,
         "verbosity": 0,
         "booster": "gbtree",
         # Default CPU tree method for RF; _xgb_device_params() will override if GPU works.

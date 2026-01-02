@@ -45,6 +45,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname  # noqa: E402
+from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
 
 
 def _load_feature_table(path: Path, required: bool = True) -> pd.DataFrame:
@@ -309,6 +310,8 @@ def run_mc_feature_importance(
     recalls: Dict[str, List[float]] = {m: [] for m in model_keys}
     loglosses: Dict[str, List[float]] = {m: [] for m in model_keys}
 
+    nthread = get_xgb_cpu_nthread()
+
     for run_idx in range(n_runs):
         rs = int(rng.integers(0, np.iinfo(np.int32).max))
         X_train, X_test, y_train, y_test = train_test_split(
@@ -328,7 +331,7 @@ def run_mc_feature_importance(
             device="cuda",
             objective="binary:logistic",
             eval_metric="logloss",
-            n_jobs=-1,
+            n_jobs=nthread,
             random_state=rs,
         )
         try:
@@ -374,7 +377,7 @@ def run_mc_feature_importance(
             device="cuda",
             objective="binary:logistic",
             eval_metric="logloss",
-            n_jobs=-1,
+            n_jobs=nthread,
             random_state=rs + 1,
         )
         try:
