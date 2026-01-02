@@ -1,0 +1,954 @@
+#!/usr/bin/env python3
+"""
+Complete FFA Analysis Workflow
+
+This script runs the complete Formal Feature Attribution (FFA) analysis workflow:
+1. Load models (CatBoost, XGBoost, XGBoost RF)
+2. Extract rules using unified schema
+3. Generate AXP explanations
+4. Calculate feature importance
+5. Perform causal analysis
+6. Generate visualizations and reports
+"""
+
+import sys
+import json
+import logging
+import time
+import ast
+from datetime import datetime
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from typing import Dict, Optional, Any, List
+from collections import Counter, defaultdict
+import warnings
+import argparse
+warnings.filterwarnings('ignore')
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Set up logging (under 7_ffa_analysis)
+LOG_DIR = PROJECT_ROOT / "7_ffa_analysis" / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOG_FILE = LOG_DIR / f'ffa_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+logger.info(f"Logging initialized. Log file: {LOG_FILE}")
+
+# Import explainers
+try:
+    from catboost_axp_explainer import CatBoostSymbolicExplainer, PathConfig
+    CATBOOST_EXPLAINER_AVAILABLE = True
+except ImportError:
+    CATBOOST_EXPLAINER_AVAILABLE = False
+
+try:
+    from xgboost_axp_explainer import XGBoostSymbolicExplainer
+    XGBOOST_EXPLAINER_AVAILABLE = True
+except ImportError:
+    XGBOOST_EXPLAINER_AVAILABLE = False
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+
+# Configuration (defaults; can be overridden via CLI)
+COHORT_NAME = "opioid_ed"
+AGE_BAND = "13-24"
+AGE_BAND_FNAME = AGE_BAND.replace("-", "_")
+
+# Paths (updated to use 6_final_model outputs). These are initialized with
+# defaults but can be recomputed in main() after parsing CLI arguments.
+MODEL_JSON_BASE = (
+    PROJECT_ROOT
+    / "6_final_model"
+    / "outputs"
+    / COHORT_NAME
+    / AGE_BAND_FNAME
+    / "final_model_json"
+)
+DATA_PATH = (
+    PROJECT_ROOT
+    / "6_final_model"
+    / "outputs"
+    / COHORT_NAME
+    / AGE_BAND_FNAME
+    / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+)
+OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Analysis configuration
+ANALYSIS_CONFIG = {
+    'target_class': 1,
+    'top_k_features': 20,
+    'min_coverage': 0.8,
+    'n_permutations': 100,  # Reduced for faster execution
+    'random_seed': 1997,
+    'max_samples': 10000,  # Limit data samples to prevent OOM
+    'max_explanation_samples': 1000,  # Limit number of instances for explanation generation
+    'n_jobs': 2,  # Limit parallel workers to reduce memory usage (use 1-2 instead of all CPUs)
+    'batch_size': 100,  # Process explanations in batches
+}
+
+
+def load_model_json(model_json_path: Path) -> Dict[str, Any]:
+    """Load model JSON file."""
+    logger.info(f"Loading model JSON from: {model_json_path}")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print(f"Loading model from: {model_json_path.name}")
+    print(f"{'='*80}\n")
+    
+    if not model_json_path.exists():
+        logger.error(f"Model file not found: {model_json_path}")
+        raise FileNotFoundError(f"Model file not found: {model_json_path}")
+    
+    logger.info(f"Reading JSON file (size: {model_json_path.stat().st_size / 1024 / 1024:.2f} MB)...")
+    with open(model_json_path, 'r') as f:
+        model_json = json.load(f)
+    logger.info(f"JSON file loaded successfully in {time.time() - start_time:.2f} seconds")
+    
+    model_type = model_json.get('model_type', 'unknown')
+    # Heuristics to infer model type when not explicitly stored
+    if model_type == 'unknown':
+        if 'oblivious_trees' in model_json or 'non_oblivious_trees' in model_json:
+            model_type = 'catboost'
+        elif 'learner' in model_json or 'gradient_booster' in model_json:
+            # XGBoost JSON produced by Booster.save_model(...)
+            model_type = 'xgboost'
+        # Persist inferred type back into JSON for downstream functions
+        model_json['model_type'] = model_type
+    
+    logger.info(f"Model type detected: {model_type}")
+    
+    if 'trees' in model_json:
+        logger.info(f"Found {len(model_json['trees'])} trees")
+    if 'oblivious_trees' in model_json:
+        logger.info(f"Found {len(model_json['oblivious_trees'])} oblivious trees")
+    if 'non_oblivious_trees' in model_json:
+        logger.info(f"Found {len(model_json['non_oblivious_trees'])} non-oblivious trees")
+    if 'feature_names' in model_json:
+        logger.info(f"Found {len(model_json['feature_names'])} features")
+    
+    print(f"[OK] Model loaded: {model_type}")
+    if 'trees' in model_json:
+        print(f"  - Trees: {len(model_json['trees'])}")
+    if 'oblivious_trees' in model_json:
+        print(f"  - Oblivious trees: {len(model_json['oblivious_trees'])}")
+    if 'feature_names' in model_json:
+        print(f"  - Features: {len(model_json['feature_names'])}")
+    
+    logger.info(f"Model loading completed in {time.time() - start_time:.2f} seconds")
+    return model_json
+
+
+def extract_feature_mappings(model_json: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract feature name mappings from model JSON."""
+    logger.info("Extracting feature mappings from model JSON...")
+    start_time = time.time()
+    
+    model_type = model_json.get('model_type', 'unknown')
+    
+    if model_type == 'unknown' and ('oblivious_trees' in model_json or 'non_oblivious_trees' in model_json):
+        model_type = 'catboost'
+    
+    if model_type in ['catboost', 'CatBoost']:
+        logger.info("Processing CatBoost feature mappings...")
+        features_info = model_json.get('features_info', {})
+        float_features = features_info.get('float_features', [])
+        logger.info(f"Found {len(float_features)} float features")
+        feature_names = {
+            f["flat_feature_index"]: f["feature_id"]
+            for f in float_features
+        }
+    else:
+        # XGBoost
+        logger.info("Processing XGBoost feature mappings...")
+        if "feature_names" in model_json:
+            feature_names = {
+                i: name for i, name in enumerate(model_json["feature_names"])
+            }
+            logger.info(f"Found {len(feature_names)} feature names")
+        else:
+            logger.warning("No feature_names found in model JSON")
+            feature_names = {}
+    
+    logger.info(f"Feature mapping extraction completed in {time.time() - start_time:.2f} seconds")
+    logger.info(f"Extracted {len(feature_names)} feature mappings")
+    
+    return {
+        'model_type': model_type,
+        'feature_names': feature_names
+    }
+
+
+def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
+    """Load data for analysis."""
+    logger.info(f"Loading data from: {data_path}")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print(f"Loading data from: {data_path.name}")
+    print(f"{'='*80}\n")
+    
+    if not data_path.exists():
+        logger.error(f"Data file not found: {data_path}")
+        raise FileNotFoundError(f"Data file not found: {data_path}")
+    
+    file_size_mb = data_path.stat().st_size / 1024 / 1024
+    logger.info(f"Reading CSV file (size: {file_size_mb:.2f} MB)...")
+    
+    # Load CSV with chunking for large files
+    file_size_mb = data_path.stat().st_size / 1024 / 1024
+    if file_size_mb > 500:  # If file is > 500MB, use chunking
+        logger.info(f"Large file detected ({file_size_mb:.2f} MB), using chunked reading...")
+        chunks = []
+        chunk_size = 10000
+        for chunk in pd.read_csv(data_path, chunksize=chunk_size):
+            chunks.append(chunk)
+            if max_samples and len(pd.concat(chunks, ignore_index=True)) >= max_samples:
+                break
+        data = pd.concat(chunks, ignore_index=True)
+        del chunks
+        import gc
+        gc.collect()
+    else:
+        data = pd.read_csv(data_path)
+    
+    logger.info(f"CSV loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
+    
+    if max_samples and len(data) > max_samples:
+        logger.info(f"Sampling {max_samples} rows from {len(data)} total rows")
+        data = data.sample(n=max_samples, random_state=ANALYSIS_CONFIG['random_seed']).reset_index(drop=True)
+        logger.info(f"Sampled data: {len(data)} rows")
+    
+    # Separate features and target
+    target_cols = ['target', 'is_target_case']
+    target_col = None
+    for col in target_cols:
+        if col in data.columns:
+            target_col = col
+            break
+    
+    if target_col:
+        logger.info(f"Found target column: {target_col}")
+        y = data[target_col].values
+        X = data.drop(target_col, axis=1)
+        target_dist = Counter(y)
+        logger.info(f"Target distribution: {dict(target_dist)}")
+        print(f"[OK] Data loaded: {len(X)} samples, {len(X.columns)} features")
+        print(f"  - Target distribution: {target_dist}")
+    else:
+        logger.warning("No target column found. Using all columns as features.")
+        print("[WARNING] No target column found. Using all columns as features.")
+        X = data
+        y = None
+    
+    logger.info(f"Data loading completed in {time.time() - start_time:.2f} seconds")
+    return X, y
+
+
+def initialize_explainer(
+    model_json_path: Path,
+    model_json: Dict[str, Any],
+    feature_mappings: Dict[str, Any],
+    feature_names: Optional[List[str]] = None,
+) -> Optional[Any]:
+    """Initialize FFA explainer for the model."""
+    logger.info("Initializing FFA Explainer...")
+    start_time = time.time()
+    
+    model_type = feature_mappings.get('model_type', model_json.get('model_type', 'unknown'))
+    
+    if model_type == 'unknown' and ('oblivious_trees' in model_json or 'non_oblivious_trees' in model_json):
+        model_type = 'catboost'
+    
+    logger.info(f"Model type: {model_type}")
+    
+    print(f"\n{'='*80}")
+    print(f"Initializing FFA Explainer (Model Type: {model_type})")
+    print(f"{'='*80}\n")
+    
+    try:
+        logger.info("Creating PathConfig...")
+        path_config = PathConfig(
+            model_path=str(model_json_path),
+            data_dir=str(DATA_PATH.parent),
+            output_dir=str(OUTPUT_DIR),
+            tree_rules_path=None,
+            age_band=AGE_BAND
+        )
+        
+        if model_type in ['catboost', 'CatBoost']:
+            if not CATBOOST_EXPLAINER_AVAILABLE:
+                logger.error("CatBoost explainer not available")
+                print("[WARNING] CatBoost explainer not available.")
+                return None
+            logger.info("Creating CatBoostSymbolicExplainer...")
+            explainer = CatBoostSymbolicExplainer(path_config)
+            explainer.model_json = model_json
+            logger.info("Calling fit_from_model_json (this may take a while)...")
+            fit_start = time.time()
+            explainer.fit_from_model_json(model_json)
+            logger.info(f"fit_from_model_json completed in {time.time() - fit_start:.2f} seconds")
+            
+        elif model_type in ['xgboost', 'xgboost_rf', 'XGBoost']:
+            if not XGBOOST_EXPLAINER_AVAILABLE:
+                logger.error("XGBoost explainer not available")
+                print("[WARNING] XGBoost explainer not available.")
+                return None
+            logger.info("Creating XGBoostSymbolicExplainer...")
+            explainer = XGBoostSymbolicExplainer(path_config)
+            explainer.logger.setLevel(logging.INFO)
+            explainer.model_json = model_json
+
+            # If feature names are known from the DataFrame, provide them here so the
+            # explainer does not have to infer them from the JSON structure.
+            if feature_names:
+                explainer.feature_names = {
+                    i: name for i, name in enumerate(feature_names)
+                }
+
+            logger.info("Calling fit_from_model_json (this may take a while)...")
+            fit_start = time.time()
+            explainer.fit_from_model_json(model_json)
+            logger.info(
+                "fit_from_model_json completed in %.2f seconds",
+                time.time() - fit_start,
+            )
+        else:
+            logger.error(f"Unknown model type: {model_type}")
+            print(f"[WARNING] Unknown model type: {model_type}.")
+            return None
+        
+        num_rules = len(explainer.rule_clauses)
+        class_1_rules = sum(1 for p in explainer.rule_predictions if p == 1)
+        logger.info(f"Explainer initialized: {num_rules} rules created, {class_1_rules} predict class 1")
+        
+        print("[OK] FFA Explainer initialized")
+        print(f"  - Rules created: {num_rules}")
+        print(f"  - Rules predicting class 1: {class_1_rules}")
+        
+        logger.info(f"Explainer initialization completed in {time.time() - start_time:.2f} seconds")
+        return explainer
+        
+    except Exception as e:
+        logger.error(f"Could not initialize FFA Explainer: {e}", exc_info=True)
+        print(f"[ERROR] Could not initialize FFA Explainer: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_explanations(explainer: Any, X: pd.DataFrame, y: np.ndarray) -> pd.DataFrame:
+    """Generate AXP explanations for the dataset."""
+    logger.info("Generating AXP explanations...")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print("Generating Anchored Explanations (AXP)")
+    print(f"{'='*80}\n")
+    
+    # Filter to target class
+    logger.info(f"Filtering to target class {ANALYSIS_CONFIG['target_class']}...")
+    mask = (y == ANALYSIS_CONFIG['target_class'])
+    X_class = X[mask].reset_index(drop=True)
+    y_class = y[mask]
+    
+    # Limit samples for testing if configured (set to None to use all)
+    max_exp_samples = ANALYSIS_CONFIG.get('max_explanation_samples')
+    if max_exp_samples and len(X_class) > max_exp_samples:
+        logger.info(f"Limiting to {max_exp_samples} instances for testing (out of {len(X_class)} total)")
+        X_class = X_class.head(max_exp_samples).reset_index(drop=True)
+        y_class = y_class[:max_exp_samples]
+    else:
+        logger.info(f"Processing all {len(X_class)} instances")
+    
+    logger.info(f"Filtered to {len(X_class)} instances of class {ANALYSIS_CONFIG['target_class']}")
+    print(f"  - Class {ANALYSIS_CONFIG['target_class']} instances: {len(X_class)}")
+    
+    try:
+        # Use configured number of jobs (limited to reduce memory usage)
+        n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
+        batch_size = ANALYSIS_CONFIG.get('batch_size', 100)
+        
+        logger.info(f"Calling explain_dataset on {len(X_class)} instances (this may take a while)...")
+        logger.info(f"  - Total rules: {len(explainer.rule_clauses) if hasattr(explainer, 'rule_clauses') else 'unknown'}")
+        logger.info(f"  - Rules for class {ANALYSIS_CONFIG['target_class']}: {sum(1 for p in explainer.rule_predictions if p == ANALYSIS_CONFIG['target_class']) if hasattr(explainer, 'rule_predictions') else 'unknown'}")
+        logger.info(f"  - Using {n_jobs} parallel workers (limited for memory efficiency)")
+        logger.info(f"  - Processing in batches of {batch_size}")
+        
+        explain_start = time.time()
+        
+        # Process in batches to reduce memory usage
+        all_axps = []
+        n_batches = (len(X_class) + batch_size - 1) // batch_size
+        
+        for batch_idx in range(n_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, len(X_class))
+            X_batch = X_class.iloc[start_idx:end_idx].reset_index(drop=True)
+            y_batch = y_class[start_idx:end_idx]
+            
+            logger.info(f"Processing batch {batch_idx+1}/{n_batches} (instances {start_idx}-{end_idx-1})...")
+            batch_start = time.time()
+            
+            df_batch = explainer.explain_dataset(
+                X_batch,
+                predictions=y_batch,
+                return_df=True,
+                show_progress=False,  # Disable progress for batches
+                n_jobs=n_jobs
+            )
+            
+            all_axps.append(df_batch)
+            batch_time = time.time() - batch_start
+            logger.info(f"Batch {batch_idx+1} completed in {batch_time:.2f} seconds ({batch_time/len(X_batch):.4f} seconds per instance)")
+            
+            # Explicit cleanup
+            del df_batch, X_batch, y_batch
+            import gc
+            gc.collect()
+        
+        # Combine all batches
+        df_axps = pd.concat(all_axps, ignore_index=True)
+        del all_axps
+        import gc
+        gc.collect()
+        explain_duration = time.time() - explain_start
+        logger.info(f"explain_dataset completed in {explain_duration:.2f} seconds ({explain_duration/len(X_class):.4f} seconds per instance)")
+        
+        print(f"[OK] Generated {len(df_axps)} explanations")
+        
+        # Check explanation quality
+        if len(df_axps) > 0:
+            non_empty = sum(1 for axp in df_axps['axp'] if axp and len(axp) > 0)
+            logger.info(f"Explanation quality: {non_empty} / {len(df_axps)} have conditions")
+            print(f"  - Explanations with conditions: {non_empty} / {len(df_axps)}")
+            
+            # Sample explanation
+            if non_empty > 0:
+                sample_axp = next(axp for axp in df_axps['axp'] if axp and len(axp) > 0)
+                logger.info(f"Sample AXP (first 3): {sample_axp[:3]}")
+                print(f"  - Sample AXP (first 3 conditions): {sample_axp[:3]}")
+        
+        logger.info(f"Explanation generation completed in {time.time() - start_time:.2f} seconds")
+        return df_axps
+        
+    except Exception as e:
+        logger.error(f"Error generating explanations: {e}", exc_info=True)
+        print(f"[ERROR] Error generating explanations: {e}")
+        import traceback
+        traceback.print_exc()
+        return pd.DataFrame()
+
+
+def calculate_feature_importance(df_axps: pd.DataFrame) -> pd.DataFrame:
+    """Calculate feature importance from AXP explanations."""
+    logger.info("Calculating feature importance from AXP explanations...")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print("Calculating Feature Importance from AXP")
+    print(f"{'='*80}\n")
+    
+    valid_axps = df_axps["axp"].dropna()
+    total_explanations = len(valid_axps)
+    logger.info(f"Processing {total_explanations} valid explanations")
+    
+    if total_explanations == 0:
+        logger.warning("No valid explanations found")
+        print("[WARNING] No valid explanations found.")
+        return pd.DataFrame(columns=['feature', 'count', 'importance', 'coverage'])
+    
+    # Extract features from explanations
+    logger.info("Extracting features from explanations...")
+    all_features = []
+    feature_to_instances = defaultdict(set)
+    parse_errors = 0
+    
+    for idx, axp in enumerate(valid_axps):
+        try:
+            if isinstance(axp, str):
+                # Parse string representation using ast.literal_eval for safety
+                if axp.startswith('['):
+                    try:
+                        parsed = ast.literal_eval(axp)
+                    except (ValueError, SyntaxError):
+                        parsed = [axp]
+                else:
+                    parsed = [axp]
+            else:
+                parsed = axp if isinstance(axp, list) else []
+            
+            if isinstance(parsed, list):
+                for condition in parsed:
+                    if isinstance(condition, str):
+                        # Extract feature name (first word before space)
+                        feature = condition.split()[0]
+                        all_features.append(feature)
+                        feature_to_instances[feature].add(idx)
+        except Exception as e:
+            parse_errors += 1
+            if parse_errors <= 5:  # Log first 5 errors
+                logger.debug(f"Parse error for explanation {idx}: {e}")
+            continue
+    
+    if parse_errors > 0:
+        logger.warning(f"Encountered {parse_errors} parse errors while extracting features")
+    
+    logger.info(f"Extracted {len(all_features)} feature occurrences from {len(feature_to_instances)} unique features")
+    
+    if not all_features:
+        logger.warning("No features extracted from explanations")
+        print("[WARNING] No features extracted from explanations.")
+        return pd.DataFrame(columns=['feature', 'count', 'importance', 'coverage'])
+    
+    # Calculate metrics
+    logger.info("Calculating feature importance metrics...")
+    feature_counts = Counter(all_features)
+    importance_df = pd.DataFrame([
+        {
+            'feature': feat,
+            'count': count,
+            'importance': count / total_explanations,
+            'coverage': len(feature_to_instances[feat]) / total_explanations
+        }
+        for feat, count in feature_counts.most_common(ANALYSIS_CONFIG['top_k_features'])
+    ])
+    
+    logger.info(f"Feature importance calculated for {len(importance_df)} features")
+    print(f"[OK] Feature importance calculated for {len(importance_df)} features")
+    print(f"\nTop {ANALYSIS_CONFIG['top_k_features']} features:")
+    print(importance_df.to_string(index=False))
+    
+    logger.info(f"Feature importance calculation completed in {time.time() - start_time:.2f} seconds")
+    return importance_df
+
+
+def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray, 
+                           feature_importance_df: pd.DataFrame) -> pd.DataFrame:
+    """Perform causal analysis by measuring prediction changes."""
+    logger.info("Performing causal analysis...")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print("Performing Causal Analysis")
+    print(f"{'='*80}\n")
+    
+    # Filter to target class
+    logger.info(f"Filtering to target class {ANALYSIS_CONFIG['target_class']}...")
+    mask = (y == ANALYSIS_CONFIG['target_class'])
+    X_class = X[mask].reset_index(drop=True)
+    y_class = y[mask]
+    
+    # Get top features
+    top_features = feature_importance_df.head(ANALYSIS_CONFIG['top_k_features'])['feature'].tolist()
+    logger.info(f"Top {len(top_features)} features from importance analysis")
+    
+    # Filter to features that exist in data
+    available_features = [f for f in top_features if f in X_class.columns]
+    logger.info(f"Found {len(available_features)} features available in data")
+    
+    if not available_features:
+        logger.warning("No matching features found for causal analysis")
+        print("[WARNING] No matching features found for causal analysis.")
+        return pd.DataFrame()
+    
+    print(f"Analyzing {len(available_features)} features...")
+    
+    causal_scores = []
+    analysis_start = time.time()
+    
+    for feat_idx, feat_name in enumerate(tqdm(available_features, desc="Causal analysis")):
+        try:
+            logger.info(f"Analyzing feature {feat_idx+1}/{len(available_features)}: {feat_name}")
+            feat_start = time.time()
+            
+            # Use smaller sample for causal analysis to reduce memory
+            causal_sample_size = min(100, len(X_class))
+            X_sample = X_class.head(causal_sample_size).copy()
+            y_sample = y_class[:causal_sample_size]
+            
+            # Create modified dataset (set feature to median)
+            X_modified = X_sample.copy()
+            median_val = X_sample[feat_name].median()
+            X_modified[feat_name] = median_val
+            
+            # Count how many explanations change
+            # Note: Must pass full feature set, not just the single feature
+            logger.debug(f"  Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
+            orig_start = time.time()
+            original_explanations = explainer.explain_dataset(
+                X_sample,  # Pass full feature set
+                predictions=y_sample,
+                return_df=True,
+                show_progress=False,
+                n_jobs=1  # Use single worker for causal analysis to save memory
+            )
+            logger.debug(f"  Original explanations generated in {time.time() - orig_start:.2f} seconds")
+            
+            logger.debug(f"  Generating modified explanations for {feat_name}...")
+            mod_start = time.time()
+            modified_explanations = explainer.explain_dataset(
+                X_modified,  # Pass full feature set
+                predictions=y_sample,
+                return_df=True,
+                show_progress=False,
+                n_jobs=1  # Use single worker for causal analysis to save memory
+            )
+            logger.debug(f"  Modified explanations generated in {time.time() - mod_start:.2f} seconds")
+            
+            # Cleanup
+            del X_sample, X_modified, y_sample
+            import gc
+            gc.collect()
+            
+            # Calculate change rate
+            if len(original_explanations) > 0 and len(modified_explanations) > 0:
+                changes = sum(
+                    1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
+                    if orig != mod
+                )
+                change_rate = changes / len(original_explanations)
+                logger.info(f"  Feature {feat_name}: {changes}/{len(original_explanations)} explanations changed ({change_rate:.2%})")
+            else:
+                change_rate = 0.0
+                logger.warning(f"  Feature {feat_name}: No explanations generated")
+            
+            causal_scores.append({
+                'feature': feat_name,
+                'causal_importance': change_rate,
+                'median_value': median_val
+            })
+            
+            logger.debug(f"  Feature {feat_name} analyzed in {time.time() - feat_start:.2f} seconds")
+        except Exception as e:
+            logger.error(f"Error analyzing {feat_name}: {e}", exc_info=True)
+            print(f"  [WARNING] Error analyzing {feat_name}: {e}")
+            continue
+    
+    logger.info(f"Causal analysis of {len(available_features)} features completed in {time.time() - analysis_start:.2f} seconds")
+    
+    if causal_scores:
+        causal_df = pd.DataFrame(causal_scores)
+        causal_df = causal_df.sort_values('causal_importance', ascending=False)
+        
+        logger.info(f"Causal analysis completed for {len(causal_df)} features")
+        print(f"\n[OK] Causal analysis completed for {len(causal_df)} features")
+        print("\nTop causal features:")
+        print(causal_df.head(10).to_string(index=False))
+        
+        logger.info(f"Causal analysis total time: {time.time() - start_time:.2f} seconds")
+        return causal_df
+    else:
+        logger.warning("No causal scores calculated")
+        print("[WARNING] No causal scores calculated.")
+        return pd.DataFrame()
+
+
+def save_results(model_type: str, df_axps: pd.DataFrame, 
+                feature_importance_df: pd.DataFrame, 
+                causal_df: pd.DataFrame):
+    """Save all analysis results."""
+    logger.info("Saving analysis results...")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print("Saving Results")
+    print(f"{'='*80}\n")
+    
+    model_output_dir = OUTPUT_DIR / model_type
+    logger.info(f"Creating output directory: {model_output_dir}")
+    model_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save explanations
+    if len(df_axps) > 0:
+        explanations_path = model_output_dir / 'axp_explanations.csv'
+        logger.info(f"Saving explanations to: {explanations_path}")
+        df_axps.to_csv(explanations_path, index=False)
+        logger.info(f"Saved {len(df_axps)} explanations")
+        print(f"[OK] Saved explanations to: {explanations_path}")
+    else:
+        logger.warning("No explanations to save")
+    
+    # Save feature importance
+    if len(feature_importance_df) > 0:
+        importance_path = model_output_dir / 'feature_importance_axp.csv'
+        logger.info(f"Saving feature importance to: {importance_path}")
+        feature_importance_df.to_csv(importance_path, index=False)
+        logger.info(f"Saved {len(feature_importance_df)} feature importance scores")
+        print(f"[OK] Saved feature importance to: {importance_path}")
+    else:
+        logger.warning("No feature importance to save")
+    
+    # Save causal analysis
+    if len(causal_df) > 0:
+        causal_path = model_output_dir / 'causal_importance.csv'
+        logger.info(f"Saving causal analysis to: {causal_path}")
+        causal_df.to_csv(causal_path, index=False)
+        logger.info(f"Saved {len(causal_df)} causal importance scores")
+        print(f"[OK] Saved causal analysis to: {causal_path}")
+    else:
+        logger.warning("No causal analysis to save")
+    
+    # Create summary report
+    logger.info("Creating summary report...")
+    summary = {
+        'model_type': model_type,
+        'cohort': COHORT_NAME,
+        'age_band': AGE_BAND,
+        'total_explanations': len(df_axps),
+        'explanations_with_conditions': sum(1 for axp in df_axps['axp'] if axp and len(axp) > 0),
+        'top_features': feature_importance_df.head(10)['feature'].tolist() if len(feature_importance_df) > 0 else [],
+        'causal_features': causal_df.head(10)['feature'].tolist() if len(causal_df) > 0 else []
+    }
+    
+    summary_path = model_output_dir / 'analysis_summary.json'
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+    logger.info(f"Saved summary to: {summary_path}")
+    print(f"[OK] Saved summary to: {summary_path}")
+    
+    logger.info(f"Results saved in {time.time() - start_time:.2f} seconds")
+    print(f"\n[OK] All results saved to: {model_output_dir}")
+
+
+def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
+    """Run complete FFA analysis for a single model type."""
+    model_start_time = time.time()
+    logger.info(f"{'='*80}")
+    logger.info(f"Starting FFA Analysis for: {model_type.upper()}")
+    logger.info(f"{'='*80}")
+    
+    print("\n" + "="*80)
+    print(f"FFA Analysis: {model_type.upper()}")
+    print("="*80)
+    
+    # Build paths (use current cohort/age band)
+    model_json_filename = f'{COHORT_NAME}_{AGE_BAND_FNAME}_final_model_{model_type}.json'
+    model_json_path = MODEL_JSON_BASE / model_json_filename
+    logger.info(f"Model JSON path: {model_json_path}")
+    
+    if not model_json_path.exists():
+        logger.warning(f"Model JSON not found: {model_json_path}")
+        print(f"[SKIP] Model JSON not found: {model_json_path}")
+        return None
+    
+    try:
+        # Step 1: Load model
+        logger.info("Step 1: Loading model JSON...")
+        model_json = load_model_json(model_json_path)
+        
+        # Step 2: Extract feature mappings
+        logger.info("Step 2: Extracting feature mappings...")
+        feature_mappings = extract_feature_mappings(model_json)
+        
+        # Step 3: Load data
+        logger.info("Step 3: Loading data...")
+        X, y = load_data(DATA_PATH, max_samples=ANALYSIS_CONFIG.get('max_samples'))
+        
+        if y is None:
+            logger.warning("No target column found. Cannot generate explanations.")
+            print("[WARNING] No target column found. Cannot generate explanations.")
+            return None
+        
+        # Step 4: Initialize explainer
+        logger.info("Step 4: Initializing explainer...")
+        explainer = initialize_explainer(
+            model_json_path,
+            model_json,
+            feature_mappings,
+            feature_names=list(X.columns) if isinstance(X, pd.DataFrame) else None,
+        )
+        
+        if explainer is None:
+            logger.warning("Explainer not available.")
+            print("[WARNING] Explainer not available.")
+            return None
+        
+        # Cleanup model_json to free memory
+        del model_json
+        import gc
+        gc.collect()
+        
+        # Step 5: Generate explanations
+        logger.info("Step 5: Generating explanations...")
+        df_axps = generate_explanations(explainer, X, y)
+        
+        if len(df_axps) == 0:
+            logger.warning("No explanations generated.")
+            print("[WARNING] No explanations generated.")
+            return None
+        
+        # Step 6: Calculate feature importance
+        logger.info("Step 6: Calculating feature importance...")
+        feature_importance_df = calculate_feature_importance(df_axps)
+        
+        # Step 7: Perform causal analysis (optional, can be skipped if memory is tight)
+        logger.info("Step 7: Performing causal analysis...")
+        try:
+            causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df)
+        except MemoryError:
+            logger.warning("Memory error during causal analysis. Skipping causal analysis.")
+            print("[WARNING] Memory error during causal analysis. Skipping causal analysis.")
+            causal_df = pd.DataFrame()
+        
+        # Step 8: Save results
+        logger.info("Step 8: Saving results...")
+        save_results(model_type, df_axps, feature_importance_df, causal_df)
+        
+        total_time = time.time() - model_start_time
+        logger.info(f"Model {model_type} analysis completed in {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+        
+        return {
+            'model_type': model_type,
+            'explanations': len(df_axps),
+            'features_analyzed': len(feature_importance_df),
+            'causal_features': len(causal_df)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to analyze {model_type}: {e}", exc_info=True)
+        print(f"\n[ERROR] Failed to analyze {model_type}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def main():
+    """Run complete FFA analysis for one or more model types."""
+    global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, OUTPUT_DIR
+
+    parser = argparse.ArgumentParser(
+        description="Run FFA analysis for specified model types."
+    )
+    parser.add_argument(
+        "--cohort-name",
+        type=str,
+        default=COHORT_NAME,
+        help="Cohort name (e.g., opioid_ed). Defaults to opioid_ed.",
+    )
+    parser.add_argument(
+        "--age-band",
+        type=str,
+        default=AGE_BAND,
+        help="Age band (e.g., 13-24, 25-44). Defaults to 13-24.",
+    )
+    parser.add_argument(
+        "--model-type",
+        choices=["catboost", "xgboost", "xgboost_rf", "all"],
+        default="all",
+        help="Which model type to analyze (default: all).",
+    )
+    args = parser.parse_args()
+    # Allow overriding cohort/age band from CLI while keeping sane defaults.
+    COHORT_NAME = args.cohort_name
+    AGE_BAND = args.age_band
+    AGE_BAND_FNAME = AGE_BAND.replace("-", "_")
+
+    # Recompute paths based on possibly updated cohort/age band.
+    MODEL_JSON_BASE = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / COHORT_NAME
+        / AGE_BAND_FNAME
+        / "final_model_json"
+    )
+    DATA_PATH = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / COHORT_NAME
+        / AGE_BAND_FNAME
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+    )
+    OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    workflow_start_time = time.time()
+    logger.info(f"{'='*80}")
+    logger.info("Starting Complete FFA Analysis Workflow")
+    logger.info(f"Cohort: {COHORT_NAME}, Age Band: {AGE_BAND}")
+    logger.info(f"Output directory: {OUTPUT_DIR}")
+    logger.info(f"Log file: {LOG_FILE}")
+    logger.info(f"{'='*80}")
+    
+    print("\n" + "="*80)
+    print("Complete FFA Analysis Workflow")
+    print(f"Cohort: {COHORT_NAME}, Age Band: {AGE_BAND}")
+    print(f"Log file: {LOG_FILE}")
+    print("="*80)
+    
+    if args.model_type == "all":
+        model_types = ['catboost', 'xgboost', 'xgboost_rf']
+    else:
+        model_types = [args.model_type]
+    results = []
+    
+    for model_idx, model_type in enumerate(model_types, 1):
+        logger.info(f"\nProcessing model {model_idx}/{len(model_types)}: {model_type}")
+        try:
+            result = run_full_analysis_for_model(model_type)
+            if result:
+                results.append(result)
+                logger.info(f"Model {model_type} completed successfully")
+            else:
+                logger.warning(f"Model {model_type} returned no results")
+        except Exception as e:
+            logger.error(f"Failed to process {model_type}: {e}", exc_info=True)
+            print(f"\n[ERROR] Failed to process {model_type}: {e}")
+            continue
+    
+    # Print final summary
+    total_workflow_time = time.time() - workflow_start_time
+    logger.info(f"\n{'='*80}")
+    logger.info("Analysis Summary")
+    logger.info(f"{'='*80}")
+    logger.info(f"Total workflow time: {total_workflow_time:.2f} seconds ({total_workflow_time/60:.2f} minutes)")
+    
+    print("\n" + "="*80)
+    print("Analysis Summary")
+    print("="*80)
+    
+    if results:
+        summary_df = pd.DataFrame(results)
+        print("\nResults:")
+        print(summary_df.to_string(index=False))
+        
+        logger.info(f"Successfully analyzed {len(results)}/{len(model_types)} models")
+        print(f"\n[OK] Analysis complete! Results saved to: {OUTPUT_DIR}")
+    else:
+        logger.warning("No models were successfully analyzed")
+        print("\n[WARNING] No models were successfully analyzed.")
+    
+    logger.info(f"{'='*80}")
+    logger.info("Workflow Complete!")
+    logger.info(f"{'='*80}")
+    
+    print("\n" + "="*80)
+    print("Workflow Complete!")
+    print("="*80)
+
+
+if __name__ == "__main__":
+    main()
+

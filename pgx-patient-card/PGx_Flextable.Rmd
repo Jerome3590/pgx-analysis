@@ -1,0 +1,262 @@
+---
+title: "PGx_Flextable"
+author: "Jerome Dixon"
+date: "1/17/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(readr)
+library(dplyr) 
+library(magrittr) 
+library(tidyr) 
+library(purrr) 
+library(tidyverse) 
+library(here)
+library(gridExtra)
+library(grid)
+library(gtable)
+library(flextable)
+library(officer)
+
+source("PGx_formatData.R")
+
+
+```
+
+
+
+```{r}
+
+
+card.layout <- read_csv("data/card_layout.csv", col_types = cols(X1 = col_skip()))
+
+drugs_card <- card_drug_info
+
+genes_card <- card_gene_info
+
+
+```
+
+
+```{r Drug Card}
+
+
+drugs_ft <- flextable(as.data.frame(t(drugs_card)))
+
+drugs_ft <- autofit(drugs_ft)
+
+drugs_ft
+
+
+
+```
+
+
+
+```{r}
+
+
+icon_path_vcu <- paste0("icons//vcu.png")
+  
+  drugs_ft <- compose( drugs_ft, i = 1, j = 1,
+   value = as_paragraph(
+    as_image(src = here(icon_path_vcu), width = .8, height = .3),
+    as_chunk("  PGx Drugs That Require Additional Monitoring")
+ ),
+ part = "header")
+  
+
+icon_path_PGx <- paste0("icons//pgx-6.jpg")
+  
+  drugs_ft <- compose( drugs_ft, i = 1, j = 2,
+   value = as_paragraph(
+    as_image(src = here(icon_path_PGx), width = .8, height = .5),
+    as_chunk(genes_card[["Sample ID"]][[1]])
+ ),
+ part = "header")
+  
+  
+drugs_ft <- add_header_row(drugs_ft, 
+  values = c("Two Alleles", "One Allele"), top = FALSE )
+drugs_ft <- theme_box(drugs_ft)
+  
+
+drugs_ft <- autofit(drugs_ft)
+
+drugs_ft
+
+```
+
+
+
+```{r Save Drug Card Image}
+
+
+library(webshot)
+# webshot::install_phantomjs()
+
+
+drug_file_pattern <- paste0(genes_card$`Sample ID`[1], "_")
+
+img_temp <- tempfile(pattern = drug_file_pattern, tmpdir = "Drug Cards" , fileext = ".png")
+
+
+save_as_image(drugs_ft, path = here(img_temp))
+
+
+
+```
+
+
+
+```{r}
+
+
+add_qr_code <- function(row)  {
+  
+  
+  dataset <- gene_ft[["body"]][["dataset"]]
+  
+  
+  dataset$qr_path <- paste0("qr_codes//", gene_ft[["body"]][["dataset"]][["Gene"]][[row]], ".png")
+
+
+gene_step <- compose( myft, i = row, j = 2,
+ value = as_paragraph(
+   as_image(src = here(qr_path), width = .8, height = .8),
+   as_chunk(Gene)
+ ),
+ part = "body")
+  
+return(gene_step)
+
+}
+
+
+```
+
+
+```{r}
+
+gene_df <- genes_card %>% select(-1,-5)
+
+gene_names <- as.character(gene_df$Gene)
+
+gene_matrix <- t(gene_df)
+
+gene_dfm <- as.data.frame(gene_matrix)
+
+end <- ncol(gene_dfm)
+names(gene_dfm) <- c(1:end)
+
+gene_dfm <- rbind(gene_dfm, c(1:end)) 
+
+gene_ft <- flextable(gene_dfm)
+
+```
+
+
+```{r warning = FALSE}
+
+start <- 1
+end <- 1:ncol(as.data.frame(gene_ft[["body"]][["dataset"]]))
+
+repeat {
+  
+  qr_path <- paste0("qr_codes//", gene_ft[["body"]][["dataset"]][[start]][1], ".png")
+  
+  gene_ft <- compose( gene_ft, i = 4, j = start,
+   value = as_paragraph(
+    as_image(src = here(qr_path), width = .8, height = .8),
+    as_chunk(" ")
+ ),
+ part = "body")
+  
+  start = start + 1
+  
+  if ( start == end) {
+    break
+  }
+  
+}
+
+
+```
+
+
+```{r warning = FALSE}
+
+
+gene_ft <- void(gene_ft, j = NULL, part = "header")
+
+genes_ft <- autofit(gene_ft)
+
+genes_ft
+
+
+```
+
+
+
+
+```{r Gene Card}
+
+
+icon_path_vcu <- paste0("icons//vcu.png")
+  
+  genes_ft <- compose( genes_ft, i = 1, j = 1,
+   value = as_paragraph(
+    as_image(src = here(icon_path_vcu), width = .8, height = .3),
+    as_chunk(" PGx Genes ")
+ ),
+ part = "header")
+  
+
+icon_path_PGx <- paste0("icons//pgx-6.jpg")
+  
+  genes_ft <- compose( genes_ft, i = 1, j = length(end),
+   value = as_paragraph(
+    as_image(src = here(icon_path_PGx), width = .8, height = .5),
+    as_chunk(genes_card[["Sample ID"]][[1]])
+ ),
+ part = "header")
+  
+  
+
+genes_ft <- autofit(genes_ft)
+
+genes_ft
+
+
+```
+
+
+```{r Save Gene Card}
+
+library(webshot)
+# webshot::install_phantomjs()
+
+
+gene_file_pattern <- paste0(genes_card$`Sample ID`[1], "_")
+
+img_temp <- tempfile(pattern = gene_file_pattern, tmpdir = "Gene Cards" , fileext = ".png")
+
+
+save_as_image(genes_ft, path = here(img_temp))
+
+
+
+```
+
+
+
+
+
+
+

@@ -1,0 +1,354 @@
+---
+title: "DuckDB vs Apache Spark"
+author: "R. Jerome Dixon"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+editor: source
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    html-math-method: katex
+    df-print: paged
+    embed-resources: true
+    fontsize: "11pt"
+    code-fold: true
+    code-summary: "Show the code"
+    smooth-scroll: true
+editor_options: 
+  chunk_output_type: inline
+execute:
+  echo: true
+  message: false
+  warning: false
+  eval: false
+---
+
+# DuckDB vs Apache Spark: A Comparative Analysis
+
+## 1. What is DuckDB?
+
+DuckDB is an in-process analytical database system similar to SQLite but optimized for OLAP (Online Analytical Processing) workloads. It allows users to run analytical SQL queries directly on files like Parquet and CSV without requiring a dedicated database server.
+
+### Key Features
+
+-   Embedded database engine with no server setup
+-   Fast execution on tabular data (especially columnar formats like Parquet)
+-   Seamless integration with Python, R, and other environments
+-   Strong support for SQL and complex analytics
+
+### Strengths
+
+-   Ideal for analytical tasks on a single machine
+-   Excellent performance on Parquet datasets
+-   Minimal setup and dependency overhead
+-   Excels in handling high-cardinality columns due to its columnar execution engine, which compresses and accesses only the necessary data efficiently
+
+## 2. What is Apache Spark?
+
+Apache Spark is a distributed computing system designed for large-scale data processing. It allows operations to be spread across a cluster of machines, providing scalable performance and in-memory processing.
+
+### Key Features
+
+-   Distributed data processing with resilient distributed datasets (RDDs)
+-   Lazy evaluation and query optimization with Catalyst engine
+-   Supports SQL, streaming, machine learning (MLlib), and graph processing (GraphX)
+-   Runs on clusters via YARN, Kubernetes, Mesos, or standalone
+
+### Strengths
+
+-   Scales to terabytes or petabytes across many nodes
+-   Strong ecosystem for data science workflows
+-   Efficient caching and pipelining for iterative algorithms
+-   Suitable for enterprise-grade ETL and multi-stage workflows
+
+## 3. Tradeoffs and Analysis
+
+| Feature | DuckDB on EC2 Instance | Spark on AWS EMR Studio |
+|-----------------|---------------------------|-----------------------------|
+| Setup Time | Minimal (local install or embedded) | Requires cluster provisioning |
+| Performance (Single Node) | Excellent for Parquet and analytics | Sub-optimal without distributed data |
+| Performance (Cluster) | Not cluster-aware | Scales horizontally with nodes |
+| Query Latency | Low | Higher due to distributed coordination |
+| Cost (Startup/Runtime) | Low | Medium to High (EC2, EMR pricing) |
+| High Cardinality Handling | Very strong (columnar compression and execution) | Good (relies on partitioning and optimizations) |
+| Python/Notebook Support | Great with DuckDB-Python | Supported via PySpark notebooks |
+| File Format Compatibility | Parquet, CSV, JSON | Parquet, ORC, Avro, CSV, etc. |
+| SQL Support | Rich SQL support for analytics | Rich SQL with distributed optimizer |
+| Memory Usage | Efficient, local memory management | Distributed memory model |
+| Integration | Easy to embed in ML/data pipelines | Better for enterprise-scale workflows |
+
+## 4. When to Use Each Tool
+
+### Use DuckDB when:
+
+-   You have large but not massive data (fits in RAM or disk on a single machine)
+-   Your data has high-cardinality columns (e.g., many unique strings or IDs)
+-   You want fast SQL access to Parquet files
+-   You are running analytics on a powerful single EC2 instance
+
+### Use Spark when:
+
+-   Data is too large for one machine (multi-terabyte)
+-   You want to distribute computation or run scheduled ETL jobs
+-   You're already invested in AWS EMR, Glue, or enterprise data lakes
+
+## 5. Hybrid Approach: DuckDB + Spark
+
+You can combine both tools to get the best of both worlds:
+
+### Workflow
+
+1.  **Data Processing**: Use DuckDB to pre-process and filter high-cardinality or complex SQL analytics locally
+2.  **Data Output**: Write transformed data to Parquet or CSV
+3.  **Distributed Tasks**: Load into Spark for large-scale transformations, joins, ML, or streaming
+
+#### Example Use Case
+
+```{python}
+
+import duckdb
+import pyspark
+from pyspark.sql import SparkSession
+
+# Step 1: DuckDB processing
+duckdb.sql("""
+    CREATE TABLE filtered AS
+    SELECT * FROM read_parquet('s3://bucket/raw/*.parquet')
+    WHERE event_type = 'adverse'
+""")
+
+```
+
+```{python}
+
+# Step 2: Spark processing - single node mode
+
+spark = SparkSession.builder.getOrCreate()
+df = spark.read.parquet("s3://bucket/processed/filtered.parquet")
+
+```
+
+## Conclusion
+
+DuckDB and Apache Spark are complementary tools. DuckDB lightweight and easy to get up and running. Apache Spark requires a lot more knowledge and experience to effectively use and manage. A firm understanding of data partitioning and how best to optimize spark jobs is not a quick endeavor.
+
+DuckDB shines with high-cardinality data and fast single-node analytics, especially when combined with large EC2 instances. 
+
+Apache Spark dominates in distributed settings and reading/writing to AWS S3. DuckDB is very weak in this area.
+
+By combining both, we can design cost-effective, and scalable data workflows for analytics and machine learning pipelines.
+
+------------------------------------------------------------------------
+
+## DEMO: DuckDB on EC2 for FAERS Database
+
+### What is FAERS?
+
+The FDA Adverse Event Reporting System (FAERS) is a database that contains information on adverse event and medication error reports submitted to the U.S. Food and Drug Administration (FDA). It serves several critical purposes:
+
+1.  **Post-Market Surveillance**:
+    -   Monitors the safety of drugs after they are approved and on the market
+    -   Helps identify potential safety concerns that weren't detected during clinical trials
+    -   Enables early detection of rare adverse events
+2.  **Data Collection**:
+    -   Collects reports from healthcare professionals, consumers, and manufacturers
+    -   Includes information about:
+        -   Patient demographics
+        -   Drug exposure details
+        -   Adverse event outcomes
+        -   Timing of events
+        -   Drug combinations (polypharmacy)
+3.  **Public Health Impact**:
+    -   Supports regulatory decision-making
+    -   Helps identify patterns of adverse events
+    -   Contributes to drug safety monitoring
+    -   Informs healthcare providers and the public about potential risks
+
+### Analysis Goals
+
+This demo analyzes the FAERS dataset to: 1. Clean and normalize drug names for consistent analysis 2. Study patterns of polypharmacy (multiple drug use) 3. Analyze the timing and duration of adverse events 4. Visualize trends in drug-related hospitalizations and outcomes
+
+The analysis includes data cleansing, drug name normalization, polypharmacy analysis, and visualization of adverse drug events.
+
+Publicly available here:[FAERS Data Extracts] (https://fis.fda.gov/extensions/FPD-QDE-FAERS/FPD-QDE-FAERS.html)
+
+FAERS Dashboard here: [FAERS Dashboard](https://www.fda.gov/drugs/fdas-adverse-event-reporting-system-faers/fda-adverse-event-reporting-system-faers-public-dashboard)
+
+### Setup and Dependencies
+
+```{r}
+library(here)
+library(reticulate)
+```
+
+```{python}
+
+import pandas as pd
+from io import BytesIO
+import boto3
+import duckdb
+import numpy as np
+import matplotlib.pyplot as plt
+
+```
+
+### Data Loading and Initial Setup/Credentials
+
+This section sets up the connection to the S3 bucket and loads the FAERS dataset.
+
+```{python}
+
+# Define cohort and S3 paths
+s3_bucket = "pgxdatalake"
+s3_prefix = f"faers"
+
+faers_input_path = f"s3://{s3_bucket}/{s3_prefix}/**/*.parquet"
+
+# Enable S3 support in DuckDB
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+
+# AWS Credentials
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Check schema by selecting zero rows
+faers_schema = duckdb.sql(f"SELECT * FROM read_parquet('{faers_input_path}') LIMIT 0").df()
+
+print("FAERS Schema:\n", faers_schema)
+
+```
+
+### Data Processing Pipeline
+
+1.  Create FAERS table from parquet files
+2.  Deduplicate/cleanse records
+3.  Process events and durations
+4.  Analyze outcomes
+
+```{python}
+
+# Create faers table from parquet files
+duckdb.sql(f"""
+CREATE OR REPLACE TABLE faers AS
+SELECT *
+FROM read_parquet('{faers_input_path}')
+""")
+
+# Check for duplicates
+duckdb.sql("""
+SELECT COUNT(*) as total_records,
+       COUNT(DISTINCT *) as unique_records
+FROM faers
+""")
+
+# Create a view with distinct records
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_deduplicated AS
+SELECT DISTINCT *
+FROM faers
+""")
+
+# Verify deduplication
+duckdb.sql("""
+SELECT COUNT(*) as total_records,
+       COUNT(DISTINCT *) as unique_records
+FROM faers_deduplicated
+""")
+
+```
+
+### FAERS ADE Event Analysis
+
+#### Events
+
+```{python}
+
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events AS
+SELECT 
+    primaryid,
+    caseid,
+    to_date(as.character(start_dt), 'yyyyMMdd') as drug_date,
+    to_date(as.character(event_dt), 'yyyyMMdd') as event_date,
+    datediff(event_date, drug_date) as duration,
+    age,
+    age_cod,
+    gndr_cod,
+    wt,
+    wt_cod,
+    drugs,
+    array_length(drugs) as polypharmacy,
+    outc_cod
+FROM faers
+WHERE event_dt IS NOT NULL
+AND start_dt IS NOT NULL
+AND length(start_dt) = 8
+AND (outc_cod = 'HO' OR outc_cod = 'DE')
+AND length(event_dt) = 8
+""")
+
+```
+
+#### Data Cleansing
+
+```{python}
+
+# Clean FAERS Events
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events_cleaned AS
+SELECT *
+FROM faers_events
+WHERE duration > 0 AND duration < 30
+QUALIFY ROW_NUMBER() OVER (PARTITION BY primaryid, caseid ORDER BY duration) = 1
+""")
+
+# Update missing age and weight
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events_age_updated AS
+SELECT 
+    CASE 
+        WHEN age IS NULL THEN CAST(gndr_cod AS INTEGER)
+        ELSE age
+    END as age,
+    CASE 
+        WHEN age = CAST(gndr_cod AS INTEGER) THEN wt_cod
+        ELSE gndr_cod
+    END as gndr_cod,
+    CASE 
+        WHEN age < 100 THEN 'YR'
+        ELSE age_cod
+    END as age_cod,
+    CASE 
+        WHEN wt IS NULL THEN wt
+        ELSE wt_cod
+    END as wt_cod,
+    *
+FROM faers_events_cleaned
+""")
+
+```
+
+#### Duration Event Analysis
+
+```{python}
+
+# Duration Analysis
+duration_data = duckdb.sql("""
+    SELECT 
+        duration,
+        COUNT(*) as case_count
+    FROM faers_events
+    WHERE duration > 0 AND duration < 180
+    GROUP BY duration
+    ORDER BY duration
+""").df()
+
+# Create visualization
+plt.figure(figsize=(12, 6))
+sns.histplot(data=duration_data, x='duration', weights='case_count', bins=60)
+plt.title('ADE Time Duration Distributions')
+plt.xlabel('Days From Prescription Date to ADE Event Date')
+plt.ylabel('Hospitalization Case Counts')
+plt.tight_layout()
+plt.show()
+
+```

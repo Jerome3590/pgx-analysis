@@ -1,0 +1,3643 @@
+[
+  {
+    "name": "abacavir",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "acebutolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "aceclofenac",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "acenocoumarol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "CYP4F2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "adalimumab",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "TNF"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "alendronate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "FDPS"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "alfentanil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "allopurinol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B",
+      "HLA-A",
+      "HLA-C"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "amifampridine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "amifampridine phosphate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "amikacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "aminosalicylic acid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "amisulpride",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "amitriptyline",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "amoxapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "amphetamine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "aripiprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "aripiprazole lauroxil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "aspirin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "G6PD",
+      "HLA-DPB1",
+      "GP1BA",
+      "LTC4S",
+      "PTGS1"
+    ],
+    "guideline_count": 3,
+    "cpic_levels": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "ataluren",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CFTR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "atazanavir",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "atenolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "atomoxetine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "atorvastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "HMGCR",
+      "APOE",
+      "CETP",
+      "COQ2",
+      "KIF6",
+      "LDLR",
+      "LPA"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "avatrombopag",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "azathioprine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NUDT15",
+      "TPMT"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "belinostat",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "betaxolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "bisoprolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "brexpiprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "brivaracetam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "bucindolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRB1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "budesonide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CRHR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "buprenorphine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "bupropion",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2B6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "caffeine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADORA2A"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "capecitabine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "DPYD",
+      "TYMS"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "D"
+    ]
+  },
+  {
+    "name": "captopril",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ACE"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "carbamazepine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-A",
+      "HLA-B",
+      "SCN1A",
+      "EPHX1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "B",
+      "D"
+    ]
+  },
+  {
+    "name": "carbimazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "carboplatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MTHFR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "carglumic acid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAGS"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "carisoprodol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "carvedilol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "celecoxib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "cerivastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CETP",
+      "LPA"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "cetuximab",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "EGF"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "cevimeline",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "chloramphenicol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "chloroquine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "chlorpropamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "ciprofloxacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "cisplatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ACYP2",
+      "ERCC1",
+      "GSTM1",
+      "NQO1",
+      "XPC"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "citalopram",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "COMT",
+      "CYP2D6",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4",
+      "FKBP5"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "clobazam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "clomipramine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "clopidogrel",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CES1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "clozapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "HTR2C",
+      "MC4R",
+      "ANKK1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "codeine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "cyclophosphamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "GSTP1",
+      "NQO1",
+      "SOD2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "cyclosporine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP3A5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "dabrafenib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "dapsone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD",
+      "HLA-B"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "darifenacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "daunorubicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLC28A3",
+      "CBR3",
+      "HAS3"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "D"
+    ]
+  },
+  {
+    "name": "desflurane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "desipramine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "desvenlafaxine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "deutetrabenazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "dexlansoprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "dextromethorphan",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "diazepam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "dibekacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "diclofenac",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C8",
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "digoxin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ABCB1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "dimercaprol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "divalproex sodium",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "POLG"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "dolasetron",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "dolutegravir",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "donepezil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "doxepin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "doxorubicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLC28A3",
+      "G6PD",
+      "CBR3",
+      "HAS3",
+      "NQO1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "B/C",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "dronabinol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "duloxetine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6",
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "efavirenz",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2B6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "elagolix",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "eliglustat",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "eltrombopag",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "F5",
+      "SERPINC1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "enflurane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "epirubicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CBR3",
+      "GSTP1",
+      "HAS3",
+      "NQO1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "erdafitinib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "escitalopram",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "COMT",
+      "CYP2D6",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "esmolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "esomeprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "etanercept",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "TNF"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "etoposide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "DYNC2H1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "fentanyl",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ABCB1",
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "fesoterodine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "flecainide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "flibanserin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2C9",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "fluorouracil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "DPYD",
+      "GSTP1",
+      "NQO1",
+      "TYMS",
+      "UMPS"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "D"
+    ]
+  },
+  {
+    "name": "fluoxetine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4",
+      "FKBP5"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "flurbiprofen",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "fluticasone propionate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CRHR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "fluticasone/salmeterol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CRHR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "fluvastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "HMGCR",
+      "CETP",
+      "LPA"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "fluvoxamine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "CYP2C19",
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "fosphenytoin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "HLA-B"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "furazolidone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "furosemide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADD1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "galantamine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "gefitinib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "gemcitabine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NT5C2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "gentamicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "gliclazide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "glimepiride",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "glipizide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "glyburide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "haloperidol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "halothane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "hormonal contraceptives for systemic use",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "F5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "hydralazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "hydrochlorothiazide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NEDD4L",
+      "PRKCA",
+      "YEATS4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "hydrocodone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "hydromorphone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "hydroxychloroquine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "ibuprofen",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "CYP2C8"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "idarubicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CBR3",
+      "HAS3"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "iloperidone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "imipramine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "indomethacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "infliximab",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "TNF"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "interferon alfa-2b, recombinant",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ITPA"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C/D"
+    ]
+  },
+  {
+    "name": "irinotecan",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1",
+      "C8orf34",
+      "SEMA3C"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "D"
+    ]
+  },
+  {
+    "name": "isoflurane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "isoniazid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "ivacaftor",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CFTR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "kanamycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "l-methylfolate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MTHFR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "labetalol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "lamotrigine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "lansoprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "lapatinib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-DRB1",
+      "HLA-DQA1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "latanoprost",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "PTGFR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "lesinurad",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "levomethadone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "levomilnacipran",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "lidocaine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "lofexidine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "lornoxicam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "lovastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "HMGCR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "lumiracoxib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "mafenide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "meclizine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "meloxicam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "mepacrine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "mercaptopurine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NUDT15",
+      "TPMT"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "mesalazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "metformin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "C11orf65"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "methadone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "CYP2B6",
+      "CYP2D6",
+      "OPRM1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "methazolamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B",
+      "HLA-C"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "methimazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "methotrexate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ABCB1",
+      "MTHFR",
+      "SLCO1B1",
+      "ATIC",
+      "MTRR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "methoxyflurane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "methylene blue",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "methylphenidate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "metoclopramide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "CYB5R1",
+      "CYB5R2",
+      "CYB5R3",
+      "CYB5R4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "D"
+    ]
+  },
+  {
+    "name": "metoprolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "ADRA2C",
+      "ADRB1",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "midazolam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP3A5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C/D"
+    ]
+  },
+  {
+    "name": "milnacipran",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "mirabegron",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "mirtazapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "FKBP5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "D"
+    ]
+  },
+  {
+    "name": "mivacurium",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "BCHE"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "modafinil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "morphine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "moxifloxacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "mycophenolic acid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HPRT1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "nabumetone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nadolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nalidixic acid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "naloxone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "naltrexone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "naproxen",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nebivolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "neomycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "netilmicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "nevirapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2B6",
+      "ABCB1",
+      "HLA-B",
+      "HLA-DRB1",
+      "CCHCR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "nicorandil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nicotine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "CHRNA3"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C/D",
+      "D"
+    ]
+  },
+  {
+    "name": "nilotinib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "nitrofural",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nitrofurantoin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "norfloxacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "nortriptyline",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "ofloxacin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "olanzapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HTR2C",
+      "MC4R",
+      "ANKK1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "oliceridine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "omeprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "ondansetron",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "ABCB1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C/D"
+    ]
+  },
+  {
+    "name": "oxaliplatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "GSTM1",
+      "GSTP1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "oxazepam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT2B15"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C/D"
+    ]
+  },
+  {
+    "name": "oxcarbazepine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B",
+      "HLA-A"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "oxycodone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "CYP2D6",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "paliperidone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "palonosetron",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "pantoprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "paromomycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "paroxetine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "CYP2C19",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4",
+      "FKBP5",
+      "HTR1A"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "pazopanib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B",
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "peginterferon alfa-2a",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "IFNL3",
+      "IFNL4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "peginterferon alfa-2b",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "IFNL3",
+      "IFNL4",
+      "VDR"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "D"
+    ]
+  },
+  {
+    "name": "pegloticase",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "perphenazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "phenazopyridine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "phenprocoumon",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP4F2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "phenytoin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "HLA-B",
+      "SCN1A"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "B"
+    ]
+  },
+  {
+    "name": "pimozide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "pindolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "piroxicam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "pitavastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "HMGCR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "pitolisant",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "plazomicin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "pravastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "CETP",
+      "HMGCR",
+      "KIF6",
+      "LPA"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "primaquine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "probenecid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "procainamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "propafenone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "propranolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "CYP2D6",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "propylthiouracil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HLA-B"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "protriptyline",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "quetiapine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "quinidine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "quinine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "G6PD"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "rabeprazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "raloxifene",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "FDPS"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "raltegravir",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "UGT1A1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "rasburicase",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "remifentanil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "ribavirin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "VDR"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "ribostamycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "risedronate",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "FDPS"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "risperidone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "DRD2",
+      "HTR2C",
+      "MC4R",
+      "ANKK1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "rituximab",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "FCGR3A"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "rosiglitazone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C8"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "rosuvastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ABCG2",
+      "SLCO1B1",
+      "CYP3A4",
+      "CYP3A5",
+      "HMGCR",
+      "COQ2",
+      "LPA"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "salbutamol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRB2",
+      "COL22A1",
+      "CRHR2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "salmeterol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRB2"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "sertraline",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2B6",
+      "CYP2D6",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "sevoflurane",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "sildenafil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "GNB3"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "simvastatin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "SLCO1B1",
+      "ABCB1",
+      "CYP3A4",
+      "CYP3A5",
+      "CETP",
+      "HMGCR",
+      "LPA"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "siponimod",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "sirolimus",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP3A5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sodium nitrite",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sotalol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADRA2C",
+      "ADRB1",
+      "ADRB2",
+      "GRK4",
+      "GRK5"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "spironolactone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ADD1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "streptomycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "succinylcholine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CACNA1S",
+      "RYR1",
+      "BCHE"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "B/C"
+    ]
+  },
+  {
+    "name": "sufentanil",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sulfacetamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sulfadiazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sulfadimidine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sulfamethoxazole / trimethoprim",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2",
+      "G6PD"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "sulfanilamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "sulfasalazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NAT2",
+      "G6PD"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "B/C",
+      "C"
+    ]
+  },
+  {
+    "name": "sulfisoxazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "tacrolimus",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP3A5",
+      "CYP3A4"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "tafenoquine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "tamoxifen",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "tamsulosin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "tegafur",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "DPYD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "tenofovir",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "ABCC4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "tenoxicam",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "terbinafine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "tetrabenazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "thioguanine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "NUDT15",
+      "TPMT"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "thioridazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "timolol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "tobramycin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MT-RNR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "tolazamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "tolbutamide",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "tolterodine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "toluidine blue",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "tramadol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "COMT",
+      "OPRM1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "trametinib",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "triamcinolone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CRHR1"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "D"
+    ]
+  },
+  {
+    "name": "trimipramine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19",
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B"
+    ]
+  },
+  {
+    "name": "tropisetron",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "valbenazine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  },
+  {
+    "name": "valproic acid",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "POLG",
+      "ABL2",
+      "ASL",
+      "ASS1",
+      "CPS1",
+      "NAGS",
+      "OTC"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B",
+      "B"
+    ]
+  },
+  {
+    "name": "velaglucerase alfa",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "GBA"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A/B"
+    ]
+  },
+  {
+    "name": "venlafaxine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "CYP2C19",
+      "GRIK4",
+      "HTR2A",
+      "SLC6A4",
+      "FKBP5"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "B",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "vilazodone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "vitamin c",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "vitamin k",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "G6PD"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "voriconazole",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C19"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A"
+    ]
+  },
+  {
+    "name": "vortioxetine",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6",
+      "CYP2C19",
+      "HTR2A",
+      "SLC6A4"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "A",
+      "C"
+    ]
+  },
+  {
+    "name": "warfarin",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2C9",
+      "CYP4F2",
+      "VKORC1",
+      "CALU",
+      "GGCX",
+      "PROC",
+      "PROS1"
+    ],
+    "guideline_count": 2,
+    "cpic_levels": [
+      "A",
+      "D"
+    ]
+  },
+  {
+    "name": "ziprasidone",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "MC4R"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "C"
+    ]
+  },
+  {
+    "name": "zuclopenthixol",
+    "source": "cpicPairs.csv",
+    "genes": [
+      "CYP2D6"
+    ],
+    "guideline_count": 1,
+    "cpic_levels": [
+      "B/C"
+    ]
+  }
+]

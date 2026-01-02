@@ -1,0 +1,323 @@
+---
+title: "PGx"
+author: "Jerome Dixon"
+date: "12/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readxl)
+library(readr)
+library(dplyr) 
+library(magrittr) 
+library(janitor) 
+library(tidyr) 
+library(purrr) 
+library(tidyverse) 
+library(reshape2)
+library(stringr)
+
+```
+
+# Preformat incoming excel spreadsheet: gene,Variant1,Variant2,Variant3, Variant4..
+
+```{r Read in Data}
+
+pgx <- read_excel("data/pgx_analysis.xlsx")
+
+
+# Drop any extra empty columns
+pgx <- janitor::remove_empty(pgx, which = "cols") 
+
+# Drop NAs and INFs
+is.na(pgx)<-sapply(pgx, is.infinite) 
+pgx[is.na(pgx)] <- 0
+
+
+```
+
+
+```{r Convert From Wide to Long Format}
+
+pgx_data_long <- gather(pgx, allele, allele_count, 2:53, factor_key=TRUE)
+
+
+# Drop Zeros
+pgx_data_long <- pgx_data_long[pgx_data_long$allele_count != 0, ]
+
+
+pgx_data_long %<>% separate(allele, c("Gene", "Variant1", "Variant2", "Variant3"), sep = "([,])")
+
+
+# Drop NAs and INFs
+is.na(pgx_data_long)<-sapply(pgx_data_long, is.infinite) 
+pgx_data_long[is.na(pgx_data_long)] <- "0"
+
+
+```
+
+
+
+```{r CPIC PGx}
+
+
+library(httr)
+
+
+r <- GET("https://api.cpicpgx.org/data/cpicPairs.csv")
+
+# Save to file
+bin <- content(r, "raw")
+writeBin(bin, "data/cpic.csv")
+
+# Read as csv
+CPIC_df = read_csv("data/cpic.csv", skip = 1)
+
+
+```
+
+
+
+```{r FDA Recommendations}
+
+library(rvest)
+
+pgx_fda <- read_html("https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations")
+
+
+pgx_tables <- pgx_fda %>% html_table(trim = TRUE, fill = FALSE)
+
+
+pgx_associations1 <- pgx_tables[[1]]
+pgx_associations2 <- pgx_tables[[2]]
+pgx_associations3 <- pgx_tables[[3]]
+
+
+FDA_Recommendations_df <- bind_rows(pgx_associations1, pgx_associations2, pgx_associations3)
+
+FDA_Recommendations_df[[1]] <- tolower(FDA_Recommendations_df[[1]]) 
+
+FDA_Recommendations_df%<>% select(2,1,3,4)
+
+
+```
+
+
+
+```{r FDA Dataframe}
+
+FDA_df <- full_join(CPIC_df, FDA_Recommendations_df, by=c("Gene" = "Gene", "Drug" = "Drug"))
+
+
+```
+
+
+
+```{r PharmGKB API}
+
+
+library(httr)
+library(jsonlite)
+
+base_url <- "https://api.pharmgkb.org/v1/data/gene?symbol="
+
+pgx_data_long$URL_Query <- paste0(base_url,pgx_data_long$Gene, sep="")
+
+gene_URLs <- as.data.frame(pgx_data_long$URL_Query) %>% unique()
+names(gene_URLs) <- "URL_Query"
+
+pharm_gkb_list <- map(gene_URLs$URL_Query, ~{
+
+  Sys.sleep(sample(seq(0.5, 2.5, 0.5), 1)) 
+
+  res <- httr::GET(.x)
+
+  httr::content(res, as="text", encoding="UTF-8") %>% 
+    fromJSON(flatten=TRUE) 
+
+})
+
+
+# List of dataframes
+pharm_gkb_dfs_list <- lapply(pharm_gkb_list, data.frame, stringsAsFactors = FALSE)
+
+
+# Row bind list of dataframes to one dataframe
+pharm_GKB_df <- bind_rows(pharm_gkb_dfs_list)
+
+
+```
+
+
+
+```{r PharmGKB VIP Data}
+
+library(rvest)
+
+
+build_VIP_df <- function() {
+  
+  r <-GET("https://api.pharmgkb.org/v1/site/vips")
+  vip_list <- content(r, as="text", encoding="UTF-8") %>% 
+    fromJSON(flatten=TRUE) 
+  
+  vip_df <- bind_rows(vip_list["data"])
+  
+  
+  strip_html <- function(s) {
+    html_text(read_html(s))
+  }
+  
+  
+  vip_df["summary"][[1]] <- lapply(vip_df["summary"][[1]], strip_html)
+  
+  names(vip_df) <- str_to_title(names(vip_df))
+  
+  base_url <- "https://www.pharmgkb.org/vip/"
+  
+  vip_df$URL <- paste0(base_url,vip_df$Vipid, sep="")
+  
+  vip_df$QR_Filename <- paste0(vip_df$Gene,".png", sep="")
+  
+  return(vip_df)
+  
+  
+}
+
+
+vip_df <- build_VIP_df()
+
+
+```
+
+
+
+```{r Extra Formatting VIP Dataframe}
+
+list_df <- vip_df["Summary"][[1]]
+
+summary_matrix <- do.call(rbind, list_df)
+
+summary_df <- as.data.frame(summary_matrix)
+names(summary_df) <- "Summary"
+
+# Drop Summary (list)
+vip_df %<>% select(-4)
+
+# Add Summary Dataframe
+VIP_df <- cbind(vip_df, summary_df)
+
+
+```
+
+
+
+```{r VIP QR Code Images}
+
+library(qrcode)
+
+start <- 1
+end <- 1:nrow(vip_df)
+
+repeat {
+  
+  png(vip_df[[7]][[start]])
+  qrcode_gen(vip_df[[6]][[start]])
+  dev.off()
+  
+  start = start + 1
+  
+  if ( start == end) {
+    break
+  }
+  
+}
+
+# Create folder 'qr_codes' and move all images here
+
+```
+
+
+```{r QR Code Images base64 Encoded}
+
+library(filesstrings)
+
+source("base64_images.R")
+
+# Point function to previously created 'qr_codes' folder
+# Convert images to base64
+image_to_base64(here("qr_codes"))
+
+
+# Move file to 'data' subfolder for future processing
+file.move("base64_qr_codes.csv", "data")
+
+```
+
+
+
+```{r PharmGKB Dataframe}
+
+GKB_df_step1 <- left_join(pharm_GKB_df, VIP_df, by=c("data.symbol" = "Gene"))
+
+# Read as csv
+QR_code_df = read_csv("data/base64_qr_codes.csv")
+
+GKB_df <- left_join(GKB_df_step1, QR_code_df, by=c("data.symbol" = "Image"))
+
+GKB_df %<>% select(4,5,16,19,22,23,25,26,27,29)
+
+names(GKB_df)[1] <- "PharmGKB_GeneID"
+names(GKB_df)[2] <- "Gene"
+names(GKB_df)[3] <- "PharmGKB_Chromosome_URL"
+names(GKB_df)[4] <- "PharmGKB_ChromosomeID"
+names(GKB_df)[8] <- "PharmGKB_VIP_URL"
+names(GKB_df)[10] <- "QR_Code_Image"
+
+
+```
+
+
+
+```{r Final PGx Dataframe}
+
+
+PGx_df_step1 <- left_join(pgx_data_long, FDA_df, by=c("Gene" = "Gene"))
+
+PGx_df <- left_join(PGx_df_step1, GKB_df, by=c("Gene" = "Gene")) 
+
+PGx_df$Litid <- as.character(PGx_df$Litid)
+
+# Drop NAs and INFs
+is.na(PGx_df)<-sapply(PGx_df, is.infinite) 
+PGx_df[is.na(PGx_df)] <- "0"
+
+
+```
+
+
+
+```{r Save df}
+
+write.csv(PGx_df,"pgx_data.csv")
+
+```
+
+
+# PGx Card Icons
+```{r Convert Icon Images to base64}
+
+source("base64_images.R")
+
+image_to_base64(here("icons"))
+
+
+```
+
+
+
+
+
+

@@ -1,0 +1,648 @@
+---
+title: "FAERS DuckDB Demo"
+author: "R. Jerome Dixon"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+editor: source
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    html-math-method: katex
+    df-print: paged
+    embed-resources: true
+    fontsize: "11pt"
+    code-fold: true
+    code-summary: "Show the code"
+    smooth-scroll: true
+editor_options: 
+  chunk_output_type: inline
+execute:
+  echo: true
+  message: false
+  warning: false
+  eval: false
+---
+
+## FAERS Data Analysis Pipeline
+
+This notebook processes and analyzes the FDA Adverse Event Reporting System (FAERS) dataset. The analysis includes data cleansing, drug name normalization, polypharmacy analysis, and visualization of adverse drug events.
+
+### Setup and Dependencies
+
+```{r}
+
+library(here)
+library(reticulate)
+
+```
+
+```{python}
+
+import pandas as pd
+from io import BytesIO
+import boto3
+import duckdb
+import numpy as np
+import matplotlib.pyplot as plt
+
+```
+
+### Data Loading and Initial Setup
+
+This section sets up the connection to the S3 bucket and loads the FAERS dataset.
+
+```{python}
+# Define cohort and S3 paths
+s3_bucket = "pgxdatalake"
+s3_prefix = f"faers"
+
+faers_input_path = f"s3://{s3_bucket}/{s3_prefix}/**/*.parquet"
+
+# Enable S3 support in DuckDB
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+
+# AWS Credentials
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Check schema by selecting zero rows
+faers_schema = duckdb.sql(f"SELECT * FROM read_parquet('{faers_input_path}') LIMIT 0").df()
+
+print("FAERS Schema:\n", faers_schema)
+
+```
+
+
+```{python}
+
+# Create faers table from parquet files
+duckdb.sql(f"""
+CREATE OR REPLACE TABLE faers AS
+SELECT *
+FROM read_parquet('{faers_input_path}')
+""")
+
+# Check for duplicates
+duckdb.sql("""
+SELECT COUNT(*) as total_records,
+       COUNT(DISTINCT *) as unique_records
+FROM faers
+""")
+
+# Create a view with distinct records
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_deduplicated AS
+SELECT DISTINCT *
+FROM faers
+""")
+
+# Verify deduplication
+duckdb.sql("""
+SELECT COUNT(*) as total_records,
+       COUNT(DISTINCT *) as unique_records
+FROM faers_deduplicated
+""")
+
+```
+
+### Drug Name Normalization
+
+This section standardizes drug names using a combination of text processing and mapping files. The process includes: 1. Basic text cleaning (special characters, case normalization) 2. Standardization of drug combinations 3. Application of predefined drug name mappings
+
+```{python}
+
+# Load drug mappings
+import json
+from pathlib import Path
+
+def load_drug_mappings():
+    try:
+        mappings = {}
+        mappings_dir = Path('../drug_mappings')
+        
+        if not mappings_dir.exists():
+            print("Warning: drug_mappings directory not found. Using empty mappings.")
+            return {}
+            
+        for mapping_file in mappings_dir.glob('*_mappings.json'):
+            letter = mapping_file.stem[0]  # Get first letter from filename
+            with open(mapping_file, 'r') as f:
+                mappings[letter] = json.load(f)
+        
+        # Combine all mappings into a single dictionary
+        combined_mappings = {}
+        for letter_mappings in mappings.values():
+            combined_mappings.update(letter_mappings)
+        
+        return combined_mappings
+    except Exception as e:
+        print(f"Warning: Error loading drug mappings: {e}")
+        return {}
+
+# Create normalized drug names view with mappings
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_drugs_normalized AS
+WITH normalized_drugs AS (
+    SELECT 
+        -- Basic normalization
+        lower(trim(regexp_replace(drugname, "[_\"\'():;,.!?\\-]", " "))) as drugname_cleaned,
+        -- Replace spaces with underscores
+        replace(drugname_cleaned, ' ', '_') as drugname_underscore,
+        -- Replace '/' with '+'
+        replace(drugname_underscore, '/', '+') as drugname_plus,
+        -- Sort combinations if they contain '+'
+        CASE 
+            WHEN contains(drugname_plus, '+') 
+            THEN array_to_string(array_sort(string_to_array(drugname_plus, '+')), '+')
+            ELSE drugname_plus
+        END as drugname_normalized,
+        *
+    FROM faers_deduplicated
+    WHERE drugname IS NOT NULL
+    AND length(drugname) < 20
+    AND NOT regexp_matches(drugname, "[^0-9]([0-9]{8})[^0-9]")
+)
+SELECT 
+    drugname as original_name,
+    drugname_normalized as normalized_name,
+    *
+FROM normalized_drugs
+""")
+
+# Apply drug mappings
+drug_mappings = load_drug_mappings()
+
+if drug_mappings:
+    # Create a temporary table for mappings
+    duckdb.sql("""
+    CREATE OR REPLACE TABLE drug_mappings AS
+    SELECT * FROM (VALUES {})
+    """.format(
+        ','.join(f"('{k}', '{v}')" for k, v in drug_mappings.items())
+    ))
+
+    # Apply mappings to normalized names
+    duckdb.sql("""
+    CREATE OR REPLACE VIEW faers_drugs_mapped AS
+    SELECT 
+        f.*,
+        COALESCE(m.mapped_name, f.normalized_name) as final_drug_name
+    FROM faers_drugs_normalized f
+    LEFT JOIN drug_mappings m ON f.normalized_name = m.original_name
+    """)
+else:
+    # If no mappings available, create view without mapping
+    duckdb.sql("""
+    CREATE OR REPLACE VIEW faers_drugs_mapped AS
+    SELECT 
+        *,
+        normalized_name as final_drug_name
+    FROM faers_drugs_normalized
+    """)
+
+# Show sample of mapped drug names
+duckdb.sql("""
+SELECT 
+    original_name,
+    normalized_name,
+    final_drug_name
+FROM faers_drugs_mapped
+WHERE final_drug_name IS NOT NULL
+LIMIT 10
+""")
+
+# Count of mapped vs original drug names
+duckdb.sql("""
+SELECT 
+    COUNT(*) as total_drugs,
+    COUNT(final_drug_name) as mapped_drugs,
+    COUNT(*) - COUNT(final_drug_name) as unmapped_drugs
+FROM faers_drugs_mapped
+""")
+
+```
+
+### Polypharmacy Analysis
+
+This section analyzes drug combinations and their frequencies in the dataset.
+
+```{python}
+
+# Prepare market basket data
+duckdb.sql("""
+CREATE OR REPLACE VIEW drugs_market_basket AS
+SELECT 
+    primaryid,
+    caseid,
+    array_agg(final_drug_name) as drugs
+FROM faers_drugs_mapped
+WHERE final_drug_name IS NOT NULL
+GROUP BY primaryid, caseid
+""")
+
+# Add Polypharmacy
+duckdb.sql("""
+CREATE OR REPLACE VIEW polypharmacy_faers AS
+SELECT 
+    drugs,
+    COUNT(*) as occurences,
+    array_length(drugs) as polypharmacy
+FROM drugs_market_basket
+GROUP BY drugs
+HAVING COUNT(*) > 1
+ORDER BY polypharmacy DESC
+""")
+
+# View polypharmacy
+duckdb.sql("""
+CREATE OR REPLACE VIEW view_polypharmacy AS
+SELECT *
+FROM polypharmacy_faers
+WHERE polypharmacy > 3 AND polypharmacy < 12
+""")
+
+```
+
+### FAERS Event Processing
+
+This section processes adverse event data, including: 1. Date parsing and duration calculation 2. Cleaning and filtering of events 3. Handling of missing age and weight data
+
+```{python}
+
+# FAERS Events with improved duration handling
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events AS
+WITH valid_dates AS (
+    SELECT 
+        f.primaryid,
+        f.caseid,
+        f.start_dt,
+        f.event_dt,
+        f.age,
+        f.age_cod,
+        f.gndr_cod,
+        f.wt,
+        f.wt_cod,
+        d.drugs,
+        f.outc_cod,
+        -- Validate and convert dates
+        CASE 
+            WHEN length(f.start_dt) = 8 AND length(f.event_dt) = 8 
+            AND try_cast(f.start_dt as INTEGER) IS NOT NULL 
+            AND try_cast(f.event_dt as INTEGER) IS NOT NULL
+            THEN to_date(as.character(f.start_dt), 'yyyyMMdd')
+        END as drug_date,
+        CASE 
+            WHEN length(f.start_dt) = 8 AND length(f.event_dt) = 8 
+            AND try_cast(f.start_dt as INTEGER) IS NOT NULL 
+            AND try_cast(f.event_dt as INTEGER) IS NOT NULL
+            THEN to_date(as.character(f.event_dt), 'yyyyMMdd')
+        END as event_date
+    FROM faers_deduplicated f
+    LEFT JOIN drugs_market_basket d ON f.primaryid = d.primaryid AND f.caseid = d.caseid
+    WHERE f.event_dt IS NOT NULL
+    AND f.start_dt IS NOT NULL
+    AND (f.outc_cod = 'HO' OR f.outc_cod = 'DE')
+)
+SELECT 
+    primaryid,
+    caseid,
+    drug_date,
+    event_date,
+    -- Calculate duration only for valid dates
+    CASE 
+        WHEN drug_date IS NOT NULL AND event_date IS NOT NULL 
+        AND drug_date <= event_date  -- Ensure start date is not after event date
+        THEN datediff(event_date, drug_date)
+    END as duration,
+    age,
+    age_cod,
+    gndr_cod,
+    wt,
+    wt_cod,
+    drugs,
+    array_length(drugs) as polypharmacy,
+    outc_cod
+FROM valid_dates
+WHERE drug_date IS NOT NULL 
+AND event_date IS NOT NULL
+""")
+
+# Clean FAERS Events with consistent duration range
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events_cleaned AS
+SELECT *
+FROM faers_events
+WHERE duration > 0 AND duration <= 180  -- Consistent with visualization range
+QUALIFY ROW_NUMBER() OVER (PARTITION BY primaryid, caseid ORDER BY duration) = 1
+""")
+
+# Update missing age and weight
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_events_age_updated AS
+SELECT 
+    CASE 
+        WHEN age IS NULL THEN CAST(gndr_cod AS INTEGER)
+        ELSE age
+    END as age,
+    CASE 
+        WHEN age = CAST(gndr_cod AS INTEGER) THEN wt_cod
+        ELSE gndr_cod
+    END as gndr_cod,
+    CASE 
+        WHEN age < 100 THEN 'YR'
+        ELSE age_cod
+    END as age_cod,
+    CASE 
+        WHEN wt IS NULL THEN wt
+        ELSE wt_cod
+    END as wt_cod,
+    *
+FROM faers_events_cleaned
+""")
+
+# Polypharmacy events with duration statistics
+duckdb.sql("""
+CREATE OR REPLACE VIEW faers_polypharmacy_events AS
+SELECT 
+    drug_date,
+    event_date,
+    duration,
+    age,
+    age_cod,
+    gndr_cod,
+    wt,
+    wt_cod,
+    drugs,
+    COUNT(*) as occurences,
+    array_length(drugs) as polypharmacy,
+    EXTRACT(YEAR FROM event_date) as year,
+    EXTRACT(MONTH FROM event_date) as month,
+    EXTRACT(QUARTER FROM event_date) as quarter,
+    EXTRACT(WEEK FROM event_date) as week,
+    EXTRACT(DAY FROM event_date) as day,
+    -- Add duration statistics
+    AVG(duration) as avg_duration,
+    MIN(duration) as min_duration,
+    MAX(duration) as max_duration,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration) as median_duration
+FROM faers_events_age_updated
+GROUP BY 
+    drugs, drug_date, event_date, duration, age, age_cod, 
+    gndr_cod, wt, wt_cod, outc_cod
+ORDER BY occurences DESC
+""")
+
+# Add duration analysis view
+duckdb.sql("""
+CREATE OR REPLACE VIEW duration_analysis AS
+SELECT 
+    CASE 
+        WHEN duration <= 1 THEN '0-1 days'
+        WHEN duration <= 3 THEN '2-3 days'
+        WHEN duration <= 7 THEN '4-7 days'
+        WHEN duration <= 14 THEN '8-14 days'
+        WHEN duration <= 30 THEN '15-30 days'
+        WHEN duration <= 90 THEN '31-90 days'
+        ELSE '91-180 days'
+    END as duration_bucket,
+    COUNT(*) as case_count,
+    COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () as percentage
+FROM faers_events_cleaned
+GROUP BY duration_bucket
+ORDER BY MIN(duration)
+""")
+
+```
+
+### Outcomes Analysis
+
+This section analyzes the distribution of outcome codes in the dataset.
+
+```{python}
+
+# Count Outcomes
+duckdb.sql("""
+SELECT 
+    outc_cod,
+    COUNT(*) as count
+FROM faers_deduplicated
+GROUP BY outc_cod
+ORDER BY count DESC
+""")
+
+```
+
+### Missing Data Analysis
+
+This section examines the completeness of age and weight data before and after updates.
+
+```{python}
+
+# Check missing age and weight
+duckdb.sql("""
+SELECT 
+    COUNT(*) as total_events,
+    COUNT(*) FILTER (WHERE age IS NULL) as missing_age,
+    COUNT(*) FILTER (WHERE wt IS NULL) as missing_weight
+FROM faers_events_cleaned
+""")
+
+# Check missing data after updates
+duckdb.sql("""
+SELECT 
+    COUNT(*) as total_events,
+    COUNT(*) FILTER (WHERE age IS NULL) as missing_age,
+    COUNT(*) FILTER (WHERE wt IS NULL) as missing_weight
+FROM faers_events_age_updated
+""")
+
+```
+
+## Data Visualizations
+
+This section creates visualizations to understand patterns in the data: 1. Hospitalizations over time 2. Polypharmacy patterns 3. Age group distributions 4. Event duration patterns
+
+#### Hospitalizations By Year
+
+```{python}
+
+# Hospitalizations by Year
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Get data for visualization
+yearly_counts = duckdb.sql("""
+    SELECT 
+        year,
+        COUNT(*) as n
+    FROM faers_polypharmacy_events
+    WHERE year > 2009 AND year < 2022
+    GROUP BY year
+    ORDER BY year
+""").df()
+
+# Create visualization
+plt.figure(figsize=(12, 6))
+sns.barplot(data=yearly_counts, x='year', y='n')
+plt.title('Number of Hospitalizations due to ADEs')
+plt.xlabel('Year')
+plt.ylabel('Counts')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+#### Polypharmacy Analysis
+
+```{python}
+
+# Polypharmacy Analysis
+polypharmacy_data = duckdb.sql("""
+    WITH splits AS (
+        SELECT 
+            unnest([0, 1, 2, 5, 15, 25, 80, 120]) as lo,
+            unnest([1, 2, 5, 15, 25, 80, 120, 999]) as hi
+    )
+    SELECT 
+        CONCAT(lo, '-', hi) as "Number of Drugs",
+        polypharmacy,
+        occurences,
+        COUNT(*) as n
+    FROM polypharmacy_faers
+    CROSS JOIN splits
+    WHERE polypharmacy >= lo AND polypharmacy < hi
+    AND occurences > 1
+    GROUP BY "Number of Drugs", polypharmacy, occurences
+    ORDER BY polypharmacy, occurences, "Number of Drugs"
+""").df()
+
+# Create visualization
+plt.figure(figsize=(12, 6))
+sns.histplot(data=polypharmacy_data, x='polypharmacy', hue='Number of Drugs', multiple='stack')
+plt.title('ADEs due to Polypharmacy')
+plt.xlabel('Polypharmacy')
+plt.ylabel('Counts')
+plt.tight_layout()
+plt.show()
+
+```
+
+#### Age Group Analysis
+
+```{python}
+
+# Age Groups Analysis
+age_groups_data = duckdb.sql("""
+    WITH splits AS (
+        SELECT 
+            unnest([0, 5, 15, 25, 35, 45, 65, 85, 100]) as lo,
+            unnest([5, 15, 25, 35, 45, 65, 85, 100, 999]) as hi
+    )
+    SELECT 
+        year,
+        polypharmacy,
+        CONCAT(lo, '-', hi) as "Age Group",
+        COUNT(*) as n
+    FROM faers_polypharmacy_events
+    CROSS JOIN splits
+    WHERE age >= lo AND age < hi
+    AND year > 2009 AND year < 2022
+    AND polypharmacy > 1
+    GROUP BY year, polypharmacy, "Age Group"
+    ORDER BY year, polypharmacy, "Age Group"
+""").df()
+
+# Create visualization
+plt.figure(figsize=(12, 6))
+sns.barplot(data=age_groups_data, x='year', y='n', hue='Age Group')
+plt.title('Hospitalizations due to ADEs by Counts and Age Group')
+plt.xlabel('Year')
+plt.ylabel('Counts')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+```
+
+#### Time to Event (Duration) Analysis
+
+```{python}
+
+# Duration Analysis
+duration_data = duckdb.sql("""
+    SELECT * FROM duration_analysis
+""").df()
+
+# Create a figure with multiple subplots
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12))
+
+# Plot 1: Bar chart of duration buckets
+sns.barplot(data=duration_data, x='duration_bucket', y='case_count', ax=ax1)
+ax1.set_title('Distribution of ADE Durations')
+ax1.set_xlabel('Duration Bucket')
+ax1.set_ylabel('Number of Cases')
+ax1.tick_params(axis='x', rotation=45)
+
+# Add percentage labels on top of bars
+for i, p in enumerate(ax1.patches):
+    percentage = duration_data['percentage'].iloc[i]
+    ax1.annotate(f'{percentage:.1f}%', 
+                (p.get_x() + p.get_width()/2., p.get_height()),
+                ha='center', va='bottom')
+
+# Plot 2: Pie chart of duration distribution
+ax2.pie(duration_data['case_count'], 
+        labels=duration_data['duration_bucket'],
+        autopct='%1.1f%%',
+        startangle=90)
+ax2.set_title('Percentage Distribution of ADE Durations')
+
+plt.tight_layout()
+plt.show()
+
+# Additional duration statistics
+duration_stats = duckdb.sql("""
+    SELECT 
+        AVG(duration) as avg_duration,
+        MIN(duration) as min_duration,
+        MAX(duration) as max_duration,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration) as median_duration,
+        COUNT(*) as total_cases
+    FROM faers_events_cleaned
+""").df()
+
+print("\nDuration Statistics:")
+print(f"Total Cases: {duration_stats['total_cases'].iloc[0]:,}")
+print(f"Average Duration: {duration_stats['avg_duration'].iloc[0]:.1f} days")
+print(f"Median Duration: {duration_stats['median_duration'].iloc[0]:.1f} days")
+print(f"Minimum Duration: {duration_stats['min_duration'].iloc[0]} days")
+print(f"Maximum Duration: {duration_stats['max_duration'].iloc[0]} days")
+
+# Duration by outcome type
+outcome_duration = duckdb.sql("""
+    SELECT 
+        outc_cod,
+        AVG(duration) as avg_duration,
+        COUNT(*) as case_count
+    FROM faers_events_cleaned
+    GROUP BY outc_cod
+    ORDER BY case_count DESC
+""").df()
+
+print("\nDuration by Outcome Type:")
+print(outcome_duration.to_string(index=False))
+
+# Create a box plot of duration by outcome
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=duckdb.sql("""
+    SELECT outc_cod, duration 
+    FROM faers_events_cleaned
+""").df(), 
+    x='outc_cod', 
+    y='duration')
+plt.title('Duration Distribution by Outcome Type')
+plt.xlabel('Outcome Code')
+plt.ylabel('Duration (days)')
+plt.show()
+```
+

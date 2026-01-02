@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PGx Risk & FFA Results Dashboard</title>
+  <!-- Load Plotly from CDN; for air-gapped environments, host this in S3 and update the src -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    h1 { margin-top: 0; }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      align-items: flex-start;
+    }
+    .control-group {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 0.75rem 0.9rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    select, button {
+      width: 100%;
+      padding: 0.35rem 0.4rem;
+      font-size: 0.9rem;
+      border-radius: 0.35rem;
+      border: 1px solid #cbd5f5;
+      box-sizing: border-box;
+    }
+    select[multiple] {
+      min-height: 5.5rem;
+    }
+    button {
+      cursor: pointer;
+      background: #0f766e;
+      border-color: #0f766e;
+      color: #ecfeff;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #115e59;
+    }
+    .button-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .panels {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 1rem;
+    }
+    .panel {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      min-height: 260px;
+    }
+    .panel h2 {
+      font-size: 1rem;
+      margin: 0 0 0.5rem;
+      color: #0f172a;
+    }
+    #status {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-left: 0.35rem;
+    }
+    .pill-low { background:#dcfce7; color:#166534; }
+    .pill-med { background:#fef9c3; color:#854d0e; }
+    .pill-high{ background:#fee2e2; color:#b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>PGx Final Model & FFA Dashboard</h1>
+  <p>
+    Interactive view of <strong>risk of F1120 / ADE</strong> from the final ensemble and
+    <strong>FFA/causal insights</strong>. All selections are constrained to codes and age bands present
+    in the model’s training data.
+  </p>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="cohort">Cohort</label>
+      <select id="cohort">
+        <!-- If you ever add more, wire them via metadata instead of hardcoding -->
+        <option value="opioid_ed">opioid_ed</option>
+        <option value="non_opioid_ed">non_opioid_ed</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="age_band">Age Band</label>
+      <select id="age_band">
+        <!-- Populated from metadata endpoint -->
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="drugs">Drugs (multi-select)</label>
+      <select id="drugs" multiple></select>
+    </div>
+
+    <div class="control-group">
+      <label for="icds">ICD Codes (multi-select)</label>
+      <select id="icds" multiple></select>
+    </div>
+
+    <div class="control-group">
+      <label for="cpts">CPT Codes (multi-select)</label>
+      <select id="cpts" multiple></select>
+    </div>
+
+    <div class="control-group">
+      <label>&nbsp;</label>
+      <div class="button-row">
+        <button id="btnRisk">Update Risk</button>
+        <button id="btnCausal" style="background:#1d4ed8;border-color:#1d4ed8;">
+          Causal “What-if”
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status">Loading metadata…</div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>
+        Risk Estimate
+        <span id="risk-band-pill"></span>
+      </h2>
+      <div id="risk-chart"></div>
+      <div id="risk-dist"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Causal Impact (Δ risk if removed)</h2>
+      <div id="causal-chart"></div>
+    </div>
+  </div>
+
+<script>
+  // ==============================
+  // CONFIG – API Gateway base URL
+  // ==============================
+  // Replace with your deployed API Gateway invoke URL, e.g.:
+  // const API_BASE = "https://xyz.execute-api.us-east-1.amazonaws.com/prod";
+  const API_BASE = "https://YOUR_API.execute-api.REGION.amazonaws.com/prod";
+
+  const cohortEl   = document.getElementById("cohort");
+  const ageBandEl  = document.getElementById("age_band");
+  const drugsEl    = document.getElementById("drugs");
+  const icdsEl     = document.getElementById("icds");
+  const cptsEl     = document.getElementById("cpts");
+  const statusEl   = document.getElementById("status");
+  const riskBandPillEl = document.getElementById("risk-band-pill");
+
+  // --------------- helpers ----------------
+  function setStatus(msg) {
+    statusEl.textContent = msg;
+  }
+
+  function getMultiSelectValues(selectEl) {
+    return Array.from(selectEl.selectedOptions).map(o => o.value);
+  }
+
+  function clearOptions(selectEl) {
+    while (selectEl.firstChild) {
+      selectEl.removeChild(selectEl.firstChild);
+    }
+  }
+
+  function populateSelect(selectEl, options) {
+    clearOptions(selectEl);
+    options.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function setRiskBandPill(riskBand) {
+    riskBandPillEl.textContent = "";
+    riskBandPillEl.className = "pill";
+    if (!riskBand) return;
+
+    const span = document.createElement("span");
+    span.textContent = riskBand.toUpperCase();
+    span.className = "pill " + (
+      riskBand === "low"  ? "pill-low"  :
+      riskBand === "high" ? "pill-high" : "pill-med"
+    );
+    riskBandPillEl.appendChild(span);
+  }
+
+  // ================
+  // METADATA LOADING
+  // ================
+  async function loadMetadata() {
+    const cohort = cohortEl.value;
+    setStatus(`Loading metadata for cohort=${cohort}…`);
+
+    try {
+      const resp = await fetch(`${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`);
+      if (!resp.ok) throw new Error(`metadata status ${resp.status}`);
+      const data = await resp.json();
+      // Expected shape:
+      // {
+      //   "age_bands": ["0-12","13-24",...],
+      //   "codes": {
+      //     "0-12": { "drugs": [...], "icds": [...], "cpts": [...] },
+      //     ...
+      //   }
+      // }
+
+      populateSelect(ageBandEl, data.age_bands);
+      const firstAge = data.age_bands[0];
+      populateCodeListsForAge(data, firstAge);
+
+      setStatus("Metadata loaded.");
+      return data;
+    } catch (err) {
+      console.error(err);
+      setStatus("Error loading metadata – see console for details.");
+    }
+  }
+
+  let lastMetadata = null;
+
+  function populateCodeListsForAge(metadata, ageBand) {
+    const codesForAge = (metadata.codes && metadata.codes[ageBand]) || {drugs: [], icds: [], cpts: []};
+    populateSelect(drugsEl, codesForAge.drugs);
+    populateSelect(icdsEl,  codesForAge.icds);
+    populateSelect(cptsEl,  codesForAge.cpts);
+  }
+
+  // ==============
+  // RISK ENDPOINT
+  // ==============
+  async function updateRisk() {
+    const cohort   = cohortEl.value;
+    const ageBand  = ageBandEl.value;
+    const drugs    = getMultiSelectValues(drugsEl);
+    const icds     = getMultiSelectValues(icdsEl);
+    const cpts     = getMultiSelectValues(cptsEl);
+
+    const payload = { cohort, age_band: ageBand, drugs, icds, cpts };
+    setStatus("Querying risk estimate…");
+
+    try {
+      const resp = await fetch(`${API_BASE}/risk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error(`risk status ${resp.status}`);
+
+      const data = await resp.json();
+      // Expected shape:
+      // {
+      //   "p_outcome": 0.42,
+      //   "risk_band": "high",
+      //   "p_models": {"catboost":0.43,"xgboost":0.41,"xgboost_rf":0.42},
+      //   "dist": { "bins": [...], "counts": [...] }   // optional
+      // }
+
+      renderRiskGauge(data);
+      renderRiskDistribution(data);
+      setRiskBandPill(data.risk_band);
+      setStatus("Risk updated.");
+    } catch (err) {
+      console.error(err);
+      setStatus("Error querying risk – see console for details.");
+    }
+  }
+
+  function renderRiskGauge(data) {
+    const p = data.p_outcome != null ? data.p_outcome : 0;
+    const fig = {
+      data: [{
+        type: "indicator",
+        mode: "gauge+number",
+        value: p * 100,
+        title: { text: "Risk (%)", font: { size: 18 } },
+        gauge: {
+          axis: { range: [0, 100], tickformat: ",d" },
+          bar: { color: "#0f766e" },
+          steps: [
+            { range: [0, 20],  color: "#dcfce7" },
+            { range: [20, 50], color: "#fef9c3" },
+            { range: [50, 100], color: "#fee2e2" }
+          ]
+        }
+      }],
+      layout: {
+        margin: { t: 40, b: 10, l: 30, r: 30 },
+        height: 220
+      }
+    };
+    Plotly.newPlot("risk-chart", fig.data, fig.layout, {displayModeBar: false});
+  }
+
+  function renderRiskDistribution(data) {
+    const dist = data.dist;
+    if (!dist || !dist.bins || !dist.counts || dist.bins.length === 0) {
+      document.getElementById("risk-dist").innerHTML = "<em>No distribution available.</em>";
+      return;
+    }
+    const fig = {
+      data: [{
+        type: "bar",
+        x: dist.bins,
+        y: dist.counts,
+        marker: { color: "#93c5fd" },
+        name: "Population"
+      }],
+      layout: {
+        title: { text: "Population Risk Distribution", font: { size: 12 } },
+        xaxis: { title: "Risk bin", tickformat: ".0%" },
+        yaxis: { title: "Count" },
+        margin: { t: 40, b: 40, l: 40, r: 10 },
+        height: 220
+      }
+    };
+    Plotly.newPlot("risk-dist", fig.data, fig.layout, {displayModeBar: false});
+  }
+
+  // ==================
+  // CAUSAL ENDPOINT
+  // ==================
+  async function updateCausal() {
+    const cohort   = cohortEl.value;
+    const ageBand  = ageBandEl.value;
+    const drugs    = getMultiSelectValues(drugsEl);
+    const icds     = getMultiSelectValues(icdsEl);
+    const cpts     = getMultiSelectValues(cptsEl);
+
+    const payload = { cohort, age_band: ageBand, drugs, icds, cpts };
+    setStatus("Querying causal effects…");
+
+    try {
+      const resp = await fetch(`${API_BASE}/causal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error(`causal status ${resp.status}`);
+
+      const data = await resp.json();
+      // Expected shape:
+      // {
+      //   "effects": [
+      //     {"code":"DRUG:XYZ","delta_risk_remove":-0.12},
+      //     {"code":"ICD:F1120","delta_risk_remove":-0.25},
+      //     ...
+      //   ]
+      // }
+
+      renderCausalChart(data.effects || []);
+      setStatus("Causal view updated.");
+    } catch (err) {
+      console.error(err);
+      setStatus("Error querying causal effects – see console for details.");
+    }
+  }
+
+  function renderCausalChart(effects) {
+    if (!effects.length) {
+      document.getElementById("causal-chart").innerHTML = "<em>No causal effects available for this configuration.</em>";
+      return;
+    }
+
+    // Sort by most negative (largest risk reduction) first
+    const sorted = effects.slice().sort((a, b) => (a.delta_risk_remove - b.delta_risk_remove));
+    const labels = sorted.map(e => e.code);
+    const deltas = sorted.map(e => e.delta_risk_remove * 100); // convert to percentage points
+
+    const colors = deltas.map(v => v < 0 ? "#22c55e" : "#f97316");
+
+    const fig = {
+      data: [{
+        type: "bar",
+        x: deltas,
+        y: labels,
+        orientation: "h",
+        marker: { color: colors },
+        hovertemplate: "%{y}<br>Δ risk (remove): %{x:.2f} pp<extra></extra>"
+      }],
+      layout: {
+        margin: { t: 20, b: 30, l: 120, r: 10 },
+        xaxis: { title: "Δ risk (percentage points)", zeroline: true },
+        height: 260
+      }
+    };
+
+    Plotly.newPlot("causal-chart", fig.data, fig.layout, {displayModeBar: false});
+  }
+
+  // ============
+  // WIRING
+  // ============
+  cohortEl.addEventListener("change", async () => {
+    lastMetadata = await loadMetadata();
+  });
+
+  ageBandEl.addEventListener("change", () => {
+    if (!lastMetadata) return;
+    populateCodeListsForAge(lastMetadata, ageBandEl.value);
+  });
+
+  document.getElementById("btnRisk").addEventListener("click", updateRisk);
+  document.getElementById("btnCausal").addEventListener("click", updateCausal);
+
+  // Initial load
+  (async function init() {
+    lastMetadata = await loadMetadata();
+    // Optionally trigger an initial risk view:
+    // await updateRisk();
+  })();
+</script>
+</body>
+</html>
+
+

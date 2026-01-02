@@ -1,0 +1,189 @@
+# Ensemble Model Approach
+
+## Overview
+
+The PGx Risk Dashboard uses a **robust ensemble approach** combining predictions from all three models:
+
+1. **CatBoost** - Gradient boosting with categorical feature handling
+2. **XGBoost** - Extreme gradient boosting
+3. **XGBoost RF** - XGBoost in Random Forest mode
+
+## Why Ensemble?
+
+Using an ensemble of multiple models provides:
+
+- **Robustness**: Reduces impact of individual model failures
+- **Reliability**: Multiple models provide consensus
+- **Accuracy**: Ensemble predictions often outperform individual models
+- **Uncertainty Estimation**: Can assess agreement/disagreement between models
+
+## Ensemble Method
+
+### Performance-Based Weighted Average
+
+The ensemble combines predictions using a **performance-based weighted average**:
+
+```
+ensemble_score = Σ(prediction_i × weight_i) / Σ(weight_i)
+```
+
+**Weight Calculation**:
+
+Weights are calculated from MC-CV (Monte Carlo Cross-Validation) results from Step 8 (Final Model):
+
+1. **Composite Score** for each model:
+   ```
+   composite_score = 0.5 × PR-AUC + 0.5 × (1 / (1 + logloss))
+   ```
+   - PR-AUC: Higher is better (already in [0, 1])
+   - LogLoss: Lower is better → normalized as `1 / (1 + logloss)`
+
+2. **Normalize weights** to sum to 1.0:
+   ```
+   weight_i = composite_score_i / Σ(composite_scores)
+   ```
+
+**Example Weights** (from actual MC-CV results):
+```python
+model_weights = {
+    'catboost': 0.32,    # Based on MC-CV performance
+    'xgboost': 0.31,     # Based on MC-CV performance
+    'xgboost_rf': 0.37   # Best performance → highest weight
+}
+```
+
+**Weight Source**: Weights are automatically extracted from `{cohort}_{age_band}_mc_cv_results.csv` during model preparation and stored in `feature_schema.json`.
+
+**Fallback**: If MC-CV results are not available, equal weights (1/3 each) are used.
+
+## Error Handling
+
+### Model Failure Tolerance
+
+The ensemble is designed to be **fault-tolerant**:
+
+1. **All Models Required** (default): If any model fails, a warning is logged but prediction continues
+2. **Graceful Degradation**: If one model fails, ensemble uses remaining models
+3. **Minimum Models**: Requires at least one successful prediction
+
+### Example Scenarios
+
+**Scenario 1: All models succeed**
+```json
+{
+  "models_used": 3,
+  "models_failed": [],
+  "ensemble_score": 0.65
+}
+```
+
+**Scenario 2: One model fails**
+```json
+{
+  "models_used": 2,
+  "models_failed": ["xgboost_rf"],
+  "ensemble_score": 0.64  // Average of CatBoost and XGBoost
+}
+```
+
+**Scenario 3: All models fail**
+```json
+{
+  "error": "All models failed. Errors: {...}"
+}
+```
+
+## Implementation Details
+
+### Model Loading and Weighting
+
+Models are loaded with caching:
+- First invocation: Load from container filesystem (`/var/task/models/`) or S3
+- Subsequent invocations: Use cached models (Lambda container reuse)
+- Cache TTL: 3600 seconds (configurable)
+
+**Model Weights**:
+- Loaded from `feature_schema.json` (includes `model_weights` field)
+- Calculated during model preparation from MC-CV results
+- Automatically normalized to sum to 1.0
+- Applied only to models that successfully make predictions
+
+### Prediction Flow
+
+```python
+1. Load all three models (with caching)
+2. Build feature vector from user inputs
+3. Run prediction on each model:
+   - CatBoost: predict_proba()[1]
+   - XGBoost: predict_proba()[1] or predict() (if Booster)
+   - XGBoost RF: predict_proba()[1] or predict() (if Booster)
+4. Apply weights and calculate ensemble score
+5. Return ensemble score + per-model breakdown
+```
+
+### Feature Vector Building
+
+The feature vector is built to match each model's expected schema:
+- User-provided features: Age, ICD codes, CPT codes, Drug names
+- Default values: Trajectory/sequence features set to median/default values
+- Feature order: Matches model's training feature order
+
+## Performance Considerations
+
+### Cold Start
+
+- **First invocation**: ~5-10 seconds (load models from container)
+- **Warm invocations**: ~100-500ms (models cached in memory)
+
+### Model Size
+
+- CatBoost: ~50-200MB per model
+- XGBoost: ~50-200MB per model
+- XGBoost RF: ~50-200MB per model
+- **Total**: ~150-600MB per age_band (fits comfortably in 10GB container)
+
+### Memory Usage
+
+- Lambda memory: 3008 MB recommended
+- Model cache: ~150-600MB per age_band
+- Feature processing: ~10-50MB
+- **Total**: Well within Lambda limits
+
+## Validation
+
+### Model Agreement
+
+The ensemble provides insight into model agreement:
+
+- **High Agreement**: All three models predict similar scores → High confidence
+- **Low Agreement**: Models predict different scores → Lower confidence, may indicate edge case
+
+### Example Output
+
+```json
+{
+  "model_breakdown": {
+    "catboost": 0.64,
+    "xgboost": 0.66,
+    "xgboost_rf": 0.65
+  },
+  "ensemble_score": 0.65,
+  "std_dev": 0.008  // Low std = high agreement
+}
+```
+
+## Future Enhancements
+
+1. **Dynamic Weighting**: Adjust weights based on validation performance
+2. **Confidence Intervals**: Calculate prediction intervals from model variance
+3. **Model Selection**: Use best-performing model per age_band
+4. **A/B Testing**: Compare ensemble vs. single best model
+5. **Uncertainty Quantification**: Provide confidence scores based on model agreement
+
+## References
+
+- [Ensemble Methods in Machine Learning](https://en.wikipedia.org/wiki/Ensemble_learning)
+- [CatBoost Documentation](https://catboost.ai/)
+- [XGBoost Documentation](https://xgboost.readthedocs.io/)
+- [Lambda Container Best Practices](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)
+

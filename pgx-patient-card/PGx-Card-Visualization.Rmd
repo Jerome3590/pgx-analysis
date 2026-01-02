@@ -1,0 +1,112 @@
+---
+title: "PGx-Card-Visualization"
+author: "Jerome Dixon"
+date: "1/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(readxl)
+library(readr)
+library(dplyr) 
+library(magrittr) 
+library(janitor) 
+library(tidyr) 
+library(purrr) 
+library(tidyverse) 
+library(reshape2)
+library(here)
+
+```
+
+
+```{r Table Libraries}
+
+library(flextable)
+library(officer)
+library(gridExtra)
+library(grid)
+library(gtable)
+
+
+```
+
+# QR Code - 2 x 2 cm or .8 x .8" inches
+# Business Card - 3.5" x 2" inches
+
+
+```{r Load Data}
+
+pgx_data <- read_csv("pgx_data.csv")
+#names(pgx_data)[1] <- "Index"
+
+
+xlsx_card_front <- read_excel(here("data","PGx-card-layout.xlsx"), sheet = "front", col_names = TRUE)
+
+xlsx_card_back <- read_excel(here("data","PGx-card-layout.xlsx"), sheet = "back", col_names = TRUE)
+
+xlsx_card_all <- read_excel(here("data","PGx-card-layout.xlsx"), sheet = "consolidated", col_names = TRUE)
+
+
+images <- read_csv("data/base64_icons.csv")
+names(images)[1] <- "Index"
+
+
+```
+
+
+```{r}
+
+cards <- pgx_data %>% group_by(`Sample ID`) %>% select(-1) %>% unique()
+
+sample1 <- cards %>% filter(`Sample ID`== "R208") %>% group_by(Gene)
+
+sample1_genes <- sample1 %>% select(`Sample ID`, Gene, Variant1, Variant2, Variant3, allele_count) %>% unique()
+
+sample1_drugs <- sample1 %>% select(1,2,7:13) %>% unique()
+
+
+
+```
+
+
+
+```{r Create FlexTable}
+
+front_ft <- flextable(xlsx_card_front)
+
+back_ft <- flextable(xlsx_card_back)
+
+all_ft <- flextable(xlsx_card_all)
+
+
+```
+
+
+```{r Format FlexTable}
+
+header <- front_ft[["col_keys"]][[3]]
+
+back_ft <- add_header_lines(back_ft, 
+  values = header) 
+
+back_ft <- theme_box(back_ft)
+
+back_ft %<>% merge_at(
+  i =  1, 
+  j = c("Effected Drug", "...2") )
+
+
+back_ft
+
+```
+
+
+
+```{r Populate Data}
+
+```
+
