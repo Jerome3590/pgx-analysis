@@ -254,6 +254,247 @@ def extract_patient_trajectories(
     return trajectories
 
 
+def extract_trajectories_with_time_windows(
+    model_data_path: Path,
+    allowed_codes: Optional[Set[str]],
+    cohort_name: str,
+    item_type: str = "combined",
+    target_filter: Optional[int] = None,
+    cutoff_dates: Optional[Dict[str, str]] = None,
+    research_mode: bool = False
+) -> Tuple[Dict[str, List[str]], pd.DataFrame]:
+    """
+    Extract patient trajectories WITH time windows for research/analysis.
+    
+    This function captures ALL trajectories with timestamps and time intervals
+    to help identify clinical vs protocol sequences.
+    
+    Parameters:
+    -----------
+    model_data_path : Path
+        Path to model_data parquet file
+    allowed_codes : Optional[Set[str]]
+        Set of allowed activity codes (None = use all codes)
+    cohort_name : str
+        Cohort name (e.g., opioid_ed)
+    item_type : str
+        Type of items to extract (drug, icd, cpt, combined)
+    target_filter : Optional[int]
+        If provided, filter by target value (0=control, 1=target, None=both)
+    cutoff_dates : Optional[Dict[str, str]]
+        Dictionary mapping mi_person_key to cutoff date (events before this date)
+        If research_mode=True, cutoff_dates are ignored (capture ALL events)
+    research_mode : bool
+        If True, ignore cutoff dates and capture ALL trajectories for research
+    
+    Returns:
+    --------
+    Tuple[Dict[str, List[str]], pd.DataFrame]
+        - Dictionary mapping mi_person_key to list of activity codes (trajectories)
+        - DataFrame with detailed trajectory data: mi_person_key, event_date, activity, 
+          days_since_previous, sequence_position, trajectory_length
+    """
+    if not model_data_path.exists():
+        logger.warning(f"Model data file not found: {model_data_path}")
+        return {}, pd.DataFrame()
+    
+    con = duckdb.connect()
+    path_str = str(model_data_path)
+    
+    # Build target filter clause
+    target_clause = ""
+    if target_filter is not None:
+        target_clause = f"AND target = {target_filter}"
+    
+    # In research mode, ignore cutoff dates to capture ALL trajectories
+    cutoff_join = ""
+    cutoff_where = ""
+    if not research_mode and cutoff_dates:
+        cutoff_df = pd.DataFrame([
+            {'mi_person_key': str(k), 'cutoff_date': pd.to_datetime(v) if v is not None else None} 
+            for k, v in cutoff_dates.items()
+        ])
+        if not cutoff_df.empty:
+            con.register('cutoff_dates', cutoff_df)
+            cutoff_join = """
+            LEFT JOIN cutoff_dates cd ON CAST(e.mi_person_key AS VARCHAR) = CAST(cd.mi_person_key AS VARCHAR)
+            """
+            cutoff_where = """
+            AND (cd.cutoff_date IS NULL OR e.event_date < CAST(cd.cutoff_date AS TIMESTAMP))
+            """
+    
+    # Build queries for each item type (same as extract_patient_trajectories)
+    if item_type == "drug" or item_type == "combined":
+        if cutoff_join:
+            drug_query = f"""
+            SELECT e.mi_person_key, e.event_date, 
+                   'DRUG:' || e.drug_name as activity
+            FROM read_parquet('{path_str}') e
+            {cutoff_join}
+            WHERE e.drug_name IS NOT NULL AND e.drug_name != '' {cutoff_where} {target_clause}
+            """
+        else:
+            drug_query = f"""
+            SELECT mi_person_key, event_date, 
+                   'DRUG:' || drug_name as activity
+            FROM read_parquet('{path_str}')
+            WHERE drug_name IS NOT NULL AND drug_name != '' {target_clause}
+            """
+    else:
+        drug_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
+    
+    if item_type == "icd" or item_type == "combined":
+        if cutoff_join:
+            icd_query = f"""
+            WITH all_icds AS (
+                SELECT e.mi_person_key, e.event_date, e.primary_icd_diagnosis_code as icd 
+                FROM read_parquet('{path_str}') e
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
+                UNION ALL
+                SELECT e.mi_person_key, e.event_date, e.two_icd_diagnosis_code as icd 
+                FROM read_parquet('{path_str}') e
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
+                UNION ALL
+                SELECT e.mi_person_key, e.event_date, e.three_icd_diagnosis_code as icd 
+                FROM read_parquet('{path_str}') e
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
+                UNION ALL
+                SELECT e.mi_person_key, e.event_date, e.four_icd_diagnosis_code as icd 
+                FROM read_parquet('{path_str}') e
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
+                UNION ALL
+                SELECT e.mi_person_key, e.event_date, e.five_icd_diagnosis_code as icd 
+                FROM read_parquet('{path_str}') e
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
+            )
+            SELECT mi_person_key, event_date, 
+                   'ICD:' || icd as activity
+            FROM all_icds
+            WHERE icd IS NOT NULL AND icd != ''
+            """
+        else:
+            icd_query = f"""
+            WITH all_icds AS (
+                SELECT mi_person_key, event_date, primary_icd_diagnosis_code as icd FROM read_parquet('{path_str}')
+                UNION ALL
+                SELECT mi_person_key, event_date, two_icd_diagnosis_code as icd FROM read_parquet('{path_str}')
+                UNION ALL
+                SELECT mi_person_key, event_date, three_icd_diagnosis_code as icd FROM read_parquet('{path_str}')
+                UNION ALL
+                SELECT mi_person_key, event_date, four_icd_diagnosis_code as icd FROM read_parquet('{path_str}')
+                UNION ALL
+                SELECT mi_person_key, event_date, five_icd_diagnosis_code as icd FROM read_parquet('{path_str}')
+            )
+            SELECT mi_person_key, event_date, 
+                   'ICD:' || icd as activity
+            FROM all_icds
+            WHERE icd IS NOT NULL AND icd != '' {target_clause}
+            """
+    else:
+        icd_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
+    
+    if item_type == "cpt" or item_type == "combined":
+        if cutoff_join:
+            cpt_query = f"""
+            SELECT e.mi_person_key, e.event_date,
+                   'CPT:' || e.procedure_code as activity
+            FROM read_parquet('{path_str}') e
+            {cutoff_join}
+            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != '' {cutoff_where} {target_clause}
+            """
+        else:
+            cpt_query = f"""
+            SELECT mi_person_key, event_date,
+                   'CPT:' || procedure_code as activity
+            FROM read_parquet('{path_str}')
+            WHERE procedure_code IS NOT NULL AND procedure_code != '' {target_clause}
+            """
+    else:
+        cpt_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
+    
+    # Query to get all events with time windows
+    query = f"""
+    WITH drug_events AS ({drug_query}),
+         icd_events AS ({icd_query}),
+         cpt_events AS ({cpt_query}),
+         all_events AS (
+             SELECT * FROM drug_events WHERE activity IS NOT NULL
+             UNION ALL
+             SELECT * FROM icd_events WHERE activity IS NOT NULL
+             UNION ALL
+             SELECT * FROM cpt_events WHERE activity IS NOT NULL
+         ),
+         events_with_seq AS (
+             SELECT 
+                 mi_person_key,
+                 event_date,
+                 activity,
+                 ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as sequence_position
+             FROM all_events
+         ),
+         events_with_intervals AS (
+             SELECT 
+                 e1.mi_person_key,
+                 e1.event_date,
+                 e1.activity,
+                 e1.sequence_position,
+                 e2.event_date as previous_event_date,
+                 CASE 
+                     WHEN e2.event_date IS NULL THEN NULL
+                     ELSE DATEDIFF('day', e2.event_date, e1.event_date)
+                 END as days_since_previous
+             FROM events_with_seq e1
+             LEFT JOIN events_with_seq e2
+                 ON e1.mi_person_key = e2.mi_person_key
+                 AND e1.sequence_position = e2.sequence_position + 1
+         ),
+         trajectory_lengths AS (
+             SELECT 
+                 mi_person_key,
+                 COUNT(*) as trajectory_length
+             FROM events_with_intervals
+             GROUP BY mi_person_key
+         )
+    SELECT 
+        e.mi_person_key,
+        e.event_date,
+        e.activity,
+        e.sequence_position,
+        e.days_since_previous,
+        t.trajectory_length
+    FROM events_with_intervals e
+    INNER JOIN trajectory_lengths t ON e.mi_person_key = t.mi_person_key
+    ORDER BY e.mi_person_key, e.sequence_position
+    """
+    
+    df = con.execute(query).df()
+    con.close()
+    
+    if df.empty:
+        logger.warning("No trajectory data extracted")
+        return {}, pd.DataFrame()
+    
+    # Exclude F1120 from trajectories (for final model)
+    df = df[~df['activity'].str.contains('F1120', case=False, na=False)]
+    
+    # Create trajectory dictionary (activity sequences)
+    trajectories = {}
+    for patient_id in df['mi_person_key'].unique():
+        patient_data = df[df['mi_person_key'] == patient_id].sort_values('sequence_position')
+        trajectory = patient_data['activity'].tolist()
+        if trajectory:
+            trajectories[patient_id] = trajectory
+    
+    logger.info(f"Extracted trajectories with time windows for {len(trajectories)} patients ({item_type})")
+    
+    return trajectories, df
+
+
 def compute_dtw_distances_to_prototypes(
     patient_trajectories: Dict[str, List[str]],
     n_prototypes: int = 5
@@ -547,6 +788,131 @@ def create_all_dtw_features(
     return combined_features
 
 
+def save_trajectory_research_outputs(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+    trajectory_data: pd.DataFrame,
+    trajectories: Dict[str, List[str]],
+    item_type: str = "combined"
+) -> None:
+    """
+    Save comprehensive trajectory research outputs to help identify clinical vs protocol sequences.
+    
+    Outputs:
+    - All trajectories with timestamps and time windows
+    - Common sequence patterns
+    - Time window statistics
+    - Sequence frequency analysis
+    """
+    age_band_fname = age_band.replace("-", "_")
+    output_dir = (
+        project_root
+        / "5d_dtw_analysis"
+        / "outputs"
+        / "research"
+        / cohort_name
+        / age_band
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Save detailed trajectory data with time windows
+    trajectory_file = output_dir / f"trajectories_with_time_windows_{item_type}_{cohort_name}_{age_band_fname}.parquet"
+    trajectory_data.to_parquet(trajectory_file, index=False)
+    logger.info(f"Saved trajectory data with time windows: {trajectory_file}")
+    
+    # 2. Calculate and save time window statistics
+    time_window_stats = trajectory_data.groupby('mi_person_key').agg({
+        'days_since_previous': ['mean', 'median', 'std', 'min', 'max'],
+        'trajectory_length': 'first'
+    }).reset_index()
+    time_window_stats.columns = ['mi_person_key', 'mean_interval_days', 'median_interval_days', 
+                                 'std_interval_days', 'min_interval_days', 'max_interval_days', 'trajectory_length']
+    
+    stats_file = output_dir / f"time_window_stats_{item_type}_{cohort_name}_{age_band_fname}.csv"
+    time_window_stats.to_csv(stats_file, index=False)
+    logger.info(f"Saved time window statistics: {stats_file}")
+    
+    # 3. Identify common sequence patterns (2-3 event sequences)
+    sequence_patterns = []
+    for pid, traj in trajectories.items():
+        # Extract 2-event sequences
+        for i in range(len(traj) - 1):
+            seq_2 = f"{traj[i]} -> {traj[i+1]}"
+            sequence_patterns.append({
+                'mi_person_key': pid,
+                'sequence': seq_2,
+                'sequence_length': 2,
+                'position_in_trajectory': i
+            })
+        # Extract 3-event sequences
+        for i in range(len(traj) - 2):
+            seq_3 = f"{traj[i]} -> {traj[i+1]} -> {traj[i+2]}"
+            sequence_patterns.append({
+                'mi_person_key': pid,
+                'sequence': seq_3,
+                'sequence_length': 3,
+                'position_in_trajectory': i
+            })
+    
+    if sequence_patterns:
+        patterns_df = pd.DataFrame(sequence_patterns)
+        # Count frequency of each sequence pattern
+        sequence_freq = patterns_df.groupby(['sequence', 'sequence_length']).size().reset_index(name='frequency')
+        sequence_freq = sequence_freq.sort_values('frequency', ascending=False)
+        
+        patterns_file = output_dir / f"common_sequences_{item_type}_{cohort_name}_{age_band_fname}.csv"
+        sequence_freq.to_csv(patterns_file, index=False)
+        logger.info(f"Saved common sequence patterns: {patterns_file}")
+        
+        # Save top 100 most frequent sequences
+        top_sequences_file = output_dir / f"top_100_sequences_{item_type}_{cohort_name}_{age_band_fname}.csv"
+        sequence_freq.head(100).to_csv(top_sequences_file, index=False)
+        logger.info(f"Saved top 100 sequences: {top_sequences_file}")
+    
+    # 4. Identify protocol-like sequences (events < 7 days apart)
+    protocol_sequences = trajectory_data[
+        (trajectory_data['days_since_previous'].notna()) &
+        (trajectory_data['days_since_previous'] < 7)
+    ].copy()
+    
+    if not protocol_sequences.empty:
+        protocol_file = output_dir / f"protocol_like_sequences_{item_type}_{cohort_name}_{age_band_fname}.parquet"
+        protocol_sequences.to_parquet(protocol_file, index=False)
+        logger.info(f"Saved protocol-like sequences (< 7 days): {protocol_file}")
+        
+        # Protocol sequence patterns
+        protocol_patterns = []
+        for pid in protocol_sequences['mi_person_key'].unique():
+            patient_protocol = protocol_sequences[protocol_sequences['mi_person_key'] == pid]
+            for idx, row in patient_protocol.iterrows():
+                if row['sequence_position'] > 1:  # Has previous event
+                    prev_row = trajectory_data[
+                        (trajectory_data['mi_person_key'] == pid) &
+                        (trajectory_data['sequence_position'] == row['sequence_position'] - 1)
+                    ]
+                    if not prev_row.empty:
+                        protocol_patterns.append({
+                            'mi_person_key': pid,
+                            'sequence': f"{prev_row.iloc[0]['activity']} -> {row['activity']}",
+                            'days_apart': row['days_since_previous']
+                        })
+        
+        if protocol_patterns:
+            protocol_patterns_df = pd.DataFrame(protocol_patterns)
+            protocol_patterns_freq = protocol_patterns_df.groupby('sequence').agg({
+                'days_apart': ['mean', 'count']
+            }).reset_index()
+            protocol_patterns_freq.columns = ['sequence', 'mean_days_apart', 'frequency']
+            protocol_patterns_freq = protocol_patterns_freq.sort_values('frequency', ascending=False)
+            
+            protocol_patterns_file = output_dir / f"protocol_sequence_patterns_{item_type}_{cohort_name}_{age_band_fname}.csv"
+            protocol_patterns_freq.to_csv(protocol_patterns_file, index=False)
+            logger.info(f"Saved protocol sequence patterns: {protocol_patterns_file}")
+    
+    logger.info(f"\nResearch outputs saved to: {output_dir}")
+
+
 def main():
     """Main function for command-line usage."""
     import argparse
@@ -560,6 +926,8 @@ def main():
     parser.add_argument("--item_types", nargs="+", default=["combined"], 
                        help="Item types to process (drug, icd, cpt, combined)")
     parser.add_argument("--output", help="Output CSV path (optional)")
+    parser.add_argument("--research_mode", action="store_true", 
+                       help="Research mode: capture ALL trajectories with time windows (no cutoff dates)")
     
     args = parser.parse_args()
     
@@ -569,7 +937,60 @@ def main():
     
     project_root = PROJECT_ROOT
     
-    # Create DTW features
+    # Research mode: capture ALL trajectories with time windows for analysis
+    if args.research_mode:
+        logger.info("=" * 80)
+        logger.info("RESEARCH MODE: Capturing ALL trajectories with time windows")
+        logger.info("=" * 80)
+        
+        model_data_dir = (
+            project_root
+            / "4a_model_data"
+            / f"cohort_name={args.cohort}"
+            / f"age_band={args.age_band}"
+        )
+        model_data_path = (
+            model_data_dir / "model_events_no_protocols.parquet"
+            if (model_data_dir / "model_events_no_protocols.parquet").exists()
+            else model_data_dir / "model_events.parquet"
+        )
+        
+        if not model_data_path.exists():
+            logger.error(f"Model data not found: {model_data_path}")
+            return
+        
+        # Extract trajectories with time windows (no cutoff dates in research mode)
+        for item_type in args.item_types:
+            logger.info(f"\nExtracting {item_type} trajectories with time windows (research mode)...")
+            trajectories, trajectory_data = extract_trajectories_with_time_windows(
+                model_data_path=model_data_path,
+                allowed_codes=None,
+                cohort_name=args.cohort,
+                item_type=item_type,
+                target_filter=None,  # Include both target and control
+                cutoff_dates=None,  # Ignored in research mode
+                research_mode=True
+            )
+            
+            if trajectories and not trajectory_data.empty:
+                # Save comprehensive research outputs
+                save_trajectory_research_outputs(
+                    project_root=project_root,
+                    cohort_name=args.cohort,
+                    age_band=args.age_band,
+                    trajectory_data=trajectory_data,
+                    trajectories=trajectories,
+                    item_type=item_type
+                )
+            else:
+                logger.warning(f"No trajectories extracted for {item_type}")
+        
+        logger.info("\n" + "=" * 80)
+        logger.info("Research mode complete. Review outputs in 5d_dtw_analysis/outputs/research/")
+        logger.info("=" * 80)
+        return
+    
+    # Normal mode: Create DTW features
     dtw_features = create_all_dtw_features(
         project_root=project_root,
         cohort_name=args.cohort,
