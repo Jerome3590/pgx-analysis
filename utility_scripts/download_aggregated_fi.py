@@ -6,8 +6,15 @@ This script downloads:
 - To: 3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv
 """
 
-import boto3
+import sys
 from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+import boto3
 
 from py_helpers.constants import S3_BUCKET, COHORT_NAMES, AGE_BANDS
 
