@@ -44,30 +44,11 @@ pip install dtaidistance
 
 ### 3. Missing Prerequisites
 
-#### FP-Growth Itemsets Required
+#### Model Data Required (Already Filtered by Feature Importances)
 
-**Issue:** DTW analysis depends on FP-Growth itemsets to filter allowed activity codes.
+**Issue:** DTW analysis requires model data, which is already filtered by aggregated feature importances from Step 3.
 
-**Required Files:**
-- `5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/drug_name_itemsets_target_only.json`
-- `5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/icd_code_itemsets_target_only.json`
-- `5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/cpt_code_itemsets_target_only.json`
-- `5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/medical_code_itemsets_target_only.json`
-
-**Path Resolution:**
-The script constructs paths based on:
-- `base_cohort` (e.g., `opioid_ed` for `opioid_ed_extreme_density`)
-- `split_type` (default: `"target"`)
-- `age_band_fname` (e.g., `"0_12"` for `"0-12"`)
-- `event_year` (default: `"train"`)
-
-**Check:**
-```bash
-# Verify FP-Growth itemsets exist
-ls -la 5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/*itemsets*.json
-```
-
-**Action:** Ensure Step 5b (FP-Growth) is complete before running DTW.
+**Note:** DTW no longer requires FP-Growth itemsets! The model_data is already filtered by aggregated feature importances (Step 4a), so all events in model_data are used for trajectory construction.
 
 ---
 
@@ -200,12 +181,7 @@ Before running DTW analysis on EC2, verify:
   pip list | grep dtaidistance
   ```
 
-- [ ] **Step 5b (FP-Growth) complete**
-  ```bash
-  ls 5b_fpgrowth_analysis/outputs/{cohort}/target/{age_band}/train/*itemsets*.json
-  ```
-
-- [ ] **Step 4a (Model Data) complete**
+- [ ] **Step 4a (Model Data) complete** (already filtered by feature importances)
   ```bash
   ls 4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events*.parquet
   ```
