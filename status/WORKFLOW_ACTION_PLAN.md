@@ -379,18 +379,37 @@ After completing each step, verify:
 - Step 6 (Final Model): May benefit from GPU if available
 - Step 8 (SHAP): Can be memory-intensive for large feature sets
 
-**Time Estimates (per cohort):**
-- Step 4b: ~30 minutes
-- Step 4c: ~15 minutes
-- Step 5b: ~2-4 hours (depends on cohort size)
-- Step 5a: ~1-2 hours
-- Step 5c: ~30 minutes
-- Step 5d: ~1-2 hours
-- Step 6: ~1-2 hours
-- Step 7: ~2-3 hours
-- Step 8: ~2-3 hours
+**Time Estimates (per cohort) - Steps 4b-8 Only:**
 
-**Total per cohort:** ~10-15 hours (can run steps in parallel where dependencies allow)
+**Note:** These estimates are for Steps 4b-8 only. Step 3 (Feature Importance) is already complete for all cohorts and took ~6.5-7.5 hours per cohort when run.
+
+**Time varies significantly by cohort size:**
+
+| Cohort Size | Step 4b | Step 4c | Step 5b | Step 5a | Step 5c | Step 5d | Step 6 | Step 7 | Step 8 | **Total** |
+|-------------|---------|---------|---------|---------|---------|---------|--------|--------|--------|-----------|
+| **Small** (0-12: 2K events) | 5 min | 5 min | 15 min | 10 min | 5 min | 10 min | 15 min | 30 min | 30 min | **~2 hours** |
+| **Medium** (13-24: 436K events) | 20 min | 10 min | 1-2 hrs | 30 min | 15 min | 30 min | 30 min | 1-2 hrs | 1-2 hrs | **~5-7 hours** |
+| **Large** (25-44: 4.6M events) | 30 min | 15 min | 3-5 hrs | 1-2 hrs | 30 min | 1-2 hrs | 1-2 hrs | 2-3 hrs | 2-3 hrs | **~12-18 hours** |
+| **Very Large** (55-64: 3.2M events) | 30 min | 15 min | 2-4 hrs | 1-2 hrs | 30 min | 1-2 hrs | 1-2 hrs | 2-3 hrs | 2-3 hrs | **~10-15 hours** |
+| **Production** (65-74: 2.9M events) | 30 min | 15 min | 2-4 hrs | 1-2 hrs | 30 min | 1-2 hrs | 1-2 hrs | 2-3 hrs | 2-3 hrs | **~10-15 hours** |
+
+**Key Factors:**
+- **Cohort size** (event count) is the primary driver of runtime
+- **FP-Growth (Step 5b)** is typically the longest step for large cohorts (2-5 hours)
+- **FFA (Step 7)** and **SHAP (Step 8)** are computationally intensive (2-3 hours each for large cohorts)
+- **Small cohorts** (0-12) complete much faster (~2 hours total)
+- **Parallel execution** possible where dependencies allow (e.g., Steps 5a, 5c, 5d can run in parallel after Step 5b)
+
+**Production Cohorts (non_opioid_ed 65-74, 75-84, 85-94):**
+- **65-74**: ~10-15 hours (2.9M training events)
+- **75-84**: ~8-12 hours (1.2M training events) 
+- **85-94**: ~4-6 hours (274K training events)
+
+**Note:** Actual runtime depends on:
+- System resources (CPU cores, RAM, GPU availability)
+- Whether running on EC2 vs local Windows
+- Network speed for S3 operations
+- Whether steps are run sequentially or in parallel
 
 ---
 
