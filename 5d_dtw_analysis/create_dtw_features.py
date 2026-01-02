@@ -98,28 +98,35 @@ def extract_patient_trajectories(
         target_clause = f"AND target = {target_filter}"
     
     # Register cutoff dates table if provided
-    cutoff_clause = ""
+    # For target patients: use cutoff date (events before target event = no leakage)
+    # For control patients: cutoff_date is NULL, so no filtering (use all events, matching BupaR)
+    cutoff_join = ""
+    cutoff_where = ""
     if cutoff_dates:
-        # Create DataFrame from cutoff dates dict
+        # Create DataFrame from cutoff dates dict (includes NULL for controls)
         cutoff_df = pd.DataFrame([
-            {'mi_person_key': str(k), 'cutoff_date': pd.to_datetime(v)} 
+            {'mi_person_key': str(k), 'cutoff_date': pd.to_datetime(v) if v is not None else None} 
             for k, v in cutoff_dates.items()
         ])
+        # Only apply cutoff for patients with a cutoff date (target patients)
+        # Controls have NULL cutoff_date, so they get all events (matching BupaR logic)
         if not cutoff_df.empty:
             con.register('cutoff_dates', cutoff_df)
-            cutoff_clause = """
-            INNER JOIN cutoff_dates cd ON CAST(e.mi_person_key AS VARCHAR) = CAST(cd.mi_person_key AS VARCHAR)
-            AND e.event_date < CAST(cd.cutoff_date AS TIMESTAMP)
+            cutoff_join = """
+            LEFT JOIN cutoff_dates cd ON CAST(e.mi_person_key AS VARCHAR) = CAST(cd.mi_person_key AS VARCHAR)
+            """
+            cutoff_where = """
+            AND (cd.cutoff_date IS NULL OR e.event_date < CAST(cd.cutoff_date AS TIMESTAMP))
             """
     
     if item_type == "drug" or item_type == "combined":
-        if cutoff_dates and cutoff_clause:
+        if cutoff_dates and cutoff_join:
             drug_query = f"""
             SELECT e.mi_person_key, e.event_date, 
                    'DRUG:' || e.drug_name as activity
             FROM read_parquet('{path_str}') e
-            {cutoff_clause}
-            WHERE e.drug_name IS NOT NULL AND e.drug_name != '' {target_clause}
+            {cutoff_join}
+            WHERE e.drug_name IS NOT NULL AND e.drug_name != '' {cutoff_where} {target_clause}
             """
         else:
             drug_query = f"""
@@ -132,28 +139,33 @@ def extract_patient_trajectories(
         drug_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
     if item_type == "icd" or item_type == "combined":
-        if cutoff_dates and cutoff_clause:
+        if cutoff_dates and cutoff_join:
             icd_query = f"""
             WITH all_icds AS (
                 SELECT e.mi_person_key, e.event_date, e.primary_icd_diagnosis_code as icd 
                 FROM read_parquet('{path_str}') e
-                {cutoff_clause}
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
                 UNION ALL
                 SELECT e.mi_person_key, e.event_date, e.two_icd_diagnosis_code as icd 
                 FROM read_parquet('{path_str}') e
-                {cutoff_clause}
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
                 UNION ALL
                 SELECT e.mi_person_key, e.event_date, e.three_icd_diagnosis_code as icd 
                 FROM read_parquet('{path_str}') e
-                {cutoff_clause}
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
                 UNION ALL
                 SELECT e.mi_person_key, e.event_date, e.four_icd_diagnosis_code as icd 
                 FROM read_parquet('{path_str}') e
-                {cutoff_clause}
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
                 UNION ALL
                 SELECT e.mi_person_key, e.event_date, e.five_icd_diagnosis_code as icd 
                 FROM read_parquet('{path_str}') e
-                {cutoff_clause}
+                {cutoff_join}
+                WHERE 1=1 {cutoff_where} {target_clause}
             )
             SELECT mi_person_key, event_date, 
                    'ICD:' || icd as activity
@@ -182,13 +194,13 @@ def extract_patient_trajectories(
         icd_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
     if item_type == "cpt" or item_type == "combined":
-        if cutoff_dates and cutoff_clause:
+        if cutoff_dates and cutoff_join:
             cpt_query = f"""
             SELECT e.mi_person_key, e.event_date,
                    'CPT:' || e.procedure_code as activity
             FROM read_parquet('{path_str}') e
-            {cutoff_clause}
-            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != '' {target_clause}
+            {cutoff_join}
+            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != '' {cutoff_where} {target_clause}
             """
         else:
             cpt_query = f"""
@@ -404,9 +416,10 @@ def create_all_dtw_features(
     allowed_codes = None  # None means use all codes in model_data
     logger.info("Using all events from model_data (already filtered by feature importances in Step 4a)")
     
-    # Get cutoff dates for all patients using target event date fields
+    # Get cutoff dates using the same logic as BupaR analysis
     # For target patients: use first_opioid_ed_date or first_ed_non_opioid_date (cohort-specific)
-    # For control patients: use first event date as reference (no target event, so use all events before reference)
+    #   - Events before target date = no leakage (excludes target event itself, matching BupaR)
+    # For control patients: NULL means no cutoff (use all events, matching BupaR logic)
     # NOTE: Anything after target code date is leakage - use target event date field directly
     con = duckdb.connect()
     
@@ -422,24 +435,23 @@ def create_all_dtw_features(
             SELECT DISTINCT
                 mi_person_key,
                 target,
-                CAST({target_date_field} AS DATE) as target_event_date,
-                MIN(event_date) as first_event_date
+                CAST({target_date_field} AS DATE) as target_event_date
             FROM read_parquet('{model_data_path}')
             GROUP BY mi_person_key, target, {target_date_field}
         )
         SELECT 
             mi_person_key,
-            -- For target patients: use target event date (events before target = no leakage)
-            -- For control patients: use first event date (no target event, so use all events before first event as reference)
+            -- For target patients: use target event date (events before target = no leakage, matching BupaR)
+            -- For control patients: NULL means no cutoff (use all events, matching BupaR logic)
             CASE 
                 WHEN target = 1 AND target_event_date IS NOT NULL 
                 THEN target_event_date
-                ELSE first_event_date
+                ELSE NULL  -- Controls: no cutoff, use all events (same as BupaR)
             END as cutoff_date
         FROM patient_target_dates
     """).df()
     
-    logger.info(f"Using {target_date_field} for target patients, first_event_date for controls")
+    logger.info(f"Using {target_date_field} for target patients (events before target), NULL for controls (all events, matching BupaR)")
     
     # Get base patient list (both target and control)
     base_df = con.execute(
@@ -468,11 +480,11 @@ def create_all_dtw_features(
     for item_type in item_types:
         logger.info(f"\nProcessing {item_type} trajectories...")
         
-        # Extract trajectories using cutoff dates
-        # Convert cutoff_dates_df to dict format
+        # Extract trajectories using cutoff dates (matching BupaR logic)
+        # Convert cutoff_dates_df to dict format (includes NULL for controls, matching BupaR)
         cutoff_dates_dict = cutoff_dates_df.set_index('mi_person_key')['cutoff_date'].to_dict()
-        # Convert dates to strings if needed
-        cutoff_dates_dict = {str(k): str(v) for k, v in cutoff_dates_dict.items()}
+        # Convert dates to strings if needed, preserve None for controls
+        cutoff_dates_dict = {str(k): str(v) if pd.notna(v) else None for k, v in cutoff_dates_dict.items()}
         
         patient_trajectories = extract_patient_trajectories(
             model_data_path=model_data_path,
