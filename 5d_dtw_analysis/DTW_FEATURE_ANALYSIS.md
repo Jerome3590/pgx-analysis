@@ -1,5 +1,31 @@
 # DTW Feature Analysis: Leakage Investigation
 
+## Background: Relationship to DTW Filter Step
+
+### Research Happens in DTW Filter (Step 4b)
+
+**Important**: The `dtw_filter` step (Step 4b) runs **before** this `dtw_analysis` step (Step 5d). This means:
+
+- **All research on trajectories and time windows happens in `dtw_filter`**: The filtering step analyzes all patient trajectories, time intervals, and common sequence patterns to identify what is clinically useful vs. what is noise
+- **Filtering decisions are research-driven**: Based on analysis of trajectory patterns, the filter step removes protocol-like events (routine care) while preserving predictive patterns (deviations from standard care)
+- **This step works with filtered data**: The `dtw_analysis` step receives already-filtered data (`model_events_no_protocols.parquet`) and extracts trajectory features from the cleaned sequences
+
+### The Two-Step Process
+
+1. **Step 4b (`dtw_filter`)**: 
+   - Captures all trajectories with full time window information
+   - Researches common sequence patterns and time intervals
+   - Identifies what is protocol-like vs. clinically meaningful
+   - Filters out protocol events based on research findings
+   - Outputs: `model_events_no_protocols.parquet`
+
+2. **Step 5d (`dtw_analysis`)**: 
+   - Works with the filtered, cleaned data
+   - Extracts trajectory features (DTW distances, trajectory characteristics)
+   - Creates features for downstream modeling
+
+**See**: `4b_dtw_filter/DTW_ROLE.md` and `4b_dtw_filter/PROTOCOL_FILTERING.md` for details on the research and filtering process.
+
 ## DTW Features Created
 
 Based on `create_dtw_features.py`, the following features are generated:

@@ -2,6 +2,58 @@
 
 This module provides Dynamic Time Warping (DTW) analysis capabilities for comparing drug exposure sequences across patients in cohort datasets, and outlines the features to extract from DTW analysis outputs for use in the final CatBoost/Random Forest model.
 
+## Background: Research-First Approach to Trajectory Analysis
+
+### Primary Goal: Capture All Trajectories First
+
+The DTW analysis workflow follows a **research-first approach** to understand patient trajectories:
+
+1. **Step 1: Capture ALL Trajectories** (Research Phase)
+   - Extract **all** time windows and common sequences of events from patient data
+   - No filtering at this stage - we need complete trajectory data to understand patterns
+   - Identify time intervals between events, sequence patterns, and trajectory characteristics
+   - Goal: Build a comprehensive understanding of patient healthcare journeys
+
+2. **Step 2: Research & Classify** (Analysis Phase)
+   - Analyze captured trajectories to distinguish:
+     - **Clinical/Useful sequences**: Patterns that are meaningful for prediction
+     - **Non-clinical/Protocol sequences**: Routine care patterns that don't add predictive value
+   - Research what patterns are predictive vs. what represents standard care protocols
+   - Identify which trajectory characteristics correlate with outcomes
+
+3. **Step 3: Filter Non-Clinical Patterns** (`4b_dtw_filter`)
+   - Use DTW time window analysis to identify protocol-like events
+   - Filter out events that occur too close together (< 7 days) - these often represent standard care protocols
+   - Output: `model_events_no_protocols.parquet` - cleaned data for downstream feature engineering
+   - **Purpose**: Remove noise from routine care that both targets and controls follow
+
+4. **Step 4: Extract Clinical Features** (This Step: `5d_dtw_analysis`)
+   - Use filtered data to extract trajectory features that are clinically meaningful
+   - Calculate DTW distances to prototype trajectories
+   - Extract trajectory characteristics (length, diversity, temporal patterns)
+   - **Purpose**: Keep what's good - features that capture predictive patterns
+
+### Why This Approach?
+
+- **Complete Understanding**: We need to see all trajectories before deciding what to filter
+- **Evidence-Based Filtering**: Research informs which patterns are protocol vs. predictive
+- **Iterative Refinement**: As we learn more about trajectories, we can refine filtering thresholds
+- **Clinical Validation**: Allows clinical review of trajectory patterns before filtering
+
+### Workflow Summary
+
+```
+Model Data (4a)
+    ↓
+[Capture ALL Trajectories] ← Research Phase
+    ↓
+[Research & Classify] ← Analysis Phase
+    ├─→ Clinical/Useful Sequences → DTW Analysis (5d) → Features
+    └─→ Non-Clinical/Protocol Sequences → DTW Filter (4b) → Remove
+```
+
+**Key Principle**: Get all trajectories first, then research what goes where (filter vs. feature).
+
 ## Overview
 
 Dynamic Time Warping (DTW) analysis adds a crucial dimension to the analysis pipeline by **developing patient trajectories** - temporal sequences that capture how patients progress through their healthcare journey. Unlike FPGrowth (which finds frequent patterns) or BupaR (which analyzes process flows), DTW focuses on **identifying similar patient trajectories** even when sequences vary in timing or length.

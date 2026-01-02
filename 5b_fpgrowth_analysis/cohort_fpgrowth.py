@@ -330,39 +330,71 @@ def process_single_cohort(
         con = duckdb.connect(':memory:')
         con.sql("SET threads = 1")
 
-        # Prefer filtered model_data (if available) over raw GOLD cohorts parquet
-        model_data_file = (
+        # Prefer DTW-filtered model_data (protocol events removed) if available,
+        # then fall back to regular model_data, then raw GOLD cohorts parquet.
+        # This ensures FP-Growth only uses useful signals (non-protocol events) for itemsets and rules.
+        model_data_dir = (
             MODEL_DATA_ROOT
             / f"cohort_name={cohort_name}"
             / f"age_band={age_band}"
-            / "model_events.parquet"
         )
+        model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
+        model_data_file = model_data_dir / "model_events.parquet"
 
         # Special handling for aggregated training window ("train" = 2016–2018)
         event_label = str(event_year)
         if event_label == "train":
-            # Training FP-Growth should always use model_data (filtered important
-            # items + 5:1 control). This keeps memory usage manageable.
-            if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
-                parquet_file = model_data_file
-                logger.info(f"Using model_data file for TRAIN FP-Growth (2016–2018): {parquet_file}")
+            # Training FP-Growth should prefer DTW-filtered data (protocol events removed),
+            # then fall back to regular model_data (filtered important items + 5:1 control).
+            # This keeps memory usage manageable and ensures only useful signals are used.
+            if USE_MODEL_DATA_IF_AVAILABLE:
+                if model_data_filtered.exists():
+                    parquet_file = model_data_filtered
+                    logger.info(f"Using DTW-filtered model_data (no protocols) for TRAIN FP-Growth (2016–2018): {parquet_file}")
+                elif model_data_file.exists():
+                    parquet_file = model_data_file
+                    logger.info(f"Using model_data file for TRAIN FP-Growth (2016–2018): {parquet_file}")
+                    logger.warning("DTW-filtered data (model_events_no_protocols.parquet) not found. Consider running DTW filter (4b_dtw_filter) first to remove protocol events.")
+                else:
+                    logger.warning(
+                        f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
+                        f"but model_data file not found at {model_data_file}. "
+                        "Run create_model_data.py first for this cohort/age_band."
+                    )
+                    return {
+                        'item_type': item_type,
+                        'cohort_name': cohort_name,
+                        'age_band': age_band,
+                        'event_year': event_year,
+                        'error': 'TRAIN model_data not found'
+                    }
             else:
-                logger.warning(
-                    f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
-                    f"but model_data file not found at {model_data_file}. "
-                    "Run create_model_data.py first for this cohort/age_band."
-                )
+                logger.warning("USE_MODEL_DATA_IF_AVAILABLE is False, but TRAIN FP-Growth requires model_data")
                 return {
                     'item_type': item_type,
                     'cohort_name': cohort_name,
                     'age_band': age_band,
                     'event_year': event_year,
-                    'error': 'TRAIN model_data not found'
+                    'error': 'TRAIN requires model_data but USE_MODEL_DATA_IF_AVAILABLE is False'
                 }
         else:
-            if USE_MODEL_DATA_IF_AVAILABLE and model_data_file.exists():
-                parquet_file = model_data_file
-                logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
+            # For non-TRAIN years, prefer DTW-filtered data, then regular model_data, then raw GOLD cohorts
+            if USE_MODEL_DATA_IF_AVAILABLE:
+                if model_data_filtered.exists():
+                    parquet_file = model_data_filtered
+                    logger.info(f"Using DTW-filtered model_data (no protocols) for FP-Growth: {parquet_file}")
+                elif model_data_file.exists():
+                    parquet_file = model_data_file
+                    logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
+                    logger.warning("DTW-filtered data (model_events_no_protocols.parquet) not found. Consider running DTW filter (4b_dtw_filter) first to remove protocol events.")
+                else:
+                    parquet_file = (
+                        local_data_path
+                        / f"cohort_name={cohort_name}"
+                        / f"event_year={event_year}"
+                        / f"age_band={age_band}"
+                        / "cohort.parquet"
+                    )
             else:
                 parquet_file = (
                     local_data_path

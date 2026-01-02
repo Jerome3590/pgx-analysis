@@ -17,8 +17,10 @@ The analysis is run per `(cohort, age_band, split_type, event_year)` combination
 ## Inputs
 
 - **Model data** from `4a_model_data`:
-  - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+  - **Preferred**: `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet` (DTW-filtered, protocol events removed)
+  - **Fallback**: `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` (if DTW filter not run)
   - Contains event-level data with `mi_person_key`, `event_date`, `drug_name`, ICD diagnosis columns, `procedure_code`, and `target` label.
+  - **Note**: FP-Growth scripts automatically prefer `model_events_no_protocols.parquet` if available. This ensures itemsets and association rules only capture useful signals (non-protocol events), improving the quality of discovered patterns.
 - **Configuration** in `5_fpgrowth_analysis/cohort_fpgrowth.py` and `global_fpgrowth.py`:
   - `MIN_SUPPORT`, `MIN_CONFIDENCE`, `MIN_ITEMSET_LIFT`
   - `ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code', 'medical_code']`
@@ -30,6 +32,7 @@ The analysis is run per `(cohort, age_band, split_type, event_year)` combination
 
 - `5_fpgrowth_analysis/cohort_fpgrowth.py`
   - Runs FP-Growth per cohort, age band, item type, and year.
+  - **Automatically prefers DTW-filtered data** (`model_events_no_protocols.parquet`) if available, ensuring itemsets and rules only capture useful signals (non-protocol events).
   - Reads events from `4a_model_data` (via DuckDB) and builds patient-level transactions.
   - Bins patients by transaction density (low/medium/high/extreme) to control memory usage.
   - Runs FP-Growth separately per density bin and merges results.

@@ -1,6 +1,72 @@
-## DTW Trajectory and Predictive Time Features
+## DTW Protocol Filtering (Step 4b)
 
-This directory contains scripts to build time-based and DTW-based trajectory features from `4a_model_data` for each `(cohort, age_band)` combination.
+This directory contains scripts for **DTW protocol filtering** - the first step in the DTW workflow that identifies and filters protocol-like events from model data.
+
+## Background: Research-First Approach to Trajectory Analysis
+
+### Primary Goal: Capture All Trajectories First, Then Research
+
+The DTW workflow follows a **research-first approach** where **all research happens in this `dtw_filter` step (Step 4b)**:
+
+1. **Step 1: Capture ALL Trajectories** (Research Phase - **Happens Here**)
+   - Extract **all** time windows and common sequences of events from patient data
+   - No filtering at this stage - we need complete trajectory data to understand patterns
+   - Identify time intervals between events, sequence patterns, and trajectory characteristics
+   - Goal: Build a comprehensive understanding of patient healthcare journeys
+
+2. **Step 2: Research & Classify** (Analysis Phase - **Happens Here**)
+   - Analyze captured trajectories to distinguish:
+     - **Clinical/Useful sequences**: Patterns that are meaningful for prediction
+     - **Non-clinical/Protocol sequences**: Routine care patterns that don't add predictive value
+   - Research what patterns are predictive vs. what represents standard care protocols
+   - Identify which trajectory characteristics correlate with outcomes
+   - **Critical**: This research must happen here because filtering occurs before feature extraction
+
+3. **Step 3: Filter Non-Clinical Patterns** (Filtering Phase - **Happens Here**)
+   - Use DTW time window analysis to identify protocol-like events
+   - Filter out events that occur too close together (< 7 days) - these often represent standard care protocols
+   - Output: `model_events_no_protocols.parquet` - cleaned data for downstream feature engineering
+   - **Purpose**: Remove noise from routine care that both targets and controls follow
+
+4. **Step 4: Extract Clinical Features** (`5d_dtw_analysis` - Step 5d)
+   - Use filtered data to extract trajectory features that are clinically meaningful
+   - Calculate DTW distances to prototype trajectories
+   - Extract trajectory characteristics (length, diversity, temporal patterns)
+   - **Purpose**: Keep what's good - features that capture predictive patterns from the cleaned data
+
+### Why Research Happens in DTW Filter
+
+**Critical Insight**: `dtw_filter` (Step 4b) runs **before** `dtw_analysis` (Step 5d). This means:
+
+- **All research must happen here**: Since filtering occurs first, we must identify what to filter vs. what to keep during this step
+- **Capture everything first**: We need to analyze all trajectories and time windows to make informed filtering decisions
+- **Research-driven filtering**: Filtering decisions should be based on analysis of trajectory patterns, not arbitrary thresholds
+- **Clinical validation**: We need to research which trajectories are clinically meaningful vs. routine care that both targets and controls follow
+
+### Why This Approach?
+
+- **Complete Understanding**: We need to see all trajectories before deciding what to filter
+- **Evidence-Based Filtering**: Research informs which patterns are protocol vs. predictive
+- **Iterative Refinement**: As we learn more about trajectories, we can refine filtering thresholds
+- **Clinical Validation**: Allows clinical review of trajectory patterns before filtering
+
+### Workflow Summary
+
+```
+Model Data (4a)
+    ↓
+[Capture ALL Trajectories] ← Research Phase (4b)
+    ↓
+[Research & Classify] ← Analysis Phase (4b)
+    ├─→ Clinical/Useful Sequences → Keep for DTW Analysis (5d) → Features
+    └─→ Non-Clinical/Protocol Sequences → Filter Out (4b) → Remove
+    ↓
+Filtered Data (model_events_no_protocols.parquet)
+    ↓
+DTW Analysis (5d) → Extract Features from Cleaned Data
+```
+
+**Key Principle**: Get all trajectories first, then research what goes where (filter vs. feature). **All research happens in `dtw_filter` (Step 4b) because it runs first.**
 
 ### Key Scripts
 

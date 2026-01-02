@@ -2,6 +2,19 @@
 
 This folder contains documentation for dynamic time warping trajectory analysis.
 
+## Background: Research-First Approach
+
+The DTW analysis workflow follows a **research-first approach**:
+
+1. **Capture ALL Trajectories First**: Extract all time windows and common sequences of events (no filtering)
+2. **Research & Classify**: Analyze trajectories to distinguish clinical/useful vs. non-clinical/protocol patterns
+3. **Filter Non-Clinical Patterns** (`4b_dtw_filter`): Remove protocol-like events based on research
+4. **Extract Clinical Features** (`5d_dtw_analysis`): Keep what's good - features that capture predictive patterns
+
+**Key Principle**: Get all trajectories first, then research what goes where (filter vs. feature).
+
+See [README_dtw_feature_extraction.md](README_dtw_feature_extraction.md) for detailed background and workflow.
+
 ## Documentation
 
 - **[README_dtw_feature_extraction.md](README_dtw_feature_extraction.md)** - Dynamic Time Warping trajectory analysis

@@ -75,6 +75,8 @@ Format: CSV with `mi_person_key` column for joining to `4a_model_data` outputs.
 
 1. **Itemsets and Rules**  
    `5b_fpgrowth_analysis/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps, split by item type and split type (`combined`, `target`).
+   
+   **Note**: FP-Growth scripts automatically prefer DTW-filtered data (`model_events_no_protocols.parquet`) if available. This ensures itemsets and association rules only capture useful signals (non-protocol events), improving the quality of discovered patterns. See `4b_dtw_filter/DTW_ROLE.md` for details on DTW protocol filtering.
 
 2. **Feature Creation**  
    `5b_fpgrowth_analysis/create_fpgrowth_features.py` converts itemsets/rules into patient-level features:

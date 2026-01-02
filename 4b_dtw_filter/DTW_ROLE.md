@@ -1,5 +1,41 @@
 # DTW Role: Feature Filtering vs. Feature Engineering
 
+## Background: Time Windows and Trajectory Sequences
+
+### Why Time Windows Matter
+
+Patient medical histories are sequences of events over time. The **temporal patterns** and **common sequences of events (trajectories)** in these histories contain critical information for predicting outcomes:
+
+- **Time intervals between events**: Reveal whether events are part of standard care protocols (short intervals) or deviations from standard care (longer intervals)
+- **Common sequence patterns**: Trajectories that appear frequently across patients may represent standard care pathways
+- **Deviations from common patterns**: Patients who follow unusual trajectories may be at higher risk
+
+### The Research Challenge
+
+**Critical Insight**: We need to **capture all trajectories first** to research what is clinically useful vs. what is noise before making filtering decisions.
+
+- **Common sequences of events**: Which trajectory patterns appear frequently? Are they standard care protocols or predictive signals?
+- **Time windows**: What time intervals between events are meaningful? Which intervals indicate protocol-like care vs. predictive deviations?
+- **Clinical interpretation**: Which trajectories represent legitimate risk markers vs. routine care that both targets and controls follow?
+
+### Why DTW Filter Happens First
+
+**`dtw_filter` (Step 4b) runs before `dtw_analysis` (Step 5d)** in the pipeline. This means:
+
+1. **All research must happen in `dtw_filter`**: Since filtering occurs first, we must identify what to filter vs. what to keep during this step
+2. **Capture everything first**: The filtering step needs to analyze all trajectories and time windows to make informed decisions
+3. **Research-driven filtering**: Filtering decisions should be based on analysis of trajectory patterns, not arbitrary thresholds
+4. **Preserve what's good**: After filtering, `dtw_analysis` can focus on extracting meaningful trajectory features from the cleaned data
+
+### Workflow: Capture → Research → Filter → Analyze
+
+1. **Capture**: Extract all patient trajectories with full time window information
+2. **Research** (in `dtw_filter`): Analyze trajectory patterns, time intervals, and common sequences to identify:
+   - What's protocol-like (routine care, not predictive)
+   - What's clinically meaningful (deviations from standard care, predictive signals)
+3. **Filter** (in `dtw_filter`): Remove protocol-like events that add noise
+4. **Analyze** (in `dtw_analysis`): Extract trajectory features from the cleaned, filtered data
+
 ## Key Insight
 
 **DTW is more valuable as a feature filtering mechanism than as a feature engineering tool.**
@@ -15,6 +51,7 @@
 1. **Cleaner sequences**: FP-Growth and BupaR analyses focus on meaningful patterns
 2. **Better signal**: Removes routine care that both targets and controls follow
 3. **Improved model performance**: Less noise = better predictive signal
+4. **Better itemsets and rules**: FP-Growth uses filtered data, so itemsets and association rules only capture useful signals (non-protocol events)
 
 ## Secondary Use: Feature Engineering (Optional)
 
@@ -83,6 +120,7 @@ python 5_dtw_analysis/create_dtw_features.py \
 - Identifies protocol-like events using time windows
 - Filters noise before feature engineering
 - Improves signal quality for FP-Growth, BupaR, and final model
+- **FP-Growth uses filtered data**: Itemsets and association rules are generated from `model_events_no_protocols.parquet`, ensuring only useful signals (non-protocol events) are captured
 
 **DTW features are secondary:**
 - May be useful for large cohorts
