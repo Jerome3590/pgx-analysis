@@ -27,8 +27,8 @@ S3_BUCKET="s3://pgxdatalake"
 S3_SYNC_GOLD_PREFIX="gold"
 # Cohort-level exports
 S3_SYNC_COHORT_PREFIX="gold/cohorts"
-# Model-ready datasets (if present)
-S3_SYNC_MODEL_PREFIX="gold/model_data"
+# Model-ready datasets (current location)
+S3_SYNC_MODEL_PREFIX="gold/cohorts_model_data"
 
 ##############################################
 # Functions
