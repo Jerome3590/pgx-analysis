@@ -222,6 +222,241 @@ def filter_protocol_events(
     return filtered_df
 
 
+def create_research_outputs_for_review(
+    intervals_df: pd.DataFrame,
+    model_data_path: Path,
+    cohort_name: str,
+    age_band: str,
+    min_interval_days: int = 7,
+) -> None:
+    """
+    Create comprehensive research outputs for review in outputs/for_review folder.
+    
+    Outputs include:
+    - All trajectories with time windows
+    - Common sequence patterns
+    - Protocol-like sequences
+    - Time window statistics
+    - Code-level analysis (clinical vs administrative/post-event)
+    """
+    age_band_fname = age_band.replace("-", "_")
+    review_dir = OUTPUT_ROOT / "for_review" / cohort_name / age_band_fname
+    review_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Creating research outputs for review in: {review_dir}")
+    
+    # 1. Save detailed event intervals with all event information
+    con = duckdb.connect()
+    
+    # Load full event data
+    full_events_df = con.execute(f"SELECT * FROM read_parquet('{model_data_path}')").df()
+    
+    # Merge with intervals_df
+    # Add event_seq to full_events_df for merging
+    full_events_df = full_events_df.sort_values(['mi_person_key', 'event_date'])
+    full_events_df['event_seq'] = (
+        full_events_df.groupby('mi_person_key').cumcount() + 1
+    )
+    
+    # Merge intervals with full events
+    full_events_df = full_events_df.merge(
+        intervals_df[[
+            'mi_person_key', 'event_seq', 'days_since_previous', 
+            'is_protocol_event', 'previous_event_date'
+        ]],
+        on=['mi_person_key', 'event_seq'],
+        how='left'
+    )
+    
+    con.close()
+    
+    # Save full trajectories with time windows
+    trajectories_path = review_dir / f"trajectories_with_time_windows_{cohort_name}_{age_band_fname}.parquet"
+    full_events_df.to_parquet(trajectories_path, index=False)
+    logger.info(f"Saved trajectories with time windows: {trajectories_path}")
+    
+    # 2. Time window statistics
+    time_window_stats = intervals_df.groupby('mi_person_key').agg({
+        'days_since_previous': ['mean', 'median', 'std', 'min', 'max', 'count'],
+        'is_protocol_event': 'sum'
+    }).reset_index()
+    time_window_stats.columns = [
+        'mi_person_key', 'mean_interval_days', 'median_interval_days', 
+        'std_interval_days', 'min_interval_days', 'max_interval_days',
+        'total_events', 'protocol_event_count'
+    ]
+    time_window_stats['protocol_event_pct'] = (
+        time_window_stats['protocol_event_count'] / time_window_stats['total_events'] * 100
+    )
+    
+    stats_path = review_dir / f"time_window_statistics_{cohort_name}_{age_band_fname}.csv"
+    time_window_stats.to_csv(stats_path, index=False)
+    logger.info(f"Saved time window statistics: {stats_path}")
+    
+    # 3. Common sequence patterns (2-3 event sequences)
+    # Group events by patient and create sequences
+    patient_sequences = []
+    for patient_id in full_events_df['mi_person_key'].unique():
+        patient_events = full_events_df[
+            full_events_df['mi_person_key'] == patient_id
+        ].sort_values('event_date')
+        
+        # Create activity codes (drug, ICD, CPT)
+        activities = []
+        for _, row in patient_events.iterrows():
+            if pd.notna(row.get('drug_name')) and str(row.get('drug_name')).strip():
+                activities.append(f"DRUG:{row['drug_name']}")
+            if pd.notna(row.get('primary_icd_diagnosis_code')) and str(row.get('primary_icd_diagnosis_code')).strip():
+                activities.append(f"ICD:{row['primary_icd_diagnosis_code']}")
+            if pd.notna(row.get('procedure_code')) and str(row.get('procedure_code')).strip():
+                activities.append(f"CPT:{row['procedure_code']}")
+        
+        # Extract 2-event sequences
+        for i in range(len(activities) - 1):
+            seq_2 = f"{activities[i]} -> {activities[i+1]}"
+            patient_sequences.append({
+                'mi_person_key': patient_id,
+                'sequence': seq_2,
+                'sequence_length': 2,
+                'position': i
+            })
+        
+        # Extract 3-event sequences
+        for i in range(len(activities) - 2):
+            seq_3 = f"{activities[i]} -> {activities[i+1]} -> {activities[i+2]}"
+            patient_sequences.append({
+                'mi_person_key': patient_id,
+                'sequence': seq_3,
+                'sequence_length': 3,
+                'position': i
+            })
+    
+    if patient_sequences:
+        sequences_df = pd.DataFrame(patient_sequences)
+        sequence_freq = sequences_df.groupby(['sequence', 'sequence_length']).size().reset_index(name='frequency')
+        sequence_freq = sequence_freq.sort_values('frequency', ascending=False)
+        
+        sequences_path = review_dir / f"common_sequence_patterns_{cohort_name}_{age_band_fname}.csv"
+        sequence_freq.to_csv(sequences_path, index=False)
+        logger.info(f"Saved common sequence patterns: {sequences_path}")
+        
+        # Top 100 sequences
+        top_sequences_path = review_dir / f"top_100_sequences_{cohort_name}_{age_band_fname}.csv"
+        sequence_freq.head(100).to_csv(top_sequences_path, index=False)
+        logger.info(f"Saved top 100 sequences: {top_sequences_path}")
+    
+    # 4. Protocol-like sequences (< min_interval_days apart)
+    protocol_events = intervals_df[
+        (intervals_df['days_since_previous'].notna()) &
+        (intervals_df['days_since_previous'] < min_interval_days)
+    ].copy()
+    
+    if not protocol_events.empty:
+        protocol_path = review_dir / f"protocol_like_sequences_{cohort_name}_{age_band_fname}.parquet"
+        protocol_events.to_parquet(protocol_path, index=False)
+        logger.info(f"Saved protocol-like sequences: {protocol_path}")
+        
+        # Protocol sequence patterns with codes
+        protocol_with_codes = full_events_df[
+            full_events_df['is_protocol_event'] == 1
+        ].copy()
+        
+        if not protocol_with_codes.empty:
+            protocol_codes_path = review_dir / f"protocol_events_with_codes_{cohort_name}_{age_band_fname}.parquet"
+            protocol_with_codes.to_parquet(protocol_codes_path, index=False)
+            logger.info(f"Saved protocol events with codes: {protocol_codes_path}")
+            
+            # Code-level analysis: which codes appear in protocol events
+            code_analysis = []
+            
+            # Drug codes in protocol events
+            drug_codes = protocol_with_codes[
+                protocol_with_codes['drug_name'].notna() &
+                (protocol_with_codes['drug_name'] != '')
+            ]['drug_name'].value_counts()
+            for drug, count in drug_codes.items():
+                code_analysis.append({
+                    'code_type': 'DRUG',
+                    'code': drug,
+                    'protocol_count': count,
+                    'total_count': len(full_events_df[full_events_df['drug_name'] == drug]),
+                    'protocol_pct': count / len(full_events_df[full_events_df['drug_name'] == drug]) * 100 if len(full_events_df[full_events_df['drug_name'] == drug]) > 0 else 0
+                })
+            
+            # ICD codes in protocol events
+            for icd_col in ['primary_icd_diagnosis_code', 'two_icd_diagnosis_code', 
+                           'three_icd_diagnosis_code', 'four_icd_diagnosis_code', 
+                           'five_icd_diagnosis_code']:
+                if icd_col in protocol_with_codes.columns:
+                    icd_codes = protocol_with_codes[
+                        protocol_with_codes[icd_col].notna() &
+                        (protocol_with_codes[icd_col] != '')
+                    ][icd_col].value_counts()
+                    for icd, count in icd_codes.items():
+                        code_analysis.append({
+                            'code_type': 'ICD',
+                            'code': icd,
+                            'protocol_count': count,
+                            'total_count': len(full_events_df[full_events_df[icd_col] == icd]),
+                            'protocol_pct': count / len(full_events_df[full_events_df[icd_col] == icd]) * 100 if len(full_events_df[full_events_df[icd_col] == icd]) > 0 else 0
+                        })
+            
+            # CPT codes in protocol events
+            cpt_codes = protocol_with_codes[
+                protocol_with_codes['procedure_code'].notna() &
+                (protocol_with_codes['procedure_code'] != '')
+            ]['procedure_code'].value_counts()
+            for cpt, count in cpt_codes.items():
+                code_analysis.append({
+                    'code_type': 'CPT',
+                    'code': cpt,
+                    'protocol_count': count,
+                    'total_count': len(full_events_df[full_events_df['procedure_code'] == cpt]),
+                    'protocol_pct': count / len(full_events_df[full_events_df['procedure_code'] == cpt]) * 100 if len(full_events_df[full_events_df['procedure_code'] == cpt]) > 0 else 0
+                })
+            
+            if code_analysis:
+                code_analysis_df = pd.DataFrame(code_analysis)
+                code_analysis_df = code_analysis_df.sort_values('protocol_pct', ascending=False)
+                
+                code_analysis_path = review_dir / f"code_analysis_protocol_vs_clinical_{cohort_name}_{age_band_fname}.csv"
+                code_analysis_df.to_csv(code_analysis_path, index=False)
+                logger.info(f"Saved code analysis (protocol vs clinical): {code_analysis_path}")
+    
+    # 5. Summary report
+    summary_report = {
+        'cohort_name': cohort_name,
+        'age_band': age_band,
+        'min_interval_days': min_interval_days,
+        'total_events': len(full_events_df),
+        'protocol_events': int(intervals_df['is_protocol_event'].sum()),
+        'protocol_event_pct': float(intervals_df['is_protocol_event'].mean() * 100),
+        'mean_interval_days': float(intervals_df['days_since_previous'].mean()),
+        'median_interval_days': float(intervals_df['days_since_previous'].median()),
+        'unique_patients': int(full_events_df['mi_person_key'].nunique()),
+        'unique_drugs': int(full_events_df['drug_name'].nunique()) if 'drug_name' in full_events_df.columns else 0,
+        'unique_icd_codes': int(full_events_df['primary_icd_diagnosis_code'].nunique()) if 'primary_icd_diagnosis_code' in full_events_df.columns else 0,
+        'unique_cpt_codes': int(full_events_df['procedure_code'].nunique()) if 'procedure_code' in full_events_df.columns else 0,
+    }
+    
+    import json
+    summary_path = review_dir / f"research_summary_{cohort_name}_{age_band_fname}.json"
+    with open(summary_path, 'w') as f:
+        json.dump(summary_report, f, indent=2)
+    logger.info(f"Saved research summary: {summary_path}")
+    
+    logger.info(f"\nResearch outputs saved to: {review_dir}")
+    logger.info("Files created:")
+    logger.info(f"  - trajectories_with_time_windows_{cohort_name}_{age_band_fname}.parquet")
+    logger.info(f"  - time_window_statistics_{cohort_name}_{age_band_fname}.csv")
+    logger.info(f"  - common_sequence_patterns_{cohort_name}_{age_band_fname}.csv")
+    logger.info(f"  - top_100_sequences_{cohort_name}_{age_band_fname}.csv")
+    logger.info(f"  - protocol_like_sequences_{cohort_name}_{age_band_fname}.parquet")
+    logger.info(f"  - protocol_events_with_codes_{cohort_name}_{age_band_fname}.parquet")
+    logger.info(f"  - code_analysis_protocol_vs_clinical_{cohort_name}_{age_band_fname}.csv")
+    logger.info(f"  - research_summary_{cohort_name}_{age_band_fname}.json")
+
+
 def create_protocol_summary(
     intervals_df: pd.DataFrame,
     output_path: Optional[Path] = None,
@@ -336,6 +571,15 @@ if __name__ == "__main__":
 
     # Per-patient summary
     create_protocol_summary(intervals_df, summary_path)
+    
+    # Create comprehensive research outputs for review
+    create_research_outputs_for_review(
+        intervals_df=intervals_df,
+        model_data_path=model_data_path,
+        cohort_name=args.cohort_name,
+        age_band=args.age_band,
+        min_interval_days=args.min_interval_days,
+    )
 
     filtered_df = filter_protocol_events(
         model_data_path=model_data_path,
