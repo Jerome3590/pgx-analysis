@@ -27,7 +27,7 @@ python 4b_dtw_filter/run_dtw_filter_all_cohorts.py --skip-existing
 
 # Custom parameters
 python 4b_dtw_filter/run_dtw_filter_all_cohorts.py \
-    --min-interval-days 7 \
+    --min-interval-days 1 \
     --protocol-threshold-pct 0.5
 
 # Specific cohorts/age bands
@@ -44,7 +44,7 @@ Run DTW filter for a single cohort/age band:
 python 4b_dtw_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
-    --min-interval-days 7 \
+    --min-interval-days 1 \
     --keep-first-event \
     --protocol-threshold-pct 0.5
 ```
@@ -101,7 +101,7 @@ The notebook provides:
 **Analysis:**
 - Review interval distributions (histograms, statistics)
 - Compare protocol vs non-protocol event intervals
-- Identify optimal threshold (default: 7 days)
+- Identify optimal threshold (default: 1 day, matches BupaR time windows)
 - Consider cohort-specific thresholds
 
 **Findings to Document:**
@@ -125,8 +125,8 @@ The notebook provides:
 
 **Findings to Document:**
 - Top 20 most common sequences
-- Top protocol sequences (< 7 days apart)
-- Top non-protocol sequences (≥ 7 days apart)
+- Top protocol sequences (< 1 day apart by default)
+- Top non-protocol sequences (≥ 1 day apart by default)
 - Sequences that appear in both targets and controls (likely protocols)
 - Sequences that appear primarily in targets (potentially predictive)
 

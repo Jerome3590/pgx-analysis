@@ -20,7 +20,7 @@ from py_helpers.constants import COHORT_NAMES, AGE_BANDS
 def run_dtw_filter(
     cohort_name: str,
     age_band: str,
-    min_interval_days: int = 7,
+    min_interval_days: int = 1,
     keep_first_event: bool = True,
     protocol_threshold_pct: float = 0.5,
 ) -> Tuple[bool, str]:
@@ -82,8 +82,8 @@ def main():
     parser.add_argument(
         "--min-interval-days",
         type=int,
-        default=7,
-        help="Minimum interval (days) to consider non-protocol (default: 7)"
+        default=1,
+        help="Minimum interval (days) for time window research (default: 1, used for research analysis only)"
     )
     parser.add_argument(
         "--protocol-threshold-pct",

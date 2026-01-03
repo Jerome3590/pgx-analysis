@@ -22,11 +22,13 @@ The DTW workflow follows a **research-first approach** where **all research happ
    - Identify which trajectory characteristics correlate with outcomes
    - **Critical**: This research must happen here because filtering occurs before feature extraction
 
-3. **Step 3: Filter Non-Clinical Patterns** (Filtering Phase - **Happens Here**)
-   - Use DTW time window analysis to identify protocol-like events
-   - Filter out events that occur too close together (< 7 days) - these often represent standard care protocols
+3. **Step 3: Filter Administrative Events** (Filtering Phase - **Happens Here**)
+   - **Primary filtering method**: Code classification (administrative vs. medical/pharmacy)
+   - Filter out administrative events (billing, scheduling, post-event documentation) regardless of time intervals
+   - Keep medical/pharmacy events even if they occur close together
+   - Time window analysis (1 day default) is used for research only, not for filtering
    - Output: `model_events_no_protocols.parquet` - cleaned data for downstream feature engineering
-   - **Purpose**: Remove noise from routine care that both targets and controls follow
+   - **Purpose**: Remove administrative noise while preserving all clinical signals
 
 4. **Step 4: Extract Clinical Features** (`5d_dtw_analysis` - Step 5d)
    - Use filtered data to extract trajectory features that are clinically meaningful

@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """
-Filter out protocol-like events using DTW time windows.
+Filter out administrative events from model_data before feature engineering.
 
-Events that are too close together (e.g., < 7 days) may indicate standard care
-protocols rather than predictive patterns. This script identifies and filters
-such events from model_data before feature engineering.
+This script classifies events as administrative vs. medical/pharmacy related and filters
+out administrative events (billing, scheduling, post-event documentation) regardless
+of time intervals. Medical and pharmacy events are kept even if they occur close together.
+
+The classification is based on:
+1. Code patterns (ICD, CPT, drug codes) that indicate administrative vs. clinical events
+2. Research outputs that identify which codes are administrative
+3. Post-event events (events occurring after target event date - these are leakage)
+
+Time window analysis is still performed for research purposes, but filtering is based
+on code classification, not time intervals.
 """
 
 import sys
@@ -28,9 +36,164 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def classify_event_as_administrative(
+    event_row: pd.Series,
+    administrative_codes: Optional[dict] = None,
+    cohort_name: str = "",
+) -> bool:
+    """
+    Classify an event as administrative vs. medical/pharmacy.
+    
+    Administrative events include:
+    - Billing codes (specific CPT codes for billing/documentation)
+    - Scheduling codes (appointment scheduling, administrative procedures)
+    - Post-event documentation (events after target event date - leakage)
+    - Codes identified through research as administrative
+    
+    Parameters
+    ----------
+    event_row : pd.Series
+        Single event row from model_data
+    administrative_codes : Optional[dict]
+        Dictionary with keys 'icd', 'cpt', 'drug' containing sets of administrative codes
+        If None, uses default patterns and research-based classification
+    cohort_name : str
+        Cohort name for determining target event date field
+        
+    Returns
+    -------
+    bool
+        True if event is administrative (should be filtered), False if clinical (keep)
+    """
+    if administrative_codes is None:
+        administrative_codes = {
+            'icd': set(),  # Will be populated from research
+            'cpt': set(),  # Will be populated from research
+            'drug': set(),  # Will be populated from research
+        }
+    
+    # Check for post-event leakage (events after target event date)
+    if cohort_name:
+        if "opioid" in cohort_name.lower():
+            target_date_field = "first_opioid_ed_date"
+        else:
+            target_date_field = "first_ed_non_opioid_date"
+        
+        if target_date_field in event_row.index:
+            target_date = event_row.get(target_date_field)
+            event_date = event_row.get("event_date")
+            
+            if pd.notna(target_date) and pd.notna(event_date):
+                # If event occurs on or after target date, it's leakage (administrative)
+                if pd.to_datetime(event_date) >= pd.to_datetime(target_date):
+                    return True
+    
+    # Check ICD codes
+    for icd_col in ['primary_icd_diagnosis_code', 'two_icd_diagnosis_code', 
+                     'three_icd_diagnosis_code', 'four_icd_diagnosis_code', 
+                     'five_icd_diagnosis_code']:
+        if icd_col in event_row.index:
+            icd_code = event_row.get(icd_col)
+            if pd.notna(icd_code) and str(icd_code).strip():
+                if str(icd_code) in administrative_codes.get('icd', set()):
+                    return True
+    
+    # Check CPT codes
+    if 'procedure_code' in event_row.index:
+        cpt_code = event_row.get('procedure_code')
+        if pd.notna(cpt_code) and str(cpt_code).strip():
+            if str(cpt_code) in administrative_codes.get('cpt', set()):
+                return True
+    
+    # Check drug codes
+    if 'drug_name' in event_row.index:
+        drug_name = event_row.get('drug_name')
+        if pd.notna(drug_name) and str(drug_name).strip():
+            if str(drug_name) in administrative_codes.get('drug', set()):
+                return True
+    
+    # Default: keep all medical/pharmacy events (not administrative)
+    return False
+
+
+def load_administrative_codes_from_research(
+    cohort_name: str,
+    age_band: str,
+    protocol_threshold_pct: float = 80.0,
+) -> dict:
+    """
+    Load administrative codes from research outputs.
+    
+    Codes that appear in > protocol_threshold_pct of protocol-like sequences
+    (events < min_interval_days apart, default: 1 day) are considered administrative.
+    
+    Parameters
+    ----------
+    cohort_name : str
+        Cohort name
+    age_band : str
+        Age band
+    protocol_threshold_pct : float
+        Threshold for considering a code administrative (default: 80%)
+        
+    Returns
+    -------
+    dict
+        Dictionary with keys 'icd', 'cpt', 'drug' containing sets of administrative codes
+    """
+    age_band_fname = age_band.replace("-", "_")
+    code_analysis_path = (
+        OUTPUT_ROOT / "for_review" / cohort_name / age_band_fname /
+        f"code_analysis_protocol_vs_clinical_{cohort_name}_{age_band_fname}.csv"
+    )
+    
+    administrative_codes = {
+        'icd': set(),
+        'cpt': set(),
+        'drug': set(),
+    }
+    
+    if not code_analysis_path.exists():
+        logger.warning(
+            f"Research outputs not found at {code_analysis_path}. "
+            "Using default classification (no codes filtered)."
+        )
+        return administrative_codes
+    
+    try:
+        code_analysis_df = pd.read_csv(code_analysis_path)
+        
+        # Codes with high protocol_pct are likely administrative
+        admin_codes = code_analysis_df[
+            code_analysis_df['protocol_pct'] >= protocol_threshold_pct
+        ]
+        
+        for _, row in admin_codes.iterrows():
+            code_type = row.get('code_type', '').upper()
+            code = str(row.get('code', '')).strip()
+            
+            if code_type == 'ICD' and code:
+                administrative_codes['icd'].add(code)
+            elif code_type == 'CPT' and code:
+                administrative_codes['cpt'].add(code)
+            elif code_type == 'DRUG' and code:
+                administrative_codes['drug'].add(code)
+        
+        logger.info(
+            f"Loaded {len(administrative_codes['icd'])} ICD, "
+            f"{len(administrative_codes['cpt'])} CPT, "
+            f"{len(administrative_codes['drug'])} drug administrative codes from research"
+        )
+        
+    except Exception as e:
+        logger.warning(f"Error loading administrative codes: {e}. Using default classification.")
+    
+    return administrative_codes
+
+
 def calculate_event_intervals(
     model_data_path: Path,
-    min_interval_days: int = 7,
+    min_interval_days: int = 1,
     max_interval_days: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -115,15 +278,17 @@ def calculate_event_intervals(
     return intervals_df
 
 
-def filter_protocol_events(
+def filter_administrative_events(
     model_data_path: Path,
     output_path: Path,
-    min_interval_days: int = 7,
+    cohort_name: str,
+    age_band: str,
+    administrative_codes: Optional[dict] = None,
     keep_first_event: bool = True,
-    protocol_threshold_pct: float = 0.5,
+    admin_code_threshold_pct: float = 80.0,
 ) -> pd.DataFrame:
     """
-    Filter out protocol-like events from model_data.
+    Filter out administrative events from model_data based on code classification.
 
     Parameters
     ----------
@@ -131,21 +296,24 @@ def filter_protocol_events(
         Input model_events.parquet path
     output_path : Path
         Output filtered model_events.parquet path
-    min_interval_days : int
-        Minimum interval (days) to consider non-protocol
+    cohort_name : str
+        Cohort name for determining target event date field
+    age_band : str
+        Age band for loading research outputs
+    administrative_codes : Optional[dict]
+        Dictionary with keys 'icd', 'cpt', 'drug' containing sets of administrative codes.
+        If None, loads from research outputs.
     keep_first_event : bool
-        If True, always keep the first event per patient (even if protocol-like)
-    protocol_threshold_pct : float
-        If a patient has > this % of protocol events, keep all events
+        If True, always keep the first event per patient (even if administrative)
+    admin_code_threshold_pct : float
+        Threshold for considering a code administrative from research (default: 80%)
 
     Returns
     -------
     pd.DataFrame
-        Filtered model_data
+        Filtered model_data with administrative events removed
     """
-    logger.info("Filtering protocol events from {0}".format(model_data_path))
-
-    intervals_df = calculate_event_intervals(model_data_path, min_interval_days)
+    logger.info("Filtering administrative events from {0}".format(model_data_path))
 
     con = duckdb.connect()
     original_df = con.execute(
@@ -153,65 +321,62 @@ def filter_protocol_events(
     ).df()
     con.close()
 
-    # Rank events per patient; allow missing dates and fill them with 0 so they
-    # are treated as non-protocol and always kept.
+    # Load administrative codes from research if not provided
+    if administrative_codes is None:
+        administrative_codes = load_administrative_codes_from_research(
+            cohort_name=cohort_name,
+            age_band=age_band,
+            protocol_threshold_pct=admin_code_threshold_pct,
+        )
+        # If research outputs don't exist, start with empty sets (will only filter post-event leakage)
+        if not administrative_codes['icd'] and not administrative_codes['cpt'] and not administrative_codes['drug']:
+            logger.info(
+                "No administrative codes found in research outputs. "
+                "Will only filter post-event leakage (events after target date)."
+            )
+
+    # Rank events per patient
     event_seq = (
         original_df.groupby("mi_person_key")["event_date"]
         .rank(method="first", ascending=True)
     )
     original_df["event_seq"] = event_seq.fillna(0).astype(int)
 
-    merged = original_df.merge(
-        intervals_df[
-            [
-                "mi_person_key",
-                "event_seq",
-                "is_protocol_event",
-                "days_since_previous",
-            ]
-        ],
-        on=["mi_person_key", "event_seq"],
-        how="left",
+    # Classify each event as administrative
+    original_df["is_administrative"] = original_df.apply(
+        lambda row: classify_event_as_administrative(
+            row, administrative_codes, cohort_name
+        ),
+        axis=1,
     )
 
-    merged["is_protocol_event"] = merged["is_protocol_event"].fillna(0)
-    merged["days_since_previous"] = merged["days_since_previous"].fillna(0)
-
-    patient_protocol_pct = merged.groupby("mi_person_key")["is_protocol_event"].mean()
-    merged["patient_protocol_pct"] = merged["mi_person_key"].map(patient_protocol_pct)
-
+    # Filter logic: keep non-administrative events
     if keep_first_event:
-        merged["keep_event"] = (
-            (merged["event_seq"] == 1)
-            | (merged["patient_protocol_pct"] > protocol_threshold_pct)
-            | (merged["is_protocol_event"] == 0)
+        original_df["keep_event"] = (
+            (original_df["event_seq"] == 1)  # Always keep first event
+            | (~original_df["is_administrative"])  # Keep non-administrative events
         )
     else:
-        merged["keep_event"] = (
-            (merged["patient_protocol_pct"] > protocol_threshold_pct)
-            | (merged["is_protocol_event"] == 0)
-        )
+        original_df["keep_event"] = ~original_df["is_administrative"]
 
-    filtered_df = merged[merged["keep_event"]].copy()
+    filtered_df = original_df[original_df["keep_event"]].copy()
 
+    # Drop helper columns
     filtered_df = filtered_df.drop(
         columns=[
             "event_seq",
-            "is_protocol_event",
-            "days_since_previous",
-            "patient_protocol_pct",
+            "is_administrative",
             "keep_event",
         ],
         errors="ignore",
     )
 
+    admin_count = (original_df["is_administrative"] == True).sum()
     logger.info("Filtered {0} events -> {1} events".format(len(original_df), len(filtered_df)))
     logger.info(
-        "Removed {0} protocol events ({1:.1f}%)".format(
-            len(original_df) - len(filtered_df),
-            100.0
-            * (len(original_df) - len(filtered_df))
-            / max(len(original_df), 1),
+        "Removed {0} administrative events ({1:.1f}%)".format(
+            admin_count,
+            100.0 * admin_count / max(len(original_df), 1),
         )
     )
 
@@ -227,7 +392,7 @@ def create_research_outputs_for_review(
     model_data_path: Path,
     cohort_name: str,
     age_band: str,
-    min_interval_days: int = 7,
+    min_interval_days: int = 1,
 ) -> None:
     """
     Create comprehensive research outputs for review in outputs/for_review folder.
@@ -517,22 +682,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-interval-days",
         type=int,
-        default=7,
-        help="Minimum interval (days) to consider non-protocol",
+        default=1,
+        help="Minimum interval (days) for time window analysis in research outputs (default: 1, matches BupaR). Note: Filtering is based on code classification, not time intervals.",
     )
     parser.add_argument(
         "--keep-first-event",
         action="store_true",
         default=True,
-        help="Always keep first event per patient",
+        help="Always keep first event per patient (even if administrative)",
     )
     parser.add_argument(
-        "--protocol-threshold-pct",
+        "--admin-code-threshold-pct",
         type=float,
-        default=0.5,
+        default=80.0,
         help=(
-            "Keep all events if patient has > this percent protocol events "
-            "(default: 0.5)"
+            "Threshold for considering a code administrative from research outputs "
+            "(codes with > this % in protocol-like sequences are considered administrative, default: 80.0)"
         ),
     )
 
@@ -563,6 +728,14 @@ if __name__ == "__main__":
     summary_path = audit_dir / f"protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
     intervals_path = audit_dir / f"event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
 
+    # Load original data to get count
+    con = duckdb.connect()
+    original_df = con.execute(
+        f"SELECT * FROM read_parquet('{model_data_path}')"
+    ).df()
+    con.close()
+    
+    # Step 1: Calculate time intervals (for research purposes)
     intervals_df = calculate_event_intervals(model_data_path, args.min_interval_days)
 
     # Persist full event-level intervals with protocol flags for audit/exploration
@@ -572,7 +745,7 @@ if __name__ == "__main__":
     # Per-patient summary
     create_protocol_summary(intervals_df, summary_path)
     
-    # Create comprehensive research outputs for review
+    # Step 2: Create comprehensive research outputs for review (used to identify administrative codes)
     create_research_outputs_for_review(
         intervals_df=intervals_df,
         model_data_path=model_data_path,
@@ -581,13 +754,33 @@ if __name__ == "__main__":
         min_interval_days=args.min_interval_days,
     )
 
-    filtered_df = filter_protocol_events(
+    # Step 3: Filter based on code classification (administrative vs. medical/pharmacy)
+    filtered_df = filter_administrative_events(
         model_data_path=model_data_path,
         output_path=output_path,
-        min_interval_days=args.min_interval_days,
+        cohort_name=args.cohort_name,
+        age_band=args.age_band,
+        administrative_codes=None,  # Will load from research outputs
         keep_first_event=args.keep_first_event,
-        protocol_threshold_pct=args.protocol_threshold_pct,
+        admin_code_threshold_pct=args.admin_code_threshold_pct,
     )
+
+    print("\n[INFO] Administrative event filtering complete!")
+    print(f"  Original events: {len(original_df)}")
+    print(f"  Filtered events: {len(filtered_df)}")
+    print(
+        "  Removed: {0} ({1:.1f}%)".format(
+            len(original_df) - len(filtered_df),
+            100.0
+            * (len(original_df) - len(filtered_df))
+            / max(len(original_df), 1),
+        )
+    )
+    print("\n[INFO] Research outputs saved to:")
+    print(f"  {OUTPUT_ROOT / 'for_review' / args.cohort_name / age_band_fname}")
+    print("\n[INFO] Next steps:")
+    print("  1. Review code_analysis_protocol_vs_clinical_*.csv to identify administrative codes")
+    print("  2. Re-run filter to apply code-based filtering (will use research outputs)")
 
     print("\n[INFO] Protocol filtering complete!")
     print(f"  Original events: {len(intervals_df)}")

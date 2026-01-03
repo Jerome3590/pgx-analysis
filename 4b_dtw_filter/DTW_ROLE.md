@@ -42,10 +42,11 @@ Patient medical histories are sequences of events over time. The **temporal patt
 
 ## Primary Use: Noise Reduction via Protocol Filtering
 
-### What DTW Time Windows Reveal
-- **Protocol-like events**: Events occurring < 7 days apart often represent standard care protocols
-- **Predictive patterns**: Events with longer intervals (> 7 days) may indicate deviations from standard care
-- **Noise reduction**: Filtering out protocol events reduces noise in downstream analyses
+### What DTW Filtering Reveals
+- **Administrative events**: Events classified as administrative (billing, scheduling, post-event documentation) are filtered out
+- **Medical/pharmacy events**: All medical and pharmacy events are kept, regardless of time intervals
+- **Time window analysis**: 1-day default interval is used for research to understand trajectory patterns, not for filtering
+- **Noise reduction**: Filtering out administrative events reduces noise in downstream analyses
 
 ### Benefits
 1. **Cleaner sequences**: FP-Growth and BupaR analyses focus on meaningful patterns
@@ -70,11 +71,11 @@ Patient medical histories are sequences of events over time. The **temporal patt
 ### Step 1: Protocol Filtering (Primary)
 
 ```bash
-# Filter protocol events using DTW time windows
-python 5_dtw_analysis/filter_protocol_events.py \
+# Filter administrative events using code classification
+python 4b_dtw_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
-    --min-interval-days 7
+    --min-interval-days 1  # Used for research only, not filtering
 ```
 
 **Output**: `model_events_no_protocols.parquet`
@@ -117,10 +118,11 @@ python 5_dtw_analysis/create_dtw_features.py \
 ## Conclusion
 
 **DTW's primary value is in preprocessing/filtering:**
-- Identifies protocol-like events using time windows
-- Filters noise before feature engineering
+- Identifies administrative events using code classification (not time intervals)
+- Filters administrative noise before feature engineering
+- Keeps all medical/pharmacy events regardless of time intervals
 - Improves signal quality for FP-Growth, BupaR, and final model
-- **FP-Growth uses filtered data**: Itemsets and association rules are generated from `model_events_no_protocols.parquet`, ensuring only useful signals (non-protocol events) are captured
+- **FP-Growth uses filtered data**: Itemsets and association rules are generated from `model_events_no_protocols.parquet`, ensuring only useful signals (non-administrative events) are captured
 
 **DTW features are secondary:**
 - May be useful for large cohorts
@@ -131,6 +133,6 @@ python 5_dtw_analysis/create_dtw_features.py \
 
 1. **Use filtered data**: Run all feature engineering with `model_events_no_protocols.parquet`
 2. **Compare performance**: Test model with and without protocol filtering
-3. **Refine threshold**: Adjust `min-interval-days` based on results
+3. **Refine code classification**: Update administrative code lists based on research results
 4. **Keep DTW features**: Include but do not prioritize in feature selection
 

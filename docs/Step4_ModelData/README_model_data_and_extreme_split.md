@@ -75,6 +75,67 @@ The updated `model_events.parquet` is what feeds **all main feature engineering 
 For `opioid_ed`, these summaries are complemented by BupaR process mining in  
 `5a_bupaR_analysis/create_bupar_outputs_opioid_ed_extreme.R`, which builds an extreme-only eventlog and plots under `feature_engineering_outputs/5_bupar/opioid_ed_extreme_density/{age_band}/plots`.
 
+#### Z Code Analysis: Routine Examinations in Extreme vs Standard Cohorts
+
+**Motivation**: Z codes (ICD-10 codes starting with "Z") represent "Factors influencing health status and contact with health services" and include routine health examinations, administrative encounters, and follow-up visits. These codes are often associated with preventive care and routine checkups rather than acute medical conditions. Understanding how Z codes differ between extreme and standard cohorts can help identify whether routine care patterns contribute to extreme-density patient profiles.
+
+**Analysis Script**: `4b_dtw_filter/analyze_z_codes_in_cohorts.py`
+
+**Usage**:
+```bash
+# Analyze Z codes for a specific cohort and age band
+python 4b_dtw_filter/analyze_z_codes_in_cohorts.py --cohort opioid_ed --age-band 0-12
+
+# Analyze all age bands for a cohort
+python 4b_dtw_filter/analyze_z_codes_in_cohorts.py --cohort opioid_ed
+```
+
+**Key Z Code Categories**:
+- **Z00**: General health examinations (routine checkups)
+- **Z01**: Special examinations (eye, dental, blood pressure, etc.)
+- **Z02**: Administrative examinations (pre-employment, insurance, driving license, etc.)
+- **Z08/Z09**: Follow-up examinations after treatment
+- **Z39**: Postpartum care and examination
+- **Z51**: Encounters for aftercare and medical care
+
+**Outputs** (per cohort/age_band):
+- `4b_dtw_filter/outputs/z_code_analysis/{cohort}_{age_band}.csv` - Full Z code event data with time windows
+- `4b_dtw_filter/outputs/z_code_analysis/z_code_summary_{cohort}_{age_band}.json` - Summary statistics
+
+**Analysis Metrics**:
+- **Event counts**: Total Z code events in standard vs extreme cohorts
+- **Time windows**: Distribution of days from target event date for Z codes
+- **Z code frequency**: Most common Z codes in each cohort type
+- **Category distribution**: Breakdown by Z code category (Z00, Z01, Z02, etc.)
+
+**Expected Findings**:
+- **Early examinations (Z codes) should reduce extreme cohort size**: Routine examinations and administrative encounters are less likely to drive extreme-density patterns compared to acute medical conditions and complex care trajectories.
+- **Time window differences**: Z codes in extreme cohorts may show different temporal patterns (e.g., more routine care before target events, or different follow-up patterns).
+- **Administrative vs clinical**: Z02 codes (administrative examinations) are particularly likely to be filtered or show different patterns in extreme cohorts.
+
+**Hypothesis Testing: Time Windows in Extreme vs Standard Cohorts**
+
+**Hypothesis**: Extreme cohorts have larger time windows than standard cohorts.
+
+**Analysis Script**: `4b_dtw_filter/analyze_z_code_time_windows.py`
+
+**Findings** (based on available data):
+- For `opioid_ed` / `55-64` (the only cohort/age_band with both standard and extreme data):
+  - **Standard cohort**: Mean absolute time window = 194.0 days, Median = 117.0 days
+  - **Extreme cohort**: Mean absolute time window = 338.2 days, Median = 281.5 days
+  - **Difference**: Extreme cohort has **144.2 days larger** mean time window (164.5 days larger median)
+  - **Result**: ✅ **Hypothesis supported** - Extreme cohorts show significantly larger time windows
+
+**Interpretation**:
+- Extreme-density patients have Z code events (routine examinations) that occur much further from the target event date compared to standard patients
+- This suggests extreme-density patients may have:
+  - More routine/preventive care spread over longer time periods
+  - Different care patterns with events distributed across wider temporal windows
+  - Potentially more administrative/routine encounters that could be filtered
+
+**Integration with DTW Filtering**:
+Z codes identified as administrative (particularly Z02 codes for administrative examinations) can be added to the administrative codes lookup table (`4b_dtw_filter/administrative_codes_lookup.json`) to filter them during DTW protocol filtering, further reducing the extreme cohort size and focusing on clinically meaningful events. The larger time windows in extreme cohorts suggest that filtering routine examinations may be particularly effective for reducing extreme-density patterns.
+
 ### How Step 4 Connects to Later Steps
 
 - **Main cohorts** (with extreme-density patients removed) flow into:

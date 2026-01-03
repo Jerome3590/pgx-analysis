@@ -22,7 +22,7 @@ from py_helpers.constants import COHORT_NAMES, AGE_BANDS
 
 def analyze_time_windows(
     intervals_path: Path,
-    min_interval_days: int = 7
+    min_interval_days: int = 1
 ) -> Dict:
     """Analyze time window distributions."""
     if not intervals_path.exists():
@@ -124,7 +124,7 @@ def analyze_common_sequences(
                 sequences.append({
                     'sequence': f"{', '.join(seq_type)} -> {', '.join(next_seq_type)}",
                     'days_apart': next_event['days_since_previous'],
-                    'is_protocol': next_event['days_since_previous'] < 7 if pd.notna(next_event['days_since_previous']) else False,
+                    'is_protocol': next_event['days_since_previous'] < 3 if pd.notna(next_event['days_since_previous']) else False,
                     'target': curr['target']
                 })
     
@@ -331,7 +331,7 @@ def print_research_summary(
     print("-" * 80)
     if "error" not in time_window_stats:
         print(f"   Total events: {time_window_stats['total_events']:,}")
-        print(f"   Protocol events (< 7 days): {time_window_stats['protocol_events']:,} ({time_window_stats['protocol_pct']:.1f}%)")
+        print(f"   Protocol events (< {min_interval_days} days): {time_window_stats['protocol_events']:,} ({time_window_stats['protocol_pct']:.1f}%)")
         print(f"   Non-protocol events: {time_window_stats['non_protocol_events']:,} ({time_window_stats['non_protocol_pct']:.1f}%)")
         print(f"   Mean interval: {time_window_stats['mean_interval_days']:.1f} days")
         print(f"   Median interval: {time_window_stats['median_interval_days']:.1f} days")

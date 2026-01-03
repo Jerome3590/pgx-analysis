@@ -49,36 +49,49 @@ Before filtering, we need to understand:
 
 ## Overview
 
-Events that occur too close together (e.g., < 7 days apart) often represent standard care protocols rather than predictive patterns. This filtering approach uses DTW time window analysis to identify and exclude such protocol-like events from model training.
+**IMPORTANT**: This filter now focuses on **code classification** (administrative vs. medical/pharmacy) rather than time intervals alone. Events are filtered based on whether they are administrative (billing, scheduling, post-event documentation) vs. medical/pharmacy related, regardless of time intervals.
+
+Time window analysis (using `min_interval_days`, default: 1 day) is still performed for research purposes to understand trajectory patterns, but the actual filtering is based on code classification.
 
 **Note**: The filtering decisions in this step should be research-driven. Before applying filters, analyze all trajectories and time windows to understand what is clinically useful vs. what is noise.
 
 ## Strategy
 
-### 1. **Time Interval Calculation**
-- Calculate time intervals between consecutive events per patient
-- Identify events that are part of protocol sequences (very short intervals)
-- Default threshold: **7 days** (events closer than this are considered protocol-like)
+### 1. **Code Classification**
+- **Administrative codes**: Identified through research as codes that appear primarily in protocol-like sequences (events < 1 day apart)
+  - Billing codes (specific CPT codes for billing/documentation)
+  - Scheduling codes (appointment scheduling, administrative procedures)
+  - Post-event documentation (events after target event date - leakage)
+- **Clinical codes**: All other codes (diagnoses, procedures, medications)
+  - These are kept regardless of time intervals
 
-### 2. **Filtering Logic**
-- **Keep first event**: Always keep the first event per patient (even if protocol-like)
-- **Keep high-frequency patients**: If a patient has > 50% protocol events, keep all events (may be genuinely high-frequency care)
-- **Filter protocol events**: Otherwise, exclude events that are < threshold days apart
+### 2. **Research-Based Identification**
+- **Time window analysis**: Calculate intervals between consecutive events to identify protocol-like sequences
+  - **Default threshold: 1 day** for research (events closer than this are considered protocol-like for code analysis)
+  - **Rationale**: With both pharmacy and medical data, events can occur more frequently
+- **Code analysis**: Identify which codes appear in > 80% of protocol-like sequences (default threshold)
+- **Research outputs**: Generate `code_analysis_protocol_vs_clinical_*.csv` with code classifications
 
-### 3. **Rationale**
-- **Standard protocols**: Routine follow-ups, medication refills, scheduled tests
-- **Predictive patterns**: Events with longer intervals may indicate deviations from standard care
-- **High-frequency patients**: Some patients genuinely need frequent care (e.g., chronic conditions)
+### 3. **Filtering Logic**
+- **Filter administrative codes**: Remove events with codes identified as administrative
+- **Filter post-event leakage**: Remove events occurring on or after target event date
+- **Keep first event**: Always keep the first event per patient (even if administrative)
+- **Keep all clinical events**: Medical/pharmacy events are kept even if they occur close together
+
+### 4. **Rationale**
+- **Administrative events are noise**: Billing, scheduling, and post-event documentation don't provide predictive signal
+- **Clinical events are valuable**: Diagnoses, procedures, and medications should be preserved regardless of timing
+- **Time intervals are for research**: Time window analysis helps identify administrative codes, but filtering is code-based
 
 ## Usage
 
 ```bash
-python 5_dtw_analysis/filter_protocol_events.py \
+python 4b_dtw_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
-    --min-interval-days 7 \
+    --min-interval-days 3 \
     --keep-first-event \
-    --protocol-threshold-pct 0.5
+    --admin-code-threshold-pct 80.0
 ```
 
 ## Output
@@ -97,7 +110,7 @@ python 5_dtw_analysis/filter_protocol_events.py \
 ## Results for Cohort 1, Age Band 0-12
 
 - **Total events**: 5,350
-- **Protocol events** (< 7 days apart): 4,597 (85.9%)
+- **Administrative events filtered**: [varies by cohort - check research outputs]
 - **Non-protocol events**: 753 (14.1%)
 - **Events removed**: 17 (0.3%)
 - **Events kept**: 5,333 (99.7%)
@@ -126,36 +139,46 @@ Keep all events but add `is_protocol_event` as a feature:
 
 ## Parameters
 
-- `--min-interval-days`: Minimum interval (days) to consider non-protocol (default: 7)
-- `--keep-first-event`: Always keep first event per patient (default: True)
-- `--protocol-threshold-pct`: Keep all events if patient has > this % protocol events (default: 0.5)
+- `--min-interval-days`: Minimum interval (days) for time window analysis in research outputs (default: 1, matches BupaR). Note: Filtering is based on code classification, not time intervals.
+- `--keep-first-event`: Always keep first event per patient (even if administrative, default: True)
+- `--admin-code-threshold-pct`: Threshold for considering a code administrative from research outputs (codes with > this % in protocol-like sequences are considered administrative, default: 80.0)
 
-## Clinical Interpretation
+## Code Classification Approach
 
-- **< 7 days**: Likely protocol (routine follow-ups, refills)
-- **7-30 days**: May be protocol or predictive
-- **> 30 days**: More likely predictive (deviations from standard care)
+**Important**: Filtering is now based on **code classification** (administrative vs. medical/pharmacy), not time intervals.
+
+### Administrative Event Identification
+
+Administrative events are identified through:
+1. **Code pattern analysis**: Research outputs identify which codes appear primarily in administrative contexts
+2. **Post-event events**: Events occurring after target event date (leakage)
+3. **Billing/scheduling codes**: Specific CPT codes that indicate administrative procedures
+
+### Medical/Pharmacy Event Identification
+
+Medical/pharmacy events include:
+1. **Clinical diagnoses**: ICD codes representing actual medical conditions
+2. **Medical procedures**: CPT codes for clinical procedures
+3. **Pharmacy prescriptions**: Drug codes for medications
+
+### Time Window Analysis (Research Only)
+
+Time window analysis (1-day default) is used for:
+1. **Understanding trajectory patterns**: Which sequences occur frequently?
+2. **Identifying administrative clustering**: Do administrative events cluster at very short intervals?
+3. **Validating code classifications**: Do codes classified as administrative appear in short-interval sequences?
+
+### How to Research and Classify Codes
+
+1. **Review research outputs**: Use the research outputs in `outputs/for_review/` to see code frequencies and patterns
+2. **Analyze code distributions**: Which codes appear in administrative vs. clinical contexts?
+3. **Validate classifications**: Consult clinical experts on code meanings
+4. **Update classification logic**: Refine the `classify_event_as_administrative()` function based on research findings
 
 ## Next Steps
 
 1. **Test with filtered data**: Re-run feature engineering and model training with `model_events_no_protocols.parquet`
 2. **Compare performance**: See if removing protocol events improves model performance
-3. **Adjust threshold**: Experiment with different `min-interval-days` values
-4. **Analyze protocol patterns**: Use protocol summary to understand standard care patterns
-
-
-- `--protocol-threshold-pct`: Keep all events if patient has > this % protocol events (default: 0.5)
-
-## Clinical Interpretation
-
-- **< 7 days**: Likely protocol (routine follow-ups, refills)
-- **7-30 days**: May be protocol or predictive
-- **> 30 days**: More likely predictive (deviations from standard care)
-
-## Next Steps
-
-1. **Test with filtered data**: Re-run feature engineering and model training with `model_events_no_protocols.parquet`
-2. **Compare performance**: See if removing protocol events improves model performance
-3. **Adjust threshold**: Experiment with different `min-interval-days` values
-4. **Analyze protocol patterns**: Use protocol summary to understand standard care patterns
+3. **Adjust threshold**: Experiment with different `min-interval-days` values based on research findings
+4. **Analyze protocol patterns**: Use protocol summary and research outputs to understand standard care patterns
 
