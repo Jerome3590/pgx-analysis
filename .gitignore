@@ -35,4 +35,7 @@ pharmacy_head.txt
 */outputs/*
 s3_outputs/
 
+# Local ICD code lookup files (large, should not be in repo)
+4b_dtw_filter/code_lookup/
+
 
