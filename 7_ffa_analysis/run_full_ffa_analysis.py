@@ -746,12 +746,53 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
     print("="*80)
     
     # Build paths (use current cohort/age band)
-    model_json_filename = f'{COHORT_NAME}_{AGE_BAND_FNAME}_final_model_{model_type}.json'
-    model_json_path = MODEL_JSON_BASE / model_json_filename
+    # Load best XGBoost model JSON (selected by final model training)
+    if model_type in ['xgboost', 'xgboost_rf']:
+        # Use best XGBoost model (could be xgb or xgb_rf)
+        model_json_filename = f'{COHORT_NAME}_{AGE_BAND_FNAME}_best_xgboost_model.json'
+        model_json_path = MODEL_JSON_BASE / model_json_filename
+        
+        # Fallback to model_outputs location
+        if not model_json_path.exists():
+            model_outputs_base = (
+                PROJECT_ROOT
+                / "6_final_model"
+                / "model_outputs"
+                / COHORT_NAME
+                / AGE_BAND_FNAME
+            )
+            model_json_path = model_outputs_base / model_json_filename
+        
+        # Load model selection metadata to determine variant
+        metadata_path = MODEL_JSON_BASE.parent / f'{COHORT_NAME}_{AGE_BAND_FNAME}_model_selection_metadata.json'
+        if metadata_path.exists():
+            with open(metadata_path, 'r') as f:
+                selection_metadata = json.load(f)
+                actual_variant = selection_metadata.get('best_xgb_variant', 'xgb')
+                logger.info(f"Best XGBoost variant: {actual_variant} (from selection metadata)")
+        else:
+            logger.warning(f"Model selection metadata not found at {metadata_path}")
+            actual_variant = 'xgb'  # Default
+    else:
+        # CatBoost - use best model
+        model_json_filename = f'{COHORT_NAME}_{AGE_BAND_FNAME}_best_catboost_model.json'
+        model_json_path = MODEL_JSON_BASE / model_json_filename
+        
+        # Fallback to model_outputs location
+        if not model_json_path.exists():
+            model_outputs_base = (
+                PROJECT_ROOT
+                / "6_final_model"
+                / "model_outputs"
+                / COHORT_NAME
+                / AGE_BAND_FNAME
+            )
+            model_json_path = model_outputs_base / model_json_filename
+    
     logger.info(f"Model JSON path: {model_json_path}")
     
     if not model_json_path.exists():
-        logger.warning(f"Model JSON not found: {model_json_path}")
+        logger.warning(f"Best model JSON not found: {model_json_path}")
         print(f"[SKIP] Model JSON not found: {model_json_path}")
         return None
     
@@ -902,8 +943,11 @@ def main():
     print("="*80)
     
     if args.model_type == "all":
-        model_types = ['catboost', 'xgboost', 'xgboost_rf']
+        # For "all", analyze best XGBoost (selected variant) only
+        # Note: We only analyze the best XGBoost variant selected by final model training
+        model_types = ['xgboost']  # Will load best_xgboost_model.json which contains the selected variant
     else:
+        # If user specifies a specific type, use it (but best model might be different)
         model_types = [args.model_type]
     results = []
     

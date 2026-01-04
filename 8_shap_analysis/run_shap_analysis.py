@@ -57,18 +57,89 @@ def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.S
 from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
 
 
-def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, random_seed: int = 42):
+def _load_best_models(cohort: str, age_band: str):
     """
-    Fit XGBoost and CatBoost models with the same hyperparameters used in
-    6b_final_model_selection/run_final_model.py for use in SHAP analysis.
+    Load the best models selected by the final model training step.
+    
+    Returns:
+        - best_catboost_model: CatBoost model loaded from .cbm binary
+        - model_selection_metadata: Dict with selection information
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    
+    # Load model selection metadata
+    metadata_path = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+    )
+    
+    import json
+    if metadata_path.exists():
+        with open(metadata_path, "r") as f:
+            model_selection_metadata = json.load(f)
+    else:
+        print(f"Warning: Model selection metadata not found at {metadata_path}")
+        model_selection_metadata = {}
+    
+    # Load best CatBoost model binary (.cbm) for SHAP analysis
+    cb_binary_path = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / "final_model_json"
+        / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
+    )
+    
+    # Fallback to model_outputs location
+    if not cb_binary_path.exists():
+        cb_binary_path = (
+            PROJECT_ROOT
+            / "6_final_model"
+            / "model_outputs"
+            / cohort
+            / age_band_fname
+            / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
+        )
+    
+    if not cb_binary_path.exists():
+        raise FileNotFoundError(
+            f"Best CatBoost model binary not found. Checked:\n"
+            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
+            f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
+            f"Please run 6b_final_model_selection/run_final_model.py first."
+        )
+    
+    from catboost import CatBoostClassifier  # type: ignore
+    cb_model = CatBoostClassifier()
+    cb_model.load_model(str(cb_binary_path))
+    print(f"Loaded best CatBoost model from {cb_binary_path}")
+    
+    return cb_model, model_selection_metadata
 
-    We refit here to avoid depending on serialized binaries; this is acceptable
-    because we are computing SHAP values on the same data distribution used in
-    final training.
+
+def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, cohort: str, age_band: str, random_seed: int = 42):
     """
+    Load best CatBoost model and prepare for SHAP analysis.
+    
+    Uses the best CatBoost model binary (.cbm) selected by the final model training step.
+    """
+    # Load best CatBoost model
+    cb_model, model_selection_metadata = _load_best_models(cohort, age_band)
+    
+    # For XGBoost, we still need to fit it (or could load best XGBoost if needed)
+    # But SHAP analysis typically uses CatBoost, so we'll focus on that
     import xgboost as xgb  # type: ignore
 
     nthread = get_xgb_cpu_nthread()
+    
+    from py_helpers.env_utils import is_linux
+    device = "cpu" if is_linux() else "cuda"
 
     xgb_clf = xgb.XGBClassifier(
         n_estimators=500,
@@ -77,7 +148,7 @@ def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, random_seed: int = 42):
         subsample=0.8,
         colsample_bytree=0.8,
         tree_method="hist",
-        device="cuda",
+        device=device,
         objective="binary:logistic",
         eval_metric="logloss",
         n_jobs=nthread,
@@ -86,29 +157,14 @@ def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, random_seed: int = 42):
     try:
         xgb_clf.fit(X, y)
     except Exception:
+        # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
         xgb_clf.set_params(tree_method="hist")
         if "device" in xgb_clf.get_params():
             xgb_clf.set_params(device="cpu")
         xgb_clf.fit(X, y)
 
-    try:
-        from catboost import CatBoostClassifier  # type: ignore
-
-        cb_clf = CatBoostClassifier(
-            iterations=500,
-            learning_rate=0.05,
-            depth=6,
-            loss_function="Logloss",
-            eval_metric="Logloss",
-            grow_policy="SymmetricTree",
-            random_seed=random_seed,
-            verbose=False,
-        )
-        cb_clf.fit(X, y)
-    except Exception:
-        cb_clf = None
-
-    return xgb_clf, cb_clf
+    # Return loaded CatBoost model (best model) and fitted XGBoost
+    return xgb_clf, cb_model
 
 
 def run_shap_analysis(
@@ -147,8 +203,8 @@ def run_shap_analysis(
     X_bg = X.iloc[bg_idx]
     X_eval = X.iloc[eval_idx]
 
-    print("Fitting models for SHAP...")
-    xgb_clf, cb_clf = _fit_models_for_shap(X, y)
+    print("Loading best models for SHAP...")
+    xgb_clf, cb_clf = _fit_models_for_shap(X, y, cohort, age_band)
 
     feature_names = list(X.columns)
 

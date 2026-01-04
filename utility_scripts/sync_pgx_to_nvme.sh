@@ -7,8 +7,8 @@ set -euo pipefail
 
 # 1) GitHub repo URL for this project
 #    Use HTTPS or SSH depending on your EC2 auth setup.
-REPO_URL="git@github.com:YOUR_ORG/pgx-analysis.git"
-# REPO_URL="https://github.com/YOUR_ORG/pgx-analysis.git"
+REPO_URL="https://github.com/Jerome3590/pgx-analysis.git"
+# REPO_URL="git@github.com:Jerome3590/pgx-analysis.git"  # Alternative: SSH URL
 
 # 2) Where to keep the git clone on EC2 (code stays on $HOME)
 CLONE_DIR="$HOME/pgx-analysis"
@@ -166,6 +166,110 @@ ensure_clone() {
     mkdir -p "$(dirname "$CLONE_DIR")"
     git clone "$REPO_URL" "$CLONE_DIR"
   fi
+  
+  # Initialize submodules if they exist
+  if [ -f "$CLONE_DIR/.gitmodules" ]; then
+    log "Initializing submodules..."
+    git -C "$CLONE_DIR" submodule update --init --recursive || log "Warning: Submodule initialization failed (may need manual setup)"
+  fi
+}
+
+mount_nvme() {
+  # Check if already mounted
+  if mountpoint -q "$NVME_ROOT" 2>/dev/null; then
+    log "NVMe volume already mounted at $NVME_ROOT"
+    return 0
+  fi
+
+  # Only proceed on Linux
+  if [ "$OS_TYPE" != "Linux" ]; then
+    log "Skipping NVMe mount (non-Linux system)"
+    return 0
+  fi
+
+  # Check if we have root/sudo privileges
+  if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+    log "Warning: Cannot mount NVMe (need root/sudo). Please mount manually:"
+    log "  sudo mkdir -p $NVME_ROOT"
+    log "  sudo mount /dev/nvme1n1 $NVME_ROOT  # or appropriate device"
+    return 0
+  fi
+
+  # Detect NVMe devices (typically nvme1n1, nvme2n1, etc. on EC2)
+  # Skip nvme0n1 as it's usually the root EBS volume
+  NVME_DEVICE=""
+  for dev in /dev/nvme*n1; do
+    # Skip if device doesn't exist (glob didn't match)
+    [ -e "$dev" ] || continue
+    
+    # Skip if device is already mounted
+    if mount | grep -q "^$dev"; then
+      log "Skipping $dev (already mounted)"
+      continue
+    fi
+    
+    # Found an unmounted NVMe device
+    NVME_DEVICE="$dev"
+    log "Found available NVMe device: $NVME_DEVICE"
+    break
+  done
+
+  if [ -z "$NVME_DEVICE" ]; then
+    log "No available NVMe device found. Skipping mount."
+    log "If you have an NVMe device, mount it manually:"
+    log "  sudo mkdir -p $NVME_ROOT"
+    log "  sudo mount /dev/nvme1n1 $NVME_ROOT"
+    return 0
+  fi
+
+  # Create mount point
+  if [ "$EUID" -eq 0 ]; then
+    mkdir -p "$NVME_ROOT"
+  else
+    sudo mkdir -p "$NVME_ROOT"
+  fi
+
+  # Check if device has a filesystem
+  if ! blkid "$NVME_DEVICE" >/dev/null 2>&1; then
+    log "NVMe device $NVME_DEVICE appears unformatted. Formatting with ext4..."
+    if [ "$EUID" -eq 0 ]; then
+      mkfs.ext4 -F "$NVME_DEVICE"
+    else
+      sudo mkfs.ext4 -F "$NVME_DEVICE"
+    fi
+  fi
+
+  # Mount the device
+  log "Mounting $NVME_DEVICE to $NVME_ROOT..."
+  if [ "$EUID" -eq 0 ]; then
+    mount "$NVME_DEVICE" "$NVME_ROOT"
+  else
+    sudo mount "$NVME_DEVICE" "$NVME_ROOT"
+  fi
+
+  # Set permissions (make it accessible to current user)
+  if [ "$EUID" -eq 0 ]; then
+    chmod 755 "$NVME_ROOT"
+    chown "$SUDO_USER:${SUDO_USER:-$USER}" "$NVME_ROOT" 2>/dev/null || true
+  else
+    sudo chmod 755 "$NVME_ROOT"
+    sudo chown "$USER:$USER" "$NVME_ROOT" 2>/dev/null || true
+  fi
+
+  # Add to /etc/fstab for persistence (if not already there)
+  UUID=$(blkid -s UUID -o value "$NVME_DEVICE" 2>/dev/null || echo "")
+  if [ -n "$UUID" ] && ! grep -q "$NVME_ROOT" /etc/fstab 2>/dev/null; then
+    log "Adding $NVME_DEVICE to /etc/fstab for automatic mounting..."
+    FSTAB_ENTRY="UUID=$UUID $NVME_ROOT ext4 defaults,nofail 0 2"
+    if [ "$EUID" -eq 0 ]; then
+      echo "$FSTAB_ENTRY" >> /etc/fstab
+    else
+      echo "$FSTAB_ENTRY" | sudo tee -a /etc/fstab >/dev/null
+    fi
+    log "Added to /etc/fstab. Device will auto-mount on reboot."
+  fi
+
+  log "NVMe volume mounted successfully at $NVME_ROOT"
 }
 
 sync_s3_data() {
@@ -274,6 +378,7 @@ EOF
 log "Starting PGx repo sync to NVMe..."
 
 detect_os_and_resources
+mount_nvme
 ensure_clone
 sync_s3_data
 setup_paths_and_env

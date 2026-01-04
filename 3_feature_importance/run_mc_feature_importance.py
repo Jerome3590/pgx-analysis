@@ -6,7 +6,7 @@ This script:
   - Mirrors `build_final_features` logic from `6b_final_model_selection/run_final_model.py`
     to assemble the patient-level feature matrix (with target-leakage
     removal already applied).
-  - Runs N Monte-Carlo train/test splits with XGBoost (GPU when available).
+  - Runs N Monte-Carlo train/test splits with XGBoost (CPU on Linux, GPU on Windows if available).
   - Aggregates feature importances across runs, producing a CSV in the same
     schema as the legacy `*_aggregated_feature_importance.csv` files:
 
@@ -45,7 +45,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname  # noqa: E402
-from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
+from py_helpers.env_utils import get_xgb_cpu_nthread, get_data_root, is_linux  # noqa: E402
+
+try:
+    from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
+except ImportError:
+    import boto3  # noqa: E402
+    s3_client = boto3.client("s3")
+    S3_BUCKET = "pgxdatalake"
 
 
 def _load_feature_table(path: Path, required: bool = True) -> pd.DataFrame:
@@ -113,6 +120,191 @@ def _remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _validate_s3_file_has_controls(s3_path: str) -> dict:
+    """
+    Validate that an S3 parquet file contains both cases (target=1) and controls (target=0).
+    Uses DuckDB's S3 support to query without downloading the entire file.
+    
+    Returns:
+        dict with keys: has_controls (bool), n_cases (int), n_controls (int), error (str or None)
+    """
+    import duckdb
+    con = duckdb.connect()
+    try:
+        result = con.execute(
+            f"""
+            SELECT 
+                COUNT(*) FILTER (WHERE target = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE target = 0) AS n_controls
+            FROM read_parquet('{s3_path}')
+            """
+        ).fetchone()
+        
+        n_cases = result[0] if result else 0
+        n_controls = result[1] if result else 0
+        has_controls = n_controls > 0
+        
+        return {
+            "has_controls": has_controls,
+            "n_cases": n_cases,
+            "n_controls": n_controls,
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "has_controls": False,
+            "n_cases": 0,
+            "n_controls": 0,
+            "error": str(e),
+        }
+    finally:
+        con.close()
+
+
+def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
+    """
+    Resolve the path to model_events.parquet, checking multiple locations.
+    
+    Priority on Linux/EC2:
+    1. get_data_root()/4a_model_data/... (/mnt/nvme/4a_model_data/...)
+    2. PROJECT_ROOT/4a_model_data/... (fallback)
+    3. Try downloading from S3 to get_data_root() if not found locally
+    
+    Priority on Windows:
+    1. PROJECT_ROOT/4a_model_data/... (Windows/local dev)
+    2. get_data_root()/4a_model_data/... (fallback)
+    3. Try downloading from S3 to PROJECT_ROOT if not found locally
+    
+    Returns:
+        Path to model_events.parquet file
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    data_root = get_data_root()
+    is_linux_system = is_linux()
+    
+    # Build candidate paths - prioritize data root on Linux, project root on Windows
+    if is_linux_system:
+        # On Linux/EC2: prioritize /mnt/nvme
+        candidates = [
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        ]
+        # Download destination: prefer data root on Linux
+        download_dest = candidates[0]
+    else:
+        # On Windows: prioritize project root
+        candidates = [
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        ]
+        # Download destination: prefer project root on Windows
+        download_dest = candidates[0]
+    
+    # Check each candidate
+    for path in candidates:
+        if path.exists():
+            print(f"Found model_events.parquet at: {path}")
+            return path
+    
+    # Log which paths we checked
+    print(f"Model data not found locally. Checked paths:")
+    for path in candidates:
+        print(f"  - {path} (exists: {path.exists()})")
+    
+    # If not found locally, try downloading from S3
+    s3_key_candidates = [
+        f"gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
+        f"gold/model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
+        f"gold/model_data/{cohort}/{age_band}/model_events.parquet",
+    ]
+    
+    download_dest.parent.mkdir(parents=True, exist_ok=True)
+    
+    for s3_key in s3_key_candidates:
+        try:
+            # Check if file exists in S3
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            s3_path = f"s3://{S3_BUCKET}/{s3_key}"
+            
+            # Validate controls BEFORE downloading (using DuckDB S3 support)
+            print(f"Checking S3 file for controls: {s3_path}")
+            validation_result = _validate_s3_file_has_controls(s3_path)
+            
+            if validation_result.get("error"):
+                print(f"Warning: Could not validate S3 file {s3_path}: {validation_result['error']}")
+                print("Proceeding with download and will validate after...")
+            elif not validation_result.get("has_controls", False):
+                print(
+                    f"ERROR: S3 file {s3_path} is missing controls! "
+                    f"Cases: {validation_result.get('n_cases', 0)}, Controls: {validation_result.get('n_controls', 0)}"
+                )
+                print(
+                    f"This file should be regenerated with controls. "
+                    f"Please run: python 4a_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
+                )
+                print("Skipping this S3 file and trying next candidate...")
+                continue  # Skip this S3 file, try next candidate
+            
+            # Download the file
+            print(f"Downloading model_events.parquet from S3: {s3_path}")
+            print(f"Downloading to: {download_dest}")
+            import io
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            with open(download_dest, 'wb') as f:
+                f.write(obj['Body'].read())
+            print(f"Saved to: {download_dest}")
+            
+            # Validate again after download (double-check)
+            import duckdb
+            con = duckdb.connect()
+            try:
+                result = con.execute(
+                    f"""
+                    SELECT 
+                        COUNT(*) FILTER (WHERE target = 1) AS n_cases,
+                        COUNT(*) FILTER (WHERE target = 0) AS n_controls
+                    FROM read_parquet('{download_dest}')
+                    """
+                ).fetchone()
+                
+                n_cases = result[0] if result else 0
+                n_controls = result[1] if result else 0
+                if n_controls == 0:
+                    print(
+                        f"ERROR: Downloaded file is missing controls! "
+                        f"Cases: {n_cases}, Controls: {n_controls}"
+                    )
+                    print(
+                        f"This file should be regenerated with controls. "
+                        f"Please run: python 4a_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
+                    )
+                    # Delete the invalid file
+                    download_dest.unlink()
+                    print("Deleted invalid file. Trying next S3 candidate...")
+                    continue
+                else:
+                    print(f"Validation passed: {n_cases} cases, {n_controls} controls")
+            finally:
+                con.close()
+            
+            return download_dest
+        except Exception as e:
+            print(f"S3 key not found or error: {s3_key} - {e}")
+            continue
+    
+    # If all checks failed, raise error with helpful message
+    error_msg = (
+        f"Model data not found for cohort={cohort}, age_band={age_band}.\n"
+        f"Checked locations:\n"
+    )
+    for path in candidates:
+        error_msg += f"  - {path} (exists: {path.exists()})\n"
+    error_msg += f"\nS3 locations checked:\n"
+    for s3_key in s3_key_candidates:
+        error_msg += f"  - s3://{S3_BUCKET}/{s3_key}\n"
+    raise FileNotFoundError(error_msg)
+
+
 def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
     """
     Local copy of the final feature assembly logic from 6_final_model.run_final_model,
@@ -120,15 +312,7 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
     """
     age_band_fname = age_band_to_fname(age_band)
 
-    events_path = (
-        PROJECT_ROOT
-        / "4a_model_data"
-        / f"cohort_name={cohort}"
-        / f"age_band={age_band}"
-        / "model_events.parquet"
-    )
-    if not events_path.exists():
-        raise FileNotFoundError(f"Model data not found: {events_path}")
+    events_path = _resolve_model_events_path(cohort, age_band)
 
     print(f"Loading model data (cases + controls) from {events_path}")
     con = duckdb.connect()
@@ -146,16 +330,30 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
 
     grouped["target"] = grouped["target"].astype(int).clip(lower=0, upper=1)
 
-    local_base = PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs"
-    s3_base = (
-        PROJECT_ROOT
-        / "5_feature_engineering"
-        / "from_s3"
-        / "feature_engineering_outputs"
-    )
+    # OS-aware path resolution for feature engineering outputs
+    # Check multiple locations: project-relative, data root, and S3 download location
+    data_root = get_data_root()
+    
+    local_base_candidates = [
+        PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs",
+        data_root / "5_feature_engineering" / "feature_engineering_outputs",
+    ]
+    local_base = next((p for p in local_base_candidates if p.exists()), local_base_candidates[0])
+    
+    s3_base_candidates = [
+        PROJECT_ROOT / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
+        data_root / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
+    ]
+    s3_base = next((p for p in s3_base_candidates if p.exists()), s3_base_candidates[0])
 
     def _first_existing(primary: Path, fallback: Path) -> Path:
-        return primary if primary.exists() else fallback
+        """Return first existing path, or primary if neither exists."""
+        if primary.exists():
+            return primary
+        if fallback.exists():
+            return fallback
+        # Return primary as default (will be checked by _load_feature_table)
+        return primary
 
     fpgrowth_path = _first_existing(
         local_base
@@ -258,14 +456,51 @@ def run_mc_feature_importance(
     n_runs: int = 25,
     test_size: float = 0.3,
     random_seed: int = 42,
+    force: bool = False,
 ) -> pd.DataFrame:
     """Run Monte-Carlo CV for multiple models and aggregate feature importances.
 
     Models:
-      - XGBoost (gradient boosted trees, GPU if available)
-      - XGBoost RF (XGBRFClassifier, GPU if available)
-      - CatBoost (if installed; CPU or GPU depending on build)
+      - XGBoost (gradient boosted trees, CPU on Linux, GPU on Windows if available)
+      - XGBoost RF (XGBRFClassifier, CPU on Linux, GPU on Windows if available)
+      - CatBoost (if installed; CPU only)
+
+    This function is idempotent - it will skip if results already exist locally or in S3,
+    unless force=True is specified.
     """
+    age_band_fname = age_band_to_fname(age_band)
+    out_dir = PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check for existing aggregated results (idempotency)
+    agg_path = out_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    
+    if not force and agg_path.exists():
+        print(f"✓ Aggregated feature importance already exists locally: {agg_path}")
+        print("  Skipping Monte-Carlo feature importance computation.")
+        print("  Use --force to rerun.")
+        return pd.read_csv(agg_path)
+
+    # Check S3 if not found locally
+    if not force:
+        s3_key_agg = (
+            f"gold/feature_importance/{cohort}/{age_band}/"
+            f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        )
+        try:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key_agg)
+            print(f"✓ Aggregated feature importance exists in S3: s3://{S3_BUCKET}/{s3_key_agg}")
+            print("  Downloading instead of recomputing...")
+            import io
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key_agg)
+            agg_df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+            agg_df.to_csv(agg_path, index=False)
+            print(f"  Saved locally: {agg_path}")
+            return agg_df
+        except Exception:
+            # File doesn't exist in S3, proceed with computation
+            pass
+
     # Assemble final feature matrix (with leakage removal baked in)
     df = build_final_features_for_mc(cohort, age_band)
     if df.empty:
@@ -311,6 +546,9 @@ def run_mc_feature_importance(
     loglosses: Dict[str, List[float]] = {m: [] for m in model_keys}
 
     nthread = get_xgb_cpu_nthread()
+    
+    # Determine device: CPU on Linux, CUDA on Windows (if available)
+    device = "cpu" if is_linux() else "cuda"
 
     for run_idx in range(n_runs):
         rs = int(rng.integers(0, np.iinfo(np.int32).max))
@@ -328,7 +566,7 @@ def run_mc_feature_importance(
             subsample=0.8,
             colsample_bytree=0.8,
             tree_method="hist",
-            device="cuda",
+            device=device,
             objective="binary:logistic",
             eval_metric="logloss",
             n_jobs=nthread,
@@ -337,6 +575,7 @@ def run_mc_feature_importance(
         try:
             xgb_clf.fit(X_train, y_train)
         except Exception:
+            # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
             xgb_clf.set_params(tree_method="hist")
             if "device" in xgb_clf.get_params():
                 xgb_clf.set_params(device="cpu")
@@ -374,7 +613,7 @@ def run_mc_feature_importance(
             subsample=0.8,
             colsample_bytree=0.8,
             tree_method="hist",
-            device="cuda",
+            device=device,
             objective="binary:logistic",
             eval_metric="logloss",
             n_jobs=nthread,
@@ -383,6 +622,7 @@ def run_mc_feature_importance(
         try:
             xgbrf_clf.fit(X_train, y_train)
         except Exception:
+            # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
             xgbrf_clf.set_params(tree_method="hist")
             if "device" in xgbrf_clf.get_params():
                 xgbrf_clf.set_params(device="cpu")
@@ -471,9 +711,7 @@ def run_mc_feature_importance(
         )
 
     # Aggregate across runs per model
-    age_band_fname = age_band_to_fname(age_band)
-    out_dir = PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # (out_dir already created above during idempotency check)
 
     model_label_map = {
         "xgb": "xgboost",
@@ -599,7 +837,8 @@ def run_mc_feature_importance(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run Monte-Carlo XGBoost feature importance on final features."
+        description="Run Monte-Carlo XGBoost feature importance on final features. "
+        "This script is idempotent - it will skip if results already exist unless --force is used."
     )
     parser.add_argument("--cohort", required=True, help="Cohort name, e.g. opioid_ed")
     parser.add_argument("--age_band", required=True, help="Age band, e.g. 13-24")
@@ -609,12 +848,18 @@ def main() -> None:
         default=25,
         help="Number of Monte-Carlo CV runs (default: 25)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force rerun even if results already exist",
+    )
     args = parser.parse_args()
 
     run_mc_feature_importance(
         cohort=args.cohort,
         age_band=args.age_band,
         n_runs=args.n_runs,
+        force=args.force,
     )
 
 

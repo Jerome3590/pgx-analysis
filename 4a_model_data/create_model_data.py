@@ -45,12 +45,21 @@ This output is then used as input for:
 
 import os
 import shutil
+import subprocess
 import sys
+import io
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import duckdb
 import pandas as pd
+
+try:
+    from py_helpers.common_imports import s3_client, S3_BUCKET
+except ImportError:
+    import boto3
+    s3_client = boto3.client("s3")
+    S3_BUCKET = "pgxdatalake"
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -63,10 +72,22 @@ from py_helpers.constants import (
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
 )
+from py_helpers.env_utils import get_data_root, is_linux
 
 
 OUTPUTS_DIR = PROJECT_ROOT / "3_feature_importance" / "outputs"
-MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
+# Use OS-aware path resolution: /mnt/nvme/4a_model_data on Linux, PROJECT_ROOT/4a_model_data on Windows
+def get_model_data_root() -> Path:
+    """Get the root directory for model data output (OS-aware)."""
+    data_root = get_data_root()
+    if is_linux():
+        # On Linux/EC2: use /mnt/nvme/4a_model_data
+        return data_root / "4a_model_data"
+    else:
+        # On Windows/local dev: use PROJECT_ROOT/4a_model_data
+        return PROJECT_ROOT / "4a_model_data"
+
+MODEL_DATA_ROOT = get_model_data_root()
 
 
 def resolve_local_cohort_root() -> Path:
@@ -83,16 +104,30 @@ def resolve_local_cohort_root() -> Path:
         if root.exists():
             return root
 
-    default_root = PROJECT_ROOT / "data" / "gold_cohorts"
-    return default_root
+    # OS-aware path resolution
+    data_root = get_data_root()
+    candidates = [
+        data_root / "gold" / "cohorts",  # Linux/EC2: /mnt/nvme/gold/cohorts
+        data_root / "data" / "gold_cohorts",  # Alternative Linux path
+        PROJECT_ROOT / "data" / "gold_cohorts",  # Windows/local dev
+    ]
+    
+    # Return first existing path, or default to project root if neither exists
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return candidates[2]  # Default to project root
 
 
 def resolve_local_medical_root() -> Path:
     """
     Resolve the root directory containing gold medical event parquet files.
 
-    Default:
-      PROJECT_ROOT/data/gold_medical
+    Priority:
+      1. LOCAL_MEDICAL_PATH environment variable
+      2. get_data_root()/data/gold_medical (Linux/EC2: /mnt/nvme/data/gold_medical)
+      3. PROJECT_ROOT/data/gold_medical (Windows/local dev)
     """
     env_path = os.getenv("LOCAL_MEDICAL_PATH")
     if env_path:
@@ -100,15 +135,30 @@ def resolve_local_medical_root() -> Path:
         if root.exists():
             return root
 
-    return PROJECT_ROOT / "data" / "gold_medical"
+    # OS-aware path resolution
+    data_root = get_data_root()
+    candidates = [
+        data_root / "gold" / "medical",  # Linux/EC2: /mnt/nvme/gold/medical
+        data_root / "data" / "gold_medical",  # Alternative Linux path
+        PROJECT_ROOT / "data" / "gold_medical",  # Windows/local dev
+    ]
+    
+    # Return first existing path, or default to project root if neither exists
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return candidates[2]  # Default to project root
 
 
 def resolve_local_pharmacy_root() -> Path:
     """
     Resolve the root directory containing gold pharmacy event parquet files.
 
-    Default:
-      PROJECT_ROOT/data/gold_pharmacy
+    Priority:
+      1. LOCAL_PHARMACY_PATH environment variable
+      2. get_data_root()/data/gold_pharmacy (Linux/EC2: /mnt/nvme/data/gold_pharmacy)
+      3. PROJECT_ROOT/data/gold_pharmacy (Windows/local dev)
     """
     env_path = os.getenv("LOCAL_PHARMACY_PATH")
     if env_path:
@@ -116,7 +166,20 @@ def resolve_local_pharmacy_root() -> Path:
         if root.exists():
             return root
 
-    return PROJECT_ROOT / "data" / "gold_pharmacy"
+    # OS-aware path resolution
+    data_root = get_data_root()
+    candidates = [
+        data_root / "gold" / "pharmacy",  # Linux/EC2: /mnt/nvme/gold/pharmacy
+        data_root / "data" / "gold_pharmacy",  # Alternative Linux path
+        PROJECT_ROOT / "data" / "gold_pharmacy",  # Windows/local dev
+    ]
+    
+    # Return first existing path, or default to project root if neither exists
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return candidates[2]  # Default to project root
 
 
 def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
@@ -164,6 +227,37 @@ def get_important_items(agg_csv: Path) -> List[str]:
         .tolist()
     )
     return items
+
+
+def _validate_model_events_has_controls(parquet_path: Path) -> dict:
+    """
+    Validate that model_events.parquet contains both cases (target=1) and controls (target=0).
+    
+    Returns:
+        dict with keys: has_controls (bool), n_cases (int), n_controls (int)
+    """
+    con = duckdb.connect()
+    try:
+        result = con.execute(
+            f"""
+            SELECT 
+                COUNT(*) FILTER (WHERE target = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE target = 0) AS n_controls
+            FROM read_parquet('{parquet_path}')
+            """
+        ).fetchone()
+        
+        n_cases = result[0] if result else 0
+        n_controls = result[1] if result else 0
+        has_controls = n_controls > 0
+        
+        return {
+            "has_controls": has_controls,
+            "n_cases": n_cases,
+            "n_controls": n_controls,
+        }
+    finally:
+        con.close()
 
 
 def filter_cohort_events_for_items(
@@ -503,29 +597,183 @@ def filter_cohort_events_for_items(
     con.close()
 
     print(f"[INFO] Wrote model_events.parquet for {cohort_name}/{age_band}: {out_path}")
+    
+    # Validate that controls are present
+    validation_result = _validate_model_events_has_controls(out_path)
+    if not validation_result["has_controls"]:
+        print(
+            f"[ERROR] Generated file {out_path} is missing controls! "
+            f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
+        )
+        sys.exit(1)
+    print(
+        f"[INFO] Validation passed: {validation_result['n_cases']} cases, "
+        f"{validation_result['n_controls']} controls"
+    )
+    
+    # Upload to S3 using aws s3 sync (best-effort)
+    _sync_model_events_to_s3(out_path, cohort_name, age_band)
+
+
+def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str) -> None:
+    """
+    Sync model_events.parquet to S3 using aws s3 sync.
+    
+    S3 path: s3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
+    """
+    aws_cli = shutil.which("aws")
+    if not aws_cli:
+        print("[WARN] AWS CLI not found, skipping S3 sync")
+        return
+    
+    s3_path = (
+        f"s3://pgxdatalake/gold/cohorts_model_data/"
+        f"cohort_name={cohort_name}/age_band={age_band}/"
+    )
+    
+    # Use s3 sync to upload the file (syncs the directory)
+    local_dir = parquet_path.parent
+    
+    try:
+        print(f"[INFO] Syncing to S3: {s3_path}")
+        # aws s3 sync will overwrite if local file is newer or different
+        # Use --delete to remove files in S3 that don't exist locally (we don't want this)
+        # Just sync the specific file - it will overwrite if it exists
+        result = subprocess.run(
+            [aws_cli, "s3", "sync", str(local_dir), s3_path, "--exclude", "*", "--include", "model_events.parquet", "--no-progress"],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+            check=False,  # Don't raise on error, just log
+        )
+        if result.returncode == 0:
+            print(f"[INFO] Successfully synced to S3: {s3_path}model_events.parquet")
+        else:
+            print(f"[WARN] S3 sync failed: {result.stderr if result.stderr else 'Unknown error'}")
+    except subprocess.TimeoutExpired:
+        print(f"[WARN] S3 sync timed out after 5 minutes")
+    except Exception as e:
+        print(f"[WARN] Error syncing to S3: {e}")
+
+
+def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
+    """
+    Download aggregated feature importance files from S3.
+    
+    If cohort and age_band are specified, downloads only that file.
+    Otherwise, lists all available files in S3.
+    """
+    downloaded_files = []
+    
+    if cohort and age_band:
+        # Download specific file
+        age_band_fname = age_band.replace("-", "_")
+        s3_key = (
+            f"gold/feature_importance/{cohort}/{age_band}/"
+            f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        )
+        local_path = OUTPUTS_DIR / cohort / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        
+        try:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            print(f"[INFO] Downloading from S3: s3://{S3_BUCKET}/{s3_key}")
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            with open(local_path, 'wb') as f:
+                f.write(obj['Body'].read())
+            print(f"[INFO] Saved locally: {local_path}")
+            downloaded_files.append(local_path)
+        except Exception as e:
+            print(f"[WARN] Could not download {s3_key}: {e}")
+    else:
+        # List all cohorts and age bands from S3
+        prefix = "gold/feature_importance/"
+        try:
+            paginator = s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix, Delimiter="/"):
+                # Process each cohort
+                for prefix_info in page.get("CommonPrefixes", []):
+                    cohort_prefix = prefix_info["Prefix"]
+                    cohort_name = cohort_prefix.split("/")[-2]
+                    
+                    # List age bands for this cohort
+                    for age_page in paginator.paginate(Bucket=S3_BUCKET, Prefix=cohort_prefix, Delimiter="/"):
+                        for age_prefix_info in age_page.get("CommonPrefixes", []):
+                            age_band = age_prefix_info["Prefix"].split("/")[-2]
+                            age_band_fname = age_band.replace("-", "_")
+                            
+                            s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+                            local_path = OUTPUTS_DIR / cohort_name / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+                            
+                            try:
+                                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                                print(f"[INFO] Downloading from S3: s3://{S3_BUCKET}/{s3_key}")
+                                local_path.parent.mkdir(parents=True, exist_ok=True)
+                                obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                                with open(local_path, 'wb') as f:
+                                    f.write(obj['Body'].read())
+                                print(f"[INFO] Saved locally: {local_path}")
+                                downloaded_files.append(local_path)
+                            except Exception as e:
+                                print(f"[WARN] Could not download {s3_key}: {e}")
+        except Exception as e:
+            print(f"[WARN] Error listing S3 files: {e}")
+    
+    return downloaded_files
 
 
 def main() -> None:
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Create model_events.parquet files with cases and controls"
+    )
+    parser.add_argument(
+        "--cohort",
+        type=str,
+        help="Process specific cohort (e.g., opioid_ed). If not specified, processes all found cohorts.",
+    )
+    parser.add_argument(
+        "--age-band",
+        type=str,
+        help="Process specific age band (e.g., 13-24). Requires --cohort to be specified.",
+    )
+    args = parser.parse_args()
+    
     # Ensure local directories exist (idempotent: we overwrite per file)
-    MODEL_DATA_ROOT.mkdir(exist_ok=True)
+    # Re-resolve MODEL_DATA_ROOT in case get_data_root() behavior changed
+    model_data_root = get_model_data_root()
+    model_data_root.mkdir(parents=True, exist_ok=True)
 
     # Discover aggregated feature-importance CSVs
-    aggregated_files = sorted(
-        OUTPUTS_DIR.glob("*_aggregated_feature_importance.csv")
-    )
-    # Fallback: if outputs/ is empty locally, look under from_s3/by_cohort where
-    # we may have downloaded aggregated feature-importance CSVs from S3.
+    # Files are stored in: outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv
+    aggregated_files = []
+    
+    # Check in outputs/{cohort}/ subdirectories
+    for cohort_dir in OUTPUTS_DIR.iterdir():
+        if not cohort_dir.is_dir():
+            continue
+        # Filter by cohort if specified
+        if args.cohort and cohort_dir.name != args.cohort:
+            continue
+        cohort_files = sorted(
+            cohort_dir.glob("*_aggregated_feature_importance.csv")
+        )
+        aggregated_files.extend(cohort_files)
+    
+    # Fallback: if outputs/ is empty locally, try downloading from S3
     if not aggregated_files:
-        alt_root = PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort"
-        if alt_root.exists():
-            aggregated_files = sorted(
-                alt_root.rglob("*_aggregated_feature_importance.csv")
-            )
+        print(f"[INFO] No local aggregated feature importance files found. Checking S3...")
+        aggregated_files = download_aggregated_from_s3(args.cohort, args.age_band)
+    
     if not aggregated_files:
         print(
-            f"[WARN] No aggregated feature-importance CSVs found in "
-            f"{OUTPUTS_DIR} or in 3_feature_importance/from_s3/by_cohort"
+            f"[WARN] No aggregated feature-importance CSVs found locally or in S3."
         )
+        if args.cohort and args.age_band:
+            print(
+                f"[INFO] Looking for: {args.cohort}_{args.age_band.replace('-', '_')}_aggregated_feature_importance.csv"
+            )
         return
 
     # Default years: match feature-importance temporal setup (2016–2018 train, 2019 test)
@@ -540,6 +788,12 @@ def main() -> None:
             cohort_name, age_band = parse_aggregated_filename(agg_path)
         except ValueError as e:
             print(f"[WARN] Skipping {agg_path.name}: {e}")
+            continue
+        
+        # Filter by command-line arguments if provided
+        if args.cohort and cohort_name != args.cohort:
+            continue
+        if args.age_band and age_band != args.age_band:
             continue
 
         print(
@@ -559,7 +813,7 @@ def main() -> None:
             age_band=age_band,
             important_items=important_items,
             years=YEARS,
-            output_root=MODEL_DATA_ROOT,
+            output_root=model_data_root,
             local_cohort_root=local_cohort_root,
             local_medical_root=local_medical_root,
             local_pharmacy_root=local_pharmacy_root,
@@ -569,5 +823,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 

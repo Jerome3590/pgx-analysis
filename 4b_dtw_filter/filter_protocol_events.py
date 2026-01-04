@@ -27,6 +27,15 @@ PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from py_helpers.env_utils import get_data_root, is_linux  # noqa: E402
+
+try:
+    from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
+except ImportError:
+    import boto3  # noqa: E402
+    s3_client = boto3.client("s3")
+    S3_BUCKET = "pgxdatalake"
+
 OUTPUT_ROOT = PROJECT_ROOT / "4b_dtw_filter" / "outputs"
 
 logging.basicConfig(
@@ -34,6 +43,223 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _validate_s3_file_has_controls(s3_path: str) -> dict:
+    """
+    Validate that an S3 parquet file contains both cases (target=1) and controls (target=0).
+    Uses DuckDB's S3 support to query without downloading the entire file.
+    
+    Returns:
+        dict with keys: has_controls (bool), n_cases (int), n_controls (int), error (str or None)
+    """
+    con = duckdb.connect()
+    try:
+        result = con.execute(
+            f"""
+            SELECT 
+                COUNT(*) FILTER (WHERE target = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE target = 0) AS n_controls
+            FROM read_parquet('{s3_path}')
+            """
+        ).fetchone()
+        
+        n_cases = result[0] if result else 0
+        n_controls = result[1] if result else 0
+        has_controls = n_controls > 0
+        
+        return {
+            "has_controls": has_controls,
+            "n_cases": n_cases,
+            "n_controls": n_controls,
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "has_controls": False,
+            "n_cases": 0,
+            "n_controls": 0,
+            "error": str(e),
+        }
+    finally:
+        con.close()
+
+
+def _validate_model_events_has_controls(parquet_path: Path) -> dict:
+    """
+    Validate that model_events.parquet contains both cases (target=1) and controls (target=0).
+    
+    Returns:
+        dict with keys: has_controls (bool), n_cases (int), n_controls (int)
+    """
+    con = duckdb.connect()
+    try:
+        result = con.execute(
+            f"""
+            SELECT 
+                COUNT(*) FILTER (WHERE target = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE target = 0) AS n_controls
+            FROM read_parquet('{parquet_path}')
+            """
+        ).fetchone()
+        
+        n_cases = result[0] if result else 0
+        n_controls = result[1] if result else 0
+        has_controls = n_controls > 0
+        
+        return {
+            "has_controls": has_controls,
+            "n_cases": n_cases,
+            "n_controls": n_controls,
+        }
+    finally:
+        con.close()
+
+
+def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
+    """
+    Resolve the path to model_events.parquet, checking multiple locations.
+    
+    Priority on Linux/EC2:
+    1. get_data_root()/4a_model_data/... (/mnt/nvme/4a_model_data/...)
+    2. PROJECT_ROOT/4a_model_data/... (fallback)
+    3. Try downloading from S3 to get_data_root() if not found locally
+    
+    Priority on Windows:
+    1. PROJECT_ROOT/4a_model_data/... (Windows/local dev)
+    2. get_data_root()/4a_model_data/... (fallback)
+    3. Try downloading from S3 to PROJECT_ROOT if not found locally
+    
+    Returns:
+        Path to model_events.parquet file
+    """
+    data_root = get_data_root()
+    is_linux_system = is_linux()
+    
+    # Build candidate paths - prioritize data root on Linux, project root on Windows
+    if is_linux_system:
+        # On Linux/EC2: prioritize /mnt/nvme
+        candidates = [
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        ]
+        # Download destination: prefer data root on Linux
+        download_dest = candidates[0]
+    else:
+        # On Windows: prioritize project root
+        candidates = [
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        ]
+        # Download destination: prefer project root on Windows
+        download_dest = candidates[0]
+    
+    # Check each candidate
+    for path in candidates:
+        if path.exists():
+            logger.info(f"Found model_events.parquet at: {path}")
+            # Validate controls for local files too
+            validation_result = _validate_model_events_has_controls(path)
+            if not validation_result["has_controls"]:
+                logger.warning(
+                    f"Local file {path} is missing controls! "
+                    f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
+                )
+                logger.warning(
+                    f"This file should be regenerated with controls. "
+                    f"Please run: python 4a_model_data/create_model_data.py"
+                )
+            else:
+                logger.debug(
+                    f"Validation passed: {validation_result['n_cases']} cases, "
+                    f"{validation_result['n_controls']} controls"
+                )
+            return path
+    
+    # Log which paths we checked
+    logger.info(f"Model data not found locally. Checked paths:")
+    for path in candidates:
+        logger.info(f"  - {path} (exists: {path.exists()})")
+    
+    # If not found locally, try downloading from S3
+    s3_key_candidates = [
+        f"gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
+        f"gold/model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
+        f"gold/model_data/{cohort}/{age_band}/model_events.parquet",
+    ]
+    
+    download_dest.parent.mkdir(parents=True, exist_ok=True)
+    
+    for s3_key in s3_key_candidates:
+        try:
+            # Check if file exists in S3
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            s3_path = f"s3://{S3_BUCKET}/{s3_key}"
+            
+            # Validate controls BEFORE downloading (using DuckDB S3 support)
+            logger.info(f"Checking S3 file for controls: {s3_path}")
+            validation_result = _validate_s3_file_has_controls(s3_path)
+            
+            if validation_result.get("error"):
+                logger.warning(f"Could not validate S3 file {s3_path}: {validation_result['error']}")
+                logger.info("Proceeding with download and will validate after...")
+            elif not validation_result.get("has_controls", False):
+                logger.error(
+                    f"S3 file {s3_path} is missing controls! "
+                    f"Cases: {validation_result.get('n_cases', 0)}, Controls: {validation_result.get('n_controls', 0)}"
+                )
+                logger.error(
+                    f"This file should be regenerated with controls. "
+                    f"Please run: python 4a_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
+                )
+                logger.error("Skipping this S3 file and trying next candidate...")
+                continue  # Skip this S3 file, try next candidate
+            
+            # Download the file
+            logger.info(f"Downloading model_events.parquet from S3: {s3_path}")
+            logger.info(f"Downloading to: {download_dest}")
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            with open(download_dest, 'wb') as f:
+                f.write(obj['Body'].read())
+            logger.info(f"Saved to: {download_dest}")
+            
+            # Validate again after download (double-check)
+            validation_result = _validate_model_events_has_controls(download_dest)
+            if not validation_result["has_controls"]:
+                logger.error(
+                    f"Downloaded file is missing controls! "
+                    f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
+                )
+                logger.error(
+                    f"This file should be regenerated with controls. "
+                    f"Please run: python 4a_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
+                )
+                # Delete the invalid file
+                download_dest.unlink()
+                logger.error("Deleted invalid file. Trying next S3 candidate...")
+                continue
+            else:
+                logger.info(
+                    f"Validation passed: {validation_result['n_cases']} cases, "
+                    f"{validation_result['n_controls']} controls"
+                )
+            
+            return download_dest
+        except Exception as e:
+            logger.debug(f"S3 key not found or error: {s3_key} - {e}")
+            continue
+    
+    # If all checks failed, raise error with helpful message
+    error_msg = (
+        f"Model data not found for cohort={cohort}, age_band={age_band}.\n"
+        "Checked locations:\n"
+    )
+    for path in candidates:
+        error_msg += f"  - {path} (exists: {path.exists()})\n"
+    error_msg += "\nS3 locations checked:\n"
+    for s3_key in s3_key_candidates:
+        error_msg += f"  - s3://{S3_BUCKET}/{s3_key}\n"
+    raise FileNotFoundError(error_msg)
 
 
 def classify_event_as_administrative(
@@ -703,19 +929,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model_data_path = (
-        PROJECT_ROOT
-        / "4a_model_data"
-        / f"cohort_name={args.cohort_name}"
-        / f"age_band={args.age_band}"
-        / "model_events.parquet"
-    )
-
+    # Use OS-aware path resolution for model_events.parquet
+    model_data_path = _resolve_model_events_path(args.cohort_name, args.age_band)
+    
+    # Output path: use same base directory as input
     output_path = (
-        PROJECT_ROOT
-        / "4a_model_data"
-        / f"cohort_name={args.cohort_name}"
-        / f"age_band={args.age_band}"
+        model_data_path.parent
         / "model_events_no_protocols.parquet"
     )
 

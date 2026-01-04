@@ -11,12 +11,22 @@ import os
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Tuple
+from typing import Dict, Any, List, Optional, Union, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import xgboost as xgb
+
 try:
     import xgboost as xgb
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
+    # Create a dummy class for type hints when xgboost is not available
+    class xgb:
+        class Booster:
+            pass
+        class XGBClassifier:
+            pass
 from functools import lru_cache
 import matplotlib.pyplot as plt
 
@@ -870,7 +880,7 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
         self.model_json = self.path_config.read_json(self.path_config.model_path)
         self.fit_from_model_json(self.model_json)
 
-    def load_model_from_booster(self, booster: xgb.Booster):
+    def load_model_from_booster(self, booster: "xgb.Booster"):
         """Load model from XGBoost Booster object."""
         if not XGBOOST_AVAILABLE:
             raise ImportError("XGBoost is not installed. Please install with: pip install xgboost")
@@ -962,7 +972,7 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
         return validation_results
 
     def compare_with_native_importance(self, 
-                                     xgboost_model: Union[xgb.Booster, xgb.XGBClassifier],
+                                     xgboost_model: Union["xgb.Booster", "xgb.XGBClassifier"],
                                      X: pd.DataFrame) -> pd.DataFrame:
         """
         Compare symbolic explanations with native XGBoost feature importance.
@@ -1043,7 +1053,7 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
 from catboost_axp_explainer import FeatureVisualization  # noqa: E402
 
 
-def analyze_model(path_config: PathConfig, model: Union[xgb.Booster, xgb.XGBClassifier], 
+def analyze_model(path_config: PathConfig, model: Union["xgb.Booster", "xgb.XGBClassifier"], 
                   analysis_config: AnalysisConfig = None) -> Dict[str, Any]:
     """
     Run complete model analysis using configured paths.
