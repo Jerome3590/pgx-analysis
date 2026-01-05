@@ -715,7 +715,16 @@ def main():
     if not args.drugs:
         age_band_fname = args.age_band.replace("-", "_")
         # Prefer local feature_importance outputs; fall back to from_s3/by_cohort
+        # Step 3 saves to outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv
         fi_outputs = (
+            PROJECT_ROOT
+            / "3_feature_importance"
+            / "outputs"
+            / args.cohort
+            / f"{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        )
+        # Also check legacy location (without cohort subdirectory)
+        fi_outputs_legacy = (
             PROJECT_ROOT
             / "3_feature_importance"
             / "outputs"
@@ -734,6 +743,8 @@ def main():
         feature_importance_path = None
         if fi_outputs.exists():
             feature_importance_path = fi_outputs
+        elif fi_outputs_legacy.exists():
+            feature_importance_path = fi_outputs_legacy
         elif fi_from_s3.exists():
             feature_importance_path = fi_from_s3
         else:
@@ -753,10 +764,10 @@ def main():
                 for s3_key in s3_paths_to_try:
                     try:
                         s3_client.head_object(Bucket=s3_bucket, Key=s3_key)
-                        # Download to local outputs directory
+                        # Download to local outputs directory (with cohort subdirectory)
                         fi_outputs.parent.mkdir(parents=True, exist_ok=True)
                         s3_client.download_file(s3_bucket, s3_key, str(fi_outputs))
-                        logger.info(f"Downloaded feature importance from S3: s3://{s3_bucket}/{s3_key}")
+                        logger.info(f"Downloaded feature importance from S3: s3://{s3_bucket}/{s3_key} -> {fi_outputs}")
                         feature_importance_path = fi_outputs
                         break
                     except ClientError:
