@@ -131,24 +131,17 @@ This analysis step enriches drug features with pharmacogenomic information by:
 
 ## Output Files Manifest
 
-### Data Files (`outputs/{cohort}/{age_band}/`)
+**For complete output paths documentation, see:** [`docs/README_analysis_workflow.md`](../docs/README_analysis_workflow.md#output-paths-summary)
 
-| File Pattern | Description | Format | Required |
-|-------------|-------------|--------|----------|
-| `{cohort}_{age_band}_drug_gene_mappings.csv` | Drug-to-gene mappings with evidence levels | CSV | ✅ Yes |
-| `{cohort}_{age_band}_allele_frequencies.csv` | Population allele frequencies for relevant variants | CSV | ✅ Yes |
-| `pgx_features_{cohort}_{age_band}.csv` | Patient-level PGx features (intermediate) | CSV | ✅ Yes |
-| `pgx_added_features_{cohort}_{age_band}.csv` | Final PGx features ready for model training | CSV | ✅ Yes |
+### Quick Reference
 
-**Example Files:**
-- `outputs/opioid_ed/0_12/opioid_ed_0_12_drug_gene_mappings.csv`
-- `outputs/opioid_ed/0_12/opioid_ed_0_12_allele_frequencies.csv`
-- `outputs/feature_engineering/pgx_features_opioid_ed_0_12.csv` (intermediate)
-- `outputs/feature_engineering/pgx_added_features_opioid_ed_0_12.csv` (final)
+**Key Output Files:**
+- Drug-gene mappings: `5_pgx_analysis/outputs/{cohort}/{cohort}_drug_gene_mappings.csv` (cohort-level, shared across age bands)
+- Allele frequencies: `5_pgx_analysis/outputs/global/pgx_allele_frequencies_global.csv` (global cache)
+- Final PGx features: `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`
 
-**S3 Locations (organized by analysis step):**
-- PGx features (intermediate): `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv`
-- Final merged features: `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv`
+**S3 Primary Location:**
+- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv`
 
 ### Visualization Files (`outputs/{cohort}/{age_band}/plots/`)
 
