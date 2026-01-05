@@ -60,6 +60,39 @@ def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     return logger, log_path
 
 
+def _download_from_s3_if_exists(s3_path: str, local_path: Path, logger: logging.Logger) -> bool:
+    """Download file from S3 if it exists, return True if downloaded or already exists locally."""
+    if local_path.exists():
+        return True
+    
+    try:
+        from py_helpers.checkpoint_utils import check_s3_output_exists
+        import boto3
+        from botocore.exceptions import ClientError
+        
+        if not check_s3_output_exists(s3_path):
+            return False
+        
+        # Parse S3 path
+        if s3_path.startswith("s3://"):
+            parts = s3_path[5:].split("/", 1)
+            bucket = parts[0]
+            key = parts[1] if len(parts) > 1 else ""
+        else:
+            logger.warning(f"Invalid S3 path format: {s3_path}")
+            return False
+        
+        # Download file
+        s3_client = boto3.client("s3")
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        s3_client.download_file(bucket, key, str(local_path))
+        logger.info(f"Downloaded from S3: {s3_path} -> {local_path}")
+        return True
+    except Exception as e:
+        logger.warning(f"Could not download {s3_path}: {e}")
+        return False
+
+
 def map_drugs_to_genes(
     cohort_name: str,
     age_band: str,
@@ -70,19 +103,54 @@ def map_drugs_to_genes(
 
     NOTE: Drug→gene mappings are **not age-band specific**. We therefore create
     ONE mapping file per cohort and reuse it across all age bands.
+    
+    This function is idempotent: it checks local files first, then S3 (global cache,
+    cohort-level, legacy age-band), and only generates if none exist.
     """
     with step_block("7_pgx", "map_drugs_to_genes", logger=logger):
         script_path = PROJECT_ROOT / "5_pgx_analysis" / "map_drugs_to_genes.py"
         cohort_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / cohort_name
         cohort_out_dir.mkdir(parents=True, exist_ok=True)
+        global_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global"
+        global_out_dir.mkdir(parents=True, exist_ok=True)
+        
         # Cohort-global mapping file (shared across all age bands)
         mapping_file = cohort_out_dir / f"{cohort_name}_drug_gene_mappings.csv"
+        global_mapping_file = global_out_dir / "pgx_drug_gene_mappings_global.csv"
 
+        # Check local files first
         if mapping_file.exists():
             logger.info(
-                "Cohort-level drug-gene mapping already exists at %s; skipping for all age bands",
+                "Cohort-level drug-gene mapping already exists at %s; skipping",
                 mapping_file,
             )
+            return
+        
+        if global_mapping_file.exists():
+            logger.info(
+                "Global drug-gene mapping cache exists at %s; using it",
+                global_mapping_file,
+            )
+            # Copy global to cohort-level for consistency
+            shutil.copy2(global_mapping_file, mapping_file)
+            return
+        
+        # Check S3 (prefer global cache, then cohort-level, then legacy age-band)
+        age_band_fname = age_band.replace("-", "_")
+        s3_paths_to_try = [
+            f"s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv",
+            f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{cohort_name}_drug_gene_mappings.csv",
+            f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_drug_gene_mappings.csv",
+        ]
+        
+        downloaded = False
+        for s3_path in s3_paths_to_try:
+            if _download_from_s3_if_exists(s3_path, mapping_file, logger):
+                downloaded = True
+                logger.info(f"Using drug-gene mappings from S3: {s3_path}")
+                break
+        
+        if downloaded:
             return
 
         logger.info("Mapping drugs to genes for %s / %s", cohort_name, age_band)
@@ -142,6 +210,133 @@ def map_drugs_to_genes(
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Drug mapping failed with exception: %s", exc)
             raise
+
+
+def ensure_allele_frequencies(
+    cohort_name: str,
+    age_band: str,
+    logger: logging.Logger,
+) -> None:
+    """
+    Ensure allele frequencies exist (idempotent).
+    
+    Checks in order:
+    1. Local global cache
+    2. Local cohort-level file
+    3. S3 global cache
+    4. S3 cohort-level file
+    5. S3 legacy age-band file
+    6. Generate if none exist
+    
+    NOTE: Allele frequencies are expected to come from the global cache
+    (5_pgx_analysis/outputs/global/pgx_allele_frequencies_global.csv)
+    and are not built per age band in this runner.
+    """
+    global_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global"
+    global_out_dir.mkdir(parents=True, exist_ok=True)
+    cohort_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / cohort_name
+    cohort_out_dir.mkdir(parents=True, exist_ok=True)
+    
+    global_freq_file = global_out_dir / "pgx_allele_frequencies_global.csv"
+    cohort_freq_file = cohort_out_dir / f"{cohort_name}_allele_frequencies.csv"
+    
+    # Check local files first
+    if global_freq_file.exists():
+        logger.info(
+            "Global allele frequency cache exists at %s; using it",
+            global_freq_file,
+        )
+        return
+    
+    if cohort_freq_file.exists():
+        logger.info(
+            "Cohort-level allele frequencies exist at %s; using them",
+            cohort_freq_file,
+        )
+        # Copy to global cache for future use
+        try:
+            shutil.copy2(cohort_freq_file, global_freq_file)
+            logger.info("Copied cohort-level frequencies to global cache")
+        except Exception as e:
+            logger.warning(f"Could not copy to global cache: {e}")
+        return
+    
+    # Check S3 (prefer global cache, then cohort-level, then legacy age-band)
+    age_band_fname = age_band.replace("-", "_")
+    s3_paths_to_try = [
+        f"s3://pgxdatalake/gold/pgx_features/global/pgx_allele_frequencies_global.csv",
+        f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{cohort_name}_allele_frequencies.csv",
+        f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_allele_frequencies.csv",
+    ]
+    
+    downloaded = False
+    for s3_path in s3_paths_to_try:
+        # Try downloading to global cache first
+        if _download_from_s3_if_exists(s3_path, global_freq_file, logger):
+            downloaded = True
+            logger.info(f"Using allele frequencies from S3: {s3_path}")
+            break
+    
+    if downloaded:
+        return
+    
+    # If still not found, check if we have drug-gene mappings to generate frequencies
+    mapping_file = cohort_out_dir / f"{cohort_name}_drug_gene_mappings.csv"
+    if mapping_file.exists():
+        logger.info(
+            "No allele frequencies found; generating from drug-gene mappings..."
+        )
+        try:
+            script_path = PROJECT_ROOT / "5_pgx_analysis" / "add_allele_frequencies.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script_path),
+                    "--cohort",
+                    cohort_name,
+                    "--age_band",
+                    age_band,
+                    "--mappings",
+                    str(mapping_file),
+                    "--output",
+                    str(cohort_freq_file),
+                ],
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            logger.info("Allele frequencies generated")
+            if result.stdout:
+                logger.info("Frequency generation stdout:\n%s", result.stdout)
+            if result.stderr:
+                logger.info("Frequency generation stderr:\n%s", result.stderr)
+            
+            # Copy to global cache
+            try:
+                shutil.copy2(cohort_freq_file, global_freq_file)
+                logger.info("Copied generated frequencies to global cache")
+            except Exception as e:
+                logger.warning(f"Could not copy to global cache: {e}")
+        except subprocess.CalledProcessError as exc:
+            logger.warning(
+                "Could not generate allele frequencies (returncode=%s). "
+                "PGx features will be created with empty frequencies.",
+                exc.returncode,
+            )
+            if exc.stderr:
+                logger.warning("stderr:\n%s", exc.stderr)
+        except Exception as exc:
+            logger.warning(
+                "Could not generate allele frequencies: %s. "
+                "PGx features will be created with empty frequencies.",
+                exc,
+            )
+    else:
+        logger.warning(
+            "No drug-gene mappings found; cannot generate allele frequencies. "
+            "PGx features will be created with empty frequencies."
+        )
 
 
 def create_pgx_features_step(
@@ -285,9 +480,8 @@ def run_pgx_analysis(
             try:
                 # Drug-to-gene mappings are cohort-level and reused across age bands.
                 map_drugs_to_genes(cohort_name, age_band, logger=logger)
-                # Allele frequencies are now expected to come from the global
-                # cache (5_pgx_analysis/outputs/global/pgx_allele_frequencies_global.csv)
-                # and are not built per age band in this runner.
+                # Ensure allele frequencies exist (check local, S3, or generate)
+                ensure_allele_frequencies(cohort_name, age_band, logger=logger)
             except Exception:
                 mirror_log_to_s3("7_pgx", cohort_name, age_band, log_path, logger)
                 return False
