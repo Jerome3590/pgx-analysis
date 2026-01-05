@@ -131,10 +131,10 @@ def add_pgx_features(
     else:
         print("[INFO] AWS CLI not found, skipping S3 upload")
     
-    # Mirror PGx checkpoint to pgx-repository/7_pgx_checkpoint (best-effort)
+    # Mirror PGx checkpoint to pgx-repository/5_pgx_analysis_checkpoint (best-effort)
     try:
         mirror_checkpoint_to_s3(
-            feature_step="7_pgx",
+            feature_step="5_pgx_analysis",
             cohort=cohort_name,
             age_band=age_band,
             local_path=out_path,

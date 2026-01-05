@@ -34,7 +34,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create a module-level logger with both console and file handlers."""
-    logs_dir = PROJECT_ROOT / "logs" / "feature_engineering" / "7_pgx"
+    logs_dir = PROJECT_ROOT / "logs" / "5_pgx_analysis"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     age_band_fname = age_band.replace("-", "_")
@@ -107,7 +107,7 @@ def map_drugs_to_genes(
     This function is idempotent: it checks local files first, then S3 (global cache,
     cohort-level, legacy age-band), and only generates if none exist.
     """
-    with step_block("7_pgx", "map_drugs_to_genes", logger=logger):
+    with step_block("5_pgx_analysis", "map_drugs_to_genes", logger=logger):
         script_path = PROJECT_ROOT / "5_pgx_analysis" / "map_drugs_to_genes.py"
         cohort_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / cohort_name
         cohort_out_dir.mkdir(parents=True, exist_ok=True)
@@ -345,7 +345,7 @@ def create_pgx_features_step(
     logger: logging.Logger,
 ) -> bool:
     """Step 3: Create patient-level PGx features."""
-    with step_block("7_pgx", "create_pgx_features", logger=logger):
+    with step_block("5_pgx_analysis", "create_pgx_features", logger=logger):
         logger.info("Creating PGx features for %s / %s", cohort_name, age_band)
         script_path = (
             PROJECT_ROOT
@@ -390,7 +390,7 @@ def add_pgx_features_to_model_data(
     logger: logging.Logger,
 ) -> bool:
     """Step 4: Merge PGx features into final PGx feature table."""
-    with step_block("7_pgx", "add_pgx_features_to_model_data", logger=logger):
+    with step_block("5_pgx_analysis", "add_pgx_features_to_model_data", logger=logger):
         logger.info(
             "Adding PGx features to model data for %s / %s",
             cohort_name,
@@ -473,7 +473,7 @@ def run_pgx_analysis(
     except ImportError:
         pass  # Fallback to local-only if checkpoint_utils not available
 
-    with function_block("7_pgx", "run_pgx_analysis", logger=logger):
+    with function_block("5_pgx_analysis", "run_pgx_analysis", logger=logger):
         logger.info("Starting PGx analysis for %s / %s", cohort_name, age_band)
 
         if not skip_drug_mapping:
@@ -483,7 +483,7 @@ def run_pgx_analysis(
                 # Ensure allele frequencies exist (check local, S3, or generate)
                 ensure_allele_frequencies(cohort_name, age_band, logger=logger)
             except Exception:
-                mirror_log_to_s3("7_pgx", cohort_name, age_band, log_path, logger)
+                mirror_log_to_s3("5_pgx_analysis", cohort_name, age_band, log_path, logger)
                 return False
         else:
             logger.info(
@@ -493,12 +493,12 @@ def run_pgx_analysis(
         if not skip_feature_engineering:
             if not create_pgx_features_step(cohort_name, age_band, logger=logger):
                 logger.error("PGx feature creation failed; aborting module")
-                mirror_log_to_s3("7_pgx", cohort_name, age_band, log_path, logger)
+                mirror_log_to_s3("5_pgx_analysis", cohort_name, age_band, log_path, logger)
                 return False
 
             if not add_pgx_features_to_model_data(cohort_name, age_band, logger=logger):
                 logger.error("PGx feature merge failed; aborting module")
-                mirror_log_to_s3("7_pgx", cohort_name, age_band, log_path, logger)
+                mirror_log_to_s3("5_pgx_analysis", cohort_name, age_band, log_path, logger)
                 return False
         else:
             logger.info("Skipping PGx feature engineering (using existing features)")
@@ -518,7 +518,7 @@ def run_pgx_analysis(
             PROJECT_ROOT
             / "5_feature_engineering"
             / "feature_engineering_outputs"
-            / "7_pgx"
+            / "5_pgx_analysis"
             / cohort_name
             / age_band
             / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
@@ -588,7 +588,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    with module_block("7_pgx"):
+    with module_block("5_pgx_analysis"):
         success = run_pgx_analysis(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
