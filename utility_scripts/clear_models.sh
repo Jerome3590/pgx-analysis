@@ -7,9 +7,9 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Default: clear all cohorts/age bands
+# Default: clear all cohorts/age bands, including S3
 CLEAR_ALL=true
-CLEAR_S3=false
+CLEAR_S3=true
 COHORT=""
 AGE_BAND=""
 
@@ -26,17 +26,28 @@ while [[ $# -gt 0 ]]; do
             CLEAR_ALL=false
             shift 2
             ;;
-        --s3)
-            CLEAR_S3=true
-            shift
-            ;;
+    --s3)
+        CLEAR_S3=true
+        shift
+        ;;
+    --no-s3)
+        CLEAR_S3=false
+        shift
+        ;;
         --all)
             CLEAR_ALL=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--cohort <cohort>] [--age-band <age_band>] [--s3] [--all]"
+            echo "Usage: $0 [--cohort <cohort>] [--age-band <age_band>] [--s3] [--no-s3] [--all]"
+            echo ""
+            echo "Options:"
+            echo "  --cohort <cohort>     Clear specific cohort (requires --age-band)"
+            echo "  --age-band <age_band> Clear specific age band (requires --cohort)"
+            echo "  --s3                  Clear S3 paths (default: enabled)"
+            echo "  --no-s3               Skip clearing S3 paths"
+            echo "  --all                 Clear all cohorts/age bands (default)"
             exit 1
             ;;
     esac
