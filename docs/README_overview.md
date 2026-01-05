@@ -18,7 +18,6 @@ graph TD
     A --> M[9_combined_shap_ffa]
     A --> N[10_risk_dashboard]
     A --> O[py_helpers]
-    A --> P[archived]
     
     B --> B1[medical]
     B --> B2[pharmacy]
@@ -57,11 +56,6 @@ graph TD
     N --> N2[bupaR_dashboard_visual]
     N --> N3[fpgrowth_dashboard_visual]
     N --> N4[dtw_dashboard_visual]
-    
-    P --> P1[5a_bupaR_analysis]
-    P --> P2[5b_fpgrowth_analysis]
-    P --> P3[5d_dtw_analysis]
-    P --> P4[6a_feature_encoding]
     
     O --> O1[common_imports.py]
     O --> O2[duckdb_utils.py]
@@ -184,10 +178,8 @@ pgx-analysis/
 ├── 3_feature_importance/       # MC-CV feature importance screening
 ├── 4a_model_data/              # Model-ready event datasets (target vs control)
 ├── 4b_dtw_filter/              # DTW-based protocol filtering (creates model_events_no_protocols.parquet used by downstream feature engineering)
-├── 5a_bupaR_analysis/          # Process mining feature engineering (BupaR)
-├── 5b_fpgrowth_analysis/       # Frequent pattern mining feature engineering
-├── 5c_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
-├── 6_final_model/              # Final model development (6a encoding artifacts + 6b training/export)
+├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
+├── 6_final_model_selection/    # Final model development and evaluation
 ├── 7_ffa_analysis/             # Formal feature attribution (FFA) analysis (tree JSON → DataFrame → rules)
 ├── 8_shap_analysis/            # SHAP-based post‑model analysis (distributional, per-feature and per-patient)
 ├── 9_combined_shap_ffa/        # Combined SHAP + FFA consensus analysis (agreement, ranking, coverage)
@@ -221,28 +213,15 @@ pgx-analysis/
 - `create_visualizations.R` - Visualization utilities
 - Uses three core models for robust feature ranking: **CatBoost**, **XGBoost (boosted trees)**, and **XGBoost RF mode**
 
-**🔍 5b_fpgrowth_analysis: Frequent Pattern Mining**
-- `global_fpgrowth.py` - Global pattern mining across all patients
-- `cohort_fpgrowth.py` - Cohort-specific pattern mining
-- `global_fpgrowth_feature_importance.ipynb` - Global analysis notebook
-- `cohort_fpgrowth_feature_importance.ipynb` - Cohort analysis notebook
-- Target-focused rule mining (TARGET_ICD, TARGET_ED, CONTROL)
-
-**🔄 5a_bupaR_analysis: Process Mining**
-- `bupaR_pipeline_opioid_ed.ipynb` - Process mining pipeline for opioid_ed using BupaR
-- `bupaR_pipeline_non_opioid_ed.ipynb` - Process mining pipeline for non_opioid_ed using BupaR
-- `sankey_plot.html` - Interactive Sankey diagram visualizations
-- Event log creation and process flow discovery
-
 **📊 4b_dtw_filter: DTW Protocol Filtering**
 - `filter_protocol_events.py` - DTW-derived protocol filtering to create `model_events_no_protocols.parquet`
 - `dtw_cohort_analysis.py` / `dtw_trajectory_analysis.py` - Optional sequence similarity and trajectory development
 - Patient clustering, similarity scoring, and time-window audit artifacts
 
-**🤖 6_final_model: Final Model Development**
-- `final_model.ipynb` - Python MC-CV, Optuna tuning, temporal calibration, and final model export (CatBoost / XGBoost / XGBoost RF)
-- `final_feature_schema.json` - Comprehensive feature schema
-- `catboost_models/` - Trained model artifacts and metadata (legacy CatBoost models)
+**🤖 6_final_model_selection: Final Model Development**
+- `run_final_model.py` - Model training, selection, and export (CatBoost / XGBoost)
+- Model outputs include trained models, feature importance, and evaluation metrics
+- `catboost_models/` - Trained model artifacts and metadata
 
 **🎯 7_ffa_analysis: Feature Attribution**
 - `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
@@ -311,22 +290,10 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 | **Scalability** | O(n²) for each pair | Handles thousands of cases |
 | **Interpretability** | "These sequences are X% similar" | "80% of patients follow path A→B→C" |
 
-### Extreme-Density Transaction Handling
-
-- **Motivation**: A small fraction of patients have extremely dense medical histories (hundreds to thousands of ICD/CPT items over the TRAIN window). These cases are clinically important but can cause memory spikes in FP-Growth and can visually dominate process-mining plots.  
-- **Approach**:
-  - Use the same transaction-density logic as `5b_fpgrowth_analysis/cohort_fpgrowth.py` to compute per-patient `transaction_size` and bin patients into `low`, `medium`, `high`, and `extreme` buckets.  
-  - Run `5b_fpgrowth_analysis/extract_extreme_density_cohort.py` to:
-    - Create a dedicated extreme-density cohort at `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events.parquet`.  
-    - Remove those patients from the main `4a_model_data` `model_events.parquet` (with a `model_events_with_extreme.parquet` backup), which then feeds `4b_dtw_filter` to create `model_events_no_protocols.parquet` for both base and extreme cohorts.  
-  - Run `5b_fpgrowth_analysis/summarize_extreme_density_cohort.py` to generate drug / ICD / CPT frequency tables, a transaction-size histogram, and patient-level summaries plus an aggregate JSON report (preferring `model_events_no_protocols.parquet` when present).  
-  - For `opioid_ed`, run `5a_bupaR_analysis/create_bupar_outputs_opioid_ed_extreme.R` to build a BupaR eventlog and Gantt-style plots just for the extreme-density subset, using the DTW-filtered `model_events_no_protocols.parquet` when present and mirroring plots under `feature_engineering_outputs/5_bupar/opioid_ed_extreme_density/{age_band}/plots`.  
-- **Plan**: Treat this as a standard, repeatable sub-workflow for all `(cohort, age_band)` combinations, so each main model has a paired "extreme" cohort for exploratory visualization and process-mining, while the main modeling pipeline runs on a tractable subset.
-
 ## Related Documentation
 
 - [`README_data_pipeline.md`](README_data_pipeline.md) - Data processing and cohort creation
-- [`README_analysis_workflow.md`](README_analysis_workflow.md) - Feature importance, Step 4c extreme-density split, and pattern mining
+- [`README_analysis_workflow.md`](README_analysis_workflow.md) - Feature importance and analysis workflow
 - [`README_data_visualizations.md`](README_data_visualizations.md) - Visualization approaches
 - [`README_create_cohort_pipeline.md`](README_create_cohort_pipeline.md) - Comprehensive cohort creation guide
 

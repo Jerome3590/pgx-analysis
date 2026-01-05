@@ -31,7 +31,6 @@ pgx-analysis/
 ├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
 ├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
 ├── 5_pgx_analysis/            # Step 5: PGx feature engineering
-├── 6_final_model/              # Step 6: Final model training (legacy/utilities)
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
 ├── 7_ffa_analysis/             # Step 7: Formal Feature Attribution (FFA) analysis
 ├── 8_shap_analysis/            # Step 8: SHAP-based post-model analysis
@@ -41,10 +40,6 @@ pgx-analysis/
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
 └── docs/                       # Documentation
-
-Note: Old workflow folders (5a_bupaR_analysis/, 5b_fpgrowth_analysis/, 5d_dtw_analysis/, 6a_feature_encoding/) 
-have been moved to archived/ as they are no longer part of the main workflow. Their visualization 
-outputs are now integrated into Step 10 (Risk Dashboard).
 ```
 
 ## High-Level Workflow
@@ -142,9 +137,7 @@ publication-grade, health outcomes–oriented modeling is anchored on these two 
 
 - `3_feature_importance/README.md` – Feature importance methodology and cohort configuration
 - `4a_model_data/README_model_data.md` – Model-ready events and target vs control extraction (if present)
-- `5b_fpgrowth_analysis/README.md` – FP-Growth pattern mining
-- `5a_bupaR_analysis/README.md` – Process mining with BupaR
--- DTW protocol filtering: `4b_dtw_filter/filter_protocol_events.py` and related scripts  
-- `5c_pgx_analysis/README.md` – Pharmacogenomics (PGx) feature engineering
+- DTW protocol filtering: `4b_dtw_filter/filter_protocol_events.py` and related scripts  
+- `5_pgx_analysis/README.md` – Pharmacogenomics (PGx) feature engineering
 - `status/WORKFLOW_STATUS.md` – Per-cohort workflow execution status and checkpoints
 - `status/WORKFLOW_COMPLETE_SUMMARY.md` – High-level summary of workflow completion across cohorts and age bands
