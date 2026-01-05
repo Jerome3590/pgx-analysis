@@ -60,6 +60,27 @@ def add_pgx_features(
     print(f"[INFO] Reading PGx features from {pgx_features_csv}")
     pgx_df = pd.read_csv(pgx_features_csv)
     
+    # Validate: Check for duplicate columns before processing
+    duplicate_cols = pgx_df.columns[pgx_df.columns.duplicated()].tolist()
+    if duplicate_cols:
+        raise ValueError(
+            f"Duplicate columns detected in PGx features file for {cohort_name}/{age_band}: {duplicate_cols}. "
+            f"File: {pgx_features_csv}. "
+            f"This will cause issues in downstream processing. Please regenerate the feature file."
+        )
+    
+    # Validate: Ensure feature column names are unique (excluding mi_person_key)
+    feature_cols = [c for c in pgx_df.columns if c != "mi_person_key"]
+    if len(feature_cols) != len(set(feature_cols)):
+        duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
+        unique_duplicates = list(set(duplicates))
+        raise ValueError(
+            f"Duplicate feature names detected in PGx features file for {cohort_name}/{age_band}: {unique_duplicates}. "
+            f"File: {pgx_features_csv}. "
+            f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
+            f"This will cause issues in downstream processing. Please regenerate the feature file."
+        )
+    
     # Ensure mi_person_key column exists
     if 'mi_person_key' not in pgx_df.columns:
         raise ValueError("PGx features CSV must contain 'mi_person_key' column")

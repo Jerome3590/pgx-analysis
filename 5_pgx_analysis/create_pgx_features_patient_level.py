@@ -186,6 +186,16 @@ def create_patient_pgx_features(
     drug_gene_mappings = pd.DataFrame()
     if mappings_path.exists():
         drug_gene_mappings = pd.read_csv(mappings_path)
+        
+        # Validate: Check for duplicate columns
+        duplicate_cols = drug_gene_mappings.columns[drug_gene_mappings.columns.duplicated()].tolist()
+        if duplicate_cols:
+            raise ValueError(
+                f"Duplicate columns detected in drug-gene mappings file for {cohort_name}/{age_band}: {duplicate_cols}. "
+                f"File: {mappings_path}. "
+                f"This will cause issues in downstream processing. Please regenerate the mappings file."
+            )
+        
         logger.info(f"Loaded {len(drug_gene_mappings)} drug-gene mappings")
     else:
         logger.warning(f"Drug-gene mappings not found at {mappings_path}")
@@ -195,6 +205,16 @@ def create_patient_pgx_features(
     allele_frequencies = pd.DataFrame()
     if frequencies_path.exists():
         allele_frequencies = pd.read_csv(frequencies_path)
+        
+        # Validate: Check for duplicate columns
+        duplicate_cols = allele_frequencies.columns[allele_frequencies.columns.duplicated()].tolist()
+        if duplicate_cols:
+            raise ValueError(
+                f"Duplicate columns detected in allele frequencies file for {cohort_name}/{age_band}: {duplicate_cols}. "
+                f"File: {frequencies_path}. "
+                f"This will cause issues in downstream processing. Please regenerate the frequencies file."
+            )
+        
         logger.info(f"Loaded {len(allele_frequencies)} allele frequency records")
     else:
         logger.warning(f"Allele frequencies not found at {frequencies_path}")

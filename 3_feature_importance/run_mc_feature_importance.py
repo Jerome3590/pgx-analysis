@@ -355,42 +355,7 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
         # Return primary as default (will be checked by _load_feature_table)
         return primary
 
-    fpgrowth_path = _first_existing(
-        local_base
-        / "4_fpgrowth"
-        / cohort
-        / age_band
-        / f"fpgrowth_added_features_{cohort}_{age_band_fname}.csv",
-        s3_base
-        / "4_fpgrowth"
-        / cohort
-        / age_band
-        / f"fpgrowth_added_features_{cohort}_{age_band_fname}.csv",
-    )
-    bupar_path = _first_existing(
-        local_base
-        / "5_bupar"
-        / cohort
-        / age_band
-        / f"bupaR_added_features_{cohort}_{age_band_fname}.csv",
-        s3_base
-        / "5_bupar"
-        / cohort
-        / age_band
-        / f"bupaR_added_features_{cohort}_{age_band_fname}.csv",
-    )
-    dtw_path = _first_existing(
-        local_base
-        / "6_dtw"
-        / cohort
-        / age_band
-        / f"dtw_added_features_{cohort}_{age_band_fname}.csv",
-        s3_base
-        / "6_dtw"
-        / cohort
-        / age_band
-        / f"dtw_added_features_{cohort}_{age_band_fname}.csv",
-    )
+    # Only load PGx features (other feature engineering steps moved to dashboard)
     pgx_path = _first_existing(
         local_base
         / "7_pgx"
@@ -404,30 +369,41 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
         / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
     )
 
-    fpgrowth = _load_feature_table(fpgrowth_path, required=False)
-    bupar = _load_feature_table(bupar_path, required=False)
-    dtw = _load_feature_table(dtw_path, required=False)
     pgx = _load_feature_table(pgx_path, required=False)
 
-    for df in (fpgrowth, bupar, dtw, pgx):
-        if "mi_person_key" in df.columns:
-            df["mi_person_key"] = df["mi_person_key"].astype(str)
+    # Validate: Check PGx feature table for duplicate columns before merging
+    if not pgx.empty:
+        # Check for duplicate columns within the table
+        duplicate_cols = pgx.columns[pgx.columns.duplicated()].tolist()
+        if duplicate_cols:
+            raise ValueError(
+                f"Duplicate columns detected in PGx feature table for {cohort}/{age_band}: {duplicate_cols}. "
+                f"File: {pgx_path}. "
+                f"This will cause issues in downstream processing. Please regenerate the feature table."
+            )
+        
+        # Check for duplicate feature names (excluding mi_person_key and target)
+        feature_cols = [c for c in pgx.columns if c not in ("mi_person_key", "target")]
+        if len(feature_cols) != len(set(feature_cols)):
+            duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
+            unique_duplicates = list(set(duplicates))
+            raise ValueError(
+                f"Duplicate feature names detected in PGx feature table for {cohort}/{age_band}: {unique_duplicates}. "
+                f"File: {pgx_path}. "
+                f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
+                f"This will cause issues in downstream processing. Please regenerate the feature table."
+            )
+        
+        if "mi_person_key" in pgx.columns:
+            pgx["mi_person_key"] = pgx["mi_person_key"].astype(str)
 
-    if "target" in dtw.columns:
-        dtw = dtw.drop(columns=["target"])
-
+    # Merge aggregated patient-level features with PGx features only
     final = grouped.copy()
-    for name, feats in [
-        ("FP-Growth", fpgrowth),
-        ("BupaR", bupar),
-        ("DTW", dtw),
-        ("PGx", pgx),
-    ]:
-        if feats.empty:
-            print(f"No {name} features found for {cohort}, {age_band} (skipping).")
-            continue
-        print(f"Merging {name} features ({feats.shape[1] - 1} columns).")
-        final = final.merge(feats, on="mi_person_key", how="left")
+    if not pgx.empty:
+        print(f"Merging PGx features ({pgx.shape[1] - 1} columns).")
+        final = final.merge(pgx, on="mi_person_key", how="left")
+    else:
+        print(f"No PGx features found for {cohort}, {age_band} (continuing without PGx features).")
 
     final = final.dropna(subset=["target"])
     final = _remove_target_leakage_features(final)
@@ -531,10 +507,15 @@ def run_mc_feature_importance(
             pass
 
     # Assemble final feature matrix (with leakage removal baked in)
+    # Validate feature tables before starting feature engineering
+    print(f"[Validation] Checking feature tables for {cohort}/{age_band} before starting feature importance computation...")
+    
     df = build_final_features_for_mc(cohort, age_band)
     if df.empty:
         raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
 
+    print(f"[Validation] Feature assembly complete. Total features: {len([c for c in df.columns if c not in ('mi_person_key', 'target')])}")
+    
     X, y, feature_names = _prepare_xy(df)
 
     try:
