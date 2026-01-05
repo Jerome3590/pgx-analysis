@@ -353,6 +353,65 @@ flowchart TD
 | Which itemsets drive model predictions? | CatBoost + FFA | Risk-influential patterns |
 | Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis |
 
+## Output Paths Summary
+
+### Step 5: PGx Feature Engineering Output Paths
+
+#### Local File Paths
+
+**Prerequisite Files (Cohort-Level, Shared Across Age Bands):**
+- `5_pgx_analysis/outputs/{cohort}/{cohort}_drug_gene_mappings.csv` - Drug-to-gene mappings (cohort-level)
+- `5_pgx_analysis/outputs/{cohort}/{cohort}_allele_frequencies.csv` - Allele frequencies (cohort-level)
+
+**Global Cache Files (Shared Across All Cohorts):**
+- `5_pgx_analysis/outputs/global/pgx_drug_gene_mappings_global.csv` - Global drug-gene mapping cache
+- `5_pgx_analysis/outputs/global/pgx_allele_frequencies_global.csv` - Global allele frequency cache
+
+**Feature Files (Age-Band Specific):**
+- `5_pgx_analysis/outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv` - Intermediate patient-level PGx features
+- `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv` - Final PGx features ready for model training
+- `5_feature_engineering/feature_engineering_outputs/7_pgx/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv` - Mirrored intermediate features
+- `5_feature_engineering/feature_engineering_outputs/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv` - Mirrored final features
+
+#### S3 Output Paths
+
+**Primary S3 Location (`gold/pgx_features/`):**
+- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv` - Final PGx features
+- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv` - Intermediate PGx features
+- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/{cohort}_drug_gene_mappings.csv` - Drug-gene mappings (age-band specific copy)
+- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/{cohort}_allele_frequencies.csv` - Allele frequencies (age-band specific copy)
+
+**Global Cache S3 Paths:**
+- `s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv` - Global drug-gene mapping cache
+- `s3://pgxdatalake/gold/pgx_features/global/pgx_allele_frequencies_global.csv` - Global allele frequency cache
+
+**Legacy S3 Location (for backward compatibility):**
+- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv` - Legacy intermediate features
+- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv` - Legacy final features
+
+**Checkpoints:**
+- `s3://pgx-repository/pipeline_checkpoints/5_pgx_analysis/{cohort}/{age_band}/checkpoint.json` - Step 5 completion checkpoint
+- `s3://pgx-repository/7_pgx_log/{cohort}/{age_band}/pgx_{cohort}_{age_band}.log` - Step 5 execution logs
+
+#### File Naming Conventions
+
+- **Age band format**: `{age_band}` uses hyphens (e.g., `13-24`)
+- **Filename format**: `{age_band_fname}` uses underscores (e.g., `13_24`)
+- **Cohort-level files**: Shared across all age bands for a given cohort
+- **Global cache files**: Shared across all cohorts and age bands
+
+#### Idempotency Checks
+
+The workflow checks for existing outputs in this order:
+1. **Local files**: Checks cohort-level, then global cache
+2. **S3 files**: Checks global cache → cohort-level → legacy age-band paths
+3. **Checkpoints**: Checks `pgx-repository` bucket for completion checkpoints
+
+If outputs exist, the step is skipped. To force regeneration, use:
+```bash
+python utility_scripts/clear_pgx_step5_outputs.py --cohort {cohort} --age-band {age_band} --clear-local --clear-prerequisites
+```
+
 ## Model Artifacts and Storage Structure
 
 The pipeline generates and stores various model artifacts for each cohort and age band:
