@@ -555,7 +555,7 @@ def run_pgx_analysis(
     except ImportError:
         pass  # Checkpoint saving is optional
 
-    mirror_log_to_s3("7_pgx", cohort_name, age_band, log_path, logger)
+    mirror_log_to_s3("5_pgx_analysis", cohort_name, age_band, log_path, logger)
     return True
 
 
