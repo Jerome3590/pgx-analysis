@@ -227,7 +227,7 @@ def get_mc_cv_n_runs(default: int | None = None) -> int:
     """
     Get recommended number of MC-CV runs (outer loop) based on environment.
 
-    - On EC2 (Linux with >= 256GB RAM): 3 runs
+    - On EC2 (Linux with >= 256GB RAM): 25 runs (matches feature importance step)
     - On Windows or smaller systems: 1 run (default)
 
     Args:
@@ -243,10 +243,10 @@ def get_mc_cv_n_runs(default: int | None = None) -> int:
     if env_val and env_val.isdigit():
         return int(env_val)
 
-    # Auto-detect: EC2 gets 3, Windows gets 1
+    # Auto-detect: EC2 gets 25 (matches feature importance step), Windows gets 1
     resources = detect_system_resources()
     if is_linux() and resources.total_ram_gb >= 256:
-        return 3
+        return 25
     return 1
 
 
