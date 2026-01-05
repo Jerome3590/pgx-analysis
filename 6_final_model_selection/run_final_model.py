@@ -887,46 +887,37 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
         con.close()
 
     # ------------------------------------------------------------------
-    # PGx Feature Table (ONLY feature engineering step)
+    # PGx Feature Table (from Step 5)
     # ------------------------------------------------------------------
+    # Step 5 adds PGx features - load them here for final model training
     # Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only
-    # OS-aware path resolution: check multiple locations
+    
+    # Check multiple locations for PGx features from Step 5
+    pgx_path_candidates = [
+        # Primary location: Step 5 outputs
+        PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
+        # Legacy location: feature_engineering_outputs
+        PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
+        # S3 download location
+        PROJECT_ROOT / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
+    ]
+    
+    # Also check data root locations
     data_root = get_data_root()
+    pgx_path_candidates.extend([
+        data_root / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
+        data_root / "5_feature_engineering" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
+    ])
     
-    local_base_candidates = [
-        PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs",
-        data_root / "5_feature_engineering" / "feature_engineering_outputs",
-    ]
-    local_base = next((p for p in local_base_candidates if p.exists()), local_base_candidates[0])
+    pgx_path = None
+    for candidate in pgx_path_candidates:
+        if candidate.exists():
+            pgx_path = candidate
+            break
     
-    s3_base_candidates = [
-        PROJECT_ROOT / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
-        data_root / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
-    ]
-    s3_base = next((p for p in s3_base_candidates if p.exists()), s3_base_candidates[0])
-
-    def _first_existing(primary: Path, fallback: Path) -> Path:
-        """Return first existing path, or primary if neither exists."""
-        if primary.exists():
-            return primary
-        if fallback.exists():
-            return fallback
-        # Return primary as default (will be checked by _load_feature_table)
-        return primary
-
-    # Only load PGx features (other feature engineering steps moved to dashboard)
-    pgx_path = _first_existing(
-        local_base
-        / "7_pgx"
-        / cohort
-        / age_band
-        / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-        s3_base
-        / "7_pgx"
-        / cohort
-        / age_band
-        / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-    )
+    # Default to primary location if none found (will be checked by _load_feature_table)
+    if pgx_path is None:
+        pgx_path = pgx_path_candidates[0]
 
     pgx = _load_feature_table(pgx_path, required=False)
 
