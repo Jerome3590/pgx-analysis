@@ -731,12 +731,38 @@ def main():
             / f"{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv"
         )
 
+        feature_importance_path = None
         if fi_outputs.exists():
             feature_importance_path = fi_outputs
         elif fi_from_s3.exists():
             feature_importance_path = fi_from_s3
         else:
-            feature_importance_path = None
+            # Try downloading from S3 if not found locally
+            try:
+                import boto3
+                from botocore.exceptions import ClientError
+                s3_client = boto3.client("s3")
+                s3_bucket = "pgxdatalake"
+                
+                # Try multiple S3 paths
+                s3_paths_to_try = [
+                    f"gold/feature_importance/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv",
+                    f"gold/feature_importance/aggregated/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv",
+                ]
+                
+                for s3_key in s3_paths_to_try:
+                    try:
+                        s3_client.head_object(Bucket=s3_bucket, Key=s3_key)
+                        # Download to local outputs directory
+                        fi_outputs.parent.mkdir(parents=True, exist_ok=True)
+                        s3_client.download_file(s3_bucket, s3_key, str(fi_outputs))
+                        logger.info(f"Downloaded feature importance from S3: s3://{s3_bucket}/{s3_key}")
+                        feature_importance_path = fi_outputs
+                        break
+                    except ClientError:
+                        continue
+            except Exception as e:
+                logger.debug(f"Could not download from S3: {e}")
 
         if feature_importance_path and feature_importance_path.exists():
             df_features = pd.read_csv(feature_importance_path)
