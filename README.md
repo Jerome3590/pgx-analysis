@@ -51,52 +51,53 @@ outputs are now integrated into Step 10 (Risk Dashboard).
 
 ```mermaid
 flowchart TD
-    subgraph "Phase 1: Data Preparation"
+    subgraph "Step 1-2: Data Preparation"
         A1[APCD Input Data] --> A2[Data Cleaning]
         A2 --> A3[Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
     
-    subgraph "Phase 2: Feature Discovery"
+    subgraph "Step 3: Feature Discovery"
         A4 --> B1[Monte Carlo CV]
-        B1 --> B2[Feature Importance - Model Ensemble]
+        B1 --> B2[Aggregated Feature Importance<br/>CatBoost + XGBoost]
         B2 --> B3[Top Features Selection]
     end
     
-    subgraph "Phase 3: Pattern Mining + Protocol Filtering"
-        B3 --> C1[FPGrowth Analysis<br/>Frequent Itemsets]
-        C1 --> C2[BupaR Process Mining<br/>Temporal Pathways]
-        C2 --> C3[DTW Protocol Filtering<br/> Time-Window Rules]
+    subgraph "Step 4: Model Data & Filtering"
+        B3 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
-    subgraph "Phase 4: Feature Engineering"
-        C1 --> D1[FPGrowth Features<br/>Itemsets & Rules]
-        C2 --> D2[BupaR Features<br/>Process Patterns]
-        C3 --> D3[Optional DTW Features<br/>Trajectory Clusters]
-        D1 --> D4[Final Feature Schema]
-        D2 --> D4
-        D3 --> D4
+    subgraph "Step 5: PGx Feature Engineering"
+        C2 --> D1[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
     end
     
-    subgraph "Phase 5: Final Model"
-        D4 --> E1[Feature Integration]
+    subgraph "Step 6: Final Model Training"
+        D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
         E1 --> E2[CatBoost Training]
         E1 --> E3[XGBoost Training]
-        E1 --> E6[XGBoost RF Mode Training]
-        E2 --> E4[Model Evaluation]
+        E2 --> E4[Model Selection & Evaluation]
         E3 --> E4
-        E6 --> E4
-        E4 --> E5[Feature Attribution]
     end
     
-    subgraph "Phase 6: Causal Analysis"
-        E5 --> F1[Tree Export JSON]
-        F1 --> F2[Subgroup Identification]
-        F2 --> F3[Causal Inference]
+    subgraph "Step 7-9: Post-Model Analysis"
+        E4 --> F1[7: FFA Analysis<br/>Formal Feature Attribution]
+        E4 --> F2[8: SHAP Analysis<br/>SHAP Values]
+        F1 --> F3[9: Combined SHAP + FFA<br/>Consensus Analysis]
+        F2 --> F3
+    end
+    
+    subgraph "Step 10: Risk Dashboard"
+        F3 --> G1[Risk Dashboard<br/>Model Deployment]
+        G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     
     style A1 fill:#f9f,stroke:#333,stroke-width:2px
     style B2 fill:#bbf,stroke:#333,stroke-width:2px
+    style D1 fill:#bfb,stroke:#333,stroke-width:2px
+    style E4 fill:#fbb,stroke:#333,stroke-width:2px
+    style F3 fill:#fbf,stroke:#333,stroke-width:2px
+    style G1 fill:#ffb,stroke:#333,stroke-width:2px
     style C1 fill:#bfb,stroke:#333,stroke-width:2px
     style C2 fill:#bfb,stroke:#333,stroke-width:2px
     style C3 fill:#bfb,stroke:#333,stroke-width:2px

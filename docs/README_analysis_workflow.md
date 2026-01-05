@@ -302,54 +302,46 @@ Over time we will repeat this extreme-density sub-pipeline for all cohorts and a
 
 ```mermaid
 flowchart TD
-    subgraph "3_feature_importance: Feature Screening"
-        A[Monte Carlo CV] --> B[Feature Importance<br/>CatBoost + Random Forest]
+    subgraph "Step 3: Feature Importance"
+        A[Monte Carlo CV] --> B[Aggregated Feature Importance<br/>CatBoost + XGBoost]
         B --> C[Top Features Selection]
     end
     
-    subgraph "5b_fpgrowth_analysis: Pattern Mining"
-        C --> D[FPGrowth Analysis]
-        D --> E[Frequent Itemsets]
-        E --> F[Target-Focused Rules]
-        F --> G[Global Encoding Map]
+    subgraph "Step 4: Model Data & Filtering"
+        C --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        D --> E[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
-    subgraph "5a_bupaR_analysis: Process Mining"
-        G --> H[BupaR Process Mining]
-        H --> I[Event Log Creation]
-        I --> J[Process Flow Discovery]
+    subgraph "Step 5: PGx Feature Engineering"
+        E --> F[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
     end
     
-    subgraph "4b_dtw_analysis: Protocol Filtering + Trajectories"
-        C --> K[DTW Protocol Filtering<br/>(time-window rules)]
-        K --> L[Optional DTW Trajectory Analysis]
-        L --> M[Patient Clustering + Similarity]
+    subgraph "Step 6: Final Model Training"
+        F --> G[Feature Integration<br/>Aggregated Features + PGx]
+        G --> H[CatBoost Training]
+        G --> I[XGBoost Training]
+        H --> J[Model Selection & Evaluation]
+        I --> J
     end
     
-    subgraph "8_final_model: Final Model"
-        G --> N[Feature Integration]
-        J --> N
-        M --> N
-        N --> O[Final Feature Schema]
-        O --> P[CatBoost Training]
-        O --> Q[Random Forest Training]
-        P --> R[Model Evaluation]
-        Q --> R
+    subgraph "Step 7-9: Post-Model Analysis"
+        J --> K[7: FFA Analysis<br/>Formal Feature Attribution]
+        J --> L[8: SHAP Analysis<br/>SHAP Values]
+        K --> M[9: Combined SHAP + FFA<br/>Consensus Analysis]
+        L --> M
     end
     
-    subgraph "7_ffa_analysis: Attribution"
-        R --> S[Feature Attribution]
-        S --> T[Tree Export]
-        T --> U[Causal Inference]
+    subgraph "Step 10: Risk Dashboard"
+        M --> N[Risk Dashboard<br/>Model Deployment]
+        N --> O[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
-    style D fill:#bfb,stroke:#333,stroke-width:2px
-    style H fill:#bfb,stroke:#333,stroke-width:2px
-    style K fill:#bfb,stroke:#333,stroke-width:2px
-    style O fill:#fbb,stroke:#333,stroke-width:2px
-    style P fill:#fbb,stroke:#333,stroke-width:2px
-    style Q fill:#fbb,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style F fill:#bfb,stroke:#333,stroke-width:2px
+    style J fill:#fbb,stroke:#333,stroke-width:2px
+    style M fill:#fbf,stroke:#333,stroke-width:2px
+    style N fill:#ffb,stroke:#333,stroke-width:2px
 ```
 
 ## Key Insights

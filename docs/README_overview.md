@@ -11,15 +11,14 @@ graph TD
     A --> D[3_feature_importance]
     A --> E[4a_model_data]
     A --> E2[4b_dtw_filter]
-    A --> F[5b_fpgrowth_analysis]
-    A --> G[5a_bupaR_analysis]
-    A --> H[5c_pgx_analysis]
-    A --> J[6_final_model]
+    A --> H[5_pgx_analysis]
+    A --> J[6_final_model_selection]
     A --> K[7_ffa_analysis]
     A --> L[8_shap_analysis]
     A --> M[9_combined_shap_ffa]
     A --> N[10_risk_dashboard]
     A --> O[py_helpers]
+    A --> P[archived]
     
     B --> B1[medical]
     B --> B2[pharmacy]
@@ -33,25 +32,36 @@ graph TD
     C --> C3[phases]
     C --> C4[table_mappings]
     
-    D --> D1[feature_importance_mc_cv.ipynb]
-    D --> D2[feature_importance_mc_cv.R]
-    D --> D3[create_visualizations.R]
+    D --> D1[run_mc_feature_importance.py]
+    D --> D2[aggregated_feature_importance.csv]
     
-    F --> F1[global_fpgrowth.py]
-    F --> F2[cohort_fpgrowth.py]
-    F --> F3[global_fpgrowth_feature_importance.ipynb]
-    F --> F4[cohort_fpgrowth_feature_importance.ipynb]
+    E --> E1[create_model_data.py]
+    E --> E3[model_events.parquet]
     
-    G --> G1[bupaR_pipeline_opioid_ed.ipynb]
-    G --> G2[bupaR_pipeline_non_opioid_ed.ipynb]
+    E2 --> E4[filter_protocol_events.py]
+    E2 --> E5[model_events_no_protocols.parquet]
     
-    H --> H1[dtw_cohort_analysis.py]
-    H --> H2[dtw_trajectory_analysis.py]
+    H --> H1[run_analysis.py]
+    H --> H2[pgx_added_features.csv]
     
-    J --> J1[final_model.ipynb]
-    J --> J2[final_feature_schema.json]
+    J --> J1[run_final_model.py]
+    J --> J2[final_model outputs]
     
-    K --> K1[ffa_analysis.py]
+    K --> K1[run_full_ffa_analysis.py]
+    
+    L --> L1[run_shap_analysis.py]
+    
+    M --> M1[combine_shap_ffa_analysis.py]
+    
+    N --> N1[Risk Dashboard]
+    N --> N2[bupaR_dashboard_visual]
+    N --> N3[fpgrowth_dashboard_visual]
+    N --> N4[dtw_dashboard_visual]
+    
+    P --> P1[5a_bupaR_analysis]
+    P --> P2[5b_fpgrowth_analysis]
+    P --> P3[5d_dtw_analysis]
+    P --> P4[6a_feature_encoding]
     
     O --> O1[common_imports.py]
     O --> O2[duckdb_utils.py]
@@ -63,15 +73,15 @@ graph TD
     style C fill:#bbf,stroke:#333,stroke-width:2px
     style D fill:#bbf,stroke:#333,stroke-width:2px
     style E fill:#bbf,stroke:#333,stroke-width:2px
-    style F fill:#bbf,stroke:#333,stroke-width:2px
-    style G fill:#bbf,stroke:#333,stroke-width:2px
-    style H fill:#bbf,stroke:#333,stroke-width:2px
-    style J fill:#bbf,stroke:#333,stroke-width:2px
-    style K fill:#bbf,stroke:#333,stroke-width:2px
-    style L fill:#bbf,stroke:#333,stroke-width:2px
-    style M fill:#bbf,stroke:#333,stroke-width:2px
-    style N fill:#bbf,stroke:#333,stroke-width:2px
+    style E2 fill:#bbf,stroke:#333,stroke-width:2px
+    style H fill:#bfb,stroke:#333,stroke-width:2px
+    style J fill:#fbb,stroke:#333,stroke-width:2px
+    style K fill:#fbf,stroke:#333,stroke-width:2px
+    style L fill:#fbf,stroke:#333,stroke-width:2px
+    style M fill:#fbf,stroke:#333,stroke-width:2px
+    style N fill:#ffb,stroke:#333,stroke-width:2px
     style O fill:#bfb,stroke:#333,stroke-width:2px
+    style P fill:#ddd,stroke:#333,stroke-width:1px
 ```
 
 ## High-Level Workflow
@@ -100,64 +110,65 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
   - Age bands modeled: **65–74**, **75–84**, **85–94**
 
 For every `(cohort, age_band)` above we run:
-- MC‑CV feature importance (`3_feature_importance/`)
-- model‑ready event extraction (`4a_model_data/`)
+- MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
+- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
-- **Extreme‑density transaction handling (via `5b_fpgrowth_analysis/extract_extreme_density_cohort.py`)**, which splits out an `{cohort}_extreme_density` cohort and rewrites the base `model_events.parquet` without extreme‑density patients so that all main feature engineering and final models use the non‑extreme base cohort.
-- feature engineering (`5b_fpgrowth_analysis/`, `5a_bupaR_analysis/`, DTW features in `5d_dtw_analysis/`, and `5c_pgx_analysis/` as applicable)
-- final model training and export (`6_final_model/`), producing **one model per cohort/age‑band**.
+- PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
+- final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
+- post-model analysis: FFA (`7_ffa_analysis/`), SHAP (`8_shap_analysis/`), and combined (`9_combined_shap_ffa/`)
+- risk dashboard (`10_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph "Phase 1: Data Preparation"
+    subgraph "Step 1-2: Data Preparation"
         A1[APCD Input Data] --> A2[Data Cleaning]
         A2 --> A3[Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
     
-    subgraph "Phase 2: Feature Discovery"
+    subgraph "Step 3: Feature Discovery"
         A4 --> B1[Monte Carlo CV]
-        B1 --> B2[Feature Importance - Model Ensemble]
+        B1 --> B2[Aggregated Feature Importance<br/>CatBoost + XGBoost]
         B2 --> B3[Top Features Selection]
     end
     
-    subgraph "Phase 3: Pattern Mining"
-        B3 --> C1[FPGrowth Analysis<br/>Frequent Itemsets]
-        C1 --> C2[BupaR Process Mining<br/>Temporal Pathways]
-        C2 --> C3[DTW Trajectory Analysis<br/>Patient Clustering]
+    subgraph "Step 4: Model Data & Filtering"
+        B3 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
-    subgraph "Phase 4: Feature Engineering"
-        C1 --> D1[FPGrowth Features<br/>Itemsets & Rules]
-        C2 --> D2[BupaR Features<br/>Process Patterns]
-        C3 --> D3[DTW Features<br/>Trajectory Clusters]
-        D1 --> D4[Final Feature Schema]
-        D2 --> D4
-        D3 --> D4
+    subgraph "Step 5: PGx Feature Engineering"
+        C2 --> D1[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
     end
     
-    subgraph "Phase 5: Final Model"
-        D4 --> E1[Feature Integration]
+    subgraph "Step 6: Final Model Training"
+        D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
         E1 --> E2[CatBoost Training]
-        E1 --> E3[Random Forest Training]
-        E2 --> E4[Model Evaluation]
+        E1 --> E3[XGBoost Training]
+        E2 --> E4[Model Selection & Evaluation]
         E3 --> E4
-        E4 --> E5[Feature Attribution]
     end
     
-    subgraph "Phase 6: Causal Analysis"
-        E5 --> F1[Tree Export JSON]
-        F1 --> F2[Subgroup Identification]
-        F2 --> F3[Causal Inference]
+    subgraph "Step 7-9: Post-Model Analysis"
+        E4 --> F1[7: FFA Analysis<br/>Formal Feature Attribution]
+        E4 --> F2[8: SHAP Analysis<br/>SHAP Values]
+        F1 --> F3[9: Combined SHAP + FFA<br/>Consensus Analysis]
+        F2 --> F3
+    end
+    
+    subgraph "Step 10: Risk Dashboard"
+        F3 --> G1[Risk Dashboard<br/>Model Deployment]
+        G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     
     style A1 fill:#f9f,stroke:#333,stroke-width:2px
     style B2 fill:#bbf,stroke:#333,stroke-width:2px
-    style C1 fill:#bfb,stroke:#333,stroke-width:2px
-    style C2 fill:#bfb,stroke:#333,stroke-width:2px
-    style C3 fill:#bfb,stroke:#333,stroke-width:2px
+    style D1 fill:#bfb,stroke:#333,stroke-width:2px
+    style E4 fill:#fbb,stroke:#333,stroke-width:2px
+    style F3 fill:#fbf,stroke:#333,stroke-width:2px
+    style G1 fill:#ffb,stroke:#333,stroke-width:2px
     style D4 fill:#fbb,stroke:#333,stroke-width:2px
     style E2 fill:#fbb,stroke:#333,stroke-width:2px
     style E3 fill:#fbb,stroke:#333,stroke-width:2px
