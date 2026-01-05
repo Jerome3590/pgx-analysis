@@ -946,6 +946,26 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
 
     # Apply target-leakage removal rules before returning the feature matrix.
     final = remove_target_leakage_features(final)
+    
+    # Validate: Check for duplicate column names (excluding merge key)
+    duplicate_cols = final.columns[final.columns.duplicated()].tolist()
+    if duplicate_cols:
+        raise ValueError(
+            f"Duplicate feature columns detected after merging feature tables for {cohort}/{age_band}: {duplicate_cols}. "
+            f"This will cause issues in downstream processing. Please ensure each feature table has unique column names."
+        )
+    
+    # Validate: Ensure feature column names are unique
+    feature_cols = [c for c in final.columns if c not in ("mi_person_key", "target")]
+    if len(feature_cols) != len(set(feature_cols)):
+        duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
+        unique_duplicates = list(set(duplicates))
+        raise ValueError(
+            f"Duplicate feature names detected in final feature matrix for {cohort}/{age_band}: {unique_duplicates}. "
+            f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
+            f"This will cause issues in downstream processing."
+        )
+    
     return final
 
 
@@ -968,6 +988,16 @@ def train_and_evaluate(
     feature_cols: List[str] = [
         c for c in df.columns if c not in ("mi_person_key", "target")
     ]
+    
+    # Validate: Ensure feature column names are unique
+    if len(feature_cols) != len(set(feature_cols)):
+        duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
+        unique_duplicates = list(set(duplicates))
+        raise ValueError(
+            f"Duplicate feature names detected in training data for {cohort}/{age_band}: {unique_duplicates}. "
+            f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
+            f"This will cause issues in model training and downstream processing."
+        )
     
     # Identify categorical features for CatBoost (binary item_* features)
     # CatBoost performs better when binary features are treated as categorical

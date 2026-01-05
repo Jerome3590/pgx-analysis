@@ -431,12 +431,32 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
 
     final = final.dropna(subset=["target"])
     final = _remove_target_leakage_features(final)
+    
+    # Validate: Check for duplicate column names (excluding merge key)
+    duplicate_cols = final.columns[final.columns.duplicated()].tolist()
+    if duplicate_cols:
+        raise ValueError(
+            f"Duplicate feature columns detected after merging feature tables for {cohort}/{age_band}: {duplicate_cols}. "
+            f"This will cause issues in downstream processing. Please ensure each feature table has unique column names."
+        )
+    
     return final
 
 
 def _prepare_xy(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """Prepare numeric feature matrix X and label y from the assembled DataFrame."""
     feature_cols = [c for c in df.columns if c not in ("mi_person_key", "target")]
+    
+    # Validate: Ensure feature column names are unique
+    if len(feature_cols) != len(set(feature_cols)):
+        duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
+        unique_duplicates = list(set(duplicates))
+        raise ValueError(
+            f"Duplicate feature names detected: {unique_duplicates}. "
+            f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
+            f"This will cause issues in downstream processing."
+        )
+    
     numeric_feature_cols = [
         c for c in feature_cols if pd.api.types.is_numeric_dtype(df[c])
     ]
@@ -446,6 +466,15 @@ def _prepare_xy(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     X = df[numeric_feature_cols].replace([float("inf"), float("-inf")], pd.NA)
     X = X.fillna(0)
     y = df["target"].astype(int)
+    
+    # Final validation: Ensure X columns are unique (defensive check)
+    if len(X.columns) != len(set(X.columns)):
+        duplicate_x_cols = [col for col in X.columns if list(X.columns).count(col) > 1]
+        unique_duplicate_x_cols = list(set(duplicate_x_cols))
+        raise ValueError(
+            f"Duplicate columns in feature matrix X: {unique_duplicate_x_cols}. "
+            f"This should not happen after previous validation."
+        )
 
     return X, y, numeric_feature_cols
 
@@ -719,6 +748,16 @@ def run_mc_feature_importance(
         "catboost": "catboost",
     }
 
+    # Validate: Ensure feature_names list is unique before aggregation
+    if len(feature_names) != len(set(feature_names)):
+        duplicates = [fname for fname in feature_names if feature_names.count(fname) > 1]
+        unique_duplicates = list(set(duplicates))
+        raise ValueError(
+            f"Duplicate feature names in feature_names list: {unique_duplicates}. "
+            f"Total features: {len(feature_names)}, Unique features: {len(set(feature_names))}. "
+            f"This will cause incorrect aggregation in downstream processing."
+        )
+
     results = {}
 
     for model_name in model_keys:
@@ -764,6 +803,15 @@ def run_mc_feature_importance(
             )
 
         fi_df = pd.DataFrame.from_records(records)
+        
+        # Validate: Ensure feature column has unique values in aggregated DataFrame
+        if fi_df["feature"].duplicated().any():
+            duplicate_features = fi_df[fi_df["feature"].duplicated(keep=False)]["feature"].unique().tolist()
+            raise ValueError(
+                f"Duplicate features found in aggregated DataFrame for {model_name}: {duplicate_features}. "
+                f"This indicates a bug in the aggregation logic. Total rows: {len(fi_df)}, Unique features: {fi_df['feature'].nunique()}."
+            )
+        
         fi_df = fi_df.sort_values("scaled_importance_mean", ascending=False)
         label = model_label_map[model_name]
 
