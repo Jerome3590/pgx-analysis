@@ -305,91 +305,20 @@ def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
     raise FileNotFoundError(error_msg)
 
 
-def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n: int = None) -> List[str]:
-    """
-    Load aggregated feature importance codes (drug/ICD/CPT) from Step 3 output.
-    
-    Args:
-        cohort: Cohort name
-        age_band: Age band
-        top_n: Maximum number of top features to return (default: None = no limit)
-    
-    Returns:
-        List of item codes (drug names, ICD codes, CPT codes) from aggregated FI CSV,
-        sorted by importance_scaled (descending), optionally limited to top_n.
-    """
-    age_band_fname = age_band_to_fname(age_band)
-    
-    # Try local path first
-    agg_csv_path = (
-        PROJECT_ROOT
-        / "3_feature_importance"
-        / "outputs"
-        / cohort
-        / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    
-    # Fallback: try S3 download location
-    if not agg_csv_path.exists():
-        agg_csv_path = (
-            PROJECT_ROOT
-            / "3_feature_importance"
-            / "from_s3"
-            / "by_cohort"
-            / cohort
-            / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        )
-    
-    if not agg_csv_path.exists():
-        raise FileNotFoundError(
-            f"Aggregated feature importance CSV not found for {cohort}/{age_band}. "
-            f"Expected at: {agg_csv_path}"
-        )
-    
-    df = pd.read_csv(agg_csv_path)
-    if "feature" not in df.columns:
-        raise ValueError(f"'feature' column not found in {agg_csv_path}")
-    
-    # Sort by importance_scaled if available, otherwise by importance_normalized
-    if "importance_scaled" in df.columns:
-        df = df.sort_values("importance_scaled", ascending=False)
-    elif "importance_normalized" in df.columns:
-        df = df.sort_values("importance_normalized", ascending=False)
-    else:
-        print(f"[WARNING] No importance_scaled or importance_normalized column found. Using first {top_n} features.")
-    
-    # Extract codes (remove 'item_' prefix if present)
-    all_unique_codes = (
-        df["feature"]
-        .astype(str)
-        .str.replace("^item_", "", regex=True)
-        .unique()
-    )
-    
-    # Apply limit if specified, otherwise return all
-    if top_n is not None and len(all_unique_codes) > top_n:
-        codes = all_unique_codes[:top_n].tolist()
-        print(f"[INFO] Limited to top {top_n} features from {len(all_unique_codes)} total unique features")
-    else:
-        codes = all_unique_codes.tolist()
-        print(f"[INFO] Loaded all {len(codes)} aggregated feature importance codes (no limit)")
-    
-    return codes
-
-
 def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
     """
-    Build final feature matrix from RAW dataset (all features) + PGx features.
+    Build feature matrix for Step 3 (Feature Importance) from raw model_events.parquet.
     
-    Step 3 calculates feature importances from the raw dataset (all available features).
-    It does NOT use aggregated feature importance codes - those are computed here.
+    Step 3 runs BEFORE Step 5 (PGx Feature Engineering), so it uses only raw features
+    from the model_events.parquet dataset. Step 5 will add PGx features later, which
+    will be used in Step 6 (Final Model Selection).
     
-    Step 6 will later use the aggregated feature importance codes from Step 3's output
-    to create a filtered feature set for final model training.
+    Note: FP-Growth, BupaR, and DTW features are no longer used in the pipeline;
+    they are only used for dashboard visualizations in Step 10.
     
     Inputs:
       - 4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
-      - 5_pgx_analysis/.../{cohort}/{age_band}/pgx_added_features_*.csv
+        (or model_events_no_protocols.parquet if Step 4b has run)
     """
     age_band_fname = age_band_to_fname(age_band)
 
@@ -397,277 +326,31 @@ def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
 
     print(f"Loading model data (cases + controls) from {events_path}")
     con = duckdb.connect()
-    try:
-        # Create a view so we can reference it multiple times without re-reading the parquet
-        con.execute(f"CREATE OR REPLACE VIEW events_view AS SELECT * FROM read_parquet('{events_path}')")
-        
-        # Aggregate event-level data to one row per patient with label
-        grouped = con.execute(
-            """
-            SELECT
-                CAST(mi_person_key AS VARCHAR) AS mi_person_key,
-                CAST(MAX(target) AS INTEGER)   AS target,
-                COUNT(*)                       AS n_events
-            FROM events_view
-            WHERE target IN (0, 1)
-            GROUP BY mi_person_key
-            """
-        ).df()
+    grouped = con.execute(
+        f"""
+        SELECT
+            CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+            CAST(target AS INTEGER)        AS target,
+            COUNT(*)                       AS n_events
+        FROM read_parquet('{events_path}')
+        GROUP BY mi_person_key, target
+        """
+    ).df()
+    con.close()
 
-        grouped["target"] = grouped["target"].astype(int).clip(lower=0, upper=1)
-        
-        # Debug: Print class distribution
-        target_counts = grouped["target"].value_counts()
-        print(f"Class distribution after aggregation:")
-        print(f"  Cases (target=1): {target_counts.get(1, 0)}")
-        print(f"  Controls (target=0): {target_counts.get(0, 0)}")
-        if len(target_counts) < 2:
-            print(f"  WARNING: Only one class present! All targets = {target_counts.index[0]}")
+    grouped["target"] = grouped["target"].astype(int).clip(lower=0, upper=1)
 
-        # ------------------------------------------------------------------
-        # Create binary features for ALL codes in raw dataset
-        # ------------------------------------------------------------------
-        # Step 3 calculates feature importances from the RAW dataset (all features).
-        # It does NOT filter by aggregated feature importance codes - those are computed here.
-        # Step 6 will later use the aggregated feature importance codes from Step 3's output.
-        
-        # Reuse the same connection and view for column inspection
-        events_sample = con.execute("SELECT * FROM events_view LIMIT 1").df()
-        available_cols = events_sample.columns.tolist()
-        
-        # Create binary features for ALL distinct codes in the dataset
-        print("Creating binary features for all distinct codes in raw dataset...")
-        binary_feature_exprs = []
-        
-        if "drug_name" in available_cols:
-            distinct_drugs = con.execute(
-                """
-                SELECT DISTINCT drug_name
-                FROM events_view
-                WHERE drug_name IS NOT NULL AND TRIM(drug_name) <> ''
-                """
-            ).df()
-            for drug in distinct_drugs["drug_name"].unique():
-                drug_str = str(drug)
-                drug_escaped = drug_str.replace("\\", "\\\\").replace("'", "''")
-                drug_safe = drug_str.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').replace('&', '_').replace('(', '_').replace(')', '_').replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('*', '_').replace('+', '_').replace('=', '_').replace('|', '_').replace('^', '_').replace('%', '_').replace('"', '_').replace("'", '_').replace('\\', '_')
-                feature_name = f"item_drug_{drug_safe}"
-                binary_feature_exprs.append(
-                    f"MAX(CASE WHEN CAST(drug_name AS VARCHAR) = CAST('{drug_escaped}' AS VARCHAR) THEN 1 ELSE 0 END) AS {feature_name}"
-                )
-        
-        if "primary_icd_diagnosis_code" in available_cols:
-            distinct_icd = con.execute(
-                """
-                SELECT DISTINCT primary_icd_diagnosis_code
-                FROM events_view
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND TRIM(primary_icd_diagnosis_code) <> ''
-                """
-            ).df()
-            for icd in distinct_icd["primary_icd_diagnosis_code"].unique():
-                icd_str = str(icd)
-                icd_escaped = icd_str.replace("\\", "\\\\").replace("'", "''")
-                icd_safe = icd_str.replace('.', '_').replace('-', '_').replace('/', '_').replace('&', '_').replace('(', '_').replace(')', '_').replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('*', '_').replace('+', '_').replace('=', '_').replace('|', '_').replace('^', '_').replace('%', '_').replace('"', '_').replace("'", '_').replace('\\', '_')
-                feature_name = f"item_icd_{icd_safe}"
-                binary_feature_exprs.append(
-                    f"MAX(CASE WHEN CAST(primary_icd_diagnosis_code AS VARCHAR) = CAST('{icd_escaped}' AS VARCHAR) THEN 1 ELSE 0 END) AS {feature_name}"
-                )
-        
-        if "procedure_code" in available_cols:
-            distinct_cpt = con.execute(
-                """
-                SELECT DISTINCT procedure_code
-                FROM events_view
-                WHERE procedure_code IS NOT NULL AND TRIM(procedure_code) <> ''
-                """
-            ).df()
-            for cpt in distinct_cpt["procedure_code"].unique():
-                cpt_str = str(cpt)
-                cpt_escaped = cpt_str.replace("\\", "\\\\").replace("'", "''")
-                cpt_safe = cpt_str.replace('.', '_').replace('-', '_').replace('/', '_').replace('&', '_').replace('(', '_').replace(')', '_').replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('*', '_').replace('+', '_').replace('=', '_').replace('|', '_').replace('^', '_').replace('%', '_').replace('"', '_').replace("'", '_').replace('\\', '_')
-                feature_name = f"item_cpt_{cpt_safe}"
-                binary_feature_exprs.append(
-                    f"MAX(CASE WHEN CAST(procedure_code AS VARCHAR) = CAST('{cpt_escaped}' AS VARCHAR) THEN 1 ELSE 0 END) AS {feature_name}"
-                )
-        
-        if binary_feature_exprs:
-            # Process features in batches to avoid SQL query size limits
-            batch_size = 500
-            n_batches = (len(binary_feature_exprs) + batch_size - 1) // batch_size
-            
-            print(f"Processing {len(binary_feature_exprs)} binary features in {n_batches} batches of {batch_size}...")
-            
-            all_binary_feats_dfs = []
-            for batch_idx in range(n_batches):
-                start_idx = batch_idx * batch_size
-                end_idx = min(start_idx + batch_size, len(binary_feature_exprs))
-                batch_exprs = binary_feature_exprs[start_idx:end_idx]
-                
-                print(f"  Processing batch {batch_idx + 1}/{n_batches} ({len(batch_exprs)} features)...")
-                
-                sql = f"""
-                    SELECT
-                        CAST(mi_person_key AS VARCHAR) AS mi_person_key,
-                        {', '.join(batch_exprs)}
-                    FROM events_view
-                    GROUP BY mi_person_key
-                """
-                
-                try:
-                    batch_df = con.execute(sql).df()
-                    batch_df["mi_person_key"] = batch_df["mi_person_key"].astype(str)
-                    
-                    # Fill NaN values with 0
-                    batch_feat_cols = [col for col in batch_df.columns if col != "mi_person_key"]
-                    batch_df[batch_feat_cols] = batch_df[batch_feat_cols].fillna(0).astype(int)
-                    
-                    all_binary_feats_dfs.append(batch_df)
-                except Exception as sql_error:
-                    print(f"[ERROR] Failed to create binary features for batch {batch_idx + 1}: {sql_error}")
-                    import traceback
-                    traceback.print_exc()
-                    raise  # Re-raise to fail the step
-            
-            # Merge all batches together
-            print(f"Merging {len(all_binary_feats_dfs)} batches...")
-            binary_feats_df = grouped[["mi_person_key"]].copy()  # Start with patient keys
-            
-            for batch_df in all_binary_feats_dfs:
-                binary_feats_df = binary_feats_df.merge(
-                    batch_df, on="mi_person_key", how="left"
-                )
-            
-            # Fill NaN values in merged binary features with 0
-            binary_feat_cols = [col for col in binary_feats_df.columns if col != "mi_person_key"]
-            binary_feats_df[binary_feat_cols] = binary_feats_df[binary_feat_cols].fillna(0).astype(int)
-            
-            # Merge binary features with grouped data
-            grouped = grouped.merge(binary_feats_df, on="mi_person_key", how="left")
-            
-            # Fill NaN values in merged binary features with 0
-            for col in binary_feat_cols:
-                if col in grouped.columns:
-                    grouped[col] = grouped[col].fillna(0).astype(int)
-            
-            print(f"✅ Created {len(binary_feature_exprs)} binary features from all codes in raw dataset (processed in {n_batches} batches)")
-        else:
-            print("[WARNING] No binary features created")
-    except Exception as e:
-        print(f"[WARNING] Error creating binary features: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        con.close()
-
-    # ------------------------------------------------------------------
-    # PGx Feature Table (ONLY feature engineering step)
-    # ------------------------------------------------------------------
-    # Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only
-    # OS-aware path resolution: check multiple locations
-    data_root = get_data_root()
-    
-    local_base_candidates = [
-        PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs",
-        data_root / "5_feature_engineering" / "feature_engineering_outputs",
-    ]
-    local_base = next((p for p in local_base_candidates if p.exists()), local_base_candidates[0])
-    
-    s3_base_candidates = [
-        PROJECT_ROOT / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
-        data_root / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs",
-    ]
-    s3_base = next((p for p in s3_base_candidates if p.exists()), s3_base_candidates[0])
-
-    def _first_existing(primary: Path, fallback: Path) -> Path:
-        """Return first existing path, or primary if neither exists."""
-        if primary.exists():
-            return primary
-        if fallback.exists():
-            return fallback
-        # Return primary as default (will be checked by _load_feature_table)
-        return primary
-
-    # Only load PGx features (other feature engineering steps moved to dashboard)
-    pgx_path = _first_existing(
-        local_base
-        / "7_pgx"
-        / cohort
-        / age_band
-        / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-        s3_base
-        / "7_pgx"
-        / cohort
-        / age_band
-        / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-    )
-
-    pgx = _load_feature_table(pgx_path, required=False)
-
-    # Validate: Check PGx feature table for duplicate columns before merging
-    if not pgx.empty:
-        # Check for duplicate columns within the table
-        duplicate_cols = pgx.columns[pgx.columns.duplicated()].tolist()
-        if duplicate_cols:
-            raise ValueError(
-                f"Duplicate columns detected in PGx feature table for {cohort}/{age_band}: {duplicate_cols}. "
-                f"File: {pgx_path}. "
-                f"This will cause issues in downstream processing. Please regenerate the feature table."
-            )
-        
-        # Check for duplicate feature names (excluding mi_person_key and target)
-        feature_cols = [c for c in pgx.columns if c not in ("mi_person_key", "target")]
-        if len(feature_cols) != len(set(feature_cols)):
-            duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
-            unique_duplicates = list(set(duplicates))
-            raise ValueError(
-                f"Duplicate feature names detected in PGx feature table for {cohort}/{age_band}: {unique_duplicates}. "
-                f"File: {pgx_path}. "
-                f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
-                f"This will cause issues in downstream processing. Please regenerate the feature table."
-            )
-        
-        if "mi_person_key" in pgx.columns:
-            pgx["mi_person_key"] = pgx["mi_person_key"].astype(str)
-
-    # Merge aggregated patient-level features with PGx features only
+    # Step 3 uses only raw features from model_events.parquet
+    # No feature engineering outputs are loaded here (Step 5 adds PGx features later)
     final = grouped.copy()
-    if not pgx.empty:
-        print(f"Merging PGx features ({pgx.shape[1] - 1} columns).")
-        final = final.merge(pgx, on="mi_person_key", how="left")
-    else:
-        print(f"No PGx features found for {cohort}, {age_band} (continuing without PGx features).")
-
-    # Drop any patients with missing target
     final = final.dropna(subset=["target"])
-
-    # Apply target-leakage removal rules before returning the feature matrix.
     final = _remove_target_leakage_features(final)
-    
-    # Validate: Check for duplicate column names (excluding merge key)
-    duplicate_cols = final.columns[final.columns.duplicated()].tolist()
-    if duplicate_cols:
-        raise ValueError(
-            f"Duplicate feature columns detected after merging feature tables for {cohort}/{age_band}: {duplicate_cols}. "
-            f"This will cause issues in downstream processing. Please ensure each feature table has unique column names."
-        )
-    
     return final
 
 
 def _prepare_xy(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """Prepare numeric feature matrix X and label y from the assembled DataFrame."""
     feature_cols = [c for c in df.columns if c not in ("mi_person_key", "target")]
-    
-    # Validate: Ensure feature column names are unique
-    if len(feature_cols) != len(set(feature_cols)):
-        duplicates = [col for col in feature_cols if feature_cols.count(col) > 1]
-        unique_duplicates = list(set(duplicates))
-        raise ValueError(
-            f"Duplicate feature names detected: {unique_duplicates}. "
-            f"Total features: {len(feature_cols)}, Unique features: {len(set(feature_cols))}. "
-            f"This will cause issues in downstream processing."
-        )
-    
     numeric_feature_cols = [
         c for c in feature_cols if pd.api.types.is_numeric_dtype(df[c])
     ]
@@ -677,15 +360,6 @@ def _prepare_xy(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     X = df[numeric_feature_cols].replace([float("inf"), float("-inf")], pd.NA)
     X = X.fillna(0)
     y = df["target"].astype(int)
-    
-    # Final validation: Ensure X columns are unique (defensive check)
-    if len(X.columns) != len(set(X.columns)):
-        duplicate_x_cols = [col for col in X.columns if list(X.columns).count(col) > 1]
-        unique_duplicate_x_cols = list(set(duplicate_x_cols))
-        raise ValueError(
-            f"Duplicate columns in feature matrix X: {unique_duplicate_x_cols}. "
-            f"This should not happen after previous validation."
-        )
 
     return X, y, numeric_feature_cols
 
@@ -742,15 +416,10 @@ def run_mc_feature_importance(
             pass
 
     # Assemble final feature matrix (with leakage removal baked in)
-    # Validate feature tables before starting feature engineering
-    print(f"[Validation] Checking feature tables for {cohort}/{age_band} before starting feature importance computation...")
-    
     df = build_final_features_for_mc(cohort, age_band)
     if df.empty:
         raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
 
-    print(f"[Validation] Feature assembly complete. Total features: {len([c for c in df.columns if c not in ('mi_person_key', 'target')])}")
-    
     X, y, feature_names = _prepare_xy(df)
 
     try:
@@ -964,16 +633,6 @@ def run_mc_feature_importance(
         "catboost": "catboost",
     }
 
-    # Validate: Ensure feature_names list is unique before aggregation
-    if len(feature_names) != len(set(feature_names)):
-        duplicates = [fname for fname in feature_names if feature_names.count(fname) > 1]
-        unique_duplicates = list(set(duplicates))
-        raise ValueError(
-            f"Duplicate feature names in feature_names list: {unique_duplicates}. "
-            f"Total features: {len(feature_names)}, Unique features: {len(set(feature_names))}. "
-            f"This will cause incorrect aggregation in downstream processing."
-        )
-
     results = {}
 
     for model_name in model_keys:
@@ -1019,15 +678,6 @@ def run_mc_feature_importance(
             )
 
         fi_df = pd.DataFrame.from_records(records)
-        
-        # Validate: Ensure feature column has unique values in aggregated DataFrame
-        if fi_df["feature"].duplicated().any():
-            duplicate_features = fi_df[fi_df["feature"].duplicated(keep=False)]["feature"].unique().tolist()
-            raise ValueError(
-                f"Duplicate features found in aggregated DataFrame for {model_name}: {duplicate_features}. "
-                f"This indicates a bug in the aggregation logic. Total rows: {len(fi_df)}, Unique features: {fi_df['feature'].nunique()}."
-            )
-        
         fi_df = fi_df.sort_values("scaled_importance_mean", ascending=False)
         label = model_label_map[model_name]
 
