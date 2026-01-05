@@ -114,10 +114,18 @@ def main():
     count = list_and_delete_s3_prefix(S3_BUCKET, legacy_prefix, args.dry_run)
     deleted_count += count
 
-    # 3. Clear S3 checkpoints
+    # 3. Clear S3 checkpoints (both buckets)
     print("\n3. Clearing S3 checkpoints...")
+    
+    # Check pgxdatalake bucket
     checkpoint_prefix = f"pipeline_checkpoints/5_pgx_analysis/{cohort_name}/{age_band}/"
     count = list_and_delete_s3_prefix(S3_BUCKET, checkpoint_prefix, args.dry_run)
+    deleted_count += count
+    
+    # Also check pgx-repository bucket (used by checkpoint_utils)
+    pgx_repo_bucket = "pgx-repository"
+    pgx_repo_prefix = f"pipeline_checkpoints/5_pgx_analysis/{cohort_name}/{age_band_fname}/"
+    count = list_and_delete_s3_prefix(pgx_repo_bucket, pgx_repo_prefix, args.dry_run)
     deleted_count += count
 
     # 4. Clear prerequisites if requested
