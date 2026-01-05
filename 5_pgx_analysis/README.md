@@ -129,46 +129,15 @@ This analysis step enriches drug features with pharmacogenomic information by:
     └── cpic_drug_list.json            # Extracted drug list for fuzzy matching
 ```
 
-## Output Files Manifest
+## Output Files
 
 **For complete output paths documentation, see:** [`docs/README_analysis_workflow.md`](../docs/README_analysis_workflow.md#output-paths-summary)
 
-### Quick Reference
-
-**Key Output Files:**
-- Drug-gene mappings: `5_pgx_analysis/outputs/{cohort}/{cohort}_drug_gene_mappings.csv` (cohort-level, shared across age bands)
-- Allele frequencies: `5_pgx_analysis/outputs/global/pgx_allele_frequencies_global.csv` (global cache)
-- Final PGx features: `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`
-
-**S3 Primary Location:**
-- `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv`
-
-### Visualization Files (`outputs/{cohort}/{age_band}/plots/`)
-
-| File Pattern | Description | Format | Required |
-|-------------|-------------|--------|----------|
-| `{cohort}_{age_band}_drug_gene_network.png` | Network visualization of drug-gene relationships | PNG | ✅ Yes |
-| `{cohort}_{age_band}_allele_frequency_distribution.png` | Distribution of allele frequencies across populations | PNG | ✅ Yes |
-| `{cohort}_{age_band}_pgx_risk_heatmap.png` | Heatmap of PGx risk scores by drug-gene pairs | PNG | ✅ Yes |
-
-**Example Files:**
-- `outputs/opioid_ed/0_12/plots/opioid_ed_0_12_drug_gene_network.png`
-- `outputs/opioid_ed/0_12/plots/opioid_ed_0_12_allele_frequency_distribution.png`
-- `outputs/opioid_ed/0_12/plots/opioid_ed_0_12_pgx_risk_heatmap.png`
-
-### Completion Checklist
-
-For each cohort/age-band combination:
-
-- [ ] Drug-gene mappings generated
-- [ ] Allele frequencies integrated for all relevant variants
-- [ ] PGx-enriched features created
-- [ ] Summary statistics computed
-- [ ] Network visualizations generated
-- [ ] Allele frequency distributions plotted
-- [ ] Risk heatmaps created
-- [ ] Results uploaded to S3 (if applicable)
-- [ ] **READY FOR STEP 8** ✅
+The output paths summary has been migrated to the main pipeline documentation. See the link above for:
+- Local file paths (prerequisite files, global cache, feature files)
+- S3 output paths (primary location, global cache, legacy paths, checkpoints)
+- File naming conventions
+- Idempotency check information
 
 ## Input Dependencies
 
