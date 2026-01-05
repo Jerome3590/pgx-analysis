@@ -317,7 +317,7 @@ def filter_cohort_events_for_items(
     if not cohort_parquet_paths:
         print(
             f"[WARN] No local cohort parquet files found for {cohort_name}/{age_band} "
-            f"across years {years}. Did you run aws s3 sync into {local_root}?"
+            f"across years {years}. Did you run aws s3 sync into {local_cohort_root}?"
         )
         return
 
@@ -400,16 +400,73 @@ def filter_cohort_events_for_items(
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
 
-    # Idempotency / Windows-friendly: if the file already exists, assume this
+    # Check S3 first for idempotency
+    s3_output_path = (
+        f"s3://pgxdatalake/gold/cohorts_model_data/"
+        f"cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
+    )
+
+    # Idempotency / Windows-friendly: if the file already exists locally, assume this
     # cohort/age_band has been built successfully and skip overwriting. This
     # avoids DuckDB attempting to delete an open file and throwing WinError 32.
     if out_path.exists():
         print(
-            f"[INFO] model_events.parquet already exists for {cohort_name}/{age_band}; "
+            f"[INFO] model_events.parquet already exists locally for {cohort_name}/{age_band}; "
             f"skipping rebuild of this partition."
         )
         con.close()
         return
+
+    # Check S3 and download if exists there but not locally
+    try:
+        from py_helpers.checkpoint_utils import check_s3_output_exists
+        import subprocess
+        import shutil
+        
+        if check_s3_output_exists(s3_output_path):
+            # File exists in S3 but not locally - download it
+            print(
+                f"[INFO] model_events.parquet exists in S3 but not locally. Downloading from S3..."
+            )
+            aws_cli = shutil.which("aws")
+            if aws_cli:
+                s3_dir_path = (
+                    f"s3://pgxdatalake/gold/cohorts_model_data/"
+                    f"cohort_name={cohort_name}/age_band={age_band}/"
+                )
+                result = subprocess.run(
+                    [aws_cli, "s3", "cp", s3_output_path, str(out_path), "--no-progress"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    check=False,
+                )
+                if result.returncode == 0 and out_path.exists():
+                    print(f"[INFO] Successfully downloaded from S3: {out_path}")
+                    # Validate downloaded file has controls
+                    validation_result = _validate_model_events_has_controls(out_path)
+                    if validation_result["has_controls"]:
+                        print(
+                            f"[INFO] Downloaded file validated: {validation_result['n_cases']} cases, "
+                            f"{validation_result['n_controls']} controls"
+                        )
+                        con.close()
+                        return
+                    else:
+                        print(
+                            f"[WARN] Downloaded file from S3 is missing controls! "
+                            f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}. "
+                            f"Will rebuild..."
+                        )
+                        out_path.unlink()  # Delete invalid file, will rebuild below
+                else:
+                    print(f"[WARN] Failed to download from S3: {result.stderr if result.stderr else 'Unknown error'}")
+            else:
+                print("[WARN] AWS CLI not found, cannot download from S3")
+    except ImportError:
+        pass  # Fallback to local check if checkpoint_utils not available
+    except Exception as e:
+        print(f"[WARN] Error checking/downloading from S3: {e}")
 
     # Derive a common set of columns present in both cohort and control sources,
     # so that set operations (UNION ALL) are well-defined.
@@ -614,6 +671,23 @@ def filter_cohort_events_for_items(
     # Upload to S3 using aws s3 sync (best-effort)
     _sync_model_events_to_s3(out_path, cohort_name, age_band)
 
+    # Save checkpoint to S3
+    try:
+        from py_helpers.checkpoint_utils import save_step_checkpoint
+        save_step_checkpoint(
+            step_name="4a_model_data",
+            cohort=cohort_name,
+            age_band=age_band,
+            metadata={
+                "n_cases": validation_result["n_cases"],
+                "n_controls": validation_result["n_controls"],
+                "local_path": str(out_path),
+            },
+            output_paths=[s3_output_path],
+        )
+    except ImportError:
+        pass  # Checkpoint saving is optional
+
 
 def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str) -> None:
     """
@@ -749,22 +823,36 @@ def main() -> None:
     # Files are stored in: outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv
     aggregated_files = []
     
-    # Check in outputs/{cohort}/ subdirectories
-    for cohort_dir in OUTPUTS_DIR.iterdir():
-        if not cohort_dir.is_dir():
-            continue
-        # Filter by cohort if specified
-        if args.cohort and cohort_dir.name != args.cohort:
-            continue
-        cohort_files = sorted(
-            cohort_dir.glob("*_aggregated_feature_importance.csv")
-        )
-        aggregated_files.extend(cohort_files)
-    
-    # Fallback: if outputs/ is empty locally, try downloading from S3
-    if not aggregated_files:
-        print(f"[INFO] No local aggregated feature importance files found. Checking S3...")
-        aggregated_files = download_aggregated_from_s3(args.cohort, args.age_band)
+    # If both cohort and age_band are specified, look for specific file first
+    if args.cohort and args.age_band:
+        age_band_fname = args.age_band.replace("-", "_")
+        specific_file = OUTPUTS_DIR / args.cohort / f"{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        if specific_file.exists():
+            aggregated_files.append(specific_file)
+            print(f"[INFO] Found local aggregated file: {specific_file}")
+        else:
+            # Try downloading from S3
+            print(f"[INFO] Local file not found. Checking S3 for {args.cohort}/{args.age_band}...")
+            downloaded = download_aggregated_from_s3(args.cohort, args.age_band)
+            if downloaded:
+                aggregated_files.extend(downloaded)
+    else:
+        # Check in outputs/{cohort}/ subdirectories
+        for cohort_dir in OUTPUTS_DIR.iterdir():
+            if not cohort_dir.is_dir():
+                continue
+            # Filter by cohort if specified
+            if args.cohort and cohort_dir.name != args.cohort:
+                continue
+            cohort_files = sorted(
+                cohort_dir.glob("*_aggregated_feature_importance.csv")
+            )
+            aggregated_files.extend(cohort_files)
+        
+        # Fallback: if outputs/ is empty locally, try downloading from S3
+        if not aggregated_files:
+            print(f"[INFO] No local aggregated feature importance files found. Checking S3...")
+            aggregated_files = download_aggregated_from_s3(args.cohort, args.age_band)
     
     if not aggregated_files:
         print(

@@ -51,11 +51,15 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **SHAP Analysis** – `8_shap_analysis/` (see `docs/README_analysis_workflow.md` for details)
 - **Combined SHAP + FFA** – `9_combined_shap_ffa/` and [`Step10_Results/README_combined_ffa_shap_causal_analysis.md`](Step10_Results/README_combined_ffa_shap_causal_analysis.md)
 
-### Step 9: Results & Dashboard
+### Step 10: Results & Dashboard
 **Location**: [`Step10_Results/`](Step10_Results/)
 
 **Main Documentation:**
+- **[README_results_overview.md](Step10_Results/README_results_overview.md)** - Complete documentation index and overview
 - **[README_results_dashboard.md](Step10_Results/README_results_dashboard.md)** - Complete dashboard system overview
+- **[README_results_dashboard_tabs.md](Step10_Results/README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
+- **[README_results_dashboard_visualizations.md](Step10_Results/README_results_dashboard_visualizations.md)** - Advanced visualization system (BupaR, FP-Growth, DTW)
+- **[README_results_dashboard_deployment.md](Step10_Results/README_results_dashboard_deployment.md)** - Deployment guide (incremental builds, Docker, Lambda)
 - **[README_results_value_proposition.md](Step10_Results/README_results_value_proposition.md)** - Business value and use cases
 - **[README_results_deployment.md](Step10_Results/README_results_deployment.md)** - Complete deployment guide
 - **[README_results_prediction.md](Step10_Results/README_results_prediction.md)** - Prediction workflow and technical details
@@ -65,6 +69,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **[README_results_pgx_card.md](Step10_Results/README_results_pgx_card.md)** - PGx Patient Card feature
 - **[README_results_ensemble.md](Step10_Results/README_results_ensemble.md)** - Ensemble model approach
 - **[README_results_model_weights.md](Step10_Results/README_results_model_weights.md)** - Performance-based model weighting
+- **[README_combined_ffa_shap_causal_analysis.md](Step10_Results/README_combined_ffa_shap_causal_analysis.md)** - Combined FFA, SHAP, and causal analysis guide
 
 **Deployment Guides:**
 - **[README_results_deployment_ecr.md](Step10_Results/README_results_deployment_ecr.md)** - Lambda ECR container deployment
@@ -114,8 +119,10 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ### Deployment
 1. **[Step10_Results/README_results_deployment.md](Step10_Results/README_results_deployment.md)** - Complete deployment guide
-2. **[Step10_Results/README_results_deployment_ecr.md](Step10_Results/README_results_deployment_ecr.md)** - ECR container deployment
-3. **[Step10_Results/README_results_dashboard.md](Step10_Results/README_results_dashboard.md)** - Dashboard overview
+2. **[Step10_Results/README_results_dashboard_deployment.md](Step10_Results/README_results_dashboard_deployment.md)** - Dashboard deployment guide (incremental builds, Docker, Lambda)
+3. **[Step10_Results/README_results_deployment_ecr.md](Step10_Results/README_results_deployment_ecr.md)** - ECR container deployment
+4. **[Step10_Results/README_results_dashboard.md](Step10_Results/README_results_dashboard.md)** - Dashboard overview
+5. **[Step10_Results/README_results_dashboard_tabs.md](Step10_Results/README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
 
 ### Using the Dashboard
 1. **[Step10_Results/README_results_quickstart.md](Step10_Results/README_results_quickstart.md)** - Quick start for predictions

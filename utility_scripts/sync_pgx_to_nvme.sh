@@ -6,41 +6,31 @@ set -euo pipefail
 ##############################################
 
 # 1) GitHub repo URL for this project
-#    Use HTTPS or SSH depending on your EC2 auth setup.
 REPO_URL="https://github.com/Jerome3590/pgx-analysis.git"
-# REPO_URL="git@github.com:Jerome3590/pgx-analysis.git"  # Alternative: SSH URL
 
 # 2) Where to keep the git clone on EC2 (code stays on $HOME)
 CLONE_DIR="$HOME/pgx-analysis"
 
-# 3) Where the fast NVMe volume is mounted (for data, temp, staging).
-#    Adjust if your device is mounted differently (e.g. /mnt/nvme0n1).
+# 3) Where the fast NVMe volume is mounted (for data, temp, staging)
 NVME_ROOT="/mnt/nvme"
+NVME_DEVICE="/dev/nvme1n1"  # Adjust if your device is different
 
 # 4) Optional: where to write a small env file to source in your shell
 ENV_FILE="$HOME/.pgx_env"
 
-# 5) Optional: S3 bucket and prefixes to sync data locally (to NVMe).
-#    Adjust these to match your environment, or set S3_BUCKET to empty to skip.
-S3_BUCKET="s3://pgxdatalake"
-# Gold-tier medical/pharmacy and related aggregates
-S3_SYNC_GOLD_PREFIX="gold"
-# Cohort-level exports
-S3_SYNC_COHORT_PREFIX="gold/cohorts"
-# Model-ready datasets (current location)
-S3_SYNC_MODEL_PREFIX="gold/cohorts_model_data"
+# 5) S3 bucket and prefixes to sync data locally (to NVMe)
+S3_BUCKET="pgxdatalake"
+S3_GOLD_PREFIX="s3://${S3_BUCKET}/gold"
 
 ##############################################
 # Functions
 ##############################################
 
 log() {
-  # Simple logger; avoids non-ASCII characters for safety.
   printf '[pgx-sync] %s\n' "$*"
 }
 
 detect_os_and_resources() {
-  # Detect OS, cores, and RAM to derive sane defaults.
   OS_TYPE="$(uname -s || echo unknown)"
   CORES="$(python3 - <<'EOF'
 import os
@@ -48,9 +38,7 @@ print(os.cpu_count() or 1)
 EOF
 )"
 
-  # Default fallbacks
   TOTAL_RAM_GB=16
-
   if [ "$OS_TYPE" = "Linux" ] && [ -r /proc/meminfo ]; then
     mem_kb=$(grep -i '^MemTotal:' /proc/meminfo | awk '{print $2}')
     if [ -n "$mem_kb" ]; then
@@ -60,7 +48,6 @@ EOF
       fi
     fi
   else
-    # Fallback using Python (works on macOS/Windows if needed)
     TOTAL_RAM_GB="$(python3 - <<'EOF'
 try:
     import psutil
@@ -75,8 +62,7 @@ EOF
   export PGX_CPU_CORES="$CORES"
   export PGX_TOTAL_RAM_GB="$TOTAL_RAM_GB"
 
-  # Derive default worker and memory settings if not already set.
-  # These are intentionally conservative and can be overridden by the user.
+  # Derive default worker and memory settings
   if [ -z "${PGX_WORKERS_MEDICAL:-}" ]; then
     if [ "$TOTAL_RAM_GB" -ge 512 ]; then
       PGX_WORKERS_MEDICAL=28
@@ -91,7 +77,6 @@ EOF
   fi
 
   if [ -z "${PGX_DUCKDB_MEMORY_LIMIT:-}" ]; then
-    # Aim for ~3GB on large EC2, smaller on dev machines.
     if [ "$TOTAL_RAM_GB" -ge 256 ]; then
       PGX_DUCKDB_MEMORY_LIMIT="3GB"
     elif [ "$TOTAL_RAM_GB" -ge 64 ]; then
@@ -107,7 +92,6 @@ EOF
     export PGX_THREADS_PER_WORKER
   fi
 
-  # Feature engineering / model training parallelism defaults.
   if [ -z "${PGX_SKLEARN_N_JOBS:-}" ]; then
     if [ "$TOTAL_RAM_GB" -ge 256 ]; then
       PGX_SKLEARN_N_JOBS=8
@@ -135,7 +119,6 @@ EOF
     export PGX_MC_CV_WORKERS
   fi
 
-  # MC-CV configuration: 50 splits and 3 runs on EC2 (>=256GB RAM), 200 splits and 1 run on smaller systems
   if [ -z "${PGX_MC_CV_N_SPLITS:-}" ]; then
     if [ "$TOTAL_RAM_GB" -ge 256 ] && [ "$OS_TYPE" = "Linux" ]; then
       PGX_MC_CV_N_SPLITS=50
@@ -153,6 +136,107 @@ EOF
     fi
     export PGX_MC_CV_N_RUNS
   fi
+}
+
+mount_nvme() {
+  # Check if already mounted
+  if mountpoint -q "$NVME_ROOT" 2>/dev/null; then
+    log "NVMe volume already mounted at $NVME_ROOT"
+    # Verify write access
+    if touch "$NVME_ROOT/.test_write" 2>/dev/null && rm "$NVME_ROOT/.test_write" 2>/dev/null; then
+      log "NVMe mount verified and writable"
+      return 0
+    else
+      log "Warning: NVMe mounted but not writable. Fixing permissions..."
+    fi
+  fi
+
+  # Only proceed on Linux
+  if [ "$OS_TYPE" != "Linux" ]; then
+    log "Skipping NVMe mount (non-Linux system)"
+    return 0
+  fi
+
+  # Check if device exists
+  if [ ! -b "$NVME_DEVICE" ]; then
+    log "Warning: NVMe device $NVME_DEVICE not found. Skipping mount."
+    log "Available devices:"
+    lsblk 2>/dev/null || true
+    return 0
+  fi
+
+  # Check if we have root/sudo privileges
+  if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+    log "Need sudo privileges to mount NVMe. Please run:"
+    log "  sudo $0"
+    return 1
+  fi
+
+  log "Setting up NVMe device $NVME_DEVICE..."
+
+  # Check if device has a filesystem
+  if ! blkid "$NVME_DEVICE" >/dev/null 2>&1; then
+    log "Formatting $NVME_DEVICE with ext4..."
+    if [ "$EUID" -eq 0 ]; then
+      mkfs.ext4 -F "$NVME_DEVICE"
+    else
+      sudo mkfs.ext4 -F "$NVME_DEVICE"
+    fi
+  fi
+
+  # Create mount point
+  log "Creating mount point at $NVME_ROOT..."
+  if [ "$EUID" -eq 0 ]; then
+    mkdir -p "$NVME_ROOT"
+  else
+    sudo mkdir -p "$NVME_ROOT"
+  fi
+
+  # Mount the device
+  log "Mounting $NVME_DEVICE to $NVME_ROOT..."
+  if [ "$EUID" -eq 0 ]; then
+    mount "$NVME_DEVICE" "$NVME_ROOT"
+  else
+    sudo mount "$NVME_DEVICE" "$NVME_ROOT"
+  fi
+
+  # Set permissions
+  log "Setting permissions for user $USER..."
+  if [ "$EUID" -eq 0 ]; then
+    chmod 755 "$NVME_ROOT"
+    chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$NVME_ROOT" 2>/dev/null || true
+  else
+    sudo chmod 755 "$NVME_ROOT"
+    sudo chown "$USER:$USER" "$NVME_ROOT" 2>/dev/null || true
+  fi
+
+  # Verify mount and write access
+  log "Verifying mount..."
+  if mountpoint -q "$NVME_ROOT" 2>/dev/null; then
+    if touch "$NVME_ROOT/.test_write" 2>/dev/null && rm "$NVME_ROOT/.test_write" 2>/dev/null; then
+      log "Mount successful and writable!"
+    else
+      log "Warning: Mount successful but write test failed"
+    fi
+  else
+    log "Warning: Mount may have failed"
+  fi
+
+  # Add to /etc/fstab for persistence
+  UUID=$(blkid -s UUID -o value "$NVME_DEVICE" 2>/dev/null || echo "")
+  if [ -n "$UUID" ] && ! grep -q "$NVME_ROOT" /etc/fstab 2>/dev/null; then
+    log "Adding $NVME_DEVICE to /etc/fstab for automatic mounting..."
+    FSTAB_ENTRY="UUID=$UUID $NVME_ROOT ext4 defaults,nofail 0 2"
+    if [ "$EUID" -eq 0 ]; then
+      echo "$FSTAB_ENTRY" >> /etc/fstab
+    else
+      echo "$FSTAB_ENTRY" | sudo tee -a /etc/fstab >/dev/null
+    fi
+    log "Added to /etc/fstab. Device will auto-mount on reboot."
+  fi
+
+  # Show mount status
+  df -h "$NVME_ROOT" 2>/dev/null || true
 }
 
 ensure_clone() {
@@ -174,111 +258,7 @@ ensure_clone() {
   fi
 }
 
-mount_nvme() {
-  # Check if already mounted
-  if mountpoint -q "$NVME_ROOT" 2>/dev/null; then
-    log "NVMe volume already mounted at $NVME_ROOT"
-    return 0
-  fi
-
-  # Only proceed on Linux
-  if [ "$OS_TYPE" != "Linux" ]; then
-    log "Skipping NVMe mount (non-Linux system)"
-    return 0
-  fi
-
-  # Check if we have root/sudo privileges
-  if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
-    log "Warning: Cannot mount NVMe (need root/sudo). Please mount manually:"
-    log "  sudo mkdir -p $NVME_ROOT"
-    log "  sudo mount /dev/nvme1n1 $NVME_ROOT  # or appropriate device"
-    return 0
-  fi
-
-  # Detect NVMe devices (typically nvme1n1, nvme2n1, etc. on EC2)
-  # Skip nvme0n1 as it's usually the root EBS volume
-  NVME_DEVICE=""
-  for dev in /dev/nvme*n1; do
-    # Skip if device doesn't exist (glob didn't match)
-    [ -e "$dev" ] || continue
-    
-    # Skip if device is already mounted
-    if mount | grep -q "^$dev"; then
-      log "Skipping $dev (already mounted)"
-      continue
-    fi
-    
-    # Found an unmounted NVMe device
-    NVME_DEVICE="$dev"
-    log "Found available NVMe device: $NVME_DEVICE"
-    break
-  done
-
-  if [ -z "$NVME_DEVICE" ]; then
-    log "No available NVMe device found. Skipping mount."
-    log "If you have an NVMe device, mount it manually:"
-    log "  sudo mkdir -p $NVME_ROOT"
-    log "  sudo mount /dev/nvme1n1 $NVME_ROOT"
-    return 0
-  fi
-
-  # Create mount point
-  if [ "$EUID" -eq 0 ]; then
-    mkdir -p "$NVME_ROOT"
-  else
-    sudo mkdir -p "$NVME_ROOT"
-  fi
-
-  # Check if device has a filesystem
-  if ! blkid "$NVME_DEVICE" >/dev/null 2>&1; then
-    log "NVMe device $NVME_DEVICE appears unformatted. Formatting with ext4..."
-    if [ "$EUID" -eq 0 ]; then
-      mkfs.ext4 -F "$NVME_DEVICE"
-    else
-      sudo mkfs.ext4 -F "$NVME_DEVICE"
-    fi
-  fi
-
-  # Mount the device
-  log "Mounting $NVME_DEVICE to $NVME_ROOT..."
-  if [ "$EUID" -eq 0 ]; then
-    mount "$NVME_DEVICE" "$NVME_ROOT"
-  else
-    sudo mount "$NVME_DEVICE" "$NVME_ROOT"
-  fi
-
-  # Set permissions (make it accessible to current user)
-  if [ "$EUID" -eq 0 ]; then
-    chmod 755 "$NVME_ROOT"
-    chown "$SUDO_USER:${SUDO_USER:-$USER}" "$NVME_ROOT" 2>/dev/null || true
-  else
-    sudo chmod 755 "$NVME_ROOT"
-    sudo chown "$USER:$USER" "$NVME_ROOT" 2>/dev/null || true
-  fi
-
-  # Add to /etc/fstab for persistence (if not already there)
-  UUID=$(blkid -s UUID -o value "$NVME_DEVICE" 2>/dev/null || echo "")
-  if [ -n "$UUID" ] && ! grep -q "$NVME_ROOT" /etc/fstab 2>/dev/null; then
-    log "Adding $NVME_DEVICE to /etc/fstab for automatic mounting..."
-    FSTAB_ENTRY="UUID=$UUID $NVME_ROOT ext4 defaults,nofail 0 2"
-    if [ "$EUID" -eq 0 ]; then
-      echo "$FSTAB_ENTRY" >> /etc/fstab
-    else
-      echo "$FSTAB_ENTRY" | sudo tee -a /etc/fstab >/dev/null
-    fi
-    log "Added to /etc/fstab. Device will auto-mount on reboot."
-  fi
-
-  log "NVMe volume mounted successfully at $NVME_ROOT"
-}
-
-sync_s3_data() {
-  # Optionally sync S3 gold/cohort/model data down to NVMe for faster local access.
-  if [ -z "${S3_BUCKET:-}" ]; then
-    log "S3_BUCKET is empty; skipping S3 data sync."
-    return 0
-  fi
-
+sync_gold_data() {
   if ! command -v aws >/dev/null 2>&1; then
     log "aws CLI not found on PATH; skipping S3 data sync."
     return 0
@@ -286,45 +266,87 @@ sync_s3_data() {
 
   if [ ! -d "$NVME_ROOT" ]; then
     log "NVME_ROOT $NVME_ROOT does not exist. Did you mount the NVMe volume?"
-    return 0
+    return 1
   fi
 
-  local data_root="$NVME_ROOT"
-  mkdir -p "$data_root"
-
-  if [ -n "${S3_SYNC_GOLD_PREFIX:-}" ]; then
-    log "Syncing gold-tier data from $S3_BUCKET/$S3_SYNC_GOLD_PREFIX to $data_root/gold ..."
-    mkdir -p "$data_root/gold"
-    aws s3 sync \
-      "$S3_BUCKET/$S3_SYNC_GOLD_PREFIX/" \
-      "$data_root/gold/" \
-      --only-show-errors
+  if ! mountpoint -q "$NVME_ROOT" 2>/dev/null; then
+    log "Warning: $NVME_ROOT is not a mount point. Skipping S3 sync."
+    return 1
   fi
 
-  if [ -n "${S3_SYNC_COHORT_PREFIX:-}" ]; then
-    log "Syncing cohort data from $S3_BUCKET/$S3_SYNC_COHORT_PREFIX to $data_root/cohorts ..."
-    mkdir -p "$data_root/cohorts"
-    aws s3 sync \
-      "$S3_BUCKET/$S3_SYNC_COHORT_PREFIX/" \
-      "$data_root/cohorts/" \
-      --only-show-errors
-  fi
+  GOLD_DIR="${NVME_ROOT}/gold"
+  
+  # Create gold directory structure
+  log "Creating gold directory structure..."
+  mkdir -p "${GOLD_DIR}"/{cohorts,medical,pharmacy}
 
-  if [ -n "${S3_SYNC_MODEL_PREFIX:-}" ]; then
-    log "Syncing model data from $S3_BUCKET/$S3_SYNC_MODEL_PREFIX to $data_root/model_data ..."
-    mkdir -p "$data_root/model_data"
-    aws s3 sync \
-      "$S3_BUCKET/$S3_SYNC_MODEL_PREFIX/" \
-      "$data_root/model_data/" \
-      --only-show-errors
-  fi
+  log "=========================================="
+  log "Syncing Gold Data from S3 to NVMe"
+  log "=========================================="
+  echo ""
 
-  log "S3 data sync complete (if prefixes existed)."
+  # Function to sync with progress
+  sync_with_progress() {
+    local source=$1
+    local dest=$2
+    local name=$3
+    
+    log "Syncing ${name}..."
+    log "  Source: ${source}"
+    log "  Dest: ${dest}"
+    
+    if aws s3 sync "${source}" "${dest}" --no-progress 2>&1 | tee "/tmp/sync_${name}.log"; then
+      log "✓ ${name} sync completed"
+      
+      # Show summary
+      local files_synced=$(grep -c "s3://" "/tmp/sync_${name}.log" 2>/dev/null || echo "0")
+      local size_info=$(du -sh "${dest}" 2>/dev/null | awk '{print $1}' || echo "unknown")
+      log "  Files synced: ${files_synced}"
+      log "  Size: ${size_info}"
+    else
+      log "⚠ ${name} sync had warnings (check logs)"
+    fi
+    echo ""
+  }
+
+  # 1. Sync Gold Cohorts
+  log "[1/3] Syncing Gold Cohorts"
+  sync_with_progress \
+    "${S3_GOLD_PREFIX}/cohorts/" \
+    "${GOLD_DIR}/cohorts/" \
+    "Gold Cohorts"
+
+  # 2. Sync Gold Medical
+  log "[2/3] Syncing Gold Medical"
+  sync_with_progress \
+    "${S3_GOLD_PREFIX}/medical/" \
+    "${GOLD_DIR}/medical/" \
+    "Gold Medical"
+
+  # 3. Sync Gold Pharmacy
+  log "[3/3] Syncing Gold Pharmacy"
+  sync_with_progress \
+    "${S3_GOLD_PREFIX}/pharmacy/" \
+    "${GOLD_DIR}/pharmacy/" \
+    "Gold Pharmacy"
+
+  log "=========================================="
+  log "Gold Data Sync Complete!"
+  log "=========================================="
+  echo ""
+  log "Summary:"
+  log "  Cohorts: ${GOLD_DIR}/cohorts/"
+  log "  Medical: ${GOLD_DIR}/medical/"
+  log "  Pharmacy: ${GOLD_DIR}/pharmacy/"
+  echo ""
+  log "Note: Gold medical/pharmacy data is the SOURCE data used to CREATE controls."
+  log "      It does not contain a 'target' column - controls are sampled from this"
+  log "      data in Step 4a (create_model_data.py)."
 }
 
 setup_paths_and_env() {
   log "Ensuring convenience symlink at \$HOME/pgx-analysis ..."
-  ln -sfn "$CLONE_DIR" "$HOME/pgx-analysis"
+  ln -sfn "$CLONE_DIR" "$HOME/pgx-analysis" 2>/dev/null || true
 
   log "Writing env file to $ENV_FILE ..."
   cat > "$ENV_FILE" <<EOF
@@ -336,12 +358,12 @@ export PGX_DATA_ROOT="$NVME_ROOT"
 export PGX_USE_LOCAL_STAGING=1
 export PGX_LOCAL_STAGING_DIR="/mnt/nvme/pgx_staging"
 
-# Auto-detected system characteristics (set by sync_pgx_to_nvme.sh)
+# Auto-detected system characteristics
 export PGX_OS_TYPE="${PGX_OS_TYPE:-unknown}"
 export PGX_CPU_CORES="${PGX_CPU_CORES:-1}"
 export PGX_TOTAL_RAM_GB="${PGX_TOTAL_RAM_GB:-16}"
 
-# Recommended defaults for heavy jobs (can be overridden in shell)
+# Recommended defaults for heavy jobs
 export PGX_WORKERS_MEDICAL="${PGX_WORKERS_MEDICAL:-12}"
 export PGX_DUCKDB_MEMORY_LIMIT="${PGX_DUCKDB_MEMORY_LIMIT:-2GB}"
 export PGX_THREADS_PER_WORKER="${PGX_THREADS_PER_WORKER:-1}"
@@ -351,19 +373,16 @@ export PGX_SKLEARN_N_JOBS="${PGX_SKLEARN_N_JOBS:-2}"
 export PGX_XGB_CPU_NTHREAD="${PGX_XGB_CPU_NTHREAD:-2}"
 export PGX_MC_CV_WORKERS="${PGX_MC_CV_WORKERS:-2}"
 
-# MC-CV configuration (50 splits, 3 runs on EC2; 200 splits, 1 run on Windows)
+# MC-CV configuration
 export PGX_MC_CV_N_SPLITS="${PGX_MC_CV_N_SPLITS:-50}"
 export PGX_MC_CV_N_RUNS="${PGX_MC_CV_N_RUNS:-3}"
 
-# Ensure Python can import helper modules (py_helpers, etc.)
+# Ensure Python can import helper modules
 export PYTHONPATH="\$PGX_REPO_ROOT:\$PYTHONPATH"
-
-# Optionally default working directory for interactive shells
-# cd "\$PGX_REPO_ROOT" 2>/dev/null || true
 EOF
 
-  # Add a one-time source hook to .bashrc (idempotent).
-  if ! grep -q 'source ~/.pgx_env' "$HOME/.bashrc" 2>/dev/null; then
+  # Add a one-time source hook to .bashrc (idempotent)
+  if [ -f "$HOME/.bashrc" ] && ! grep -q 'source ~/.pgx_env' "$HOME/.bashrc" 2>/dev/null; then
     log "Adding 'source ~/.pgx_env' to ~/.bashrc ..."
     printf '\n# PGx project env\n[ -f "$HOME/.pgx_env" ] && source "$HOME/.pgx_env"\n' >> "$HOME/.bashrc"
   fi
@@ -380,12 +399,20 @@ log "Starting PGx repo sync to NVMe..."
 detect_os_and_resources
 mount_nvme
 ensure_clone
-sync_s3_data
+sync_gold_data
 setup_paths_and_env
 
-log "Done. Use this path for scripts and data:"
-log "  Repo root: $CLONE_DIR"
-log "  Symlink  : $HOME/pgx-analysis"
-log "  Data NVMe root: $NVME_ROOT"
-log "  Env file: $ENV_FILE (auto-sourced in new shells)"
-
+log ""
+log "=========================================="
+log "Setup Complete!"
+log "=========================================="
+log "Repo root: $CLONE_DIR"
+log "Symlink  : $HOME/pgx-analysis"
+log "Data NVMe root: $NVME_ROOT"
+log "Gold data: $NVME_ROOT/gold/"
+log "Env file: $ENV_FILE (auto-sourced in new shells)"
+log ""
+log "Next steps:"
+log "  1. Source the environment: source $ENV_FILE"
+log "  2. Navigate to repo: cd $CLONE_DIR"
+log "  3. Run workflows: ./utility_scripts/run_cohort_workflow.sh <cohort> <age_band>"

@@ -1,0 +1,267 @@
+# Step 10: Dashboard Tab Organization & API Endpoints
+
+## Overview
+
+The PGx Risk Assessment Dashboard is a production-ready web application that provides risk prediction, causal analysis, and advanced visualizations for opioid ED visits (ages 13-64) and polypharmacy risk (ages 65-114).
+
+## Architecture
+
+```
+User Browser → S3 Static Site → API Gateway → Lambda (ECR Container) → Models/Data (S3)
+```
+
+### Components
+
+- **Frontend** (`index.html`): Tab-based dashboard interface with Plotly.js visualizations
+- **Backend** (`lambda_function.py`): AWS Lambda function handling API requests
+- **Models**: Ensemble of CatBoost, XGBoost, and XGBoost RF models
+- **Data Sources**: S3 buckets for models, metadata, and visualization data
+
+## Tab Organization
+
+### Tab 1: Input & Selection
+
+**Purpose**: User input form for risk calculation
+
+**Features**:
+- Age input (13-114, auto-selects cohort/age_band)
+- Multi-select dropdowns for:
+  - Drug names (from feature importance)
+  - ICD codes (from feature importance)
+  - CPT codes (from feature importance)
+- Search functionality for code filtering
+- Calculate Risk Score button
+
+**Data Source**: Metadata from `generate_metadata.py` (populated from feature importance)
+
+### Tab 2: Risk Score & Causal Analysis
+
+**Purpose**: Display risk prediction and causal effects
+
+**Features**:
+- **Risk Score Display**: Large percentage with color-coded risk band (Low/Medium/High)
+- **Model Breakdown**: Bar chart showing individual model predictions (CatBoost, XGBoost, XGBoost RF)
+- **Risk Distribution**: Population risk distribution histogram
+- **Scenario Comparison**: Compare multiple risk scenarios side-by-side
+- **Causal Effects Analysis**: Horizontal bar chart showing Δ risk if codes are removed
+
+**Data Sources**:
+- Risk scores from ensemble models
+- Causal effects from FFA analysis (Step 9)
+- Model weights from MC-CV performance
+
+### Tab 3: Risk Analysis Visualizations
+
+**Purpose**: Advanced visualizations filtered by user-selected codes
+
+**Features**:
+- **BupaR Process Mining**: 
+  - Sankey diagrams showing patient pathway flows
+  - Process matrices showing transition frequencies
+  - Trace frequency charts
+- **FP-Growth Frequent Patterns**:
+  - Association rules network (Sankey visualization)
+  - Frequent itemsets bar charts
+- **DTW Trajectory Clusters**:
+  - Cluster size distributions
+  - Patient trajectory timelines
+  - Similarity matrices
+
+**Data Sources**:
+- BupaR outputs from Step 5a (`gold/bupar/{cohort}/{age_band}/`)
+- FP-Growth outputs from Step 5b (`gold/fpgrowth/cohort/cohort_name={cohort}/age_band={age_band}/`)
+- DTW outputs from Step 5d (`gold/dtw_trajectories/{cohort}/{age_band}/`)
+
+**Filtering**: All visualizations filter data based on user-selected codes (drugs, ICDs, CPTs)
+
+### Tab 4: PGx Patient Card
+
+**Purpose**: Generate pharmacogenomic patient cards from genetic variants
+
+**Features**:
+- SNP data input (gene variants)
+- CPIC-based drug-gene interaction analysis
+- Anonymous, generic card generation
+- Optional patient ID (for user's own tracking)
+
+**Data Source**: CPIC master file (`cpic_gene-drug_pairs.xlsx`)
+
+## API Endpoints
+
+### GET /metadata
+
+Returns valid codes for dropdowns per cohort.
+
+**Query Parameters**:
+- `cohort` (optional): Cohort name (default: `opioid_ed`)
+
+**Response**:
+```json
+{
+  "age_bands": ["13-24", "25-44", "45-54"],
+  "codes": {
+    "13-24": {
+      "drugs": ["ACETAMINOPHEN", "IBUPROFEN", ...],
+      "icds": ["F1120", "R51", ...],
+      "cpts": ["80305", "99213", ...]
+    },
+    ...
+  }
+}
+```
+
+### POST /risk
+
+Calculates risk score for given cohort/age_band and selected codes.
+
+**Request Body**:
+```json
+{
+  "age": 35,
+  "cohort": "opioid_ed",
+  "drugs": ["ACETAMINOPHEN", "IBUPROFEN"],
+  "icds": ["F1120"],
+  "cpts": ["80305"]
+}
+```
+
+**Response**:
+```json
+{
+  "risk_score": 0.45,
+  "risk_band": "medium",
+  "model_breakdown": {
+    "catboost": 0.43,
+    "xgboost": 0.47,
+    "xgboost_rf": 0.45
+  },
+  "ensemble_info": {
+    "method": "performance_weighted_average",
+    "models_used": 3,
+    "models_failed": [],
+    "weights": {...}
+  },
+  "age_band_used": "25-44",
+  "cohort_used": "opioid_ed"
+}
+```
+
+### POST /risk/comparison
+
+Compares risk scores across multiple scenarios.
+
+**Request Body**:
+```json
+{
+  "base": {
+    "age": 35,
+    "drugs": ["ACETAMINOPHEN"],
+    "icds": ["F1120"],
+    "cpts": ["80305"]
+  },
+  "scenarios": [
+    {
+      "name": "Remove Drug X",
+      "drugs": [],
+      "icds": ["F1120"],
+      "cpts": ["80305"]
+    }
+  ]
+}
+```
+
+### POST /causal
+
+Returns causal effects (Δ risk if codes are removed).
+
+**Request Body**:
+```json
+{
+  "cohort": "opioid_ed",
+  "age_band": "25-44",
+  "drugs": ["ACETAMINOPHEN"],
+  "icds": ["F1120"],
+  "cpts": ["80305"]
+}
+```
+
+**Response**:
+```json
+{
+  "effects": [
+    {"code": "DRUG:ACETAMINOPHEN", "delta_risk_remove": -0.12},
+    {"code": "ICD:F1120", "delta_risk_remove": -0.25}
+  ]
+}
+```
+
+### GET /visualizations/{type}
+
+Returns visualization data filtered by selected codes.
+
+**Types**: `bupar`, `fpgrowth`, `dtw`
+
+**Query Parameters**:
+- `cohort`: Cohort name
+- `age_band`: Age band
+- `drugs`: JSON array of selected drugs
+- `icds`: JSON array of selected ICDs
+- `cpts`: JSON array of selected CPTs
+
+**Response**: Visualization-specific data (process matrices, association rules, trajectory clusters)
+
+### POST /pgx/card
+
+Generates PGx patient card from SNP data.
+
+**Request Body**:
+```json
+{
+  "patient_id": "optional",
+  "snps": [
+    {"gene": "CYP2D6", "variants": ["*1", "*2"]},
+    {"gene": "CYP2C19", "variants": ["*1", "*17"]}
+  ]
+}
+```
+
+## User Workflow
+
+1. **Enter Input** (Tab 1):
+   - Enter patient age
+   - Select relevant drugs, ICDs, and CPTs from dropdowns
+   - Click "Calculate Risk Score"
+
+2. **View Results** (Tab 2 - Auto-switches):
+   - See risk score and risk band
+   - Review model breakdown
+   - Click "Update Causal Analysis" to see code impacts
+
+3. **Explore Visualizations** (Tab 3):
+   - View process mining pathways (BupaR)
+   - Explore frequent patterns (FP-Growth)
+   - Analyze trajectory clusters (DTW)
+   - All filtered by selected codes
+
+4. **Generate PGx Card** (Tab 4):
+   - Enter genetic variants
+   - Generate anonymous pharmacogenomic card
+
+## Incremental Deployment
+
+The dashboard supports incremental deployment:
+
+- **Build with available cohorts**: `./utility_scripts/build_dashboard.sh`
+- **Graceful degradation**: Missing cohorts show helpful error messages
+- **Incremental updates**: Rebuild as more cohorts complete
+- **No failures**: Dashboard works with partial data
+
+See [`../DASHBOARD_INCREMENTAL_BUILD.md`](../DASHBOARD_INCREMENTAL_BUILD.md) for details.
+
+## Related Documentation
+
+- **[README_results_dashboard.md](README_results_dashboard.md)** - Complete dashboard system overview
+- **[README_results_dashboard_visualizations.md](README_results_dashboard_visualizations.md)** - Visualization system details
+- **[README_results_dashboard_deployment.md](README_results_dashboard_deployment.md)** - Deployment guide
+- **[README_results_deployment.md](README_results_deployment.md)** - Complete deployment architecture
+

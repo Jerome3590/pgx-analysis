@@ -80,6 +80,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 - **Privacy-First PGx Cards**: Anonymous, generic cards with optional patient ID
 - **SHAP + FFA Combination**: Comprehensive patient-level explanations combining quantitative (SHAP) and logical (FFA) methods
 - **Consensus Features**: High-confidence features identified by both SHAP and FFA analysis
+- **FP-Growth Network Visualizations**: Interactive co-occurrence networks for causal analysis (see [FP-Growth Visualization Integration](#fp-growth-network-visualization-integration))
 
 ### API Endpoints
 
@@ -102,3 +103,122 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 - `POST /pgx/card` - Generate PGx card
 
 See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboard.md) for complete API documentation.
+
+---
+
+## FP-Growth Network Visualization Integration
+
+**⚠️ Important**: FP-Growth features are **NOT** used in the final model due to target leakage concerns. However, FP-Growth network visualizations are valuable for **causal analysis and exploratory visualization** in the risk dashboard.
+
+### Overview
+
+FP-Growth network visualizations show:
+- **Co-occurrence patterns**: Which drugs, ICD codes, or CPT codes frequently appear together
+- **Association rules**: Directed relationships between items (antecedent → consequent)
+- **Pattern strength**: Support, confidence, and lift metrics for patterns
+
+### Integration with Causal Analysis
+
+FP-Growth networks complement FFA/SHAP causal analysis by:
+1. **Visualizing Feature Relationships**: Show how causal features (from FFA/SHAP) relate to each other
+2. **Pattern Discovery**: Identify drug combinations or diagnostic patterns that align with high-importance features
+3. **Patient Context**: Show which patterns a patient matches, providing clinical context for risk predictions
+
+### Network Visualization Files
+
+**Location:**
+- Local: `10b_fpgrowth_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- S3: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
+
+**Files:**
+- `{cohort}_{age_band}_{item_type}_network.html`: Interactive co-occurrence network
+- `{cohort}_{age_band}_{item_type}_rules_network.html`: Interactive association rules network
+
+**Item Types:** `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+
+### Dashboard Integration
+
+#### Option 1: Embed HTML Network Files
+
+```html
+<!-- In dashboard HTML -->
+<iframe 
+  src="https://s3.amazonaws.com/pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band}_drug_name_network.html"
+  width="100%" 
+  height="600px"
+  frameborder="0">
+</iframe>
+```
+
+#### Option 2: Load via API Endpoint
+
+```javascript
+// In dashboard JavaScript
+async function loadFPGrowthNetwork(cohort, ageBand, itemType) {
+  const url = `https://s3.amazonaws.com/pgxdatalake/gold/fpgrowth/${cohort}/${ageBand}/plots/${cohort}_${ageBand}_${itemType}_network.html`;
+  
+  // Load and embed in dashboard
+  const response = await fetch(url);
+  const html = await response.text();
+  document.getElementById('fpgrowth-network-container').innerHTML = html;
+}
+```
+
+#### Option 3: Combine with Causal Analysis
+
+```javascript
+// Show FP-Growth network alongside FFA/SHAP results
+function displayCausalAnalysis(patientData, ffaResults, shapResults) {
+  // Display FFA/SHAP feature importance
+  displayFeatureImportance(ffaResults, shapResults);
+  
+  // Load and display FP-Growth network for context
+  loadFPGrowthNetwork(
+    patientData.cohort,
+    patientData.ageBand,
+    'drug_name'  // or 'icd_code', 'cpt_code'
+  );
+  
+  // Highlight features in network that match high-importance features
+  highlightFeaturesInNetwork(
+    getTopFeatures(ffaResults, shapResults, topN=20)
+  );
+}
+```
+
+### Network Features
+
+**Interactive Controls:**
+- **Node Centrality Filter**: Filter nodes by degree centrality (≥ 0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5)
+- **Edge Support Filter**: Filter edges by support threshold
+- **Edge Confidence Filter**: Filter edges by confidence (rules networks only)
+- **Max Nodes Limit**: Limit display to top N nodes (20, 50, 100, 200, or All)
+- **Reset Filters**: Clear all filters
+
+**Visual Encoding:**
+- **Node Size**: Represents degree centrality (how connected the node is)
+- **Edge Width**: Represents support/confidence (strength of relationship)
+- **Node Color**: Can be customized to highlight patient-matched items
+
+### Use Cases
+
+1. **Causal Analysis Visualization**
+   - Show FP-Growth network alongside FFA/SHAP feature importance
+   - Highlight features that appear in both analyses
+   - Visualize relationships between high-importance features
+
+2. **Patient-Specific Context**
+   - Show which FP-Growth patterns a patient matches
+   - Visualize patient's position in the network
+   - Compare patient patterns to target cohort patterns
+
+3. **Clinical Hypothesis Generation**
+   - Explore drug combinations of interest
+   - Discover diagnostic code patterns
+   - Understand treatment sequences
+
+### Related Documentation
+
+- `10b_fpgrowth_dashboard_visual/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
+- `10b_fpgrowth_dashboard_visual/README.md`: FP-Growth analysis documentation
+- `9_combined_shap_ffa/README.md`: Combined causal analysis documentation

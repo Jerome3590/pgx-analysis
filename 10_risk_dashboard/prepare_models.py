@@ -52,7 +52,7 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
     model_dir = FINAL_MODEL_DIR / cohort / age_band_fname / 'models'
     
     if model_type == 'catboost':
-        # Prefer binary/joblib object saved by 6b_final_model_selection/run_final_model.py
+        # Prefer binary/joblib object saved by 6_final_model_selection/run_final_model.py
         joblib_path = model_dir / 'catboost.joblib'
         if joblib_path.exists():
             if MODEL_LIBS_AVAILABLE:
@@ -65,7 +65,7 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
         if legacy_joblib.exists():
             return joblib.load(legacy_joblib)
     elif model_type == 'xgboost':
-        # Prefer joblib XGBoost model saved by 6b_final_model_selection/run_final_model.py
+        # Prefer joblib XGBoost model saved by 6_final_model_selection/run_final_model.py
         joblib_path = model_dir / 'xgboost.joblib'
         if joblib_path.exists():
             return joblib.load(joblib_path)

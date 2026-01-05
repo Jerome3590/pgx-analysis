@@ -929,7 +929,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Use OS-aware path resolution for model_events.parquet
+    age_band_fname = args.age_band.replace("-", "_")
+
+    # Use OS-aware path resolution for model_events.parquet (needed for local check)
     model_data_path = _resolve_model_events_path(args.cohort_name, args.age_band)
     
     # Output path: use same base directory as input
@@ -938,14 +940,115 @@ if __name__ == "__main__":
         / "model_events_no_protocols.parquet"
     )
 
-    age_band_fname = args.age_band.replace("-", "_")
-
-    # Output paths for audit artifacts
+    # Output paths for audit artifacts (needed for local check)
     audit_dir = OUTPUT_ROOT / args.cohort_name / age_band_fname
-    audit_dir.mkdir(parents=True, exist_ok=True)
-
     summary_path = audit_dir / f"protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
     intervals_path = audit_dir / f"event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+
+    # Check for existing local outputs (idempotency - check local first)
+    if output_path.exists():
+        logger.info(f"Filtered dataset already exists locally: {output_path}")
+        logger.info(f"Checking if all outputs are present...")
+        
+        # Check if all expected outputs exist
+        all_outputs_exist = (
+            output_path.exists() and
+            summary_path.exists() and
+            intervals_path.exists()
+        )
+        
+        if all_outputs_exist:
+            logger.info(f"Step 4b outputs already exist locally for {args.cohort_name}/{args.age_band}; skipping.")
+            logger.info(f"  Main output: {output_path}")
+            logger.info(f"  Summary: {summary_path}")
+            logger.info(f"  Intervals: {intervals_path}")
+            
+            # Still try to upload to S3 if not already there (idempotent upload)
+            try:
+                from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
+                
+                s3_outputs = []
+                s3_output_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+                if upload_file_to_s3(output_path, s3_output_path, logger):
+                    s3_outputs.append(s3_output_path)
+                
+                s3_summary_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+                if upload_file_to_s3(summary_path, s3_summary_path, logger):
+                    s3_outputs.append(s3_summary_path)
+                
+                s3_intervals_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+                if upload_file_to_s3(intervals_path, s3_intervals_path, logger):
+                    s3_outputs.append(s3_intervals_path)
+                
+                # Save checkpoint if outputs uploaded
+                if s3_outputs:
+                    save_step_checkpoint(
+                        step_name="4b_dtw_filter",
+                        cohort=args.cohort_name,
+                        age_band=args.age_band,
+                        metadata={
+                            "original_events": "unknown",  # Would need to read from file
+                            "filtered_events": "unknown",
+                        },
+                        output_paths=s3_outputs,
+                    )
+            except ImportError:
+                pass  # S3 upload is optional
+            
+            sys.exit(0)
+        else:
+            logger.warning(f"Some Step 4b outputs are missing. Will regenerate all outputs.")
+            logger.warning(f"  Main output exists: {output_path.exists()}")
+            logger.warning(f"  Summary exists: {summary_path.exists()}")
+            logger.warning(f"  Intervals exists: {intervals_path.exists()}")
+
+    # Check S3 for existing outputs (idempotency - fallback if local doesn't exist)
+    try:
+        from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
+
+        # Define expected S3 output paths
+        s3_output_paths = [
+            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet",
+            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv",
+            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet",
+        ]
+
+        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("4b_dtw_filter", args.cohort_name, args.age_band, logger):
+            logger.info(f"Step 4b outputs already exist in S3 for {args.cohort_name}/{args.age_band}; downloading to local.")
+            
+            # Download from S3 to local
+            try:
+                import boto3
+                s3_client = boto3.client("s3")
+                S3_BUCKET = "pgxdatalake"
+                
+                # Download main output
+                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(S3_BUCKET, s3_key, str(output_path))
+                logger.info(f"Downloaded {output_path} from S3")
+                
+                # Download summary
+                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+                audit_dir.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(S3_BUCKET, s3_key, str(summary_path))
+                logger.info(f"Downloaded {summary_path} from S3")
+                
+                # Download intervals
+                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+                s3_client.download_file(S3_BUCKET, s3_key, str(intervals_path))
+                logger.info(f"Downloaded {intervals_path} from S3")
+                
+                logger.info(f"Step 4b outputs downloaded from S3; skipping regeneration.")
+                sys.exit(0)
+            except Exception as e:
+                logger.warning(f"Could not download from S3: {e}. Will regenerate outputs.")
+    except ImportError:
+        pass  # Fallback to local-only if checkpoint_utils not available
+
+    # audit_dir, summary_path, and intervals_path are already defined above
+    # Just ensure the directory exists
+    audit_dir.mkdir(parents=True, exist_ok=True)
 
     # Load original data to get count
     con = duckdb.connect()
@@ -1012,4 +1115,41 @@ if __name__ == "__main__":
             / max(len(intervals_df), 1),
         )
     )
+
+    # Upload outputs to S3 and save checkpoint
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
+
+        # Upload main outputs
+        s3_outputs = []
+        if output_path.exists():
+            s3_output_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+            if upload_file_to_s3(output_path, s3_output_path, logger):
+                s3_outputs.append(s3_output_path)
+
+        if summary_path.exists():
+            s3_summary_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+            if upload_file_to_s3(summary_path, s3_summary_path, logger):
+                s3_outputs.append(s3_summary_path)
+
+        if intervals_path.exists():
+            s3_intervals_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+            if upload_file_to_s3(intervals_path, s3_intervals_path, logger):
+                s3_outputs.append(s3_intervals_path)
+
+        # Save checkpoint
+        save_step_checkpoint(
+            step_name="4b_dtw_filter",
+            cohort=args.cohort_name,
+            age_band=args.age_band,
+            metadata={
+                "total_events": len(original_df),
+                "filtered_events": len(filtered_df),
+                "protocol_events": int(intervals_df['is_protocol_event'].sum()) if 'is_protocol_event' in intervals_df.columns else 0,
+            },
+            output_paths=s3_outputs,
+            logger=logger,
+        )
+    except ImportError:
+        pass  # Checkpoint saving is optional
 

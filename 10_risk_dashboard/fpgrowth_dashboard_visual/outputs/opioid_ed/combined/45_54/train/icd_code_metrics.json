@@ -1,0 +1,18 @@
+{
+  "item_type": "icd_code",
+  "cohort_name": "opioid_ed",
+  "age_band": "45-54",
+  "event_year": "train",
+  "unique_items": 14166,
+  "total_transactions": 24116,
+  "density_distribution": {
+    "low": 6288,
+    "medium": 5939,
+    "high": 10685,
+    "extreme": 1204
+  },
+  "frequent_itemsets": 16669,
+  "association_rules": 0,
+  "encoding_map_size": 0,
+  "processing_time_seconds": 7.935221433639526
+}

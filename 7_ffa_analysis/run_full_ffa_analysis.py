@@ -136,8 +136,15 @@ def load_model_json(model_json_path: Path) -> Dict[str, Any]:
         elif 'learner' in model_json or 'gradient_booster' in model_json:
             # XGBoost JSON produced by Booster.save_model(...)
             model_type = 'xgboost'
-        # Persist inferred type back into JSON for downstream functions
-        model_json['model_type'] = model_type
+    
+    # Normalize XGBoost variant names: "xgb" -> "xgboost", "xgb_rf" -> "xgboost_rf"
+    if model_type == 'xgb':
+        model_type = 'xgboost'
+    elif model_type == 'xgb_rf':
+        model_type = 'xgboost_rf'
+    
+    # Persist normalized type back into JSON for downstream functions
+    model_json['model_type'] = model_type
     
     logger.info(f"Model type detected: {model_type}")
     
@@ -172,6 +179,15 @@ def extract_feature_mappings(model_json: Dict[str, Any]) -> Dict[str, Any]:
     if model_type == 'unknown' and ('oblivious_trees' in model_json or 'non_oblivious_trees' in model_json):
         model_type = 'catboost'
     
+    # Normalize XGBoost variant names: "xgb" -> "xgboost", "xgb_rf" -> "xgboost_rf"
+    if model_type == 'xgb':
+        model_type = 'xgboost'
+    elif model_type == 'xgb_rf':
+        model_type = 'xgboost_rf'
+    
+    # Update model_json with normalized type for consistency
+    model_json['model_type'] = model_type
+    
     if model_type in ['catboost', 'CatBoost']:
         logger.info("Processing CatBoost feature mappings...")
         features_info = model_json.get('features_info', {})
@@ -197,7 +213,7 @@ def extract_feature_mappings(model_json: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Extracted {len(feature_names)} feature mappings")
     
     return {
-        'model_type': model_type,
+        'model_type': model_type,  # Return normalized model_type
         'feature_names': feature_names
     }
 
@@ -283,7 +299,14 @@ def initialize_explainer(
     if model_type == 'unknown' and ('oblivious_trees' in model_json or 'non_oblivious_trees' in model_json):
         model_type = 'catboost'
     
-    logger.info(f"Model type: {model_type}")
+    # Normalize XGBoost variant names: "xgb" -> "xgboost", "xgb_rf" -> "xgboost_rf"
+    if model_type == 'xgb':
+        model_type = 'xgboost'
+    elif model_type == 'xgb_rf':
+        model_type = 'xgboost_rf'
+    
+    # Log normalized model type (before the print statement that shows the error)
+    logger.info(f"Model type (normalized): {model_type}")
     
     print(f"\n{'='*80}")
     print(f"Initializing FFA Explainer (Model Type: {model_type})")
@@ -546,9 +569,57 @@ def calculate_feature_importance(df_axps: pd.DataFrame) -> pd.DataFrame:
     return importance_df
 
 
+def get_model_features_for_causal_analysis(X: pd.DataFrame) -> List[str]:
+    """
+    Get the features that the model actually uses for causal analysis.
+    
+    The model uses:
+    - Binary features (item_* indicators) for aggregated feature importance codes
+    - PGx features (pgx_*)
+    - n_events (simple count)
+    
+    These correspond to aggregated feature importance codes from Step 3, represented
+    as binary indicators (1 if patient has code, 0 otherwise).
+    
+    Returns:
+        List of feature names that the model uses (binary FI codes + PGx).
+    """
+    target_features = set()
+    
+    # Add all binary features (item_* indicators for aggregated FI codes)
+    # These are created from aggregated feature importance codes from Step 3
+    for col in X.columns:
+        if col.startswith('item_'):
+            target_features.add(col)
+    
+    # Add PGx features
+    pgx_features = [col for col in X.columns if col.startswith('pgx_')]
+    target_features.update(pgx_features)
+    
+    # Also include n_events (simple aggregation used by model)
+    if 'n_events' in X.columns:
+        target_features.add('n_events')
+    
+    available_features = list(target_features)
+    
+    n_binary = len([c for c in available_features if c.startswith('item_')])
+    n_pgx = len(pgx_features)
+    n_other = len(available_features) - n_binary - n_pgx
+    
+    logger.info(f"Selected {len(available_features)} features for causal analysis "
+                f"({n_binary} binary FI codes + {n_pgx} PGx + {n_other} other)")
+    
+    return available_features
+
+
+
+
 def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray, 
-                           feature_importance_df: pd.DataFrame) -> pd.DataFrame:
-    """Perform causal analysis by measuring prediction changes."""
+                           feature_importance_df: pd.DataFrame, cohort: str, age_band: str) -> pd.DataFrame:
+    """Perform causal analysis by measuring prediction changes.
+    
+    Only analyzes aggregated feature importance features (drug/ICD/CPT codes) plus PGx features.
+    """
     logger.info("Performing causal analysis...")
     start_time = time.time()
     
@@ -562,13 +633,34 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
     X_class = X[mask].reset_index(drop=True)
     y_class = y[mask]
     
-    # Get top features
-    top_features = feature_importance_df.head(ANALYSIS_CONFIG['top_k_features'])['feature'].tolist()
-    logger.info(f"Top {len(top_features)} features from importance analysis")
+    # Get features that the model actually uses (engineered features + PGx)
+    # These correspond to aggregated feature importance codes from Step 3
+    # The model uses mean_*/max_* engineered features created from drug/ICD/CPT codes
+    available_features = get_model_features_for_causal_analysis(X_class)
     
-    # Filter to features that exist in data
-    available_features = [f for f in top_features if f in X_class.columns]
-    logger.info(f"Found {len(available_features)} features available in data")
+    if not available_features:
+        logger.warning("No model features found. Falling back to FFA importance features.")
+        # Fallback: use top features from FFA importance
+        top_features = feature_importance_df.head(ANALYSIS_CONFIG['top_k_features'])['feature'].tolist()
+        available_features = [f for f in top_features if f in X_class.columns]
+    else:
+        # If we have more than top_k_features, prioritize by FFA importance if available
+        if len(available_features) > ANALYSIS_CONFIG['top_k_features']:
+            # Create a mapping of feature -> importance from FFA results
+            ffa_importance_map = dict(zip(
+                feature_importance_df['feature'],
+                feature_importance_df['importance'],
+                strict=True
+            ))
+            
+            # Sort by FFA importance (if available), otherwise keep original order
+            available_features = sorted(
+                available_features,
+                key=lambda f: ffa_importance_map.get(f, 0),
+                reverse=True
+            )[:ANALYSIS_CONFIG['top_k_features']]
+    
+    logger.info(f"Found {len(available_features)} features available in data for causal analysis")
     
     if not available_features:
         logger.warning("No matching features found for causal analysis")
@@ -701,6 +793,34 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         print(f"[OK] Saved feature importance to: {importance_path}")
     else:
         logger.warning("No feature importance to save")
+
+    # Upload to S3 and save checkpoint after saving results
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
+
+        s3_outputs = []
+        if explanations_path.exists():
+            s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
+            if upload_file_to_s3(explanations_path, s3_explanations, logger):
+                s3_outputs.append(s3_explanations)
+
+        if importance_path.exists():
+            s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
+            if upload_file_to_s3(importance_path, s3_importance, logger):
+                s3_outputs.append(s3_importance)
+
+        # Save checkpoint (only once per step, not per model type)
+        if model_type == "xgboost":  # Save checkpoint after first model completes
+            save_step_checkpoint(
+                step_name="7_ffa_analysis",
+                cohort=COHORT_NAME,
+                age_band=AGE_BAND,
+                metadata={"model_types_analyzed": [model_type]},
+                output_paths=s3_outputs,
+                logger=logger,
+            )
+    except ImportError:
+        pass  # Checkpoint saving is optional
     
     # Save causal analysis
     if len(causal_df) > 0:
@@ -770,9 +890,14 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                 selection_metadata = json.load(f)
                 actual_variant = selection_metadata.get('best_xgb_variant', 'xgb')
                 logger.info(f"Best XGBoost variant: {actual_variant} (from selection metadata)")
+                # Normalize variant name for FFA: "xgb" -> "xgboost", "xgb_rf" -> "xgboost_rf"
+                if actual_variant == 'xgb':
+                    actual_variant = 'xgboost'
+                elif actual_variant == 'xgb_rf':
+                    actual_variant = 'xgboost_rf'
         else:
             logger.warning(f"Model selection metadata not found at {metadata_path}")
-            actual_variant = 'xgb'  # Default
+            actual_variant = 'xgboost'  # Default (normalized)
     else:
         # CatBoost - use best model
         model_json_filename = f'{COHORT_NAME}_{AGE_BAND_FNAME}_best_catboost_model.json'
@@ -814,6 +939,54 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             print("[WARNING] No target column found. Cannot generate explanations.")
             return None
         
+        # Validate feature count matches model expectations
+        # Exclude non-feature columns (like mi_person_key) from comparison
+        non_feature_cols = {'mi_person_key', 'person_key', 'patient_id', 'id'}
+        feature_cols = [col for col in X.columns if col not in non_feature_cols]
+        X_features_only = X[feature_cols].copy()
+        
+        model_feature_names = feature_mappings.get('feature_names', {})
+        expected_n_features = len(model_feature_names) if model_feature_names else None
+        
+        if expected_n_features and len(feature_cols) != expected_n_features:
+            logger.warning(f"Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs), model expects {expected_n_features}")
+            print(f"[WARNING] Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs), model expects {expected_n_features}")
+            
+            # Try to align features with model's expected feature names
+            if model_feature_names:
+                expected_features = [model_feature_names.get(i, f"feature_{i}") for i in range(expected_n_features)]
+                missing_features = set(expected_features) - set(feature_cols)
+                extra_features = set(feature_cols) - set(expected_features)
+                
+                if missing_features:
+                    logger.error(f"Missing features in CSV: {list(missing_features)[:10]}...")
+                    print(f"[ERROR] Missing features in CSV: {len(missing_features)} features")
+                    raise ValueError(f"Feature mismatch: CSV missing {len(missing_features)} features expected by model. "
+                                   f"First few missing: {list(missing_features)[:5]}")
+                
+                # Reorder columns to match model's expected order
+                if set(feature_cols) == set(expected_features):
+                    X_features_only = X_features_only[expected_features]
+                    logger.info(f"Reordered features to match model expectations")
+                else:
+                    # Filter out ID columns from extra_features for clearer error message
+                    extra_features_filtered = extra_features - non_feature_cols
+                    if extra_features_filtered:
+                        logger.error(f"Feature sets don't match. Extra in CSV: {list(extra_features_filtered)[:10]}...")
+                        raise ValueError(f"Feature mismatch: CSV has {len(extra_features_filtered)} extra features not in model: {list(extra_features_filtered)[:5]}")
+                    else:
+                        # Only ID columns are extra, which is fine - just reorder
+                        X_features_only = X_features_only[expected_features]
+                        logger.info(f"Reordered features to match model expectations (ignoring extra ID columns)")
+        
+        # Use features-only DataFrame for analysis (keep original X for reference if needed)
+        X = X_features_only
+        logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
+        print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
+        
+        logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
+        print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
+        
         # Step 4: Initialize explainer
         logger.info("Step 4: Initializing explainer...")
         explainer = initialize_explainer(
@@ -849,7 +1022,7 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         # Step 7: Perform causal analysis (optional, can be skipped if memory is tight)
         logger.info("Step 7: Performing causal analysis...")
         try:
-            causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df)
+            causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df, COHORT_NAME, AGE_BAND)
         except MemoryError:
             logger.warning("Memory error during causal analysis. Skipping causal analysis.")
             print("[WARNING] Memory error during causal analysis. Skipping causal analysis.")
@@ -903,12 +1076,13 @@ def main():
         help="Which model type to analyze (default: all).",
     )
     args = parser.parse_args()
-    # Allow overriding cohort/age band from CLI while keeping sane defaults.
+    
+    # Update global variables after parsing args
     COHORT_NAME = args.cohort_name
     AGE_BAND = args.age_band
     AGE_BAND_FNAME = AGE_BAND.replace("-", "_")
 
-    # Recompute paths based on possibly updated cohort/age band.
+    # Recompute paths based on updated cohort/age band
     MODEL_JSON_BASE = (
         PROJECT_ROOT
         / "6_final_model"
@@ -927,6 +1101,130 @@ def main():
     )
     OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Determine which model types to analyze
+    if args.model_type == "all":
+        # For "all", we analyze best XGBoost variant only
+        expected_model_types = ['xgboost']
+    else:
+        expected_model_types = [args.model_type]
+
+    # Check for existing local outputs (idempotency - check local first)
+    # FFA generates outputs per model type, so check for the expected model type(s)
+    if args.model_type == "all":
+        # For "all", we analyze best XGBoost variant only
+        expected_model_types = ['xgboost']
+    else:
+        expected_model_types = [args.model_type]
+    
+    all_outputs_exist = True
+    for model_type in expected_model_types:
+        model_output_dir = OUTPUT_DIR / model_type
+        explanations_path = model_output_dir / 'axp_explanations.csv'
+        importance_path = model_output_dir / 'feature_importance_axp.csv'
+        causal_path = model_output_dir / 'causal_importance.csv'
+        
+        if not (explanations_path.exists() and importance_path.exists()):
+            all_outputs_exist = False
+            break
+    
+    if all_outputs_exist:
+        logger.info(f"Step 7 outputs already exist locally for {COHORT_NAME}/{AGE_BAND}; skipping.")
+        print(f"[SKIP] Step 7 outputs already exist locally for {COHORT_NAME}/{AGE_BAND}")
+        
+        # Still try to upload to S3 if not already there (idempotent upload)
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
+            
+            s3_outputs = []
+            for model_type in expected_model_types:
+                model_output_dir = OUTPUT_DIR / model_type
+                explanations_path = model_output_dir / 'axp_explanations.csv'
+                importance_path = model_output_dir / 'feature_importance_axp.csv'
+                
+                if explanations_path.exists():
+                    s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
+                    if upload_file_to_s3(explanations_path, s3_explanations, logger):
+                        s3_outputs.append(s3_explanations)
+                
+                if importance_path.exists():
+                    s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
+                    if upload_file_to_s3(importance_path, s3_importance, logger):
+                        s3_outputs.append(s3_importance)
+            
+            # Save checkpoint if outputs uploaded
+            if s3_outputs:
+                save_step_checkpoint(
+                    step_name="7_ffa_analysis",
+                    cohort=COHORT_NAME,
+                    age_band=AGE_BAND,
+                    metadata={"model_types_analyzed": expected_model_types},
+                    output_paths=s3_outputs,
+                    logger=logger,
+                )
+        except ImportError:
+            pass  # S3 upload is optional
+        
+        return
+
+    # Check S3 for existing outputs (idempotency - fallback if local doesn't exist)
+    try:
+        from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
+        
+        s3_output_paths = []
+        for model_type in expected_model_types:
+            s3_output_paths.extend([
+                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv",
+                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv",
+            ])
+
+        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("7_ffa_analysis", COHORT_NAME, AGE_BAND, logger):
+            logger.info(f"Step 7 outputs already exist in S3 for {COHORT_NAME}/{AGE_BAND}; downloading to local.")
+            
+            # Download from S3 to local
+            try:
+                import boto3
+                s3_client = boto3.client("s3")
+                S3_BUCKET = "pgxdatalake"
+                
+                for model_type in expected_model_types:
+                    model_output_dir = OUTPUT_DIR / model_type
+                    model_output_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Download explanations
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
+                    explanations_path = model_output_dir / 'axp_explanations.csv'
+                    try:
+                        s3_client.download_file(S3_BUCKET, s3_key, str(explanations_path))
+                        logger.info(f"Downloaded {explanations_path} from S3")
+                    except Exception as e:
+                        logger.warning(f"Could not download {s3_key}: {e}")
+                    
+                    # Download importance
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
+                    importance_path = model_output_dir / 'feature_importance_axp.csv'
+                    try:
+                        s3_client.download_file(S3_BUCKET, s3_key, str(importance_path))
+                        logger.info(f"Downloaded {importance_path} from S3")
+                    except Exception as e:
+                        logger.warning(f"Could not download {s3_key}: {e}")
+                    
+                    # Download causal (optional)
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.csv"
+                    causal_path = model_output_dir / 'causal_importance.csv'
+                    try:
+                        s3_client.download_file(S3_BUCKET, s3_key, str(causal_path))
+                        logger.info(f"Downloaded {causal_path} from S3")
+                    except Exception:
+                        pass  # Causal analysis is optional
+                
+                logger.info(f"Step 7 outputs downloaded from S3; skipping regeneration.")
+                print(f"[SKIP] Step 7 outputs downloaded from S3 for {COHORT_NAME}/{AGE_BAND}")
+                return
+            except Exception as e:
+                logger.warning(f"Could not download from S3: {e}. Will regenerate outputs.")
+    except ImportError:
+        pass  # Fallback to local-only if checkpoint_utils not available
 
     workflow_start_time = time.time()
     logger.info(f"{'='*80}")
@@ -984,8 +1282,11 @@ def main():
         logger.info(f"Successfully analyzed {len(results)}/{len(model_types)} models")
         print(f"\n[OK] Analysis complete! Results saved to: {OUTPUT_DIR}")
     else:
-        logger.warning("No models were successfully analyzed")
-        print("\n[WARNING] No models were successfully analyzed.")
+        logger.error("No models were successfully analyzed")
+        print("\n[ERROR] No models were successfully analyzed.")
+        print("This step cannot complete without at least one model being analyzed.")
+        logger.error("FFA analysis failed: No models were successfully analyzed")
+        sys.exit(1)
     
     logger.info(f"{'='*80}")
     logger.info("Workflow Complete!")

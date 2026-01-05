@@ -375,6 +375,12 @@ class BaseSymbolicExplainer(ABC):
         
         result = h.get()
         
+        # Handle case where Hitman.get() returns None (no valid explanation found)
+        if result is None:
+            result = []
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(rule_ids)} matched rules - no valid explanation found")
+        
         duration = time.time() - start_time
         if hasattr(self, 'logger'):
             self.logger.info(f"_compute_axp: {len(rule_ids)} matched rules -> {len(result)} literals, took {duration:.4f}s")
@@ -548,9 +554,20 @@ class BaseSymbolicExplainer(ABC):
             else:
                 x_1d = x
             
-            # Validate length
-            if len(x_1d) < 100:  # Sanity check
-                raise ValueError(f"Instance {i}: x has only {len(x_1d)} elements, expected ~137. Shape: {x.shape}")
+            # Validate length - get expected feature count from explainer if available
+            expected_features = getattr(explainer_state, 'n_features', None)
+            if expected_features is None and hasattr(explainer_state, 'feature_names'):
+                expected_features = len(explainer_state.feature_names) if explainer_state.feature_names else None
+            
+            # If we have expected features, validate match
+            if expected_features and len(x_1d) != expected_features:
+                raise ValueError(f"Instance {i}: x has {len(x_1d)} elements, expected {expected_features}. Shape: {x.shape}. "
+                               f"First few values: {x_1d[:5] if len(x_1d) >= 5 else x_1d}")
+            elif not expected_features:
+                # No expected features - just do a basic sanity check
+                # Allow any reasonable number of features (model might have been trained with different feature set)
+                if len(x_1d) < 1:
+                    raise ValueError(f"Instance {i}: x has only {len(x_1d)} elements, which is invalid. Shape: {x.shape}")
             
             x_list = x_1d.tolist()
             tasks.append((i, x_list, int(yhat), explainer_state))

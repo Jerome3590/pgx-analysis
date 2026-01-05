@@ -25,22 +25,26 @@ aws configure
 
 ```
 pgx-analysis/
-├── 1_apcd_input_data/          # APCD data preprocessing and cleaning (bronze → silver → gold)
-├── 2_create_cohort/            # Cohort creation and QA
-├── 3_feature_importance/       # MC-CV feature importance screening
-├── 4a_model_data/              # Model-ready event datasets (target vs control)
-├── 4b_dtw_filter/              # DTW-based protocol filtering
-├── 5a_bupaR_analysis/          # Process mining feature engineering (BupaR)
-├── 5b_fpgrowth_analysis/       # Frequent pattern mining feature engineering
-├── 5c_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
-├── 6_final_model/              # Final model development (training, calibration, export)
-├── 7_ffa_analysis/             # Formal feature attribution (FFA) analysis
-├── 8_shap_analysis/            # SHAP-based post‑model analysis
-├── 9_combined_shap_ffa/        # Combined SHAP + FFA consensus analysis
-├── 10_risk_dashboard/          # Results dashboard, API, and deployment artifacts
+├── 1_apcd_input_data/          # Step 1: APCD data preprocessing (bronze → silver → gold)
+├── 2_create_cohort/            # Step 2: Cohort creation and QA
+├── 3_feature_importance/       # Step 3: MC-CV feature importance (aggregated importances)
+├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
+├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
+├── 5_pgx_analysis/            # Step 5: PGx feature engineering
+├── 6_final_model/              # Step 6: Final model training (legacy/utilities)
+├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
+├── 7_ffa_analysis/             # Step 7: Formal Feature Attribution (FFA) analysis
+├── 8_shap_analysis/            # Step 8: SHAP-based post-model analysis
+├── 9_combined_shap_ffa/        # Step 9: Combined SHAP + FFA consensus analysis
+├── 10_risk_dashboard/          # Step 10: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
+├── utility_scripts/            # Workflow execution scripts (run_cohort_workflow.sh)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
 └── docs/                       # Documentation
+
+Note: Old workflow folders (5a_bupaR_analysis/, 5b_fpgrowth_analysis/, 5d_dtw_analysis/, 6a_feature_encoding/) 
+have been moved to archived/ as they are no longer part of the main workflow. Their visualization 
+outputs are now integrated into Step 10 (Risk Dashboard).
 ```
 
 ## High-Level Workflow

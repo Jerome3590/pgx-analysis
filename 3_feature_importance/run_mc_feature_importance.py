@@ -3,7 +3,7 @@
 Monte-Carlo feature-importance runner for the final, leakage-filtered feature set.
 
 This script:
-  - Mirrors `build_final_features` logic from `6b_final_model_selection/run_final_model.py`
+  - Mirrors `build_final_features` logic from `6_final_model_selection/run_final_model.py`
     to assemble the patient-level feature matrix (with target-leakage
     removal already applied).
   - Runs N Monte-Carlo train/test splits with XGBoost (CPU on Linux, GPU on Windows if available).
