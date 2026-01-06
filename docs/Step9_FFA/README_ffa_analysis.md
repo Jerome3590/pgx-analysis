@@ -117,7 +117,8 @@ CatBoost uses CTR transformations for categorical features, which require specia
   3. **SHAP-augmented rules**: Includes all rules where the sum of SHAP importance > 0 (SHAP-important rules)
   4. **Final rule set for AXP**: Union of all three sets (deduplicated) for AXP computation
 - **Error Handling**: Raises `FileNotFoundError` or `ValueError` if SHAP data is missing or malformed
-- **Key Point**: 
+- **Key Point**:
+
   - **SHAP augments/prioritizes rules** - it does not filter them out. All matched rules are considered.
   - **Causal analysis filters the final rule set** based on causal importance scores.
   - **XGBoost**: Rules are extracted directly from JSON, then SHAP prioritizes them
