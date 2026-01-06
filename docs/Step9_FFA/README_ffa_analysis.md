@@ -231,7 +231,8 @@ pip install catboost pandas numpy matplotlib seaborn pysat boto3
 
 **Critical Dependency**: Step 7 (SHAP Analysis) must run before Step 8 (FFA Analysis). FFA requires SHAP importance values to augment and prioritize rules. The system will raise an error if SHAP data is not available.
 
-**Important Distinction**: 
+**Important Distinction**:
+
 - **SHAP augments/prioritizes** rules for AXP computation (does not filter them out)
 - **Causal analysis filters** the final rule set based on causal importance scores
 
