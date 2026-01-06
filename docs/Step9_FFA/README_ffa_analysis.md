@@ -92,6 +92,7 @@ CatBoost uses CTR transformations for categorical features, which require specia
 - **CatBoost**: Due to complex JSON hashing and CTR, SHAP values are used as a translation layer to extract rules from the model structure
 
 **Common Process:**
+
 - Converts tree structures to Boolean formulas
 - Uses PySAT for CNF conversion and SAT solving
 - Creates human-readable decision rules with conditions
