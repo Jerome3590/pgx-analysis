@@ -54,11 +54,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "=========================================="
-echo "Clearing Model Outputs"
+echo "Clearing Model Outputs (Step 6, 7, 8)"
 echo "=========================================="
 
 if [ "$CLEAR_ALL" = true ]; then
-    echo "Clearing ALL model outputs..."
+    echo "Clearing ALL model outputs and downstream analyses..."
+    
+    # Step 6: Final Model Outputs
     MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs"
     if [ -d "$MODEL_DIR" ]; then
         echo "Removing: $MODEL_DIR"
@@ -82,13 +84,48 @@ if [ "$CLEAR_ALL" = true ]; then
         echo "✅ Model outputs directory cleared"
     fi
     
+    # Step 7: FFA Analysis Outputs
+    FFA_DIR="$PROJECT_ROOT/7_ffa_analysis/outputs"
+    if [ -d "$FFA_DIR" ]; then
+        echo "Removing: $FFA_DIR"
+        echo "  This includes all FFA analysis outputs (depends on Step 6 models)"
+        rm -rf "$FFA_DIR"
+        echo "✅ Local FFA outputs cleared"
+    else
+        echo "No local FFA outputs found at $FFA_DIR"
+    fi
+    
+    # Step 8: SHAP Analysis Outputs
+    SHAP_DIR="$PROJECT_ROOT/8_shap_analysis/outputs"
+    if [ -d "$SHAP_DIR" ]; then
+        echo "Removing: $SHAP_DIR"
+        echo "  This includes all SHAP analysis outputs (depends on Step 6 models)"
+        rm -rf "$SHAP_DIR"
+        echo "✅ Local SHAP outputs cleared"
+    else
+        echo "No local SHAP outputs found at $SHAP_DIR"
+    fi
+    
     if [ "$CLEAR_S3" = true ]; then
         echo ""
-        echo "Clearing S3 model outputs..."
+        echo "Clearing S3 outputs..."
+        
+        echo "  Clearing Step 6 (Final Model) outputs..."
         aws s3 rm s3://pgxdatalake/gold/final_model/ --recursive || {
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
-        echo "✅ S3 model outputs cleared"
+        
+        echo "  Clearing Step 7 (FFA Analysis) outputs..."
+        aws s3 rm s3://pgxdatalake/gold/ffa_analysis/ --recursive || {
+            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
+        }
+        
+        echo "  Clearing Step 8 (SHAP Analysis) outputs..."
+        aws s3 rm s3://pgxdatalake/gold/shap_analysis/ --recursive || {
+            echo "⚠️  Warning: Could not clear S3 SHAP outputs (may not exist or no permissions)"
+        }
+        
+        echo "✅ S3 outputs cleared (Steps 6, 7, 8)"
     fi
 else
     # Clear specific cohort/age band
@@ -98,8 +135,9 @@ else
     fi
     
     AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
-    echo "Clearing models for cohort=$COHORT, age_band=$AGE_BAND"
+    echo "Clearing models and downstream analyses for cohort=$COHORT, age_band=$AGE_BAND"
     
+    # Step 6: Final Model Outputs
     MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$MODEL_DIR" ]; then
         echo "Removing: $MODEL_DIR"
@@ -123,19 +161,59 @@ else
         echo "✅ Model outputs directory cleared"
     fi
     
+    # Step 7: FFA Analysis Outputs
+    FFA_DIR="$PROJECT_ROOT/7_ffa_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
+    if [ -d "$FFA_DIR" ]; then
+        echo "Removing: $FFA_DIR"
+        echo "  This includes FFA analysis outputs (depends on Step 6 models)"
+        rm -rf "$FFA_DIR"
+        echo "✅ Local FFA outputs cleared for $COHORT/$AGE_BAND"
+    else
+        echo "No local FFA outputs found at $FFA_DIR"
+    fi
+    
+    # Step 8: SHAP Analysis Outputs
+    SHAP_DIR="$PROJECT_ROOT/8_shap_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
+    if [ -d "$SHAP_DIR" ]; then
+        echo "Removing: $SHAP_DIR"
+        echo "  This includes SHAP analysis outputs (depends on Step 6 models)"
+        rm -rf "$SHAP_DIR"
+        echo "✅ Local SHAP outputs cleared for $COHORT/$AGE_BAND"
+    else
+        echo "No local SHAP outputs found at $SHAP_DIR"
+    fi
+    
     if [ "$CLEAR_S3" = true ]; then
         echo ""
-        echo "Clearing S3 model outputs for $COHORT/$AGE_BAND..."
+        echo "Clearing S3 outputs for $COHORT/$AGE_BAND..."
+        
+        echo "  Clearing Step 6 (Final Model) outputs..."
         aws s3 rm "s3://pgxdatalake/gold/final_model/$COHORT/$AGE_BAND/" --recursive || {
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
-        echo "✅ S3 model outputs cleared"
+        
+        echo "  Clearing Step 7 (FFA Analysis) outputs..."
+        aws s3 rm "s3://pgxdatalake/gold/ffa_analysis/$COHORT/$AGE_BAND/" --recursive || {
+            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
+        }
+        
+        echo "  Clearing Step 8 (SHAP Analysis) outputs..."
+        aws s3 rm "s3://pgxdatalake/gold/shap_analysis/$COHORT/$AGE_BAND/" --recursive || {
+            echo "⚠️  Warning: Could not clear S3 SHAP outputs (may not exist or no permissions)"
+        }
+        
+        echo "✅ S3 outputs cleared (Steps 6, 7, 8)"
     fi
 fi
 
 echo ""
 echo "=========================================="
 echo "Model clearing complete!"
-echo "Next run will regenerate models from scratch."
+echo "Cleared outputs for:"
+echo "  - Step 6: Final Model Training"
+echo "  - Step 7: FFA Analysis (depends on Step 6)"
+echo "  - Step 8: SHAP Analysis (depends on Step 6)"
+echo ""
+echo "Next run will regenerate models and downstream analyses from scratch."
 echo "=========================================="
 
