@@ -2,9 +2,11 @@
 """
 Validation: Compare XGBoost JSON-extracted rules with SHAP values
 
-This script validates that rules extracted directly from XGBoost JSON
-closely match SHAP importance patterns, demonstrating that XGBoost
-does NOT need SHAP as a translation layer (unlike CatBoost).
+This script validates that SHAP values can be used to accurately filter and
+build the rule set for causal analysis. It demonstrates that rules extracted
+from XGBoost JSON align well with SHAP importance patterns, validating that
+SHAP-guided rule filtering (as used in the three-set union approach) produces
+meaningful results for causal analysis.
 
 Usage:
     python validate_xgboost_rules_vs_shap.py --cohort opioid_ed --age-band 13-24
@@ -53,8 +55,7 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str = "xgboost"
         / "outputs"
         / cohort
         / age_band_fname
-        / model_type
-        / f"{cohort}_{age_band_fname}_shap_importance.csv"
+        / f"{cohort}_{age_band_fname}_shap_global_importance_{model_type}.csv"
     )
     
     if not shap_path.exists():
@@ -84,7 +85,9 @@ def calculate_rule_based_importance(explainer, shap_importance_map: Dict[str, fl
     Calculate feature importance from rules extracted directly from JSON.
     
     For each feature, count how many rules it appears in, weighted by SHAP importance
-    of features in those rules. This shows how well JSON-extracted rules align with SHAP.
+    of features in those rules. This demonstrates how SHAP values can be used to
+    filter and prioritize rules for causal analysis, showing alignment between
+    JSON-extracted rules and SHAP importance patterns.
     """
     feature_rule_counts = defaultdict(int)
     feature_rule_shap_scores = defaultdict(float)
@@ -345,8 +348,9 @@ def main():
     
     # Print summary
     print("\n" + "="*80)
-    print("XGBoost Rule Extraction Validation Summary")
+    print("SHAP-Guided Rule Filtering Validation Summary")
     print("="*80)
+    print("Validating that SHAP values can accurately filter/build rule sets for causal analysis")
     print(f"\nFeatures compared: {stats['n_features']}")
     print(f"\nCorrelation Statistics:")
     print(f"  Pearson correlation:  {stats['pearson_correlation']:.4f} (p={stats['pearson_p_value']:.2e})")

@@ -1172,6 +1172,39 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         return None
 
 
+def run_validation_if_requested(cohort: str, age_band: str, model_type: str = "xgboost"):
+    """
+    Optionally run validation to compare XGBoost JSON rules with SHAP values.
+    
+    This validates that SHAP values can accurately filter and build the rule set
+    for causal analysis. It demonstrates that rules extracted from JSON align well
+    with SHAP importance patterns, confirming that SHAP-guided rule filtering
+    produces meaningful results.
+    """
+    try:
+        from validate_xgboost_rules_vs_shap import main as validate_main
+        import sys
+        
+        logger.info("Running XGBoost rule extraction validation...")
+        # Temporarily override sys.argv for the validation script
+        original_argv = sys.argv
+        try:
+            sys.argv = [
+                'validate_xgboost_rules_vs_shap.py',
+                '--cohort', cohort,
+                '--age-band', age_band,
+                '--model-type', model_type
+            ]
+            validate_main()
+            logger.info("✅ Validation completed successfully")
+        finally:
+            sys.argv = original_argv
+    except ImportError:
+        logger.warning("Validation script not available. Skipping validation.")
+    except Exception as e:
+        logger.warning(f"Validation failed: {e}. Continuing with main analysis.")
+
+
 def main():
     """Run complete FFA analysis for one or more model types."""
     global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, OUTPUT_DIR

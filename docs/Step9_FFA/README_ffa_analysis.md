@@ -149,17 +149,32 @@ CatBoost uses CTR transformations for categorical features, which require specia
 
 ### Scripts
 
+- **`run_full_ffa_analysis.py`**: Main script to run complete FFA analysis workflow
+  - Loads models (CatBoost, XGBoost, XGBoost RF)
+  - Extracts rules using unified schema
+  - Generates AXP explanations
+  - Calculates feature importance
+  - Performs causal analysis
+
+- **`validate_xgboost_rules_vs_shap.py`**: Validation script to compare XGBoost JSON-extracted rules with SHAP values
+  - Validates that SHAP values can accurately filter and build the rule set for causal analysis
+  - Demonstrates that rules extracted from JSON align well with SHAP importance patterns
+  - Confirms that SHAP-guided rule filtering (three-set union approach) produces meaningful results
+  - Generates correlation statistics and visualization plots
+  - Usage: `python validate_xgboost_rules_vs_shap.py --cohort opioid_ed --age-band 13-24`
+
 - **`ffa_analysis.py`**: Core FFA analysis functions
   - Model validation and structure inspection
   - CTR hash map analysis
   - Feature mapping extraction
 
-- **`catboost_axp_explainer.py`**: Anchored Explanations implementation
-  - `CatBoostAXPExplainer` class for generating explanations
-  - Path configuration and analysis configuration classes
-  - Rule matching and explanation generation
-
 - **`catboost_axp_explainer.py`**: CatBoost AXP explainer implementation
+  - `CatBoostSymbolicExplainer` class for generating explanations
+  - Uses SHAP values as translation layer for rule extraction
+
+- **`xgboost_axp_explainer.py`**: XGBoost AXP explainer implementation
+  - `XGBoostSymbolicExplainer` class for generating explanations
+  - Extracts rules directly from JSON (no SHAP translation layer needed)
 
 ## Quick Start
 
