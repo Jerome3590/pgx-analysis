@@ -446,6 +446,9 @@ def run_mc_feature_importance(
     model_keys = ["xgb", "xgb_rf"]
     if have_catboost:
         model_keys.append("catboost")
+        print(f"[INFO] CatBoost is available - will run for all {n_runs} MC CV splits")
+    else:
+        print(f"[INFO] CatBoost not available - only running XGBoost models for {n_runs} MC CV splits")
 
     # Storage for per-run metrics and importances, per model
     per_feature_importances: Dict[str, Dict[str, List[float]]] = {
