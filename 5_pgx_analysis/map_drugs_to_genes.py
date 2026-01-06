@@ -223,7 +223,7 @@ def fetch_all_cpic_drugs() -> List[Dict]:
         return []
 
 
-def fuzzy_match_drug(drug_name: str, cpic_drug_list: List[Dict], threshold: int = 80) -> Optional[Tuple[str, Dict]]:
+def fuzzy_match_drug(drug_name: str, cpic_drug_list: List[Dict], threshold: int = 95) -> Optional[Tuple[str, Dict, float]]:
     """
     Use fuzzy matching to find the best CPIC drug match for a given drug name.
     
@@ -310,7 +310,7 @@ def fuzzy_match_drug(drug_name: str, cpic_drug_list: List[Dict], threshold: int 
     if best_match:
         matched_name, drug_dict, score = best_match
         logger.info(f"Fuzzy matched '{drug_name}' -> '{matched_name}' (score: {score:.1f})")
-        return (matched_name, drug_dict)
+        return (matched_name, drug_dict, score)
     
     return None
 
@@ -405,14 +405,177 @@ def fetch_cpic_gene(gene_symbol: str) -> Optional[Dict]:
         return None
 
 
+def search_cpic_drug_list_json(drug_name: str, cpic_drug_list: List[Dict]) -> Optional[Tuple[str, Dict, float]]:
+    """
+    Search cpic_drug_list.json for better matches when fuzzy score is below threshold.
+    Uses exact substring matching and normalized comparisons.
+    
+    Parameters:
+    -----------
+    drug_name : str
+        Drug name to search for
+    cpic_drug_list : List[Dict]
+        List of CPIC drug dictionaries from JSON file
+        
+    Returns:
+    --------
+    Optional[Tuple[str, Dict, float]]
+        Tuple of (matched_cpic_name, drug_dict, confidence_score) if found, else None
+        Confidence score is 100.0 for exact matches, 95.0-99.9 for substring matches
+    """
+    if not cpic_drug_list:
+        return None
+    
+    normalized_drug = drug_name.upper().strip()
+    drug_words = normalized_drug.split()
+    
+    # Try exact match first
+    for drug_dict in cpic_drug_list:
+        cpic_name = drug_dict.get("name", "").upper().strip()
+        if normalized_drug == cpic_name:
+            logger.info(f"Exact match found in CPIC list: '{drug_name}' -> '{drug_dict['name']}'")
+            return (drug_dict["name"], drug_dict, 100.0)
+    
+    # Try normalized match (remove common suffixes)
+    normalized_base = normalized_drug
+    for suffix in [" SODIUM", " HCL", " HYDROCHLORIDE", " SULFATE", " PHOSPHATE", " ODT"]:
+        if normalized_base.endswith(suffix):
+            normalized_base = normalized_base[:-len(suffix)].strip()
+            break
+    
+    for drug_dict in cpic_drug_list:
+        cpic_name = drug_dict.get("name", "").upper().strip()
+        cpic_base = cpic_name
+        for suffix in [" SODIUM", " HCL", " HYDROCHLORIDE", " SULFATE", " PHOSPHATE", " ODT"]:
+            if cpic_base.endswith(suffix):
+                cpic_base = cpic_base[:-len(suffix)].strip()
+                break
+        
+        if normalized_base == cpic_base:
+            logger.info(f"Normalized match found in CPIC list: '{drug_name}' -> '{drug_dict['name']}'")
+            return (drug_dict["name"], drug_dict, 98.0)
+    
+    # Try substring match (drug name contains CPIC name or vice versa)
+    for drug_dict in cpic_drug_list:
+        cpic_name = drug_dict.get("name", "").upper().strip()
+        
+        # Check if main drug word matches
+        if drug_words:
+            main_word = drug_words[0]  # First word is usually the drug name
+            if main_word in cpic_name or cpic_name.startswith(main_word):
+                logger.info(f"Substring match found in CPIC list: '{drug_name}' -> '{drug_dict['name']}'")
+                return (drug_dict["name"], drug_dict, 96.0)
+    
+    return None
+
+
+def suggest_google_search(drug_name: str, matched_cpic_name: str, fuzzy_score: float) -> str:
+    """
+    Generate a Google search suggestion for manual review of low-score matches.
+    
+    Parameters:
+    -----------
+    drug_name : str
+        Original drug name
+    matched_cpic_name : str
+        Matched CPIC drug name
+    fuzzy_score : float
+        Fuzzy match score
+        
+    Returns:
+    --------
+    str
+        Google search URL for manual review
+    """
+    query = f"{drug_name} CPIC pharmacogenomics {matched_cpic_name}"
+    google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+    return google_url
+
+
+def validate_fuzzy_matches(validation_file: Path, min_score: float = 95.0) -> None:
+    """
+    Validate that all fuzzy matches in the validation file meet the minimum score threshold.
+    
+    Parameters:
+    -----------
+    validation_file : Path
+        Path to CSV file containing fuzzy match validation data
+    min_score : float
+        Minimum acceptable fuzzy match score (default: 95.0)
+        
+    Raises:
+    -------
+    ValueError
+        If any fuzzy match score is below the minimum threshold
+    """
+    if not validation_file.exists():
+        return  # No validation file means no fuzzy matches to validate
+    
+    try:
+        df = pd.read_csv(validation_file)
+        if df.empty:
+            return
+        
+        # Check if score column exists
+        if 'fuzzy_score' not in df.columns:
+            return
+        
+        # Find matches below threshold
+        low_scores = df[df['fuzzy_score'] < min_score]
+        
+        if not low_scores.empty:
+            error_msg = (
+                f"ERROR: Found {len(low_scores)} fuzzy matches below {min_score}% threshold:\n"
+            )
+            for _, row in low_scores.iterrows():
+                error_msg += (
+                    f"  '{row['drug_name']}' -> '{row['cpic_drug_name']}' "
+                    f"(score: {row['fuzzy_score']:.1f})\n"
+                )
+            error_msg += (
+                f"\nPlease review and fix matches in: {validation_file}\n"
+                f"Or adjust the threshold if these matches are acceptable."
+            )
+            raise ValueError(error_msg)
+    except pd.errors.EmptyDataError:
+        return
+    except Exception as e:
+        if isinstance(e, ValueError):
+            raise
+        # If file exists but can't be read, log warning but don't fail
+        logger.warning(f"Could not validate fuzzy matches from {validation_file}: {e}")
+
+
+def load_global_drug_mapping() -> Optional[pd.DataFrame]:
+    """
+    Load global drug-to-CPIC mapping table if it exists.
+    
+    Returns:
+    --------
+    Optional[pd.DataFrame]
+        DataFrame with drug_name, cpic_drug_name, fuzzy_score, match_method columns, or None if not found
+    """
+    global_mapping_path = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_global.csv"
+    if global_mapping_path.exists():
+        try:
+            df = pd.read_csv(global_mapping_path)
+            logger.info(f"Loaded global drug-to-CPIC mapping from {global_mapping_path} ({len(df)} drugs)")
+            return df
+        except Exception as e:
+            logger.warning(f"Could not load global drug mapping: {e}")
+    return None
+
+
 def map_drugs_to_genes(
     drug_names: List[str],
     output_path: Optional[Path] = None,
     rate_limit_delay: float = 0.5,
     use_fuzzy_matching: bool = True,
-    fuzzy_threshold: int = 80,
+    fuzzy_threshold: int = 95,
     use_pubmed: bool = False,
     local_only: bool = False,
+    validation_output_path: Optional[Path] = None,
+    use_global_mapping: bool = True,
 ) -> pd.DataFrame:
     """
     Map a list of drug names to relevant pharmacogenes using CPIC API.
@@ -428,9 +591,11 @@ def map_drugs_to_genes(
     use_fuzzy_matching : bool
         Whether to use fuzzy matching to find CPIC drug names
     fuzzy_threshold : int
-        Minimum similarity score (0-100) for fuzzy matching
+        Minimum similarity score (0-100) for fuzzy matching (default: 95)
     use_pubmed : bool
         Whether to search PubMed for drug-gene relationships when CPIC match not found
+    validation_output_path : Path, optional
+        Path to save fuzzy match validation CSV file (for manual review)
         
     Returns:
     --------
@@ -441,9 +606,28 @@ def map_drugs_to_genes(
     """
     logger.info(f"Mapping {len(drug_names)} drugs to genes using CPIC API...")
     
+    # Try loading global drug-to-CPIC mapping first
+    global_mapping = None
+    if use_global_mapping:
+        global_mapping = load_global_drug_mapping()
+        if global_mapping is not None:
+            logger.info("Using global drug-to-CPIC mapping table")
+            # Validate global mapping if validation file exists
+            global_validation_path = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_validation.csv"
+            if global_validation_path.exists():
+                logger.info(f"Validating global drug mapping from {global_validation_path}")
+                validate_fuzzy_matches(global_validation_path, min_score=fuzzy_threshold)
+                logger.info("✓ All global drug matches meet threshold requirements")
+    
+    # Validate existing fuzzy matches if validation file exists
+    if validation_output_path and validation_output_path.exists():
+        logger.info(f"Validating existing fuzzy matches from {validation_output_path}")
+        validate_fuzzy_matches(validation_output_path, min_score=fuzzy_threshold)
+        logger.info("✓ All fuzzy matches meet threshold requirements")
+    
     # Fetch CPIC drugs for fuzzy matching (from local Excel/JSON; avoid API in local_only mode)
     cpic_drug_list = []
-    if use_fuzzy_matching:
+    if use_fuzzy_matching and (global_mapping is None or not use_global_mapping):
         logger.info("Loading CPIC drug list for fuzzy matching...")
         cpic_drug_list = load_cpic_drug_list_from_file()
 
@@ -458,20 +642,82 @@ def map_drugs_to_genes(
     mappings = []
     found_count = 0
     fuzzy_matched_count = 0
+    fuzzy_matches_for_validation = []  # Store all fuzzy matches for validation file
     
     for drug_name in drug_names:
         logger.debug(f"Processing drug: {drug_name}")
         
-        # Try fuzzy matching first if enabled
+        # Try global mapping first if available
         matched_drug_info = None
         matched_cpic_name = drug_name
         
-        if use_fuzzy_matching and cpic_drug_list:
+        if global_mapping is not None:
+            global_match = global_mapping[global_mapping['drug_name'] == drug_name]
+            if not global_match.empty:
+                matched_cpic_name = global_match.iloc[0]['cpic_drug_name']
+                fuzzy_score = global_match.iloc[0].get('fuzzy_score', 100.0)
+                match_method = global_match.iloc[0].get('match_method', 'global_mapping')
+                
+                logger.info(f"Using global mapping: '{drug_name}' -> '{matched_cpic_name}' (method: {match_method}, score: {fuzzy_score:.1f})")
+                
+                # Load drug info from CPIC list if available
+                if cpic_drug_list:
+                    for drug_dict in cpic_drug_list:
+                        if drug_dict.get("name", "").upper() == matched_cpic_name.upper():
+                            matched_drug_info = drug_dict
+                            break
+                
+                # Store for validation file
+                fuzzy_matches_for_validation.append({
+                    'drug_name': drug_name,
+                    'cpic_drug_name': matched_cpic_name,
+                    'fuzzy_score': fuzzy_score,
+                    'needs_review': fuzzy_score < 95.0
+                })
+                
+                # Use the matched CPIC name for API queries
+                search_name = matched_cpic_name
+                
+                # Continue to gene mapping below
+            else:
+                logger.debug(f"No global mapping found for '{drug_name}', using fuzzy matching")
+        
+        # Try fuzzy matching if no global mapping found
+        if matched_cpic_name == drug_name and use_fuzzy_matching and cpic_drug_list:
             fuzzy_match = fuzzy_match_drug(drug_name, cpic_drug_list, threshold=fuzzy_threshold)
             if fuzzy_match:
-                matched_cpic_name, matched_drug_info = fuzzy_match
+                matched_cpic_name, matched_drug_info, fuzzy_score = fuzzy_match
                 fuzzy_matched_count += 1
-                logger.info(f"Fuzzy matched '{drug_name}' -> '{matched_cpic_name}'")
+                
+                # If score is below 95%, try searching CPIC drug list JSON for better match
+                if fuzzy_score < 95.0:
+                    logger.warning(
+                        f"Low fuzzy match score ({fuzzy_score:.1f}) for '{drug_name}' -> '{matched_cpic_name}'. "
+                        f"Searching CPIC drug list for better match..."
+                    )
+                    better_match = search_cpic_drug_list_json(drug_name, cpic_drug_list)
+                    if better_match:
+                        matched_cpic_name, matched_drug_info, better_score = better_match
+                        logger.info(
+                            f"Found better match in CPIC list: '{drug_name}' -> '{matched_cpic_name}' "
+                            f"(score: {better_score:.1f})"
+                        )
+                        fuzzy_score = better_score
+                    else:
+                        # Suggest Google search for manual review
+                        google_url = suggest_google_search(drug_name, matched_cpic_name, fuzzy_score)
+                        logger.warning(
+                            f"No better match found. Please review manually: {google_url}"
+                        )
+                
+                logger.info(f"Fuzzy matched '{drug_name}' -> '{matched_cpic_name}' (score: {fuzzy_score:.1f})")
+                # Store for validation file
+                fuzzy_matches_for_validation.append({
+                    'drug_name': drug_name,
+                    'cpic_drug_name': matched_cpic_name,
+                    'fuzzy_score': fuzzy_score,
+                    'needs_review': fuzzy_score < 95.0
+                })
         
         # Use the matched CPIC name for API queries
         search_name = matched_cpic_name if matched_cpic_name != drug_name else drug_name
@@ -490,14 +736,14 @@ def map_drugs_to_genes(
                 for gene_symbol in gene_symbols:
                     if gene_symbol:
                         mappings.append({
-                            "drug_name": drug_name,  # Original name
-                            "cpic_drug_name": matched_cpic_name,  # Matched CPIC name
+                            "drug_name": drug_name,  # Original name (for joining with patient data)
+                            "cpic_drug_name": matched_cpic_name,  # CPIC name (for joining with CPIC data)
                             "gene": gene_symbol,
                             "gene_name": "",
                             "relationship_type": "metabolism",
                             "evidence_level": "CPIC",
                             "clinical_significance": "",
-                            "cpic_level": "",
+                            "cpic_level": matched_drug_info.get("cpic_levels", [""])[0] if matched_drug_info.get("cpic_levels") else "",
                             "guideline_id": "",
                             "guideline_url": "",
                             "source": "CPIC_PAIRS_FUZZY_MATCHED"
@@ -571,8 +817,8 @@ def map_drugs_to_genes(
                 if not drug_rows.empty:
                     for _, row in drug_rows.iterrows():
                         mappings.append({
-                            "drug_name": drug_name,  # Original name
-                            "cpic_drug_name": row['Drug'],  # CPIC name
+                            "drug_name": drug_name,  # Original name (for joining with patient data)
+                            "cpic_drug_name": row['Drug'],  # CPIC name (for joining with CPIC data)
                             "gene": row['Gene'],
                             "gene_name": "",
                             "relationship_type": "metabolism",
@@ -632,8 +878,8 @@ def map_drugs_to_genes(
                     clinical_significance = guideline.get("summary", "")
                 
                 mappings.append({
-                    "drug_name": drug_name,  # Original name
-                    "cpic_drug_name": drug_display_name,  # CPIC name (may differ)
+                    "drug_name": drug_name,  # Original name (for joining with patient data)
+                    "cpic_drug_name": drug_display_name,  # CPIC name (for joining with CPIC data)
                     "gene": gene_symbol,
                     "gene_name": gene_name,
                     "relationship_type": relationship_type,
@@ -657,8 +903,8 @@ def map_drugs_to_genes(
                 
                 for gene_symbol in gene_symbols:
                     mappings.append({
-                        "drug_name": drug_name,  # Original name
-                        "cpic_drug_name": drug_info.get("name", search_name),  # CPIC name
+                        "drug_name": drug_name,  # Original name (for joining with patient data)
+                        "cpic_drug_name": drug_info.get("name", search_name),  # CPIC name (for joining with CPIC data)
                         "gene": gene_symbol,
                         "gene_name": "",
                         "relationship_type": "metabolism",
@@ -680,6 +926,12 @@ def map_drugs_to_genes(
         if use_fuzzy_matching:
             logger.info(f"Fuzzy matched {fuzzy_matched_count} drugs")
         logger.info(f"Total drug-gene mappings: {len(mappings_df)}")
+        
+        # Ensure cpic_drug_name is always populated (use drug_name as fallback)
+        if 'cpic_drug_name' not in mappings_df.columns:
+            mappings_df['cpic_drug_name'] = mappings_df['drug_name']
+        else:
+            mappings_df['cpic_drug_name'] = mappings_df['cpic_drug_name'].fillna(mappings_df['drug_name'])
     else:
         logger.warning("No CPIC guidelines found for any drugs")
         mappings_df = pd.DataFrame(columns=[
@@ -687,6 +939,18 @@ def map_drugs_to_genes(
             "evidence_level", "clinical_significance", "cpic_level",
             "guideline_id", "guideline_url", "source"
         ])
+    
+    # Save fuzzy match validation file
+    if validation_output_path and fuzzy_matches_for_validation:
+        validation_df = pd.DataFrame(fuzzy_matches_for_validation)
+        validation_path = Path(validation_output_path)
+        validation_path.parent.mkdir(parents=True, exist_ok=True)
+        validation_df.to_csv(validation_path, index=False)
+        logger.info(f"Saved fuzzy match validation file to {validation_path}")
+        
+        # Validate all matches meet threshold
+        validate_fuzzy_matches(validation_path, min_score=fuzzy_threshold)
+        logger.info(f"✓ All {len(fuzzy_matches_for_validation)} fuzzy matches meet {fuzzy_threshold}% threshold")
     
     # Save to file if output path provided
     if output_path:
@@ -845,15 +1109,22 @@ def main():
             f"{args.cohort}_{args.age_band.replace('-', '_')}_drug_gene_mappings.csv"
         )
     
+    # Set validation output path
+    validation_output_path = None
+    if args.output:
+        output_path = Path(args.output)
+        validation_output_path = output_path.parent / f"{output_path.stem}_fuzzy_validation.csv"
+    
     # Map drugs to genes
     mappings = map_drugs_to_genes(
         drug_names=args.drugs,
         output_path=args.output,
         rate_limit_delay=0.0,
         use_fuzzy_matching=True,
-        fuzzy_threshold=80,
+        fuzzy_threshold=95,
         use_pubmed=False,
         local_only=True,
+        validation_output_path=validation_output_path,
     )
     
     print(f"\nMapped {len(mappings)} drug-gene relationships")

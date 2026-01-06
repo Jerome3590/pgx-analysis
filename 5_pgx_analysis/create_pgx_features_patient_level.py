@@ -252,22 +252,48 @@ def create_patient_pgx_features(
         return features_df
     
     # Merge patient drugs with drug-gene mappings
+    # Use drug_name for joining with patient data, but keep cpic_drug_name for CPIC data joins
+    mapping_cols = ['drug_name', 'cpic_drug_name', 'gene']
+    if 'cpic_drug_name' not in drug_gene_mappings.columns:
+        # Fallback: if cpic_drug_name doesn't exist, create it from drug_name
+        drug_gene_mappings['cpic_drug_name'] = drug_gene_mappings['drug_name']
+    
     patient_pgx = patient_drugs_df.merge(
-        drug_gene_mappings[['drug_name', 'gene']].drop_duplicates(),
+        drug_gene_mappings[mapping_cols].drop_duplicates(),
         on='drug_name',
         how='left'
     )
     
     # Merge with allele frequencies
-    patient_pgx = patient_pgx.merge(
-        allele_frequencies[
-            ['gene', 'allele_frequency_global', 'allele_frequency_afr',
-             'allele_frequency_amr', 'allele_frequency_eas', 'allele_frequency_eur',
-             'allele_frequency_sas']
-        ],
-        on='gene',
-        how='left'
-    )
+    # Allele frequencies should use cpic_drug_name for joining with CPIC data
+    freq_cols = ['gene', 'allele_frequency_global', 'allele_frequency_afr',
+                 'allele_frequency_amr', 'allele_frequency_eas', 'allele_frequency_eur',
+                 'allele_frequency_sas']
+    
+    # If allele frequencies have cpic_drug_name, use it for joining
+    if 'cpic_drug_name' in allele_frequencies.columns and 'cpic_drug_name' in patient_pgx.columns:
+        # Join on both gene and cpic_drug_name for more accurate matching
+        patient_pgx = patient_pgx.merge(
+            allele_frequencies[freq_cols + ['cpic_drug_name']],
+            on=['gene', 'cpic_drug_name'],
+            how='left'
+        )
+        # Fallback: if no match on cpic_drug_name, try gene only
+        missing_mask = patient_pgx['allele_frequency_global'].isna() & patient_pgx['gene'].notna()
+        if missing_mask.any():
+            patient_pgx.loc[missing_mask, freq_cols[1:]] = patient_pgx.loc[missing_mask].merge(
+                allele_frequencies[freq_cols],
+                on='gene',
+                how='left',
+                suffixes=('', '_fallback')
+            )[freq_cols[1:]]
+    else:
+        # Fallback: join on gene only
+        patient_pgx = patient_pgx.merge(
+            allele_frequencies[freq_cols],
+            on='gene',
+            how='left'
+        )
     
     # Aggregate to patient level
     # Filter to only drug-gene pairs that have mappings (gene is not null)
