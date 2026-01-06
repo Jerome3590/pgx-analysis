@@ -3,9 +3,12 @@
 Module-style orchestration script for PGx feature engineering.
 
 This script runs the complete PGx workflow:
-1. Map drugs to genes (cohort-level, reused across age bands)
-2. Create PGx features (using global/cohort-level allele frequency cache)
-3. Add PGx features to model data
+1. Create PGx features (drug counts using global drug-to-CPIC mapping)
+2. Add PGx features to model data
+
+Features created:
+- pgx_num_drugs: Total number of unique drugs per patient
+- pgx_num_cpic_drugs: Number of CPIC drugs per patient
 
 Usage:
     python 5_pgx_analysis/run_analysis.py --cohort-name opioid_ed --age-band 0-12
@@ -98,13 +101,16 @@ def map_drugs_to_genes(
     logger: logging.Logger,
 ) -> None:
     """
-    Step 1: Map cohort drugs to genes (if mappings do not already exist).
+    Step 1: Map cohort drugs to genes (optional, for building global drug-to-CPIC mapping).
 
     NOTE: Drug→gene mappings are **not age-band specific**. We therefore create
     ONE mapping file per cohort and reuse it across all age bands.
     
     This function is idempotent: it checks local files first, then S3 (global cache,
     cohort-level, legacy age-band), and only generates if none exist.
+    
+    Note: This step is optional for the simplified workflow. The main workflow uses
+    the global drug-to-CPIC mapping directly from outputs/global/drug_cpic_mapping_global.csv.
     """
     with step_block("5_pgx_analysis", "map_drugs_to_genes", logger=logger):
         script_path = PROJECT_ROOT / "5_pgx_analysis" / "map_drugs_to_genes.py"
@@ -334,8 +340,6 @@ def run_pgx_analysis(
         age_band_fname = age_band.replace("-", "_")
         s3_output_paths = [
             f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv",
-            f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_drug_gene_mappings.csv",
-            f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_allele_frequencies.csv",
         ]
 
         if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("5_pgx_analysis", cohort_name, age_band, logger):
@@ -347,16 +351,19 @@ def run_pgx_analysis(
     with function_block("5_pgx_analysis", "run_pgx_analysis", logger=logger):
         logger.info("Starting PGx analysis for %s / %s", cohort_name, age_band)
 
+        # Note: Drug-to-gene mapping step is optional and only needed if building
+        # the global drug-to-CPIC mapping. For normal workflow, we use the existing
+        # global mapping from outputs/global/drug_cpic_mapping_global.csv
         if not skip_drug_mapping:
             try:
-                # Drug-to-gene mappings are cohort-level and reused across age bands.
+                # Build drug-to-gene mappings (optional, used for building global CPIC mapping)
                 map_drugs_to_genes(cohort_name, age_band, logger=logger)
             except Exception:
-                mirror_log_to_s3("5_pgx_analysis", cohort_name, age_band, log_path, logger)
-                return False
+                logger.warning("Drug mapping step failed, but continuing with feature creation")
+                # Don't fail - we can still create features if global CPIC mapping exists
         else:
             logger.info(
-                "Skipping drug mapping (using existing cohort/global mappings if present)"
+                "Skipping drug mapping step (using existing global drug-to-CPIC mapping)"
             )
 
         if not skip_feature_engineering:
@@ -396,20 +403,14 @@ def run_pgx_analysis(
             if upload_file_to_s3(pgx_features_path, s3_pgx_path, logger):
                 s3_outputs.append(s3_pgx_path)
 
-        # Upload drug-gene mappings
+        # Upload drug-gene mappings (optional, only if generated)
         cohort_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / cohort_name
         mappings_path = cohort_out_dir / f"{cohort_name}_drug_gene_mappings.csv"
         if mappings_path.exists():
             s3_mappings_path = f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_drug_gene_mappings.csv"
             if upload_file_to_s3(mappings_path, s3_mappings_path, logger):
                 s3_outputs.append(s3_mappings_path)
-
-        # Upload allele frequencies
-        freq_path = cohort_out_dir / f"{cohort_name}_allele_frequencies.csv"
-        if freq_path.exists():
-            s3_freq_path = f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_allele_frequencies.csv"
-            if upload_file_to_s3(freq_path, s3_freq_path, logger):
-                s3_outputs.append(s3_freq_path)
+                logger.info("Uploaded drug-gene mappings (optional output)")
 
         # Save checkpoint
         save_step_checkpoint(
@@ -446,7 +447,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--skip-drug-mapping",
         action="store_true",
-        help="Skip drug-to-gene mapping step (assumes mappings already exist)",
+        help="Skip drug-to-gene mapping step (optional, only needed for building global CPIC mapping)",
     )
     parser.add_argument(
         "--skip-feature-engineering",
