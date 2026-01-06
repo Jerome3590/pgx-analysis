@@ -1,8 +1,9 @@
 """
-Efficient Parquet-based SHAP value loader using PyArrow.
+Efficient Parquet-based SHAP value loader using DuckDB.
 
-This module provides optimized loading of SHAP values from Parquet files,
-supporting both full loading and lazy/on-demand access patterns.
+This module provides optimized loading of SHAP values from Parquet files
+using DuckDB for efficient columnar queries without loading entire files into memory.
+Only converts to pandas at the final step for compatibility.
 """
 
 import logging
@@ -10,53 +11,66 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 import pandas as pd
 
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
 class ShapParquetLoader:
     """
-    Efficient loader for SHAP values stored in Parquet format.
+    Efficient loader for SHAP values stored in Parquet format using DuckDB.
     
-    Supports both full loading (pandas DataFrame) and lazy loading (PyArrow Table)
-    for memory-efficient access to large SHAP value files.
+    Uses DuckDB to query Parquet files directly without loading entire files into memory.
+    Only converts to pandas at the final step for compatibility with existing code.
     """
     
-    def __init__(self, parquet_path: Union[str, Path], lazy: bool = False):
+    def __init__(self, parquet_path: Union[str, Path]):
         """
-        Initialize SHAP Parquet loader.
+        Initialize SHAP Parquet loader with DuckDB.
         
         Args:
             parquet_path: Path to Parquet file containing SHAP values
-            lazy: If True, use PyArrow Table for lazy loading (memory efficient)
-                  If False, load into pandas DataFrame (faster access, more memory)
         """
+        if not DUCKDB_AVAILABLE:
+            raise ImportError("DuckDB is required for efficient Parquet access. Install with: pip install duckdb")
+        
         self.parquet_path = Path(parquet_path)
-        self.lazy = lazy
-        self._table = None
-        self._df = None
+        self._conn = None
         self._metadata = None
         
         if not self.parquet_path.exists():
             raise FileNotFoundError(f"SHAP Parquet file not found: {self.parquet_path}")
         
+        # Initialize DuckDB connection
+        self._conn = duckdb.connect()
+        
         # Load metadata immediately (fast, no data loading)
         self._load_metadata()
     
     def _load_metadata(self):
-        """Load Parquet file metadata without loading data."""
+        """Load Parquet file metadata using DuckDB (fast, no data loading)."""
         try:
-            import pyarrow.parquet as pq
-            parquet_file = pq.ParquetFile(self.parquet_path)
+            # Use DuckDB to get metadata without loading data
+            result = self._conn.execute(f"""
+                SELECT COUNT(*) as num_rows
+                FROM read_parquet('{self.parquet_path}')
+            """).fetchone()
+            
+            # Get column names
+            result_cols = self._conn.execute(f"""
+                DESCRIBE SELECT * FROM read_parquet('{self.parquet_path}')
+            """).fetchall()
+            
             self._metadata = {
-                'num_rows': parquet_file.metadata.num_rows,
-                'num_columns': len(parquet_file.schema),
-                'schema': parquet_file.schema,
-                'column_names': parquet_file.schema.names
+                'num_rows': result[0] if result else 0,
+                'num_columns': len(result_cols),
+                'column_names': [col[0] for col in result_cols]
             }
             logger.debug(f"Parquet metadata: {self._metadata['num_rows']} rows, {self._metadata['num_columns']} columns")
-        except ImportError:
-            logger.warning("PyArrow not available, cannot load metadata")
-            self._metadata = None
         except Exception as e:
             logger.warning(f"Could not load Parquet metadata: {e}")
             self._metadata = None
@@ -66,136 +80,144 @@ class ShapParquetLoader:
         """Number of rows (instances) in the Parquet file."""
         if self._metadata:
             return self._metadata['num_rows']
-        elif self._df is not None:
-            return len(self._df)
         else:
-            # Fallback: load just to get row count
-            return len(self.to_pandas())
+            # Query DuckDB directly
+            result = self._conn.execute(f"""
+                SELECT COUNT(*) FROM read_parquet('{self.parquet_path}')
+            """).fetchone()
+            return result[0] if result else 0
     
     @property
     def num_columns(self) -> int:
         """Number of columns (features) in the Parquet file."""
         if self._metadata:
             return self._metadata['num_columns']
-        elif self._df is not None:
-            return len(self._df.columns)
         else:
-            return len(self.to_pandas().columns)
+            result = self._conn.execute(f"""
+                DESCRIBE SELECT * FROM read_parquet('{self.parquet_path}')
+            """).fetchall()
+            return len(result)
     
     @property
     def column_names(self) -> list:
         """Column names (feature names) in the Parquet file."""
         if self._metadata:
             return self._metadata['column_names']
-        elif self._df is not None:
-            return list(self._df.columns)
         else:
-            return list(self.to_pandas().columns)
+            result = self._conn.execute(f"""
+                DESCRIBE SELECT * FROM read_parquet('{self.parquet_path}')
+            """).fetchall()
+            return [col[0] for col in result]
     
     def to_pandas(self) -> pd.DataFrame:
         """
-        Load SHAP values into a pandas DataFrame.
+        Load SHAP values into a pandas DataFrame (only for final output).
+        
+        This should only be called when you need the full DataFrame.
+        For individual row access, use get_row() instead.
         
         Returns:
             DataFrame with SHAP values, indexed by instance index
         """
-        if self._df is not None:
-            return self._df
+        # Use DuckDB to read Parquet and convert to pandas
+        df = self._conn.execute(f"""
+            SELECT * FROM read_parquet('{self.parquet_path}')
+        """).df()
         
-        try:
-            import pyarrow.parquet as pq
-            
-            # Use PyArrow for efficient loading
-            table = pq.read_table(self.parquet_path)
-            self._df = table.to_pandas()
-            
-            # Ensure index is set properly (should be instance indices)
-            if self._df.index.name is None and self._df.index.dtype == 'int64':
-                self._df.index.name = 'instance_index'
-            
-            logger.info(f"Loaded SHAP values into pandas DataFrame: {len(self._df)} rows, {len(self._df.columns)} columns")
-            return self._df
-            
-        except ImportError:
-            # Fallback to pandas if PyArrow not available
-            logger.info("PyArrow not available, using pandas.read_parquet")
-            self._df = pd.read_parquet(self.parquet_path)
-            
-            if self._df.index.name is None and self._df.index.dtype == 'int64':
-                self._df.index.name = 'instance_index'
-            
-            return self._df
+        # Set index if first column looks like an index
+        if df.index.name is None and len(df) > 0:
+            # Check if first column is integer index
+            first_col = df.columns[0]
+            if first_col.lower() in ['index', 'instance_index', 'row_number'] or df[first_col].dtype == 'int64':
+                df = df.set_index(first_col)
+                df.index.name = 'instance_index'
+        
+        logger.info(f"Loaded SHAP values into pandas DataFrame: {len(df)} rows, {len(df.columns)} columns")
+        return df
     
-    def get_row(self, instance_index: int) -> Dict[str, float]:
+    def get_row(self, instance_index: int, index_column: Optional[str] = None) -> Dict[str, float]:
         """
-        Get SHAP values for a specific instance (lazy loading).
+        Get SHAP values for a specific instance using DuckDB (efficient, no full load).
         
         Args:
             instance_index: Index of the instance to retrieve
+            index_column: Name of the index column (if None, uses row_number)
             
         Returns:
             Dictionary mapping feature_name -> SHAP value
         """
-        if self.lazy and self._table is None:
-            # Lazy loading: use PyArrow to read only the specific row
-            try:
-                import pyarrow.parquet as pq
-                
-                # Read only the specific row
-                table = pq.read_table(
-                    self.parquet_path,
-                    use_pandas_metadata=True
-                )
-                
-                # Convert to pandas for row access
-                df = table.to_pandas()
-                
-                # Get the row
-                if instance_index in df.index:
-                    row = df.loc[instance_index]
-                elif instance_index < len(df):
-                    row = df.iloc[instance_index]
-                else:
-                    raise IndexError(f"Instance index {instance_index} out of range")
-                
-                return row.to_dict()
-                
-            except ImportError:
-                # Fallback: load full DataFrame
-                logger.warning("PyArrow not available for lazy loading, loading full DataFrame")
-                return self.to_pandas().loc[instance_index].to_dict()
+        # Use DuckDB to query only the specific row
+        if index_column:
+            # If we know the index column name, use it
+            query = f"""
+                SELECT * FROM read_parquet('{self.parquet_path}')
+                WHERE {index_column} = {instance_index}
+            """
         else:
-            # Use cached DataFrame
-            df = self.to_pandas()
-            if instance_index in df.index:
-                return df.loc[instance_index].to_dict()
-            elif instance_index < len(df):
-                return df.iloc[instance_index].to_dict()
-            else:
-                raise IndexError(f"Instance index {instance_index} out of range")
+            # Use row_number() for positional access
+            query = f"""
+                SELECT * FROM (
+                    SELECT *, ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 as row_idx
+                    FROM read_parquet('{self.parquet_path}')
+                ) WHERE row_idx = {instance_index}
+            """
+        
+        result = self._conn.execute(query).df()
+        
+        if len(result) == 0:
+            raise IndexError(f"Instance index {instance_index} not found in SHAP values")
+        
+        # Convert single row to dict (exclude row_idx if present)
+        row = result.iloc[0]
+        if 'row_idx' in row.index:
+            row = row.drop('row_idx')
+        
+        return row.to_dict()
     
-    def get_rows(self, instance_indices: list) -> pd.DataFrame:
+    def get_rows(self, instance_indices: list, index_column: Optional[str] = None) -> pd.DataFrame:
         """
-        Get SHAP values for multiple instances (batch loading).
+        Get SHAP values for multiple instances using DuckDB (efficient batch loading).
         
         Args:
             instance_indices: List of instance indices to retrieve
+            index_column: Name of the index column (if None, uses row_number)
             
         Returns:
             DataFrame with SHAP values for the requested instances
         """
-        df = self.to_pandas()
+        if not instance_indices:
+            return pd.DataFrame()
         
-        # Filter to requested indices
-        if all(idx in df.index for idx in instance_indices):
-            return df.loc[instance_indices]
+        # Use DuckDB to query only the requested rows
+        indices_str = ','.join(map(str, instance_indices))
+        
+        if index_column:
+            query = f"""
+                SELECT * FROM read_parquet('{self.parquet_path}')
+                WHERE {index_column} IN ({indices_str})
+            """
         else:
-            # Use positional access if index doesn't match
-            return df.iloc[instance_indices]
+            # Use row_number() for positional access
+            query = f"""
+                SELECT * FROM (
+                    SELECT *, ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 as row_idx
+                    FROM read_parquet('{self.parquet_path}')
+                ) WHERE row_idx IN ({indices_str})
+            """
+        
+        result = self._conn.execute(query).df()
+        
+        # Remove row_idx if present
+        if 'row_idx' in result.columns:
+            result = result.drop(columns=['row_idx'])
+        
+        return result
     
     def get_column(self, feature_name: str) -> pd.Series:
         """
-        Get SHAP values for a specific feature across all instances (columnar access).
+        Get SHAP values for a specific feature across all instances using DuckDB (columnar access).
+        
+        This is very efficient as it only reads one column from Parquet.
         
         Args:
             feature_name: Name of the feature column
@@ -203,35 +225,56 @@ class ShapParquetLoader:
         Returns:
             Series with SHAP values for this feature across all instances
         """
-        df = self.to_pandas()
-        if feature_name not in df.columns:
+        # Use DuckDB to read only the specific column (very efficient)
+        result = self._conn.execute(f"""
+            SELECT {feature_name} FROM read_parquet('{self.parquet_path}')
+        """).df()
+        
+        if feature_name not in result.columns:
             raise KeyError(f"Feature '{feature_name}' not found in SHAP values")
-        return df[feature_name]
+        
+        return result[feature_name]
     
     def __len__(self) -> int:
         """Return number of rows."""
         return self.num_rows
     
     def __repr__(self) -> str:
-        return f"ShapParquetLoader(path={self.parquet_path}, lazy={self.lazy}, rows={self.num_rows}, cols={self.num_columns})"
+        return f"ShapParquetLoader(path={self.parquet_path}, rows={self.num_rows}, cols={self.num_columns})"
+    
+    def close(self):
+        """Close DuckDB connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
 
 
-def load_shap_parquet(parquet_path: Union[str, Path], lazy: bool = False) -> Union[ShapParquetLoader, pd.DataFrame]:
+def load_shap_parquet(parquet_path: Union[str, Path], return_loader: bool = False) -> Union[ShapParquetLoader, pd.DataFrame]:
     """
     Convenience function to load SHAP values from Parquet file.
     
     Args:
         parquet_path: Path to Parquet file
-        lazy: If True, return ShapParquetLoader for lazy access
-              If False, return pandas DataFrame (full load)
+        return_loader: If True, return ShapParquetLoader for efficient access
+                      If False, return pandas DataFrame (full load, only for final output)
     
     Returns:
-        ShapParquetLoader if lazy=True, pandas DataFrame if lazy=False
+        ShapParquetLoader if return_loader=True, pandas DataFrame if return_loader=False
     """
-    loader = ShapParquetLoader(parquet_path, lazy=lazy)
+    loader = ShapParquetLoader(parquet_path)
     
-    if lazy:
+    if return_loader:
         return loader
     else:
-        return loader.to_pandas()
+        df = loader.to_pandas()
+        loader.close()
+        return df
 
