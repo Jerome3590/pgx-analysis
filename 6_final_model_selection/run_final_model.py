@@ -915,6 +915,39 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
             pgx_path = candidate
             break
     
+    # If not found locally, try downloading from S3
+    if pgx_path is None:
+        # Primary S3 location: gold/pgx_features/
+        s3_key_candidates = [
+            f"gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band_fname}.csv",
+            # Legacy S3 location: gold/feature_engineering/7_pgx/
+            f"gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band_fname}.csv",
+        ]
+        
+        # Try to download from S3 to primary local location
+        download_dest = pgx_path_candidates[0]
+        download_dest.parent.mkdir(parents=True, exist_ok=True)
+        
+        for s3_key in s3_key_candidates:
+            try:
+                # Check if file exists in S3
+                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                s3_path = f"s3://{S3_BUCKET}/{s3_key}"
+                
+                print(f"PGx features not found locally. Downloading from S3: {s3_path}")
+                s3_client.download_file(S3_BUCKET, s3_key, str(download_dest))
+                print(f"✓ Downloaded PGx features to {download_dest}")
+                pgx_path = download_dest
+                break
+            except s3_client.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] in ["404", "NoSuchKey"]:
+                    continue
+                print(f"Warning: Could not check/download PGx features from {s3_key}: {e}")
+                continue
+            except Exception as e:
+                print(f"Warning: Error downloading PGx features from {s3_key}: {e}")
+                continue
+    
     # Default to primary location if none found (will be checked by _load_feature_table)
     if pgx_path is None:
         pgx_path = pgx_path_candidates[0]
