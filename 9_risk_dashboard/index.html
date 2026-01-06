@@ -480,6 +480,59 @@
       </div>
     </div>
 
+    <!-- Feature Interactions Tab -->
+    <div id="interactions-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Analyze multi-feature interactions to identify synergies and antagonisms between features.
+        <br>
+        <small style="color: #64748b;">Shows how combinations of features interact beyond their individual effects.</small>
+      </p>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="max-interaction-size">Max Interaction Size:</label>
+          <select id="max-interaction-size">
+            <option value="2">Pairs (2 features)</option>
+            <option value="3">Triplets (3 features)</option>
+            <option value="4">Quadruplets (4 features)</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="synergy-filter">Filter by Synergy:</label>
+          <select id="synergy-filter">
+            <option value="all">All Interactions</option>
+            <option value="positive">Positive Synergies</option>
+            <option value="negative">Antagonisms</option>
+            <option value="neutral">Neutral</option>
+          </select>
+        </div>
+
+        <div class="control-group full-width">
+          <button id="btnAnalyzeInteractions">Analyze Interactions</button>
+          <button id="btnResetInteractions" class="button-secondary">Reset</button>
+        </div>
+      </div>
+
+      <div id="interactions-status" class="status-message">Click 'Analyze Interactions' to view feature interactions</div>
+
+      <div class="panels">
+        <div class="panel">
+          <h2>Interaction Matrix</h2>
+          <div id="interaction-matrix-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>Top Interactions</h2>
+          <div id="top-interactions-table"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Interaction Network</h2>
+        <div id="interaction-network-chart"></div>
+      </div>
+    </div>
+
     <!-- PGx Patient Card Tab -->
     <div id="pgx-card-tab" class="tab-content" style="display: none;">
       <p class="subtitle">

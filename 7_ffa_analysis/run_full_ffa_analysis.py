@@ -20,7 +20,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Tuple
+from itertools import combinations
 from collections import Counter, defaultdict
 import warnings
 import argparse
@@ -917,9 +918,225 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
         return pd.DataFrame()
 
 
+def perform_multi_feature_causal_analysis(
+    explainer: Any,
+    X: pd.DataFrame,
+    y: np.ndarray,
+    feature_importance_df: pd.DataFrame,
+    causal_df: pd.DataFrame,
+    cohort: str,
+    age_band: str
+) -> pd.DataFrame:
+    """
+    Perform causal analysis testing multi-feature interactions.
+    
+    Tests combinations of features (pairs, triplets, etc.) to measure
+    their combined causal effect and detect synergies/antagonisms.
+    
+    Args:
+        explainer: FFA explainer instance
+        X: Feature matrix
+        y: Target vector
+        feature_importance_df: Feature importance from AXP
+        causal_df: Univariate causal analysis results (for individual effects)
+        cohort: Cohort name
+        age_band: Age band
+    
+    Returns:
+        DataFrame with columns:
+        - feature_combination: String representation of feature tuple (e.g., "drug_A|drug_B")
+        - interaction_size: Number of features in combination (2, 3, etc.)
+        - combined_causal_importance: Combined causal effect when all features are modified
+        - sum_individual_effects: Sum of individual univariate effects
+        - interaction_effect: Difference (combined - individual), measures synergy/antagonism
+        - n_instances_tested: Number of instances tested
+        - explanation_change_rate: Fraction of explanations that changed
+    """
+    if not ANALYSIS_CONFIG.get('enable_interaction_analysis', False):
+        logger.info("Multi-feature interaction analysis is disabled. Set enable_interaction_analysis=True to enable.")
+        return pd.DataFrame()
+    
+    logger.info("Performing multi-feature interaction causal analysis...")
+    start_time = time.time()
+    
+    print(f"\n{'='*80}")
+    print("Performing Multi-Feature Interaction Analysis")
+    print(f"{'='*80}\n")
+    
+    # Filter to target class
+    logger.info(f"Filtering to target class {ANALYSIS_CONFIG['target_class']}...")
+    mask = (y == ANALYSIS_CONFIG['target_class'])
+    X_class = X[mask].reset_index(drop=True)
+    y_class = y[mask]
+    
+    # Get top K features from causal analysis (by causal importance)
+    max_interaction_size = ANALYSIS_CONFIG.get('max_interaction_size', 2)
+    top_k = ANALYSIS_CONFIG.get('interaction_top_k', 20)
+    sample_size = ANALYSIS_CONFIG.get('interaction_sample_size', 100)
+    min_effect = ANALYSIS_CONFIG.get('min_interaction_effect', 0.01)
+    
+    if causal_df.empty:
+        logger.warning("No univariate causal results available. Cannot compute interactions.")
+        print("[WARNING] No univariate causal results available. Skipping interaction analysis.")
+        return pd.DataFrame()
+    
+    # Select top K features by causal importance
+    top_features_df = causal_df.nlargest(top_k, 'causal_importance')
+    top_features = top_features_df['feature'].tolist()
+    
+    # Filter to features that exist in data
+    available_features = [f for f in top_features if f in X_class.columns]
+    
+    if len(available_features) < 2:
+        logger.warning(f"Not enough features ({len(available_features)}) for interaction analysis. Need at least 2.")
+        print(f"[WARNING] Not enough features for interaction analysis. Found {len(available_features)}, need at least 2.")
+        return pd.DataFrame()
+    
+    logger.info(f"Analyzing interactions for top {len(available_features)} features")
+    print(f"Analyzing interactions for top {len(available_features)} features")
+    print(f"  - Max interaction size: {max_interaction_size}")
+    print(f"  - Sample size: {sample_size}")
+    
+    # Create mapping of feature -> individual causal importance
+    individual_effects_map = dict(zip(
+        causal_df['feature'],
+        causal_df['causal_importance'],
+        strict=True
+    ))
+    
+    # Sample instances for interaction testing
+    if len(X_class) > sample_size:
+        X_sample = X_class.head(sample_size).copy()
+        y_sample = y_class[:sample_size]
+    else:
+        X_sample = X_class.copy()
+        y_sample = y_class
+    
+    interaction_results = []
+    
+    # Test interactions of size 2, 3, ..., up to max_interaction_size
+    for interaction_size in range(2, max_interaction_size + 1):
+        logger.info(f"Testing interactions of size {interaction_size}...")
+        print(f"\nTesting {interaction_size}-feature interactions...")
+        
+        # Generate all combinations of this size
+        feature_combinations = list(combinations(available_features, interaction_size))
+        logger.info(f"  Generated {len(feature_combinations)} combinations of size {interaction_size}")
+        
+        for combo_idx, feature_combo in enumerate(tqdm(feature_combinations, desc=f"Size {interaction_size}")):
+            try:
+                combo_start = time.time()
+                
+                # Calculate sum of individual effects
+                sum_individual = sum(individual_effects_map.get(f, 0.0) for f in feature_combo)
+                
+                # Create modified dataset with all features in combination modified
+                X_modified = X_sample.copy()
+                
+                for feat_name in feature_combo:
+                    # Detect if feature is binary
+                    unique_vals = X_sample[feat_name].unique()
+                    is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
+                    
+                    if is_binary:
+                        # Flip binary features
+                        X_modified[feat_name] = 1 - X_sample[feat_name]
+                    else:
+                        # Set continuous features to median
+                        median_val = X_sample[feat_name].median()
+                        X_modified[feat_name] = median_val
+                
+                # Generate original explanations
+                original_explanations = explainer.explain_dataset(
+                    X_sample,
+                    predictions=y_sample,
+                    return_df=True,
+                    show_progress=False,
+                    n_jobs=1  # Single worker to save memory
+                )
+                
+                # Generate modified explanations
+                modified_explanations = explainer.explain_dataset(
+                    X_modified,
+                    predictions=y_sample,
+                    return_df=True,
+                    show_progress=False,
+                    n_jobs=1
+                )
+                
+                # Calculate combined causal effect
+                if len(original_explanations) > 0 and len(modified_explanations) > 0:
+                    changes = sum(
+                        1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
+                        if orig != mod
+                    )
+                    combined_effect = changes / len(original_explanations)
+                    explanation_change_rate = combined_effect
+                else:
+                    combined_effect = 0.0
+                    explanation_change_rate = 0.0
+                
+                # Calculate interaction effect (synergy/antagonism)
+                interaction_effect = combined_effect - sum_individual
+                
+                # Only record if interaction effect meets minimum threshold
+                if abs(interaction_effect) >= min_effect:
+                    feature_combo_str = "|".join(sorted(feature_combo))  # Sort for consistency
+                    
+                    interaction_results.append({
+                        'feature_combination': feature_combo_str,
+                        'interaction_size': interaction_size,
+                        'combined_causal_importance': combined_effect,
+                        'sum_individual_effects': sum_individual,
+                        'interaction_effect': interaction_effect,
+                        'n_instances_tested': len(X_sample),
+                        'explanation_change_rate': explanation_change_rate,
+                        'synergy_type': 'positive' if interaction_effect > 0.01 else ('negative' if interaction_effect < -0.01 else 'neutral')
+                    })
+                
+                logger.debug(f"  Combination {combo_idx+1}/{len(feature_combinations)}: {feature_combo_str} "
+                           f"(combined={combined_effect:.3f}, individual_sum={sum_individual:.3f}, "
+                           f"interaction={interaction_effect:.3f})")
+                
+                # Cleanup
+                del X_modified
+                import gc
+                gc.collect()
+                
+            except Exception as e:
+                logger.error(f"Error analyzing combination {feature_combo}: {e}", exc_info=True)
+                continue
+    
+    if interaction_results:
+        interaction_df = pd.DataFrame(interaction_results)
+        interaction_df = interaction_df.sort_values('interaction_effect', key=abs, ascending=False)
+        
+        logger.info(f"Multi-feature interaction analysis completed: {len(interaction_df)} interactions found")
+        print(f"\n[OK] Found {len(interaction_df)} significant interactions")
+        print("\nTop interactions:")
+        print(interaction_df.head(10).to_string(index=False))
+        
+        # Summary statistics
+        positive_synergies = len(interaction_df[interaction_df['synergy_type'] == 'positive'])
+        negative_synergies = len(interaction_df[interaction_df['synergy_type'] == 'negative'])
+        neutral = len(interaction_df[interaction_df['synergy_type'] == 'neutral'])
+        
+        logger.info(f"Interaction summary: {positive_synergies} positive synergies, "
+                   f"{negative_synergies} antagonisms, {neutral} neutral")
+        print(f"\nSummary: {positive_synergies} positive synergies, {negative_synergies} antagonisms, {neutral} neutral")
+        
+        logger.info(f"Multi-feature interaction analysis total time: {time.time() - start_time:.2f} seconds")
+        return interaction_df
+    else:
+        logger.warning("No significant interactions found")
+        print("[WARNING] No significant interactions found.")
+        return pd.DataFrame()
+
+
 def save_results(model_type: str, df_axps: pd.DataFrame, 
                 feature_importance_df: pd.DataFrame, 
-                causal_df: pd.DataFrame):
+                causal_df: pd.DataFrame,
+                interaction_df: Optional[pd.DataFrame] = None):
     """Save all analysis results."""
     logger.info("Saving analysis results...")
     start_time = time.time()
@@ -951,6 +1168,28 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         print(f"[OK] Saved feature importance to: {importance_path}")
     else:
         logger.warning("No feature importance to save")
+    
+    # Save causal importance
+    causal_path = None
+    if len(causal_df) > 0:
+        causal_path = model_output_dir / 'causal_importance.csv'
+        logger.info(f"Saving causal importance to: {causal_path}")
+        causal_df.to_csv(causal_path, index=False)
+        logger.info(f"Saved {len(causal_df)} causal importance scores")
+        print(f"[OK] Saved causal importance to: {causal_path}")
+    else:
+        logger.warning("No causal importance to save")
+    
+    # Save interaction analysis results
+    interaction_path = None
+    if interaction_df is not None and len(interaction_df) > 0:
+        interaction_path = model_output_dir / 'interaction_analysis.csv'
+        logger.info(f"Saving interaction analysis to: {interaction_path}")
+        interaction_df.to_csv(interaction_path, index=False)
+        logger.info(f"Saved {len(interaction_df)} interaction results")
+        print(f"[OK] Saved interaction analysis to: {interaction_path}")
+    elif interaction_df is not None and len(interaction_df) == 0:
+        logger.info("No interaction results to save (empty DataFrame)")
 
     # Upload to S3 and save checkpoint after saving results
     try:
@@ -966,6 +1205,16 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
             s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
             if upload_file_to_s3(importance_path, s3_importance, logger):
                 s3_outputs.append(s3_importance)
+        
+        if causal_path and causal_path.exists():
+            s3_causal = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.csv"
+            if upload_file_to_s3(causal_path, s3_causal, logger):
+                s3_outputs.append(s3_causal)
+        
+        if interaction_path and interaction_path.exists():
+            s3_interaction = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/interaction_analysis.csv"
+            if upload_file_to_s3(interaction_path, s3_interaction, logger):
+                s3_outputs.append(s3_interaction)
 
         # Save checkpoint (only once per step, not per model type)
         if model_type == "xgboost":  # Save checkpoint after first model completes

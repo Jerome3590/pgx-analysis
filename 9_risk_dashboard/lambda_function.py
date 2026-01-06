@@ -891,6 +891,173 @@ def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
     raise FileNotFoundError("CPIC Excel file not found in container or S3. Please ensure cpic_gene-drug_pairs.xlsx is available.")
 
 
+def load_interaction_analysis(cohort: str, age_band: str, model_type: str = "xgboost") -> pd.DataFrame:
+    """
+    Load interaction analysis results from S3.
+    
+    Args:
+        cohort: Cohort name
+        age_band: Age band
+        model_type: Model type ('xgboost', 'catboost', 'xgboost_rf')
+    
+    Returns:
+        DataFrame with interaction analysis results, or empty DataFrame if not found
+    """
+    age_band_fname = age_band.replace("-", "_")
+    
+    # Try container filesystem first
+    if USE_CONTAINER_MODELS:
+        container_interaction_path = os.path.join(
+            MODEL_BASE_PATH,
+            "..",  # Go up from models to outputs
+            "..",
+            "7_ffa_analysis",
+            "outputs",
+            cohort,
+            age_band_fname,
+            model_type,
+            "interaction_analysis.csv"
+        )
+        if os.path.exists(container_interaction_path):
+            try:
+                return pd.read_csv(container_interaction_path)
+            except Exception as e:
+                print(f"Warning: Failed to load interaction analysis from container: {e}")
+    
+    # Fallback to S3
+    s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/interaction_analysis.csv"
+    
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        df = pd.read_csv(BytesIO(obj["Body"].read()))
+        print(f"Loaded interaction analysis from S3: s3://{S3_BUCKET}/{s3_key}")
+        return df
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404", "NotFound"):
+            print(f"Interaction analysis not found: s3://{S3_BUCKET}/{s3_key}")
+            return pd.DataFrame()
+        raise
+
+
+def filter_interactions_by_features(interaction_df: pd.DataFrame, selected_features: List[str]) -> pd.DataFrame:
+    """
+    Filter interaction DataFrame to only include interactions involving selected features.
+    
+    Args:
+        interaction_df: DataFrame with interaction results
+        selected_features: List of feature names to filter by
+    
+    Returns:
+        Filtered DataFrame
+    """
+    if interaction_df.empty:
+        return interaction_df
+    
+    # Create set of selected features for fast lookup
+    selected_set = set(selected_features)
+    
+    # Filter rows where any feature in the combination is in selected_features
+    def has_selected_feature(combo_str: str) -> bool:
+        features = combo_str.split("|")
+        return any(f in selected_set for f in features)
+    
+    mask = interaction_df['feature_combination'].apply(has_selected_feature)
+    return interaction_df[mask].copy()
+
+
+def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    POST /causal/interactions
+    
+    Returns multi-feature interaction analysis results.
+    
+    Request Body:
+    {
+        "cohort": "opioid_ed",
+        "age_band": "25-44",
+        "selected_features": ["item_drug_A", "item_drug_B"],  // optional
+        "max_interaction_size": 2,  // optional, default 2
+        "model_type": "xgboost"  // optional, default "xgboost"
+    }
+    
+    Response:
+    {
+        "interactions": [...],
+        "top_interactions": [...],
+        "summary": {
+            "total_interactions_tested": 45,
+            "positive_synergies": 12,
+            "negative_synergies": 8,
+            "neutral": 25
+        }
+    }
+    """
+    try:
+        body = json.loads(event.get("body") or "{}")
+        cohort = body.get("cohort")
+        age_band = body.get("age_band")
+        selected_features = body.get("selected_features", [])
+        max_interaction_size = body.get("max_interaction_size", 2)
+        model_type = body.get("model_type", "xgboost")
+        
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band are required"})
+        
+        # Load interaction analysis results from S3
+        interaction_df = load_interaction_analysis(cohort, age_band, model_type)
+        
+        if interaction_df.empty:
+            return _response(200, {
+                "interactions": [],
+                "top_interactions": [],
+                "summary": {
+                    "total_interactions_tested": 0,
+                    "positive_synergies": 0,
+                    "negative_synergies": 0,
+                    "neutral": 0
+                },
+                "message": "No interaction analysis results found. Run FFA analysis with enable_interaction_analysis=True."
+            })
+        
+        # Filter to selected features if provided
+        if selected_features:
+            interaction_df = filter_interactions_by_features(interaction_df, selected_features)
+        
+        # Filter by max_interaction_size
+        interaction_df = interaction_df[interaction_df['interaction_size'] <= max_interaction_size]
+        
+        # Ensure synergy_type column exists (for backward compatibility)
+        if 'synergy_type' not in interaction_df.columns:
+            interaction_df['synergy_type'] = interaction_df['interaction_effect'].apply(
+                lambda x: 'positive' if x > 0.01 else ('negative' if x < -0.01 else 'neutral')
+            )
+        
+        # Format response
+        interactions = interaction_df.to_dict('records')
+        top_interactions = interaction_df.nlargest(10, 'interaction_effect', keep='all').to_dict('records')
+        
+        summary = {
+            'total_interactions_tested': len(interaction_df),
+            'positive_synergies': len(interaction_df[interaction_df['synergy_type'] == 'positive']),
+            'negative_synergies': len(interaction_df[interaction_df['synergy_type'] == 'negative']),
+            'neutral': len(interaction_df[interaction_df['synergy_type'] == 'neutral'])
+        }
+        
+        return _response(200, {
+            'interactions': interactions,
+            'top_interactions': top_interactions,
+            'summary': summary
+        })
+    
+    except Exception as e:
+        import traceback
+        return _response(500, {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+
+
 if __name__ == "__main__":
     # Local testing
     test_event = {
