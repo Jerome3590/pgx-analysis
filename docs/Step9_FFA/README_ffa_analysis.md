@@ -13,9 +13,14 @@ Formal Feature Attribution (FFA) Analysis provides a comprehensive framework for
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 - **Formal Verification**: Use SAT solvers for consistency checking and minimal explanation extraction
 
-**Important**: FFA does not directly convert model JSON to rules. Instead, it:
+**Important**: The rule extraction process differs by model type:
 
-1. Extracts all possible rules from the model JSON
+- **XGBoost**: JSON is used directly to extract rules (no SHAP intermediary needed for rule extraction)
+- **CatBoost**: Uses SHAP values as a translation layer due to complex JSON hashing and CTR (Counter-based Target Statistics) that make direct conversion difficult
+
+For both model types, SHAP values are then used to filter and prioritize rules:
+
+1. Extracts all possible rules from the model JSON (directly for XGBoost, via SHAP translation for CatBoost)
 2. Uses SHAP importance values (required from Step 7) to filter and prioritize rules
 3. Computes AXP explanations from the SHAP-filtered rule set
 
@@ -77,10 +82,17 @@ CatBoost uses CTR transformations for categorical features, which require specia
 - Extract CTR mappings from `ctr_data`
 - Map hash values to categorical feature indices
 - Resolve CTR split indices to feature names and borders
+- **Why SHAP is needed**: CatBoost's complex JSON hashing and CTR make direct rule extraction difficult. SHAP values act as a translation layer to bridge the gap between the complex JSON structure and interpretable rules.
 
 ### 3. Symbolic Rule Extraction
 
-- Converts oblivious tree structures to Boolean formulas
+**Model-Specific Approaches:**
+
+- **XGBoost**: JSON is parsed directly to extract tree structures and convert them to Boolean formulas
+- **CatBoost**: Due to complex JSON hashing and CTR, SHAP values are used as a translation layer to extract rules from the model structure
+
+**Common Process:**
+- Converts tree structures to Boolean formulas
 - Uses PySAT for CNF conversion and SAT solving
 - Creates human-readable decision rules with conditions
 - **Extracts ALL possible rules** from the model (not filtered at this stage)
@@ -88,6 +100,10 @@ CatBoost uses CTR transformations for categorical features, which require specia
 ### 4. SHAP-Guided Rule Filtering (REQUIRED)
 
 - **SHAP values are required**: Loads SHAP importance scores from Step 7 (SHAP Analysis)
+- **For CatBoost**: SHAP values serve a dual purpose:
+  1. **Translation layer**: Helps extract rules from complex JSON hashing and CTR structures
+  2. **Filtering**: Scores and filters rules for AXP computation
+- **For XGBoost**: SHAP values are used only for filtering (rules are extracted directly from JSON)
 - **Rule Scoring**: Each rule is scored by summing the SHAP importance values of all features in the rule
 - **Rule Selection Logic**: For each instance, selects rules using a three-set union approach:
   1. **First 100 rules**: Takes the first 100 matched rules (order-based coverage)
@@ -95,7 +111,9 @@ CatBoost uses CTR transformations for categorical features, which require specia
   3. **SHAP-filtered rules**: Includes all rules where the sum of SHAP importance > 0 (SHAP-important rules)
   4. **Final rule set**: Union of all three sets (deduplicated) for AXP computation
 - **Error Handling**: Raises `FileNotFoundError` or `ValueError` if SHAP data is missing or malformed
-- **Key Point**: We do NOT directly convert model JSON to final rules. SHAP values act as an intermediary filter to prioritize which rules are used for AXP computation.
+- **Key Point**: 
+  - **XGBoost**: Rules are extracted directly from JSON, then SHAP filters them
+  - **CatBoost**: SHAP values act as a translation layer to extract rules from complex JSON/CTR, then filters them
 
 ### 5. Anchored Explanations (AXP)
 
