@@ -62,7 +62,6 @@ Use this checklist to track progress:
   - [ ] All cohort/age-band combinations processed
   - [ ] Aggregated feature importance files generated
   - [ ] Individual model results saved
-  - [ ] Plots generated in `outputs/plots/`
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 4** ✅
 
@@ -70,7 +69,6 @@ Use this checklist to track progress:
   - [ ] Frequent itemsets generated
   - [ ] Association rules computed
   - [ ] Encoding maps created
-  - [ ] Plots generated in `outputs/plots/`
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 5** ✅
 
@@ -78,7 +76,6 @@ Use this checklist to track progress:
   - [ ] Event logs created
   - [ ] Process flows discovered
   - [ ] Sequence features extracted
-  - [ ] Plots generated in `outputs/plots/`
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 6** ✅
 
@@ -86,24 +83,32 @@ Use this checklist to track progress:
   - [ ] Patient trajectories computed
   - [ ] Clustering completed
   - [ ] Similarity scores calculated
-  - [ ] Plots generated in `outputs/plots/`
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 7** ✅
 
-- [ ] **Step 7: Final Model Development** (`7_final_model/`)
+- [ ] **Step 6: Final Model Development** (`6_final_model_selection/`)
   - [ ] Feature integration completed
   - [ ] Models trained
   - [ ] Evaluation metrics computed
-  - [ ] Plots generated in `outputs/plots/`
+  - [ ] Results uploaded to S3 (if applicable)
+  - [ ] **READY FOR STEP 7** ✅
+
+- [ ] **Step 7: SHAP Analysis** (`8_shap_analysis/`)
+  - [ ] SHAP values computed
+  - [ ] Global importance calculated
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 8** ✅
 
-- [ ] **Step 8: Formal Feature Attribution** (`8_ffa_analysis/`)
-  - [ ] Feature attribution computed
+- [ ] **Step 8: Formal Feature Attribution** (`7_ffa_analysis/`)
+  - [ ] Feature attribution computed (uses SHAP to prioritize rules)
   - [ ] Causal analysis completed
-  - [ ] Calibration plots generated
-  - [ ] Plots generated in `outputs/plots/`
   - [ ] Results uploaded to S3 (if applicable)
+  - [ ] **READY FOR STEP 9** ✅
+
+- [ ] **Step 9: Risk Dashboard** (`9_risk_dashboard/`)
+  - [ ] Models prepared for deployment
+  - [ ] Metadata generated
+  - [ ] Dashboard artifacts created
   - [ ] **ANALYSIS COMPLETE** ✅
 
 ---
