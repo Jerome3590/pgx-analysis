@@ -108,43 +108,35 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict]) -> Dict:
             score += shap_importance_map.get(feat_name, 0.0)
         return score
     
-    # Filter matched rules to only those with SHAP importance > 0
+    # Set 1: First 100 rules (from all matched rules)
+    max_rules = 100
+    first_rules = matched[:max_rules] if len(matched) > max_rules else matched
+    
+    # Set 2: Random sample of 100 rules (from all matched rules, seed for reproducibility)
+    import random
+    random.seed(42)
+    if len(matched) > max_rules:
+        random_rules = random.sample(matched, max_rules)
+    else:
+        random_rules = matched.copy()
+    
+    # Set 3: All rules with SHAP importance > 0
     shap_filtered_matched = [rid for rid in matched if score_rule_by_shap(rid) > 0]
     
-    # Compute AXP if we have SHAP-filtered matched rules
-    if not shap_filtered_matched:
+    # Union all three sets to get final unique rule set
+    combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched))
+    
+    # Compute AXP if we have any rules
+    if not combined_rule_ids:
         axp_literals = []
     else:
-        # Limit rules for performance
-        max_rules = 100
-        if len(shap_filtered_matched) > max_rules:
-            # Use first 100 + random sample of 100, then deduplicate
-            import random
-            random.seed(42)  # Reproducibility
-            
-            first_rules = shap_filtered_matched[:max_rules]
-            random_rules = random.sample(shap_filtered_matched, max_rules)
-            
-            # Combine and deduplicate: union of both rule sets
-            combined_rule_ids = list(set(first_rules) | set(random_rules))
-            
-            # Compute AXP from the deduplicated combined rule set
-            if Hitman is None:
-                raise ImportError("pysat is required for AXP computation")
-            
-            h = Hitman(solver="m22")
-            for ridx in combined_rule_ids:
-                h.hit(rule_clauses[ridx])
-            axp_literals = h.get() or []
-        else:
-            # Fewer than max_rules, use all SHAP-filtered rules
-            if Hitman is None:
-                raise ImportError("pysat is required for AXP computation")
-            
-            h = Hitman(solver="m22")
-            for ridx in shap_filtered_matched:
-                h.hit(rule_clauses[ridx])
-            axp_literals = h.get() or []
+        if Hitman is None:
+            raise ImportError("pysat is required for AXP computation")
+        
+        h = Hitman(solver="m22")
+        for ridx in combined_rule_ids:
+            h.hit(rule_clauses[ridx])
+        axp_literals = h.get() or []
     
     # Convert literals to text
     axp_text = []
@@ -438,13 +430,11 @@ class BaseSymbolicExplainer(ABC):
         Compute minimal hitting set (AXP) over matching rule IDs.
         
         Process:
-        1. Filter rules to only those with SHAP importance > 0
-        2. If more than 100 SHAP-filtered rules:
-           - Take first 100 SHAP-filtered rules
-           - Take random sample of 100 SHAP-filtered rules
-           - Combine and deduplicate (union) to get final rule set
-           - Compute AXP from deduplicated rule set
-        3. If <= 100 SHAP-filtered rules, use all of them
+        1. Take first 100 rules (from all matched rules)
+        2. Take random sample of 100 rules (from all matched rules)
+        3. Take all rules with SHAP importance > 0
+        4. Union all three sets to get final unique rule set
+        5. Compute AXP from the union
         
         Args:
             rule_ids: List of rule indices
@@ -462,76 +452,54 @@ class BaseSymbolicExplainer(ABC):
         if hasattr(self, 'logger'):
             self.logger.info(f"_compute_axp: Starting computation for {len(rule_ids)} matched rules")
         
-        # Filter to only rules with SHAP importance > 0
+        max_rules = 100  # Limit to prevent hanging
+        
+        # Set 1: First 100 rules (from all matched rules)
+        first_rules = rule_ids[:max_rules] if len(rule_ids) > max_rules else rule_ids
+        
+        # Set 2: Random sample of 100 rules (from all matched rules, seed for reproducibility)
+        random.seed(42)
+        if len(rule_ids) > max_rules:
+            random_rules = random.sample(rule_ids, max_rules)
+        else:
+            random_rules = rule_ids.copy()
+        
+        # Set 3: All rules with SHAP importance > 0
         shap_filtered_rules = self._filter_rules_by_shap(rule_ids)
         
         if hasattr(self, 'logger'):
-            self.logger.info(f"_compute_axp: Filtered to {len(shap_filtered_rules)} rules with SHAP > 0 (from {len(rule_ids)} total)")
+            self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, SHAP > 0: {len(shap_filtered_rules)}")
         
-        if not shap_filtered_rules:
+        # Union all three sets to get final unique rule set
+        combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_rules))
+        
+        if not combined_rule_ids:
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: No rules with SHAP > 0 found, returning empty AXP")
+                self.logger.warning(f"_compute_axp: No rules after combining sets, returning empty AXP")
             return []
         
-        max_rules = 100  # Limit to prevent hanging
+        if hasattr(self, 'logger'):
+            self.logger.info(f"_compute_axp: Combined sets -> {len(combined_rule_ids)} unique rules (deduplicated)")
         
-        # If we have many SHAP-filtered rules, use first 100 + random sample of 100, then deduplicate
-        if len(shap_filtered_rules) > max_rules:
+        # Compute AXP from the union of all three sets
+        h = Hitman(solver="m22")
+        for ridx in combined_rule_ids:
+            h.hit(self.rule_clauses[ridx])
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(f"_compute_axp: Computing AXP from {len(combined_rule_ids)} unique rules...")
+        
+        result = h.get()
+        if result is None:
+            result = []
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: Too many SHAP-filtered rules ({len(shap_filtered_rules)}), using first 100 + random sample of 100")
-            
-            # Approach 1: First 100 SHAP-filtered rules
-            first_rules = shap_filtered_rules[:max_rules]
-            
-            # Approach 2: Random sample of 100 SHAP-filtered rules (seed for reproducibility)
-            random.seed(42)
-            random_rules = random.sample(shap_filtered_rules, max_rules)
-            
-            # Combine and deduplicate: union of both rule sets
-            combined_rule_ids = list(set(first_rules) | set(random_rules))
-            
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: Combined {len(first_rules)} first + {len(random_rules)} random -> {len(combined_rule_ids)} unique rules (deduplicated)")
-            
-            # Compute AXP from the deduplicated combined rule set
-            h = Hitman(solver="m22")
-            for ridx in combined_rule_ids:
-                h.hit(self.rule_clauses[ridx])
-            
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: Computing AXP from {len(combined_rule_ids)} deduplicated rules...")
-            
-            result = h.get()
-            if result is None:
-                result = []
-            
-            duration = time.time() - start_time
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: {len(combined_rule_ids)} deduplicated rules -> {len(result)} literals, took {duration:.4f}s")
-            
-            return result
-        else:
-            # Fewer than max_rules, use all SHAP-filtered rules
-            h = Hitman(solver="m22")
-            for ridx in shap_filtered_rules:
-                h.hit(self.rule_clauses[ridx])
-            
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: Calling Hitman.get()...")
-            
-            result = h.get()
-            
-            # Handle case where Hitman.get() returns None (no valid explanation found)
-            if result is None:
-                result = []
-                if hasattr(self, 'logger'):
-                    self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(shap_filtered_rules)} SHAP-filtered rules - no valid explanation found")
-            
-            duration = time.time() - start_time
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: {len(shap_filtered_rules)} SHAP-filtered rules -> {len(result)} literals, took {duration:.4f}s")
-            
-            return result
+                self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(combined_rule_ids)} rules - no valid explanation found")
+        
+        duration = time.time() - start_time
+        if hasattr(self, 'logger'):
+            self.logger.info(f"_compute_axp: {len(combined_rule_ids)} unique rules -> {len(result)} literals, took {duration:.4f}s")
+        
+        return result
     
     def explain_literals(self, instance: np.ndarray, predicted_class: int) -> List[int]:
         """
