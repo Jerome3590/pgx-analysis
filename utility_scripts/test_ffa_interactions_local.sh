@@ -58,13 +58,29 @@ fi
 # Download feature data
 echo ""
 echo "Downloading feature data from S3..."
-FEATURE_S3_PATH="s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
-if aws s3 ls "$FEATURE_S3_PATH" > /dev/null 2>&1; then
-    aws s3 cp "$FEATURE_S3_PATH" "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
-    echo "✓ Downloaded feature data"
-else
-    echo "⚠ Feature data not found at: $FEATURE_S3_PATH"
-    echo "  Will try to use local file if it exists"
+FEATURE_S3_PATHS=(
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+)
+
+FEATURE_DOWNLOADED=false
+for FEATURE_S3_PATH in "${FEATURE_S3_PATHS[@]}"; do
+    if aws s3 ls "$FEATURE_S3_PATH" > /dev/null 2>&1; then
+        aws s3 cp "$FEATURE_S3_PATH" "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+        echo "✓ Downloaded feature data from: $FEATURE_S3_PATH"
+        FEATURE_DOWNLOADED=true
+        break
+    fi
+done
+
+if [ "$FEATURE_DOWNLOADED" = false ]; then
+    echo "⚠ Feature data not found. Will try to use local file if it exists"
+    if [ ! -f "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv" ]; then
+        echo "✗ Local feature file also not found. Cannot proceed."
+        exit 1
+    else
+        echo "✓ Using local feature file"
+    fi
 fi
 
 # Download SHAP values (required for interaction analysis)
