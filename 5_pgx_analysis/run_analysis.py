@@ -108,7 +108,7 @@ def map_drugs_to_genes(
     
     This function is idempotent: it checks local files first, then S3 (global cache,
     cohort-level, legacy age-band), and only generates if none exist.
-    
+
     Note: This step is optional for the simplified workflow. The main workflow uses
     the global drug-to-CPIC mapping directly from outputs/global/drug_cpic_mapping_global.csv.
     """
