@@ -101,8 +101,10 @@ CatBoost uses CTR transformations for categorical features, which require specia
 
 - **SHAP values are required**: Loads SHAP importance scores from Step 7 (SHAP Analysis)
 - **For CatBoost**: SHAP values serve a dual purpose:
+
   1. **Translation layer**: Helps extract rules from complex JSON hashing and CTR structures
   2. **Filtering**: Scores and filters rules for AXP computation
+
 - **For XGBoost**: SHAP values are used only for filtering (rules are extracted directly from JSON)
 - **Rule Scoring**: Each rule is scored by summing the SHAP importance values of all features in the rule
 - **Rule Selection Logic**: For each instance, selects rules using a three-set union approach:
