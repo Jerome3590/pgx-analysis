@@ -98,7 +98,7 @@ from py_helpers.env_utils import get_sklearn_n_jobs  # noqa: E402
 
 ANALYSIS_CONFIG = {
     'target_class': 1,
-    'top_k_features': 20,
+    'top_k_features': 40,
     'min_coverage': 0.8,
     'n_permutations': 100,  # Reduced for faster execution
     'random_seed': 1997,
