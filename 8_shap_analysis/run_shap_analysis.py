@@ -445,9 +445,14 @@ def run_shap_analysis(
     # Global importance (only if XGBoost was analyzed)
     if "xgboost" in models_analyzed and shap_xgb is not None:
         mean_abs_xgb = np.abs(shap_xgb).mean(axis=0)
-        xgb_imp_df = pd.DataFrame(
-            {"feature": feature_names, "mean_abs_shap": mean_abs_xgb}
-        ).sort_values("mean_abs_shap", ascending=False)
+        mean_xgb = shap_xgb.mean(axis=0)  # Mean SHAP value (captures direction)
+        xgb_imp_df = pd.DataFrame({
+            "feature": feature_names,
+            "mean_abs_shap": mean_abs_xgb,
+            "mean_shap": mean_xgb,  # Direction: positive = increases risk, negative = decreases risk
+        })
+        # Filter to features with mean_abs_shap > 0 and sort by importance
+        xgb_imp_df = xgb_imp_df[xgb_imp_df['mean_abs_shap'] > 0].sort_values("mean_abs_shap", ascending=False)
         xgb_imp_path = (
             out_dir
             / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
@@ -560,10 +565,15 @@ def run_shap_analysis(
                 )
 
             shap_cb_mean_abs = np.abs(shap_cb_feat).mean(axis=0).ravel()
+            shap_cb_mean = shap_cb_feat.mean(axis=0).ravel()  # Mean SHAP value (captures direction)
 
-            cb_imp_df = pd.DataFrame(
-                {"feature": feature_names, "mean_abs_shap": shap_cb_mean_abs}
-            ).sort_values("mean_abs_shap", ascending=False)
+            cb_imp_df = pd.DataFrame({
+                "feature": feature_names,
+                "mean_abs_shap": shap_cb_mean_abs,
+                "mean_shap": shap_cb_mean,  # Direction: positive = increases risk, negative = decreases risk
+            })
+            # Filter to features with mean_abs_shap > 0 and sort by importance
+            cb_imp_df = cb_imp_df[cb_imp_df['mean_abs_shap'] > 0].sort_values("mean_abs_shap", ascending=False)
             cb_imp_path = (
                 out_dir
                 / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
