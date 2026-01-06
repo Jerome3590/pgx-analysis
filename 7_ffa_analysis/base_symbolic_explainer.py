@@ -200,20 +200,31 @@ class BaseSymbolicExplainer(ABC):
     - Explanation generation
     """
     
-    def __init__(self, path_config=None, shap_importance_map: Dict[str, float] = None):
+    def __init__(self, path_config=None, shap_importance_map: Dict[str, float] = None,
+                 shap_values_df: Optional[pd.DataFrame] = None):
         """
         Initialize base explainer with common attributes.
         
         Args:
             path_config: Path configuration object
             shap_importance_map: Required dict mapping feature_name -> mean_abs_shap value.
-                                 Only rules with SHAP importance > 0 will be used.
+                                 Used as fallback and for validation.
+            shap_values_df: REQUIRED DataFrame with individual SHAP values per instance.
+                           Indexed by instance index, columns are feature names.
+                           Each row contains SHAP values for one instance.
         
         Raises:
-            ValueError: If shap_importance_map is None or empty
+            ValueError: If shap_importance_map or shap_values_df is None or empty
         """
         if not shap_importance_map:
             raise ValueError("shap_importance_map is required. Only rules with SHAP importance > 0 will be used.")
+        
+        if shap_values_df is None or len(shap_values_df) == 0:
+            raise ValueError(
+                "shap_values_df is REQUIRED. Individual SHAP values per instance are required "
+                "for accurate instance-specific rule filtering. Please load individual SHAP values "
+                "from Step 7 (SHAP Analysis) parquet file."
+            )
         
         self.path_config = path_config
         self.condition_id_map = {}  # Maps (feature_idx, threshold, direction) -> literal_id
@@ -224,7 +235,8 @@ class BaseSymbolicExplainer(ABC):
         self.model_json = None      # Model JSON structure
         self._id_gen = count(1)     # Generator for literal IDs (start at 1 for SAT)
         self._class_rule_indices = {}  # Cache: maps class -> list of rule indices for that class
-        self.shap_importance_map = shap_importance_map  # Feature name -> SHAP importance (required)
+        self.shap_importance_map = shap_importance_map  # Feature name -> SHAP importance (for validation)
+        self.shap_values_df = shap_values_df  # Individual SHAP values per instance (REQUIRED)
         self.setup_logging()
     
     def setup_logging(self, log_file: Optional[str] = None, level: int = logging.INFO) -> None:
@@ -545,13 +557,15 @@ class BaseSymbolicExplainer(ABC):
         
         return result
     
-    def explain_instance(self, instance: Union[np.ndarray, pd.DataFrame], predicted_class: Optional[int] = None) -> List[str]:
+    def explain_instance(self, instance: Union[np.ndarray, pd.DataFrame], predicted_class: Optional[int] = None,
+                        instance_index: Optional[int] = None) -> List[str]:
         """
         Return readable explanation (AXP) for instance.
         
         Args:
             instance: Feature vector (numpy array or DataFrame row)
             predicted_class: Predicted class (0 or 1), required
+            instance_index: Optional index of instance (for looking up individual SHAP values)
             
         Returns:
             List of human-readable condition strings
@@ -562,8 +576,54 @@ class BaseSymbolicExplainer(ABC):
         if isinstance(instance, pd.DataFrame):
             instance = instance.values[0] if len(instance) == 1 else instance.values
         
-        literals = self.explain_literals(instance, predicted_class)
-        return [self._literal_to_text(lit) for lit in literals]
+        # Get instance-specific SHAP values (required - no fallback)
+        if instance_index is None:
+            raise ValueError("instance_index is required for explain_instance when using individual SHAP values")
+        
+        if self.shap_values_df is None:
+            error_msg = (
+                "ERROR: Individual SHAP values DataFrame is not available. "
+                "Instance-specific SHAP values are REQUIRED for accurate rule filtering. "
+                "Please ensure individual SHAP values are loaded from Step 7 (SHAP Analysis)."
+            )
+            if hasattr(self, 'logger'):
+                self.logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        try:
+            if instance_index in self.shap_values_df.index:
+                instance_shap_row = self.shap_values_df.loc[instance_index]
+                instance_shap_values = instance_shap_row.to_dict()
+            elif len(self.shap_values_df) > instance_index:
+                instance_shap_row = self.shap_values_df.iloc[instance_index]
+                instance_shap_values = instance_shap_row.to_dict()
+            else:
+                raise IndexError(f"Instance index {instance_index} out of range for SHAP values DataFrame (length: {len(self.shap_values_df)})")
+        except (KeyError, IndexError) as e:
+            error_msg = (
+                f"ERROR: Could not find individual SHAP values for instance {instance_index}: {e}. "
+                f"Individual SHAP values per instance are REQUIRED for accurate rule filtering. "
+                f"SHAP values DataFrame has {len(self.shap_values_df)} rows, "
+                f"requested instance index: {instance_index}. "
+                f"Please ensure SHAP values are loaded correctly from Step 7 (SHAP Analysis)."
+            )
+            if hasattr(self, 'logger'):
+                self.logger.error(error_msg)
+            raise ValueError(error_msg) from e
+        
+        # Temporarily override shap_importance_map for this instance using individual SHAP values
+        original_shap_map = self.shap_importance_map
+        # Create a temporary map using absolute values of instance-specific SHAP
+        temp_shap_map = {feat: abs(val) for feat, val in instance_shap_values.items()}
+        # Merge with global map (instance-specific takes precedence)
+        self.shap_importance_map = {**original_shap_map, **temp_shap_map}
+        
+        try:
+            literals = self.explain_literals(instance, predicted_class)
+            return [self._literal_to_text(lit) for lit in literals]
+        finally:
+            # Restore original shap_importance_map
+            self.shap_importance_map = original_shap_map
     
     def _literal_to_text(self, lit: int) -> str:
         """

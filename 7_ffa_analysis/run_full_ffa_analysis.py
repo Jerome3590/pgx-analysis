@@ -1145,15 +1145,36 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
         print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
         
-        # Step 3.5: Load SHAP importance (required)
-        logger.info("Step 3.5: Loading SHAP importance...")
+        # Step 3.5: Load SHAP importance (required) and individual SHAP values (required)
+        logger.info("Step 3.5: Loading SHAP importance and individual SHAP values...")
         try:
-            shap_map = load_shap_importance(COHORT_NAME, AGE_BAND, model_type)
+            shap_map, shap_values_df = load_shap_importance(COHORT_NAME, AGE_BAND, model_type)
             logger.info(f"Loaded SHAP importance for {len(shap_map)} features (importance > 0)")
+            
+            if shap_values_df is None or len(shap_values_df) == 0:
+                error_msg = (
+                    "ERROR: Individual SHAP values per instance are REQUIRED for accurate rule filtering. "
+                    f"Could not load individual SHAP values from Step 7 (SHAP Analysis). "
+                    f"Please ensure the parquet file exists: "
+                    f"8_shap_analysis/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_shap_sample_values_{model_type}.parquet"
+                )
+                logger.error(error_msg)
+                print(f"[ERROR] {error_msg}")
+                raise FileNotFoundError(error_msg)
+            
+            logger.info(f"Loaded individual SHAP values for {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
+            print(f"[OK] Using individual SHAP values per instance for rule filtering")
+            
+            # Validate that we have SHAP values for all instances we'll process
+            if len(X) > len(shap_values_df):
+                logger.warning(
+                    f"Data has {len(X)} instances but SHAP values only has {len(shap_values_df)} instances. "
+                    f"Will use available SHAP values, but some instances may not have individual SHAP values."
+                )
         except (FileNotFoundError, ValueError, RuntimeError) as e:
-            logger.error(f"Failed to load SHAP importance: {e}")
-            print(f"[ERROR] Failed to load SHAP importance: {e}")
-            print(f"[ERROR] SHAP values are required. Please run Step 7 (SHAP Analysis) first.")
+            logger.error(f"Failed to load SHAP importance or individual SHAP values: {e}")
+            print(f"[ERROR] Failed to load SHAP data: {e}")
+            print(f"[ERROR] Both global SHAP importance and individual SHAP values are required. Please run Step 7 (SHAP Analysis) first.")
             raise
         
         # Step 4: Initialize explainer
@@ -1164,6 +1185,7 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             feature_mappings,
             feature_names=list(X.columns) if isinstance(X, pd.DataFrame) else None,
             shap_importance_map=shap_map,
+            shap_values_df=shap_values_df,
         )
         
         if explainer is None:
