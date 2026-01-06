@@ -548,7 +548,7 @@ def validate_fuzzy_matches(validation_file: Path, min_score: float = 95.0) -> No
 
 def load_global_drug_mapping() -> Optional[pd.DataFrame]:
     """
-    Load global drug-to-CPIC mapping table if it exists.
+    Load global drug-to-CPIC mapping table if it exists (checks local first, then S3).
     
     Returns:
     --------
@@ -556,6 +556,8 @@ def load_global_drug_mapping() -> Optional[pd.DataFrame]:
         DataFrame with drug_name, cpic_drug_name, fuzzy_score, match_method columns, or None if not found
     """
     global_mapping_path = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_global.csv"
+    
+    # Try local file first
     if global_mapping_path.exists():
         try:
             df = pd.read_csv(global_mapping_path)
@@ -563,6 +565,28 @@ def load_global_drug_mapping() -> Optional[pd.DataFrame]:
             return df
         except Exception as e:
             logger.warning(f"Could not load global drug mapping: {e}")
+    
+    # Try downloading from S3
+    try:
+        import boto3
+        from py_helpers.constants import S3_BUCKET
+        
+        s3_client = boto3.client('s3')
+        s3_key = "gold/pgx_features/global/drug_cpic_mapping_global.csv"
+        
+        # Ensure directory exists
+        global_mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Download from S3
+        s3_client.download_file(S3_BUCKET, s3_key, str(global_mapping_path))
+        logger.info(f"Downloaded global drug-to-CPIC mapping from s3://{S3_BUCKET}/{s3_key}")
+        
+        df = pd.read_csv(global_mapping_path)
+        logger.info(f"Loaded global drug-to-CPIC mapping from S3 ({len(df)} drugs)")
+        return df
+    except Exception as e:
+        logger.debug(f"Could not download global drug mapping from S3: {e}")
+    
     return None
 
 
