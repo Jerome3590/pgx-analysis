@@ -284,9 +284,9 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
     return X, y
 
 
-def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Dict[str, float]:
+def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[Dict[str, float], Optional[pd.DataFrame]]:
     """
-    Load SHAP importance scores from Step 8 outputs.
+    Load SHAP importance scores from Step 7 outputs.
     
     Args:
         cohort: Cohort name
@@ -294,7 +294,9 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Dict[st
         model_type: Model type ('xgboost' or 'catboost')
         
     Returns:
-        Dict mapping feature_name -> mean_abs_shap (only features with importance > 0)
+        Tuple of:
+        - Dict mapping feature_name -> mean_abs_shap (only features with importance > 0)
+        - Optional DataFrame with individual SHAP values per instance (indexed by instance index)
         
     Raises:
         FileNotFoundError: If SHAP importance file is not found
@@ -357,7 +359,51 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Dict[st
         # Create mapping: feature_name -> mean_abs_shap
         shap_map = dict(zip(shap_df['feature'], shap_df['mean_abs_shap'], strict=True))
         logger.info(f"Loaded SHAP importance for {len(shap_map)} features (importance > 0)")
-        return shap_map
+        
+        # Try to load individual SHAP values per instance (from parquet file)
+        shap_values_df = None
+        shap_values_path = (
+            PROJECT_ROOT
+            / "8_shap_analysis"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / f"{cohort}_{age_band_fname}_shap_sample_values_{model_type}.parquet"
+        )
+        
+        # Also try S3 if local doesn't exist
+        if not shap_values_path.exists():
+            try:
+                import boto3
+                s3_client = boto3.client("s3")
+                s3_key = f"gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_sample_values_{model_type}.parquet"
+                try:
+                    s3_client.head_object(Bucket="pgxdatalake", Key=s3_key)
+                    # Download temporarily
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as tmp_file:
+                        tmp_path = tmp_file.name
+                    s3_client.download_file("pgxdatalake", s3_key, tmp_path)
+                    shap_values_path = Path(tmp_path)
+                except Exception:
+                    shap_values_path = None
+            except ImportError:
+                shap_values_path = None
+        
+        if shap_values_path and shap_values_path.exists():
+            try:
+                shap_values_df = pd.read_parquet(shap_values_path)
+                logger.info(f"Loaded individual SHAP values for {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
+                # Ensure index is set properly (should be instance indices)
+                if shap_values_df.index.name is None and shap_values_df.index.dtype == 'int64':
+                    shap_values_df.index.name = 'instance_index'
+            except Exception as e:
+                logger.warning(f"Could not load individual SHAP values: {e}. Using global SHAP importance only.")
+                shap_values_df = None
+        else:
+            logger.info("Individual SHAP values not found. Using global SHAP importance only.")
+        
+        return shap_map, shap_values_df
     except (FileNotFoundError, ValueError) as e:
         raise
     except Exception as e:
@@ -370,6 +416,7 @@ def initialize_explainer(
     feature_mappings: Dict[str, Any],
     feature_names: Optional[List[str]] = None,
     shap_importance_map: Dict[str, float] = None,
+    shap_values_df: Optional[pd.DataFrame] = None,
 ) -> Optional[Any]:
     """Initialize FFA explainer for the model."""
     if not shap_importance_map:
@@ -425,7 +472,8 @@ def initialize_explainer(
                 print("[WARNING] XGBoost explainer not available.")
                 return None
             logger.info("Creating XGBoostSymbolicExplainer...")
-            explainer = XGBoostSymbolicExplainer(path_config, shap_importance_map=shap_importance_map)
+            explainer = XGBoostSymbolicExplainer(path_config, shap_importance_map=shap_importance_map,
+                                                 shap_values_df=shap_values_df)
             explainer.logger.setLevel(logging.INFO)
             explainer.model_json = model_json
 
