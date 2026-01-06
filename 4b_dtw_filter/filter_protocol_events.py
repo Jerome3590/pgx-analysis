@@ -807,42 +807,80 @@ def create_research_outputs_for_review(
     logger.info(f"Saved time window statistics: {stats_path}")
     
     # 3. Common sequence patterns (2-3 event sequences)
-    # Group events by patient and create sequences
-    patient_sequences = []
-    for patient_id in full_events_df['mi_person_key'].unique():
-        patient_events = full_events_df[
-            full_events_df['mi_person_key'] == patient_id
-        ].sort_values('event_date')
-        
-        # Create activity codes (drug, ICD, CPT)
-        activities = []
-        for _, row in patient_events.iterrows():
-            if pd.notna(row.get('drug_name')) and str(row.get('drug_name')).strip():
-                activities.append(f"DRUG:{row['drug_name']}")
-            if pd.notna(row.get('primary_icd_diagnosis_code')) and str(row.get('primary_icd_diagnosis_code')).strip():
-                activities.append(f"ICD:{row['primary_icd_diagnosis_code']}")
-            if pd.notna(row.get('procedure_code')) and str(row.get('procedure_code')).strip():
-                activities.append(f"CPT:{row['procedure_code']}")
-        
-        # Extract 2-event sequences
-        for i in range(len(activities) - 1):
-            seq_2 = f"{activities[i]} -> {activities[i+1]}"
-            patient_sequences.append({
-                'mi_person_key': patient_id,
-                'sequence': seq_2,
-                'sequence_length': 2,
-                'position': i
-            })
-        
-        # Extract 3-event sequences
-        for i in range(len(activities) - 2):
-            seq_3 = f"{activities[i]} -> {activities[i+1]} -> {activities[i+2]}"
-            patient_sequences.append({
-                'mi_person_key': patient_id,
-                'sequence': seq_3,
-                'sequence_length': 3,
-                'position': i
-            })
+    # OPTIMIZED: Use vectorized operations and DuckDB for better performance
+    logger.info("Extracting sequence patterns (optimized)...")
+    
+    # Use DuckDB for efficient sequence extraction
+    con = duckdb.connect()
+    
+    # Create a temporary view with activity codes
+    con.execute(f"""
+        CREATE OR REPLACE TEMP VIEW events_with_activities AS
+        SELECT 
+            mi_person_key,
+            event_date,
+            event_seq,
+            CASE WHEN drug_name IS NOT NULL AND TRIM(drug_name) != '' 
+                 THEN 'DRUG:' || drug_name ELSE NULL END AS drug_activity,
+            CASE WHEN primary_icd_diagnosis_code IS NOT NULL AND TRIM(primary_icd_diagnosis_code) != '' 
+                 THEN 'ICD:' || primary_icd_diagnosis_code ELSE NULL END AS icd_activity,
+            CASE WHEN procedure_code IS NOT NULL AND TRIM(procedure_code) != '' 
+                 THEN 'CPT:' || procedure_code ELSE NULL END AS cpt_activity
+        FROM read_parquet('{model_data_path}')
+        ORDER BY mi_person_key, event_date
+    """)
+    
+    # Create a view with all activities in sequence order
+    con.execute("""
+        CREATE OR REPLACE TEMP VIEW all_activities AS
+        SELECT 
+            mi_person_key,
+            event_seq,
+            activity,
+            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_seq) - 1 AS activity_idx
+        FROM (
+            SELECT mi_person_key, event_seq, drug_activity AS activity FROM events_with_activities WHERE drug_activity IS NOT NULL
+            UNION ALL
+            SELECT mi_person_key, event_seq, icd_activity AS activity FROM events_with_activities WHERE icd_activity IS NOT NULL
+            UNION ALL
+            SELECT mi_person_key, event_seq, cpt_activity AS activity FROM events_with_activities WHERE cpt_activity IS NOT NULL
+        )
+        ORDER BY mi_person_key, event_seq
+    """)
+    
+    # Extract 2-event sequences
+    sequences_2_df = con.execute("""
+        SELECT 
+            a1.mi_person_key,
+            a1.activity || ' -> ' || a2.activity AS sequence,
+            2 AS sequence_length,
+            a1.activity_idx AS position
+        FROM all_activities a1
+        INNER JOIN all_activities a2 
+            ON a1.mi_person_key = a2.mi_person_key 
+            AND a2.activity_idx = a1.activity_idx + 1
+    """).df()
+    
+    # Extract 3-event sequences
+    sequences_3_df = con.execute("""
+        SELECT 
+            a1.mi_person_key,
+            a1.activity || ' -> ' || a2.activity || ' -> ' || a3.activity AS sequence,
+            3 AS sequence_length,
+            a1.activity_idx AS position
+        FROM all_activities a1
+        INNER JOIN all_activities a2 
+            ON a1.mi_person_key = a2.mi_person_key 
+            AND a2.activity_idx = a1.activity_idx + 1
+        INNER JOIN all_activities a3 
+            ON a1.mi_person_key = a3.mi_person_key 
+            AND a3.activity_idx = a1.activity_idx + 2
+    """).df()
+    
+    con.close()
+    
+    # Combine sequences
+    patient_sequences = pd.concat([sequences_2_df, sequences_3_df], ignore_index=True)
     
     if patient_sequences:
         sequences_df = pd.DataFrame(patient_sequences)
