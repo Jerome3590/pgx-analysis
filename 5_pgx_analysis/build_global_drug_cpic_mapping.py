@@ -45,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def extract_drugs_from_aggregated_fi(fi_path: Path) -> Set[str]:
+def extract_drugs_from_aggregated_fi(fi_path: Path, cpic_drug_list: Optional[List[Dict]] = None) -> Set[str]:
     """
     Extract unique drug names from an aggregated feature importance CSV file.
     
@@ -53,11 +53,13 @@ def extract_drugs_from_aggregated_fi(fi_path: Path) -> Set[str]:
     -----------
     fi_path : Path
         Path to aggregated feature importance CSV
+    cpic_drug_list : List[Dict], optional
+        List of CPIC drug dictionaries to match against (for identifying drugs from item_ features)
         
     Returns:
     --------
     Set[str]
-        Set of unique drug names (features starting with "DRUG:")
+        Set of unique drug names (features starting with "DRUG:", "item_drug_", "drug_", or matching known drugs)
     """
     try:
         df = pd.read_csv(fi_path)
@@ -65,10 +67,49 @@ def extract_drugs_from_aggregated_fi(fi_path: Path) -> Set[str]:
             logger.warning(f"No 'feature' column in {fi_path}")
             return set()
         
-        # Extract drug features (starting with "DRUG:")
-        drug_features = df[df['feature'].str.startswith('DRUG:', na=False)]['feature'].unique()
-        # Remove "DRUG:" prefix
-        drug_names = {feat.replace('DRUG:', '', 1).strip() for feat in drug_features}
+        # Extract drug features (multiple patterns)
+        feature_col = df["feature"].astype(str)
+        
+        drug_mask = (
+            feature_col.str.startswith("DRUG:", na=False)
+            | feature_col.str.startswith("item_drug_", na=False)
+            | feature_col.str.startswith("drug_", na=False)
+        )
+        
+        drug_features = feature_col[drug_mask].unique()
+        
+        # Remove prefixes to get drug names
+        drug_names = {
+            f.replace("DRUG:", "", 1)
+             .replace("item_drug_", "", 1)
+             .replace("drug_", "", 1)
+             .strip()
+            for f in drug_features
+        }
+        
+        # Also check for drugs in item_ features (e.g., item_SUBOXONE, item_BUPRENORPHINE HCL/NALOXON)
+        # These are features that start with "item_" and match known drug names
+        if cpic_drug_list:
+            cpic_drug_names = {drug_dict.get("name", "").upper() for drug_dict in cpic_drug_list if drug_dict.get("name")}
+            
+            item_features = feature_col[feature_col.str.startswith("item_", na=False)].unique()
+            for item_feat in item_features:
+                # Remove "item_" prefix
+                item_name = item_feat.replace("item_", "", 1).strip()
+                
+                # Check if it matches a CPIC drug name (case-insensitive)
+                item_upper = item_name.upper()
+                if item_upper in cpic_drug_names:
+                    drug_names.add(item_name)
+                else:
+                    # Also check for partial matches (e.g., "BUPRENORPHINE HCL/NALOXON" contains "buprenorphine")
+                    for cpic_name in cpic_drug_names:
+                        # Check if item_name contains the drug name or vice versa
+                        if cpic_name in item_upper or item_upper in cpic_name:
+                            # Prefer the CPIC name for consistency
+                            drug_names.add(cpic_name.lower() if cpic_name.islower() else cpic_name)
+                            break
+        
         return drug_names
     except Exception as e:
         logger.warning(f"Error reading {fi_path}: {e}")
@@ -94,37 +135,36 @@ def find_all_aggregated_fi_files(cohort: Optional[str] = None, age_band: Optiona
     fi_outputs_dir = PROJECT_ROOT / "3_feature_importance" / "outputs"
     fi_files = []
     
-    # Search local outputs directory
+    # Search local outputs directory (recursively)
     if fi_outputs_dir.exists():
-        for cohort_dir in fi_outputs_dir.iterdir():
-            if not cohort_dir.is_dir():
-                continue
-            if cohort and cohort_dir.name != cohort:
-                continue
-            
-            # Look for aggregated feature importance files
-            for fi_file in cohort_dir.glob("*_aggregated_feature_importance.csv"):
-                if age_band:
-                    age_band_fname = age_band.replace("-", "_")
-                    if age_band_fname not in fi_file.stem:
-                        continue
-                fi_files.append(fi_file)
+        # Search recursively for aggregated feature importance files
+        pattern = "*_aggregated_feature_importance.csv"
+        for fi_file in fi_outputs_dir.rglob(pattern):
+            if cohort:
+                # Check if file path contains the cohort name
+                if cohort not in str(fi_file):
+                    continue
+            if age_band:
+                age_band_fname = age_band.replace("-", "_")
+                if age_band_fname not in fi_file.stem:
+                    continue
+            fi_files.append(fi_file)
     
-    # Also check S3 download location
+    # Also check S3 download location (recursively)
     fi_from_s3_dir = PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort"
     if fi_from_s3_dir.exists():
-        for cohort_dir in fi_from_s3_dir.iterdir():
-            if not cohort_dir.is_dir():
-                continue
-            if cohort and cohort_dir.name != cohort:
-                continue
-            
-            for fi_file in cohort_dir.glob("*_aggregated_feature_importance.csv"):
-                if age_band:
-                    age_band_fname = age_band.replace("-", "_")
-                    if age_band_fname not in fi_file.stem:
-                        continue
-                fi_files.append(fi_file)
+        # Search recursively for aggregated feature importance files
+        pattern = "*_aggregated_feature_importance.csv"
+        for fi_file in fi_from_s3_dir.rglob(pattern):
+            if cohort:
+                # Check if file path contains the cohort name
+                if cohort not in str(fi_file):
+                    continue
+            if age_band:
+                age_band_fname = age_band.replace("-", "_")
+                if age_band_fname not in fi_file.stem:
+                    continue
+            fi_files.append(fi_file)
     
     return sorted(set(fi_files))  # Remove duplicates
 
@@ -166,7 +206,7 @@ def build_global_drug_mapping(
     # Extract all unique drug names
     all_drugs: Set[str] = set()
     for fi_file in fi_files:
-        drugs = extract_drugs_from_aggregated_fi(fi_file)
+        drugs = extract_drugs_from_aggregated_fi(fi_file, cpic_drug_list=cpic_drug_list)
         all_drugs.update(drugs)
         logger.debug(f"Extracted {len(drugs)} drugs from {fi_file.name}")
     
@@ -223,6 +263,19 @@ def build_global_drug_mapping(
             'needs_review': fuzzy_score < 95.0,
             'google_search_url': google_url if fuzzy_score < 95.0 else ""
         })
+    
+    if not mappings:
+        logger.warning("No drug features were extracted from aggregated FI files.")
+        return pd.DataFrame(
+            columns=[
+                "drug_name",
+                "cpic_drug_name",
+                "fuzzy_score",
+                "match_method",
+                "needs_review",
+                "google_search_url",
+            ]
+        )
     
     mapping_df = pd.DataFrame(mappings)
     
