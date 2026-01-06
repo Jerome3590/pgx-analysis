@@ -555,55 +555,58 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     
     # Extract codes and preserve type information (item_drug_, item_icd_, item_cpt_)
     # Features from Step 3 are already prefixed with type: item_drug_AMOXICILLIN, item_icd_E11.9, etc.
-    all_features = df["feature"].astype(str).unique()
+    # Create a mapping of feature -> importance for sorting
+    importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
+    if importance_col:
+        feature_importance_map = dict(zip(df["feature"], df[importance_col]))
+    else:
+        # No importance column - use row order (df is already sorted)
+        feature_importance_map = {feat: -idx for idx, feat in enumerate(df["feature"])}
     
-    # Parse features to extract code and type
+    # Parse features to extract code and type, preserving importance for sorting
     # Format: item_{type}_{code} or just {code} (fallback)
     parsed_features = []
-    for feature in all_features:
+    for feature in df["feature"]:
         feature_str = str(feature)
+        importance = feature_importance_map.get(feature_str, 0)
+        
         if feature_str.startswith("item_drug_"):
             code = feature_str.replace("item_drug_", "", 1)
-            parsed_features.append(("drug", code))
+            parsed_features.append(("drug", code, importance))
         elif feature_str.startswith("item_icd_"):
             code = feature_str.replace("item_icd_", "", 1)
-            parsed_features.append(("icd", code))
+            parsed_features.append(("icd", code, importance))
         elif feature_str.startswith("item_cpt_"):
             code = feature_str.replace("item_cpt_", "", 1)
-            parsed_features.append(("cpt", code))
+            parsed_features.append(("cpt", code, importance))
         elif feature_str.startswith("item_"):
             # Generic item_ prefix without type - extract code
             code = feature_str.replace("item_", "", 1)
             # Try to infer type from code format (heuristic)
             if any(c.isalpha() for c in code[:3]) and len(code) > 5:
                 # Likely a drug name (longer, alphabetic)
-                parsed_features.append(("drug", code))
+                parsed_features.append(("drug", code, importance))
             elif code.replace(".", "").replace("-", "").isdigit() or (len(code) <= 10 and any(c.isdigit() for c in code)):
                 # Likely ICD or CPT (shorter, contains digits)
-                parsed_features.append(("icd", code))
+                parsed_features.append(("icd", code, importance))
             else:
                 # Unknown type - default to drug
-                parsed_features.append(("drug", code))
+                parsed_features.append(("drug", code, importance))
         else:
             # No prefix - assume drug by default
-            parsed_features.append(("drug", feature_str))
+            parsed_features.append(("drug", feature_str, importance))
     
-    # Apply limit if specified
+    # Sort by importance (descending) and apply limit if specified
+    parsed_features.sort(key=lambda x: x[2], reverse=True)
+    
     if top_n is not None and len(parsed_features) > top_n:
-        # Sort by importance before limiting
-        feature_importance_map = dict(zip(df["feature"], df.get("importance_scaled", df.get("importance_normalized", range(len(df))))))
-        parsed_with_importance = [
-            (f"item_{ftype}_{code}", ftype, code, feature_importance_map.get(f"item_{ftype}_{code}", feature_importance_map.get(code, 0)))
-            for ftype, code in parsed_features
-        ]
-        parsed_with_importance.sort(key=lambda x: x[3], reverse=True)
-        parsed_features = [(ftype, code) for _, ftype, code, _ in parsed_with_importance[:top_n]]
-        print(f"[INFO] Limited to top {top_n} features from {len(all_features)} total unique features")
+        parsed_features = parsed_features[:top_n]
+        print(f"[INFO] Limited to top {top_n} features from {len(df)} total features")
     else:
         print(f"[INFO] Loaded all {len(parsed_features)} aggregated feature importance codes (no limit)")
     
-    # Return as list of tuples: (type, code)
-    return parsed_features
+    # Return as list of tuples: (type, code) - drop importance
+    return [(ftype, code) for ftype, code, _ in parsed_features]
 
 
 def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
