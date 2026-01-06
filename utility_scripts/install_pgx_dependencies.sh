@@ -20,8 +20,12 @@ else
     exit 1
 fi
 
-# Check for virtual environment in common locations
-if [ -f "$HOME/jupyter-env/bin/python3" ]; then
+# Check for virtual environment in common locations (EC2 path first)
+if [ -f "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
+    PYTHON_CMD="/home/pgx3874/jupyter-env/bin/python3.11"
+    PIP_CMD="/home/pgx3874/jupyter-env/bin/pip3.11"
+    echo -e "${GREEN}Using Python from EC2 jupyter-env: $PYTHON_CMD${NC}"
+elif [ -f "$HOME/jupyter-env/bin/python3" ]; then
     PYTHON_CMD="$HOME/jupyter-env/bin/python3"
     PIP_CMD="$HOME/jupyter-env/bin/pip3"
     echo -e "${GREEN}Using Python from jupyter-env: $PYTHON_CMD${NC}"

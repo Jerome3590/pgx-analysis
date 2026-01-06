@@ -58,7 +58,7 @@ def get_step7_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
     """Get the most recent modification time of Step 7 (SHAP) outputs."""
     age_band_fname = age_band.replace("-", "_")
     
-    step7_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
+    step7_dir = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     
     if not step7_dir.exists():
         return None
@@ -88,7 +88,7 @@ def get_step8_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
     """Get the most recent modification time of Step 8 (FFA) outputs."""
     age_band_fname = age_band.replace("-", "_")
     
-    step8_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
+    step8_dir = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / cohort / age_band_fname
     
     if not step8_dir.exists():
         return None
@@ -118,7 +118,7 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
     age_band_fname = age_band.replace("-", "_")
     
     # Clear local outputs
-    step7_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
+    step7_dir = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     if step7_dir.exists():
         import shutil
         print(f"  Removing local Step 7 outputs: {step7_dir}")
@@ -151,7 +151,7 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                 print(f"  ✅ S3 Step 7 outputs cleared")
             
             # Clear checkpoints (in pgx-repository bucket)
-            checkpoint_prefix = f"pipeline_checkpoints/8_shap_analysis/{cohort}/{age_band_fname}/"
+            checkpoint_prefix = f"pipeline_checkpoints/7_shap_analysis/{cohort}/{age_band_fname}/"
             try:
                 checkpoint_bucket = "pgx-repository"
                 checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
@@ -181,7 +181,7 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
     age_band_fname = age_band.replace("-", "_")
     
     # Clear local outputs
-    step8_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
+    step8_dir = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / cohort / age_band_fname
     if step8_dir.exists():
         import shutil
         print(f"  Removing local Step 8 outputs: {step8_dir}")
@@ -196,7 +196,7 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
             bucket = "pgxdatalake"
             
             # Clear S3 outputs
-            s3_prefix = f"gold/shap_analysis/{cohort}/{age_band}/"
+            s3_prefix = f"gold/ffa_analysis/{cohort}/{age_band}/"
             paginator = s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=bucket, Prefix=s3_prefix)
             
@@ -214,7 +214,7 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                 print(f"  ✅ S3 Step 8 outputs cleared")
             
             # Clear checkpoints (in pgx-repository bucket)
-            checkpoint_prefix = f"pipeline_checkpoints/7_ffa_analysis/{cohort}/{age_band_fname}/"
+            checkpoint_prefix = f"pipeline_checkpoints/8_ffa_analysis/{cohort}/{age_band_fname}/"
             try:
                 checkpoint_bucket = "pgx-repository"
                 checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
@@ -241,7 +241,7 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
 
 def run_step7(cohort: str, age_band: str) -> bool:
     """Run Step 7 (SHAP Analysis)."""
-    script_path = PROJECT_ROOT / "8_shap_analysis" / "run_shap_analysis.py"
+    script_path = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
     
     if not script_path.exists():
         print(f"  ❌ Step 7 script not found: {script_path}")
@@ -276,7 +276,7 @@ def run_step7(cohort: str, age_band: str) -> bool:
 
 def run_step8(cohort: str, age_band: str) -> bool:
     """Run Step 8 (FFA Analysis)."""
-    script_path = PROJECT_ROOT / "7_ffa_analysis" / "run_full_ffa_analysis.py"
+    script_path = PROJECT_ROOT / "8_ffa_analysis" / "run_full_ffa_analysis.py"
     
     if not script_path.exists():
         print(f"  ❌ Step 8 script not found: {script_path}")

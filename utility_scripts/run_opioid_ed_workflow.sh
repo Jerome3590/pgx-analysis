@@ -56,8 +56,10 @@ detect_python() {
         python_cmd="python"
     fi
     
-    # Check for virtual environments
-    if [ -f "$HOME/jupyter-env/bin/python3" ]; then
+    # Check for virtual environments (EC2 path first)
+    if [ -f "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
+        python_cmd="/home/pgx3874/jupyter-env/bin/python3.11"
+    elif [ -f "$HOME/jupyter-env/bin/python3" ]; then
         python_cmd="$HOME/jupyter-env/bin/python3"
     elif [ -n "${VIRTUAL_ENV:-}" ] && [ -f "$VIRTUAL_ENV/bin/python3" ]; then
         python_cmd="$VIRTUAL_ENV/bin/python3"

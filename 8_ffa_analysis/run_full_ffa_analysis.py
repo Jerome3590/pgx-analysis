@@ -31,8 +31,8 @@ warnings.filterwarnings('ignore')
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Set up logging (under 7_ffa_analysis)
-LOG_DIR = PROJECT_ROOT / "7_ffa_analysis" / "logs"
+# Set up logging (under 8_ffa_analysis)
+LOG_DIR = PROJECT_ROOT / "8_ffa_analysis" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 LOG_FILE = LOG_DIR / f'ffa_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
@@ -91,7 +91,7 @@ DATA_PATH = (
     / AGE_BAND_FNAME
     / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
 )
-OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
+OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Analysis configuration
@@ -314,7 +314,7 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[D
     # Try to load SHAP global importance CSV
     shap_path = (
         PROJECT_ROOT
-        / "8_shap_analysis"
+        / "7_shap_analysis"
         / "outputs"
         / cohort
         / age_band_fname
@@ -371,7 +371,7 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[D
         shap_values_df = None
         shap_values_path = (
             PROJECT_ROOT
-            / "8_shap_analysis"
+            / "7_shap_analysis"
             / "outputs"
             / cohort
             / age_band_fname
@@ -1243,7 +1243,7 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         # Save checkpoint (only once per step, not per model type)
         if model_type == "xgboost":  # Save checkpoint after first model completes
             save_step_checkpoint(
-                step_name="7_ffa_analysis",
+                step_name="8_ffa_analysis",
                 cohort=COHORT_NAME,
                 age_band=AGE_BAND,
                 metadata={"model_types_analyzed": [model_type]},
@@ -1429,7 +1429,7 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                     "ERROR: Individual SHAP values per instance are REQUIRED for accurate rule filtering. "
                     f"Could not load individual SHAP values from Step 7 (SHAP Analysis). "
                     f"Please ensure the parquet file exists: "
-                    f"8_shap_analysis/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_shap_sample_values_{model_type}.parquet"
+                    f"7_shap_analysis/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_shap_sample_values_{model_type}.parquet"
                 )
                 logger.error(error_msg)
                 print(f"[ERROR] {error_msg}")
@@ -1597,7 +1597,7 @@ def main():
         / AGE_BAND_FNAME
         / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
     )
-    OUTPUT_DIR = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
+    OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Determine which model types to analyze
@@ -1653,7 +1653,7 @@ def main():
             # Save checkpoint if outputs uploaded
             if s3_outputs:
                 save_step_checkpoint(
-                    step_name="7_ffa_analysis",
+                    step_name="8_ffa_analysis",
                     cohort=COHORT_NAME,
                     age_band=AGE_BAND,
                     metadata={"model_types_analyzed": expected_model_types},
@@ -1676,7 +1676,7 @@ def main():
                 f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv",
             ])
 
-        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("7_ffa_analysis", COHORT_NAME, AGE_BAND, logger):
+        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("8_ffa_analysis", COHORT_NAME, AGE_BAND, logger):
             logger.info(f"Step 7 outputs already exist in S3 for {COHORT_NAME}/{AGE_BAND}; downloading to local.")
             
             # Download from S3 to local

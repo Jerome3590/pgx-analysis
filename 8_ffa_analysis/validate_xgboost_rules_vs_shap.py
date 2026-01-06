@@ -51,7 +51,7 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str = "xgboost"
     
     shap_path = (
         PROJECT_ROOT
-        / "8_shap_analysis"
+        / "7_shap_analysis"
         / "outputs"
         / cohort
         / age_band_fname
@@ -244,7 +244,7 @@ def main():
     parser.add_argument('--cohort', type=str, required=True, help='Cohort name (e.g., opioid_ed)')
     parser.add_argument('--age-band', type=str, required=True, help='Age band (e.g., 13-24)')
     parser.add_argument('--model-type', type=str, default='xgboost', help='Model type (default: xgboost)')
-    parser.add_argument('--output-dir', type=Path, default=None, help='Output directory (default: 7_ffa_analysis/outputs/{cohort}/{age_band}/validation)')
+    parser.add_argument('--output-dir', type=Path, default=None, help='Output directory (default: 8_ffa_analysis/outputs/{cohort}/{age_band}/validation)')
     
     args = parser.parse_args()
     
@@ -254,7 +254,7 @@ def main():
     if args.output_dir is None:
         output_dir = (
             PROJECT_ROOT
-            / "7_ffa_analysis"
+            / "8_ffa_analysis"
             / "outputs"
             / args.cohort
             / age_band_fname

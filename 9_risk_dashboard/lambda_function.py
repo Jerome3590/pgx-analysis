@@ -911,7 +911,7 @@ def load_interaction_analysis(cohort: str, age_band: str, model_type: str = "xgb
             MODEL_BASE_PATH,
             "..",  # Go up from models to outputs
             "..",
-            "7_ffa_analysis",
+            "8_ffa_analysis",
             "outputs",
             cohort,
             age_band_fname,

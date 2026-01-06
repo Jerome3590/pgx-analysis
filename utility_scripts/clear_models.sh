@@ -84,8 +84,8 @@ if [ "$CLEAR_ALL" = true ]; then
         echo "✅ Model outputs directory cleared"
     fi
     
-    # Step 7: FFA Analysis Outputs
-    FFA_DIR="$PROJECT_ROOT/7_ffa_analysis/outputs"
+    # Step 8: FFA Analysis Outputs
+    FFA_DIR="$PROJECT_ROOT/8_ffa_analysis/outputs"
     if [ -d "$FFA_DIR" ]; then
         echo "Removing: $FFA_DIR"
         echo "  This includes all FFA analysis outputs (depends on Step 6 models)"
@@ -95,8 +95,8 @@ if [ "$CLEAR_ALL" = true ]; then
         echo "No local FFA outputs found at $FFA_DIR"
     fi
     
-    # Step 8: SHAP Analysis Outputs
-    SHAP_DIR="$PROJECT_ROOT/8_shap_analysis/outputs"
+    # Step 7: SHAP Analysis Outputs
+    SHAP_DIR="$PROJECT_ROOT/7_shap_analysis/outputs"
     if [ -d "$SHAP_DIR" ]; then
         echo "Removing: $SHAP_DIR"
         echo "  This includes all SHAP analysis outputs (depends on Step 6 models)"
@@ -115,14 +115,14 @@ if [ "$CLEAR_ALL" = true ]; then
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
         
-        echo "  Clearing Step 7 (FFA Analysis) outputs..."
-        aws s3 rm s3://pgxdatalake/gold/ffa_analysis/ --recursive || {
-            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
-        }
-        
-        echo "  Clearing Step 8 (SHAP Analysis) outputs..."
+        echo "  Clearing Step 7 (SHAP Analysis) outputs..."
         aws s3 rm s3://pgxdatalake/gold/shap_analysis/ --recursive || {
             echo "⚠️  Warning: Could not clear S3 SHAP outputs (may not exist or no permissions)"
+        }
+        
+        echo "  Clearing Step 8 (FFA Analysis) outputs..."
+        aws s3 rm s3://pgxdatalake/gold/ffa_analysis/ --recursive || {
+            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
         }
         
         echo "✅ S3 outputs cleared (Steps 6, 7, 8)"
@@ -161,8 +161,8 @@ else
         echo "✅ Model outputs directory cleared"
     fi
     
-    # Step 7: FFA Analysis Outputs
-    FFA_DIR="$PROJECT_ROOT/7_ffa_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
+    # Step 8: FFA Analysis Outputs
+    FFA_DIR="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$FFA_DIR" ]; then
         echo "Removing: $FFA_DIR"
         echo "  This includes FFA analysis outputs (depends on Step 6 models)"
@@ -172,8 +172,8 @@ else
         echo "No local FFA outputs found at $FFA_DIR"
     fi
     
-    # Step 8: SHAP Analysis Outputs
-    SHAP_DIR="$PROJECT_ROOT/8_shap_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
+    # Step 7: SHAP Analysis Outputs
+    SHAP_DIR="$PROJECT_ROOT/7_shap_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$SHAP_DIR" ]; then
         echo "Removing: $SHAP_DIR"
         echo "  This includes SHAP analysis outputs (depends on Step 6 models)"
@@ -192,14 +192,14 @@ else
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
         
-        echo "  Clearing Step 7 (FFA Analysis) outputs..."
-        aws s3 rm "s3://pgxdatalake/gold/ffa_analysis/$COHORT/$AGE_BAND/" --recursive || {
-            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
-        }
-        
-        echo "  Clearing Step 8 (SHAP Analysis) outputs..."
+        echo "  Clearing Step 7 (SHAP Analysis) outputs..."
         aws s3 rm "s3://pgxdatalake/gold/shap_analysis/$COHORT/$AGE_BAND/" --recursive || {
             echo "⚠️  Warning: Could not clear S3 SHAP outputs (may not exist or no permissions)"
+        }
+        
+        echo "  Clearing Step 8 (FFA Analysis) outputs..."
+        aws s3 rm "s3://pgxdatalake/gold/ffa_analysis/$COHORT/$AGE_BAND/" --recursive || {
+            echo "⚠️  Warning: Could not clear S3 FFA outputs (may not exist or no permissions)"
         }
         
         echo "✅ S3 outputs cleared (Steps 6, 7, 8)"
@@ -211,8 +211,8 @@ echo "=========================================="
 echo "Model clearing complete!"
 echo "Cleared outputs for:"
 echo "  - Step 6: Final Model Training"
-echo "  - Step 7: FFA Analysis (depends on Step 6)"
-echo "  - Step 8: SHAP Analysis (depends on Step 6)"
+echo "  - Step 7: SHAP Analysis (depends on Step 6)"
+echo "  - Step 8: FFA Analysis (depends on Step 6, uses SHAP from Step 7)"
 echo ""
 echo "Next run will regenerate models and downstream analyses from scratch."
 echo "=========================================="

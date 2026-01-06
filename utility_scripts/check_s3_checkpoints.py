@@ -77,20 +77,20 @@ STEPS = {
             "*_model_selection_metadata.json",
         ],
     },
-    "7_ffa_analysis": {
-        "checkpoint_prefix": "pipeline_checkpoints/7_ffa_analysis",
-        "output_prefix": "gold/ffa_analysis",
-        "output_files": [
-            "xgboost/axp_explanations.csv",
-            "xgboost/feature_importance_axp.csv",
-        ],
-    },
-    "8_shap_analysis": {
-        "checkpoint_prefix": "pipeline_checkpoints/8_shap_analysis",
+    "7_shap_analysis": {
+        "checkpoint_prefix": "pipeline_checkpoints/7_shap_analysis",
         "output_prefix": "gold/shap_analysis",
         "output_files": [
             "*_shap_global_importance_xgboost.csv",
             "*_shap_sample_values_xgboost.parquet",
+        ],
+    },
+    "8_ffa_analysis": {
+        "checkpoint_prefix": "pipeline_checkpoints/8_ffa_analysis",
+        "output_prefix": "gold/ffa_analysis",
+        "output_files": [
+            "xgboost/axp_explanations.csv",
+            "xgboost/feature_importance_axp.csv",
         ],
     },
     "9_combined_shap_ffa": {

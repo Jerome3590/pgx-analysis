@@ -1,4 +1,4 @@
-## 7_ffa_analysis – Formal Feature Attribution Analysis
+## 8_ffa_analysis – Formal Feature Attribution Analysis
 
 This directory contains the **Formal Feature Attribution (FFA) Analysis** framework for interpreting gradient-boosted decision tree models through symbolic logic extraction, anchored explanations, and causal analysis.
 

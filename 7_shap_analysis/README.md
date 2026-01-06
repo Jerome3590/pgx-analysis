@@ -1,8 +1,8 @@
-## 8_shap_analysis – SHAP-Based Post-Model Analysis
+## 7_shap_analysis – SHAP-Based Post-Model Analysis
 
 This module runs **SHAP analysis** on the final models for each `(cohort, age_band)` to
 quantify per-feature and per-patient contributions, complementing the structural
-explanations from `7_ffa_analysis`.
+explanations from `8_ffa_analysis`.
 
 ### Goals
 
@@ -29,7 +29,7 @@ For each `(cohort, age_band)`:
 
 ### Outputs
 
-- `8_shap_analysis/outputs/{cohort}/{age_band_fname}/`:
+- `7_shap_analysis/outputs/{cohort}/{age_band_fname}/`:
   - `*_shap_global_importance_{model}.csv` – mean absolute SHAP value per feature.
   - `*_shap_sample_values_{model}.parquet` – SHAP values for a sampled subset of patients.
   - Summary plots (bar + beeswarm) per model:
@@ -40,7 +40,7 @@ For each `(cohort, age_band)`:
 
 ### Script (planned)
 
-- `8_shap_analysis/run_shap_analysis.py`:
+- `7_shap_analysis/run_shap_analysis.py`:
   - CLI: `--cohort`, `--age_band`, `--n_background` (background sample size), `--n_eval` (eval sample size).
   - Loads final features, fits or reloads XGBoost and CatBoost models with the same
     hyperparameters used in `6_final_model`.

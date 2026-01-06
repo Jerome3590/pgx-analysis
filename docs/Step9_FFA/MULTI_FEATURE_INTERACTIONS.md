@@ -27,7 +27,7 @@ The current implementation:
 
 #### 1.1 Add Multi-Feature Interaction Testing Function
 
-**Location**: `7_ffa_analysis/run_full_ffa_analysis.py`
+**Location**: `8_ffa_analysis/run_full_ffa_analysis.py`
 
 **New Function**: `perform_multi_feature_causal_analysis()`
 
@@ -103,7 +103,7 @@ if ANALYSIS_CONFIG.get('enable_interaction_analysis', False):
 
 #### 1.3 Output Format
 
-**File**: `7_ffa_analysis/outputs/{cohort}/{age_band}/interaction_analysis_{model_type}.csv`
+**File**: `8_ffa_analysis/outputs/{cohort}/{age_band}/interaction_analysis_{model_type}.csv`
 
 **Columns**:
 - `feature_combination`: String representation of feature tuple (e.g., "drug_A|drug_B")
@@ -299,7 +299,7 @@ def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
 
 ### Phase 4: Configuration
 
-**Add to**: `7_ffa_analysis/run_full_ffa_analysis.py` → `ANALYSIS_CONFIG`
+**Add to**: `8_ffa_analysis/run_full_ffa_analysis.py` → `ANALYSIS_CONFIG`
 
 ```python
 ANALYSIS_CONFIG = {

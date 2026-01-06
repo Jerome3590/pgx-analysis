@@ -154,7 +154,7 @@ else
     echo "  Or S3: $SHAP_GLOBAL_S3"
     echo ""
     echo "SHAP values are required for interaction analysis. Run Step 7 (SHAP Analysis) first:"
-    echo "  python 8_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
+    echo "  python 7_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
     exit 1
 fi
 
@@ -172,7 +172,7 @@ else
     echo "  Or S3: $SHAP_VALUES_S3"
     echo ""
     echo "SHAP values are required for interaction analysis. Run Step 7 (SHAP Analysis) first:"
-    echo "  python 8_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
+    echo "  python 7_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
     exit 1
 fi
 
@@ -202,7 +202,7 @@ cd "$PROJECT_ROOT"
 
 # Run with interaction analysis enabled
 # Note: Use 'catboost' as model type to test with CatBoost model
-python3 7_ffa_analysis/run_full_ffa_analysis.py \
+python3 8_ffa_analysis/run_full_ffa_analysis.py \
     --cohort-name "$COHORT" \
     --age-band "$AGE_BAND" \
     --model-type catboost \

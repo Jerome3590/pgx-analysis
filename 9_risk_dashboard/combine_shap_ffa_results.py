@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optional[Path]:
-    """Find SHAP results from Step 8."""
+    """Find SHAP results from Step 7."""
     age_band_fname = age_band.replace("-", "_")
     
     # Check common locations
@@ -56,12 +56,12 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optiona
 
 
 def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Optional[Path], Optional[Path]]:
-    """Find FFA results from the FFA step (7_ffa_analysis)."""
+    """Find FFA results from the FFA step (8_ffa_analysis)."""
     age_band_fname = age_band.replace("-", "_")
     
     explanations_path = (
         project_root
-        / "7_ffa_analysis"
+        / "8_ffa_analysis"
         / "outputs"
         / cohort
         / age_band_fname
@@ -70,7 +70,7 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Op
     )
     importance_path = (
         project_root
-        / "7_ffa_analysis"
+        / "8_ffa_analysis"
         / "outputs"
         / cohort
         / age_band_fname

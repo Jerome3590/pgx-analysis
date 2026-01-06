@@ -13,8 +13,8 @@ graph TD
     A --> E2[4b_dtw_filter]
     A --> H[5_pgx_analysis]
     A --> J[6_final_model_selection]
-    A --> K[7_ffa_analysis]
-    A --> L[8_shap_analysis]
+    A --> K[7_shap_analysis]
+    A --> L[8_ffa_analysis]
     A --> N[9_risk_dashboard]
     A --> O[py_helpers]
     

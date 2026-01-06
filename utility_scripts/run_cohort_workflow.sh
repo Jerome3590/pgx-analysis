@@ -87,7 +87,10 @@ else
 fi
 
 # Check for virtual environment in common locations
-if [ -f "$HOME/jupyter-env/bin/python3" ]; then
+if [ -f "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
+    PYTHON_CMD="/home/pgx3874/jupyter-env/bin/python3.11"
+    log "Using Python from EC2 jupyter-env: $PYTHON_CMD"
+elif [ -f "$HOME/jupyter-env/bin/python3" ]; then
     PYTHON_CMD="$HOME/jupyter-env/bin/python3"
     log "Using Python from jupyter-env: $PYTHON_CMD"
 elif [ -f "$PROJECT_ROOT/venv/bin/python3" ]; then
@@ -383,14 +386,14 @@ run_step "6" "Final Model Training (Aggregated Features + PGx, No Encoding)" \
 # Step 7: SHAP Analysis (uses best CatBoost model binary)
 # Must run before Step 8 (FFA) since FFA uses SHAP values to prioritize rules
 run_step "7" "SHAP Analysis (Best CatBoost Model)" \
-    "python 8_shap_analysis/run_shap_analysis.py --cohort $COHORT_NAME --age_band $AGE_BAND"
+    "python 7_shap_analysis/run_shap_analysis.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
 # Step 8: FFA Analysis (uses best XGBoost model JSON and SHAP importance from Step 7)
 if ! should_skip "8"; then
     log "=========================================="
     log "Step 8: FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)"
     log "=========================================="
-    if $PYTHON_CMD 7_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND; then
+    if $PYTHON_CMD 8_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND; then
         log "✅ Step 8 completed successfully"
     else
         warn "Step 8 failed (check if best XGBoost model JSON exists and Step 7 completed)"

@@ -3,7 +3,7 @@
 Run SHAP analysis for final models for a given (cohort, age_band).
 
 Outputs:
-  8_shap_analysis/outputs/{cohort}/{age_band_fname}/
+  7_shap_analysis/outputs/{cohort}/{age_band_fname}/
     - {cohort}_{age_band_fname}_shap_global_importance_xgboost.csv
     - {cohort}_{age_band_fname}_shap_global_importance_catboost.csv
     - {cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet
@@ -393,7 +393,7 @@ def run_shap_analysis(
 
     age_band_fname = age_band_to_fname(age_band)
     out_dir = (
-        PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
+        PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     )
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -494,7 +494,7 @@ def run_shap_analysis(
         xgb_imp_df.to_csv(xgb_imp_path, index=False)
         print(f"Saved XGBoost SHAP global importance to {xgb_imp_path}")
 
-        # Sample SHAP values
+        # Sample SHAP values - use DuckDB to write Parquet efficiently
         xgb_shap_sample_path = (
             out_dir
             / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
@@ -502,7 +502,18 @@ def run_shap_analysis(
         shap_sample_df = pd.DataFrame(
             shap_xgb, columns=feature_names, index=X_eval.index
         )
-        shap_sample_df.to_parquet(xgb_shap_sample_path, index=True)
+        # Use DuckDB to write Parquet (more efficient than pandas, better compression)
+        import duckdb
+        con_parquet = duckdb.connect()
+        try:
+            # Register DataFrame with DuckDB and write to Parquet
+            con_parquet.register('shap_df', shap_sample_df.reset_index())
+            con_parquet.execute(f"COPY shap_df TO '{str(xgb_shap_sample_path)}' (FORMAT PARQUET)")
+        except Exception as e:
+            print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
+            shap_sample_df.to_parquet(xgb_shap_sample_path, index=True, engine='pyarrow')
+        finally:
+            con_parquet.close()
         print(f"Saved XGBoost SHAP sample values to {xgb_shap_sample_path}")
 
         # Summary plots
@@ -624,7 +635,18 @@ def run_shap_analysis(
                 index=X_eval.index,
                 columns=feature_names,
             )
-            shap_cb_sample_df.to_parquet(cb_shap_sample_path, index=True)
+            # Use DuckDB to write Parquet (more efficient than pandas, better compression)
+            import duckdb
+            con_parquet = duckdb.connect()
+            try:
+                # Register DataFrame with DuckDB and write to Parquet
+                con_parquet.register('shap_cb_df', shap_cb_sample_df.reset_index())
+                con_parquet.execute(f"COPY shap_cb_df TO '{str(cb_shap_sample_path)}' (FORMAT PARQUET)")
+            except Exception as e:
+                print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
+                shap_cb_sample_df.to_parquet(cb_shap_sample_path, index=True, engine='pyarrow')
+            finally:
+                con_parquet.close()
             print(f"Saved CatBoost SHAP sample values to {cb_shap_sample_path}")
 
             plt.figure(figsize=(10, 8))
@@ -685,7 +707,7 @@ def run_shap_analysis(
             from py_helpers.checkpoint_utils import save_step_checkpoint
 
             save_step_checkpoint(
-                step_name="8_shap_analysis",
+                step_name="7_shap_analysis",
                 cohort=cohort,
                 age_band=age_band,
                 metadata={"n_background": n_background, "n_eval": n_eval, "models_analyzed": models_analyzed},
@@ -720,7 +742,7 @@ def main() -> None:
 
     age_band_fname = args.age_band.replace("-", "_")
     out_dir = (
-        PROJECT_ROOT / "8_shap_analysis" / "outputs" / args.cohort / age_band_fname
+        PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname
     )
 
     # Check for existing local outputs (idempotency - check local first)
@@ -766,7 +788,7 @@ def main() -> None:
             # Save checkpoint if outputs uploaded
             if s3_outputs:
                 save_step_checkpoint(
-                    step_name="8_shap_analysis",
+                    step_name="7_shap_analysis",
                     cohort=args.cohort,
                     age_band=args.age_band,
                     metadata={"n_background": args.n_background, "n_eval": args.n_eval, "models_analyzed": ["xgboost"]},
@@ -786,7 +808,7 @@ def main() -> None:
             f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
         ]
 
-        if check_step_outputs_exist(s3_output_paths) or check_step_checkpoint_exists("8_shap_analysis", args.cohort, args.age_band):
+        if check_step_outputs_exist(s3_output_paths) or check_step_checkpoint_exists("7_shap_analysis", args.cohort, args.age_band):
             print(f"[SKIP] Step 8 outputs already exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
             
             # Download from S3 to local
