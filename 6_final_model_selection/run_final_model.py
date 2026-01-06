@@ -1178,8 +1178,11 @@ def train_and_evaluate(
         from catboost import CatBoostClassifier  # type: ignore
 
         have_catboost = True
+        print(f"[INFO] CatBoost is available - will run for all {n_runs} MC CV splits")
     except Exception:
         have_catboost = False
+        print(f"[INFO] CatBoost not available - only running XGBoost models for {n_runs} MC CV splits")
+        print(f"[INFO] To install CatBoost: pip install catboost")
 
     if not use_xgb:
         error_msg = "XGBoost is required for the final model."
@@ -1201,8 +1204,11 @@ def train_and_evaluate(
         print(f"[MC {run_idx + 1}/{n_runs}] Class distribution (test):")
         print("  " + _counts(y_test))
 
+        models_to_train = ["XGBoost", "XGBoost RF"]
+        if have_catboost:
+            models_to_train.append("CatBoost")
         print(
-            f"\n[MC {run_idx + 1}/{n_runs}] Training XGBoost and XGBoost RF (CPU on Linux, GPU on Windows if available) for "
+            f"\n[MC {run_idx + 1}/{n_runs}] Training {', '.join(models_to_train)} for "
             f"cohort={cohort}, age_band={age_band} with "
             f"{X_train.shape[0]} train and {X_test.shape[0]} test rows, "
             f"{X_train.shape[1]} numeric features."
