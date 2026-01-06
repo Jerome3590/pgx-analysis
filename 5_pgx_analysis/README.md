@@ -1,31 +1,12 @@
-# Step 7: Pharmacogenomics (PGx) Analysis
+# Step 5: Pharmacogenomics (PGx) Analysis
 
-**Purpose:** Map drugs to known pharmacogenomic gene relationships and incorporate population allele frequencies to enhance feature understanding and model interpretability.
+**Purpose:** Identify CPIC drugs (drugs with pharmacogenomic guidelines) and create simple drug count features to assess whether drugs/CPIC drugs influence target outcomes.
 
-**Status:** ✅ Active Development
+**Status:** ✅ Active
 
-**Primary Data Source:** The workflow uses the **Official CPIC Excel File** as the primary source:
-- **Official CPIC Excel File**: `cpic/cpic_gene-drug_pairs.xlsx` - **PRIMARY SOURCE**
-  - Official current gene-drug pairs file from CPIC website (573 pairs, 300 drugs, 121 genes)
-  - **Download from:** https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
-  - **Location:** `7_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx`
-  - Updated regularly by CPIC - download the latest version periodically
-
-**Additional Data Sources:**
-- **PubMed Search**: Integrated to find additional drug-gene relationships (requires `biopython`)
-- **Fuzzy Matching**: Uses `rapidfuzz` to match drug names to CPIC database
-- **CPIC Pairs CSV** (`data/cpicPairs.csv`): Fallback source (261 drugs, 416 pairs from PGx-Patient-Card repo)
-- **Bioconductor** (optional): Alternative data source for allele frequencies and drug-gene interactions
-  - See `fetch_bioconductor_pgx_data.R` for R-based data fetching
-  - Packages: `GenomicScores` (MAF data), `CTDquerier` (drug-gene interactions), `VariantFiltering` (variant filtering)
-- **CPIC API** (`https://api.cpicpgx.org/`): Attempted but currently unavailable or has changed endpoints (returns 404)
-
-**For production use:**
-1. **Download the official CPIC Excel file** from the CPIC website and place it in `7_pgx_analysis/cpic/`
-2. **Run `update_cpic_drug_list.py`** to process the Excel file and create the drug list JSON
-3. Ensure `biopython` is installed for PubMed search functionality (`pip install biopython`)
-4. Ensure `openpyxl` is installed for Excel reading (`pip install openpyxl`)
-5. (Optional) Install Bioconductor packages for alternative allele frequency data: `Rscript -e "BiocManager::install(c('GenomicScores', 'CTDquerier', 'VariantFiltering'))"`
+**Current Approach:** Simple drug counting (no gene/SNP data required)
+- `pgx_num_drugs`: Total number of unique drugs per patient
+- `pgx_num_cpic_drugs`: Number of CPIC drugs per patient
 
 ---
 
@@ -33,101 +14,158 @@
 
 ```bash
 # Run the PGx analysis pipeline
-cd 7_pgx_analysis
-jupyter notebook pgx_analysis_pipeline.ipynb
+python 5_pgx_analysis/run_analysis.py --cohort-name opioid_ed --age-band 13-24
 
-# Or run scripts directly
-python map_drugs_to_genes.py --cohort opioid_ed --age_band 0-12 --use-pubmed
-python add_allele_frequencies.py --cohort opioid_ed --age_band 0-12
-python create_pgx_features_patient_level.py --cohort opioid_ed --age_band 0-12
-python add_pgx_features_to_model_data.py --cohort-name opioid_ed --age-band 0-12
+# Or run individual scripts
+python 5_pgx_analysis/create_pgx_features_patient_level.py --cohort opioid_ed --age_band 13-24
+python 5_pgx_analysis/add_pgx_features_to_model_data.py --cohort-name opioid_ed --age-band 13-24
 ```
+
+---
 
 ## Overview
 
-This analysis step enriches drug features with pharmacogenomic information by:
+This analysis step creates simple drug count features:
 
-1. **Drug-Gene Mapping**: Identifying genes associated with drug metabolism, transport, and targets
-2. **Allele Frequency Integration**: Adding population-level allele frequencies for relevant genetic variants
-3. **PGx Feature Enrichment**: Creating enhanced features that combine drug usage patterns with genetic predisposition information
+1. **Drug Identification**: Extract unique drugs from patient drug exposure data (`model_events.parquet`)
+2. **CPIC Drug Identification**: Use global drug-to-CPIC mapping to identify which drugs have CPIC pharmacogenomic guidelines
+3. **Patient-Level Aggregation**: Count total drugs and CPIC drugs per patient
 
-## Methodology
+### Why Simple Drug Counts?
 
-### Data Sources
+- **No Gene/SNP Data Available**: We don't have patient genetic/genotype data
+- **Race Data Not Accurate**: Patient-reported race is not a reliable proxy for genetic ancestry
+- **Focus on Drug Effects**: Simple approach to identify if drugs/CPIC drugs influence target outcomes
+- **Model-Driven**: Let the model determine if drug counts are predictive
 
-- **Drug-Gene Relationships**: 
-  - **Official CPIC Excel File** (`cpic/cpic_gene-drug_pairs.xlsx`) - **PRIMARY SOURCE** (573 pairs, 300 drugs, 121 genes)
-    - **Download from:** https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
-    - Official gene-drug pairs file from CPIC website, updated regularly
-    - Process using `update_cpic_drug_list.py` to create drug list JSON
-  - **PubMed** (via NCBI Entrez API) - Secondary source for additional relationships
-  - **CPIC Pairs CSV** (`data/cpicPairs.csv`) - Fallback (261 drugs, 416 pairs from PGx-Patient-Card repo)
-  - **Bioconductor** (optional) - Alternative source via R packages:
-    - `CTDquerier`: Chemical-gene interactions from Comparative Toxicogenomics Database
-    - `pharmacoGx`: Pharmacogenomics datasets (if available)
-  - **CPIC API** ([https://api.cpicpgx.org/](https://api.cpicpgx.org/)) - Attempted but currently unavailable
-  - PharmGKB (Pharmacogenomics Knowledge Base) - Future integration
-  - FDA PGx labeling information - Future integration
+---
 
-- **Allele Frequencies**:
-  - **CPIC API** - Primary source (currently unavailable)
-  - **Bioconductor** (alternative) - Via R packages:
-    - `GenomicScores`: MAF data from 1000 Genomes Project, ExAC, gnomAD
-    - `VariantFiltering`: Variant filtering with population frequency data
-    - `AnnotationHub`: Access to various annotation databases
-  
-- **Allele Frequencies**:
-  - **CPIC API** - Allele frequency data from CPIC database
-  - 1000 Genomes Project population frequencies (fallback)
-  - gnomAD (Genome Aggregation Database) allele frequencies (fallback)
-  - Population-specific frequencies (when available)
+## Data Sources
 
-### Process
+### Primary Data Source
 
-1. **Drug Identification**: Extract unique drugs from feature importance and FP-Growth results
-2. **Gene Mapping**: Map each drug to relevant pharmacogenes (e.g., CYP2D6, CYP2C19, TPMT, DPYD)
-3. **Variant Identification**: Identify clinically relevant variants for each gene-drug pair
-4. **Frequency Lookup**: Retrieve population allele frequencies for identified variants
-5. **Feature Enrichment**: Create enriched features combining drug patterns with genetic risk
+- **Global Drug-to-CPIC Mapping**: `5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv`
+  - Built from aggregated feature importance files across all cohorts
+  - Maps drug names to CPIC drug names using fuzzy matching (95%+ threshold)
+  - Generated by: `build_global_drug_cpic_mapping.py`
+  - Uploaded to S3: `s3://pgxdatalake/gold/pgx_features/global/drug_cpic_mapping_global.csv`
+
+### CPIC Reference Data
+
+- **Official CPIC Excel File**: `cpic/cpic_gene-drug_pairs.xlsx` (if available)
+  - **Download from:** https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
+  - Official gene-drug pairs file from CPIC website (573 pairs, 300 drugs, 121 genes)
+  - Updated regularly by CPIC - download the latest version periodically
+  - Processed by: `update_cpic_drug_list.py` to create `data/cpic_drug_list.json`
+
+- **CPIC Drug List JSON**: `data/cpic_drug_list.json`
+  - Extracted drug list for fuzzy matching
+  - Updated by: `update_cpic_drug_list.py`
+
+---
+
+## CPIC Website Resources (If Gene Markers/SNPs Available)
+
+**Note:** The following resources are available from CPIC if you have patient gene markers/SNPs. Currently, we don't use these because we don't have patient genetic data.
+
+### CPIC API and Database
+
+**Website:** https://cpicpgx.org/api-and-database/
+
+**Available Resources:**
+- **API Endpoint**: `https://api.cpicpgx.org/` (Note: Some endpoints may have changed)
+- **Structured Data Exports**: Whole database exports available
+- **Gene Variants**: Variant information for pharmacogenes
+- **Allele Frequencies**: Population-specific allele frequencies
+- **Function Assignments**: Allele function assignments (e.g., normal, decreased, no function)
+- **Diplotype-to-Phenotype Mappings**: Convert diplotype calls to phenotype predictions
+
+**Key API Endpoints (if available):**
+- `/guideline` - CPIC guidelines
+- `/drug` - Drug information
+- `/gene` - Gene information
+- `/allele` - Allele information and frequencies
+- `/phenotype` - Phenotype predictions
+
+### Allele Summary File
+
+**Website:** https://cpicpgx.org/alleles/
+
+**Description:** Lists alleles discussed in CPIC guideline manuscripts or supplementary files. Can be downloaded directly from the website.
+
+**Use Cases:**
+- Identify clinically relevant alleles for each pharmacogene
+- Get allele frequency data for different populations
+- Understand function assignments for alleles
+
+### Gene-Drug Pairs
+
+**Website:** https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
+
+**Description:** Official CPIC gene-drug pairs file containing:
+- 573 gene-drug pairs
+- 300 unique drugs
+- 121 unique genes
+- CPIC evidence levels (A, B, C, D)
+
+**Use Cases:**
+- Identify which genes are relevant for each drug
+- Understand CPIC evidence levels
+- Map drugs to pharmacogenes
+
+### Implementation Notes (If Using Gene/SNP Data)
+
+If you have patient gene markers/SNPs, you could:
+
+1. **Fetch Allele Frequencies**: Use CPIC API or allele summary files to get population-specific frequencies
+2. **Calculate Diplotype**: Convert patient genotypes to diplotypes
+3. **Predict Phenotype**: Use CPIC diplotype-to-phenotype mappings
+4. **Create Risk Features**: Combine drug exposure with phenotype predictions to create risk scores
+
+**Example Workflow (if genetic data available):**
+```python
+# 1. Get patient genotypes for relevant genes (e.g., CYP2D6, CYP2C19)
+patient_genotypes = get_patient_genotypes(mi_person_key, genes=['CYP2D6', 'CYP2C19'])
+
+# 2. Convert to diplotypes using CPIC allele definitions
+diplotypes = convert_to_diplotype(patient_genotypes)
+
+# 3. Predict phenotype using CPIC mappings
+phenotypes = predict_phenotype(diplotypes)  # e.g., 'Normal Metabolizer', 'Poor Metabolizer'
+
+# 4. Combine with drug exposure
+drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
+```
+
+---
 
 ## Directory Structure
 
 ```
-7_pgx_analysis/
+5_pgx_analysis/
 ├── README.md                          # This file
-├── pgx_analysis_pipeline.ipynb        # Main orchestrator notebook
-├── map_drugs_to_genes.py              # Drug-gene mapping script (CPIC + PubMed)
-├── search_pubmed_drug_gene.py         # PubMed search for drug-gene relationships
-├── add_allele_frequencies.py          # Allele frequency integration script
+├── run_analysis.py                    # Main orchestrator script
+├── map_drugs_to_genes.py              # Drug-gene mapping script (for building global mapping)
+├── build_global_drug_cpic_mapping.py  # Build global drug-to-CPIC mapping
 ├── create_pgx_features_patient_level.py  # Patient-level PGx feature creation
 ├── add_pgx_features_to_model_data.py  # Merge PGx features into final dataset
 ├── update_cpic_drug_list.py           # Update CPIC drug list from pairs file
 ├── fetch_cpic_drug_list.py            # Fetch CPIC drug list (fallback)
-├── fetch_bioconductor_pgx_data.R       # R script to fetch PGx data from Bioconductor
-├── FEATURES_EXPLANATION.md            # Detailed feature documentation
+├── search_pubmed_drug_gene.py         # PubMed search for drug-gene relationships (optional)
 ├── WORKFLOW_USAGE.md                  # How drug-gene mappings are used
-├── ALLELE_FREQUENCY_METHODOLOGY.md     # Allele frequency methodology
-└── BIOCONDUCTOR_INTEGRATION.md        # Bioconductor integration guide
 ├── outputs/                           # Analysis outputs
-│   ├── {cohort}/                      # Per-cohort outputs
-│   │   └── {age_band}/                # Per age-band outputs
-│   │       ├── drug_gene_mappings.csv
-│   │       ├── allele_frequencies.csv
-│   │       ├── pgx_enriched_features.csv
-│   │       └── pgx_summary_stats.csv
-│   └── plots/                         # Visualizations
-│       └── {cohort}/
-│           └── {age_band}/
-│               ├── drug_gene_network.png
-│               ├── allele_frequency_distribution.png
-│               └── pgx_risk_heatmap.png
-├── cpic/                              # CPIC reference data
-│   └── cpic_gene-drug_pairs.xlsx     # Official CPIC gene-drug pairs (primary source)
+│   ├── feature_engineering/           # Final PGx features
+│   │   └── pgx_features_{cohort}_{age_band}.csv
+│   └── global/                        # Global cache files
+│       ├── drug_cpic_mapping_global.csv
+│       └── drug_gene_allele_mapping_global.csv  # (if gene data available)
 └── data/                              # Reference data
     ├── cpicPairs.csv                  # CPIC pairs CSV (fallback)
     ├── cpic.csv                       # CPIC data CSV
     └── cpic_drug_list.json            # Extracted drug list for fuzzy matching
 ```
+
+---
 
 ## Output Files
 
@@ -139,147 +177,106 @@ The output paths summary has been migrated to the main pipeline documentation. S
 - File naming conventions
 - Idempotency check information
 
+---
+
+## Features Added to Model Data
+
+### Current Features (2 features per patient)
+
+1. **`pgx_num_drugs`**: Total number of unique drugs per patient
+   - Counts all distinct drugs from patient's drug exposure data
+   - Integer value (0 or greater)
+
+2. **`pgx_num_cpic_drugs`**: Number of CPIC drugs per patient
+   - Counts drugs that have CPIC pharmacogenomic guidelines
+   - Uses global drug-to-CPIC mapping to identify CPIC drugs
+   - Integer value (0 or greater)
+
+### Feature Format
+
+```csv
+mi_person_key,pgx_num_drugs,pgx_num_cpic_drugs
+1012097551,8,0
+1012218226,21,1
+1008423015,41,4
+```
+
+### Example Statistics (opioid_ed/13-24)
+
+- Total patients: 11,776
+- Patients with drugs: 9,204 (78%)
+- Patients with CPIC drugs: 3,543 (30%)
+- Mean drugs per patient: 5.4
+- Mean CPIC drugs per patient: 0.4
+- Max drugs: 131
+- Max CPIC drugs: 10
+
+---
+
 ## Input Dependencies
 
 This step requires completion of:
-- **Step 3**: Feature Importance (to identify important drugs)
-- **Step 4**: FP-Growth Analysis (to identify frequent drug patterns)
+- **Step 4**: Model Data Preparation (`model_events.parquet` with drug exposure data)
+
+**Optional (for building global mapping):**
+- **Step 3**: Feature Importance (to identify important drugs for global mapping)
+
+---
 
 ## Workflow Integration
 
 This step follows the standard analysis workflow pattern:
 
-1. **Orchestrator Notebook**: `pgx_analysis_pipeline.ipynb` coordinates the analysis
+1. **Orchestrator Script**: `run_analysis.py` coordinates the analysis
 2. **Supporting Scripts**: Python scripts handle specific tasks
-3. **Output Structure**: Results saved to `outputs/{cohort}/{age_band}/` and `outputs/{cohort}/{age_band}/plots/`
-4. **Sequential Execution**: Must complete Step 6 (DTW Analysis) before running this step
+3. **Output Structure**: Results saved to `outputs/feature_engineering/` and uploaded to S3
+4. **Sequential Execution**: Must complete Step 4 before running this step
 
-See `docs/README_output_structure.md` for the complete workflow framework.
+See `docs/README_analysis_workflow.md` for the complete workflow framework.
+
+---
 
 ## Key Features
 
-- **Comprehensive Drug Coverage**: Maps all drugs identified in previous analysis steps
-- **Evidence-Based**: Uses PharmGKB and CPIC evidence levels
-- **Population-Aware**: Incorporates population-specific allele frequencies
-- **Clinically Relevant**: Focuses on variants with established clinical significance
+- **Simple & Fast**: No complex gene/SNP processing required
+- **CPIC-Based**: Uses official CPIC drug list for pharmacogenomic drug identification
+- **Global Mapping**: Reuses global drug-to-CPIC mapping across all cohorts
+- **Idempotent**: Can be rerun safely (checks for existing outputs)
+- **S3 Integration**: Uploads outputs to S3 for sharing across environments
 
-## Features Added to Model Data
+---
 
-### Overview
+## Future Enhancements (If Genetic Data Available)
 
-PGx features are **NOT directly based on patient race**. Instead, we create **multiple feature variants** (one for each population ancestry group) and let the **model determine** which features are most predictive.
+If patient gene markers/SNPs become available, we could enhance the analysis to:
 
-### Feature Creation Process
+1. **Fetch Allele Frequencies**: Use CPIC API to get population-specific frequencies
+2. **Calculate Phenotypes**: Convert genotypes to phenotypes using CPIC mappings
+3. **Create Risk Scores**: Combine drug exposure with phenotype predictions
+4. **Population-Specific Features**: Create features for different ancestry groups
 
-1. **Patient Drug Exposures**: Extract drugs each patient took from `model_data`
-2. **Drug → Gene Mapping**: Map each drug to pharmacogenomic genes (from CPIC/PubMed)
-3. **Gene → Allele Frequencies**: Fetch allele frequencies for each gene (all populations)
-4. **Patient-Level Aggregation**: Aggregate across all patient's drug-gene pairs
+See the "CPIC Website Resources" section above for details on available resources.
 
-### Features Added (20 features per patient)
+---
 
-#### Global Frequency Features (3):
-- `pgx_risk_global_mean`: Average allele frequency across all drug-gene pairs (global)
-- `pgx_risk_global_max`: Maximum allele frequency across all drug-gene pairs (global)
-- `pgx_risk_global_sum`: Sum of allele frequencies across all drug-gene pairs (global)
+## Troubleshooting
 
-#### Population-Specific Features (15):
-For each population (AFR, AMR, EAS, EUR, SAS), create 3 features:
-- `pgx_risk_{population}_mean`: Average allele frequency for that population
-- `pgx_risk_{population}_max`: Maximum allele frequency for that population
-- `pgx_risk_{population}_sum`: Sum of allele frequencies for that population
+### Global Drug Mapping Not Found
 
-**Example:**
-- `pgx_risk_afr_mean`, `pgx_risk_afr_max`, `pgx_risk_afr_sum`
-- `pgx_risk_amr_mean`, `pgx_risk_amr_max`, `pgx_risk_amr_sum`
-- `pgx_risk_eas_mean`, `pgx_risk_eas_max`, `pgx_risk_eas_sum`
-- `pgx_risk_eur_mean`, `pgx_risk_eur_max`, `pgx_risk_eur_sum`
-- `pgx_risk_sas_mean`, `pgx_risk_sas_max`, `pgx_risk_sas_sum`
+If `drug_cpic_mapping_global.csv` is not found:
+1. Check S3: `s3://pgxdatalake/gold/pgx_features/global/drug_cpic_mapping_global.csv`
+2. Or regenerate: `python 5_pgx_analysis/build_global_drug_cpic_mapping.py`
 
-#### Count Features (2):
-- `pgx_drugs_with_mappings`: Number of patient's drugs that have PGx mappings
-- `pgx_genes_covered`: Number of unique PGx genes involved in patient's drug-gene pairs
+### No CPIC Drugs Identified
 
-### Complete Feature List
+If `pgx_num_cpic_drugs` is 0 for all patients:
+1. Check that global drug mapping exists and has entries
+2. Verify drug names in `model_events.parquet` match CPIC drug names (case-insensitive)
+3. Check fuzzy matching threshold (should be 95%+)
 
-```
-mi_person_key                    # Patient identifier
-pgx_risk_global_mean            # Mean global frequency
-pgx_risk_global_max             # Max global frequency
-pgx_risk_global_sum             # Sum global frequency
-pgx_risk_afr_mean               # Mean AFR frequency
-pgx_risk_afr_max                # Max AFR frequency
-pgx_risk_afr_sum                # Sum AFR frequency
-pgx_risk_amr_mean               # Mean AMR frequency
-pgx_risk_amr_max                # Max AMR frequency
-pgx_risk_amr_sum                # Sum AMR frequency
-pgx_risk_eas_mean               # Mean EAS frequency
-pgx_risk_eas_max                # Max EAS frequency
-pgx_risk_eas_sum                # Sum EAS frequency
-pgx_risk_eur_mean               # Mean EUR frequency
-pgx_risk_eur_max                # Max EUR frequency
-pgx_risk_eur_sum                # Sum EUR frequency
-pgx_risk_sas_mean               # Mean SAS frequency
-pgx_risk_sas_max                # Max SAS frequency
-pgx_risk_sas_sum                # Sum SAS frequency
-pgx_drugs_with_mappings         # Count of drugs with PGx data
-pgx_genes_covered               # Count of unique genes
-```
+### Feature File Not Found
 
-### Important: Race is NOT Used for Feature Assignment
-
-**What We Do NOT Do:**
-- ❌ We do NOT assign frequencies based on patient-reported race
-- ❌ We do NOT create a single "assigned" feature based on patient demographics
-- ❌ We do NOT use patient race to select which frequency to use
-
-**What We Do:**
-- ✅ Create separate features for ALL populations (global, AFR, AMR, EAS, EUR, SAS)
-- ✅ Let the model determine which features are most predictive
-- ✅ Store all population frequencies for transparency
-
-### Model Usage
-
-During model training:
-1. **Feature Selection**: Model can automatically select which population features improve predictions
-2. **Feature Importance**: Shows which frequency variants (if any) are most informative
-3. **No Race-Based Assignment**: Model evaluates all variants equally, regardless of patient demographics
-
-### Example Feature Values
-
-**Patient who took AMOXICILLIN + AZITHROMYCIN:**
-```
-mi_person_key: 12345
-pgx_risk_global_mean: 0.18    # Average across 17 drug-gene pairs (global)
-pgx_risk_global_max: 0.30     # Highest frequency variant (global)
-pgx_risk_global_sum: 3.06     # Sum of all frequencies (global)
-
-pgx_risk_eur_mean: 0.20       # Average across 17 drug-gene pairs (European)
-pgx_risk_eur_max: 0.35       # Highest frequency variant (European)
-pgx_risk_eur_sum: 3.40       # Sum of all frequencies (European)
-
-pgx_risk_afr_mean: 0.15       # Average across 17 drug-gene pairs (African)
-pgx_risk_afr_max: 0.25       # Highest frequency variant (African)
-pgx_risk_afr_sum: 2.55       # Sum of all frequencies (African)
-
-... (similar for AMR, EAS, SAS)
-
-pgx_drugs_with_mappings: 2   # AMOXICILLIN, AZITHROMYCIN
-pgx_genes_covered: 13        # Unique genes across both drugs
-```
-
-### Rationale
-
-**Why Not Assign Based on Race?**
-1. **Race ≠ Genetic Ancestry**: Patient-reported race is a social construct, not genetic ancestry
-2. **Model-Driven**: Let the model discover which features are predictive
-3. **Transparency**: All population frequencies are available for analysis
-4. **Avoid Bias**: Don't make assumptions about which frequency to use
-
-**Why Multiple Variants?**
-1. **Population Differences**: Allele frequencies DO vary by population (well-documented)
-2. **Model Selection**: Model can determine if population-specific features help
-3. **Flexibility**: Can evaluate different approaches without assumptions
-
-See `FEATURES_EXPLANATION.md` for detailed documentation.
-
+If downstream steps can't find PGx features:
+1. Check local: `5_pgx_analysis/outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`
+2. Check S3: `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv`
+3. Re-run: `python 5_pgx_analysis/create_pgx_features_patient_level.py --cohort {cohort} --age_band {age_band}`
