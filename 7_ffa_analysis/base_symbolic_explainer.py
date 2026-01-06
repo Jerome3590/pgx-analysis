@@ -343,13 +343,17 @@ class BaseSymbolicExplainer(ABC):
         """
         Compute minimal hitting set (AXP) over matching rule IDs.
         
+        Uses both first 100 rules and random sample of 100 rules to ensure
+        we don't miss important features due to ordering bias.
+        
         Args:
             rule_ids: List of rule indices
             
         Returns:
-            List of literal IDs forming the minimal hitting set
+            List of literal IDs forming the minimal hitting set (union of both approaches)
         """
         import time
+        import random
         start_time = time.time()
         
         if Hitman is None:
@@ -358,34 +362,74 @@ class BaseSymbolicExplainer(ABC):
         if hasattr(self, 'logger'):
             self.logger.info(f"_compute_axp: Starting computation for {len(rule_ids)} matched rules")
         
-        # Limit number of rules if too many (for performance)
         max_rules = 100  # Limit to prevent hanging
+        
+        # If we have many rules, use both first 100 and random sample
         if len(rule_ids) > max_rules:
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: Too many matched rules ({len(rule_ids)}), limiting to {max_rules} for performance")
-            # Take first max_rules rules (could also sample randomly)
-            rule_ids = rule_ids[:max_rules]
-        
-        h = Hitman(solver="m22")
-        for ridx in rule_ids:
-            h.hit(self.rule_clauses[ridx])
-        
-        if hasattr(self, 'logger'):
-            self.logger.info(f"_compute_axp: Calling Hitman.get()...")
-        
-        result = h.get()
-        
-        # Handle case where Hitman.get() returns None (no valid explanation found)
-        if result is None:
-            result = []
+                self.logger.warning(f"_compute_axp: Too many matched rules ({len(rule_ids)}), using first {max_rules} + random {max_rules} for robustness")
+            
+            # First 100 rules
+            first_rules = rule_ids[:max_rules]
+            
+            # Random sample of 100 rules (seed for reproducibility)
+            random.seed(42)
+            random_rules = random.sample(rule_ids, min(max_rules, len(rule_ids)))
+            
+            # Compute AXP from first 100 rules
+            h_first = Hitman(solver="m22")
+            for ridx in first_rules:
+                h_first.hit(self.rule_clauses[ridx])
+            
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(rule_ids)} matched rules - no valid explanation found")
-        
-        duration = time.time() - start_time
-        if hasattr(self, 'logger'):
-            self.logger.info(f"_compute_axp: {len(rule_ids)} matched rules -> {len(result)} literals, took {duration:.4f}s")
-        
-        return result
+                self.logger.info(f"_compute_axp: Computing AXP from first {len(first_rules)} rules...")
+            
+            result_first = h_first.get()
+            if result_first is None:
+                result_first = []
+            
+            # Compute AXP from random sample
+            h_random = Hitman(solver="m22")
+            for ridx in random_rules:
+                h_random.hit(self.rule_clauses[ridx])
+            
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: Computing AXP from random {len(random_rules)} rules...")
+            
+            result_random = h_random.get()
+            if result_random is None:
+                result_random = []
+            
+            # Combine results: union of literals from both approaches
+            combined_literals = list(set(result_first) | set(result_random))
+            
+            duration = time.time() - start_time
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: First {len(first_rules)} rules -> {len(result_first)} literals, Random {len(random_rules)} rules -> {len(result_random)} literals, Combined -> {len(combined_literals)} literals, took {duration:.4f}s")
+            
+            return combined_literals
+        else:
+            # Fewer than max_rules, use all rules
+            h = Hitman(solver="m22")
+            for ridx in rule_ids:
+                h.hit(self.rule_clauses[ridx])
+            
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: Calling Hitman.get()...")
+            
+            result = h.get()
+            
+            # Handle case where Hitman.get() returns None (no valid explanation found)
+            if result is None:
+                result = []
+                if hasattr(self, 'logger'):
+                    self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(rule_ids)} matched rules - no valid explanation found")
+            
+            duration = time.time() - start_time
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: {len(rule_ids)} matched rules -> {len(result)} literals, took {duration:.4f}s")
+            
+            return result
     
     def explain_literals(self, instance: np.ndarray, predicted_class: int) -> List[int]:
         """
