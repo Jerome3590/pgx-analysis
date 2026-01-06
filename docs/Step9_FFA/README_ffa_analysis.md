@@ -2,25 +2,31 @@
 
 ## Overview
 
-Formal Feature Attribution (FFA) Analysis provides a comprehensive framework for interpreting CatBoost models through symbolic logic extraction, anchored explanations, and causal analysis. This module transforms opaque gradient-boosted decision tree models into interpretable, analyzable symbolic rules suitable for formal verification and causal inference.
+Formal Feature Attribution (FFA) Analysis provides a comprehensive framework for interpreting gradient-boosted decision tree models (CatBoost, XGBoost) through symbolic logic extraction, anchored explanations, and causal analysis. This module transforms opaque models into interpretable, analyzable symbolic rules suitable for formal verification and causal inference.
 
 **Key Capabilities:**
 
-- **Symbolic Rule Extraction**: Convert CatBoost tree structures into Boolean logic formulas
-- **Anchored Explanations (AXP)**: Generate instance-level explanations using rule matching
+- **Symbolic Rule Extraction**: Convert tree structures into Boolean logic formulas
+- **SHAP-Guided Rule Filtering**: Uses SHAP importance values (from Step 7) as an intermediary to filter and prioritize rules before AXP computation
+- **Anchored Explanations (AXP)**: Generate instance-level explanations using rule matching with SHAP-filtered rule sets
 - **Causal Analysis**: Measure causal responsibility of features through counterfactual analysis
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 - **Formal Verification**: Use SAT solvers for consistency checking and minimal explanation extraction
 
+**Important**: FFA does not directly convert model JSON to rules. Instead, it:
+1. Extracts all possible rules from the model JSON
+2. Uses SHAP importance values (required from Step 7) to filter and prioritize rules
+3. Computes AXP explanations from the SHAP-filtered rule set
+
 ## Architecture
 
-The FFA pipeline follows a three-phase architecture:
+The FFA pipeline follows a four-phase architecture with SHAP as an intermediary:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase I: Model Ingestion & Feature Mapping                  │
 ├─────────────────────────────────────────────────────────────┤
-│ • Load CatBoost JSON model                                  │
+│ • Load model JSON (CatBoost/XGBoost)                        │
 │ • Parse features_info (float and categorical)              │
 │ • Extract CTR (Counter-based Target Statistics) mappings    │
 │ • Map feature indices to readable names                     │
@@ -31,14 +37,24 @@ The FFA pipeline follows a three-phase architecture:
 ├─────────────────────────────────────────────────────────────┤
 │ • Convert tree paths to PySAT formulas                      │
 │ • Build CNF (Conjunctive Normal Form) constraints          │
-│ • Extract decision rules with conditions                    │
+│ • Extract ALL decision rules with conditions                │
 │ • Validate rule consistency using SAT solvers                │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Phase II.5: SHAP-Guided Rule Filtering (REQUIRED)          │
+├─────────────────────────────────────────────────────────────┤
+│ • Load SHAP importance values from Step 7                   │
+│ • Score each rule by summing SHAP values of its features    │
+│ • Filter rules: union of (1) first 100, (2) random 100,    │
+│   and (3) all rules with SHAP importance > 0                 │
+│ • SHAP values are REQUIRED - raises error if missing       │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase III: Explanation & Analysis                           │
 ├─────────────────────────────────────────────────────────────┤
-│ • Generate anchored explanations (AXP)                      │
+│ • Generate anchored explanations (AXP) from filtered rules  │
 │ • Calculate feature importance from explanations            │
 │ • Perform causal analysis via counterfactuals               │
 │ • Generate visualizations and reports                       │
@@ -66,28 +82,36 @@ CatBoost uses CTR transformations for categorical features, which require specia
 - Converts oblivious tree structures to Boolean formulas
 - Uses PySAT for CNF conversion and SAT solving
 - Creates human-readable decision rules with conditions
+- **Extracts ALL possible rules** from the model (not filtered at this stage)
 
-### 4. Anchored Explanations (AXP)
+### 4. SHAP-Guided Rule Filtering (REQUIRED)
 
-- Matches instances to decision rules
+- **SHAP values are required**: Loads SHAP importance scores from Step 7 (SHAP Analysis)
+- **Rule Scoring**: Each rule is scored by summing the SHAP importance values of all features in the rule
 - **Rule Selection Logic**: For each instance, selects rules using a three-set union approach:
   1. **First 100 rules**: Takes the first 100 matched rules (order-based coverage)
-  2. **Random 100 rules**: Takes a random sample of 100 matched rules (diversity through sampling)
-  3. **SHAP-filtered rules**: Includes all rules with SHAP importance > 0 (SHAP-important rules)
+  2. **Random 100 rules**: Takes a random sample of 100 matched rules (diversity through sampling, seed=42)
+  3. **SHAP-filtered rules**: Includes all rules where the sum of SHAP importance > 0 (SHAP-important rules)
   4. **Final rule set**: Union of all three sets (deduplicated) for AXP computation
-- Generates explanations for target class predictions
-- Tracks unmatched instances for coverage analysis
-- **SHAP values are required**: Only rules with SHAP importance > 0 are included in the final set
+- **Error Handling**: Raises `FileNotFoundError` or `ValueError` if SHAP data is missing or malformed
+- **Key Point**: We do NOT directly convert model JSON to final rules. SHAP values act as an intermediary filter to prioritize which rules are used for AXP computation.
 
-### 5. Causal Analysis
+### 5. Anchored Explanations (AXP)
+
+- Matches instances to decision rules from the SHAP-filtered rule set
+- Generates explanations for target class predictions using the filtered rules
+- Tracks unmatched instances for coverage analysis
+- Uses SAT solvers (Hitman) to compute minimal hitting sets (AXP) from the filtered rule set
+
+### 6. Causal Analysis
 
 - Measures causal importance by modifying features
 - Uses counterfactual reasoning (what-if scenarios)
 - Calculates average prediction change per feature
 
-### 6. Feature Importance
+### 7. Feature Importance
 
-- **AXP-based**: Frequency of features in explanation conditions
+- **AXP-based**: Frequency of features in explanation conditions (from SHAP-filtered rules)
 - **Causal-based**: Average change in predictions when features are modified
 - Normalized scores for comparison
 
@@ -151,13 +175,17 @@ pip install catboost pandas numpy matplotlib seaborn pysat boto3
 
 ## Workflow
 
-1. **Model Ingestion**: Load and validate CatBoost JSON model
+1. **Model Ingestion**: Load and validate model JSON (CatBoost/XGBoost)
 2. **Feature Mapping**: Extract and map feature names, CTR data
-3. **Rule Extraction**: Convert trees to symbolic formulas
-4. **Explanation Generation**: Match instances to rules (AXP)
-5. **Causal Analysis**: Measure feature causal importance
-6. **Visualization**: Create plots and summary reports
-7. **Export**: Save results to CSV/JSON/Parquet
+3. **Rule Extraction**: Convert trees to symbolic formulas (extracts ALL rules)
+4. **SHAP Loading**: Load SHAP importance values from Step 7 (REQUIRED)
+5. **Rule Filtering**: Filter rules using SHAP importance (union of first 100 + random 100 + all SHAP > 0)
+6. **Explanation Generation**: Match instances to SHAP-filtered rules and compute AXP
+7. **Causal Analysis**: Measure feature causal importance
+8. **Visualization**: Create plots and summary reports
+9. **Export**: Save results to CSV/JSON/Parquet
+
+**Critical Dependency**: Step 7 (SHAP Analysis) must run before Step 8 (FFA Analysis). FFA requires SHAP importance values to filter rules. The system will raise an error if SHAP data is not available.
 
 ## Outputs
 

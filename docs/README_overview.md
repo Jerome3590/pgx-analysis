@@ -105,7 +105,7 @@ For every `(cohort, age_band)` above we run:
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
-- post-model analysis: SHAP (`8_shap_analysis/`) followed by FFA (`7_ffa_analysis/`), which uses SHAP importance to prioritize rules
+- post-model analysis: SHAP (`8_shap_analysis/`) followed by FFA (`7_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 - risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
