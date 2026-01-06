@@ -98,16 +98,36 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict]) -> Dict:
         # Limit rules for performance
         max_rules = 100
         if len(matched) > max_rules:
-            matched = matched[:max_rules]
-        
-        # Compute minimal hitting set
-        if Hitman is None:
-            raise ImportError("pysat is required for AXP computation")
-        
-        h = Hitman(solver="m22")
-        for ridx in matched:
-            h.hit(rule_clauses[ridx])
-        axp_literals = h.get()
+            # Use both first 100 and random sample for robustness
+            import random
+            random.seed(42)  # Reproducibility
+            
+            first_rules = matched[:max_rules]
+            random_rules = random.sample(matched, max_rules)
+            
+            # Compute AXP from first 100
+            h_first = Hitman(solver="m22")
+            for ridx in first_rules:
+                h_first.hit(rule_clauses[ridx])
+            result_first = h_first.get() or []
+            
+            # Compute AXP from random sample
+            h_random = Hitman(solver="m22")
+            for ridx in random_rules:
+                h_random.hit(rule_clauses[ridx])
+            result_random = h_random.get() or []
+            
+            # Combine (union of literals)
+            axp_literals = list(set(result_first) | set(result_random))
+        else:
+            # Fewer than max_rules, use all
+            if Hitman is None:
+                raise ImportError("pysat is required for AXP computation")
+            
+            h = Hitman(solver="m22")
+            for ridx in matched:
+                h.hit(rule_clauses[ridx])
+            axp_literals = h.get() or []
     
     # Convert literals to text
     axp_text = []
