@@ -14,6 +14,7 @@ Formal Feature Attribution (FFA) Analysis provides a comprehensive framework for
 - **Formal Verification**: Use SAT solvers for consistency checking and minimal explanation extraction
 
 **Important**: FFA does not directly convert model JSON to rules. Instead, it:
+
 1. Extracts all possible rules from the model JSON
 2. Uses SHAP importance values (required from Step 7) to filter and prioritize rules
 3. Computes AXP explanations from the SHAP-filtered rule set
@@ -201,11 +202,13 @@ The analysis generates several outputs:
 
 ### Anchored Explanations (AXP)
 
-Anchored explanations match instances to decision rules that explain their predictions. Each explanation contains:
+Anchored explanations match instances to SHAP-filtered decision rules that explain their predictions. Each explanation contains:
 
-- **Matched rule**: The decision rule satisfied by the instance
+- **Matched rule**: The decision rule satisfied by the instance (from the SHAP-filtered rule set)
 - **Conditions**: Feature conditions that must be met
 - **Prediction**: The rule's predicted outcome
+
+AXP explanations are computed from the filtered rule set, ensuring that only SHAP-important rules are considered.
 
 ### Causal Importance
 
