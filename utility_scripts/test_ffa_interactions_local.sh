@@ -36,23 +36,31 @@ mkdir -p "$OUTPUT_DIR"
 # Download CatBoost model from S3
 echo ""
 echo "Downloading CatBoost model from S3..."
-MODEL_S3_PATH="s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/final_model_json/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
+# Try multiple S3 path patterns
+MODEL_S3_PATHS=(
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/final_model_json/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/final_model_json/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
+    "s3://$S3_BUCKET/gold/dashboard/models/$COHORT/$AGE_BAND_FNAME/catboost.json"
+)
 
-if aws s3 ls "$MODEL_S3_PATH" > /dev/null 2>&1; then
-    aws s3 cp "$MODEL_S3_PATH" "$MODEL_DIR/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
-    echo "✓ Downloaded CatBoost model"
-else
-    echo "✗ CatBoost model not found at: $MODEL_S3_PATH"
-    echo "  Trying alternative path..."
-    # Try alternative path
-    ALT_MODEL_S3_PATH="s3://$S3_BUCKET/gold/dashboard/models/$COHORT/$AGE_BAND_FNAME/catboost.json"
-    if aws s3 ls "$ALT_MODEL_S3_PATH" > /dev/null 2>&1; then
-        aws s3 cp "$ALT_MODEL_S3_PATH" "$MODEL_DIR/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
-        echo "✓ Downloaded CatBoost model from alternative path"
-    else
-        echo "✗ CatBoost model not found. Please check S3 paths."
-        exit 1
+MODEL_DOWNLOADED=false
+for MODEL_S3_PATH in "${MODEL_S3_PATHS[@]}"; do
+    if aws s3 ls "$MODEL_S3_PATH" > /dev/null 2>&1; then
+        aws s3 cp "$MODEL_S3_PATH" "$MODEL_DIR/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
+        echo "✓ Downloaded CatBoost model from: $MODEL_S3_PATH"
+        MODEL_DOWNLOADED=true
+        break
     fi
+done
+
+if [ "$MODEL_DOWNLOADED" = false ]; then
+    echo "✗ CatBoost model not found at any of the following paths:"
+    for path in "${MODEL_S3_PATHS[@]}"; do
+        echo "    - $path"
+    done
+    echo ""
+    echo "Please check S3 paths or ensure the model exists."
+    exit 1
 fi
 
 # Download feature data
