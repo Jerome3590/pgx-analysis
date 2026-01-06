@@ -124,15 +124,15 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
         shutil.rmtree(step7_dir)
         print(f"  ✅ Local Step 7 outputs cleared")
     
-    # Clear S3 outputs
+    # Clear S3 outputs and checkpoints
     if clear_s3:
         try:
             import boto3
             s3_client = boto3.client("s3")
-            s3_prefix = f"gold/ffa_analysis/{cohort}/{age_band}/"
-            
-            # List and delete objects
             bucket = "pgxdatalake"
+            
+            # Clear S3 outputs
+            s3_prefix = f"gold/ffa_analysis/{cohort}/{age_band}/"
             paginator = s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=bucket, Prefix=s3_prefix)
             
@@ -148,6 +148,29 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                     Delete={"Objects": objects_to_delete}
                 )
                 print(f"  ✅ S3 Step 7 outputs cleared")
+            
+            # Clear checkpoints (in pgx-repository bucket)
+            checkpoint_prefix = f"pipeline_checkpoints/7_ffa_analysis/{cohort}/{age_band_fname}/"
+            try:
+                checkpoint_bucket = "pgx-repository"
+                checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
+                checkpoint_pages = checkpoint_paginator.paginate(Bucket=checkpoint_bucket, Prefix=checkpoint_prefix)
+                
+                checkpoint_objects = []
+                for page in checkpoint_pages:
+                    if "Contents" in page:
+                        for obj in page["Contents"]:
+                            checkpoint_objects.append({"Key": obj["Key"]})
+                
+                if checkpoint_objects:
+                    s3_client.delete_objects(
+                        Bucket=checkpoint_bucket,
+                        Delete={"Objects": checkpoint_objects}
+                    )
+                    print(f"  ✅ Step 7 checkpoints cleared")
+            except Exception as e:
+                print(f"  ⚠️  Warning: Could not clear Step 7 checkpoints: {e}")
+                
         except Exception as e:
             print(f"  ⚠️  Warning: Could not clear S3 Step 7 outputs: {e}")
 
@@ -164,15 +187,15 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
         shutil.rmtree(step8_dir)
         print(f"  ✅ Local Step 8 outputs cleared")
     
-    # Clear S3 outputs
+    # Clear S3 outputs and checkpoints
     if clear_s3:
         try:
             import boto3
             s3_client = boto3.client("s3")
-            s3_prefix = f"gold/shap_analysis/{cohort}/{age_band}/"
-            
-            # List and delete objects
             bucket = "pgxdatalake"
+            
+            # Clear S3 outputs
+            s3_prefix = f"gold/shap_analysis/{cohort}/{age_band}/"
             paginator = s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=bucket, Prefix=s3_prefix)
             
@@ -188,6 +211,29 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                     Delete={"Objects": objects_to_delete}
                 )
                 print(f"  ✅ S3 Step 8 outputs cleared")
+            
+            # Clear checkpoints (in pgx-repository bucket)
+            checkpoint_prefix = f"pipeline_checkpoints/8_shap_analysis/{cohort}/{age_band_fname}/"
+            try:
+                checkpoint_bucket = "pgx-repository"
+                checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
+                checkpoint_pages = checkpoint_paginator.paginate(Bucket=checkpoint_bucket, Prefix=checkpoint_prefix)
+                
+                checkpoint_objects = []
+                for page in checkpoint_pages:
+                    if "Contents" in page:
+                        for obj in page["Contents"]:
+                            checkpoint_objects.append({"Key": obj["Key"]})
+                
+                if checkpoint_objects:
+                    s3_client.delete_objects(
+                        Bucket=checkpoint_bucket,
+                        Delete={"Objects": checkpoint_objects}
+                    )
+                    print(f"  ✅ Step 8 checkpoints cleared")
+            except Exception as e:
+                print(f"  ⚠️  Warning: Could not clear Step 8 checkpoints: {e}")
+                
         except Exception as e:
             print(f"  ⚠️  Warning: Could not clear S3 Step 8 outputs: {e}")
 
