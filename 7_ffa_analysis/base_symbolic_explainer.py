@@ -44,6 +44,10 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict]) -> Dict:
     id_condition_map = explainer_state['id_condition_map']
     feature_names = explainer_state['feature_names']
     _class_rule_indices = explainer_state.get('_class_rule_indices', {})
+    shap_importance_map = explainer_state.get('shap_importance_map', {})
+    
+    if not shap_importance_map:
+        raise ValueError("shap_importance_map is required in explainer_state. Only rules with SHAP importance > 0 will be used.")
     
     # Convert instance back to numpy array (ensure it's 1D)
     # instance_values should be a list from x.tolist()
@@ -91,41 +95,54 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict]) -> Dict:
         ):
             matched.append(idx_rule)
     
-    # Compute AXP if we have matched rules
-    if not matched:
+    # Score rules by SHAP and filter to only those with SHAP > 0
+    def score_rule_by_shap(rule_id):
+        clause = rule_clauses[rule_id]
+        score = 0.0
+        features_in_rule = set()
+        for lit in clause:
+            feat_idx, _, _ = id_condition_map[lit]
+            feat_name = feature_names.get(feat_idx, f"f{feat_idx}")
+            features_in_rule.add(feat_name)
+        for feat_name in features_in_rule:
+            score += shap_importance_map.get(feat_name, 0.0)
+        return score
+    
+    # Filter matched rules to only those with SHAP importance > 0
+    shap_filtered_matched = [rid for rid in matched if score_rule_by_shap(rid) > 0]
+    
+    # Compute AXP if we have SHAP-filtered matched rules
+    if not shap_filtered_matched:
         axp_literals = []
     else:
         # Limit rules for performance
         max_rules = 100
-        if len(matched) > max_rules:
-            # Use both first 100 and random sample for robustness
+        if len(shap_filtered_matched) > max_rules:
+            # Use first 100 + random sample of 100, then deduplicate
             import random
             random.seed(42)  # Reproducibility
             
-            first_rules = matched[:max_rules]
-            random_rules = random.sample(matched, max_rules)
+            first_rules = shap_filtered_matched[:max_rules]
+            random_rules = random.sample(shap_filtered_matched, max_rules)
             
-            # Compute AXP from first 100
-            h_first = Hitman(solver="m22")
-            for ridx in first_rules:
-                h_first.hit(rule_clauses[ridx])
-            result_first = h_first.get() or []
+            # Combine and deduplicate: union of both rule sets
+            combined_rule_ids = list(set(first_rules) | set(random_rules))
             
-            # Compute AXP from random sample
-            h_random = Hitman(solver="m22")
-            for ridx in random_rules:
-                h_random.hit(rule_clauses[ridx])
-            result_random = h_random.get() or []
-            
-            # Combine (union of literals)
-            axp_literals = list(set(result_first) | set(result_random))
-        else:
-            # Fewer than max_rules, use all
+            # Compute AXP from the deduplicated combined rule set
             if Hitman is None:
                 raise ImportError("pysat is required for AXP computation")
             
             h = Hitman(solver="m22")
-            for ridx in matched:
+            for ridx in combined_rule_ids:
+                h.hit(rule_clauses[ridx])
+            axp_literals = h.get() or []
+        else:
+            # Fewer than max_rules, use all SHAP-filtered rules
+            if Hitman is None:
+                raise ImportError("pysat is required for AXP computation")
+            
+            h = Hitman(solver="m22")
+            for ridx in shap_filtered_matched:
                 h.hit(rule_clauses[ridx])
             axp_literals = h.get() or []
     
@@ -175,15 +192,21 @@ class BaseSymbolicExplainer(ABC):
     - Explanation generation
     """
     
-    def __init__(self, path_config=None, shap_importance_map: Optional[Dict[str, float]] = None):
+    def __init__(self, path_config=None, shap_importance_map: Dict[str, float] = None):
         """
         Initialize base explainer with common attributes.
         
         Args:
             path_config: Path configuration object
-            shap_importance_map: Optional dict mapping feature_name -> mean_abs_shap value
-                                 Used to prioritize rules containing high-SHAP features
+            shap_importance_map: Required dict mapping feature_name -> mean_abs_shap value.
+                                 Only rules with SHAP importance > 0 will be used.
+        
+        Raises:
+            ValueError: If shap_importance_map is None or empty
         """
+        if not shap_importance_map:
+            raise ValueError("shap_importance_map is required. Only rules with SHAP importance > 0 will be used.")
+        
         self.path_config = path_config
         self.condition_id_map = {}  # Maps (feature_idx, threshold, direction) -> literal_id
         self.id_condition_map = {}  # Maps literal_id -> (feature_idx, threshold, direction)
@@ -193,7 +216,7 @@ class BaseSymbolicExplainer(ABC):
         self.model_json = None      # Model JSON structure
         self._id_gen = count(1)     # Generator for literal IDs (start at 1 for SAT)
         self._class_rule_indices = {}  # Cache: maps class -> list of rule indices for that class
-        self.shap_importance_map = shap_importance_map or {}  # Feature name -> SHAP importance
+        self.shap_importance_map = shap_importance_map  # Feature name -> SHAP importance (required)
         self.setup_logging()
     
     def setup_logging(self, log_file: Optional[str] = None, level: int = logging.INFO) -> None:
@@ -377,9 +400,6 @@ class BaseSymbolicExplainer(ABC):
         Returns:
             SHAP-based score (sum of mean_abs_shap for features in rule)
         """
-        if not self.shap_importance_map:
-            return 0.0
-        
         clause = self.rule_clauses[rule_id]
         score = 0.0
         
@@ -396,18 +416,41 @@ class BaseSymbolicExplainer(ABC):
         
         return score
     
+    def _filter_rules_by_shap(self, rule_ids: List[int]) -> List[int]:
+        """
+        Filter rules to only include those with SHAP importance > 0.
+        
+        Args:
+            rule_ids: List of rule indices to filter
+            
+        Returns:
+            List of rule indices with SHAP importance > 0
+        """
+        filtered = []
+        for rid in rule_ids:
+            shap_score = self._score_rule_by_shap(rid)
+            if shap_score > 0:
+                filtered.append(rid)
+        return filtered
+    
     def _compute_axp(self, rule_ids: List[int]) -> List[int]:
         """
         Compute minimal hitting set (AXP) over matching rule IDs.
         
-        Uses both first 100 rules and random sample of 100 rules to ensure
-        we don't miss important features due to ordering bias.
+        Process:
+        1. Filter rules to only those with SHAP importance > 0
+        2. If more than 100 SHAP-filtered rules:
+           - Take first 100 SHAP-filtered rules
+           - Take random sample of 100 SHAP-filtered rules
+           - Combine and deduplicate (union) to get final rule set
+           - Compute AXP from deduplicated rule set
+        3. If <= 100 SHAP-filtered rules, use all of them
         
         Args:
             rule_ids: List of rule indices
             
         Returns:
-            List of literal IDs forming the minimal hitting set (union of both approaches)
+            List of literal IDs forming the minimal hitting set
         """
         import time
         import random
@@ -419,68 +462,58 @@ class BaseSymbolicExplainer(ABC):
         if hasattr(self, 'logger'):
             self.logger.info(f"_compute_axp: Starting computation for {len(rule_ids)} matched rules")
         
+        # Filter to only rules with SHAP importance > 0
+        shap_filtered_rules = self._filter_rules_by_shap(rule_ids)
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(f"_compute_axp: Filtered to {len(shap_filtered_rules)} rules with SHAP > 0 (from {len(rule_ids)} total)")
+        
+        if not shap_filtered_rules:
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"_compute_axp: No rules with SHAP > 0 found, returning empty AXP")
+            return []
+        
         max_rules = 100  # Limit to prevent hanging
         
-        # If we have many rules, use multiple approaches for robustness
-        if len(rule_ids) > max_rules:
-            approaches_used = []
+        # If we have many SHAP-filtered rules, use first 100 + random sample of 100, then deduplicate
+        if len(shap_filtered_rules) > max_rules:
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: Too many matched rules ({len(rule_ids)}), using multiple sampling approaches for robustness")
+                self.logger.warning(f"_compute_axp: Too many SHAP-filtered rules ({len(shap_filtered_rules)}), using first 100 + random sample of 100")
             
-            # Approach 1: First 100 rules
-            first_rules = rule_ids[:max_rules]
-            approaches_used.append(("first", first_rules))
+            # Approach 1: First 100 SHAP-filtered rules
+            first_rules = shap_filtered_rules[:max_rules]
             
-            # Approach 2: Random sample of 100 rules (seed for reproducibility)
+            # Approach 2: Random sample of 100 SHAP-filtered rules (seed for reproducibility)
             random.seed(42)
-            random_rules = random.sample(rule_ids, min(max_rules, len(rule_ids)))
-            approaches_used.append(("random", random_rules))
+            random_rules = random.sample(shap_filtered_rules, max_rules)
             
-            # Approach 3: SHAP-weighted top 100 rules (if SHAP importance available)
-            if self.shap_importance_map:
-                # Score all rules by SHAP importance
-                rule_scores = [(rid, self._score_rule_by_shap(rid)) for rid in rule_ids]
-                # Sort by score descending and take top 100
-                rule_scores.sort(key=lambda x: x[1], reverse=True)
-                shap_rules = [rid for rid, _ in rule_scores[:max_rules]]
-                approaches_used.append(("shap_weighted", shap_rules))
-                if hasattr(self, 'logger'):
-                    self.logger.info(f"_compute_axp: SHAP importance available, scoring {len(rule_ids)} rules")
+            # Combine and deduplicate: union of both rule sets
+            combined_rule_ids = list(set(first_rules) | set(random_rules))
             
-            # Compute AXP from each approach
-            all_results = []
-            for approach_name, selected_rules in approaches_used:
-                h = Hitman(solver="m22")
-                for ridx in selected_rules:
-                    h.hit(self.rule_clauses[ridx])
-                
-                if hasattr(self, 'logger'):
-                    self.logger.info(f"_compute_axp: Computing AXP from {approach_name} {len(selected_rules)} rules...")
-                
-                result = h.get()
-                if result is None:
-                    result = []
-                all_results.append((approach_name, result))
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: Combined {len(first_rules)} first + {len(random_rules)} random -> {len(combined_rule_ids)} unique rules (deduplicated)")
             
-            # Combine results: union of literals from all approaches
-            combined_literals = set()
-            for approach_name, result in all_results:
-                combined_literals.update(result)
-                if hasattr(self, 'logger'):
-                    self.logger.info(f"_compute_axp: {approach_name} -> {len(result)} literals")
+            # Compute AXP from the deduplicated combined rule set
+            h = Hitman(solver="m22")
+            for ridx in combined_rule_ids:
+                h.hit(self.rule_clauses[ridx])
             
-            combined_literals = list(combined_literals)
+            if hasattr(self, 'logger'):
+                self.logger.info(f"_compute_axp: Computing AXP from {len(combined_rule_ids)} deduplicated rules...")
+            
+            result = h.get()
+            if result is None:
+                result = []
             
             duration = time.time() - start_time
             if hasattr(self, 'logger'):
-                approach_summary = ", ".join([f"{name}: {len(res)}" for name, res in all_results])
-                self.logger.info(f"_compute_axp: Combined from {len(approaches_used)} approaches ({approach_summary}) -> {len(combined_literals)} unique literals, took {duration:.4f}s")
+                self.logger.info(f"_compute_axp: {len(combined_rule_ids)} deduplicated rules -> {len(result)} literals, took {duration:.4f}s")
             
-            return combined_literals
+            return result
         else:
-            # Fewer than max_rules, use all rules
+            # Fewer than max_rules, use all SHAP-filtered rules
             h = Hitman(solver="m22")
-            for ridx in rule_ids:
+            for ridx in shap_filtered_rules:
                 h.hit(self.rule_clauses[ridx])
             
             if hasattr(self, 'logger'):
@@ -492,11 +525,11 @@ class BaseSymbolicExplainer(ABC):
             if result is None:
                 result = []
                 if hasattr(self, 'logger'):
-                    self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(rule_ids)} matched rules - no valid explanation found")
+                    self.logger.warning(f"_compute_axp: Hitman.get() returned None for {len(shap_filtered_rules)} SHAP-filtered rules - no valid explanation found")
             
             duration = time.time() - start_time
             if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: {len(rule_ids)} matched rules -> {len(result)} literals, took {duration:.4f}s")
+                self.logger.info(f"_compute_axp: {len(shap_filtered_rules)} SHAP-filtered rules -> {len(result)} literals, took {duration:.4f}s")
             
             return result
     
@@ -648,7 +681,8 @@ class BaseSymbolicExplainer(ABC):
             'rule_predictions': self.rule_predictions,
             'id_condition_map': self.id_condition_map,
             'feature_names': self.feature_names,
-            '_class_rule_indices': self._class_rule_indices
+            '_class_rule_indices': self._class_rule_indices,
+            'shap_importance_map': self.shap_importance_map
         }
         
         # Create tasks

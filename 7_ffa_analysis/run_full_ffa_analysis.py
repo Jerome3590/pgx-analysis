@@ -284,7 +284,7 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
     return X, y
 
 
-def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Optional[Dict[str, float]]:
+def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Dict[str, float]:
     """
     Load SHAP importance scores from Step 8 outputs.
     
@@ -294,7 +294,11 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Optiona
         model_type: Model type ('xgboost' or 'catboost')
         
     Returns:
-        Dict mapping feature_name -> mean_abs_shap, or None if not available
+        Dict mapping feature_name -> mean_abs_shap (only features with importance > 0)
+        
+    Raises:
+        FileNotFoundError: If SHAP importance file is not found
+        ValueError: If SHAP file is invalid or empty
     """
     age_band_fname = age_band.replace("-", "_")
     
@@ -328,25 +332,36 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Optiona
             return None
     
     if not shap_path.exists():
-        logger.info(f"SHAP importance file not found at {shap_path}, proceeding without SHAP weighting")
-        return None
+        raise FileNotFoundError(
+            f"SHAP importance file not found at {shap_path}. "
+            f"SHAP values are required. Please run Step 7 (SHAP Analysis) first."
+        )
     
     try:
         shap_df = pd.read_csv(shap_path)
         if 'feature' not in shap_df.columns or 'mean_abs_shap' not in shap_df.columns:
-            logger.warning(f"SHAP file missing required columns, proceeding without SHAP weighting")
-            return None
+            raise ValueError(
+                f"SHAP file missing required columns. Expected 'feature' and 'mean_abs_shap', "
+                f"got: {list(shap_df.columns)}"
+            )
         
         # Filter to features with importance > 0
         shap_df = shap_df[shap_df['mean_abs_shap'] > 0]
+        
+        if len(shap_df) == 0:
+            raise ValueError(
+                f"SHAP file contains no features with importance > 0. "
+                f"All features have zero importance."
+            )
         
         # Create mapping: feature_name -> mean_abs_shap
         shap_map = dict(zip(shap_df['feature'], shap_df['mean_abs_shap'], strict=True))
         logger.info(f"Loaded SHAP importance for {len(shap_map)} features (importance > 0)")
         return shap_map
+    except (FileNotFoundError, ValueError) as e:
+        raise
     except Exception as e:
-        logger.warning(f"Error loading SHAP importance: {e}, proceeding without SHAP weighting")
-        return None
+        raise RuntimeError(f"Error loading SHAP importance: {e}") from e
 
 
 def initialize_explainer(
@@ -354,9 +369,12 @@ def initialize_explainer(
     model_json: Dict[str, Any],
     feature_mappings: Dict[str, Any],
     feature_names: Optional[List[str]] = None,
-    shap_importance_map: Optional[Dict[str, float]] = None,
+    shap_importance_map: Dict[str, float] = None,
 ) -> Optional[Any]:
     """Initialize FFA explainer for the model."""
+    if not shap_importance_map:
+        raise ValueError("shap_importance_map is required. Only rules with SHAP importance > 0 will be used.")
+    
     logger.info("Initializing FFA Explainer...")
     start_time = time.time()
     
@@ -1079,6 +1097,17 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
         print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
         
+        # Step 3.5: Load SHAP importance (required)
+        logger.info("Step 3.5: Loading SHAP importance...")
+        try:
+            shap_map = load_shap_importance(COHORT_NAME, AGE_BAND, model_type)
+            logger.info(f"Loaded SHAP importance for {len(shap_map)} features (importance > 0)")
+        except (FileNotFoundError, ValueError, RuntimeError) as e:
+            logger.error(f"Failed to load SHAP importance: {e}")
+            print(f"[ERROR] Failed to load SHAP importance: {e}")
+            print(f"[ERROR] SHAP values are required. Please run Step 7 (SHAP Analysis) first.")
+            raise
+        
         # Step 4: Initialize explainer
         logger.info("Step 4: Initializing explainer...")
         explainer = initialize_explainer(
@@ -1086,6 +1115,7 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             model_json,
             feature_mappings,
             feature_names=list(X.columns) if isinstance(X, pd.DataFrame) else None,
+            shap_importance_map=shap_map,
         )
         
         if explainer is None:
