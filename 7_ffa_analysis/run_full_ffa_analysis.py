@@ -108,6 +108,12 @@ ANALYSIS_CONFIG = {
     # Limit parallel workers to reduce memory usage (use 1-4 instead of all CPUs)
     'n_jobs': min(4, max(1, get_sklearn_n_jobs())),
     'batch_size': 100,  # Process explanations in batches
+    # Multi-feature interaction analysis
+    'enable_interaction_analysis': False,  # Set to True to enable multi-feature interaction testing
+    'max_interaction_size': 2,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
+    'interaction_top_k': 20,  # Top K features to consider for interactions (to limit computation)
+    'interaction_sample_size': 100,  # Sample size for interaction testing
+    'min_interaction_effect': 0.01,  # Minimum interaction effect to report
 }
 
 
