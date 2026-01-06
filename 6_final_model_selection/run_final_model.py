@@ -544,6 +544,25 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {agg_csv_path}")
     
+    # Filter out features with zero or negative importance (no signal)
+    importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
+    if importance_col:
+        # Filter to only features with importance > 0 (or > small epsilon to handle floating point)
+        initial_count = len(df)
+        df = df[df[importance_col] > 1e-10].copy()
+        filtered_count = len(df)
+        if filtered_count < initial_count:
+            print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
+            print(f"[INFO] Keeping {filtered_count} features with importance > 0")
+    else:
+        print(f"[WARNING] No importance_scaled or importance_normalized column found. Cannot filter by importance.")
+    
+    # Remove duplicate features (keep first occurrence, which should be highest importance after sorting)
+    initial_count = len(df)
+    df = df.drop_duplicates(subset=["feature"], keep="first")
+    if len(df) < initial_count:
+        print(f"[INFO] Removed {initial_count - len(df)} duplicate features")
+    
     # Sort by importance_scaled if available, otherwise by importance_normalized
     if "importance_scaled" in df.columns:
         df = df.sort_values("importance_scaled", ascending=False)
@@ -553,10 +572,7 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         # If no importance column, just take first N unique features
         print(f"[WARNING] No importance_scaled or importance_normalized column found. Using first {top_n} features.")
     
-    # Extract codes and preserve type information (item_drug_, item_icd_, item_cpt_)
-    # Features from Step 3 are already prefixed with type: item_drug_AMOXICILLIN, item_icd_E11.9, etc.
     # Create a mapping of feature -> importance for sorting
-    importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
     if importance_col:
         feature_importance_map = dict(zip(df["feature"], df[importance_col]))
     else:
