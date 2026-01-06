@@ -129,31 +129,12 @@ echo "=========================================="
 
 cd "$PROJECT_ROOT"
 
-# Create a temporary Python script to enable interactions
-cat > /tmp/run_ffa_with_interactions.py << 'PYTHON_SCRIPT'
-import sys
-import os
-sys.path.insert(0, os.getcwd())
-
-# Import and modify ANALYSIS_CONFIG before importing run_full_ffa_analysis
-from pathlib import Path
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "7_ffa_analysis"))
-
-# Set environment variable to enable interactions
-os.environ['ENABLE_INTERACTION_ANALYSIS'] = 'true'
-
-# Now import and run
-from run_full_ffa_analysis import main
-
-if __name__ == "__main__":
-    main()
-PYTHON_SCRIPT
-
 # Run with interaction analysis enabled
+# Note: Use 'catboost' as model type to test with CatBoost model
 python3 7_ffa_analysis/run_full_ffa_analysis.py \
     --cohort-name "$COHORT" \
     --age-band "$AGE_BAND" \
+    --model-type catboost \
     --enable-interaction-analysis \
     --max-interaction-size 2 \
     --interaction-top-k 20 \
