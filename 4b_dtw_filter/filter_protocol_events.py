@@ -813,13 +813,13 @@ def create_research_outputs_for_review(
     # Use DuckDB for efficient sequence extraction
     con = duckdb.connect()
     
-    # Create a temporary view with activity codes
+    # Create a temporary view with activity codes and calculate event_seq
     con.execute(f"""
         CREATE OR REPLACE TEMP VIEW events_with_activities AS
         SELECT 
             mi_person_key,
             event_date,
-            event_seq,
+            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) AS event_seq,
             CASE WHEN drug_name IS NOT NULL AND TRIM(drug_name) != '' 
                  THEN 'DRUG:' || drug_name ELSE NULL END AS drug_activity,
             CASE WHEN primary_icd_diagnosis_code IS NOT NULL AND TRIM(primary_icd_diagnosis_code) != '' 
@@ -831,21 +831,24 @@ def create_research_outputs_for_review(
     """)
     
     # Create a view with all activities in sequence order
+    # Use ROW_NUMBER to create a global activity index per patient
     con.execute("""
         CREATE OR REPLACE TEMP VIEW all_activities AS
         SELECT 
             mi_person_key,
-            event_seq,
             activity,
-            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_seq) - 1 AS activity_idx
+            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_seq, activity_type) - 1 AS activity_idx
         FROM (
-            SELECT mi_person_key, event_seq, drug_activity AS activity FROM events_with_activities WHERE drug_activity IS NOT NULL
+            SELECT mi_person_key, event_seq, drug_activity AS activity, 1 AS activity_type 
+            FROM events_with_activities WHERE drug_activity IS NOT NULL
             UNION ALL
-            SELECT mi_person_key, event_seq, icd_activity AS activity FROM events_with_activities WHERE icd_activity IS NOT NULL
+            SELECT mi_person_key, event_seq, icd_activity AS activity, 2 AS activity_type 
+            FROM events_with_activities WHERE icd_activity IS NOT NULL
             UNION ALL
-            SELECT mi_person_key, event_seq, cpt_activity AS activity FROM events_with_activities WHERE cpt_activity IS NOT NULL
+            SELECT mi_person_key, event_seq, cpt_activity AS activity, 3 AS activity_type 
+            FROM events_with_activities WHERE cpt_activity IS NOT NULL
         )
-        ORDER BY mi_person_key, event_seq
+        ORDER BY mi_person_key, event_seq, activity_type
     """)
     
     # Extract 2-event sequences
