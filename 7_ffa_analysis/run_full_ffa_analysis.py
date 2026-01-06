@@ -682,10 +682,22 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             X_sample = X_class.head(causal_sample_size).copy()
             y_sample = y_class[:causal_sample_size]
             
-            # Create modified dataset (set feature to median)
+            # Detect if feature is binary (0/1 only)
+            unique_vals = X_sample[feat_name].unique()
+            is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
+            
+            # Create modified dataset with appropriate intervention
             X_modified = X_sample.copy()
-            median_val = X_sample[feat_name].median()
-            X_modified[feat_name] = median_val
+            if is_binary:
+                # For binary features: flip the values (0->1, 1->0)
+                # This creates a meaningful intervention
+                X_modified[feat_name] = 1 - X_sample[feat_name]
+                intervention_val = "flipped (0<->1)"
+            else:
+                # For continuous features: set to median
+                median_val = X_sample[feat_name].median()
+                X_modified[feat_name] = median_val
+                intervention_val = f"median ({median_val:.4f})"
             
             # Count how many explanations change
             # Note: Must pass full feature set, not just the single feature
@@ -728,10 +740,15 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 change_rate = 0.0
                 logger.warning(f"  Feature {feat_name}: No explanations generated")
             
+            # Store median value for reference (even for binary features)
+            median_val = X_sample[feat_name].median() if not is_binary else X_sample[feat_name].median()
+            
             causal_scores.append({
                 'feature': feat_name,
                 'causal_importance': change_rate,
-                'median_value': median_val
+                'median_value': median_val,
+                'is_binary': is_binary,
+                'intervention': intervention_val
             })
             
             logger.debug(f"  Feature {feat_name} analyzed in {time.time() - feat_start:.2f} seconds")
