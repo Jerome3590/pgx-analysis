@@ -1,4 +1,4 @@
-# Step 10: Dashboard Deployment Guide
+# Step 9: Dashboard Deployment Guide
 
 ## Overview
 
@@ -51,7 +51,7 @@ The dashboard deployment process supports incremental builds, allowing deploymen
 #### Option B: Full Build
 
 ```bash
-cd 10_risk_dashboard
+cd 9_risk_dashboard
 
 # Prepare all models
 python prepare_models.py --all
@@ -63,7 +63,7 @@ python generate_metadata.py --all
 ### 2. Build Docker Container
 
 ```bash
-cd 10_risk_dashboard
+cd 9_risk_dashboard
 ./docker_build.sh
 ```
 
@@ -117,7 +117,7 @@ aws lambda update-function-code \
 
 ```bash
 # Upload dashboard HTML
-aws s3 cp 10_risk_dashboard/index.html s3://<BUCKET>/index.html
+aws s3 cp 9_risk_dashboard/index.html s3://<BUCKET>/index.html
 
 # Update API_BASE in index.html to point to your API Gateway URL
 ```

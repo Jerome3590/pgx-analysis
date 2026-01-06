@@ -36,28 +36,22 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
     - Best CatBoost model binary (for SHAP analysis)
     - Best XGBoost model JSON (for FFA analysis)
 
-### Step 7: FFA Analysis
-- **Purpose**: Feature Forward Analysis using best XGBoost model
-- **Script**: `7_ffa_analysis/run_full_ffa_analysis.py`
-- **Input**: Best XGBoost model JSON from Step 6
-
-### Step 8: SHAP Analysis
+### Step 7: SHAP Analysis
 - **Purpose**: SHAP value analysis using best CatBoost model
 - **Script**: `8_shap_analysis/run_shap_analysis.py`
 - **Input**: Best CatBoost model binary from Step 6
+- **Output**: SHAP global importance scores (used by Step 8)
 
-### Step 9: Combined SHAP + FFA
-- **Purpose**: Combine SHAP and FFA results for risk dashboard
-- **Script**: `9_combined_shap_ffa/combine_shap_ffa_analysis.py`
+### Step 8: FFA Analysis
+- **Purpose**: Feature Forward Analysis using best XGBoost model
+- **Script**: `7_ffa_analysis/run_full_ffa_analysis.py`
+- **Input**: Best XGBoost model JSON from Step 6 + SHAP importance from Step 7
+- **Note**: Uses SHAP importance to prioritize rules for AXP computation. Consensus between SHAP and FFA is reflected in FFA's causal importance scores.
 
-### Step 10: Risk Dashboard Preparation
+### Step 9: Risk Dashboard Preparation
 - **Purpose**: Integrate BupaR, DTW, and FP-Growth visualizations with causal analysis
-- **Location**: `10_risk_dashboard/`
-- **Note**: These methods are now used for visualization only, not as model features
-
-### Step 11: Deploy to S3/AWS Lambda
-- **Purpose**: Deploy risk dashboard to AWS
-- **Location**: `10_risk_dashboard/`
+- **Location**: `9_risk_dashboard/`
+- **Note**: These methods are now used for visualization only, not as model features. Dashboard deployment is also handled here.
 
 ## Removed Steps
 

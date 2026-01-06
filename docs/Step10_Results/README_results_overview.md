@@ -1,4 +1,4 @@
-# Step 10: Results & Dashboard Documentation
+# Step 9: Results & Dashboard Documentation
 
 This folder contains all documentation for the production-ready risk assessment dashboard, visualization system, and deployment pipeline.
 
@@ -45,7 +45,7 @@ This folder contains all documentation for the production-ready risk assessment 
 
 ## 📚 Code Location
 
-- **Primary module**: `10_risk_dashboard/`
+- **Primary module**: `9_risk_dashboard/`
   - Frontend: `index.html` - Tab-based dashboard interface
   - Backend: `lambda_function.py` - AWS Lambda API handler
   - Scripts:
@@ -55,7 +55,7 @@ This folder contains all documentation for the production-ready risk assessment 
   - Deployment: `docker_build.sh` - Docker container build script
 
 - **Workflow integration**: `utility_scripts/run_cohort_workflow.sh`
-  - Step 10 runs automatically for each cohort/age_band
+  - Step 9 runs automatically for each cohort/age_band
   - Prepares dashboard artifacts incrementally
 
 ## 🔑 Key Concepts
@@ -85,7 +85,7 @@ The dashboard is organized into four main tabs:
 
 ## 🔄 Role in the Workflow
 
-Step 10 runs **after** all model training and analysis steps (Steps 3-9) and provides:
+Step 9 runs **after** all model training and analysis steps (Steps 3-8) and provides:
 
 - **Model Packaging**: Prepares trained models for production deployment
 - **Metadata Generation**: Extracts valid codes from feature importance for dropdowns
@@ -103,7 +103,7 @@ Step 10 runs **after** all model training and analysis steps (Steps 3-9) and pro
   - BupaR process matrices and traces from Step 5a
   - FP-Growth association rules and itemsets from Step 5b
   - DTW trajectory clusters from Step 5d
-- **Causal Data**: FFA causal effects from Step 9
+- **Causal Data**: FFA causal effects from Step 8 (consensus with SHAP from Step 7)
 
 ### Outputs
 
@@ -122,5 +122,6 @@ Step 10 runs **after** all model training and analysis steps (Steps 3-9) and pro
 - **Step 5b**: See [`../Step5b_FPGrowth/`](../Step5b_FPGrowth/) for FP-Growth analysis
 - **Step 5d**: See [`../Step5d_DTW/`](../Step5d_DTW/) for DTW trajectory analysis
 - **Step 6**: See [`../Step8_FinalModel/`](../Step8_FinalModel/) for model training
-- **Step 9**: See [`../Step9_FFA/`](../Step9_FFA/) for FFA causal analysis
+- **Step 7**: See [`../../8_shap_analysis/`](../../8_shap_analysis/) for SHAP analysis
+- **Step 8**: See [`../Step9_FFA/`](../Step9_FFA/) for FFA causal analysis (uses SHAP to prioritize rules)
 - **Main Index**: See [`../README.md`](../README.md) for complete documentation index

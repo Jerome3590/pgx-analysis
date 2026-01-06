@@ -34,7 +34,7 @@ pgx-analysis/
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
 ├── 7_ffa_analysis/             # Step 8: Formal Feature Attribution (FFA) analysis (uses SHAP to prioritize rules)
 ├── 8_shap_analysis/            # Step 7: SHAP-based post-model analysis
-├── 10_risk_dashboard/          # Step 9: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
+├── 9_risk_dashboard/           # Step 9: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
 ├── utility_scripts/            # Workflow execution scripts (run_cohort_workflow.sh)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities

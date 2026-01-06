@@ -266,7 +266,9 @@ run_full_pipeline("non_opioid_ed", "65-74", start_from="5a")
 2. **Step 4b → Step 5a-5d:** Protocol-filtered data preferred (but can use unfiltered)
 3. **Step 5b → Step 5a:** FP-Growth itemsets used by BupaR (target-only itemsets)
 4. **Step 5a-5d → Step 6:** All feature engineering must complete before final model
-5. **Step 6 → Step 7-8:** Final model must exist before FFA/SHAP analysis
+5. **Step 6 → Step 7:** Final model must exist before SHAP analysis
+6. **Step 7 → Step 8:** SHAP analysis must complete before FFA (FFA uses SHAP to prioritize rules)
+7. **Step 8 → Step 9:** FFA analysis must complete before dashboard deployment
 
 ### Optional Dependencies
 
@@ -291,8 +293,9 @@ run_full_pipeline("non_opioid_ed", "65-74", start_from="5a")
 
 **Day 3: Modeling & Analysis**
 1. Run Step 6 (Final Model) for all 3 cohorts
-2. Run Step 7 (FFA) for all 3 cohorts
-3. Run Step 8 (SHAP) for all 3 cohorts
+2. Run Step 7 (SHAP) for all 3 cohorts
+3. Run Step 8 (FFA) for all 3 cohorts (uses SHAP from Step 7)
+4. Run Step 9 (Dashboard) for all 3 cohorts
 
 ### For Remaining opioid_ed Cohorts
 

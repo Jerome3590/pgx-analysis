@@ -25,24 +25,26 @@ This document describes the comprehensive patient-level explanation system that 
 
 ```
 ┌─────────────────┐
-│  Step 8: SHAP   │──┐
+│  Step 7: SHAP   │──┐
 │  Analysis       │  │
 └─────────────────┘  │
-                      │
+                     │
 ┌─────────────────┐  │    ┌──────────────────────────┐
-│  Step 9: FFA    │──┼───▶│  Step 10: Combined       │
-│  Analysis       │  │    │  Analysis & Dashboard     │
-└─────────────────┘  │    └──────────────────────────┘
-                      │
+│  Step 8: FFA    │──┼───▶│  Step 9: Dashboard      │
+│  Analysis       │  │    │  (Causal in FFA)        │
+│  Uses SHAP to   │  │    └──────────────────────────┘
+│  prioritize     │  │
+└─────────────────┘  │
+                     │
 ┌─────────────────┐  │
-│  Step 9: Causal │──┘
-│  Analysis       │
+│  Causal Analysis│──┘
+│  (within FFA)   │
 └─────────────────┘
 ```
 
 ## Components
 
-### 1. SHAP Analysis (Step 8)
+### 1. SHAP Analysis (Step 7)
 
 **Purpose**: Quantitative feature contributions per patient
 
@@ -55,20 +57,22 @@ This document describes the comprehensive patient-level explanation system that 
 - Positive/negative contributions
 - Patient-specific feature drivers
 
-### 2. FFA Analysis (Step 9)
+### 2. FFA Analysis (Step 8)
 
 **Purpose**: Rule-based logical explanations per patient
 
 **Outputs**:
 - `axp_explanations.csv`: Instance-level explanations with matched rules
 - `feature_importance_axp.csv`: Feature importance from rule frequency
+- `causal_importance.csv`: Causal importance scores (consensus with SHAP)
 
 **Key Features**:
 - Symbolic IF-THEN rules
 - Logical reasoning paths
 - Interpretable conditions
+- Uses SHAP importance from Step 7 to prioritize rules
 
-### 3. Causal Analysis (Step 9)
+### 3. Causal Analysis (within Step 8 FFA)
 
 **Purpose**: Counterfactual "what-if" analysis
 
@@ -87,19 +91,18 @@ This document describes the comprehensive patient-level explanation system that 
 ### Basic Workflow
 
 ```bash
-# Step 1: Run SHAP analysis (Step 8)
-python 8_final_model/add_shap_analysis.py \
+# Step 1: Run SHAP analysis (Step 7)
+python 8_shap_analysis/run_shap_analysis.py \
     --cohort non_opioid_ed \
+    --age_band 65-74
+
+# Step 2: Run FFA analysis (Step 8) - uses SHAP from Step 7
+python 7_ffa_analysis/run_full_ffa_analysis.py \
+    --cohort-name non_opioid_ed \
     --age-band 65-74
 
-# Step 2: Run FFA analysis (Step 9)
-python 9_ffa_analysis/run_full_ffa_analysis.py
-
-# Step 3: Combine SHAP and FFA results (Step 10)
-python 10_results/combine_shap_ffa_results.py \
-    --cohort non_opioid_ed \
-    --age-band 65-74 \
-    --output-dir 10_results/outputs
+# Note: Consensus between SHAP and FFA is reflected in FFA's causal importance scores
+# No separate combination step needed
 ```
 
 ### Advanced Options
@@ -363,22 +366,22 @@ The dashboard displays:
 ### Missing SHAP Results
 
 If SHAP results are not found:
-- Check that Step 8 SHAP analysis has been run
-- Verify file paths in `8_final_model/outputs/`
-- Check for `shap_values.npy` or `shap_feature_importance.csv`
+- Check that Step 7 SHAP analysis has been run
+- Verify file paths in `8_shap_analysis/outputs/`
+- Check for `*_shap_global_importance_*.csv` files
 
 ### Missing FFA Results
 
 If FFA results are not found:
-- Check that Step 9 FFA analysis has been run
-- Verify file paths in `9_ffa_analysis/outputs/`
+- Check that Step 8 FFA analysis has been run
+- Verify file paths in `7_ffa_analysis/outputs/`
 - Check for `axp_explanations.csv` and `feature_importance_axp.csv`
 
 ### Missing Causal Results
 
 If causal results are not found:
-- Check that Step 9 causal analysis has been run
-- Verify file paths in `9_ffa_analysis/outputs/`
+- Check that Step 8 causal analysis (within FFA) has been run
+- Verify file paths in `7_ffa_analysis/outputs/`
 - Check for `causal_importance_*.csv` files
 
 ### Low Consensus Rate
@@ -420,8 +423,8 @@ If causal analysis fails:
 
 ## Related Documentation
 
-- **Step 8**: [`../Step8_FinalModel/`](../Step8_FinalModel/) - SHAP analysis implementation
-- **Step 9**: [`../Step9_FFA/`](../Step9_FFA/) - FFA and causal analysis
+- **Step 7**: [`../../8_shap_analysis/`](../../8_shap_analysis/) - SHAP analysis implementation
+- **Step 8**: [`../Step9_FFA/`](../Step9_FFA/) - FFA and causal analysis (uses SHAP to prioritize rules)
 - **Parallelization**: [`../CrossStep_Development/README_parallelization_pipeline.md`](../CrossStep_Development/README_parallelization_pipeline.md) - Performance optimization
 - **Dashboard**: [`README_results_dashboard.md`](README_results_dashboard.md) - Dashboard integration
 

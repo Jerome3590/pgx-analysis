@@ -14,16 +14,20 @@
 ```
 Step 3: Feature Importance
   ↓ (Complete: outputs/ + outputs/plots/)
-Step 4: FP-Growth Analysis
-  ↓ (Complete: outputs/ + outputs/plots/)
-Step 5: BupaR Process Mining
-  ↓ (Complete: outputs/ + outputs/plots/)
-Step 6: DTW Trajectory Analysis
-  ↓ (Complete: outputs/ + outputs/plots/)
-Step 7: Final Model Development
-  ↓ (Complete: outputs/ + outputs/plots/)
-Step 8: Formal Feature Attribution
-  ↓ (Complete: outputs/ + outputs/plots/)
+Step 4a: Model Data Extraction
+  ↓ (Complete: outputs/)
+Step 4b: DTW Protocol Filtering
+  ↓ (Complete: outputs/)
+Step 5: PGx Feature Engineering
+  ↓ (Complete: outputs/)
+Step 6: Final Model Training
+  ↓ (Complete: outputs/)
+Step 7: SHAP Analysis
+  ↓ (Complete: outputs/)
+Step 8: Formal Feature Attribution (FFA)
+  ↓ (Complete: outputs/)
+Step 9: Risk Dashboard
+  ↓ (Complete: outputs/)
 ```
 
 ### Completion Criteria

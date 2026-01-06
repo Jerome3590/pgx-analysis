@@ -1,4 +1,4 @@
-# Step 10: Dashboard Tab Organization & API Endpoints
+# Step 9: Dashboard Tab Organization & API Endpoints
 
 ## Overview
 
@@ -47,7 +47,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR Container) → M
 
 **Data Sources**:
 - Risk scores from ensemble models
-- Causal effects from FFA analysis (Step 9)
+- Causal effects from FFA analysis (Step 8)
 - Model weights from MC-CV performance
 
 ### Tab 3: Risk Analysis Visualizations

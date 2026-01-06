@@ -15,8 +15,7 @@ graph TD
     A --> J[6_final_model_selection]
     A --> K[7_ffa_analysis]
     A --> L[8_shap_analysis]
-    A --> M[9_combined_shap_ffa]
-    A --> N[10_risk_dashboard]
+    A --> N[9_risk_dashboard]
     A --> O[py_helpers]
     
     B --> B1[medical]
@@ -46,11 +45,9 @@ graph TD
     J --> J1[run_final_model.py]
     J --> J2[final_model outputs]
     
-    K --> K1[run_full_ffa_analysis.py]
+    K --> K1[run_full_ffa_analysis.py<br/>Uses SHAP to prioritize rules]
     
     L --> L1[run_shap_analysis.py]
-    
-    M --> M1[combine_shap_ffa_analysis.py]
     
     N --> N1[Risk Dashboard]
     N --> N2[bupaR_dashboard_visual]
@@ -72,7 +69,6 @@ graph TD
     style J fill:#fbb,stroke:#333,stroke-width:2px
     style K fill:#fbf,stroke:#333,stroke-width:2px
     style L fill:#fbf,stroke:#333,stroke-width:2px
-    style M fill:#fbf,stroke:#333,stroke-width:2px
     style N fill:#ffb,stroke:#333,stroke-width:2px
     style O fill:#bfb,stroke:#333,stroke-width:2px
     style P fill:#ddd,stroke:#333,stroke-width:1px
@@ -109,8 +105,8 @@ For every `(cohort, age_band)` above we run:
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
-- post-model analysis: FFA (`7_ffa_analysis/`), SHAP (`8_shap_analysis/`), and combined (`9_combined_shap_ffa/`)
-- risk dashboard (`10_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
+- post-model analysis: SHAP (`8_shap_analysis/`) followed by FFA (`7_ffa_analysis/`), which uses SHAP importance to prioritize rules
+- risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
 
@@ -145,15 +141,14 @@ flowchart TD
         E3 --> E4
     end
     
-    subgraph "Step 7-9: Post-Model Analysis"
-        E4 --> F1[7: FFA Analysis<br/>Formal Feature Attribution]
-        E4 --> F2[8: SHAP Analysis<br/>SHAP Values]
-        F1 --> F3[9: Combined SHAP + FFA<br/>Consensus Analysis]
-        F2 --> F3
+    subgraph "Step 7-8: Post-Model Analysis"
+        E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
+        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        F1 --> F2
     end
     
-    subgraph "Step 10: Risk Dashboard"
-        F3 --> G1[Risk Dashboard<br/>Model Deployment]
+    subgraph "Step 9: Risk Dashboard"
+        F2 --> G1[Risk Dashboard<br/>Model Deployment]
         G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     
@@ -180,10 +175,9 @@ pgx-analysis/
 ├── 4b_dtw_filter/              # DTW-based protocol filtering (creates model_events_no_protocols.parquet used by downstream feature engineering)
 ├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
 ├── 6_final_model_selection/    # Final model development and evaluation
-├── 7_ffa_analysis/             # Formal feature attribution (FFA) analysis (tree JSON → DataFrame → rules)
-├── 8_shap_analysis/            # SHAP-based post‑model analysis (distributional, per-feature and per-patient)
-├── 9_combined_shap_ffa/        # Combined SHAP + FFA consensus analysis (agreement, ranking, coverage)
-├── 10_risk_dashboard/          # Risk calculator + dashboard, API, and deployment artifacts (Lambda + S3)
+├── 7_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
+├── 8_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
+├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, and deployment artifacts (Lambda + S3)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
 └── docs/                       # Documentation

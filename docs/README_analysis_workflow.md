@@ -16,9 +16,9 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 6. **Final Model Development** in `6_final_model/`, split into:
    - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
    - **6b_final_model_selection** – final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export.  
-7. **SHAP-Based Distributional Analysis** via `8_shap_analysis` (global + local SHAP, aligned with the final model feature set).  
-8. **Post‑Model Structural Analysis** via FFA (`7_ffa_analysis`), which uses SHAP importance to prioritize rules for AXP computation. Consensus between SHAP and FFA is naturally reflected in FFA's causal importance scores.  
-9. **Risk Calculator + Dashboard Deployment** via `10_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
+7. **SHAP-Based Distributional Analysis** via `8_shap_analysis` (global + local SHAP, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to prioritize rules.
+8. **Post‑Model Structural Analysis** via FFA (`7_ffa_analysis`), which uses SHAP importance from Step 7 to prioritize rules for AXP computation. Consensus between SHAP and FFA is naturally reflected in FFA's causal importance scores.
+9. **Risk Calculator + Dashboard Deployment** via `9_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
 
 ## Phase 1: Monte Carlo CV + Feature Importance
 
@@ -66,7 +66,7 @@ is anchored on these two cohort groups**.
 
 ### Current Modeling Plan (Cohort / Age-Band Grid)
 
-For the current analysis run, we fit a **separate end‑to‑end model (Steps 3–8)** for each of the following
+For the current analysis run, we fit a **separate end‑to‑end model (Steps 3–9)** for each of the following
 `(cohort, age_band)` combinations:
 
 - **Cohort 1 – Opioid ED (`opioid_ed`)**
@@ -323,15 +323,14 @@ flowchart TD
         I --> J
     end
     
-    subgraph "Step 7-9: Post-Model Analysis"
-        J --> K[7: FFA Analysis<br/>Formal Feature Attribution]
-        J --> L[8: SHAP Analysis<br/>SHAP Values]
-        K --> M[9: Combined SHAP + FFA<br/>Consensus Analysis]
-        L --> M
+    subgraph "Step 7-8: Post-Model Analysis"
+        J --> K[7: SHAP Analysis<br/>SHAP Values]
+        J --> L[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        K --> L
     end
     
-    subgraph "Step 10: Risk Dashboard"
-        M --> N[Risk Dashboard<br/>Model Deployment]
+    subgraph "Step 9: Risk Dashboard"
+        L --> N[Risk Dashboard<br/>Model Deployment]
         N --> O[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     
@@ -339,7 +338,7 @@ flowchart TD
     style B fill:#bbf,stroke:#333,stroke-width:2px
     style F fill:#bfb,stroke:#333,stroke-width:2px
     style J fill:#fbb,stroke:#333,stroke-width:2px
-    style M fill:#fbf,stroke:#333,stroke-width:2px
+    style L fill:#fbf,stroke:#333,stroke-width:2px
     style N fill:#ffb,stroke:#333,stroke-width:2px
 ```
 

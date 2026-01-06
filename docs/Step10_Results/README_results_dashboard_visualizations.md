@@ -1,4 +1,4 @@
-# Step 10: Dashboard Visualizations
+# Step 9: Dashboard Visualizations
 
 ## Overview
 
