@@ -4,9 +4,9 @@
 
 set -e
 
-# Default values
+# Default values (use 13-24 as it has models available)
 COHORT="${1:-opioid_ed}"
-AGE_BAND="${2:-25-44}"
+AGE_BAND="${2:-13-24}"
 AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
 S3_BUCKET="${S3_BUCKET:-pgxdatalake}"
 ENABLE_INTERACTIONS="${ENABLE_INTERACTIONS:-true}"
@@ -36,9 +36,11 @@ mkdir -p "$OUTPUT_DIR"
 # Download CatBoost model from S3
 echo ""
 echo "Downloading CatBoost model from S3..."
-# Try multiple S3 path patterns
+# Try multiple S3 path patterns (based on actual S3 structure)
 MODEL_S3_PATHS=(
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
     "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/final_model_json/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
     "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/final_model_json/${COHORT}_${AGE_BAND_FNAME}_best_catboost_model.json"
     "s3://$S3_BUCKET/gold/dashboard/models/$COHORT/$AGE_BAND_FNAME/catboost.json"
 )
@@ -69,22 +71,36 @@ echo "Downloading feature data from S3..."
 FEATURE_S3_PATHS=(
     "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
     "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND/inputs/model_train/final_features.parquet"
+    "s3://$S3_BUCKET/gold/final_model/$COHORT/$AGE_BAND_FNAME/inputs/model_train/final_features.parquet"
 )
 
 FEATURE_DOWNLOADED=false
 for FEATURE_S3_PATH in "${FEATURE_S3_PATHS[@]}"; do
     if aws s3 ls "$FEATURE_S3_PATH" > /dev/null 2>&1; then
-        aws s3 cp "$FEATURE_S3_PATH" "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
-        echo "✓ Downloaded feature data from: $FEATURE_S3_PATH"
-        FEATURE_DOWNLOADED=true
-        break
+        if [[ "$FEATURE_S3_PATH" == *.parquet ]]; then
+            # If it's a parquet file, we need to convert it or use it directly
+            # For now, download and note that FFA expects CSV
+            echo "⚠ Found Parquet file: $FEATURE_S3_PATH"
+            echo "  FFA analysis expects CSV format. Checking for CSV version..."
+        else
+            aws s3 cp "$FEATURE_S3_PATH" "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+            echo "✓ Downloaded feature data from: $FEATURE_S3_PATH"
+            FEATURE_DOWNLOADED=true
+            break
+        fi
     fi
 done
 
 if [ "$FEATURE_DOWNLOADED" = false ]; then
-    echo "⚠ Feature data not found. Will try to use local file if it exists"
+    echo "⚠ Feature data not found on S3. Will try to use local file if it exists"
     if [ ! -f "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv" ]; then
-        echo "✗ Local feature file also not found. Cannot proceed."
+        echo "✗ Local feature file also not found."
+        echo ""
+        echo "To generate the feature file, run Step 6 first:"
+        echo "  python 6_final_model_selection/run_final_model.py --cohort opioid_ed --age_band $AGE_BAND"
+        echo ""
+        echo "Or download manually from S3 if it exists elsewhere."
         exit 1
     else
         echo "✓ Using local feature file"
