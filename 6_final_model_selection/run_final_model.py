@@ -1191,6 +1191,9 @@ def train_and_evaluate(
         error_msg += "\n\nTo install XGBoost, run: pip install xgboost"
         raise ImportError(error_msg)
 
+    print(f"\n[INFO] Starting Monte-Carlo CV with {n_runs} splits")
+    print(f"[INFO] Models to run: XGBoost, XGBoost RF" + (", CatBoost" if have_catboost else ""))
+    
     last_run_artifacts = {}
 
     for run_idx in range(n_runs):
