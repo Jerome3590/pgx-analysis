@@ -550,6 +550,8 @@ def calculate_feature_importance(df_axps: pd.DataFrame) -> pd.DataFrame:
     # Calculate metrics
     logger.info("Calculating feature importance metrics...")
     feature_counts = Counter(all_features)
+    
+    # Build importance dataframe with all features (filter > 0 later)
     importance_df = pd.DataFrame([
         {
             'feature': feat,
@@ -557,13 +559,16 @@ def calculate_feature_importance(df_axps: pd.DataFrame) -> pd.DataFrame:
             'importance': count / total_explanations,
             'coverage': len(feature_to_instances[feat]) / total_explanations
         }
-        for feat, count in feature_counts.most_common(ANALYSIS_CONFIG['top_k_features'])
+        for feat, count in feature_counts.items()
     ])
     
-    logger.info(f"Feature importance calculated for {len(importance_df)} features")
-    print(f"[OK] Feature importance calculated for {len(importance_df)} features")
-    print(f"\nTop {ANALYSIS_CONFIG['top_k_features']} features:")
-    print(importance_df.to_string(index=False))
+    # Filter to features with importance > 0 and sort by importance descending
+    importance_df = importance_df[importance_df['importance'] > 0].sort_values('importance', ascending=False)
+    
+    logger.info(f"Feature importance calculated for {len(importance_df)} features (importance > 0)")
+    print(f"[OK] Feature importance calculated for {len(importance_df)} features (importance > 0)")
+    print(f"\nTop features (importance > 0):")
+    print(importance_df.head(50).to_string(index=False))
     
     logger.info(f"Feature importance calculation completed in {time.time() - start_time:.2f} seconds")
     return importance_df
@@ -640,12 +645,13 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
     
     if not available_features:
         logger.warning("No model features found. Falling back to FFA importance features.")
-        # Fallback: use top features from FFA importance
-        top_features = feature_importance_df.head(ANALYSIS_CONFIG['top_k_features'])['feature'].tolist()
+        # Fallback: use features with importance > 0 from FFA importance
+        # Filter to features with importance > 0
+        top_features = feature_importance_df[feature_importance_df['importance'] > 0]['feature'].tolist()
         available_features = [f for f in top_features if f in X_class.columns]
     else:
-        # If we have more than top_k_features, prioritize by FFA importance if available
-        if len(available_features) > ANALYSIS_CONFIG['top_k_features']:
+        # Filter available features to those with FFA importance > 0
+        if not feature_importance_df.empty:
             # Create a mapping of feature -> importance from FFA results
             ffa_importance_map = dict(zip(
                 feature_importance_df['feature'],
@@ -653,12 +659,16 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 strict=True
             ))
             
-            # Sort by FFA importance (if available), otherwise keep original order
+            # Filter to features with importance > 0 and sort by FFA importance
+            available_features = [
+                f for f in available_features 
+                if ffa_importance_map.get(f, 0) > 0
+            ]
             available_features = sorted(
                 available_features,
                 key=lambda f: ffa_importance_map.get(f, 0),
                 reverse=True
-            )[:ANALYSIS_CONFIG['top_k_features']]
+            )
     
     logger.info(f"Found {len(available_features)} features available in data for causal analysis")
     
