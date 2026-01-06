@@ -221,4 +221,4 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 - `10b_fpgrowth_dashboard_visual/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
 - `10b_fpgrowth_dashboard_visual/README.md`: FP-Growth analysis documentation
-- `9_combined_shap_ffa/README.md`: Combined causal analysis documentation
+- `7_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)

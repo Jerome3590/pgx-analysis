@@ -284,11 +284,77 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
     return X, y
 
 
+def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Optional[Dict[str, float]]:
+    """
+    Load SHAP importance scores from Step 8 outputs.
+    
+    Args:
+        cohort: Cohort name
+        age_band: Age band
+        model_type: Model type ('xgboost' or 'catboost')
+        
+    Returns:
+        Dict mapping feature_name -> mean_abs_shap, or None if not available
+    """
+    age_band_fname = age_band.replace("-", "_")
+    
+    # Try to load SHAP global importance CSV
+    shap_path = (
+        PROJECT_ROOT
+        / "8_shap_analysis"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_shap_global_importance_{model_type}.csv"
+    )
+    
+    # Also try S3 if local doesn't exist
+    if not shap_path.exists():
+        try:
+            import boto3
+            s3_client = boto3.client("s3")
+            s3_key = f"gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_global_importance_{model_type}.csv"
+            try:
+                s3_client.head_object(Bucket="pgxdatalake", Key=s3_key)
+                # Download temporarily
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                s3_client.download_file("pgxdatalake", s3_key, tmp_path)
+                shap_path = Path(tmp_path)
+            except Exception:
+                return None
+        except ImportError:
+            return None
+    
+    if not shap_path.exists():
+        logger.info(f"SHAP importance file not found at {shap_path}, proceeding without SHAP weighting")
+        return None
+    
+    try:
+        shap_df = pd.read_csv(shap_path)
+        if 'feature' not in shap_df.columns or 'mean_abs_shap' not in shap_df.columns:
+            logger.warning(f"SHAP file missing required columns, proceeding without SHAP weighting")
+            return None
+        
+        # Filter to features with importance > 0
+        shap_df = shap_df[shap_df['mean_abs_shap'] > 0]
+        
+        # Create mapping: feature_name -> mean_abs_shap
+        shap_map = dict(zip(shap_df['feature'], shap_df['mean_abs_shap'], strict=True))
+        logger.info(f"Loaded SHAP importance for {len(shap_map)} features (importance > 0)")
+        return shap_map
+    except Exception as e:
+        logger.warning(f"Error loading SHAP importance: {e}, proceeding without SHAP weighting")
+        return None
+
+
 def initialize_explainer(
     model_json_path: Path,
     model_json: Dict[str, Any],
     feature_mappings: Dict[str, Any],
     feature_names: Optional[List[str]] = None,
+    shap_importance_map: Optional[Dict[str, float]] = None,
 ) -> Optional[Any]:
     """Initialize FFA explainer for the model."""
     logger.info("Initializing FFA Explainer...")
@@ -328,7 +394,7 @@ def initialize_explainer(
                 print("[WARNING] CatBoost explainer not available.")
                 return None
             logger.info("Creating CatBoostSymbolicExplainer...")
-            explainer = CatBoostSymbolicExplainer(path_config)
+            explainer = CatBoostSymbolicExplainer(path_config, shap_importance_map=shap_importance_map)
             explainer.model_json = model_json
             logger.info("Calling fit_from_model_json (this may take a while)...")
             fit_start = time.time()
@@ -341,7 +407,7 @@ def initialize_explainer(
                 print("[WARNING] XGBoost explainer not available.")
                 return None
             logger.info("Creating XGBoostSymbolicExplainer...")
-            explainer = XGBoostSymbolicExplainer(path_config)
+            explainer = XGBoostSymbolicExplainer(path_config, shap_importance_map=shap_importance_map)
             explainer.logger.setLevel(logging.INFO)
             explainer.model_json = model_json
 

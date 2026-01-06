@@ -32,10 +32,9 @@ pgx-analysis/
 ├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
 ├── 5_pgx_analysis/            # Step 5: PGx feature engineering
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
-├── 7_ffa_analysis/             # Step 7: Formal Feature Attribution (FFA) analysis
-├── 8_shap_analysis/            # Step 8: SHAP-based post-model analysis
-├── 9_combined_shap_ffa/        # Step 9: Combined SHAP + FFA consensus analysis
-├── 10_risk_dashboard/          # Step 10: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
+├── 7_ffa_analysis/             # Step 8: Formal Feature Attribution (FFA) analysis (uses SHAP to prioritize rules)
+├── 8_shap_analysis/            # Step 7: SHAP-based post-model analysis
+├── 10_risk_dashboard/          # Step 9: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
 ├── utility_scripts/            # Workflow execution scripts (run_cohort_workflow.sh)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
@@ -75,15 +74,14 @@ flowchart TD
         E3 --> E4
     end
     
-    subgraph "Step 7-9: Post-Model Analysis"
-        E4 --> F1[7: FFA Analysis<br/>Formal Feature Attribution]
-        E4 --> F2[8: SHAP Analysis<br/>SHAP Values]
-        F1 --> F3[9: Combined SHAP + FFA<br/>Consensus Analysis]
-        F2 --> F3
+    subgraph "Step 7-8: Post-Model Analysis"
+        E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
+        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        F1 --> F2
     end
     
-    subgraph "Step 10: Risk Dashboard"
-        F3 --> G1[Risk Dashboard<br/>Model Deployment]
+    subgraph "Step 9: Risk Dashboard"
+        F2 --> G1[Risk Dashboard<br/>Model Deployment]
         G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
     end
     

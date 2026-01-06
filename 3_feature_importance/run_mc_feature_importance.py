@@ -467,6 +467,9 @@ def run_mc_feature_importance(
     # Determine device: CPU on Linux, CUDA on Windows (if available)
     device = "cpu" if is_linux() else "cuda"
 
+    print(f"\n[INFO] Starting Monte-Carlo CV with {n_runs} splits")
+    print(f"[INFO] Models to run: {', '.join(model_keys)}")
+    
     for run_idx in range(n_runs):
         rs = int(rng.integers(0, np.iinfo(np.int32).max))
         X_train, X_test, y_train, y_test = train_test_split(
@@ -621,11 +624,14 @@ def run_mc_feature_importance(
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
-        print(
-            f"[MC] Run {run_idx + 1}/{n_runs} "
-            f"XGB_recall={recalls['xgb'][-1]:.4f} "
-            f"XGB_logloss={loglosses['xgb'][-1]:.4f}"
-        )
+        # Log progress for all models
+        log_msg = f"[MC] Run {run_idx + 1}/{n_runs} "
+        log_msg += f"XGB_recall={recalls['xgb'][-1]:.4f} XGB_logloss={loglosses['xgb'][-1]:.4f}"
+        if "xgb_rf" in recalls and recalls["xgb_rf"]:
+            log_msg += f" XGB_RF_recall={recalls['xgb_rf'][-1]:.4f}"
+        if "catboost" in recalls and recalls["catboost"]:
+            log_msg += f" CatBoost_recall={recalls['catboost'][-1]:.4f}"
+        print(log_msg)
 
     # Aggregate across runs per model
     # (out_dir already created above during idempotency check)

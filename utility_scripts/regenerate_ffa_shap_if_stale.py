@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Regenerate Step 7 (FFA) and Step 8 (SHAP) outputs if Step 6 model outputs are newer.
+Regenerate Step 7 (SHAP) and Step 8 (FFA) outputs if Step 6 model outputs are newer.
 
 This script checks if Step 6 model outputs are more than 5 minutes newer than
-Step 7 or Step 8 outputs. If so, it clears the stale outputs and regenerates them.
+Step 7 (SHAP) or Step 8 (FFA) outputs. If so, it clears the stale outputs and regenerates them.
+Note: Step 7 (SHAP) must run before Step 8 (FFA) since FFA uses SHAP values to prioritize rules.
 
 Usage:
     python utility_scripts/regenerate_ffa_shap_if_stale.py --cohort opioid_ed --age-band 13-24
@@ -54,18 +55,19 @@ def get_step6_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
 
 
 def get_step7_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
-    """Get the most recent modification time of Step 7 (FFA) outputs."""
+    """Get the most recent modification time of Step 7 (SHAP) outputs."""
     age_band_fname = age_band.replace("-", "_")
     
-    step7_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
+    step7_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
     
     if not step7_dir.exists():
         return None
     
-    # Check key Step 7 output files
+    # Check key Step 7 (SHAP) output files
     key_files = [
-        step7_dir / "xgboost" / "axp_explanations.csv",
-        step7_dir / "xgboost" / "feature_importance_axp.csv",
+        step7_dir / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
+        step7_dir / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv",
+        step7_dir / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
     ]
     
     max_time = 0.0
@@ -83,19 +85,18 @@ def get_step7_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
 
 
 def get_step8_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
-    """Get the most recent modification time of Step 8 (SHAP) outputs."""
+    """Get the most recent modification time of Step 8 (FFA) outputs."""
     age_band_fname = age_band.replace("-", "_")
     
-    step8_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
+    step8_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
     
     if not step8_dir.exists():
         return None
     
-    # Check key Step 8 output files
+    # Check key Step 8 (FFA) output files
     key_files = [
-        step8_dir / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
-        step8_dir / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv",
-        step8_dir / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
+        step8_dir / "xgboost" / "axp_explanations.csv",
+        step8_dir / "xgboost" / "feature_importance_axp.csv",
     ]
     
     max_time = 0.0
@@ -113,11 +114,11 @@ def get_step8_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
 
 
 def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> None:
-    """Clear Step 7 (FFA) outputs for a specific cohort/age band."""
+    """Clear Step 7 (SHAP) outputs for a specific cohort/age band."""
     age_band_fname = age_band.replace("-", "_")
     
     # Clear local outputs
-    step7_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
+    step7_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
     if step7_dir.exists():
         import shutil
         print(f"  Removing local Step 7 outputs: {step7_dir}")
@@ -132,7 +133,7 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
             bucket = "pgxdatalake"
             
             # Clear S3 outputs
-            s3_prefix = f"gold/ffa_analysis/{cohort}/{age_band}/"
+            s3_prefix = f"gold/shap_analysis/{cohort}/{age_band}/"
             paginator = s3_client.get_paginator("list_objects_v2")
             pages = paginator.paginate(Bucket=bucket, Prefix=s3_prefix)
             
@@ -150,7 +151,7 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                 print(f"  ✅ S3 Step 7 outputs cleared")
             
             # Clear checkpoints (in pgx-repository bucket)
-            checkpoint_prefix = f"pipeline_checkpoints/7_ffa_analysis/{cohort}/{age_band_fname}/"
+            checkpoint_prefix = f"pipeline_checkpoints/8_shap_analysis/{cohort}/{age_band_fname}/"
             try:
                 checkpoint_bucket = "pgx-repository"
                 checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
@@ -176,11 +177,11 @@ def clear_step7_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
 
 
 def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> None:
-    """Clear Step 8 (SHAP) outputs for a specific cohort/age band."""
+    """Clear Step 8 (FFA) outputs for a specific cohort/age band."""
     age_band_fname = age_band.replace("-", "_")
     
     # Clear local outputs
-    step8_dir = PROJECT_ROOT / "8_shap_analysis" / "outputs" / cohort / age_band_fname
+    step8_dir = PROJECT_ROOT / "7_ffa_analysis" / "outputs" / cohort / age_band_fname
     if step8_dir.exists():
         import shutil
         print(f"  Removing local Step 8 outputs: {step8_dir}")
@@ -213,7 +214,7 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
                 print(f"  ✅ S3 Step 8 outputs cleared")
             
             # Clear checkpoints (in pgx-repository bucket)
-            checkpoint_prefix = f"pipeline_checkpoints/8_shap_analysis/{cohort}/{age_band_fname}/"
+            checkpoint_prefix = f"pipeline_checkpoints/7_ffa_analysis/{cohort}/{age_band_fname}/"
             try:
                 checkpoint_bucket = "pgx-repository"
                 checkpoint_paginator = s3_client.get_paginator("list_objects_v2")
@@ -239,22 +240,22 @@ def clear_step8_outputs(cohort: str, age_band: str, clear_s3: bool = True) -> No
 
 
 def run_step7(cohort: str, age_band: str) -> bool:
-    """Run Step 7 (FFA Analysis)."""
-    script_path = PROJECT_ROOT / "7_ffa_analysis" / "run_full_ffa_analysis.py"
+    """Run Step 7 (SHAP Analysis)."""
+    script_path = PROJECT_ROOT / "8_shap_analysis" / "run_shap_analysis.py"
     
     if not script_path.exists():
         print(f"  ❌ Step 7 script not found: {script_path}")
         return False
     
-    print(f"  Running Step 7 (FFA Analysis)...")
+    print(f"  Running Step 7 (SHAP Analysis)...")
     try:
         result = subprocess.run(
             [
                 sys.executable,
                 str(script_path),
-                "--cohort-name",
+                "--cohort",
                 cohort,
-                "--age-band",
+                "--age_band",
                 age_band,
             ],
             cwd=PROJECT_ROOT,
@@ -274,22 +275,22 @@ def run_step7(cohort: str, age_band: str) -> bool:
 
 
 def run_step8(cohort: str, age_band: str) -> bool:
-    """Run Step 8 (SHAP Analysis)."""
-    script_path = PROJECT_ROOT / "8_shap_analysis" / "run_shap_analysis.py"
+    """Run Step 8 (FFA Analysis)."""
+    script_path = PROJECT_ROOT / "7_ffa_analysis" / "run_full_ffa_analysis.py"
     
     if not script_path.exists():
         print(f"  ❌ Step 8 script not found: {script_path}")
         return False
     
-    print(f"  Running Step 8 (SHAP Analysis)...")
+    print(f"  Running Step 8 (FFA Analysis)...")
     try:
         result = subprocess.run(
             [
                 sys.executable,
                 str(script_path),
-                "--cohort",
+                "--cohort-name",
                 cohort,
-                "--age_band",
+                "--age-band",
                 age_band,
             ],
             cwd=PROJECT_ROOT,
@@ -345,9 +346,9 @@ def check_and_regenerate(
     step7_regenerated = False
     step8_regenerated = False
     
-    # Check Step 7
+    # Check Step 7 (SHAP) - must run before Step 8
     if step7_time is None:
-        print(f"  Step 7 (FFA) outputs: Not found")
+        print(f"  Step 7 (SHAP) outputs: Not found")
         if regenerate:
             print(f"  → Step 7 outputs missing, will regenerate")
             clear_step7_outputs(cohort, age_band, clear_s3=clear_s3)
@@ -356,7 +357,7 @@ def check_and_regenerate(
     else:
         step7_dt = datetime.fromtimestamp(step7_time)
         age_diff = step6_dt - step7_dt
-        print(f"  Step 7 (FFA) timestamp: {step7_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  Step 7 (SHAP) timestamp: {step7_dt.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  Age difference: {age_diff}")
         
         if force or age_diff > stale_threshold:
@@ -367,9 +368,9 @@ def check_and_regenerate(
         else:
             print(f"  ✓ Step 7 outputs are up-to-date")
     
-    # Check Step 8
+    # Check Step 8 (FFA) - depends on Step 7 SHAP outputs
     if step8_time is None:
-        print(f"  Step 8 (SHAP) outputs: Not found")
+        print(f"  Step 8 (FFA) outputs: Not found")
         if regenerate:
             print(f"  → Step 8 outputs missing, will regenerate")
             clear_step8_outputs(cohort, age_band, clear_s3=clear_s3)
@@ -378,7 +379,7 @@ def check_and_regenerate(
     else:
         step8_dt = datetime.fromtimestamp(step8_time)
         age_diff = step6_dt - step8_dt
-        print(f"  Step 8 (SHAP) timestamp: {step8_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  Step 8 (FFA) timestamp: {step8_dt.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  Age difference: {age_diff}")
         
         if force or age_diff > stale_threshold:

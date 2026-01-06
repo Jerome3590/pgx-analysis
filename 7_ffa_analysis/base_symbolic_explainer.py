@@ -175,8 +175,15 @@ class BaseSymbolicExplainer(ABC):
     - Explanation generation
     """
     
-    def __init__(self, path_config=None):
-        """Initialize base explainer with common attributes."""
+    def __init__(self, path_config=None, shap_importance_map: Optional[Dict[str, float]] = None):
+        """
+        Initialize base explainer with common attributes.
+        
+        Args:
+            path_config: Path configuration object
+            shap_importance_map: Optional dict mapping feature_name -> mean_abs_shap value
+                                 Used to prioritize rules containing high-SHAP features
+        """
         self.path_config = path_config
         self.condition_id_map = {}  # Maps (feature_idx, threshold, direction) -> literal_id
         self.id_condition_map = {}  # Maps literal_id -> (feature_idx, threshold, direction)
@@ -186,6 +193,7 @@ class BaseSymbolicExplainer(ABC):
         self.model_json = None      # Model JSON structure
         self._id_gen = count(1)     # Generator for literal IDs (start at 1 for SAT)
         self._class_rule_indices = {}  # Cache: maps class -> list of rule indices for that class
+        self.shap_importance_map = shap_importance_map or {}  # Feature name -> SHAP importance
         self.setup_logging()
     
     def setup_logging(self, log_file: Optional[str] = None, level: int = logging.INFO) -> None:
@@ -359,6 +367,35 @@ class BaseSymbolicExplainer(ABC):
         
         return matched
     
+    def _score_rule_by_shap(self, rule_id: int) -> float:
+        """
+        Score a rule based on SHAP importance of features it contains.
+        
+        Args:
+            rule_id: Rule index
+            
+        Returns:
+            SHAP-based score (sum of mean_abs_shap for features in rule)
+        """
+        if not self.shap_importance_map:
+            return 0.0
+        
+        clause = self.rule_clauses[rule_id]
+        score = 0.0
+        
+        # Get unique features in this rule
+        features_in_rule = set()
+        for lit in clause:
+            feat_idx, _, _ = self.id_condition_map[lit]
+            feat_name = self.feature_names.get(feat_idx, f"f{feat_idx}")
+            features_in_rule.add(feat_name)
+        
+        # Sum SHAP importance for features in rule
+        for feat_name in features_in_rule:
+            score += self.shap_importance_map.get(feat_name, 0.0)
+        
+        return score
+    
     def _compute_axp(self, rule_ids: List[int]) -> List[int]:
         """
         Compute minimal hitting set (AXP) over matching rule IDs.
@@ -384,48 +421,60 @@ class BaseSymbolicExplainer(ABC):
         
         max_rules = 100  # Limit to prevent hanging
         
-        # If we have many rules, use both first 100 and random sample
+        # If we have many rules, use multiple approaches for robustness
         if len(rule_ids) > max_rules:
+            approaches_used = []
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: Too many matched rules ({len(rule_ids)}), using first {max_rules} + random {max_rules} for robustness")
+                self.logger.warning(f"_compute_axp: Too many matched rules ({len(rule_ids)}), using multiple sampling approaches for robustness")
             
-            # First 100 rules
+            # Approach 1: First 100 rules
             first_rules = rule_ids[:max_rules]
+            approaches_used.append(("first", first_rules))
             
-            # Random sample of 100 rules (seed for reproducibility)
+            # Approach 2: Random sample of 100 rules (seed for reproducibility)
             random.seed(42)
             random_rules = random.sample(rule_ids, min(max_rules, len(rule_ids)))
+            approaches_used.append(("random", random_rules))
             
-            # Compute AXP from first 100 rules
-            h_first = Hitman(solver="m22")
-            for ridx in first_rules:
-                h_first.hit(self.rule_clauses[ridx])
+            # Approach 3: SHAP-weighted top 100 rules (if SHAP importance available)
+            if self.shap_importance_map:
+                # Score all rules by SHAP importance
+                rule_scores = [(rid, self._score_rule_by_shap(rid)) for rid in rule_ids]
+                # Sort by score descending and take top 100
+                rule_scores.sort(key=lambda x: x[1], reverse=True)
+                shap_rules = [rid for rid, _ in rule_scores[:max_rules]]
+                approaches_used.append(("shap_weighted", shap_rules))
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"_compute_axp: SHAP importance available, scoring {len(rule_ids)} rules")
             
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: Computing AXP from first {len(first_rules)} rules...")
+            # Compute AXP from each approach
+            all_results = []
+            for approach_name, selected_rules in approaches_used:
+                h = Hitman(solver="m22")
+                for ridx in selected_rules:
+                    h.hit(self.rule_clauses[ridx])
+                
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"_compute_axp: Computing AXP from {approach_name} {len(selected_rules)} rules...")
+                
+                result = h.get()
+                if result is None:
+                    result = []
+                all_results.append((approach_name, result))
             
-            result_first = h_first.get()
-            if result_first is None:
-                result_first = []
+            # Combine results: union of literals from all approaches
+            combined_literals = set()
+            for approach_name, result in all_results:
+                combined_literals.update(result)
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"_compute_axp: {approach_name} -> {len(result)} literals")
             
-            # Compute AXP from random sample
-            h_random = Hitman(solver="m22")
-            for ridx in random_rules:
-                h_random.hit(self.rule_clauses[ridx])
-            
-            if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: Computing AXP from random {len(random_rules)} rules...")
-            
-            result_random = h_random.get()
-            if result_random is None:
-                result_random = []
-            
-            # Combine results: union of literals from both approaches
-            combined_literals = list(set(result_first) | set(result_random))
+            combined_literals = list(combined_literals)
             
             duration = time.time() - start_time
             if hasattr(self, 'logger'):
-                self.logger.info(f"_compute_axp: First {len(first_rules)} rules -> {len(result_first)} literals, Random {len(random_rules)} rules -> {len(result_random)} literals, Combined -> {len(combined_literals)} literals, took {duration:.4f}s")
+                approach_summary = ", ".join([f"{name}: {len(res)}" for name, res in all_results])
+                self.logger.info(f"_compute_axp: Combined from {len(approaches_used)} approaches ({approach_summary}) -> {len(combined_literals)} unique literals, took {duration:.4f}s")
             
             return combined_literals
         else:

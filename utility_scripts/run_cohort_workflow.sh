@@ -18,11 +18,11 @@ set -euo pipefail
 #   4b: DTW Protocol Filtering (administrative/scheduling/non-medical codes, keep all surgeries)
 #   5c: PGx Feature Engineering (only feature engineering step)
 #   6: Final Model Training (use aggregated features + PGx, no encoding, select best by recall/AUC-PR)
-#   7: FFA Analysis (use best XGBoost model JSON)
-#   8: SHAP Analysis (use best CatBoost model binary)
-#   9: Combined SHAP + FFA
-#   10: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
-#   11: Deploy to S3/AWS Lambda
+#   7: SHAP Analysis (use best CatBoost model binary)
+#   8: FFA Analysis (use best XGBoost model JSON and SHAP importance from Step 7)
+#   Note: Step 9 (Combined SHAP + FFA) removed - consensus is already reflected in FFA's causal importance
+#   9: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
+#   10: Deploy to S3/AWS Lambda (if applicable)
 #
 
 # Colors for output
@@ -371,49 +371,38 @@ run_step "5" "PGx Feature Engineering" \
 # Step 6: Final Model Training
 # Uses aggregated feature importances directly + PGx features (no encoding)
 # Trains CatBoost and XGBoost (XGBoost vs XGBoost RF), selects best by recall/AUC-PR
-# Outputs: best CatBoost binary (for SHAP), best XGBoost JSON (for FFA)
+# Outputs: best CatBoost binary (for Step 7 SHAP), best XGBoost JSON (for Step 8 FFA)
 # Step 6: Final Model Training
 # Uses aggregated feature importances directly + PGx features (no encoding)
 # Trains CatBoost and XGBoost (XGBoost vs XGBoost RF), selects best by recall/AUC-PR
-# Outputs: best CatBoost binary (for SHAP), best XGBoost JSON (for FFA)
+# Outputs: best CatBoost binary (for Step 7 SHAP), best XGBoost JSON (for Step 8 FFA)
 # Note: run_step will verify features CSV exists before skipping
 run_step "6" "Final Model Training (Aggregated Features + PGx, No Encoding)" \
     "python 6_final_model_selection/run_final_model.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
-# Step 7: FFA Analysis (uses best XGBoost model JSON)
-if ! should_skip "7"; then
-    log "=========================================="
-    log "Step 7: FFA Analysis (Best XGBoost Model)"
-    log "=========================================="
-    if $PYTHON_CMD 7_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND; then
-        log "✅ Step 7 completed successfully"
-    else
-        warn "Step 7 failed (check if best XGBoost model JSON exists)"
-    fi
-fi
-
-# Step 8: SHAP Analysis (uses best CatBoost model binary)
-run_step "8" "SHAP Analysis (Best CatBoost Model)" \
+# Step 7: SHAP Analysis (uses best CatBoost model binary)
+# Must run before Step 8 (FFA) since FFA uses SHAP values to prioritize rules
+run_step "7" "SHAP Analysis (Best CatBoost Model)" \
     "python 8_shap_analysis/run_shap_analysis.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
-# Step 9: Combined SHAP + FFA
-if ! should_skip "9"; then
+# Step 8: FFA Analysis (uses best XGBoost model JSON and SHAP importance from Step 7)
+if ! should_skip "8"; then
     log "=========================================="
-    log "Step 9: Combined SHAP + FFA"
+    log "Step 8: FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)"
     log "=========================================="
-    if $PYTHON_CMD 9_combined_shap_ffa/combine_shap_ffa_analysis.py --cohort $COHORT_NAME --age-band $AGE_BAND; then
-        log "✅ Step 9 completed successfully"
+    if $PYTHON_CMD 7_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND; then
+        log "✅ Step 8 completed successfully"
     else
-        warn "Step 9 failed (check if required inputs exist)"
+        warn "Step 8 failed (check if best XGBoost model JSON exists and Step 7 completed)"
     fi
 fi
 
-# Step 10: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
+# Step 9: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
 # Prepare models and metadata for this specific cohort/age_band
 # This step can run independently for each cohort/age_band - doesn't require all cohorts
-if ! should_skip "10"; then
+if ! should_skip "9"; then
     log "=========================================="
-    log "Step 10: Risk Dashboard Preparation"
+    log "Step 9: Risk Dashboard Preparation"
     log "=========================================="
     log "Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only"
     log "Preparing dashboard artifacts for cohort: $COHORT_NAME, age_band: $AGE_BAND"
@@ -421,24 +410,24 @@ if ! should_skip "10"; then
     # Check if required inputs exist (Step 6 models)
     MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/${AGE_BAND_FNAME}/models"
     if [ ! -d "$MODEL_DIR" ] || [ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]; then
-        warn "Step 10 skipped: Models not found at $MODEL_DIR"
+        warn "Step 9 skipped: Models not found at $MODEL_DIR"
         warn "Step 6 must complete first for this cohort/age_band"
     else
         # Prepare models for this specific cohort/age_band only
         if $PYTHON_CMD 10_risk_dashboard/prepare_models.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND"; then
             log "✅ Model preparation completed for $COHORT_NAME/$AGE_BAND"
         else
-            warn "Step 10: Model preparation had warnings (check logs)"
+            warn "Step 9: Model preparation had warnings (check logs)"
         fi
         
         # Generate metadata for this specific cohort/age_band only
         if $PYTHON_CMD 10_risk_dashboard/generate_metadata.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND"; then
             log "✅ Metadata generation completed for $COHORT_NAME/$AGE_BAND"
         else
-            warn "Step 10: Metadata generation had warnings (check logs)"
+            warn "Step 9: Metadata generation had warnings (check logs)"
         fi
         
-        log "✅ Step 10 completed successfully for $COHORT_NAME/$AGE_BAND"
+        log "✅ Step 9 completed successfully for $COHORT_NAME/$AGE_BAND"
         log "Note: Dashboard can be built incrementally as cohorts complete"
     fi
 fi

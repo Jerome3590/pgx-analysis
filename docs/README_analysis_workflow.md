@@ -16,10 +16,9 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 6. **Final Model Development** in `6_final_model/`, split into:
    - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
    - **6b_final_model_selection** – final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export.  
-7. **Post‑Model Structural Analysis** via FFA (`7_ffa_analysis`).  
-8. **SHAP-Based Distributional Analysis** via `8_shap_analysis` (global + local SHAP, aligned with the final model feature set).  
-9. **Combined SHAP + FFA Consensus** via `9_combined_shap_ffa` (agreement/disagreement analysis and joint rankings).  
-10. **Risk Calculator + Dashboard Deployment** via `10_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
+7. **SHAP-Based Distributional Analysis** via `8_shap_analysis` (global + local SHAP, aligned with the final model feature set).  
+8. **Post‑Model Structural Analysis** via FFA (`7_ffa_analysis`), which uses SHAP importance to prioritize rules for AXP computation. Consensus between SHAP and FFA is naturally reflected in FFA's causal importance scores.  
+9. **Risk Calculator + Dashboard Deployment** via `10_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
 
 ## Phase 1: Monte Carlo CV + Feature Importance
 

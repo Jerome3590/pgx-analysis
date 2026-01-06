@@ -2,8 +2,9 @@
 """
 Combine SHAP and FFA Results for Final Reporting
 
-This script aggregates and combines SHAP and FFA analysis results from Steps 8 and 9
-to create comprehensive patient-level explanations and consensus feature rankings.
+This script aggregates and combines SHAP and FFA analysis results from Steps 7 and 8
+to create comprehensive patient-level explanations. Note: Consensus is already reflected
+in FFA's causal importance scores, which use SHAP-prioritized rules.
 
 Usage:
     python 10_results/combine_shap_ffa_results.py \
