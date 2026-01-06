@@ -33,6 +33,8 @@ pharmacy_head.txt
 
 # Per-patient feature-engineering artifacts (keyed by mi_person_key)
 */outputs/*
+# Exception: Global drug-to-CPIC mapping (shared resource, should be in repo)
+!5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv
 */model_outputs/*
 s3_outputs/
 
