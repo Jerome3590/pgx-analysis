@@ -686,6 +686,9 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             unique_vals = X_sample[feat_name].unique()
             is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
             
+            # Calculate median for reference (even for binary features)
+            median_val = X_sample[feat_name].median()
+            
             # Create modified dataset with appropriate intervention
             X_modified = X_sample.copy()
             if is_binary:
@@ -695,7 +698,6 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 intervention_val = "flipped (0<->1)"
             else:
                 # For continuous features: set to median
-                median_val = X_sample[feat_name].median()
                 X_modified[feat_name] = median_val
                 intervention_val = f"median ({median_val:.4f})"
             
@@ -739,9 +741,6 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             else:
                 change_rate = 0.0
                 logger.warning(f"  Feature {feat_name}: No explanations generated")
-            
-            # Store median value for reference (even for binary features)
-            median_val = X_sample[feat_name].median() if not is_binary else X_sample[feat_name].median()
             
             causal_scores.append({
                 'feature': feat_name,
