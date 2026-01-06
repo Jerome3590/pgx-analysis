@@ -85,17 +85,18 @@ def _validate_s3_file_has_controls(s3_path: str) -> dict:
         con.close()
 
 
-def _validate_aggregated_feature_importance(
+def _validate_and_filter_aggregated_feature_importance(
     cohort: str, age_band: str
 ) -> dict:
     """
-    Validate that the aggregated feature importance CSV exists and has valid data:
-    - All features have importance > 0 (or > 1e-10 for floating point)
-    - No duplicate features
+    Validate and filter the aggregated feature importance CSV:
+    - Filter out features with importance <= 0 (or <= 1e-10 for floating point)
+    - Remove duplicate features (keep first/highest importance)
+    - Save the cleaned CSV back to disk
     
     Returns:
-        dict with keys: is_valid (bool), n_features (int), n_zero_importance (int), 
-        n_duplicates (int), error (str or None)
+        dict with keys: is_valid (bool), n_features_initial (int), n_features_final (int),
+        n_zero_importance (int), n_duplicates (int), cleaned_path (Path), error (str or None)
     """
     from py_helpers.constants import age_band_to_fname
     
@@ -124,9 +125,11 @@ def _validate_aggregated_feature_importance(
     if not agg_csv_path.exists():
         return {
             "is_valid": False,
-            "n_features": 0,
+            "n_features_initial": 0,
+            "n_features_final": 0,
             "n_zero_importance": 0,
             "n_duplicates": 0,
+            "cleaned_path": None,
             "error": f"Aggregated feature importance CSV not found for {cohort}/{age_band}. Expected at: {agg_csv_path}",
         }
     
@@ -136,60 +139,71 @@ def _validate_aggregated_feature_importance(
         if "feature" not in df.columns:
             return {
                 "is_valid": False,
-                "n_features": len(df),
+                "n_features_initial": len(df),
+                "n_features_final": 0,
                 "n_zero_importance": 0,
                 "n_duplicates": 0,
+                "cleaned_path": None,
                 "error": f"'feature' column not found in {agg_csv_path}",
             }
         
         initial_count = len(df)
         
-        # Check for zero-importance features
+        # Filter zero-importance features
         n_zero_importance = 0
         importance_col = None
         
         if "scaled_importance_mean" in df.columns:
             importance_col = "scaled_importance_mean"
             n_zero_importance = len(df[df["scaled_importance_mean"] <= 1e-10])
+            df = df[df["scaled_importance_mean"] > 1e-10].copy()
         elif "importance_mean" in df.columns:
             importance_col = "importance_mean"
             n_zero_importance = len(df[df["importance_mean"] <= 1e-10])
+            df = df[df["importance_mean"] > 1e-10].copy()
         elif "importance_scaled" in df.columns:
             importance_col = "importance_scaled"
             n_zero_importance = len(df[df["importance_scaled"] <= 1e-10])
+            df = df[df["importance_scaled"] > 1e-10].copy()
         elif "importance_normalized" in df.columns:
             importance_col = "importance_normalized"
             n_zero_importance = len(df[df["importance_normalized"] <= 1e-10])
+            df = df[df["importance_normalized"] > 1e-10].copy()
         
-        # Check for duplicates
+        # Remove duplicates (keep first occurrence, which should be highest importance after sorting)
         n_duplicates = len(df) - len(df.drop_duplicates(subset=["feature"], keep="first"))
+        df = df.drop_duplicates(subset=["feature"], keep="first")
         
-        is_valid = n_zero_importance == 0 and n_duplicates == 0
+        # Ensure sorted by importance (descending)
+        if importance_col:
+            df = df.sort_values(importance_col, ascending=False)
         
-        error_msg = None
-        if not is_valid:
-            issues = []
-            if n_zero_importance > 0:
-                issues.append(f"{n_zero_importance} features with zero/negative importance")
-            if n_duplicates > 0:
-                issues.append(f"{n_duplicates} duplicate features")
-            error_msg = f"Validation failed: {', '.join(issues)}"
+        final_count = len(df)
+        
+        # Save cleaned CSV back to the same location
+        if n_zero_importance > 0 or n_duplicates > 0:
+            df.to_csv(agg_csv_path, index=False)
+            logger.info(f"Saved cleaned aggregated feature importance CSV to {agg_csv_path}")
         
         return {
-            "is_valid": is_valid,
-            "n_features": initial_count,
+            "is_valid": True,
+            "n_features_initial": initial_count,
+            "n_features_final": final_count,
             "n_zero_importance": n_zero_importance,
             "n_duplicates": n_duplicates,
             "importance_col": importance_col,
-            "error": error_msg,
+            "cleaned_path": agg_csv_path,
+            "error": None,
         }
     except Exception as e:
         return {
             "is_valid": False,
-            "n_features": 0,
+            "n_features_initial": 0,
+            "n_features_final": 0,
             "n_zero_importance": 0,
             "n_duplicates": 0,
-            "error": f"Error reading aggregated feature importance CSV: {str(e)}",
+            "cleaned_path": None,
+            "error": f"Error reading/cleaning aggregated feature importance CSV: {str(e)}",
         }
 
 
@@ -1039,26 +1053,30 @@ if __name__ == "__main__":
 
     age_band_fname = args.age_band.replace("-", "_")
 
-    # Validate aggregated feature importance CSV before proceeding
-    logger.info("Validating aggregated feature importance CSV...")
-    fi_validation = _validate_aggregated_feature_importance(args.cohort_name, args.age_band)
+    # Validate and filter aggregated feature importance CSV before proceeding
+    logger.info("Validating and cleaning aggregated feature importance CSV...")
+    fi_validation = _validate_and_filter_aggregated_feature_importance(args.cohort_name, args.age_band)
     
     if not fi_validation["is_valid"]:
         logger.error(f"❌ Aggregated feature importance validation failed: {fi_validation.get('error', 'Unknown error')}")
-        if fi_validation["n_zero_importance"] > 0:
-            logger.error(f"   Found {fi_validation['n_zero_importance']} features with zero/negative importance")
-        if fi_validation["n_duplicates"] > 0:
-            logger.error(f"   Found {fi_validation['n_duplicates']} duplicate features")
         logger.error(
             f"Please regenerate the aggregated feature importance CSV by running Step 3:\n"
             f"  python 3_feature_importance/run_mc_feature_importance.py --cohort {args.cohort_name} --age_band {args.age_band} --force"
         )
         sys.exit(1)
     else:
-        logger.info(
-            f"✓ Aggregated feature importance validation passed: "
-            f"{fi_validation['n_features']} features, all with importance > 0, no duplicates"
-        )
+        if fi_validation["n_zero_importance"] > 0 or fi_validation["n_duplicates"] > 0:
+            logger.info(
+                f"✓ Cleaned aggregated feature importance CSV: "
+                f"removed {fi_validation['n_zero_importance']} zero-importance features, "
+                f"{fi_validation['n_duplicates']} duplicates. "
+                f"Final: {fi_validation['n_features_final']} features (from {fi_validation['n_features_initial']} initial)"
+            )
+        else:
+            logger.info(
+                f"✓ Aggregated feature importance CSV is clean: "
+                f"{fi_validation['n_features_final']} features, all with importance > 0, no duplicates"
+            )
 
     # Use OS-aware path resolution for model_events.parquet (needed for local check)
     model_data_path = _resolve_model_events_path(args.cohort_name, args.age_band)
