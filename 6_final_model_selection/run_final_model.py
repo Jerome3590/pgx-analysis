@@ -612,14 +612,24 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             # No prefix - assume drug by default
             parsed_features.append(("drug", feature_str, importance))
     
-    # Sort by importance (descending) and apply limit if specified
+    # Sort by importance (descending)
     parsed_features.sort(key=lambda x: x[2], reverse=True)
+    
+    # Remove duplicate (type, code) pairs - keep the one with highest importance
+    seen = {}
+    for ftype, code, importance in parsed_features:
+        key = (ftype, code)
+        if key not in seen or seen[key][2] < importance:
+            seen[key] = (ftype, code, importance)
+    
+    parsed_features = list(seen.values())
+    parsed_features.sort(key=lambda x: x[2], reverse=True)  # Re-sort after deduplication
     
     if top_n is not None and len(parsed_features) > top_n:
         parsed_features = parsed_features[:top_n]
-        print(f"[INFO] Limited to top {top_n} features from {len(df)} total features")
+        print(f"[INFO] Limited to top {top_n} features from {len(seen)} unique features with signal")
     else:
-        print(f"[INFO] Loaded all {len(parsed_features)} aggregated feature importance codes (no limit)")
+        print(f"[INFO] Loaded {len(parsed_features)} unique aggregated feature importance codes with importance > 0")
     
     # Return as list of tuples: (type, code) - drop importance
     return [(ftype, code) for ftype, code, _ in parsed_features]
