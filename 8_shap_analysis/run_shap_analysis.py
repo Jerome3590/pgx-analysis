@@ -32,6 +32,12 @@ from py_helpers.constants import age_band_to_fname  # type: ignore
 
 
 def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.Series]:
+    """
+    Load final features using DuckDB for efficient CSV reading.
+    Only converts to pandas at the final step for compatibility with SHAP.
+    """
+    import duckdb
+
     age_band_fname = age_band_to_fname(age_band)
     features_path = (
         PROJECT_ROOT
@@ -44,17 +50,25 @@ def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.S
     if not features_path.exists():
         raise FileNotFoundError(f"Final features file not found: {features_path}")
 
-    df = pd.read_csv(features_path)
-    if "target" not in df.columns:
-        raise ValueError(f"'target' column not found in {features_path}")
+    # Use DuckDB to read CSV efficiently (more memory efficient than pandas)
+    con = duckdb.connect()
+    try:
+        # Read CSV using DuckDB (more memory efficient than pandas)
+        # DuckDB handles large files better by streaming/chunking internally
+        df = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}')").df()
 
-    y = df["target"].astype(int)
-    X = df.drop(columns=["mi_person_key", "target"], errors="ignore")
+        if "target" not in df.columns:
+            raise ValueError(f"'target' column not found in {features_path}")
 
-    # Keep numeric columns only (model is trained on numeric features)
-    numeric_cols = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
-    X = X[numeric_cols].copy()
-    return X, y
+        y = df["target"].astype(int)
+        X = df.drop(columns=["mi_person_key", "target"], errors="ignore")
+
+        # Keep numeric columns only (model is trained on numeric features)
+        numeric_cols = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
+        X = X[numeric_cols].copy()
+        return X, y
+    finally:
+        con.close()
 
 
 from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
@@ -134,14 +148,34 @@ def _load_best_models(cohort: str, age_band: str):
             / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
         )
     
+    # Try loading from JSON if binary not found (CatBoost can load from JSON)
+    if not cb_binary_path.exists():
+        cb_json_path = (
+            PROJECT_ROOT
+            / "6_final_model"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / "final_model_json"
+            / f"{cohort}_{age_band_fname}_best_catboost_model.json"
+        )
+        if cb_json_path.exists():
+            print(f"CatBoost binary (.cbm) not found, loading from JSON: {cb_json_path}")
+            from catboost import CatBoostClassifier  # type: ignore
+            cb_model = CatBoostClassifier()
+            cb_model.load_model(str(cb_json_path))
+            print(f"Loaded best CatBoost model from JSON: {cb_json_path}")
+            return cb_model, model_selection_metadata
+    
     if not cb_binary_path.exists():
         raise FileNotFoundError(
-            f"Best CatBoost model binary not found. Checked:\n"
+            f"Best CatBoost model binary or JSON not found. Checked:\n"
             f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'models' / 'catboost_model.cbm'}\n"
             f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / 'models' / 'catboost_model.cbm'}\n"
             f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
             f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
-            f"Please run 6_final_model_selection/run_final_model.py first."
+            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_best_catboost_model.json'}\n"
+            f"Please run 6_final_model_selection/run_final_model.py first or download model from S3."
         )
     
     from catboost import CatBoostClassifier  # type: ignore
