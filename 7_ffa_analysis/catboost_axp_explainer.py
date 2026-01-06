@@ -372,8 +372,9 @@ class CatBoostAXPExplainer:
 class CatBoostSymbolicExplainer(BaseSymbolicExplainer):
     """CatBoost model explainer using unified symbolic AXP schema."""
   
-    def __init__(self, path_config: PathConfig, shap_importance_map: Optional[Dict[str, float]] = None):
-        super().__init__(path_config, shap_importance_map=shap_importance_map)
+    def __init__(self, path_config: PathConfig, shap_importance_map: Optional[Dict[str, float]] = None,
+                 shap_values_df: Optional[pd.DataFrame] = None):
+        super().__init__(path_config, shap_importance_map=shap_importance_map, shap_values_df=shap_values_df)
         self.path_config = path_config
         self.tree_rules = None
 

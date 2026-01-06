@@ -50,8 +50,13 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     if not shap_importance_map:
         raise ValueError("shap_importance_map is required in explainer_state. Only rules with SHAP importance > 0 will be used.")
     
-    # Use instance-specific SHAP values if available, otherwise fall back to global importance
-    shap_map_to_use = instance_shap_values if instance_shap_values else shap_importance_map
+    # Require instance-specific SHAP values - do not fall back to global
+    if not instance_shap_values:
+        raise ValueError(
+            f"Instance-specific SHAP values are required for instance {idx}. "
+            f"Cannot use global SHAP importance for instance-specific rule filtering. "
+            f"Please ensure individual SHAP values are loaded from Step 7 (SHAP Analysis)."
+        )
     
     # Convert instance back to numpy array (ensure it's 1D)
     # instance_values should be a list from x.tolist()
@@ -99,8 +104,7 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
         ):
             matched.append(idx_rule)
     
-    # Score rules by SHAP and filter to only those with SHAP > 0
-    # Use instance-specific SHAP values if available, otherwise use global importance
+    # Score rules by SHAP using instance-specific SHAP values (required)
     def score_rule_by_shap(rule_id):
         clause = rule_clauses[rule_id]
         score = 0.0
@@ -110,13 +114,14 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
             feat_name = feature_names.get(feat_idx, f"f{feat_idx}")
             features_in_rule.add(feat_name)
         for feat_name in features_in_rule:
-            # Use instance-specific SHAP value if available, otherwise use global mean_abs_shap
-            if instance_shap_values and feat_name in instance_shap_values:
+            # Use instance-specific SHAP value (required - no fallback)
+            if feat_name in instance_shap_values:
                 # Use absolute value of instance-specific SHAP
                 score += abs(instance_shap_values[feat_name])
             else:
-                # Fall back to global mean_abs_shap
-                score += shap_importance_map.get(feat_name, 0.0)
+                # Log warning but continue (feature might not be in SHAP values)
+                # This can happen if feature wasn't in the SHAP evaluation set
+                pass
         return score
     
     # Set 1: First 100 rules (from all matched rules)
@@ -698,25 +703,32 @@ class BaseSymbolicExplainer(ABC):
             
             x_list = x_1d.tolist()
             
-            # Get instance-specific SHAP values if available
-            instance_shap_values = None
-            if use_individual_shap:
-                try:
-                    # Try to get SHAP values for this instance index
-                    # shap_values_df should be indexed by instance index (from original data)
-                    if i in self.shap_values_df.index:
-                        instance_shap_row = self.shap_values_df.loc[i]
-                        # Convert to dict: feature_name -> SHAP value
-                        instance_shap_values = instance_shap_row.to_dict()
-                    elif len(self.shap_values_df) > i:
-                        # If index doesn't match, try positional access
-                        instance_shap_row = self.shap_values_df.iloc[i]
-                        instance_shap_values = instance_shap_row.to_dict()
-                except (KeyError, IndexError) as e:
-                    # If we can't find individual SHAP values for this instance, use global
-                    if hasattr(self, 'logger'):
-                        self.logger.debug(f"Could not find individual SHAP values for instance {i}: {e}. Using global SHAP importance.")
-                    instance_shap_values = None
+            # Get instance-specific SHAP values (required - no fallback)
+            try:
+                # Try to get SHAP values for this instance index
+                # shap_values_df should be indexed by instance index (from original data)
+                if i in self.shap_values_df.index:
+                    instance_shap_row = self.shap_values_df.loc[i]
+                    # Convert to dict: feature_name -> SHAP value
+                    instance_shap_values = instance_shap_row.to_dict()
+                elif len(self.shap_values_df) > i:
+                    # If index doesn't match, try positional access
+                    instance_shap_row = self.shap_values_df.iloc[i]
+                    instance_shap_values = instance_shap_row.to_dict()
+                else:
+                    raise IndexError(f"Instance index {i} out of range for SHAP values DataFrame (length: {len(self.shap_values_df)})")
+            except (KeyError, IndexError) as e:
+                # Log error - individual SHAP values are required
+                error_msg = (
+                    f"ERROR: Could not find individual SHAP values for instance {i}: {e}. "
+                    f"Individual SHAP values per instance are REQUIRED for accurate rule filtering. "
+                    f"SHAP values DataFrame has {len(self.shap_values_df)} rows, "
+                    f"requested instance index: {i}. "
+                    f"Please ensure SHAP values are loaded correctly from Step 7 (SHAP Analysis)."
+                )
+                if hasattr(self, 'logger'):
+                    self.logger.error(error_msg)
+                raise ValueError(error_msg) from e
             
             tasks.append((i, x_list, int(yhat), explainer_state, instance_shap_values))
         
