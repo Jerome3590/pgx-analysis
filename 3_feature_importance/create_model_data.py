@@ -134,11 +134,33 @@ def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
 
 
 def get_important_items(agg_csv: Path) -> List[str]:
-    """Read aggregated feature-importance CSV and return item codes (no 'item_' prefix)."""
+    """Read aggregated feature-importance CSV and return item codes (no 'item_' prefix).
+    
+    This function assumes the aggregated CSV has already been filtered for zero-importance
+    features and duplicates by Step 3's run_mc_feature_importance.py. However, we add
+    an extra safety check here to ensure we only process features with signal.
+    """
     df = pd.read_csv(agg_csv)
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {agg_csv}")
 
+    # Additional safety check: filter zero-importance features if importance columns exist
+    initial_count = len(df)
+    if "scaled_importance_mean" in df.columns:
+        df = df[df["scaled_importance_mean"] > 1e-10].copy()
+    elif "importance_mean" in df.columns:
+        df = df[df["importance_mean"] > 1e-10].copy()
+    elif "importance_scaled" in df.columns:
+        df = df[df["importance_scaled"] > 1e-10].copy()
+    elif "importance_normalized" in df.columns:
+        df = df[df["importance_normalized"] > 1e-10].copy()
+    
+    if len(df) < initial_count:
+        print(f"[INFO] Filtered out {initial_count - len(df)} zero-importance features in get_important_items()")
+    
+    # Remove duplicates (should already be done, but safety check)
+    df = df.drop_duplicates(subset=["feature"], keep="first")
+    
     items = (
         df["feature"]
         .astype(str)

@@ -742,8 +742,40 @@ def run_mc_feature_importance(
             out_dir
             / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
         )
-        results["xgb"].to_csv(agg_path, index=False)
+        
+        # Filter zero-importance features and remove duplicates before saving
+        agg_df = results["xgb"].copy()
+        
+        # Filter out features with zero or negative importance (no signal)
+        initial_count = len(agg_df)
+        if "scaled_importance_mean" in agg_df.columns:
+            agg_df = agg_df[agg_df["scaled_importance_mean"] > 1e-10].copy()
+            filtered_count = len(agg_df)
+            if filtered_count < initial_count:
+                print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
+                print(f"[INFO] Keeping {filtered_count} features with importance > 0")
+        elif "importance_mean" in agg_df.columns:
+            agg_df = agg_df[agg_df["importance_mean"] > 1e-10].copy()
+            filtered_count = len(agg_df)
+            if filtered_count < initial_count:
+                print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
+                print(f"[INFO] Keeping {filtered_count} features with importance > 0")
+        
+        # Remove duplicate features (keep first occurrence, which should be highest importance after sorting)
+        initial_count = len(agg_df)
+        agg_df = agg_df.drop_duplicates(subset=["feature"], keep="first")
+        if len(agg_df) < initial_count:
+            print(f"[INFO] Removed {initial_count - len(agg_df)} duplicate features")
+        
+        # Ensure sorted by importance (descending)
+        if "scaled_importance_mean" in agg_df.columns:
+            agg_df = agg_df.sort_values("scaled_importance_mean", ascending=False)
+        elif "importance_mean" in agg_df.columns:
+            agg_df = agg_df.sort_values("importance_mean", ascending=False)
+        
+        agg_df.to_csv(agg_path, index=False)
         print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
+        print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
 
     # Return the XGBoost boosting table by default
     return results.get("xgb", pd.DataFrame())
