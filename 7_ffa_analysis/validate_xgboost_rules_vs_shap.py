@@ -201,7 +201,7 @@ def create_validation_plots(
     plt.xlabel('SHAP Importance (mean_abs_shap)', fontsize=12)
     plt.ylabel('Rule-Based Importance (from JSON)', fontsize=12)
     plt.title(
-        f'XGBoost Rule Extraction Validation\n'
+        f'SHAP-Guided Rule Filtering Validation\n'
         f'Pearson r={stats["pearson_correlation"]:.3f}, '
         f'Spearman ρ={stats["spearman_correlation"]:.3f}',
         fontsize=14
@@ -220,7 +220,7 @@ def create_validation_plots(
     plt.hist(comparison_df['relative_difference'], bins=50, alpha=0.7, edgecolor='black')
     plt.xlabel('Relative Difference (|rule - shap| / shap)', fontsize=12)
     plt.ylabel('Frequency', fontsize=12)
-    plt.title('Distribution of Relative Differences\n(XGBoost JSON Rules vs SHAP)', fontsize=14)
+    plt.title('Distribution of Relative Differences\n(SHAP-Guided Rule Filtering Validation)', fontsize=14)
     plt.axvline(
         comparison_df['relative_difference'].median(),
         color='r',
@@ -239,7 +239,7 @@ def create_validation_plots(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Validate XGBoost JSON rule extraction against SHAP values'
+        description='Validate that SHAP values can accurately filter/build rule sets for causal analysis'
     )
     parser.add_argument('--cohort', type=str, required=True, help='Cohort name (e.g., opioid_ed)')
     parser.add_argument('--age-band', type=str, required=True, help='Age band (e.g., 13-24)')
