@@ -46,7 +46,7 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 - **Purpose**: Feature Forward Analysis using best XGBoost model
 - **Script**: `7_ffa_analysis/run_full_ffa_analysis.py`
 - **Input**: Best XGBoost model JSON from Step 6 + SHAP importance from Step 7
-- **Note**: Uses SHAP importance to prioritize rules for AXP computation. Consensus between SHAP and FFA is reflected in FFA's causal importance scores.
+- **Note**: Uses SHAP importance to filter rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP importance > 0. Consensus between SHAP and FFA is reflected in FFA's causal importance scores.
 
 ### Step 9: Risk Dashboard Preparation
 - **Purpose**: Integrate BupaR, DTW, and FP-Growth visualizations with causal analysis

@@ -143,7 +143,7 @@ flowchart TD
     
     subgraph "Step 7-8: Post-Model Analysis"
         E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
-        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Rule selection: first 100 + random 100 + all SHAP > 0]
         F1 --> F2
     end
     

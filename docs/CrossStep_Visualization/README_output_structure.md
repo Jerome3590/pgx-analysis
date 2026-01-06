@@ -100,7 +100,7 @@ Use this checklist to track progress:
   - [ ] **READY FOR STEP 8** ✅
 
 - [ ] **Step 8: Formal Feature Attribution** (`7_ffa_analysis/`)
-  - [ ] Feature attribution computed (uses SHAP to prioritize rules)
+  - [ ] Feature attribution computed (rule selection: first 100 + random 100 + all SHAP > 0)
   - [ ] Causal analysis completed
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 9** ✅

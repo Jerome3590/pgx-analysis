@@ -126,7 +126,7 @@ The updated workflow now follows this sequence:
    - Selects best XGBoost variant (recall/AUC-PR)
    - Exports best CatBoost binary and best XGBoost JSON
 5. **Step 7**: SHAP Analysis (uses best CatBoost binary, produces SHAP importance)
-6. **Step 8**: FFA Analysis (uses best XGBoost JSON + SHAP importance from Step 7 to prioritize rules)
+6. **Step 8**: FFA Analysis (uses best XGBoost JSON + SHAP importance from Step 7). Rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 7. **Step 9**: Risk Dashboard (BupaR/DTW/FP-Growth visualizations)
 9. **Step 11**: Deploy to S3/AWS Lambda
 

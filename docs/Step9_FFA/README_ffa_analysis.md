@@ -70,8 +70,14 @@ CatBoost uses CTR transformations for categorical features, which require specia
 ### 4. Anchored Explanations (AXP)
 
 - Matches instances to decision rules
+- **Rule Selection Logic**: For each instance, selects rules using a three-set union approach:
+  1. **First 100 rules**: Takes the first 100 matched rules (order-based coverage)
+  2. **Random 100 rules**: Takes a random sample of 100 matched rules (diversity through sampling)
+  3. **SHAP-filtered rules**: Includes all rules with SHAP importance > 0 (SHAP-important rules)
+  4. **Final rule set**: Union of all three sets (deduplicated) for AXP computation
 - Generates explanations for target class predictions
 - Tracks unmatched instances for coverage analysis
+- **SHAP values are required**: Only rules with SHAP importance > 0 are included in the final set
 
 ### 5. Causal Analysis
 

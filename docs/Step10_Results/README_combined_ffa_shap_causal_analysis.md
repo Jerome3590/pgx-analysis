@@ -70,7 +70,11 @@ This document describes the comprehensive patient-level explanation system that 
 - Symbolic IF-THEN rules
 - Logical reasoning paths
 - Interpretable conditions
-- Uses SHAP importance from Step 7 to prioritize rules
+- **Rule Selection Logic**: Uses union of three sets for AXP computation:
+  1. First 100 matched rules (order-based coverage)
+  2. Random sample of 100 matched rules (diversity, seed=42)
+  3. All rules with SHAP importance > 0 (SHAP-important rules)
+- SHAP values are required (raises error if not available)
 
 ### 3. Causal Analysis (within Step 8 FFA)
 
