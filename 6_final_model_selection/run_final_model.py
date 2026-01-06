@@ -497,7 +497,7 @@ def _create_aggregated_feature_importance_visualizations(
         traceback.print_exc()
 
 
-def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n: int = None) -> List[str]:
+def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n: int = None) -> List[tuple[str, str]]:
     """
     Load aggregated feature importance codes (drug/ICD/CPT) from Step 3.
     
@@ -553,23 +553,57 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         # If no importance column, just take first N unique features
         print(f"[WARNING] No importance_scaled or importance_normalized column found. Using first {top_n} features.")
     
-    # Extract codes (remove 'item_' prefix if present)
-    all_unique_codes = (
-        df["feature"]
-        .astype(str)
-        .str.replace("^item_", "", regex=True)
-        .unique()
-    )
+    # Extract codes and preserve type information (item_drug_, item_icd_, item_cpt_)
+    # Features from Step 3 are already prefixed with type: item_drug_AMOXICILLIN, item_icd_E11.9, etc.
+    all_features = df["feature"].astype(str).unique()
     
-    # Apply limit if specified, otherwise return all
-    if top_n is not None and len(all_unique_codes) > top_n:
-        codes = all_unique_codes[:top_n].tolist()
-        print(f"[INFO] Limited to top {top_n} features from {len(all_unique_codes)} total unique features")
+    # Parse features to extract code and type
+    # Format: item_{type}_{code} or just {code} (fallback)
+    parsed_features = []
+    for feature in all_features:
+        feature_str = str(feature)
+        if feature_str.startswith("item_drug_"):
+            code = feature_str.replace("item_drug_", "", 1)
+            parsed_features.append(("drug", code))
+        elif feature_str.startswith("item_icd_"):
+            code = feature_str.replace("item_icd_", "", 1)
+            parsed_features.append(("icd", code))
+        elif feature_str.startswith("item_cpt_"):
+            code = feature_str.replace("item_cpt_", "", 1)
+            parsed_features.append(("cpt", code))
+        elif feature_str.startswith("item_"):
+            # Generic item_ prefix without type - extract code
+            code = feature_str.replace("item_", "", 1)
+            # Try to infer type from code format (heuristic)
+            if any(c.isalpha() for c in code[:3]) and len(code) > 5:
+                # Likely a drug name (longer, alphabetic)
+                parsed_features.append(("drug", code))
+            elif code.replace(".", "").replace("-", "").isdigit() or (len(code) <= 10 and any(c.isdigit() for c in code)):
+                # Likely ICD or CPT (shorter, contains digits)
+                parsed_features.append(("icd", code))
+            else:
+                # Unknown type - default to drug
+                parsed_features.append(("drug", code))
+        else:
+            # No prefix - assume drug by default
+            parsed_features.append(("drug", feature_str))
+    
+    # Apply limit if specified
+    if top_n is not None and len(parsed_features) > top_n:
+        # Sort by importance before limiting
+        feature_importance_map = dict(zip(df["feature"], df.get("importance_scaled", df.get("importance_normalized", range(len(df))))))
+        parsed_with_importance = [
+            (f"item_{ftype}_{code}", ftype, code, feature_importance_map.get(f"item_{ftype}_{code}", feature_importance_map.get(code, 0)))
+            for ftype, code in parsed_features
+        ]
+        parsed_with_importance.sort(key=lambda x: x[3], reverse=True)
+        parsed_features = [(ftype, code) for _, ftype, code, _ in parsed_with_importance[:top_n]]
+        print(f"[INFO] Limited to top {top_n} features from {len(all_features)} total unique features")
     else:
-        codes = all_unique_codes.tolist()
-        print(f"[INFO] Loaded all {len(codes)} aggregated feature importance codes (no limit)")
+        print(f"[INFO] Loaded all {len(parsed_features)} aggregated feature importance codes (no limit)")
     
-    return codes
+    # Return as list of tuples: (type, code)
+    return parsed_features
 
 
 def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
@@ -662,23 +696,24 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
             # This completely avoids SQL injection and special character issues
             
             # Build lookup tables for each column type
+            # important_codes is now a list of tuples: (type, code)
             drug_codes = []
             icd_codes = []
             cpt_codes = []
             
-            for code in important_codes:
+            for code_type, code in important_codes:
                 code_str = str(code)
                 # Create safe feature name (replace all special chars with underscore)
                 code_safe = code_str.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').replace('&', '_').replace('(', '_').replace(')', '_').replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('*', '_').replace('+', '_').replace('=', '_').replace('|', '_').replace('^', '_').replace('%', '_').replace('!', '_').replace('@', '_').replace('#', '_').replace('$', '_').replace('"', '_').replace("'", '_').replace('\\', '_')
                 
-                if "drug_name" in available_cols:
+                # Only create features for the code type specified
+                if code_type == "drug" and "drug_name" in available_cols:
                     drug_codes.append((code_str, f"item_drug_{code_safe}"))
-                
-                icd_cols = [c for c in available_cols if 'icd_diagnosis_code' in c.lower()]
-                if icd_cols:
-                    icd_codes.append((code_str, f"item_icd_{code_safe}"))
-                
-                if "procedure_code" in available_cols:
+                elif code_type == "icd":
+                    icd_cols = [c for c in available_cols if 'icd_diagnosis_code' in c.lower()]
+                    if icd_cols:
+                        icd_codes.append((code_str, f"item_icd_{code_safe}"))
+                elif code_type == "cpt" and "procedure_code" in available_cols:
                     cpt_codes.append((code_str, f"item_cpt_{code_safe}"))
             
             # Create temporary lookup tables using executemany (parameterized, safe)
