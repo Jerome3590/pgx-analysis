@@ -393,33 +393,28 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[D
         
         if shap_values_path and shap_values_path.exists():
             try:
-                # Try to use PyArrow for more efficient Parquet access
+                # Use DuckDB for efficient Parquet access (all processing in DuckDB, pandas only at final step)
                 try:
-                    import pyarrow.parquet as pq
-                    import pyarrow as pa
+                    from shap_parquet_loader import ShapParquetLoader
                     
-                    # Read Parquet file metadata first (fast, doesn't load data)
-                    parquet_file = pq.ParquetFile(shap_values_path)
-                    num_rows = parquet_file.metadata.num_rows
-                    num_cols = len(parquet_file.schema)
+                    # Create loader - uses DuckDB internally, doesn't load data yet
+                    shap_loader = ShapParquetLoader(shap_values_path)
+                    logger.info(f"SHAP Parquet file: {shap_loader.num_rows} rows, {shap_loader.num_columns} columns")
                     
-                    logger.info(f"Parquet file metadata: {num_rows} rows, {num_cols} columns")
+                    # All processing uses DuckDB, only convert to pandas at final step for compatibility
+                    # The loader uses DuckDB queries throughout, only converting when to_pandas() is called
+                    shap_values_df = shap_loader.to_pandas()  # Only converts at final step
+                    shap_loader.close()
                     
-                    # Check if we can use lazy loading (PyArrow Table)
-                    # For now, still load into pandas for compatibility, but PyArrow is more efficient
-                    # Future optimization: use PyArrow Table directly and access rows on-demand
-                    table = pq.read_table(shap_values_path)
-                    shap_values_df = table.to_pandas()
-                    
-                    logger.info(f"Loaded individual SHAP values via PyArrow: {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
+                    logger.info(f"Loaded individual SHAP values via DuckDB: {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
                 except ImportError:
-                    # Fallback to pandas if PyArrow not available
-                    logger.info("PyArrow not available, using pandas.read_parquet")
+                    # Fallback to pandas if DuckDB not available
+                    logger.warning("DuckDB not available, falling back to pandas.read_parquet")
                     shap_values_df = pd.read_parquet(shap_values_path)
                     logger.info(f"Loaded individual SHAP values via pandas: {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
                 
                 # Ensure index is set properly (should be instance indices)
-                if shap_values_df.index.name is None and shap_values_df.index.dtype == 'int64':
+                if isinstance(shap_values_df, pd.DataFrame) and shap_values_df.index.name is None and shap_values_df.index.dtype == 'int64':
                     shap_values_df.index.name = 'instance_index'
             except Exception as e:
                 logger.warning(f"Could not load individual SHAP values: {e}. Using global SHAP importance only.")
