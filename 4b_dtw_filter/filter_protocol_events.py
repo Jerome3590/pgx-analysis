@@ -880,9 +880,12 @@ def create_research_outputs_for_review(
     con.close()
     
     # Combine sequences
-    patient_sequences = pd.concat([sequences_2_df, sequences_3_df], ignore_index=True)
+    if not sequences_2_df.empty or not sequences_3_df.empty:
+        patient_sequences = pd.concat([sequences_2_df, sequences_3_df], ignore_index=True)
+    else:
+        patient_sequences = pd.DataFrame(columns=['mi_person_key', 'sequence', 'sequence_length', 'position'])
     
-    if patient_sequences:
+    if not patient_sequences.empty:
         sequences_df = pd.DataFrame(patient_sequences)
         sequence_freq = sequences_df.groupby(['sequence', 'sequence_length']).size().reset_index(name='frequency')
         sequence_freq = sequence_freq.sort_values('frequency', ascending=False)
