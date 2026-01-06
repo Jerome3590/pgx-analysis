@@ -27,6 +27,9 @@ DATA_DIR="$PROJECT_ROOT/6_final_model/outputs/$COHORT/$AGE_BAND_FNAME"
 SHAP_DIR="$PROJECT_ROOT/8_shap_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
 OUTPUT_DIR="$PROJECT_ROOT/7_ffa_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
 
+# Check if feature file exists locally (user may have downloaded from EC2)
+FEATURE_FILE="$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+
 echo "Creating directories..."
 mkdir -p "$MODEL_DIR"
 mkdir -p "$DATA_DIR"
@@ -94,7 +97,7 @@ done
 
 if [ "$FEATURE_DOWNLOADED" = false ]; then
     echo "⚠ Feature data not found on S3. Will try to use local file if it exists"
-    if [ ! -f "$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv" ]; then
+    if [ ! -f "$FEATURE_FILE" ]; then
         echo "✗ Local feature file also not found."
         echo ""
         echo "The feature CSV file contains:"
@@ -113,29 +116,63 @@ if [ "$FEATURE_DOWNLOADED" = false ]; then
         echo "Or download manually from S3 if it exists elsewhere."
         exit 1
     else
-        echo "✓ Using local feature file"
+        echo "✓ Using local feature file: $FEATURE_FILE"
     fi
+else
+    # Update FEATURE_FILE path if downloaded
+    FEATURE_FILE="$DATA_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
 fi
 
-# Download SHAP values (required for interaction analysis)
+# Verify feature file exists before proceeding
+if [ ! -f "$FEATURE_FILE" ]; then
+    echo "✗ Feature file not found at: $FEATURE_FILE"
+    exit 1
+fi
+echo "✓ Feature file ready: $FEATURE_FILE"
+
+# Check for SHAP values (required for interaction analysis)
 echo ""
-echo "Downloading SHAP values from S3..."
+echo "Checking for SHAP values..."
 SHAP_GLOBAL_S3="s3://$S3_BUCKET/gold/shap_analysis/$COHORT/$AGE_BAND/${COHORT}_${AGE_BAND_FNAME}_shap_global_importance_catboost.csv"
 SHAP_VALUES_S3="s3://$S3_BUCKET/gold/shap_analysis/$COHORT/$AGE_BAND/${COHORT}_${AGE_BAND_FNAME}_shap_sample_values_catboost.parquet"
 
-if aws s3 ls "$SHAP_GLOBAL_S3" > /dev/null 2>&1; then
-    aws s3 cp "$SHAP_GLOBAL_S3" "$SHAP_DIR/${COHORT}_${AGE_BAND_FNAME}_shap_global_importance_catboost.csv"
-    echo "✓ Downloaded SHAP global importance"
+SHAP_GLOBAL_LOCAL="$SHAP_DIR/${COHORT}_${AGE_BAND_FNAME}_shap_global_importance_catboost.csv"
+SHAP_VALUES_LOCAL="$SHAP_DIR/${COHORT}_${AGE_BAND_FNAME}_shap_sample_values_catboost.parquet"
+
+# Check local first, then S3
+SHAP_GLOBAL_FOUND=false
+if [ -f "$SHAP_GLOBAL_LOCAL" ]; then
+    echo "✓ Found SHAP global importance locally: $SHAP_GLOBAL_LOCAL"
+    SHAP_GLOBAL_FOUND=true
+elif aws s3 ls "$SHAP_GLOBAL_S3" > /dev/null 2>&1; then
+    aws s3 cp "$SHAP_GLOBAL_S3" "$SHAP_GLOBAL_LOCAL"
+    echo "✓ Downloaded SHAP global importance from S3"
+    SHAP_GLOBAL_FOUND=true
 else
-    echo "✗ SHAP global importance not found. Required for interaction analysis."
+    echo "✗ SHAP global importance not found locally or on S3."
+    echo "  Expected at: $SHAP_GLOBAL_LOCAL"
+    echo "  Or S3: $SHAP_GLOBAL_S3"
+    echo ""
+    echo "SHAP values are required for interaction analysis. Run Step 7 (SHAP Analysis) first:"
+    echo "  python 8_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
     exit 1
 fi
 
-if aws s3 ls "$SHAP_VALUES_S3" > /dev/null 2>&1; then
-    aws s3 cp "$SHAP_VALUES_S3" "$SHAP_DIR/${COHORT}_${AGE_BAND_FNAME}_shap_sample_values_catboost.parquet"
-    echo "✓ Downloaded SHAP sample values (Parquet)"
+SHAP_VALUES_FOUND=false
+if [ -f "$SHAP_VALUES_LOCAL" ]; then
+    echo "✓ Found SHAP sample values locally: $SHAP_VALUES_LOCAL"
+    SHAP_VALUES_FOUND=true
+elif aws s3 ls "$SHAP_VALUES_S3" > /dev/null 2>&1; then
+    aws s3 cp "$SHAP_VALUES_S3" "$SHAP_VALUES_LOCAL"
+    echo "✓ Downloaded SHAP sample values (Parquet) from S3"
+    SHAP_VALUES_FOUND=true
 else
-    echo "✗ SHAP sample values not found. Required for interaction analysis."
+    echo "✗ SHAP sample values not found locally or on S3."
+    echo "  Expected at: $SHAP_VALUES_LOCAL"
+    echo "  Or S3: $SHAP_VALUES_S3"
+    echo ""
+    echo "SHAP values are required for interaction analysis. Run Step 7 (SHAP Analysis) first:"
+    echo "  python 8_shap_analysis/run_shap_analysis.py --cohort-name $COHORT --age-band $AGE_BAND"
     exit 1
 fi
 
