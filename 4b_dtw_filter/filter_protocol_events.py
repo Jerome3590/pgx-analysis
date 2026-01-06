@@ -1077,6 +1077,7 @@ if __name__ == "__main__":
                 f"✓ Aggregated feature importance CSV is clean: "
                 f"{fi_validation['n_features_final']} features, all with importance > 0, no duplicates"
             )
+        print(f"\n[INFO] Final aggregated feature importance count: {fi_validation['n_features_final']} features")
 
     # Use OS-aware path resolution for model_events.parquet (needed for local check)
     model_data_path = _resolve_model_events_path(args.cohort_name, args.age_band)
