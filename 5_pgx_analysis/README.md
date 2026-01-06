@@ -143,7 +143,7 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 
 ```
 5_pgx_analysis/
-├── README.md                          # This file
+├── README.md                          # This file (main documentation)
 ├── run_analysis.py                    # Main orchestrator script
 ├── map_drugs_to_genes.py              # Drug-gene mapping script (for building global mapping)
 ├── build_global_drug_cpic_mapping.py  # Build global drug-to-CPIC mapping
@@ -152,18 +152,59 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 ├── update_cpic_drug_list.py           # Update CPIC drug list from pairs file
 ├── fetch_cpic_drug_list.py            # Fetch CPIC drug list (fallback)
 ├── search_pubmed_drug_gene.py         # PubMed search for drug-gene relationships (optional)
-├── WORKFLOW_USAGE.md                  # How drug-gene mappings are used
+├── WORKFLOW_USAGE.md                  # How drug-gene mappings are used (outdated - references allele frequencies)
+├── README_pgx.md                      # Legacy documentation (outdated - references old workflow)
 ├── outputs/                           # Analysis outputs
 │   ├── feature_engineering/           # Final PGx features
 │   │   └── pgx_features_{cohort}_{age_band}.csv
 │   └── global/                        # Global cache files
-│       ├── drug_cpic_mapping_global.csv
-│       └── drug_gene_allele_mapping_global.csv  # (if gene data available)
+│       ├── drug_cpic_mapping_global.csv  # Global drug-to-CPIC mapping (tracked in Git)
+│       └── drug_gene_allele_mapping_global.csv  # (if gene data available, not currently used)
 └── data/                              # Reference data
-    ├── cpicPairs.csv                  # CPIC pairs CSV (fallback)
-    ├── cpic.csv                       # CPIC data CSV
-    └── cpic_drug_list.json            # Extracted drug list for fuzzy matching
+    ├── cpic_drug_list.json            # Extracted drug list for fuzzy matching (tracked in Git)
+    ├── cpicPairs.csv                  # CPIC pairs CSV (fallback, tracked in Git)
+    └── cpic.csv                       # CPIC data CSV (tracked in Git)
 ```
+
+## Available Files
+
+### Core Scripts (Active)
+
+- **`run_analysis.py`**: Main orchestrator that runs the complete PGx workflow
+- **`create_pgx_features_patient_level.py`**: Creates patient-level drug count features
+- **`add_pgx_features_to_model_data.py`**: Merges PGx features into final dataset
+- **`map_drugs_to_genes.py`**: Maps drugs to pharmacogenes (used for building global mapping)
+- **`build_global_drug_cpic_mapping.py`**: Builds global drug-to-CPIC mapping from feature importance files
+- **`update_cpic_drug_list.py`**: Updates CPIC drug list JSON from official CPIC Excel file
+
+### Utility Scripts (Optional)
+
+- **`fetch_cpic_drug_list.py`**: Fetches CPIC drug list from API (fallback if local files not available)
+- **`search_pubmed_drug_gene.py`**: Searches PubMed for drug-gene relationships (optional, imported by `map_drugs_to_genes.py`)
+
+### Reference Data Files (Tracked in Git)
+
+- **`data/cpic_drug_list.json`**: Extracted CPIC drug list for fuzzy matching (primary reference)
+- **`data/cpicPairs.csv`**: CPIC gene-drug pairs CSV (fallback source)
+- **`data/cpic.csv`**: CPIC data CSV (reference data)
+
+### Output Files (Not Tracked in Git)
+
+- **`outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`**: Patient-level PGx features
+- **`outputs/global/drug_cpic_mapping_global.csv`**: Global drug-to-CPIC mapping (tracked in Git as shared resource)
+
+### Legacy/Unused Files (Not Tracked)
+
+The following files exist in the `data/` directory but are **not used** by the current workflow and are **not tracked in Git**:
+- `data/*.zip` files (various PharmGKB/CPIC data archives - not used)
+- `data/pgx_allele_frequencies_global.csv` (not used - allele frequencies removed)
+- `data/pgx_drug_gene_mappings_global.csv` (not used - replaced by outputs/global/)
+
+### Documentation Files
+
+- **`README.md`**: Main documentation (this file) - **USE THIS**
+- **`WORKFLOW_USAGE.md`**: Outdated documentation (references old allele frequency workflow)
+- **`README_pgx.md`**: Legacy documentation (references old workflow with Step 7)
 
 ---
 

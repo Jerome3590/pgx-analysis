@@ -68,7 +68,6 @@ def _download_from_s3_if_exists(s3_path: str, local_path: Path, logger: logging.
     try:
         from py_helpers.checkpoint_utils import check_s3_output_exists
         import boto3
-        from botocore.exceptions import ClientError
         
         if not check_s3_output_exists(s3_path):
             return False
@@ -136,9 +135,8 @@ def map_drugs_to_genes(
             return
         
         # Check S3 (prefer global cache, then cohort-level, then legacy age-band)
-        age_band_fname = age_band.replace("-", "_")
         s3_paths_to_try = [
-            f"s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv",
+            "s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv",
             f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{cohort_name}_drug_gene_mappings.csv",
             f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/{cohort_name}_drug_gene_mappings.csv",
         ]
@@ -379,7 +377,6 @@ def run_pgx_analysis(
     # Upload outputs to S3 and save checkpoint
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
-        from pathlib import Path
 
         age_band_fname = age_band.replace("-", "_")
         s3_outputs = []
