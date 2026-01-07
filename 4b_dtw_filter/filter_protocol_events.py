@@ -575,7 +575,6 @@ def calculate_event_intervals(
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files (faster I/O for large operations)
-    import os
     nvme_tmp = "/mnt/nvme/duckdb_tmp"
     os.makedirs(nvme_tmp, exist_ok=True)
     con.execute(f"SET temp_directory='{nvme_tmp}'")
@@ -695,7 +694,6 @@ def filter_administrative_events(
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files (faster I/O for large operations)
-    import os
     nvme_tmp = "/mnt/nvme/duckdb_tmp"
     os.makedirs(nvme_tmp, exist_ok=True)
     con.execute(f"SET temp_directory='{nvme_tmp}'")
@@ -893,7 +891,6 @@ def create_research_outputs_for_review(
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files (faster I/O for large operations)
-    import os
     nvme_tmp = "/mnt/nvme/duckdb_tmp"
     os.makedirs(nvme_tmp, exist_ok=True)
     con.execute(f"SET temp_directory='{nvme_tmp}'")
@@ -1333,6 +1330,10 @@ if __name__ == "__main__":
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
     con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
+    # Use fast NVMe storage for temp files (faster I/O for large operations)
+    nvme_tmp = "/mnt/nvme/duckdb_tmp"
+    os.makedirs(nvme_tmp, exist_ok=True)
+    con.execute(f"SET temp_directory='{nvme_tmp}'")
     original_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{model_data_path}')").fetchone()[0]
     con.close()
 
