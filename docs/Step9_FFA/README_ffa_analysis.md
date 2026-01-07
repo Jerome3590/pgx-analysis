@@ -152,6 +152,37 @@ CatBoost uses CTR transformations for categorical features, which require specia
 - **Filters the final rule set** based on causal importance scores
 - Only rules with significant causal impact are retained in the final output
 
+#### 6.1 Single-Feature Causal Analysis
+
+- Tests individual features one at a time
+- Modifies each feature and measures explanation change
+- Calculates causal importance per feature
+
+#### 6.2 Multi-Feature Interaction Analysis
+
+- **Purpose**: Tests combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
+- **Feature Selection**: Only includes features with **ANY** importance > 0:
+  - SHAP importance > 0 (model-level), OR
+  - FFA importance > 0 (explanation-based), OR
+  - Causal importance > 0 (individual causal effect)
+- **Combinatorial Explosion Reduction**: 
+  - Without filtering: 11,060 features → 61 million pairs (impossible!)
+  - With filtering: ~20-100 important features → 190-4,950 pairs (manageable)
+  - **99.5%+ reduction** in feature count, enabling comprehensive interaction testing
+- **Combination Testing**: 
+  - Generates all combinations of important features (pairs, triplets, etc.)
+  - Tests each combination by modifying all features simultaneously
+  - Calculates interaction effect = combined_effect - sum_individual_effects
+  - Detects synergies (positive interaction) and antagonisms (negative interaction)
+- **No Max Limit**: Tests ALL combinations of important features (no arbitrary cutoff)
+- **Output**: `interaction_analysis.parquet` with columns:
+  - `feature_combination`: Feature names joined by "|" (e.g., "drug_A|drug_B")
+  - `interaction_size`: Number of features in combination (2, 3, etc.)
+  - `combined_causal_importance`: Combined effect when all features modified
+  - `sum_individual_effects`: Sum of individual univariate effects
+  - `interaction_effect`: Difference (combined - individual), measures synergy/antagonism
+  - `synergy_type`: positive/negative/neutral
+
 ### 7. Feature Importance
 
 - **AXP-based**: Frequency of features in explanation conditions (from SHAP-prioritized rules)

@@ -124,9 +124,13 @@ ANALYSIS_CONFIG = {
     # Multi-feature interaction analysis
     'enable_interaction_analysis': False,  # Set to True to enable multi-feature interaction testing
     'max_interaction_size': 2,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
-    'interaction_top_k': 20,  # Top K features to consider for interactions (to limit computation)
-    'interaction_sample_size': 100,  # Sample size for interaction testing
+    'interaction_top_k': 10,  # Top K features to consider for interactions (reduced from 20 to limit computation)
+    'interaction_sample_size': 50,  # Sample size for interaction testing (reduced from 100)
     'min_interaction_effect': 0.01,  # Minimum interaction effect to report
+    'causal_sample_size': 50,  # Sample size for causal analysis (reduced from 100)
+    'max_causal_time': 3600,  # Maximum time (seconds) for causal analysis (1 hour)
+    'min_combined_shap_threshold': 0.0,  # Minimum combined SHAP score for feature combinations (0 = no filtering)
+    'min_individual_shap_threshold': 0.0,  # Minimum individual SHAP score per feature in combination (0 = only filter features with SHAP > 0, which is automatic)
 }
 
 
@@ -893,14 +897,23 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
     
     causal_scores = []
     analysis_start = time.time()
+    max_causal_time = ANALYSIS_CONFIG.get('max_causal_time', 3600)  # Default 1 hour
+    
+    logger.info(f"Starting causal analysis for {len(available_features)} features (max time: {max_causal_time}s)")
     
     for feat_idx, feat_name in enumerate(tqdm(available_features, desc="Causal analysis")):
+        # Check if we've exceeded time limit
+        elapsed_time = time.time() - analysis_start
+        if elapsed_time > max_causal_time:
+            logger.warning(f"Causal analysis exceeded time limit ({max_causal_time}s). Processed {feat_idx}/{len(available_features)} features. Stopping.")
+            print(f"[WARNING] Causal analysis time limit reached. Processed {feat_idx}/{len(available_features)} features.")
+            break
         try:
             logger.info(f"Analyzing feature {feat_idx+1}/{len(available_features)}: {feat_name}")
             feat_start = time.time()
             
             # Use smaller sample for causal analysis to reduce memory
-            causal_sample_size = min(100, len(X_class))
+            causal_sample_size = min(ANALYSIS_CONFIG.get('causal_sample_size', 50), len(X_class))
             X_sample = X_class.head(causal_sample_size).copy()
             y_sample = y_class[:causal_sample_size]
             
@@ -925,27 +938,44 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             
             # Count how many explanations change
             # Note: Must pass full feature set, not just the single feature
-            logger.debug(f"  Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
+            logger.info(f"  [{feat_idx+1}/{len(available_features)}] Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
             orig_start = time.time()
-            original_explanations = explainer.explain_dataset(
-                X_sample,  # Pass full feature set
-                predictions=y_sample,
-                return_df=True,
-                show_progress=False,
-                n_jobs=1  # Use single worker for causal analysis to save memory
-            )
-            logger.debug(f"  Original explanations generated in {time.time() - orig_start:.2f} seconds")
+            try:
+                original_explanations = explainer.explain_dataset(
+                    X_sample,  # Pass full feature set
+                    predictions=y_sample,
+                    return_df=True,
+                    show_progress=True,  # Enable progress visibility
+                    n_jobs=1  # Use single worker for causal analysis to save memory
+                )
+                orig_duration = time.time() - orig_start
+                logger.info(f"  Original explanations generated in {orig_duration:.2f} seconds")
+            except Exception as e:
+                logger.error(f"  Error generating original explanations for {feat_name}: {e}")
+                continue
             
-            logger.debug(f"  Generating modified explanations for {feat_name}...")
+            logger.info(f"  Generating modified explanations for {feat_name}...")
             mod_start = time.time()
-            modified_explanations = explainer.explain_dataset(
-                X_modified,  # Pass full feature set
-                predictions=y_sample,
-                return_df=True,
-                show_progress=False,
-                n_jobs=1  # Use single worker for causal analysis to save memory
-            )
-            logger.debug(f"  Modified explanations generated in {time.time() - mod_start:.2f} seconds")
+            try:
+                modified_explanations = explainer.explain_dataset(
+                    X_modified,  # Pass full feature set
+                    predictions=y_sample,
+                    return_df=True,
+                    show_progress=True,  # Enable progress visibility
+                    n_jobs=1  # Use single worker for causal analysis to save memory
+                )
+                mod_duration = time.time() - mod_start
+                logger.info(f"  Modified explanations generated in {mod_duration:.2f} seconds")
+            except Exception as e:
+                logger.error(f"  Error generating modified explanations for {feat_name}: {e}")
+                continue
+            
+            feat_duration = time.time() - feat_start
+            logger.info(f"  Feature {feat_name} completed in {feat_duration:.2f} seconds")
+            
+            # Warn if feature takes too long
+            if feat_duration > 300:  # 5 minutes per feature
+                logger.warning(f"  Feature {feat_name} took {feat_duration:.2f} seconds (>5 minutes). Consider reducing causal_sample_size.")
             
             # Cleanup
             del X_sample, X_modified, y_sample
@@ -1004,7 +1034,8 @@ def perform_multi_feature_causal_analysis(
     feature_importance_df: pd.DataFrame,
     causal_df: pd.DataFrame,
     cohort: str,
-    age_band: str
+    age_band: str,
+    shap_map: Optional[Dict[str, float]] = None
 ) -> pd.DataFrame:
     """
     Perform causal analysis testing multi-feature interactions.
@@ -1059,12 +1090,68 @@ def perform_multi_feature_causal_analysis(
         print("[WARNING] No univariate causal results available. Skipping interaction analysis.")
         return pd.DataFrame()
     
-    # Select top K features by causal importance
-    top_features_df = causal_df.nlargest(top_k, 'causal_importance')
-    top_features = top_features_df['feature'].tolist()
+    # Select features for interaction analysis
+    # REQUIREMENT: Features must have ANY of: SHAP > 0, OR FFA importance > 0, OR causal importance > 0
+    # This ensures we test combinations of features that matter in any way
+    min_individual_shap_threshold = ANALYSIS_CONFIG.get('min_individual_shap_threshold', 0.0)
+    
+    # Build set of features with ANY importance > 0 (SHAP, FFA, or causal)
+    features_with_importance = set()
+    
+    # Add features with SHAP importance > 0
+    if shap_map:
+        shap_important = [
+            f for f in X_class.columns
+            if shap_map.get(f, 0) > min_individual_shap_threshold
+        ]
+        features_with_importance.update(shap_important)
+        logger.info(f"Found {len(shap_important)} features with SHAP > {min_individual_shap_threshold}")
+    
+    # Add features with causal importance > 0
+    if not causal_df.empty:
+        causal_important = causal_df[causal_df['causal_importance'] > 0]['feature'].tolist()
+        features_with_importance.update(causal_important)
+        logger.info(f"Found {len(causal_important)} features with causal importance > 0")
+    
+    # Add features with FFA importance > 0
+    if not feature_importance_df.empty:
+        ffa_important = feature_importance_df[feature_importance_df['importance'] > 0]['feature'].tolist()
+        features_with_importance.update(ffa_important)
+        logger.info(f"Found {len(ffa_important)} features with FFA importance > 0")
     
     # Filter to features that exist in data
-    available_features = [f for f in top_features if f in X_class.columns]
+    available_features = [f for f in features_with_importance if f in X_class.columns]
+    
+    # Sort by combined importance score (prioritize features with multiple importance signals)
+    def get_combined_importance_score(feat: str) -> float:
+        """Calculate combined importance score for sorting."""
+        score = 0.0
+        
+        # SHAP importance (if available)
+        if shap_map:
+            score += shap_map.get(feat, 0) * 1.0  # Weight: 1.0
+        
+        # Causal importance (if available)
+        if not causal_df.empty:
+            causal_map = dict(zip(causal_df['feature'], causal_df['causal_importance'], strict=False))
+            score += causal_map.get(feat, 0) * 0.5  # Weight: 0.5
+        
+        # FFA importance (if available)
+        if not feature_importance_df.empty:
+            ffa_map = dict(zip(feature_importance_df['feature'], feature_importance_df['importance'], strict=False))
+            score += ffa_map.get(feat, 0) * 0.5  # Weight: 0.5
+        
+        return score
+    
+    available_features = sorted(
+        available_features,
+        key=get_combined_importance_score,
+        reverse=True
+    )
+    
+    logger.info(f"Selected {len(available_features)} features with SHAP > 0 OR FFA > 0 OR causal > 0")
+    print(f"  - Features with ANY importance (SHAP/FFA/causal) > 0: {len(available_features)}")
+    print(f"  - This ensures ALL drug combinations with any importance signal are tested")
     
     if len(available_features) < 2:
         logger.warning(f"Not enough features ({len(available_features)}) for interaction analysis. Need at least 2.")
@@ -1099,7 +1186,52 @@ def perform_multi_feature_causal_analysis(
         print(f"\nTesting {interaction_size}-feature interactions...")
         
         # Generate all combinations of this size
-        feature_combinations = list(combinations(available_features, interaction_size))
+        all_combinations = list(combinations(available_features, interaction_size))
+        
+        # Filter combinations based on SHAP values if available
+        if shap_map:
+            # Filter: only keep combinations where ALL features have SHAP importance > 0
+            # This is the primary filter - we only test combinations of features that actually matter
+            min_individual_shap_threshold = ANALYSIS_CONFIG.get('min_individual_shap_threshold', 0.0)
+            
+            filtered_combinations = []
+            combination_scores = []
+            
+            for combo in all_combinations:
+                # Check that ALL features in combination have SHAP > threshold
+                feature_shaps = [shap_map.get(f, 0) for f in combo]
+                min_shap = min(feature_shaps)
+                combined_shap = sum(feature_shaps)
+                
+                # Only include if all features meet the threshold
+                if min_shap > min_individual_shap_threshold:
+                    # Calculate score for sorting (higher is better)
+                    score = combined_shap * (1 + min_shap)  # Boost if all features have decent importance
+                    combination_scores.append((combo, score, combined_shap, min_shap))
+                    filtered_combinations.append(combo)
+            
+            # Sort by combined SHAP score (highest first) for better prioritization
+            combination_scores.sort(key=lambda x: x[1], reverse=True)
+            filtered_combinations = [combo for combo, _, _, _ in combination_scores]
+            
+            logger.info(f"  Filtered {len(all_combinations)} combinations to {len(filtered_combinations)} based on SHAP importance > {min_individual_shap_threshold}")
+            logger.info(f"    (All features in combinations have SHAP > {min_individual_shap_threshold})")
+            
+            # Optional: Apply combined SHAP threshold if configured (but don't limit count)
+            min_combined_shap_threshold = ANALYSIS_CONFIG.get('min_combined_shap_threshold', 0.0)
+            if min_combined_shap_threshold > 0.0:
+                filtered_combinations = [
+                    combo for combo, _, combined_shap, _ in combination_scores
+                    if combined_shap >= min_combined_shap_threshold
+                ]
+                logger.info(f"  Further filtered to {len(filtered_combinations)} combinations with combined SHAP >= {min_combined_shap_threshold}")
+            
+            feature_combinations = filtered_combinations
+        else:
+            # No SHAP filtering available - warn and use all combinations
+            logger.warning("  No SHAP values available for filtering. Testing all combinations (may be slow).")
+            feature_combinations = all_combinations
+        
         logger.info(f"  Generated {len(feature_combinations)} combinations of size {interaction_size}")
         
         for combo_idx, feature_combo in enumerate(tqdm(feature_combinations, desc=f"Size {interaction_size}")):
@@ -1126,22 +1258,32 @@ def perform_multi_feature_causal_analysis(
                         X_modified[feat_name] = median_val
                 
                 # Generate original explanations
-                original_explanations = explainer.explain_dataset(
-                    X_sample,
-                    predictions=y_sample,
-                    return_df=True,
-                    show_progress=False,
-                    n_jobs=1  # Single worker to save memory
-                )
+                logger.debug(f"    Generating original explanations for combination {combo_idx+1}/{len(feature_combinations)}...")
+                try:
+                    original_explanations = explainer.explain_dataset(
+                        X_sample,
+                        predictions=y_sample,
+                        return_df=True,
+                        show_progress=True,  # Enable progress visibility
+                        n_jobs=1  # Single worker to save memory
+                    )
+                except Exception as e:
+                    logger.error(f"    Error generating original explanations for combination {combo_idx+1}: {e}")
+                    continue
                 
                 # Generate modified explanations
-                modified_explanations = explainer.explain_dataset(
-                    X_modified,
-                    predictions=y_sample,
-                    return_df=True,
-                    show_progress=False,
-                    n_jobs=1
-                )
+                logger.debug(f"    Generating modified explanations for combination {combo_idx+1}/{len(feature_combinations)}...")
+                try:
+                    modified_explanations = explainer.explain_dataset(
+                        X_modified,
+                        predictions=y_sample,
+                        return_df=True,
+                        show_progress=True,  # Enable progress visibility
+                        n_jobs=1
+                    )
+                except Exception as e:
+                    logger.error(f"    Error generating modified explanations for combination {combo_idx+1}: {e}")
+                    continue
                 
                 # Calculate combined causal effect
                 if len(original_explanations) > 0 and len(modified_explanations) > 0:
@@ -1542,9 +1684,23 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             print("[WARNING] Memory error during causal analysis. Skipping causal analysis.")
             causal_df = pd.DataFrame()
         
+        # Step 7.5: Perform multi-feature interaction analysis (if enabled and causal analysis completed)
+        interaction_df = pd.DataFrame()
+        if not causal_df.empty and ANALYSIS_CONFIG.get('enable_interaction_analysis', False):
+            logger.info("Step 7.5: Performing multi-feature interaction analysis...")
+            try:
+                interaction_df = perform_multi_feature_causal_analysis(
+                    explainer, X, y, feature_importance_df, causal_df, COHORT_NAME, AGE_BAND,
+                    shap_map=shap_map  # Pass SHAP map for filtering combinations
+                )
+            except Exception as e:
+                logger.warning(f"Error during interaction analysis: {e}. Skipping interaction analysis.")
+                print(f"[WARNING] Error during interaction analysis: {e}. Skipping interaction analysis.")
+                interaction_df = pd.DataFrame()
+        
         # Step 8: Save results
         logger.info("Step 8: Saving results...")
-        save_results(model_type, df_axps, feature_importance_df, causal_df)
+        save_results(model_type, df_axps, feature_importance_df, causal_df, interaction_df)
         
         total_time = time.time() - model_start_time
         logger.info(f"Model {model_type} analysis completed in {total_time:.2f} seconds ({total_time/60:.2f} minutes)")

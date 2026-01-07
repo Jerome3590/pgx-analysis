@@ -45,12 +45,69 @@ We use XGBoost models for FFA-based causal analysis because:
 
 ## Counterfactual Interventions
 
+### Single-Feature Interventions
+
 For each feature, we create interventions:
 - **Remove**: Set feature to median (neutral value)
 - **Median**: Set to median value
 - **Zero**: Set to zero
 - **Increase**: Increase by one standard deviation
 - **Decrease**: Decrease by one standard deviation
+
+### Multi-Feature Interaction Testing
+
+**Purpose**: Test combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
+
+**Feature Selection Strategy**:
+- Only includes features with **ANY** importance > 0:
+  - SHAP importance > 0 (model-level), OR
+  - FFA importance > 0 (explanation-based), OR
+  - Causal importance > 0 (individual causal effect)
+- This dramatically reduces combinatorial explosion:
+  - **Without filtering**: 11,060 features → C(11,060, 2) = **61 million pairs** (impossible!)
+  - **With filtering**: ~20-100 important features → C(50, 2) = **1,225 pairs** (manageable)
+  - **99.5%+ reduction** in feature count
+
+**Combination Testing Process**:
+1. Select all features with ANY importance > 0 (SHAP OR FFA OR causal)
+2. Generate all combinations of size 2, 3, ..., up to `max_interaction_size` (default: 2)
+3. For each combination:
+   - Modify ALL features in the combination simultaneously
+   - Generate explanations for modified instances
+   - Compare with original explanations
+   - Calculate combined causal effect
+   - Calculate sum of individual effects (from univariate analysis)
+   - Calculate interaction effect = combined_effect - sum_individual_effects
+4. Filter results by minimum interaction effect threshold (default: 0.01)
+
+**Interaction Effect Interpretation**:
+- **Positive interaction** (synergy): Combined effect > sum of individual effects
+  - Example: Drug A + Drug B together have stronger effect than A alone + B alone
+- **Negative interaction** (antagonism): Combined effect < sum of individual effects
+  - Example: Drug A + Drug B together have weaker effect than expected
+- **Neutral**: Combined effect ≈ sum of individual effects (no interaction)
+
+**Output**: `interaction_analysis.parquet` contains:
+- `feature_combination`: Feature names joined by "|" (e.g., "item_drug_A|item_drug_B")
+- `interaction_size`: Number of features in combination (2, 3, etc.)
+- `combined_causal_importance`: Combined effect when all features modified together
+- `sum_individual_effects`: Sum of individual univariate effects
+- `interaction_effect`: Difference (combined - individual), measures synergy/antagonism
+- `synergy_type`: positive/negative/neutral
+- `n_instances_tested`: Number of instances tested
+- `explanation_change_rate`: Fraction of explanations that changed
+
+**Configuration**:
+```python
+ANALYSIS_CONFIG = {
+    'enable_interaction_analysis': False,  # Set to True to enable
+    'max_interaction_size': 2,  # Test pairs (2), triplets (3), etc.
+    'interaction_sample_size': 50,  # Sample size for interaction testing
+    'min_interaction_effect': 0.01,  # Minimum interaction effect to report
+    'min_combined_shap_threshold': 0.0,  # Optional: filter by combined SHAP score
+    'min_individual_shap_threshold': 0.0,  # Filter: only features with SHAP > 0
+}
+```
 
 ## Causal Importance Calculation
 

@@ -24,6 +24,9 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
   - **SHAP Requirement**: SHAP values from Step 7 (both XGBoost and CatBoost) are required (raises error if not available)
   - **Performance Optimization**: Limits rule sets to ~300-500 unique rules for efficient AXP computation
 - **Causal Analysis**: Measure causal responsibility through counterfactual analysis
+  - **Single-Feature Causal Analysis**: Tests individual feature effects
+  - **Multi-Feature Interaction Analysis**: Tests combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
+  - **SHAP/FFA/Causal Filtering**: Only tests combinations of features with ANY importance > 0 (SHAP OR FFA OR causal) to reduce combinatorial explosion
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 
 ### Core Components
