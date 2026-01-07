@@ -68,17 +68,18 @@ def check_step_outputs_exist(s3_paths: List[str], logger: Optional[logging.Logge
     return True
 
 
-def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.Logger] = None) -> bool:
+def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.Logger] = None, check_exists: bool = True) -> bool:
     """
-    Upload a local file to S3.
+    Upload a local file to S3 (idempotent - skips if already exists).
     
     Args:
         local_path: Local file path
         s3_path: S3 destination path
         logger: Optional logger
+        check_exists: If True, check if file already exists in S3 before uploading (idempotent)
     
     Returns:
-        True if upload successful, False otherwise
+        True if upload successful or file already exists, False otherwise
     """
     if not local_path.exists():
         if logger:
@@ -87,6 +88,20 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
     
     try:
         bucket, key = _parse_s3_path(s3_path)
+        
+        # Check if file already exists in S3 (idempotent)
+        if check_exists:
+            try:
+                s3_client.head_object(Bucket=bucket, Key=key)
+                if logger:
+                    logger.info(f"✓ File already exists in S3: {s3_path} (skipping upload)")
+                return True
+            except s3_client.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] not in ["404", "NoSuchKey"]:
+                    # If it's not a 404, re-raise (might be permission issue)
+                    raise
+        
+        # Upload file
         s3_client.upload_file(str(local_path), bucket, key)
         if logger:
             logger.info(f"✓ Uploaded to S3: {s3_path}")
