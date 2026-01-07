@@ -9,8 +9,15 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
 **Key Capabilities:**
 - **Symbolic Rule Extraction**: Convert tree structures into Boolean logic formulas
 - **Anchored Explanations (AXP)**: Generate instance-level explanations using rule matching
-  - **Rule Selection Logic**: Union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP importance > 0
+  - **Rule Selection Logic**: Union of three sets:
+    1. **First 100 matched rules** - Common patterns
+    2. **Random sample of 100 matched rules** - Diversity and coverage
+    3. **Top-K SHAP rules with percentile threshold** - Hybrid approach:
+       - Takes top 300 rules by SHAP importance score
+       - OR all rules above 10th percentile threshold (whichever captures more rules)
+       - Balances performance (limits rule count) with coverage (doesn't miss important rules)
   - **SHAP Requirement**: SHAP values from Step 7 are required (raises error if not available)
+  - **Performance Optimization**: Limits rule sets to ~300-500 unique rules for efficient AXP computation
 - **Causal Analysis**: Measure causal responsibility through counterfactual analysis
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 

@@ -53,10 +53,14 @@ The FFA pipeline follows a four-phase architecture with SHAP as an intermediary:
 ├─────────────────────────────────────────────────────────────┤
 │ • Load SHAP importance values from Step 7                   │
 │ • Score each rule by summing SHAP values of its features    │
-│ • Augment rule selection: union of (1) first 100,          │
-│   (2) random 100, and (3) all rules with SHAP > 0          │
+│ • Hybrid filtering: top-K OR percentile threshold          │
+│   - Top 300 rules by SHAP score                             │
+│   - OR all rules above 10th percentile (whichever is larger)│
+│ • Rule selection: union of (1) first 100,                  │
+│   (2) random 100, and (3) top SHAP rules (300 or percentile)│
+│ • Limits to ~300-500 unique rules for efficient AXP        │
 │ • SHAP values are REQUIRED - raises error if missing       │
-│ • Note: SHAP augments/prioritizes rules, does not filter    │
+│ • Balances performance (limits rules) with coverage        │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -111,18 +115,26 @@ CatBoost uses CTR transformations for categorical features, which require specia
 
 - **For XGBoost**: SHAP values are used only for prioritization (rules are extracted directly from JSON)
 - **Rule Scoring**: Each rule is scored by summing the SHAP importance values of all features in the rule
-- **Rule Selection Logic**: For each instance, augments rule selection using a three-set union approach:
-  1. **First 100 rules**: Takes the first 100 matched rules (order-based coverage)
-  2. **Random 100 rules**: Takes a random sample of 100 matched rules (diversity through sampling, seed=42)
-  3. **SHAP-augmented rules**: Includes all rules where the sum of SHAP importance > 0 (SHAP-important rules)
-  4. **Final rule set for AXP**: Union of all three sets (deduplicated) for AXP computation
+- **Hybrid Filtering Strategy**: Uses top-K + percentile threshold to balance performance and coverage:
+  - **Top-K strategy**: Takes top 300 rules by SHAP score (globally important rules)
+  - **Percentile threshold**: Also includes all rules above 10th percentile (safety net for important rules)
+  - **Selection**: Uses whichever set is larger (ensures coverage while limiting rule count)
+  - **Result**: Limits to ~300-500 unique rules for efficient AXP computation
+- **Rule Selection Logic**: For each instance, combines three sets via union:
+  1. **First 100 matched rules**: Common patterns (order-based coverage)
+  2. **Random 100 matched rules**: Diversity through sampling (seed=42 for reproducibility)
+  3. **Top SHAP rules**: Top 300 by SHAP score OR all above 10th percentile (whichever is larger)
+  4. **Final rule set for AXP**: Union of all three sets (deduplicated) → ~300-500 unique rules
 - **Error Handling**: Raises `FileNotFoundError` or `ValueError` if SHAP data is missing or malformed
-- **Key Point**:
+- **Key Points**:
 
-  - **SHAP augments/prioritizes rules** - it does not filter them out. All matched rules are considered.
-  - **Causal analysis filters the final rule set** based on causal importance scores.
-  - **XGBoost**: Rules are extracted directly from JSON, then SHAP prioritizes them
-  - **CatBoost**: SHAP values act as a translation layer to extract rules from complex JSON/CTR, then prioritizes them
+  - **SHAP filters and prioritizes rules** - uses hybrid top-K + percentile approach to limit rule count
+  - **Performance optimization**: Limits rule sets to ~300-500 unique rules (down from potentially thousands)
+  - **Coverage**: Percentile threshold ensures we don't miss important rules that rank lower globally
+  - **Trade-off**: Prioritizes most important rules; may miss rare variants (acceptable for performance)
+  - **Causal analysis filters the final rule set** based on causal importance scores
+  - **XGBoost**: Rules are extracted directly from JSON, then SHAP filters/prioritizes them
+  - **CatBoost**: SHAP values act as a translation layer to extract rules from complex JSON/CTR, then filters/prioritizes them
 
 ### 5. Anchored Explanations (AXP)
 
@@ -224,8 +236,11 @@ pip install catboost pandas numpy matplotlib seaborn pysat boto3
 2. **Feature Mapping**: Extract and map feature names, CTR data
 3. **Rule Extraction**: Convert trees to symbolic formulas (extracts ALL rules)
 4. **SHAP Loading**: Load SHAP importance values from Step 7 (REQUIRED)
-5. **Rule Prioritization**: Augment rule selection using SHAP importance (union of first 100 + random 100 + all SHAP > 0)
-6. **Explanation Generation**: Match instances to SHAP-prioritized rules and compute AXP
+5. **Rule Filtering & Prioritization**: Filter rules using hybrid approach:
+   - Top 300 rules by SHAP score OR all rules above 10th percentile (whichever is larger)
+   - Union with first 100 + random 100 matched rules
+   - Limits to ~300-500 unique rules for efficient AXP computation
+6. **Explanation Generation**: Match instances to SHAP-filtered rules and compute AXP
 7. **Causal Analysis**: Measure feature causal importance and filter the final rule set
 8. **Visualization**: Create plots and summary reports
 9. **Export**: Save results to CSV/JSON/Parquet
@@ -234,7 +249,10 @@ pip install catboost pandas numpy matplotlib seaborn pysat boto3
 
 **Important Distinction**:
 
-- **SHAP augments/prioritizes** rules for AXP computation (does not filter them out)
+- **SHAP filters and prioritizes** rules for AXP computation using hybrid top-K + percentile approach
+  - Top 300 rules by SHAP score OR all above 10th percentile (whichever is larger)
+  - Limits rule count to ~300-500 for performance while ensuring coverage
+  - May miss rare variants (acceptable trade-off for performance)
 - **Causal analysis filters** the final rule set based on causal importance scores
 
 ## Outputs
