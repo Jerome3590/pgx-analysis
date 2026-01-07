@@ -398,67 +398,8 @@ def run_shap_analysis(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading final features for {cohort}, {age_band}...")
-    X_full, y = _load_final_features(cohort, age_band)
-    print(f"Final feature matrix: {X_full.shape[0]} rows, {X_full.shape[1]} features.")
-
-    print("Loading best models for SHAP...")
-    # Load models first (they were trained on all features)
-    xgb_clf, cb_clf = _fit_models_for_shap(X_full, y, cohort, age_band)
-
-    feature_names_full = list(X_full.columns)
-
-    # Pre-filter features using native model importance (much faster than SHAP)
-    # This avoids computing SHAP values for features with zero importance
-    print("Pre-filtering features using native model importance...")
-    important_feature_indices = set()
-
-    # Get important features from XGBoost (if available)
-    if xgb_clf is not None:
-        try:
-            import xgboost as xgb  # type: ignore
-            if hasattr(xgb_clf, 'get_booster'):
-                booster = xgb_clf.get_booster()
-                # Get gain-based importance (tree-based, very fast)
-                xgb_importance_dict = booster.get_score(importance_type='gain')
-                # Handle f0, f1, ... format (XGBoost's default feature naming)
-                for name, imp in xgb_importance_dict.items():
-                    if imp > 0:
-                        if name.startswith('f') and name[1:].isdigit():
-                            idx = int(name[1:])
-                            if idx < len(feature_names_full):
-                                important_feature_indices.add(idx)
-                        elif name in feature_names_full:
-                            important_feature_indices.add(feature_names_full.index(name))
-            elif hasattr(xgb_clf, 'feature_importances_'):
-                xgb_importances = xgb_clf.feature_importances_
-                important_feature_indices.update(
-                    i for i, imp in enumerate(xgb_importances) if imp > 0
-                )
-        except Exception as e:
-            print(f"[WARNING] Could not get XGBoost native importance: {e}. Will use all features.")
-
-    # Get important features from CatBoost (if available)
-    if cb_clf is not None:
-        try:
-            # CatBoost native importance (tree-based, very fast, no data needed)
-            cb_importances = cb_clf.get_feature_importance()
-            important_feature_indices.update(
-                i for i, imp in enumerate(cb_importances) if imp > 0
-            )
-        except Exception as e:
-            print(f"[WARNING] Could not get CatBoost native importance: {e}. Will use all features.")
-
-    # Filter features to only those with importance > 0
-    if important_feature_indices:
-        important_feature_indices = sorted(important_feature_indices)
-        important_feature_names = [feature_names_full[i] for i in important_feature_indices]
-        print(f"Filtering to {len(important_feature_names)} features with native importance > 0 (from {len(feature_names_full)} total)")
-        X = X_full[important_feature_names]
-        feature_names = important_feature_names
-    else:
-        print(f"[INFO] No native importance filtering possible. Using all {len(feature_names_full)} features.")
-        X = X_full
-        feature_names = feature_names_full
+    X, y = _load_final_features(cohort, age_band)
+    print(f"Final feature matrix: {X.shape[0]} rows, {X.shape[1]} features.")
 
     # Sample background and evaluation sets for SHAP efficiency
     rng = np.random.default_rng(42)
@@ -469,6 +410,11 @@ def run_shap_analysis(
     eval_idx = idx_all[: min(n_eval, len(idx_all))]
     X_bg = X.iloc[bg_idx]
     X_eval = X.iloc[eval_idx]
+
+    print("Loading best models for SHAP...")
+    xgb_clf, cb_clf = _fit_models_for_shap(X, y, cohort, age_band)
+
+    feature_names = list(X.columns)
     s3_outputs = []  # Track S3 uploads for checkpointing
     
     # Track whether at least one model was successfully analyzed
