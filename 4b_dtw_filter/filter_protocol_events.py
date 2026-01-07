@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.env_utils import get_data_root, is_linux  # noqa: E402
+from py_helpers.duckdb_utils import get_worker_temp_dir  # noqa: E402
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
@@ -574,10 +575,10 @@ def calculate_event_intervals(
     con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
-    # Use fast NVMe storage for temp files (faster I/O for large operations)
-    nvme_tmp = "/mnt/nvme/duckdb_tmp"
-    os.makedirs(nvme_tmp, exist_ok=True)
-    con.execute(f"SET temp_directory='{nvme_tmp}'")
+    # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
+    # Format: /mnt/nvme/duckdb_tmp/worker_{pid}_{timestamp}_{uuid}
+    worker_temp_dir = get_worker_temp_dir()
+    con.execute(f"SET temp_directory='{worker_temp_dir}'")
 
     # Build query with LAG() instead of self-join
     max_interval_filter = ""
@@ -693,10 +694,10 @@ def filter_administrative_events(
     con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
-    # Use fast NVMe storage for temp files (faster I/O for large operations)
-    nvme_tmp = "/mnt/nvme/duckdb_tmp"
-    os.makedirs(nvme_tmp, exist_ok=True)
-    con.execute(f"SET temp_directory='{nvme_tmp}'")
+    # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
+    # Format: /mnt/nvme/duckdb_tmp/worker_{pid}_{timestamp}_{uuid}
+    worker_temp_dir = get_worker_temp_dir()
+    con.execute(f"SET temp_directory='{worker_temp_dir}'")
 
     # Register administrative code sets as temporary tables
     if administrative_codes['icd']:
@@ -890,10 +891,10 @@ def create_research_outputs_for_review(
     con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
-    # Use fast NVMe storage for temp files (faster I/O for large operations)
-    nvme_tmp = "/mnt/nvme/duckdb_tmp"
-    os.makedirs(nvme_tmp, exist_ok=True)
-    con.execute(f"SET temp_directory='{nvme_tmp}'")
+    # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
+    # Format: /mnt/nvme/duckdb_tmp/worker_{pid}_{timestamp}_{uuid}
+    worker_temp_dir = get_worker_temp_dir()
+    con.execute(f"SET temp_directory='{worker_temp_dir}'")
 
     # Create a temporary view with activity codes and calculate event_seq
     con.execute(f"""
