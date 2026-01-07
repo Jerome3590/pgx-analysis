@@ -39,7 +39,7 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     """
     # Import numpy at function level to ensure it's available in multiprocessing context
     import numpy as np
-    
+
     idx, instance_values, predicted_class, explainer_state, instance_shap_values = task
     
     # Reconstruct minimal explainer state for this instance
@@ -583,7 +583,7 @@ class BaseSymbolicExplainer(ABC):
         
         if not combined_rule_ids:
             if hasattr(self, 'logger'):
-                self.logger.warning(f"_compute_axp: No rules after combining sets, returning empty AXP")
+                self.logger.warning("_compute_axp: No rules after combining sets, returning empty AXP")
             return []
         
         if hasattr(self, 'logger'):
@@ -794,7 +794,6 @@ class BaseSymbolicExplainer(ABC):
                                  return_df: bool, show_progress: bool, n_jobs: int) -> Union[pd.DataFrame, List[Dict]]:
         """Parallel explanation generation using multiprocessing."""
         from concurrent.futures import ProcessPoolExecutor, as_completed
-        import time
         
         if hasattr(self, 'logger'):
             self.logger.info(f"Using parallel processing with {n_jobs} workers for {len(X)} instances")
