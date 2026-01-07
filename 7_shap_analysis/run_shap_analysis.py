@@ -74,6 +74,183 @@ def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.S
 from py_helpers.env_utils import get_xgb_cpu_nthread  # noqa: E402
 
 
+# ============================================================================
+# Two-Pass SHAP Analysis Functions
+# ============================================================================
+
+def compute_global_shap_signal(
+    booster,  # xgb.Booster
+    X: pd.DataFrame,
+    chunk_rows: int = 500,
+) -> pd.DataFrame:
+    """
+    Pass 1: Compute global SHAP signal per feature (streamed, memory-efficient).
+    
+    Uses XGBoost's fast pred_contribs=True path for exact TreeSHAP.
+    Accumulates mean_abs_shap and mean_signed_shap per feature.
+    
+    Args:
+        booster: XGBoost Booster object
+        X: Feature DataFrame (will be aligned to model's feature space)
+        chunk_rows: Number of rows to process per chunk
+        
+    Returns:
+        DataFrame with columns: feature, mean_abs_shap, mean_signed_shap
+        Sorted by mean_abs_shap descending
+    """
+    import xgboost as xgb  # type: ignore
+    
+    expected = booster.feature_names
+    if expected is None:
+        raise ValueError("Booster has no feature_names; cannot align SHAP to columns.")
+    
+    print(f"Computing global SHAP signal for {len(expected)} features using {len(X)} rows...")
+    
+    # Align input to model feature space (CRITICAL: prevents feature mismatch)
+    X = X.apply(pd.to_numeric, errors="coerce").fillna(0).astype("float32")
+    X = X.reindex(columns=expected, fill_value=0).astype("float32")
+    
+    abs_sum = np.zeros(len(expected), dtype=np.float64)
+    signed_sum = np.zeros(len(expected), dtype=np.float64)
+    n_total = 0
+    
+    for start in range(0, len(X), chunk_rows):
+        stop = min(start + chunk_rows, len(X))
+        d = xgb.DMatrix(X.iloc[start:stop], feature_names=expected)
+        contrib = booster.predict(d, pred_contribs=True)  # (rows, n_features+1)
+        shap = contrib[:, :-1]  # exclude bias column
+        
+        abs_sum += np.abs(shap).sum(axis=0)
+        signed_sum += shap.sum(axis=0)
+        n_total += shap.shape[0]
+        
+        if (start // chunk_rows + 1) % 10 == 0:
+            print(f"  Processed {stop}/{len(X)} rows...")
+    
+    mean_abs = abs_sum / max(n_total, 1)
+    mean_signed = signed_sum / max(n_total, 1)
+    
+    out = pd.DataFrame({
+        "feature": expected,
+        "mean_abs_shap": mean_abs,
+        "mean_shap": mean_signed,  # Using mean_shap for consistency with existing code
+    }).sort_values("mean_abs_shap", ascending=False, ignore_index=True)
+    
+    print(f"Completed global SHAP signal computation: {n_total} rows processed")
+    return out
+
+
+def select_signal_features_topk(global_df: pd.DataFrame, k: int = 500) -> list[str]:
+    """
+    Select features with signal using Top K approach.
+    
+    Args:
+        global_df: DataFrame from compute_global_shap_signal
+        k: Number of top features to select
+        
+    Returns:
+        List of feature names
+    """
+    k = int(k)
+    return global_df.head(k)["feature"].tolist()
+
+
+def select_signal_features_threshold(global_df: pd.DataFrame, min_mean_abs: float = 0.0005) -> list[str]:
+    """
+    Select features with signal using threshold approach.
+    
+    Args:
+        global_df: DataFrame from compute_global_shap_signal
+        min_mean_abs: Minimum mean_abs_shap threshold
+        
+    Returns:
+        List of feature names
+    """
+    return global_df.loc[global_df["mean_abs_shap"] >= float(min_mean_abs), "feature"].tolist()
+
+
+def write_row_shap_for_selected_features(
+    booster,  # xgb.Booster
+    X: pd.DataFrame,
+    selected_features: list[str],
+    out_path: Path,
+    chunk_rows: int = 200,
+    row_id: pd.Series | None = None,
+) -> None:
+    """
+    Pass 2: Write per-row SHAP values for selected features only (streamed to parquet).
+    
+    Args:
+        booster: XGBoost Booster object
+        X: Feature DataFrame (will be aligned to model's feature space)
+        selected_features: List of feature names to include in output
+        out_path: Path to output parquet file
+        chunk_rows: Number of rows to process per chunk
+        row_id: Optional Series with row identifiers (e.g., mi_person_key)
+    """
+    import xgboost as xgb  # type: ignore
+    
+    expected = booster.feature_names
+    if expected is None:
+        raise ValueError("Booster has no feature_names; cannot align SHAP to columns.")
+    
+    # Align input to model feature space
+    X = X.apply(pd.to_numeric, errors="coerce").fillna(0).astype("float32")
+    X = X.reindex(columns=expected, fill_value=0).astype("float32")
+    
+    # Column indices for slicing SHAP contributions
+    feat_to_idx = {f: i for i, f in enumerate(expected)}
+    sel = [f for f in selected_features if f in feat_to_idx]
+    if not sel:
+        raise ValueError("No selected features exist in model feature list.")
+    
+    sel_idx = np.array([feat_to_idx[f] for f in sel], dtype=np.int32)
+    
+    # Row ids
+    if row_id is None:
+        row_id = pd.Series(np.arange(len(X)), name="row_id")
+    else:
+        row_id = row_id.reset_index(drop=True)
+        row_id.name = row_id.name or "row_id"
+    
+    print(f"Writing row-level SHAP for {len(sel)} selected features ({len(X)} rows)...")
+    
+    # Collect chunks in memory (for single parquet file output)
+    chunks = []
+    for start in range(0, len(X), chunk_rows):
+        stop = min(start + chunk_rows, len(X))
+        d = xgb.DMatrix(X.iloc[start:stop], feature_names=expected)
+        contrib = booster.predict(d, pred_contribs=True)  # (rows, n_features+1)
+        
+        shap_sel = contrib[:, sel_idx]  # only selected features
+        bias = contrib[:, -1].reshape(-1, 1)  # bias
+        
+        df_chunk = pd.DataFrame(shap_sel, columns=sel)
+        df_chunk["bias"] = bias
+        df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+        chunks.append(df_chunk)
+        
+        if (start // chunk_rows + 1) % 50 == 0:
+            print(f"  Processed {stop}/{len(X)} rows...")
+    
+    # Combine and write to single parquet file
+    result_df = pd.concat(chunks, ignore_index=True)
+    
+    # Use DuckDB for efficient parquet writing
+    import duckdb
+    con_parquet = duckdb.connect()
+    try:
+        con_parquet.register('shap_df', result_df)
+        con_parquet.execute(f"COPY shap_df TO '{str(out_path)}' (FORMAT PARQUET)")
+    except Exception as e:
+        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
+        result_df.to_parquet(out_path, index=False, engine='pyarrow')
+    finally:
+        con_parquet.close()
+    
+    print(f"Saved row-level SHAP values to {out_path}")
+
+
 def _load_best_models(cohort: str, age_band: str):
     """
     Load the best models selected by the final model training step.
@@ -398,138 +575,122 @@ def run_shap_analysis(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading final features for {cohort}, {age_band}...")
-    X, y = _load_final_features(cohort, age_band)
-    print(f"Final feature matrix: {X.shape[0]} rows, {X.shape[1]} features.")
-
-    # Sample background and evaluation sets for SHAP efficiency
-    rng = np.random.default_rng(42)
-    idx_all = np.arange(X.shape[0])
-    rng.shuffle(idx_all)
-
-    bg_idx = idx_all[: min(n_background, len(idx_all))]
-    eval_idx = idx_all[: min(n_eval, len(idx_all))]
-    X_bg = X.iloc[bg_idx]
-    X_eval = X.iloc[eval_idx]
+    # Load full data including mi_person_key for row IDs
+    import duckdb
+    age_band_fname = age_band_to_fname(age_band)
+    features_path = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
+    )
+    if not features_path.exists():
+        raise FileNotFoundError(f"Final features file not found: {features_path}")
+    
+    con = duckdb.connect()
+    try:
+        df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}')").df()
+        if "target" not in df_full.columns:
+            raise ValueError(f"'target' column not found in {features_path}")
+        
+        y = df_full["target"].astype(int)
+        row_id = df_full.get("mi_person_key", None)
+        X_full = df_full.drop(columns=["mi_person_key", "target"], errors="ignore")
+        
+        # Keep numeric columns only (model is trained on numeric features)
+        numeric_cols = [c for c in X_full.columns if pd.api.types.is_numeric_dtype(X_full[c])]
+        X_full = X_full[numeric_cols].copy()
+    finally:
+        con.close()
+    
+    print(f"Final feature matrix: {X_full.shape[0]} rows, {X_full.shape[1]} features.")
 
     print("Loading best models for SHAP...")
-    xgb_clf, cb_clf = _fit_models_for_shap(X, y, cohort, age_band)
+    xgb_clf, cb_clf = _fit_models_for_shap(X_full, y, cohort, age_band)
 
-    feature_names = list(X.columns)
     s3_outputs = []  # Track S3 uploads for checkpointing
     
     # Track whether at least one model was successfully analyzed
     models_analyzed = []
-    shap_xgb = None  # Initialize for scope
 
-    # ------------------- XGBoost SHAP -------------------
-    print("Computing SHAP values for XGBoost...")
+    # ------------------- XGBoost SHAP (Two-Pass Approach) -------------------
+    print("=" * 80)
+    print("XGBoost SHAP Analysis (Two-Pass: Global Signal → Row-Level for Selected Features)")
+    print("=" * 80)
     
-    # Use booster directly for SHAP (model was loaded from native JSON or converted from joblib)
-    # Native JSON models avoid base_score parsing issues entirely
     try:
         import xgboost as xgb  # type: ignore
         
-        if hasattr(xgb_clf, 'get_booster'):
-            booster = xgb_clf.get_booster()
-            # Try TreeExplainer with booster directly (most reliable, no base_score parsing issues)
-            try:
-                expl_xgb = shap.TreeExplainer(
-                    booster, data=X_bg.values, feature_perturbation="interventional", model_output="probability"
-                )
-                shap_xgb = expl_xgb.shap_values(X_eval.values)
-                print("✅ Successfully computed SHAP values using TreeExplainer with booster")
-            except (ValueError, TypeError) as e:
-                # If base_score issue persists, use PermutationExplainer as fallback
-                print(f"[WARNING] TreeExplainer failed ({e}), falling back to PermutationExplainer...")
-                expl_xgb = shap.PermutationExplainer(
-                    xgb_clf.predict_proba, X_bg.values, max_evals=100
-                )
-                shap_xgb = expl_xgb.shap_values(X_eval.values)
-                # PermutationExplainer returns (n_samples, n_classes, n_features) for binary classification
-                # Extract SHAP values for class 1 (positive class)
-                if shap_xgb.ndim == 3:
-                    shap_xgb = shap_xgb[:, 1, :]  # Extract class 1 SHAP values
-                print("✅ Successfully computed SHAP values using PermutationExplainer")
-        else:
-            # Fallback: use model directly if no booster available
-            try:
-                expl_xgb = shap.TreeExplainer(
-                    xgb_clf, data=X_bg, feature_perturbation="interventional", model_output="probability"
-                )
-                shap_xgb = expl_xgb.shap_values(X_eval)
-                print("✅ Successfully computed SHAP values using TreeExplainer with model")
-            except (ValueError, TypeError) as e:
-                # If TreeExplainer fails, use PermutationExplainer
-                print(f"[WARNING] TreeExplainer failed ({e}), falling back to PermutationExplainer...")
-                expl_xgb = shap.PermutationExplainer(
-                    xgb_clf.predict_proba, X_bg, max_evals=100
-                )
-                shap_xgb = expl_xgb.shap_values(X_eval)
-                if shap_xgb.ndim == 3:
-                    shap_xgb = shap_xgb[:, 1, :]  # Extract class 1 SHAP values
-                print("✅ Successfully computed SHAP values using PermutationExplainer")
+        if not hasattr(xgb_clf, 'get_booster'):
+            raise ValueError("XGBoost model does not have get_booster() method")
         
-        models_analyzed.append("xgboost")
-    except Exception as e:
-        print(f"[ERROR] XGBoost SHAP analysis failed: {e}")
-        import traceback
-        traceback.print_exc()
-        shap_xgb = None
-
-    # Global importance (only if XGBoost was analyzed)
-    if "xgboost" in models_analyzed and shap_xgb is not None:
-        mean_abs_xgb = np.abs(shap_xgb).mean(axis=0)
-        mean_xgb = shap_xgb.mean(axis=0)  # Mean SHAP value (captures direction)
-        xgb_imp_df = pd.DataFrame({
-            "feature": feature_names,
-            "mean_abs_shap": mean_abs_xgb,
-            "mean_shap": mean_xgb,  # Direction: positive = increases risk, negative = decreases risk
-        })
-        # Filter to features with mean_abs_shap > 0 and sort by importance
-        xgb_imp_df = xgb_imp_df[xgb_imp_df['mean_abs_shap'] > 0].sort_values("mean_abs_shap", ascending=False)
+        booster = xgb_clf.get_booster()
+        
+        # Pass 1: Compute global SHAP signal (streamed, memory-efficient)
+        print("\n[Pass 1] Computing global SHAP signal per feature...")
+        global_shap_df = compute_global_shap_signal(booster, X_full, chunk_rows=500)
+        
+        # Save global importance CSV (all features with signal)
         xgb_imp_path = (
             out_dir
             / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
         )
-        xgb_imp_df.to_csv(xgb_imp_path, index=False)
-        print(f"Saved XGBoost SHAP global importance to {xgb_imp_path}")
-
-        # Filter features to only those with importance > 0 for sample values and plots
-        important_features = xgb_imp_df['feature'].tolist()
-        important_feature_indices = [feature_names.index(f) for f in important_features]
-        shap_xgb_filtered = shap_xgb[:, important_feature_indices]
-        X_eval_filtered = X_eval[important_features]
-        feature_names_filtered = important_features
-        print(f"Filtered to {len(important_features)} features with importance > 0 (from {len(feature_names)} total)")
-
-        # Sample SHAP values - use DuckDB to write Parquet efficiently
+        # Filter to features with mean_abs_shap > 0 for consistency
+        global_shap_df_filtered = global_shap_df[global_shap_df['mean_abs_shap'] > 0].copy()
+        global_shap_df_filtered.to_csv(xgb_imp_path, index=False)
+        print(f"✅ Saved global SHAP importance to {xgb_imp_path}")
+        print(f"   Features with signal: {len(global_shap_df_filtered)} (from {len(global_shap_df)} total)")
+        
+        # Select features with signal (Top K approach, default 500)
+        # Can be changed to threshold: select_signal_features_threshold(global_shap_df, min_mean_abs=0.0005)
+        selected_features = select_signal_features_topk(global_shap_df_filtered, k=500)
+        print(f"\n[Feature Selection] Selected {len(selected_features)} features with signal (Top K=500)")
+        
+        # Pass 2: Write per-row SHAP for selected features only
+        print(f"\n[Pass 2] Computing row-level SHAP for {len(selected_features)} selected features...")
         xgb_shap_sample_path = (
             out_dir
             / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
         )
-        shap_sample_df = pd.DataFrame(
-            shap_xgb_filtered, columns=feature_names_filtered, index=X_eval_filtered.index
+        write_row_shap_for_selected_features(
+            booster=booster,
+            X=X_full,
+            selected_features=selected_features,
+            out_path=xgb_shap_sample_path,
+            chunk_rows=200,
+            row_id=row_id,
         )
-        # Use DuckDB to write Parquet (more efficient than pandas, better compression)
-        import duckdb
-        con_parquet = duckdb.connect()
-        try:
-            # Register DataFrame with DuckDB and write to Parquet
-            con_parquet.register('shap_df', shap_sample_df.reset_index())
-            con_parquet.execute(f"COPY shap_df TO '{str(xgb_shap_sample_path)}' (FORMAT PARQUET)")
-        except Exception as e:
-            print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
-            shap_sample_df.to_parquet(xgb_shap_sample_path, index=True, engine='pyarrow')
-        finally:
-            con_parquet.close()
-        print(f"Saved XGBoost SHAP sample values to {xgb_shap_sample_path}")
-
-        # Summary plots (using filtered features)
+        
+        # Create summary plots using selected features
+        # Load a sample from parquet file for plotting (limit to n_eval rows for memory efficiency)
+        print("\n[Plots] Creating summary plots...")
+        shap_sample_df = pd.read_parquet(xgb_shap_sample_path)
+        # Limit to n_eval rows for plotting to avoid memory issues
+        plot_sample_size = min(n_eval, len(shap_sample_df))
+        shap_sample_df_plot = shap_sample_df.head(plot_sample_size)
+        
+        # Extract SHAP values (exclude row_id and bias columns)
+        shap_cols = [c for c in selected_features if c in shap_sample_df_plot.columns]
+        shap_values_plot = shap_sample_df_plot[shap_cols].values
+        
+        # Get corresponding feature values using row_id if available, otherwise use index
+        if row_id is not None and 'row_id' in shap_sample_df_plot.columns:
+            row_ids_plot = shap_sample_df_plot['row_id'].values
+            # Map row_ids to indices in X_full
+            row_id_to_idx = {rid: idx for idx, rid in enumerate(row_id)}
+            row_indices = [row_id_to_idx.get(rid, i) for i, rid in enumerate(row_ids_plot)]
+            X_plot = X_full[shap_cols].iloc[row_indices].reset_index(drop=True)
+        else:
+            # Use first plot_sample_size rows
+            X_plot = X_full[shap_cols].iloc[:plot_sample_size].reset_index(drop=True)
+        
         plt.figure(figsize=(10, 8))
         shap.summary_plot(
-            shap_xgb_filtered,
-            X_eval_filtered,
-            feature_names=feature_names_filtered,
+            shap_values_plot,
+            X_plot,
+            feature_names=selected_features,
             show=False,
             plot_type="bar",
         )
@@ -543,9 +704,9 @@ def run_shap_analysis(
 
         plt.figure(figsize=(10, 8))
         shap.summary_plot(
-            shap_xgb_filtered,
-            X_eval_filtered,
-            feature_names=feature_names_filtered,
+            shap_values_plot,
+            X_plot,
+            feature_names=selected_features,
             show=False,
             plot_type="dot",
         )
@@ -557,7 +718,9 @@ def run_shap_analysis(
         plt.savefig(beeswarm_path, dpi=300)
         plt.close()
 
-        print(f"Saved XGBoost SHAP summary plots to {out_dir}")
+        print(f"✅ Saved XGBoost SHAP summary plots to {out_dir}")
+        
+        models_analyzed.append("xgboost")
         
         # Upload XGBoost SHAP outputs
         try:
@@ -572,30 +735,45 @@ def run_shap_analysis(
                     s3_outputs.append(s3_xgb_sample)
         except ImportError:
             pass
+            
+    except Exception as e:
+        print(f"[ERROR] XGBoost SHAP analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
 
     # ------------------- CatBoost SHAP -------------------
     if cb_clf is not None:
         try:
+            print("=" * 80)
+            print("CatBoost SHAP Analysis")
+            print("=" * 80)
             print("Computing SHAP values for CatBoost...")
             from catboost import Pool  # type: ignore
 
+            # Sample evaluation set for CatBoost (use same approach as before)
+            rng = np.random.default_rng(42)
+            idx_all = np.arange(len(X_full))
+            rng.shuffle(idx_all)
+            eval_idx = idx_all[: min(n_eval, len(idx_all))]
+            X_eval_cb = X_full.iloc[eval_idx]
+            feature_names_cb = list(X_full.columns)
+
             # Identify categorical features (item_* features that were marked as categorical during training)
             # CatBoost requires us to specify categorical features when creating Pool
-            feature_names_list = list(X_eval.columns)
             cat_feature_indices = [
-                i for i, name in enumerate(feature_names_list)
+                i for i, name in enumerate(feature_names_cb)
                 if name.startswith('item_')
             ]
             
             if cat_feature_indices:
                 print(f"Marking {len(cat_feature_indices)} item_* features as categorical for CatBoost SHAP")
                 pool_eval = Pool(
-                    X_eval,
+                    X_eval_cb,
                     y.iloc[eval_idx],
                     cat_features=cat_feature_indices
                 )
             else:
-                pool_eval = Pool(X_eval, y.iloc[eval_idx])
+                pool_eval = Pool(X_eval_cb, y.iloc[eval_idx])
             
             shap_cb = cb_clf.get_feature_importance(
                 type="ShapValues", data=pool_eval
@@ -621,7 +799,7 @@ def run_shap_analysis(
             shap_cb_mean = shap_cb_feat.mean(axis=0).ravel()  # Mean SHAP value (captures direction)
 
             cb_imp_df = pd.DataFrame({
-                "feature": feature_names,
+                "feature": feature_names_cb,
                 "mean_abs_shap": shap_cb_mean_abs,
                 "mean_shap": shap_cb_mean,  # Direction: positive = increases risk, negative = decreases risk
             })
@@ -636,11 +814,11 @@ def run_shap_analysis(
 
             # Filter features to only those with importance > 0 for sample values and plots
             important_features_cb = cb_imp_df['feature'].tolist()
-            important_feature_indices_cb = [feature_names.index(f) for f in important_features_cb]
+            important_feature_indices_cb = [feature_names_cb.index(f) for f in important_features_cb]
             shap_cb_feat_filtered = shap_cb_feat[:, important_feature_indices_cb]
-            X_eval_filtered_cb = X_eval[important_features_cb]
+            X_eval_filtered_cb = X_eval_cb[important_features_cb]
             feature_names_filtered_cb = important_features_cb
-            print(f"Filtered to {len(important_features_cb)} features with importance > 0 (from {len(feature_names)} total)")
+            print(f"Filtered to {len(important_features_cb)} features with importance > 0 (from {len(feature_names_cb)} total)")
 
             cb_shap_sample_path = (
                 out_dir
