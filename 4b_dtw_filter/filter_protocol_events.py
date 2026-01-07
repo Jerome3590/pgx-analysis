@@ -1319,11 +1319,10 @@ if __name__ == "__main__":
 
     # Get original count efficiently (don't load entire dataset)
     con = duckdb.connect()
-    # Set DuckDB pragmas for performance (optimized for EC2: 32 cores, 1TB RAM)
-    con.execute("PRAGMA threads=0")  # Use all available cores (32)
-    con.execute("PRAGMA memory_limit='256GB'")  # Use generous memory for large operations
-    # Optional: Set temp directory to fast NVMe storage if available (uncomment if needed)
-    # con.execute("PRAGMA temp_directory='/mnt/nvme/duckdb_tmp'")
+    # Set DuckDB settings for performance (optimized for EC2: 32 cores, 1TB RAM)
+    # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
+    con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
+    con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     original_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{model_data_path}')").fetchone()[0]
     con.close()
 
