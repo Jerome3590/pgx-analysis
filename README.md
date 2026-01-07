@@ -157,7 +157,8 @@ flowchart TD
     style E2 fill:#fbb,stroke:#333,stroke-width:2px    %% CatBoost
     style E3 fill:#bbf,stroke:#333,stroke-width:2px    %% XGBoost
     style E4 fill:#fbb,stroke:#333,stroke-width:2px
-    style F3 fill:#fbf,stroke:#333,stroke-width:2px
+    style F1 fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
+    style F2 fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
     style G1 fill:#ffb,stroke:#333,stroke-width:2px
 ```
 
