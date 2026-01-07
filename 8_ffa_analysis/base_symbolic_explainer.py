@@ -37,6 +37,9 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     Returns:
         Dictionary with explanation results
     """
+    # Import numpy at function level to ensure it's available in multiprocessing context
+    import numpy as np
+    
     idx, instance_values, predicted_class, explainer_state, instance_shap_values = task
     
     # Reconstruct minimal explainer state for this instance
