@@ -514,10 +514,11 @@ class BaseSymbolicExplainer(ABC):
             strategy = f"top_k={top_k}"
 
         if hasattr(self, 'logger'):
+            max_score = scores[0] if scores else 0.0
             self.logger.info(
                 f"_filter_rules_by_shap: Filtered {len(rule_ids)} rules -> "
                 f"{len(selected_rules)} rules using {strategy} "
-                f"(min_score={min_shap_score:.6f}, max_score={scores[0]:.6f if scores else 0:.6f})"
+                f"(min_score={min_shap_score:.6f}, max_score={max_score:.6f})"
             )
 
         return selected_rules
