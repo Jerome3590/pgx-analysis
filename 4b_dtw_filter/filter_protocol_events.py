@@ -1331,10 +1331,10 @@ if __name__ == "__main__":
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
     con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
-    # Use fast NVMe storage for temp files (faster I/O for large operations)
-    nvme_tmp = "/mnt/nvme/duckdb_tmp"
-    os.makedirs(nvme_tmp, exist_ok=True)
-    con.execute(f"SET temp_directory='{nvme_tmp}'")
+    # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
+    # Format: /mnt/nvme/duckdb_tmp/worker_{pid}_{timestamp}_{uuid}
+    worker_temp_dir = get_worker_temp_dir()
+    con.execute(f"SET temp_directory='{worker_temp_dir}'")
     original_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{model_data_path}')").fetchone()[0]
     con.close()
 
