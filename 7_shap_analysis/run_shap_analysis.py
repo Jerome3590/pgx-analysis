@@ -251,6 +251,181 @@ def write_row_shap_for_selected_features(
     print(f"Saved row-level SHAP values to {out_path}")
 
 
+def compute_global_shap_signal_catboost(
+    model,  # CatBoostClassifier
+    X: pd.DataFrame,
+    y: pd.Series,
+    cat_feature_indices: list[int] | None = None,
+    chunk_rows: int = 500,
+) -> pd.DataFrame:
+    """
+    Pass 1: Compute global SHAP signal per feature for CatBoost (streamed, memory-efficient).
+    
+    Uses CatBoost's get_feature_importance(type="ShapValues") with chunked Pool objects.
+    
+    Args:
+        model: CatBoostClassifier object
+        X: Feature DataFrame
+        y: Target Series
+        cat_feature_indices: List of categorical feature indices (optional)
+        chunk_rows: Number of rows to process per chunk
+        
+    Returns:
+        DataFrame with columns: feature, mean_abs_shap, mean_shap
+        Sorted by mean_abs_shap descending
+    """
+    from catboost import Pool  # type: ignore
+    
+    feature_names = list(X.columns)
+    print(f"Computing global SHAP signal for {len(feature_names)} features using {len(X)} rows...")
+    
+    abs_sum = np.zeros(len(feature_names), dtype=np.float64)
+    signed_sum = np.zeros(len(feature_names), dtype=np.float64)
+    n_total = 0
+    
+    for start in range(0, len(X), chunk_rows):
+        stop = min(start + chunk_rows, len(X))
+        X_chunk = X.iloc[start:stop]
+        y_chunk = y.iloc[start:stop]
+        
+        # Create Pool for this chunk
+        if cat_feature_indices:
+            pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+        else:
+            pool_chunk = Pool(X_chunk, y_chunk)
+        
+        # Get SHAP values for this chunk
+        shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
+        shap_chunk = np.array(shap_chunk)
+        
+        # CatBoost returns: (n_samples, n_features + 1) [last col = expected value]
+        # or (n_samples, n_classes, n_features + 1) for multiclass
+        if shap_chunk.ndim == 2:
+            shap_feat = shap_chunk[:, :-1]  # drop expected value column
+        elif shap_chunk.ndim == 3:
+            shap_feat = shap_chunk[:, :, :-1].mean(axis=1)  # collapse classes
+        else:
+            raise ValueError(f"Unexpected CatBoost SHAP array shape: {shap_chunk.shape}")
+        
+        abs_sum += np.abs(shap_feat).sum(axis=0)
+        signed_sum += shap_feat.sum(axis=0)
+        n_total += shap_feat.shape[0]
+        
+        if (start // chunk_rows + 1) % 10 == 0:
+            print(f"  Processed {stop}/{len(X)} rows...")
+    
+    mean_abs = abs_sum / max(n_total, 1)
+    mean_signed = signed_sum / max(n_total, 1)
+    
+    out = pd.DataFrame({
+        "feature": feature_names,
+        "mean_abs_shap": mean_abs,
+        "mean_shap": mean_signed,
+    }).sort_values("mean_abs_shap", ascending=False, ignore_index=True)
+    
+    print(f"Completed global SHAP signal computation: {n_total} rows processed")
+    return out
+
+
+def write_row_shap_for_selected_features_catboost(
+    model,  # CatBoostClassifier
+    X: pd.DataFrame,
+    y: pd.Series,
+    selected_features: list[str],
+    out_path: Path,
+    cat_feature_indices: list[int] | None = None,
+    chunk_rows: int = 200,
+    row_id: pd.Series | None = None,
+) -> None:
+    """
+    Pass 2: Write per-row SHAP values for selected features only (streamed to parquet).
+    
+    Args:
+        model: CatBoostClassifier object
+        X: Feature DataFrame
+        y: Target Series
+        selected_features: List of feature names to include in output
+        out_path: Path to output parquet file
+        cat_feature_indices: List of categorical feature indices (optional)
+        chunk_rows: Number of rows to process per chunk
+        row_id: Optional Series with row identifiers (e.g., mi_person_key)
+    """
+    from catboost import Pool  # type: ignore
+    
+    feature_names = list(X.columns)
+    
+    # Column indices for selected features
+    sel = [f for f in selected_features if f in feature_names]
+    if not sel:
+        raise ValueError("No selected features exist in feature list.")
+    
+    sel_idx = [feature_names.index(f) for f in sel]
+    
+    # Row ids
+    if row_id is None:
+        row_id = pd.Series(np.arange(len(X)), name="row_id")
+    else:
+        row_id = row_id.reset_index(drop=True)
+        row_id.name = row_id.name or "row_id"
+    
+    print(f"Writing row-level SHAP for {len(sel)} selected features ({len(X)} rows)...")
+    
+    # Collect chunks in memory (for single parquet file output)
+    chunks = []
+    for start in range(0, len(X), chunk_rows):
+        stop = min(start + chunk_rows, len(X))
+        X_chunk = X.iloc[start:stop]
+        y_chunk = y.iloc[start:stop]
+        
+        # Create Pool for this chunk
+        if cat_feature_indices:
+            pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+        else:
+            pool_chunk = Pool(X_chunk, y_chunk)
+        
+        # Get SHAP values for this chunk
+        shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
+        shap_chunk = np.array(shap_chunk)
+        
+        # Extract feature SHAP values (exclude expected value)
+        if shap_chunk.ndim == 2:
+            shap_feat = shap_chunk[:, :-1]  # drop expected value column
+            bias = shap_chunk[:, -1].reshape(-1, 1)  # expected value (bias)
+        elif shap_chunk.ndim == 3:
+            shap_feat = shap_chunk[:, :, :-1].mean(axis=1)  # collapse classes
+            bias = shap_chunk[:, :, -1].mean(axis=1).reshape(-1, 1)  # expected value
+        else:
+            raise ValueError(f"Unexpected CatBoost SHAP array shape: {shap_chunk.shape}")
+        
+        # Select only the features we want
+        shap_sel = shap_feat[:, sel_idx]
+        
+        df_chunk = pd.DataFrame(shap_sel, columns=sel)
+        df_chunk["bias"] = bias
+        df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+        chunks.append(df_chunk)
+        
+        if (start // chunk_rows + 1) % 50 == 0:
+            print(f"  Processed {stop}/{len(X)} rows...")
+    
+    # Combine and write to single parquet file
+    result_df = pd.concat(chunks, ignore_index=True)
+    
+    # Use DuckDB for efficient parquet writing
+    import duckdb
+    con_parquet = duckdb.connect()
+    try:
+        con_parquet.register('shap_df', result_df)
+        con_parquet.execute(f"COPY shap_df TO '{str(out_path)}' (FORMAT PARQUET)")
+    except Exception as e:
+        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
+        result_df.to_parquet(out_path, index=False, engine='pyarrow')
+    finally:
+        con_parquet.close()
+    
+    print(f"Saved row-level SHAP values to {out_path}")
+
+
 def _load_best_models(cohort: str, age_band: str):
     """
     Load the best models selected by the final model training step.
@@ -741,23 +916,15 @@ def run_shap_analysis(
         import traceback
         traceback.print_exc()
 
-    # ------------------- CatBoost SHAP -------------------
+    # ------------------- CatBoost SHAP (Two-Pass Approach) -------------------
     if cb_clf is not None:
         try:
             print("=" * 80)
-            print("CatBoost SHAP Analysis")
+            print("CatBoost SHAP Analysis (Two-Pass: Global Signal → Row-Level for Selected Features)")
             print("=" * 80)
-            print("Computing SHAP values for CatBoost...")
-            from catboost import Pool  # type: ignore
-
-            # Sample evaluation set for CatBoost (use same approach as before)
-            rng = np.random.default_rng(42)
-            idx_all = np.arange(len(X_full))
-            rng.shuffle(idx_all)
-            eval_idx = idx_all[: min(n_eval, len(idx_all))]
-            X_eval_cb = X_full.iloc[eval_idx]
+            
             feature_names_cb = list(X_full.columns)
-
+            
             # Identify categorical features (item_* features that were marked as categorical during training)
             # CatBoost requires us to specify categorical features when creating Pool
             cat_feature_indices = [
@@ -767,87 +934,77 @@ def run_shap_analysis(
             
             if cat_feature_indices:
                 print(f"Marking {len(cat_feature_indices)} item_* features as categorical for CatBoost SHAP")
-                pool_eval = Pool(
-                    X_eval_cb,
-                    y.iloc[eval_idx],
-                    cat_features=cat_feature_indices
-                )
-            else:
-                pool_eval = Pool(X_eval_cb, y.iloc[eval_idx])
             
-            shap_cb = cb_clf.get_feature_importance(
-                type="ShapValues", data=pool_eval
+            # Pass 1: Compute global SHAP signal (streamed, memory-efficient)
+            print("\n[Pass 1] Computing global SHAP signal per feature...")
+            global_shap_df_cb = compute_global_shap_signal_catboost(
+                model=cb_clf,
+                X=X_full,
+                y=y,
+                cat_feature_indices=cat_feature_indices if cat_feature_indices else None,
+                chunk_rows=500,
             )
-            shap_cb = np.array(shap_cb)
-
-            # CatBoost returns:
-            # - binary/Regression: (n_samples, n_features + 1) [last col = expected value]
-            # - multiclass: (n_samples, n_classes, n_features + 1)
-            # We want per-feature SHAP values with the expected value stripped.
-            if shap_cb.ndim == 2:
-                # (n_samples, n_features + 1)
-                shap_cb_feat = shap_cb[:, :-1]  # drop expected value column
-            elif shap_cb.ndim == 3:
-                # (n_samples, n_classes, n_features + 1) → collapse classes
-                shap_cb_feat = shap_cb[:, :, :-1].mean(axis=1)
-            else:
-                raise ValueError(
-                    f"Unexpected CatBoost SHAP array shape: {shap_cb.shape}"
-                )
-
-            shap_cb_mean_abs = np.abs(shap_cb_feat).mean(axis=0).ravel()
-            shap_cb_mean = shap_cb_feat.mean(axis=0).ravel()  # Mean SHAP value (captures direction)
-
-            cb_imp_df = pd.DataFrame({
-                "feature": feature_names_cb,
-                "mean_abs_shap": shap_cb_mean_abs,
-                "mean_shap": shap_cb_mean,  # Direction: positive = increases risk, negative = decreases risk
-            })
-            # Filter to features with mean_abs_shap > 0 and sort by importance
-            cb_imp_df = cb_imp_df[cb_imp_df['mean_abs_shap'] > 0].sort_values("mean_abs_shap", ascending=False)
+            
+            # Save global importance CSV (all features with signal)
             cb_imp_path = (
                 out_dir
                 / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
             )
-            cb_imp_df.to_csv(cb_imp_path, index=False)
-            print(f"Saved CatBoost SHAP global importance to {cb_imp_path}")
-
-            # Filter features to only those with importance > 0 for sample values and plots
-            important_features_cb = cb_imp_df['feature'].tolist()
-            important_feature_indices_cb = [feature_names_cb.index(f) for f in important_features_cb]
-            shap_cb_feat_filtered = shap_cb_feat[:, important_feature_indices_cb]
-            X_eval_filtered_cb = X_eval_cb[important_features_cb]
-            feature_names_filtered_cb = important_features_cb
-            print(f"Filtered to {len(important_features_cb)} features with importance > 0 (from {len(feature_names_cb)} total)")
-
+            # Filter to features with mean_abs_shap > 0 for consistency
+            global_shap_df_cb_filtered = global_shap_df_cb[global_shap_df_cb['mean_abs_shap'] > 0].copy()
+            global_shap_df_cb_filtered.to_csv(cb_imp_path, index=False)
+            print(f"✅ Saved global SHAP importance to {cb_imp_path}")
+            print(f"   Features with signal: {len(global_shap_df_cb_filtered)} (from {len(global_shap_df_cb)} total)")
+            
+            # Select features with signal (Top K approach, default 500)
+            selected_features_cb = select_signal_features_topk(global_shap_df_cb_filtered, k=500)
+            print(f"\n[Feature Selection] Selected {len(selected_features_cb)} features with signal (Top K=500)")
+            
+            # Pass 2: Write per-row SHAP for selected features only
+            print(f"\n[Pass 2] Computing row-level SHAP for {len(selected_features_cb)} selected features...")
             cb_shap_sample_path = (
                 out_dir
                 / f"{cohort}_{age_band_fname}_shap_sample_values_catboost.parquet"
             )
-            shap_cb_sample_df = pd.DataFrame(
-                shap_cb_feat_filtered,
-                index=X_eval_filtered_cb.index,
-                columns=feature_names_filtered_cb,
+            write_row_shap_for_selected_features_catboost(
+                model=cb_clf,
+                X=X_full,
+                y=y,
+                selected_features=selected_features_cb,
+                out_path=cb_shap_sample_path,
+                cat_feature_indices=cat_feature_indices if cat_feature_indices else None,
+                chunk_rows=200,
+                row_id=row_id,
             )
-            # Use DuckDB to write Parquet (more efficient than pandas, better compression)
-            import duckdb
-            con_parquet = duckdb.connect()
-            try:
-                # Register DataFrame with DuckDB and write to Parquet
-                con_parquet.register('shap_cb_df', shap_cb_sample_df.reset_index())
-                con_parquet.execute(f"COPY shap_cb_df TO '{str(cb_shap_sample_path)}' (FORMAT PARQUET)")
-            except Exception as e:
-                print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
-                shap_cb_sample_df.to_parquet(cb_shap_sample_path, index=True, engine='pyarrow')
-            finally:
-                con_parquet.close()
-            print(f"Saved CatBoost SHAP sample values to {cb_shap_sample_path}")
-
+            
+            # Create summary plots using selected features
+            # Load a sample from parquet file for plotting (limit to n_eval rows for memory efficiency)
+            print("\n[Plots] Creating summary plots...")
+            shap_cb_sample_df = pd.read_parquet(cb_shap_sample_path)
+            # Limit to n_eval rows for plotting to avoid memory issues
+            plot_sample_size_cb = min(n_eval, len(shap_cb_sample_df))
+            shap_cb_sample_df_plot = shap_cb_sample_df.head(plot_sample_size_cb)
+            
+            # Extract SHAP values (exclude row_id and bias columns)
+            shap_cols_cb = [c for c in selected_features_cb if c in shap_cb_sample_df_plot.columns]
+            shap_values_plot_cb = shap_cb_sample_df_plot[shap_cols_cb].values
+            
+            # Get corresponding feature values using row_id if available, otherwise use index
+            if row_id is not None and 'row_id' in shap_cb_sample_df_plot.columns:
+                row_ids_plot_cb = shap_cb_sample_df_plot['row_id'].values
+                # Map row_ids to indices in X_full
+                row_id_to_idx_cb = {rid: idx for idx, rid in enumerate(row_id)}
+                row_indices_cb = [row_id_to_idx_cb.get(rid, i) for i, rid in enumerate(row_ids_plot_cb)]
+                X_plot_cb = X_full[shap_cols_cb].iloc[row_indices_cb].reset_index(drop=True)
+            else:
+                # Use first plot_sample_size_cb rows
+                X_plot_cb = X_full[shap_cols_cb].iloc[:plot_sample_size_cb].reset_index(drop=True)
+            
             plt.figure(figsize=(10, 8))
             shap.summary_plot(
-                shap_cb_feat_filtered,
-                X_eval_filtered_cb,
-                feature_names=feature_names_filtered_cb,
+                shap_values_plot_cb,
+                X_plot_cb,
+                feature_names=shap_cols_cb,
                 show=False,
                 plot_type="bar",
             )
@@ -861,9 +1018,9 @@ def run_shap_analysis(
 
             plt.figure(figsize=(10, 8))
             shap.summary_plot(
-                shap_cb_feat_filtered,
-                X_eval_filtered_cb,
-                feature_names=feature_names_filtered_cb,
+                shap_values_plot_cb,
+                X_plot_cb,
+                feature_names=shap_cols_cb,
                 show=False,
                 plot_type="dot",
             )
@@ -875,7 +1032,7 @@ def run_shap_analysis(
             plt.savefig(cb_beeswarm_path, dpi=300)
             plt.close()
 
-            print(f"Saved CatBoost SHAP summary plots to {out_dir}")
+            print(f"✅ Saved CatBoost SHAP summary plots to {out_dir}")
             
             # Mark CatBoost as successfully analyzed
             models_analyzed.append("catboost")
@@ -888,6 +1045,10 @@ def run_shap_analysis(
                     s3_cb_imp = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
                     if upload_file_to_s3(cb_imp_path, s3_cb_imp):
                         s3_outputs.append(s3_cb_imp)
+                if cb_shap_sample_path.exists():
+                    s3_cb_sample = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_sample_values_catboost.parquet"
+                    if upload_file_to_s3(cb_shap_sample_path, s3_cb_sample):
+                        s3_outputs.append(s3_cb_sample)
             except ImportError:
                 pass
         except Exception as e:
