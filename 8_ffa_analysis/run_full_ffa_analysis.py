@@ -128,7 +128,7 @@ ANALYSIS_CONFIG = {
     'interaction_sample_size': 50,  # Sample size for interaction testing (reduced from 100)
     'min_interaction_effect': 0.01,  # Minimum interaction effect to report
     'causal_sample_size': 50,  # Sample size for causal analysis (reduced from 100)
-    'max_causal_time': 3600,  # Maximum time (seconds) for causal analysis (1 hour)
+    'causal_checkpoint_interval': 10,  # Save progress every N features for idempotency
     'min_combined_shap_threshold': 0.0,  # Minimum combined SHAP score for feature combinations (0 = no filtering)
     'min_individual_shap_threshold': 0.0,  # Minimum individual SHAP score per feature in combination (0 = only filter features with SHAP > 0, which is automatic)
 }
@@ -836,7 +836,8 @@ def get_model_features_for_causal_analysis(X: pd.DataFrame) -> List[str]:
 
 
 def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray, 
-                           feature_importance_df: pd.DataFrame, cohort: str, age_band: str) -> pd.DataFrame:
+                           feature_importance_df: pd.DataFrame, cohort: str, age_band: str,
+                           model_type: str = "xgboost", output_dir: Optional[Path] = None) -> pd.DataFrame:
     """Perform causal analysis by measuring prediction changes.
     
     Only analyzes aggregated feature importance features (drug/ICD/CPT codes) plus PGx features.
@@ -893,23 +894,52 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
         print("[WARNING] No matching features found for causal analysis.")
         return pd.DataFrame()
     
-    print(f"Analyzing {len(available_features)} features...")
+    # Check for existing causal results for idempotency
+    existing_causal_df = pd.DataFrame()
+    processed_features = set()
+    causal_checkpoint_path = None
     
-    causal_scores = []
+    if output_dir is not None:
+        model_output_dir = output_dir / model_type
+        causal_checkpoint_path = model_output_dir / 'causal_importance.parquet'
+        
+        if causal_checkpoint_path.exists():
+            try:
+                logger.info(f"Found existing causal results at {causal_checkpoint_path}. Loading for idempotency...")
+                existing_causal_df = pd.read_parquet(causal_checkpoint_path)
+                processed_features = set(existing_causal_df['feature'].tolist())
+                logger.info(f"Loaded {len(processed_features)} already-processed features. Will skip these and resume.")
+                print(f"[INFO] Found {len(processed_features)} already-processed features. Resuming from checkpoint...")
+            except Exception as e:
+                logger.warning(f"Failed to load existing causal results: {e}. Will start fresh.")
+                existing_causal_df = pd.DataFrame()
+                processed_features = set()
+    
+    # Filter out already-processed features
+    remaining_features = [f for f in available_features if f not in processed_features]
+    
+    if len(processed_features) > 0:
+        logger.info(f"Skipping {len(processed_features)} already-processed features. {len(remaining_features)} features remaining.")
+        print(f"[INFO] Skipping {len(processed_features)} already-processed features. {len(remaining_features)} features remaining.")
+    
+    if not remaining_features:
+        logger.info("All features already processed. Returning existing results.")
+        print("[INFO] All features already processed. Returning existing results.")
+        return existing_causal_df
+    
+    print(f"Analyzing {len(remaining_features)} features ({len(processed_features)} already processed)...")
+    
+    # Start with existing scores
+    causal_scores = existing_causal_df.to_dict('records') if not existing_causal_df.empty else []
     analysis_start = time.time()
-    max_causal_time = ANALYSIS_CONFIG.get('max_causal_time', 3600)  # Default 1 hour
+    checkpoint_interval = ANALYSIS_CONFIG.get('causal_checkpoint_interval', 10)  # Save every N features
     
-    logger.info(f"Starting causal analysis for {len(available_features)} features (max time: {max_causal_time}s)")
+    logger.info(f"Starting causal analysis for {len(remaining_features)} features (checkpoint every {checkpoint_interval} features, no time limit)")
+    print(f"[INFO] Processing {len(remaining_features)} features (no time limit, will checkpoint every {checkpoint_interval} features)")
     
-    for feat_idx, feat_name in enumerate(tqdm(available_features, desc="Causal analysis")):
-        # Check if we've exceeded time limit
-        elapsed_time = time.time() - analysis_start
-        if elapsed_time > max_causal_time:
-            logger.warning(f"Causal analysis exceeded time limit ({max_causal_time}s). Processed {feat_idx}/{len(available_features)} features. Stopping.")
-            print(f"[WARNING] Causal analysis time limit reached. Processed {feat_idx}/{len(available_features)} features.")
-            break
+    for feat_idx, feat_name in enumerate(tqdm(remaining_features, desc="Causal analysis")):
         try:
-            logger.info(f"Analyzing feature {feat_idx+1}/{len(available_features)}: {feat_name}")
+            logger.info(f"Analyzing feature {feat_idx+1}/{len(remaining_features)}: {feat_name}")
             feat_start = time.time()
             
             # Use smaller sample for causal analysis to reduce memory
@@ -938,7 +968,7 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             
             # Count how many explanations change
             # Note: Must pass full feature set, not just the single feature
-            logger.info(f"  [{feat_idx+1}/{len(available_features)}] Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
+            logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
             orig_start = time.time()
             try:
                 original_explanations = explainer.explain_dataset(
@@ -1002,17 +1032,40 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 'intervention': intervention_val
             })
             
+            # Incremental checkpointing: save progress every N features
+            if (feat_idx + 1) % checkpoint_interval == 0 and causal_checkpoint_path is not None:
+                try:
+                    # Ensure output directory exists
+                    causal_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                    # Save current progress
+                    temp_df = pd.DataFrame(causal_scores)
+                    temp_df = temp_df.sort_values('causal_importance', ascending=False)
+                    temp_df.to_parquet(causal_checkpoint_path, index=False, compression='snappy', engine='pyarrow')
+                    logger.info(f"  Checkpoint saved: {len(causal_scores)} features processed so far")
+                    print(f"  [CHECKPOINT] Saved progress: {len(causal_scores)}/{len(remaining_features)} features")
+                except Exception as e:
+                    logger.warning(f"  Failed to save checkpoint: {e}")
+            
             logger.debug(f"  Feature {feat_name} analyzed in {time.time() - feat_start:.2f} seconds")
         except Exception as e:
             logger.error(f"Error analyzing {feat_name}: {e}", exc_info=True)
             print(f"  [WARNING] Error analyzing {feat_name}: {e}")
             continue
     
-    logger.info(f"Causal analysis of {len(available_features)} features completed in {time.time() - analysis_start:.2f} seconds")
+    logger.info(f"Causal analysis of {len(remaining_features)} features completed in {time.time() - analysis_start:.2f} seconds")
     
     if causal_scores:
         causal_df = pd.DataFrame(causal_scores)
         causal_df = causal_df.sort_values('causal_importance', ascending=False)
+        
+        # Final save to checkpoint
+        if causal_checkpoint_path is not None:
+            try:
+                causal_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                causal_df.to_parquet(causal_checkpoint_path, index=False, compression='snappy', engine='pyarrow')
+                logger.info(f"Final checkpoint saved: {len(causal_df)} features")
+            except Exception as e:
+                logger.warning(f"Failed to save final checkpoint: {e}")
         
         logger.info(f"Causal analysis completed for {len(causal_df)} features")
         print(f"\n[OK] Causal analysis completed for {len(causal_df)} features")
@@ -1678,7 +1731,8 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         # Step 7: Perform causal analysis (optional, can be skipped if memory is tight)
         logger.info("Step 7: Performing causal analysis...")
         try:
-            causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df, COHORT_NAME, AGE_BAND)
+            causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df, COHORT_NAME, AGE_BAND, 
+                                                model_type=model_type, output_dir=OUTPUT_DIR)
         except MemoryError:
             logger.warning("Memory error during causal analysis. Skipping causal analysis.")
             print("[WARNING] Memory error during causal analysis. Skipping causal analysis.")
