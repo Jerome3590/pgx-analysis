@@ -403,6 +403,8 @@ All pipeline steps use a unified checkpoint/idempotency system:
 s3://pgx-repository/pipeline_checkpoints/{step_name}/{cohort}/{age_band}/checkpoint.json
 ```
 
+**Note**: Checkpoints are stored in `pgx-repository` bucket, while outputs are stored in `pgxdatalake` bucket.
+
 **Idempotency Behavior:**
 - ✅ If outputs exist locally → Skip step, optionally upload to S3
 - ✅ If outputs exist in S3 → Download to local, skip step

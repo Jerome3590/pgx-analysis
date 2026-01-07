@@ -389,16 +389,8 @@ run_step "7" "SHAP Analysis (Best CatBoost Model)" \
     "python 7_shap_analysis/run_shap_analysis.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
 # Step 8: FFA Analysis (uses best XGBoost model JSON and SHAP importance from Step 7)
-if ! should_skip "8"; then
-    log "=========================================="
-    log "Step 8: FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)"
-    log "=========================================="
-    if $PYTHON_CMD 8_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND; then
-        log "✅ Step 8 completed successfully"
-    else
-        warn "Step 8 failed (check if best XGBoost model JSON exists and Step 7 completed)"
-    fi
-fi
+run_step "8" "FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)" \
+    "python 8_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 9: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
 # Prepare models and metadata for this specific cohort/age_band

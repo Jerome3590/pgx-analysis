@@ -516,8 +516,10 @@ All steps use a unified checkpoint/idempotency system via `py_helpers.checkpoint
 
 **Checkpoint Location:**
 ```
-s3://pgxdatalake/gold/checkpoints/{step_name}/{cohort}/{age_band}/checkpoint.json
+s3://pgx-repository/pipeline_checkpoints/{step_name}/{cohort}/{age_band}/checkpoint.json
 ```
+
+**Note**: Checkpoints are stored in `pgx-repository` bucket, while outputs are stored in `pgxdatalake` bucket.
 
 **Idempotency Behavior:**
 - ✅ If outputs exist locally → Skip step, optionally upload to S3
