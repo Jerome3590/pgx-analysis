@@ -136,8 +136,12 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     else:
         random_rules = matched.copy()
     
-    # Set 3: All rules with SHAP importance > 0
-    shap_filtered_matched = [rid for rid in matched if score_rule_by_shap(rid) > 0]
+    # Set 3: Top K rules by SHAP importance (limit to top 300 to reduce computation)
+    # Score all matched rules and take top K
+    rule_scores = [(rid, score_rule_by_shap(rid)) for rid in matched]
+    rule_scores = [(rid, score) for rid, score in rule_scores if score > 0]
+    rule_scores.sort(key=lambda x: x[1], reverse=True)
+    shap_filtered_matched = [rid for rid, score in rule_scores[:300]]  # Top 300 by SHAP score
     
     # Union all three sets to get final unique rule set
     combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched))
@@ -436,22 +440,42 @@ class BaseSymbolicExplainer(ABC):
         
         return score
     
-    def _filter_rules_by_shap(self, rule_ids: List[int]) -> List[int]:
+    def _filter_rules_by_shap(self, rule_ids: List[int], top_k: int = 300, min_shap_score: float = 0.0) -> List[int]:
         """
-        Filter rules to only include those with SHAP importance > 0.
+        Filter rules to only include top K rules by SHAP importance score.
+        
+        This reduces the number of rules significantly while keeping the most important ones,
+        improving AXP computation speed and focusing on high-signal rules.
         
         Args:
             rule_ids: List of rule indices to filter
+            top_k: Maximum number of top rules to return (default: 300)
+            min_shap_score: Minimum SHAP score threshold (default: 0.0, filters out zero-importance rules)
             
         Returns:
-            List of rule indices with SHAP importance > 0
+            List of rule indices with highest SHAP importance scores (up to top_k)
         """
-        filtered = []
+        # Score all rules
+        rule_scores = []
         for rid in rule_ids:
             shap_score = self._score_rule_by_shap(rid)
-            if shap_score > 0:
-                filtered.append(rid)
-        return filtered
+            if shap_score > min_shap_score:
+                rule_scores.append((rid, shap_score))
+        
+        if not rule_scores:
+            return []
+        
+        # Sort by SHAP score (descending) and take top K
+        rule_scores.sort(key=lambda x: x[1], reverse=True)
+        top_rules = [rid for rid, score in rule_scores[:top_k]]
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(
+                f"_filter_rules_by_shap: Filtered {len(rule_ids)} rules -> "
+                f"{len(top_rules)} top rules (top_k={top_k}, min_score={min_shap_score:.6f})"
+            )
+        
+        return top_rules
     
     def _compute_axp(self, rule_ids: List[int]) -> List[int]:
         """
@@ -492,11 +516,12 @@ class BaseSymbolicExplainer(ABC):
         else:
             random_rules = rule_ids.copy()
         
-        # Set 3: All rules with SHAP importance > 0
-        shap_filtered_rules = self._filter_rules_by_shap(rule_ids)
+        # Set 3: Top K rules by SHAP importance (default: top 300, reduces computation time)
+        # This is more aggressive than "all rules with SHAP > 0" which could be thousands
+        shap_filtered_rules = self._filter_rules_by_shap(rule_ids, top_k=300, min_shap_score=0.0)
         
         if hasattr(self, 'logger'):
-            self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, SHAP > 0: {len(shap_filtered_rules)}")
+            self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, Top SHAP: {len(shap_filtered_rules)}")
         
         # Union all three sets to get final unique rule set
         combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_rules))
