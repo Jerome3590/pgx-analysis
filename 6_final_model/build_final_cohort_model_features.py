@@ -224,13 +224,34 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     # ------------------------------------------------------------------
     # Source 5: PGx features
     # ------------------------------------------------------------------
+    # Try multiple possible paths (current structure and legacy)
     pgx_csv = (
         project_root
-        / "7_pgx_analysis"
+        / "5_pgx_analysis"
         / "outputs"
         / "feature_engineering"
         / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
     )
+
+    # Fallback to 5c_pgx_analysis if 5_pgx_analysis doesn't exist
+    if not pgx_csv.exists():
+        pgx_csv = (
+            project_root
+            / "5c_pgx_analysis"
+            / "outputs"
+            / "feature_engineering"
+            / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+        )
+
+    # Fallback to legacy 7_pgx_analysis path
+    if not pgx_csv.exists():
+        pgx_csv = (
+            project_root
+            / "7_pgx_analysis"
+            / "outputs"
+            / "feature_engineering"
+            / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+        )
 
     pgx_df = None
     if pgx_csv.exists():
@@ -239,7 +260,42 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         pgx_df['mi_person_key'] = pgx_df['mi_person_key'].astype(str)
         print(f"[INFO] Loaded PGx features for {len(pgx_df)} patients ({len(pgx_df.columns) - 1} features)")
     else:
-        print(f"[WARNING] PGx features not found: {pgx_csv}")
+        # Try downloading from S3 if not found locally
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+
+            s3_client = boto3.client("s3")
+            bucket = "pgxdatalake"
+            s3_key = f"gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+
+            print(f"[INFO] PGx features not found locally. Downloading from S3: s3://{bucket}/{s3_key}")
+
+            # Download to 5_pgx_analysis path (standard location)
+            pgx_csv = (
+                project_root
+                / "5_pgx_analysis"
+                / "outputs"
+                / "feature_engineering"
+                / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+            )
+            pgx_csv.parent.mkdir(parents=True, exist_ok=True)
+
+            s3_client.download_file(bucket, s3_key, str(pgx_csv))
+            print(f"✓ Downloaded PGx features to {pgx_csv}")
+
+            pgx_df = pd.read_csv(pgx_csv)
+            pgx_df['mi_person_key'] = pgx_df['mi_person_key'].astype(str)
+            print(f"[INFO] Loaded PGx features for {len(pgx_df)} patients ({len(pgx_df.columns) - 1} features)")
+        except (ImportError, ClientError, Exception) as e:
+            print(f"[WARNING] PGx features not found locally and S3 download failed: {e}")
+            print("[WARNING] Expected locations:")
+            pgx_path_1 = project_root / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+            pgx_path_2 = project_root / "5c_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+            s3_path = f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv"
+            print(f"  - {pgx_path_1}")
+            print(f"  - {pgx_path_2}")
+            print(f"  - {s3_path}")
 
     # ------------------------------------------------------------------
     # Merge all features on mi_person_key
