@@ -83,14 +83,17 @@ STEPS = {
         "output_files": [
             "*_shap_global_importance_xgboost.csv",
             "*_shap_sample_values_xgboost.parquet",
+            # CatBoost outputs are optional
+            "*_shap_global_importance_catboost.csv",
+            "*_shap_sample_values_catboost.parquet",
         ],
     },
     "8_ffa_analysis": {
         "checkpoint_prefix": "pipeline_checkpoints/8_ffa_analysis",
         "output_prefix": "gold/ffa_analysis",
         "output_files": [
-            "xgboost/axp_explanations.csv",
-            "xgboost/feature_importance_axp.csv",
+            "xgboost/axp_explanations.parquet",
+            "xgboost/feature_importance_axp.parquet",
         ],
     },
     "9_combined_shap_ffa": {

@@ -78,16 +78,16 @@ def load_model_results(model_type: str) -> Optional[Dict]:
     
     results = {}
     
-    # Load feature importance
-    importance_path = model_dir / 'feature_importance_axp.csv'
+    # Load feature importance (Parquet format)
+    importance_path = model_dir / 'feature_importance_axp.parquet'
     if importance_path.exists():
-        results['feature_importance'] = pd.read_csv(importance_path)
+        results['feature_importance'] = pd.read_parquet(importance_path)
         logger.info(f"Loaded feature importance for {model_type}: {len(results['feature_importance'])} features")
     
-    # Load explanations
-    explanations_path = model_dir / 'axp_explanations.csv'
+    # Load explanations (Parquet format)
+    explanations_path = model_dir / 'axp_explanations.parquet'
     if explanations_path.exists():
-        results['explanations'] = pd.read_csv(explanations_path)
+        results['explanations'] = pd.read_parquet(explanations_path)
         logger.info(f"Loaded explanations for {model_type}: {len(results['explanations'])} explanations")
     
     # Load summary
@@ -97,10 +97,10 @@ def load_model_results(model_type: str) -> Optional[Dict]:
             results['summary'] = json.load(f)
         logger.info(f"Loaded summary for {model_type}")
     
-    # Load causal analysis if available
-    causal_path = model_dir / 'causal_importance.csv'
+    # Load causal analysis if available (Parquet format)
+    causal_path = model_dir / 'causal_importance.parquet'
     if causal_path.exists():
-        results['causal'] = pd.read_csv(causal_path)
+        results['causal'] = pd.read_parquet(causal_path)
         logger.info(f"Loaded causal analysis for {model_type}")
     
     return results if results else None

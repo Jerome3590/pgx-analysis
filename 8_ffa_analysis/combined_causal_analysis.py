@@ -137,15 +137,15 @@ def get_model_weights() -> Dict[str, float]:
     model_weights = {}
     
     for model_type in ['catboost', 'xgboost', 'xgboost_rf']:
-    summary_path = (
-        PROJECT_ROOT
-        / "7_ffa_analysis"
-        / "outputs"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / model_type
-        / "analysis_summary.json"
-    )
+        summary_path = (
+            PROJECT_ROOT
+            / "8_ffa_analysis"
+            / "outputs"
+            / COHORT_NAME
+            / AGE_BAND_FNAME
+            / model_type
+            / "analysis_summary.json"
+        )
         if summary_path.exists():
             with open(summary_path, 'r') as f:
                 summary = json.load(f)
@@ -169,7 +169,7 @@ def get_feature_importance_features() -> List[str]:
     """Get top features from combined weighted importance."""
     importance_path = (
         PROJECT_ROOT
-        / "7_ffa_analysis"
+        / "8_ffa_analysis"
         / "outputs"
         / COHORT_NAME
         / AGE_BAND_FNAME
@@ -186,15 +186,15 @@ def get_feature_importance_features() -> List[str]:
         for model_type in ['catboost', 'xgboost', 'xgboost_rf']:
             importance_path = (
                 PROJECT_ROOT
-                / "7_ffa_analysis"
+                / "8_ffa_analysis"
                 / "outputs"
                 / COHORT_NAME
                 / AGE_BAND_FNAME
                 / model_type
-                / "feature_importance_axp.csv"
+                / "feature_importance_axp.parquet"
             )
             if importance_path.exists():
-                df = pd.read_csv(importance_path)
+                df = pd.read_parquet(importance_path)
                 features.update(df.head(CAUSAL_CONFIG['top_k_features'])['feature'].tolist())
         
         return list(features)[:CAUSAL_CONFIG['top_k_features']]

@@ -66,8 +66,10 @@ def get_step7_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
     # Check key Step 7 (SHAP) output files
     key_files = [
         step7_dir / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
-        step7_dir / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv",
         step7_dir / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
+        # CatBoost outputs are optional (model might not be available)
+        step7_dir / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv",
+        step7_dir / f"{cohort}_{age_band_fname}_shap_sample_values_catboost.parquet",
     ]
     
     max_time = 0.0
@@ -93,10 +95,10 @@ def get_step8_output_timestamp(cohort: str, age_band: str) -> Optional[float]:
     if not step8_dir.exists():
         return None
     
-    # Check key Step 8 (FFA) output files
+    # Check key Step 8 (FFA) output files (Parquet format)
     key_files = [
-        step8_dir / "xgboost" / "axp_explanations.csv",
-        step8_dir / "xgboost" / "feature_importance_axp.csv",
+        step8_dir / "xgboost" / "axp_explanations.parquet",
+        step8_dir / "xgboost" / "feature_importance_axp.parquet",
     ]
     
     max_time = 0.0

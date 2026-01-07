@@ -67,6 +67,7 @@ if [ "$CLEAR_ALL" = true ]; then
         echo "  This includes all cohort/age_band model outputs:"
         echo "    - Model selection metadata JSON files"
         echo "    - Final features CSV files (train_final_features_no_leakage.csv)"
+        echo "    - Final features Parquet files (inputs/model_train/final_features.parquet)"
         echo "    - Model JSON files (XGBoost, CatBoost) in final_model_json/"
         echo "    - Model binaries (.joblib, .cbm) in models/"
         echo "    - Feature importance CSV files"
@@ -88,7 +89,11 @@ if [ "$CLEAR_ALL" = true ]; then
     FFA_DIR="$PROJECT_ROOT/8_ffa_analysis/outputs"
     if [ -d "$FFA_DIR" ]; then
         echo "Removing: $FFA_DIR"
-        echo "  This includes all FFA analysis outputs (depends on Step 6 models)"
+        echo "  This includes all FFA analysis outputs (Parquet format):"
+        echo "    - axp_explanations.parquet"
+        echo "    - feature_importance_axp.parquet"
+        echo "    - causal_importance.parquet"
+        echo "    - interaction_analysis.parquet"
         rm -rf "$FFA_DIR"
         echo "✅ Local FFA outputs cleared"
     else
@@ -99,7 +104,9 @@ if [ "$CLEAR_ALL" = true ]; then
     SHAP_DIR="$PROJECT_ROOT/7_shap_analysis/outputs"
     if [ -d "$SHAP_DIR" ]; then
         echo "Removing: $SHAP_DIR"
-        echo "  This includes all SHAP analysis outputs (depends on Step 6 models)"
+        echo "  This includes all SHAP analysis outputs:"
+        echo "    - Global importance CSV files (XGBoost, CatBoost)"
+        echo "    - Sample values Parquet files (XGBoost, CatBoost)"
         rm -rf "$SHAP_DIR"
         echo "✅ Local SHAP outputs cleared"
     else
@@ -144,6 +151,7 @@ else
         echo "  This includes:"
         echo "    - Model selection metadata JSON"
         echo "    - Final features CSV (train_final_features_no_leakage.csv)"
+        echo "    - Final features Parquet (inputs/model_train/final_features.parquet)"
         echo "    - Model JSON files (XGBoost, CatBoost)"
         echo "    - Model binaries (.joblib, .cbm)"
         echo "    - Feature importance CSV"
@@ -165,7 +173,11 @@ else
     FFA_DIR="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$FFA_DIR" ]; then
         echo "Removing: $FFA_DIR"
-        echo "  This includes FFA analysis outputs (depends on Step 6 models)"
+        echo "  This includes FFA analysis outputs (Parquet format):"
+        echo "    - axp_explanations.parquet"
+        echo "    - feature_importance_axp.parquet"
+        echo "    - causal_importance.parquet"
+        echo "    - interaction_analysis.parquet"
         rm -rf "$FFA_DIR"
         echo "✅ Local FFA outputs cleared for $COHORT/$AGE_BAND"
     else
@@ -176,7 +188,9 @@ else
     SHAP_DIR="$PROJECT_ROOT/7_shap_analysis/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$SHAP_DIR" ]; then
         echo "Removing: $SHAP_DIR"
-        echo "  This includes SHAP analysis outputs (depends on Step 6 models)"
+        echo "  This includes SHAP analysis outputs:"
+        echo "    - Global importance CSV files (XGBoost, CatBoost)"
+        echo "    - Sample values Parquet files (XGBoost, CatBoost)"
         rm -rf "$SHAP_DIR"
         echo "✅ Local SHAP outputs cleared for $COHORT/$AGE_BAND"
     else

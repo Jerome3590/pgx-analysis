@@ -83,7 +83,18 @@ MODEL_JSON_BASE = (
     / AGE_BAND_FNAME
     / "final_model_json"
 )
-DATA_PATH = (
+# Try Parquet first (preferred), fall back to CSV
+DATA_PATH_PARQUET = (
+    PROJECT_ROOT
+    / "6_final_model"
+    / "outputs"
+    / COHORT_NAME
+    / AGE_BAND_FNAME
+    / "inputs"
+    / "model_train"
+    / "final_features.parquet"
+)
+DATA_PATH_CSV = (
     PROJECT_ROOT
     / "6_final_model"
     / "outputs"
@@ -91,6 +102,8 @@ DATA_PATH = (
     / AGE_BAND_FNAME
     / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
 )
+# Use Parquet if available, otherwise CSV
+DATA_PATH = DATA_PATH_PARQUET if DATA_PATH_PARQUET.exists() else DATA_PATH_CSV
 OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -226,7 +239,7 @@ def extract_feature_mappings(model_json: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
-    """Load data for analysis."""
+    """Load data for analysis using DuckDB for efficient Parquet/CSV reading."""
     logger.info(f"Loading data from: {data_path}")
     start_time = time.time()
     
@@ -239,27 +252,69 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
         raise FileNotFoundError(f"Data file not found: {data_path}")
     
     file_size_mb = data_path.stat().st_size / 1024 / 1024
-    logger.info(f"Reading CSV file (size: {file_size_mb:.2f} MB)...")
+    is_parquet = data_path.suffix.lower() == '.parquet'
     
-    # Load CSV with chunking for large files
-    file_size_mb = data_path.stat().st_size / 1024 / 1024
-    if file_size_mb > 500:  # If file is > 500MB, use chunking
-        logger.info(f"Large file detected ({file_size_mb:.2f} MB), using chunked reading...")
-        chunks = []
-        chunk_size = 10000
-        for chunk in pd.read_csv(data_path, chunksize=chunk_size):
-            chunks.append(chunk)
-            if max_samples and len(pd.concat(chunks, ignore_index=True)) >= max_samples:
-                break
-        data = pd.concat(chunks, ignore_index=True)
-        del chunks
-        import gc
-        gc.collect()
+    if is_parquet:
+        logger.info(f"Reading Parquet file (size: {file_size_mb:.2f} MB) using DuckDB...")
+        # Use DuckDB for efficient Parquet reading
+        try:
+            import duckdb
+            con = duckdb.connect()
+            
+            if max_samples:
+                # Load full dataset first to get accurate sampling
+                data = con.execute(f"SELECT * FROM read_parquet('{data_path}')").df()
+                if len(data) > max_samples:
+                    data = data.sample(n=max_samples, random_state=ANALYSIS_CONFIG['random_seed']).reset_index(drop=True)
+            else:
+                data = con.execute(f"SELECT * FROM read_parquet('{data_path}')").df()
+            con.close()
+            
+            logger.info(f"Parquet loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
+        except ImportError:
+            logger.warning("DuckDB not available, falling back to pandas.read_parquet")
+            data = pd.read_parquet(data_path)
+            if max_samples and len(data) > max_samples:
+                data = data.sample(n=max_samples, random_state=ANALYSIS_CONFIG['random_seed']).reset_index(drop=True)
+            logger.info(f"Parquet loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
     else:
-        data = pd.read_csv(data_path)
+        logger.info(f"Reading CSV file (size: {file_size_mb:.2f} MB) using DuckDB...")
+        # Use DuckDB for efficient CSV reading (much faster than pandas)
+        try:
+            import duckdb
+            con = duckdb.connect()
+            
+            if max_samples:
+                # Load full dataset first to get accurate sampling
+                data = con.execute(f"SELECT * FROM read_csv_auto('{data_path}')").df()
+                if len(data) > max_samples:
+                    data = data.sample(n=max_samples, random_state=ANALYSIS_CONFIG['random_seed']).reset_index(drop=True)
+            else:
+                data = con.execute(f"SELECT * FROM read_csv_auto('{data_path}')").df()
+            con.close()
+            
+            logger.info(f"CSV loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
+        except ImportError:
+            logger.warning("DuckDB not available, falling back to pandas.read_csv")
+            # Fallback to pandas CSV reading with chunking for large files
+            if file_size_mb > 500:  # If file is > 500MB, use chunking
+                logger.info(f"Large file detected ({file_size_mb:.2f} MB), using chunked reading...")
+                chunks = []
+                chunk_size = 10000
+                for chunk in pd.read_csv(data_path, chunksize=chunk_size):
+                    chunks.append(chunk)
+                    if max_samples and len(pd.concat(chunks, ignore_index=True)) >= max_samples:
+                        break
+                data = pd.concat(chunks, ignore_index=True)
+                del chunks
+                import gc
+                gc.collect()
+            else:
+                data = pd.read_csv(data_path)
+            
+            logger.info(f"CSV loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
     
-    logger.info(f"CSV loaded: {len(data)} rows, {len(data.columns)} columns in {time.time() - start_time:.2f} seconds")
-    
+    # Apply sampling if needed (only if not already sampled above)
     if max_samples and len(data) > max_samples:
         logger.info(f"Sampling {max_samples} rows from {len(data)} total rows")
         data = data.sample(n=max_samples, random_state=ANALYSIS_CONFIG['random_seed']).reset_index(drop=True)
@@ -1173,43 +1228,45 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
     logger.info(f"Creating output directory: {model_output_dir}")
     model_output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save explanations
+    # Save explanations (Parquet format for efficiency)
+    explanations_path = None
     if len(df_axps) > 0:
-        explanations_path = model_output_dir / 'axp_explanations.csv'
+        explanations_path = model_output_dir / 'axp_explanations.parquet'
         logger.info(f"Saving explanations to: {explanations_path}")
-        df_axps.to_csv(explanations_path, index=False)
+        df_axps.to_parquet(explanations_path, index=False, compression='snappy', engine='pyarrow')
         logger.info(f"Saved {len(df_axps)} explanations")
         print(f"[OK] Saved explanations to: {explanations_path}")
     else:
         logger.warning("No explanations to save")
     
-    # Save feature importance
+    # Save feature importance (Parquet format for efficiency)
+    importance_path = None
     if len(feature_importance_df) > 0:
-        importance_path = model_output_dir / 'feature_importance_axp.csv'
+        importance_path = model_output_dir / 'feature_importance_axp.parquet'
         logger.info(f"Saving feature importance to: {importance_path}")
-        feature_importance_df.to_csv(importance_path, index=False)
+        feature_importance_df.to_parquet(importance_path, index=False, compression='snappy', engine='pyarrow')
         logger.info(f"Saved {len(feature_importance_df)} feature importance scores")
         print(f"[OK] Saved feature importance to: {importance_path}")
     else:
         logger.warning("No feature importance to save")
     
-    # Save causal importance
+    # Save causal importance (Parquet format for efficiency)
     causal_path = None
     if len(causal_df) > 0:
-        causal_path = model_output_dir / 'causal_importance.csv'
+        causal_path = model_output_dir / 'causal_importance.parquet'
         logger.info(f"Saving causal importance to: {causal_path}")
-        causal_df.to_csv(causal_path, index=False)
+        causal_df.to_parquet(causal_path, index=False, compression='snappy', engine='pyarrow')
         logger.info(f"Saved {len(causal_df)} causal importance scores")
         print(f"[OK] Saved causal importance to: {causal_path}")
     else:
         logger.warning("No causal importance to save")
     
-    # Save interaction analysis results
+    # Save interaction analysis results (Parquet format for efficiency)
     interaction_path = None
     if interaction_df is not None and len(interaction_df) > 0:
-        interaction_path = model_output_dir / 'interaction_analysis.csv'
+        interaction_path = model_output_dir / 'interaction_analysis.parquet'
         logger.info(f"Saving interaction analysis to: {interaction_path}")
-        interaction_df.to_csv(interaction_path, index=False)
+        interaction_df.to_parquet(interaction_path, index=False, compression='snappy', engine='pyarrow')
         logger.info(f"Saved {len(interaction_df)} interaction results")
         print(f"[OK] Saved interaction analysis to: {interaction_path}")
     elif interaction_df is not None and len(interaction_df) == 0:
@@ -1220,23 +1277,23 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
 
         s3_outputs = []
-        if explanations_path.exists():
-            s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
+        if explanations_path and explanations_path.exists():
+            s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.parquet"
             if upload_file_to_s3(explanations_path, s3_explanations, logger):
                 s3_outputs.append(s3_explanations)
 
-        if importance_path.exists():
-            s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
+        if importance_path and importance_path.exists():
+            s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.parquet"
             if upload_file_to_s3(importance_path, s3_importance, logger):
                 s3_outputs.append(s3_importance)
         
         if causal_path and causal_path.exists():
-            s3_causal = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.csv"
+            s3_causal = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.parquet"
             if upload_file_to_s3(causal_path, s3_causal, logger):
                 s3_outputs.append(s3_causal)
         
         if interaction_path and interaction_path.exists():
-            s3_interaction = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/interaction_analysis.csv"
+            s3_interaction = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/interaction_analysis.parquet"
             if upload_file_to_s3(interaction_path, s3_interaction, logger):
                 s3_outputs.append(s3_interaction)
 
@@ -1253,15 +1310,7 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
     except ImportError:
         pass  # Checkpoint saving is optional
     
-    # Save causal analysis
-    if len(causal_df) > 0:
-        causal_path = model_output_dir / 'causal_importance.csv'
-        logger.info(f"Saving causal analysis to: {causal_path}")
-        causal_df.to_csv(causal_path, index=False)
-        logger.info(f"Saved {len(causal_df)} causal importance scores")
-        print(f"[OK] Saved causal analysis to: {causal_path}")
-    else:
-        logger.warning("No causal analysis to save")
+    # Note: Causal analysis already saved above as Parquet (removed duplicate CSV save)
     
     # Create summary report
     logger.info("Creating summary report...")
@@ -1618,9 +1667,9 @@ def main():
     all_outputs_exist = True
     for model_type in expected_model_types:
         model_output_dir = OUTPUT_DIR / model_type
-        explanations_path = model_output_dir / 'axp_explanations.csv'
-        importance_path = model_output_dir / 'feature_importance_axp.csv'
-        causal_path = model_output_dir / 'causal_importance.csv'
+        explanations_path = model_output_dir / 'axp_explanations.parquet'
+        importance_path = model_output_dir / 'feature_importance_axp.parquet'
+        causal_path = model_output_dir / 'causal_importance.parquet'
         
         if not (explanations_path.exists() and importance_path.exists()):
             all_outputs_exist = False
@@ -1637,18 +1686,24 @@ def main():
             s3_outputs = []
             for model_type in expected_model_types:
                 model_output_dir = OUTPUT_DIR / model_type
-                explanations_path = model_output_dir / 'axp_explanations.csv'
-                importance_path = model_output_dir / 'feature_importance_axp.csv'
+                explanations_path = model_output_dir / 'axp_explanations.parquet'
+                importance_path = model_output_dir / 'feature_importance_axp.parquet'
+                causal_path = model_output_dir / 'causal_importance.parquet'
                 
                 if explanations_path.exists():
-                    s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
+                    s3_explanations = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.parquet"
                     if upload_file_to_s3(explanations_path, s3_explanations, logger):
                         s3_outputs.append(s3_explanations)
                 
                 if importance_path.exists():
-                    s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
+                    s3_importance = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.parquet"
                     if upload_file_to_s3(importance_path, s3_importance, logger):
                         s3_outputs.append(s3_importance)
+                
+                if causal_path.exists():
+                    s3_causal = f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.parquet"
+                    if upload_file_to_s3(causal_path, s3_causal, logger):
+                        s3_outputs.append(s3_causal)
             
             # Save checkpoint if outputs uploaded
             if s3_outputs:
@@ -1672,8 +1727,8 @@ def main():
         s3_output_paths = []
         for model_type in expected_model_types:
             s3_output_paths.extend([
-                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv",
-                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv",
+                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.parquet",
+                f"s3://pgxdatalake/gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.parquet",
             ])
 
         if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("8_ffa_analysis", COHORT_NAME, AGE_BAND, logger):
@@ -1689,27 +1744,27 @@ def main():
                     model_output_dir = OUTPUT_DIR / model_type
                     model_output_dir.mkdir(parents=True, exist_ok=True)
                     
-                    # Download explanations
-                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.csv"
-                    explanations_path = model_output_dir / 'axp_explanations.csv'
+                    # Download explanations (Parquet format)
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/axp_explanations.parquet"
+                    explanations_path = model_output_dir / 'axp_explanations.parquet'
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(explanations_path))
                         logger.info(f"Downloaded {explanations_path} from S3")
                     except Exception as e:
                         logger.warning(f"Could not download {s3_key}: {e}")
                     
-                    # Download importance
-                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.csv"
-                    importance_path = model_output_dir / 'feature_importance_axp.csv'
+                    # Download importance (Parquet format)
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/feature_importance_axp.parquet"
+                    importance_path = model_output_dir / 'feature_importance_axp.parquet'
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(importance_path))
                         logger.info(f"Downloaded {importance_path} from S3")
                     except Exception as e:
                         logger.warning(f"Could not download {s3_key}: {e}")
                     
-                    # Download causal (optional)
-                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.csv"
-                    causal_path = model_output_dir / 'causal_importance.csv'
+                    # Download causal (optional, Parquet format)
+                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.parquet"
+                    causal_path = model_output_dir / 'causal_importance.parquet'
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(causal_path))
                         logger.info(f"Downloaded {causal_path} from S3")

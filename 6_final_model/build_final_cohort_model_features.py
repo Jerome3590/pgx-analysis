@@ -9,8 +9,9 @@ This script merges, for a specified `(cohort_name, age_band)`:
 - DTW trajectory features (prototype DTW distances)
 - PGx pharmacogenomics features (allele frequencies, drug-gene mappings)
 
-Outputs a patient-level CSV (one row per `mi_person_key`) under:
-  `8_final_model/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_train_final_features.csv`
+Outputs a patient-level CSV and Parquet (one row per `mi_person_key`) under:
+  `6_final_model/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_train_final_features.csv`
+  `6_final_model/outputs/{cohort_name}/{age_band_fname}/inputs/model_train/final_features.parquet`
 
 Currently supported cohorts:
 - `opioid_ed`  – expects BupaR files with F1120 naming (`pre_f1120`, `post_f1120`, `time_to_f1120`)
@@ -304,12 +305,19 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         print("[WARNING] Target column missing after merge, adding from base_df")
         merged = merged.merge(base_df[['mi_person_key', 'target']], on="mi_person_key", how="left")
 
-    out_dir = project_root / "8_final_model" / "outputs" / cohort_name / age_band_fname
+    out_dir = project_root / "6_final_model" / "outputs" / cohort_name / age_band_fname
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{cohort_name}_{age_band_fname}_train_final_features.csv"
+    out_path_csv = out_dir / f"{cohort_name}_{age_band_fname}_train_final_features.csv"
+    out_path_parquet = out_dir / "inputs" / "model_train" / "final_features.parquet"
 
-    print(f"[INFO] Writing final feature table to {out_path} ({len(merged)} rows, {len(merged.columns)} columns)")
-    merged.to_csv(out_path, index=False)
+    # Save CSV (for backward compatibility)
+    print(f"[INFO] Writing final feature table to CSV: {out_path_csv} ({len(merged)} rows, {len(merged.columns)} columns)")
+    merged.to_csv(out_path_csv, index=False)
+    
+    # Save Parquet (preferred format for downstream steps)
+    print(f"[INFO] Writing final feature table to Parquet: {out_path_parquet}")
+    out_path_parquet.parent.mkdir(parents=True, exist_ok=True)
+    merged.to_parquet(out_path_parquet, index=False, compression='snappy', engine='pyarrow')
     print("[INFO] Done.")
 
 

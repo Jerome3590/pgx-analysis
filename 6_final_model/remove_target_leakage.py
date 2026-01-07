@@ -37,7 +37,7 @@ def remove_target_leakage(
     # Load feature table
     feature_table_path = (
         project_root
-        / "8_final_model"
+        / "6_final_model"
         / "outputs"
         / cohort_name
         / age_band_fname
@@ -136,23 +136,40 @@ def remove_target_leakage(
     print(f"[INFO] Removed {len(df.columns) - len(df_clean.columns)} columns")
     print(f"[INFO] All features are from events BEFORE F1120 (excluding F1120 and everything after)")
     
-    # Save cleaned feature table
-    output_path = (
+    # Save cleaned feature table (Parquet format for efficiency)
+    output_path_csv = (
         project_root
-        / "8_final_model"
+        / "6_final_model"
         / "outputs"
         / cohort_name
         / age_band_fname
         / f"{cohort_name}_{age_band_fname}_train_final_features_no_leakage.csv"
     )
+    output_path_parquet = (
+        project_root
+        / "6_final_model"
+        / "outputs"
+        / cohort_name
+        / age_band_fname
+        / "inputs"
+        / "model_train"
+        / "final_features.parquet"
+    )
     
-    print(f"\n[INFO] Saving cleaned feature table to {output_path}")
-    df_clean.to_csv(output_path, index=False)
+    # Save CSV (for backward compatibility)
+    print(f"\n[INFO] Saving cleaned feature table to {output_path_csv}")
+    output_path_csv.parent.mkdir(parents=True, exist_ok=True)
+    df_clean.to_csv(output_path_csv, index=False)
+    
+    # Save Parquet (preferred format for downstream steps)
+    print(f"[INFO] Saving cleaned feature table to Parquet: {output_path_parquet}")
+    output_path_parquet.parent.mkdir(parents=True, exist_ok=True)
+    df_clean.to_parquet(output_path_parquet, index=False, compression='snappy', engine='pyarrow')
     
     # Save list of removed features
     removed_features_path = (
         project_root
-        / "8_final_model"
+        / "6_final_model"
         / "outputs"
         / cohort_name
         / age_band_fname
