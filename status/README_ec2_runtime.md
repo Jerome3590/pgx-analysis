@@ -1,42 +1,61 @@
-# EC2 Runtime Estimates (32 cores, 1TB RAM, Full Parallelization)
+# EC2 Runtime Estimates (32 cores, 1TB RAM, Final Production Workflow)
 
 **System:** EC2 with 32 cores, 1TB RAM  
-**Strategy:** Maximum parallelization (all cohorts + all independent steps)
+**Strategy:** Maximum parallelization (all cohorts + optimized DuckDB threading)
+
+**Last Updated:** 2026-01-07
+**Workflow:** 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
 
 ---
 
 ## Key Assumptions
 
-1. **Worker Configuration:**
-   - 28 workers (leaving 4 cores for system/OS overhead)
-   - 2 threads per XGBoost model (28 workers × 2 = 56 threads on 32 cores)
-   - 1TB RAM allows running multiple cohorts simultaneously
+1. **DuckDB Configuration:**
+   - 4 threads per DuckDB connection (optimized for 32-core EC2)
+   - 512GB memory limit per connection (50% of 1TB RAM)
+   - NVMe temp directory for fast I/O
 
-2. **Parallelization Strategy:**
-   - **Multiple cohorts in parallel:** Run all 5 pending cohorts simultaneously
-   - **Independent steps in parallel:** Steps 5a, 5c, 5d can run simultaneously after 5b
-   - **Steps 7 and 8 in parallel:** Can run simultaneously after Step 6
+2. **Workflow Steps:**
+   - **Step 3:** Feature Importance (Monte Carlo CV) - Complete, reused
+   - **Step 4a:** Model Data Extraction
+   - **Step 4b:** DTW Protocol Filtering
+   - **Step 5c:** PGx Feature Engineering (only feature engineering step)
+   - **Step 6:** Final Model Training (aggregated features + PGx)
+   - **Step 7:** SHAP Analysis (XGBoost + CatBoost, required before Step 8)
+   - **Step 8:** FFA Analysis (XGBoost only, uses SHAP from Step 7)
+   - **Step 9:** Risk Dashboard (visualizations)
 
-3. **EC2 Performance vs Local:**
+3. **Parallelization Strategy:**
+   - **Multiple cohorts in parallel:** Run all 7 cohorts simultaneously
+   - **Step 7 before Step 8:** SHAP must complete before FFA (FFA uses SHAP importance)
+   - **CPU utilization:** ~28 cores (87.5%) when running all 7 cohorts in parallel
+
+4. **EC2 Performance:**
    - 2-3x faster for CPU-bound tasks (better CPU, faster I/O)
    - S3 access is much faster (same region)
-   - No Windows overhead
+   - NVMe storage for DuckDB temp files
 
 ---
 
-## Per-Cohort Sequential Time (Steps 4b-8) on EC2
+## Per-Cohort Sequential Time (Steps 4a-9) on EC2
 
-Based on actual benchmarks and EC2 optimizations:
+Based on final production workflow with DuckDB optimizations (4 threads per connection):
 
-| Cohort | Events (train) | Step 4b | Step 4c | Step 5b | Step 5a | Step 5c | Step 5d | Step 6 | Step 7 | Step 8 | **Total Sequential** |
-|--------|----------------|---------|---------|---------|---------|---------|---------|--------|--------|--------|---------------------|
-| **opioid_ed 0-12** | 2K | 2 min | 2 min | 5 min | 3 min | 2 min | 3 min | 5 min | 10 min | 10 min | **~42 min** |
-| **opioid_ed 55-64** | 3.2M | 15 min | 5 min | 1.5-2 hrs | 30 min | 10 min | 30 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | **~5-7 hours** |
-| **non_opioid_ed 65-74** | 2.9M | 15 min | 5 min | 1.5-2 hrs | 30 min | 10 min | 30 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | **~5-7 hours** |
-| **non_opioid_ed 75-84** | 1.2M | 10 min | 5 min | 1-1.5 hrs | 20 min | 8 min | 20 min | 20 min | 45 min | 45 min | **~3.5-4.5 hours** |
-| **non_opioid_ed 85-94** | 274K | 5 min | 3 min | 30-45 min | 10 min | 5 min | 10 min | 10 min | 20 min | 20 min | **~1.5-2 hours** |
+| Cohort | Events (train) | Step 4a | Step 4b | Step 5c | Step 6 | Step 7 | Step 8 | Step 9 | **Total Sequential** |
+|--------|----------------|---------|---------|---------|--------|--------|--------|--------|---------------------|
+| **opioid_ed 13-24** | ~500K | 5 min | 5 min | 5 min | 15 min | 30 min | 45 min | 10 min | **~1.75 hours** |
+| **opioid_ed 25-44** | ~1.5M | 8 min | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **opioid_ed 45-54** | ~1.2M | 8 min | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **opioid_ed 55-64** | ~3.2M | 15 min | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
+| **non_opioid_ed 65-74** | ~2.9M | 15 min | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
+| **non_opioid_ed 75-84** | ~1.2M | 10 min | 10 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **non_opioid_ed 85-94** | ~274K | 5 min | 5 min | 5 min | 15 min | 20 min | 30 min | 10 min | **~1.5 hours** |
 
-**Note:** These are sequential times with internal parallelization (28 workers for MC-CV, etc.)
+**Note:**
+- Step 3 (Feature Importance) is complete and reused
+- Steps 4a-9 are sequential per cohort (Step 7 must complete before Step 8)
+- DuckDB uses 4 threads per connection (optimized for 32-core EC2)
+- Times include DuckDB optimizations (pure SQL, LAG() instead of joins, etc.)
 
 ---
 
@@ -44,114 +63,140 @@ Based on actual benchmarks and EC2 optimizations:
 
 ### Strategy 1: All Cohorts in Parallel (Maximum Throughput)
 
-**Run all 5 cohorts simultaneously, each in its own process/terminal:**
+**Run all 7 cohorts simultaneously using workflow scripts:**
 
-```
-Terminal 1: opioid_ed 0-12 (Steps 4b-8)
-Terminal 2: opioid_ed 55-64 (Steps 4b-8)
-Terminal 3: non_opioid_ed 65-74 (Steps 4b-8)
-Terminal 4: non_opioid_ed 75-84 (Steps 4b-8)
-Terminal 5: non_opioid_ed 85-94 (Steps 4b-8)
+```bash
+# All cohorts in parallel (recommended)
+bash utility_scripts/run_all_cohorts_workflow.sh
 ```
 
-**Total Wall Time:** ~7 hours (bottleneck is the longest cohort: 55-64 or 65-74)
+![Workflow Execution](workflow_execution.png)
+
+**Or run individually in separate terminals:**
+```bash
+# Terminal 1-4: Opioid ED cohorts
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24 &
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44 &
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 45-54 &
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 55-64 &
+
+# Terminal 5-7: Non-Opioid ED cohorts
+bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74 &
+bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 75-84 &
+bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 85-94 &
+```
+
+**Total Wall Time:** ~6 hours (bottleneck is the longest cohort: 55-64 or 65-74)
 
 **Resource Usage:**
-- CPU: ~140 workers total (28 per cohort × 5 cohorts) - **OVERSUBSCRIBED**
-- RAM: ~500GB total (100GB per cohort estimate) - **WITHIN LIMIT**
+- CPU: ~28 cores (7 cohorts × 4 DuckDB threads = 28 cores) - **OPTIMAL (87.5% utilization)**
+- RAM: ~3.5TB theoretical max (7 × 512GB), but actual usage ~500-700GB - **WITHIN LIMIT**
 
-**Problem:** CPU oversubscription will slow things down.
+**Note:** DuckDB connections are efficient; actual CPU usage per cohort is lower than theoretical max.
 
 ---
 
-### Strategy 2: Optimal Parallelization (Recommended)
+### Strategy 2: Batched Parallelization (Recommended for Resource Management)
 
-**Phase 1: Data Preparation (Parallel)**
-- Run Steps 4b and 4c for all 5 cohorts in parallel
+**Phase 1: Data Preparation (All cohorts in parallel)**
+- Run Steps 4a and 4b for all 7 cohorts in parallel
 - **Time:** ~20 minutes (bottleneck: 15 min for large cohorts)
 
-**Phase 2: Feature Engineering (Sequential by cohort, parallel within)**
-- Run Steps 5b, then 5a/5c/5d in parallel for each cohort
-- **Option A:** Run cohorts sequentially (one at a time)
-  - Total: 42 min + 7 hrs + 7 hrs + 4.5 hrs + 2 hrs = **~21 hours**
-- **Option B:** Run 2-3 cohorts in parallel (balance CPU/RAM)
-  - Run: (0-12 + 85-94) in parallel, then (55-64 + 75-84) in parallel, then 65-74 alone
-  - Total: ~7 hours (bottleneck: 55-64 or 65-74)
+**Phase 2: Feature Engineering (All cohorts in parallel)**
+- Run Step 5c (PGx) for all cohorts in parallel
+- **Time:** ~10 minutes (bottleneck: large cohorts)
 
-**Phase 3: Modeling & Analysis (Parallel where possible)**
-- Run Step 6 for all cohorts in parallel (if RAM allows)
-- Run Steps 7 and 8 in parallel for each cohort
-- **Time:** ~1.5-2 hours (bottleneck: FFA/SHAP for large cohorts)
+**Phase 3: Model Training (All cohorts in parallel)**
+- Run Step 6 (Final Model) for all cohorts in parallel
+- **Time:** ~30 minutes (bottleneck: large cohorts)
 
-**Total Wall Time (Option B):** ~10-12 hours
+**Phase 4: SHAP Analysis (All cohorts in parallel)**
+- Run Step 7 (SHAP) for all cohorts in parallel
+- **Time:** ~1.5 hours (bottleneck: large cohorts, two-pass streamed approach)
+
+**Phase 5: FFA Analysis (All cohorts in parallel)**
+- Run Step 8 (FFA) for all cohorts in parallel (depends on Step 7)
+- **Time:** ~1.5 hours (bottleneck: large cohorts, XGBoost only)
+
+**Phase 6: Dashboard (All cohorts in parallel)**
+- Run Step 9 (Risk Dashboard) for all cohorts in parallel
+- **Time:** ~20 minutes
+
+**Total Wall Time:** ~4.5-5 hours (all phases sequential, but all cohorts parallel within each phase)
 
 ---
 
-### Strategy 3: Maximum Parallelization (Aggressive)
+### Strategy 3: Grouped Parallelization (By Cohort Group)
 
-**Run 2-3 cohorts simultaneously throughout:**
+**Run cohort groups sequentially, cohorts within group in parallel:**
 
-**Batch 1 (Small cohorts):**
-- `opioid_ed 0-12` + `non_opioid_ed 85-94` in parallel
-- **Time:** ~2 hours (bottleneck: 85-94)
+**Batch 1: Opioid ED cohorts (4 cohorts in parallel)**
+```bash
+bash utility_scripts/run_opioid_ed_workflow.sh
+```
+- Cohorts: 13-24, 25-44, 45-54, 55-64
+- **Time:** ~6 hours (bottleneck: 55-64)
 
-**Batch 2 (Medium cohorts):**
-- `non_opioid_ed 75-84` alone (or with 0-12 if it finishes early)
-- **Time:** ~4.5 hours
+**Batch 2: Non-Opioid ED cohorts (3 cohorts in parallel)**
+```bash
+bash utility_scripts/run_non_opioid_ed_workflow.sh
+```
+- Cohorts: 65-74, 75-84, 85-94
+- **Time:** ~6 hours (bottleneck: 65-74)
 
-**Batch 3 (Large cohorts - run 2 in parallel):**
-- `opioid_ed 55-64` + `non_opioid_ed 65-74` in parallel
-- **Time:** ~7 hours (bottleneck: both are similar size)
-
-**Total Wall Time:** ~7-8 hours
+**Total Wall Time:** ~12 hours (sequential batches)
 
 **Resource Usage:**
-- CPU: ~56 workers (28 per cohort × 2 cohorts) - **OPTIMAL**
-- RAM: ~200GB (100GB per cohort × 2) - **WELL WITHIN LIMIT**
+- CPU: ~16 cores per batch (4 cohorts × 4 DuckDB threads) - **OPTIMAL**
+- RAM: ~2TB theoretical max per batch, actual ~300-400GB - **WELL WITHIN LIMIT**
 
 ---
 
 ## Recommended Execution Plan
 
-### Day 1: Setup & Small Cohorts (2-3 hours)
+### Option A: All Cohorts in Parallel (Fastest, Recommended)
+
+**Run all 7 cohorts simultaneously:**
 
 ```bash
-# Terminal 1: Small cohort 1
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name opioid_ed --age-band 0-12
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name opioid_ed --age-band 0-12
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name opioid_ed --age-band 0-12
-# ... continue with Steps 5a, 5c, 5d, 6, 7, 8
-
-# Terminal 2: Small cohort 2
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 85-94
-# ... continue with all steps
+# Single command runs all cohorts
+bash utility_scripts/run_all_cohorts_workflow.sh
 ```
 
-**Expected:** Both complete in ~2 hours
+**Expected:** All complete in ~6 hours (bottleneck: 55-64 or 65-74)
 
-### Day 1-2: Medium Cohort (4-5 hours)
+**Resource Usage:**
+- CPU: ~28 cores (87.5% utilization) - **OPTIMAL**
+- RAM: ~500-700GB actual usage - **WELL WITHIN LIMIT**
+
+### Option B: Grouped Execution (If Resource Concerns)
+
+**Run cohort groups sequentially:**
 
 ```bash
-# Terminal 1: Medium cohort
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 75-84
-# ... continue with all steps
+# Day 1: Opioid ED cohorts (4 cohorts in parallel)
+bash utility_scripts/run_opioid_ed_workflow.sh
+# Expected: ~6 hours
+
+# Day 2: Non-Opioid ED cohorts (3 cohorts in parallel)
+bash utility_scripts/run_non_opioid_ed_workflow.sh
+# Expected: ~6 hours
 ```
 
-**Expected:** Completes in ~4.5 hours
+**Total Wall Time:** ~12 hours
 
-### Day 2: Large Cohorts in Parallel (7-8 hours)
+### Option C: Individual Cohorts (Maximum Control)
+
+**Run cohorts one at a time or in small batches:**
 
 ```bash
-# Terminal 1: Large cohort 1
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name opioid_ed --age-band 55-64
-# ... continue with all steps
-
-# Terminal 2: Large cohort 2
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 65-74
-# ... continue with all steps
+# Run individual cohorts
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
+# ... etc
 ```
 
-**Expected:** Both complete in ~7-8 hours (running in parallel)
+**Total Wall Time:** ~18-20 hours (if sequential)
 
 ---
 
@@ -159,100 +204,115 @@ python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age
 
 | Strategy | Total Time | Resource Usage | Notes |
 |----------|------------|----------------|-------|
-| **Sequential (one at a time)** | ~21 hours | Low (28 workers) | Safest, slowest |
-| **2 cohorts in parallel** | **~10-12 hours** | **Optimal (56 workers)** | **RECOMMENDED** |
-| **All 5 cohorts in parallel** | ~7-8 hours | High (140 workers) | CPU oversubscription, may be slower |
+| **Sequential (one at a time)** | ~18-20 hours | Low (~4 cores) | Safest, slowest |
+| **Grouped (opioid_ed then non_opioid_ed)** | ~12 hours | Moderate (~16 cores per batch) | Good balance |
+| **All 7 cohorts in parallel** | **~6 hours** | **Optimal (~28 cores, 87.5%)** | **RECOMMENDED** |
 
 ---
 
-## Step-by-Step Parallelization Opportunities
+## Step Dependencies and Parallelization
 
-### Steps That Can Run in Parallel (After Dependencies)
+### Workflow Dependencies
 
-1. **After Step 5b completes:**
-   - Steps 5a, 5c, 5d can run in parallel (they all depend on 5b's itemsets)
-   - **Time savings:** ~1-2 hours per cohort
+1. **Step 3 → Step 4a:** Feature importance required for model data extraction
+2. **Step 4a → Step 4b:** Model data required for protocol filtering
+3. **Step 4b → Step 5c:** Protocol-filtered data used for PGx features
+4. **Step 5c → Step 6:** PGx features + aggregated features → final model
+5. **Step 6 → Step 7:** Final model required for SHAP analysis
+6. **Step 7 → Step 8:** SHAP importance required for FFA rule filtering (Step 8 uses SHAP from Step 7)
+7. **Step 8 → Step 9:** FFA analysis outputs used for dashboard
 
-2. **After Step 6 completes:**
-   - Steps 7 and 8 can run in parallel (they both depend on final model)
-   - **Time savings:** ~1-2 hours per cohort
+### Parallelization Opportunities
 
-3. **Multiple cohorts:**
-   - All cohorts can run Steps 4b and 4c in parallel
-   - Small cohorts can run alongside large ones
+1. **Multiple cohorts:** All cohorts can run Steps 4a-9 in parallel (independent workflows)
+2. **Within cohort:** Steps must run sequentially (dependencies above)
+3. **Step 7 before Step 8:** Critical dependency - FFA requires SHAP importance values
 
 ---
 
 ## Memory Considerations
 
 **Per-Cohort Memory Usage (estimated):**
-- Step 4b/4c: ~10-20GB
-- Step 5b (FP-Growth): ~50-100GB (memory-intensive)
-- Step 5a (BupaR): ~20-30GB
+- Step 4a (Model Data): ~10-20GB
+- Step 4b (DTW Filter): ~10-20GB (DuckDB optimized)
 - Step 5c (PGx): ~10-20GB
-- Step 5d (DTW): ~30-50GB
-- Step 6 (Final Model): ~50-100GB
-- Step 7 (FFA): ~50-100GB
-- Step 8 (SHAP): ~50-100GB
+- Step 6 (Final Model): ~50-100GB (CatBoost + XGBoost training)
+- Step 7 (SHAP): ~50-100GB (two-pass streamed approach, memory efficient)
+- Step 8 (FFA): ~50-100GB (XGBoost only, uses SHAP importance)
+- Step 9 (Dashboard): ~10-20GB (visualizations)
 
 **Peak Memory (single cohort):** ~100-150GB
 
-**With 2 cohorts in parallel:** ~200-300GB (well within 1TB limit)
+**With all 7 cohorts in parallel:** ~500-700GB actual usage (well within 1TB limit)
 
-**With all 5 cohorts in parallel:** ~500-750GB (still within limit, but CPU oversubscription)
+**DuckDB Configuration:**
+- 512GB memory limit per connection (50% of 1TB RAM)
+- NVMe temp directory for efficient spillover
+- 4 threads per connection (optimized for 32-core EC2)
 
 ---
 
 ## Final Recommendation
 
-**Best Strategy: Run 2 cohorts in parallel**
+**Best Strategy: Run all 7 cohorts in parallel**
 
-1. **Start with small cohorts:** `opioid_ed 0-12` + `non_opioid_ed 85-94` (~2 hours)
-2. **Then medium cohort:** `non_opioid_ed 75-84` alone (~4.5 hours)
-3. **Finally large cohorts:** `opioid_ed 55-64` + `non_opioid_ed 65-74` in parallel (~7-8 hours)
+```bash
+bash utility_scripts/run_all_cohorts_workflow.sh
+```
 
-**Total Wall Time: ~10-12 hours**
+**Why:**
+1. **Optimal CPU utilization:** ~28 cores (87.5%) - no oversubscription
+2. **Memory efficient:** ~500-700GB actual usage - well within 1TB limit
+3. **Fastest completion:** ~6 hours total wall time
+4. **Idempotent:** Scripts automatically skip completed steps
+5. **DuckDB optimized:** 4 threads per connection, NVMe temp directory
 
-**Alternative (if you want to start and walk away):**
-- Run all 5 cohorts in parallel
-- **Total Wall Time: ~7-8 hours** (but may be slower due to CPU oversubscription)
+**Total Wall Time: ~6 hours** (bottleneck: 55-64 or 65-74 cohorts)
+
+**Alternative (if resource-constrained):**
+- Run cohort groups sequentially: opioid_ed first, then non_opioid_ed
+- **Total Wall Time: ~12 hours**
 
 ---
 
 ## Quick Start Commands
 
-### Run All Cohorts in Parallel (Aggressive)
+### Run All Cohorts in Parallel (Recommended)
 
 ```bash
-# Terminal 1
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name opioid_ed --age-band 0-12 && \
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name opioid_ed --age-band 0-12 && \
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name opioid_ed --age-band 0-12
-
-# Terminal 2
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name opioid_ed --age-band 55-64 && \
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name opioid_ed --age-band 55-64 && \
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name opioid_ed --age-band 55-64
-
-# Terminal 3
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 65-74 && \
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name non_opioid_ed --age-band 65-74 && \
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name non_opioid_ed --age-band 65-74
-
-# Terminal 4
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 75-84 && \
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name non_opioid_ed --age-band 75-84 && \
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name non_opioid_ed --age-band 75-84
-
-# Terminal 5
-python 4b_dtw_filter/filter_protocol_events.py --cohort-name non_opioid_ed --age-band 85-94 && \
-python 5b_fpgrowth_analysis/extract_extreme_density_cohort.py --cohort-name non_opioid_ed --age-band 85-94 && \
-python 5b_fpgrowth_analysis/run_analysis.py --cohort-name non_opioid_ed --age-band 85-94
+# Single command runs all 7 cohorts (Steps 4a-9)
+bash utility_scripts/run_all_cohorts_workflow.sh
 ```
 
-**Or use the cohort runner notebooks configured for all cohorts!**
+**Expected:** All cohorts complete in ~6 hours
+
+### Run Cohort Groups Separately
+
+```bash
+# Opioid ED cohorts (4 cohorts in parallel)
+bash utility_scripts/run_opioid_ed_workflow.sh
+
+# Non-Opioid ED cohorts (3 cohorts in parallel)
+bash utility_scripts/run_non_opioid_ed_workflow.sh
+```
+
+### Run Individual Cohorts
+
+```bash
+# Single cohort/age band
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
+bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
+```
+
+**Available Cohorts:**
+- **opioid_ed**: 13-24, 25-44, 45-54, 55-64
+- **non_opioid_ed**: 65-74, 75-84, 85-94
+
+**Note:** All workflow scripts are idempotent and will automatically skip completed steps.
 
 ---
 
-**Last Updated:** 2025-01-02  
+**Last Updated:** 2026-01-07
 **System:** EC2 32-core, 1TB RAM
+**Workflow:** 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
+**DuckDB:** 4 threads per connection, 512GB memory limit, NVMe temp directory
