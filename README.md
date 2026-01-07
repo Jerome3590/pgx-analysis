@@ -21,6 +21,69 @@ pip install -r requirements.txt
 aws configure
 ```
 
+## Running the Workflow
+
+The workflow can be run for individual cohorts or all cohorts at once. All scripts are idempotent and will automatically skip completed steps.
+
+### Single Cohort/Age Band
+
+Run the complete workflow for a single cohort and age band:
+
+```bash
+bash utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band> [--skip-steps STEP1,STEP2]
+```
+
+**Examples:**
+```bash
+# Run opioid_ed 13-24
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
+
+# Run non_opioid_ed 65-74
+bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
+
+# Skip specific steps (e.g., skip step 5c)
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24 --skip-steps 5c
+```
+
+### All Cohorts in a Group
+
+**All Opioid ED cohorts:**
+```bash
+bash utility_scripts/run_opioid_ed_workflow.sh [--skip-steps STEP1,STEP2]
+```
+Runs: `13-24`, `25-44`, `45-54`, `55-64`
+
+**All Non-Opioid ED cohorts:**
+```bash
+bash utility_scripts/run_non_opioid_ed_workflow.sh [--skip-steps STEP1,STEP2]
+```
+Runs: `65-74`, `75-84`, `85-94`
+
+### All Cohorts (Both Groups)
+
+```bash
+bash utility_scripts/run_all_cohorts_workflow.sh [--skip-steps STEP1,STEP2]
+```
+Runs all cohorts and age bands sequentially.
+
+### Available Cohorts and Age Bands
+
+- **`opioid_ed`**: `13-24`, `25-44`, `45-54`, `55-64`
+- **`non_opioid_ed`**: `65-74`, `75-84`, `85-94`
+
+### Workflow Steps (Executed Automatically)
+
+1. **Step 3**: Feature Importance (Monte Carlo CV)
+2. **Step 4a**: Model Data Creation (`model_events.parquet`)
+3. **Step 4b**: DTW Protocol Filtering
+4. **Step 5c**: PGx Feature Engineering
+5. **Step 6**: Final Model Training
+6. **Step 7**: SHAP Analysis (CatBoost)
+7. **Step 8**: FFA Analysis (XGBoost, uses SHAP from Step 7)
+8. **Step 9**: Risk Dashboard (visualizations)
+
+The scripts are idempotent and will skip completed steps automatically.
+
 ## Repository Structure
 
 ```
