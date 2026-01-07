@@ -93,7 +93,7 @@ pgx-analysis/
 ├── 3_feature_importance/       # Step 3: MC-CV feature importance (aggregated importances)
 ├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
 ├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
-├── 5_pgx_analysis/            # Step 5: PGx feature engineering
+├── 5_pgx_analysis/             # Step 5: PGx feature engineering
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
 ├── 7_ffa_analysis/             # Step 8: Formal Feature Attribution (FFA) analysis (uses SHAP to prioritize rules)
 ├── 8_shap_analysis/            # Step 7: SHAP-based post-model analysis
