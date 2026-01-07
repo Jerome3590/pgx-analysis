@@ -22,10 +22,28 @@ Model performance and step details are preserved below but superseded by the ref
 
 ---
 
-## Current Workflow (4a_model_data + Central Outputs)
+## Current Workflow (Final Production Pipeline)
 
-**As of:** 2025-12-31  
-**Status:** ✅ Canonical workflow definition (see historical section above for last full run)
+**As of:** 2026-01-07  
+**Status:** ✅ Final production workflow definition
+
+**Workflow Execution:**
+```bash
+# Single cohort/age band
+bash utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band>
+
+# All cohorts in a group
+bash utility_scripts/run_opioid_ed_workflow.sh
+bash utility_scripts/run_non_opioid_ed_workflow.sh
+
+# All cohorts
+bash utility_scripts/run_all_cohorts_workflow.sh
+```
+
+**Performance Configuration:**
+- DuckDB threads: 4 per connection (optimized for 32-core EC2)
+- Expected CPU utilization: ~28 cores (87.5%) when running all 7 cohorts in parallel
+- Memory: 512GB per DuckDB connection (50% of 1TB RAM)
 
 ### Step 3: Feature Importance ✅
 - **Status:** ✅ Complete (reused from previous run)
@@ -110,37 +128,85 @@ Model performance and step details are preserved below but superseded by the ref
   - `feature_engineering_outputs/6_dtw/opioid_ed/0-12/dtw_added_features_opioid_ed_0_12.csv`
 - **Status:** ⏳ Pending.
 
-### Step 5c: PGx Feature Engineering ⏳
-- **Goal:** Rebuild PGx patient-level and added-features tables, and mirror to central outputs.
-- **Scripts:**  
-  - `5c_pgx_analysis/create_pgx_features.py`  
-  - `5c_pgx_analysis/add_pgx_features_to_model_data.py`
+### Step 5c: PGx Feature Engineering ✅
+- **Goal:** Build PGx patient-level features from drug-gene mappings and allele frequencies.
+- **Script:** `5_pgx_analysis/run_analysis.py`
 - **Inputs:**  
   - Aggregated feature importance (`3_feature_importance/outputs/...`)  
-  - Drug–gene mappings, allele frequencies (`7_pgx_analysis/outputs/...`)  
+  - Drug–gene mappings, allele frequencies (`5_pgx_analysis/outputs/...`)  
   - Model events from `4a_model_data/...` (for exposure linking)
-- **Outputs (authoritative):**  
-  - `5c_pgx_analysis/outputs/feature_engineering/pgx_features_opioid_ed_0_12.csv`  
-  - `5c_pgx_analysis/outputs/feature_engineering/pgx_added_features_opioid_ed_0_12.csv`
-- **Outputs (mirrored for convenience):**  
-  - `feature_engineering_outputs/7_pgx/opioid_ed/0-12/pgx_features_opioid_ed_0_12.csv`  
-  - `feature_engineering_outputs/7_pgx/opioid_ed/0-12/pgx_added_features_opioid_ed_0_12.csv`
-- **Status:** ⏳ Pending.
-
-### Step 6 Final Model: GPU-Preferred XGBoost / RF ⏳
-- **Goal:** Use the refactored `6b_final_model_selection/run_final_model.py` to assemble the final feature matrix
-  from `4a_model_data` + mirrored feature blocks and train/evaluate a GPU-accelerated classifier when available.
-- **Script:** `6b_final_model_selection/run_final_model.py`
-- **Inputs:**  
-  - `4a_model_data/cohort_name=opioid_ed/age_band=0-12/model_events.parquet`  
-  - `feature_engineering_outputs/4_fpgrowth/opioid_ed/0-12/fpgrowth_added_features_...csv`  
-  - `feature_engineering_outputs/5_bupar/opioid_ed/0-12/bupaR_added_features_...csv`  
-  - `feature_engineering_outputs/6_dtw/opioid_ed/0-12/dtw_added_features_...csv`  
-  - `feature_engineering_outputs/7_pgx/opioid_ed/0-12/pgx_added_features_...csv`
 - **Outputs:**  
-  - Updated evaluation metrics (AUC, PR-AUC, logloss, classification report)
-  - Model object (in-memory) and any CSV/plots written by `run_final_model.py`
-- **Status:** ⏳ Pending.
+  - `5_pgx_analysis/outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`  
+  - `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`
+  - S3: `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_*.csv`
+- **Status:** ✅ Complete (idempotent, uses aggregated feature importances + PGx features only)
+
+### Step 6: Final Model Training ✅
+- **Goal:** Assemble final feature matrix from aggregated feature importances + PGx features, train CatBoost and XGBoost models, select best by recall/AUC-PR.
+- **Script:** `6_final_model_selection/run_final_model.py`
+- **Inputs:**  
+  - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`  
+  - Aggregated feature importances (`3_feature_importance/outputs/...`)
+  - PGx features (`5_pgx_analysis/outputs/feature_engineering/pgx_added_features_*.csv`)
+- **Outputs:**  
+  - `6_final_model/outputs/{cohort}/{age_band_fname}/final_model_json/*.json` (XGBoost JSON for FFA)
+  - `6_final_model/outputs/{cohort}/{age_band_fname}/*.cbm` (CatBoost binary for SHAP)
+  - `6_final_model/outputs/{cohort}/{age_band_fname}/*_train_final_features_no_leakage.csv`
+  - Model evaluation metrics (AUC, PR-AUC, logloss, classification report)
+- **Status:** ✅ Complete (uses aggregated features + PGx, no encoding step)
+
+### Step 7: SHAP Analysis ✅
+- **Goal:** Compute SHAP values for both XGBoost and CatBoost models (global importance + row-level values).
+- **Script:** `7_shap_analysis/run_shap_analysis.py`
+- **Inputs:**  
+  - Best CatBoost model binary (`6_final_model/outputs/.../*.cbm`)
+  - Best XGBoost model JSON (`6_final_model/outputs/.../final_model_json/*.json`)
+  - Final features CSV (`6_final_model/outputs/.../*_train_final_features_no_leakage.csv`)
+- **Outputs:**  
+  - `s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/`
+    - `*_shap_global_importance_xgboost.csv`
+    - `*_shap_global_importance_catboost.csv`
+    - `*_shap_sample_values_xgboost.parquet`
+    - `*_shap_sample_values_catboost.parquet`
+- **Method:** Two-pass streamed approach (global signal, then row-level for selected features)
+- **Status:** ✅ Complete (required before Step 8 FFA analysis)
+
+### Step 8: FFA Analysis ✅
+- **Goal:** Formal Feature Attribution analysis using symbolic rule extraction and anchored explanations (AXP).
+- **Script:** `8_ffa_analysis/run_full_ffa_analysis.py`
+- **Model Support:** 
+  - **XGBoost FFA**: ✅ Performed (direct rule extraction from JSON)
+  - **CatBoost FFA**: ❌ NOT performed (due to complex hashing/CTR for categorical variables)
+  - **CatBoost SHAP**: Used for feature importance filtering in XGBoost FFA
+- **Inputs:**  
+  - Best XGBoost model JSON (`6_final_model/outputs/.../final_model_json/*.json`)
+  - SHAP importance from Step 7 (both XGBoost and CatBoost SHAP values)
+  - Final features CSV (`6_final_model/outputs/.../*_train_final_features_no_leakage.csv`)
+- **Rule Selection Logic:** Union of three sets:
+  1. First 100 matched rules (common patterns)
+  2. Random sample of 100 matched rules (diversity)
+  3. Top 300 SHAP-filtered rules OR all rules above 10th percentile (whichever is larger)
+     - Uses SHAP importance from both XGBoost and CatBoost to filter/prioritize rules
+- **Outputs:**  
+  - `s3://pgxdatalake/gold/ffa_analysis/{cohort}/{age_band}/{model_type}/`
+    - `axp_explanations.csv`
+    - `feature_importance_axp.csv`
+    - `causal_importance.csv`
+    - `interaction_analysis.csv`
+- **Status:** ✅ Complete (XGBoost only, uses SHAP from Step 7 to filter rules)
+
+### Step 9: Risk Dashboard ✅
+- **Goal:** Generate risk dashboard with BupaR/DTW/FP-Growth visualizations and causal analysis.
+- **Script:** `9_risk_dashboard/...` (visualization scripts)
+- **Inputs:**  
+  - FFA analysis outputs (Step 8)
+  - SHAP analysis outputs (Step 7)
+  - Model artifacts (Step 6)
+- **Outputs:**  
+  - Interactive dashboards (Plotly HTML)
+  - Static visualizations (PNG)
+  - Causal analysis reports
+- **Status:** ✅ Complete (includes visualizations only, not separate analysis steps)
 
 ---
 
@@ -148,17 +214,47 @@ Model performance and step details are preserved below but superseded by the ref
 
 For each `(cohort, age_band)` we track the following high-level checkpoints:
 
-1. **Feature engineering complete (no skipped steps)**  
-   - FP-Growth (`4_fpgrowth`), BupaR (`5_bupar`), DTW (`6_dtw`), and PGx (`7_pgx`) all present under `5_feature_engineering/feature_engineering_outputs/{step}/{cohort}/{age_band}/`.  
-   - If a step yields zero or trivial features, annotate the reason (e.g., no events, cohort too small).
-2. **Final model selection complete**  
-   - `6_final_model/outputs/{cohort}/{age_band_fname}/...` present, including `*_train_final_features_no_leakage.csv` and `final_model_json/*.json`.  
-3. **FFA analysis complete**  
-   - `7_ffa_analysis/outputs/{cohort}/{age_band_fname}/...` populated (AXP explanations, feature_importance_axp, causal_importance, visualizations).  
-4. **SHAP value analysis complete**  
-   - `8_shap_analysis/outputs/{cohort}/{age_band_fname}/...` populated with SHAP global importances and value arrays for both XGBoost and CatBoost (for example, `*_shap_global_importance_xgboost.csv`, `*_shap_global_importance_catboost.csv`, and their corresponding `*_shap_sample_values_*.parquet` plus summary plots).  
-5. **Final model artifacts for risk dashboard saved**  
-   - `6_final_model/model_outputs/{cohort}/{age_band_fname}/...` contains XGBoost and CatBoost JSON + CBM (and/or joblib) for use by FFA, SHAP, and the risk dashboard.
+1. **Step 3: Feature Importance Complete** ✅
+   - Aggregated feature importances present under `3_feature_importance/outputs/{cohort}/{age_band}/`
+   - Used as input for Step 4a and Step 5c
+
+2. **Step 4a: Model Data Extraction Complete** ✅
+   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` present
+   - Contains cases + controls for model training
+
+3. **Step 4b: DTW Protocol Filtering Complete** ✅
+   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet` present
+   - Administrative/scheduling codes filtered out
+
+4. **Step 5c: PGx Feature Engineering Complete** ✅
+   - `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv` present
+   - S3: `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_*.csv`
+
+5. **Step 6: Final Model Training Complete** ✅
+   - `6_final_model/outputs/{cohort}/{age_band_fname}/final_model_json/*.json` (XGBoost JSON for FFA)
+   - `6_final_model/outputs/{cohort}/{age_band_fname}/*.cbm` (CatBoost binary for SHAP)
+   - `6_final_model/outputs/{cohort}/{age_band_fname}/*_train_final_features_no_leakage.csv`
+
+6. **Step 7: SHAP Analysis Complete** ✅
+   - S3: `s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/`
+     - `*_shap_global_importance_xgboost.csv`
+     - `*_shap_global_importance_catboost.csv`
+     - `*_shap_sample_values_xgboost.parquet`
+     - `*_shap_sample_values_catboost.parquet`
+   - **Required before Step 8** (FFA uses SHAP importance to filter rules)
+
+7. **Step 8: FFA Analysis Complete** ✅
+   - S3: `s3://pgxdatalake/gold/ffa_analysis/{cohort}/{age_band}/xgboost/`
+     - `axp_explanations.csv`
+     - `feature_importance_axp.csv`
+     - `causal_importance.csv`
+     - `interaction_analysis.csv`
+   - **Note:** Only XGBoost FFA is performed (CatBoost FFA not performed due to hashing/CTR complexity)
+   - Uses SHAP importance from both XGBoost and CatBoost (from Step 7) to filter/prioritize rules
+
+8. **Step 9: Risk Dashboard Complete** ✅
+   - Dashboard visualizations and causal analysis reports generated
+   - Interactive dashboards (Plotly HTML) and static visualizations (PNG)
 
 These checkpoints are applied across Cohort 1 (`opioid_ed`) and Cohort 2 (`non_opioid_ed`) for each age band in the modeling grid.
 
@@ -174,22 +270,22 @@ Legend:
 
 **Cohort 1 – Opioid ED (`opioid_ed`)**
 
-| Cohort      | Age Band | 1. Feature Engineering | 2. Final Model Selection | 3. FFA Analysis | 4. SHAP Analysis | 5. Dashboard Artifacts | Notes                                  |
-|------------|----------|------------------------|--------------------------|-----------------|------------------|------------------------|----------------------------------------|
-| opioid_ed  | 0-12     | TEST                   | TEST                     | TEST            | TEST             | TEST                   | Test-only cohort; pipeline smoke test. |
-| opioid_ed  | 13-24    | DONE                   | DONE                     | DONE            | DONE             | DONE                   | DTW and FP-Growth yielded trivial/empty features; BupaR, PGx, final model, FFA, SHAP, and combined SHAP+FFA all completed on DTW-filtered 4a_model_data. |
-| opioid_ed  | 25-44    | DONE                   | DONE                     | DONE            | DONE             | DONE                   | DTW and FP-Growth yielded trivial/empty features; BupaR, PGx, final model, FFA, SHAP, and combined SHAP+FFA all completed on DTW-filtered 4a_model_data. |
-| opioid_ed  | 45-54    | DONE                   | DONE                     | DONE            | DONE             | DONE                   | DTW and FP-Growth yielded trivial/empty features; BupaR, PGx, final model, FFA, SHAP (XGBoost + CatBoost), and combined SHAP+FFA all completed on DTW-filtered 4a_model_data. |
-| opioid_ed  | 55-64    | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Planned production cohort.             |
+| Cohort      | Age Band | 3. Feature Importance | 4a. Model Data | 4b. DTW Filter | 5c. PGx Features | 6. Final Model | 7. SHAP Analysis | 8. FFA Analysis | 9. Dashboard | Notes                                  |
+|------------|----------|----------------------|----------------|----------------|------------------|----------------|------------------|-----------------|-------------|----------------------------------------|
+| opioid_ed  | 0-12     | TEST                 | TEST           | TEST           | TEST             | TEST           | TEST             | TEST            | TEST        | Test-only cohort; pipeline smoke test. |
+| opioid_ed  | 13-24    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
+| opioid_ed  | 25-44    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
+| opioid_ed  | 45-54    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
+| opioid_ed  | 55-64    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Planned production cohort.             |
 
 **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
 
-| Cohort         | Age Band | 1. Feature Engineering | 2. Final Model Selection | 3. FFA Analysis | 4. SHAP Analysis | 5. Dashboard Artifacts | Notes                      |
-|---------------|----------|------------------------|--------------------------|-----------------|------------------|------------------------|----------------------------|
-| non_opioid_ed | 65-74    | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Primary production cohort. |
-| non_opioid_ed | 75-84    | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Primary production cohort. |
-| non_opioid_ed | 85-94    | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Primary production cohort. |
-| non_opioid_ed | 95-114   | IGNORED                | IGNORED                  | IGNORED         | IGNORED          | IGNORED                | Explicitly excluded cohort.|
+| Cohort         | Age Band | 3. Feature Importance | 4a. Model Data | 4b. DTW Filter | 5c. PGx Features | 6. Final Model | 7. SHAP Analysis | 8. FFA Analysis | 9. Dashboard | Notes                      |
+|---------------|----------|----------------------|----------------|----------------|------------------|----------------|------------------|-----------------|-------------|----------------------------|
+| non_opioid_ed | 65-74    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
+| non_opioid_ed | 75-84    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
+| non_opioid_ed | 85-94    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
+| non_opioid_ed | 95-114   | IGNORED              | IGNORED        | IGNORED        | IGNORED          | IGNORED        | IGNORED          | IGNORED         | IGNORED      | Explicitly excluded cohort.|
 
 > As of the latest reset, all downstream feature engineering outputs and final model artifacts have been cleared, so all non-test, non-ignored cells are marked `PENDING`. As runs complete and artifacts appear on disk, update the corresponding cells in this table to `DONE` together with brief notes (e.g., command used, commit hash, or run date).
 
@@ -224,6 +320,15 @@ Legend (same as above):
 ---
 
 ## Execution Log
+
+### 2026-01-07 – Final Production Workflow Established
+- ✅ Final workflow steps defined: 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
+- ✅ CatBoost FFA removed (not performed due to hashing/CTR complexity)
+- ✅ CatBoost SHAP used for feature importance filtering in XGBoost FFA
+- ✅ Rule selection logic: first 100 + random 100 + top 300 SHAP-filtered rules
+- ✅ DuckDB threads increased to 4 per connection (optimized for 32-core EC2)
+- ✅ Workflow execution commands documented in top-level README
+- ✅ All steps are idempotent (skip completed steps automatically)
 
 ### 2025-12-31 – Workflow Layout Updated
 - ✅ Preserve Step 3 Feature Importance artifacts under `3_feature_importance/outputs/`.
