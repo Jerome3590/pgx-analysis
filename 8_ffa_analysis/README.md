@@ -8,6 +8,10 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
 
 **Key Capabilities:**
 - **Symbolic Rule Extraction**: Convert tree structures into Boolean logic formulas
+- **Model-Specific FFA Implementation**:
+  - **XGBoost FFA**: Direct rule extraction from JSON model structure
+  - **CatBoost FFA**: **NOT performed** due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables that make direct rule extraction difficult
+  - **CatBoost SHAP**: Used for feature importance filtering (not for FFA rule extraction)
 - **Anchored Explanations (AXP)**: Generate instance-level explanations using rule matching
   - **Rule Selection Logic**: Union of three sets:
     1. **First 100 matched rules** - Common patterns
@@ -15,8 +19,9 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
     3. **Top-K SHAP rules with percentile threshold** - Hybrid approach:
        - Takes top 300 rules by SHAP importance score
        - OR all rules above 10th percentile threshold (whichever captures more rules)
+       - Uses SHAP importance from **both XGBoost and CatBoost** to filter/prioritize rules
        - Balances performance (limits rule count) with coverage (doesn't miss important rules)
-  - **SHAP Requirement**: SHAP values from Step 7 are required (raises error if not available)
+  - **SHAP Requirement**: SHAP values from Step 7 (both XGBoost and CatBoost) are required (raises error if not available)
   - **Performance Optimization**: Limits rule sets to ~300-500 unique rules for efficient AXP computation
 - **Causal Analysis**: Measure causal responsibility through counterfactual analysis
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
@@ -124,8 +129,11 @@ outputs/
 
 ### Key Features
 
-- **Multi-Model Support**: CatBoost, XGBoost, and XGBoost RF
-- **Unified Schema**: Consistent representation across all model types
+- **XGBoost FFA Only**: FFA analysis is performed only for XGBoost models
+  - CatBoost FFA is not performed due to complex hashing and CTR transformations
+  - CatBoost SHAP values are used for feature importance filtering in XGBoost FFA
+- **SHAP-Augmented Rule Filtering**: Uses SHAP importance from both XGBoost and CatBoost to filter/prioritize rules
+- **Unified Schema**: Consistent representation across XGBoost model types
 - **Dual Causal Analysis**: Explainer-based and probability-based methods
 - **Interactive Dashboards**: Plotly-based risk exploration tools
 - **Formal Verification**: SAT solver integration for consistency checking

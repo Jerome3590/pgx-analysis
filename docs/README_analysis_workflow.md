@@ -16,8 +16,12 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 6. **Final Model Development** in `6_final_model/`, split into:
    - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
    - **6b_final_model_selection** – final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export.  
-7. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to augment and prioritize rules.
-8. **Post‑Model Structural Analysis** via FFA (`8_ffa_analysis`), which uses SHAP importance from Step 7 to augment and prioritize rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP importance > 0. SHAP augments/prioritizes rules (does not filter them out). Causal analysis filters the final rule set based on causal importance scores.
+7. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP for both XGBoost and CatBoost, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to filter and prioritize rules.
+8. **Post‑Model Structural Analysis** via FFA (`8_ffa_analysis`):
+   - **XGBoost FFA only**: FFA analysis is performed only for XGBoost models
+   - **CatBoost FFA**: NOT performed due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables
+   - **CatBoost SHAP**: Used for feature importance filtering in XGBoost FFA (not for CatBoost FFA rule extraction)
+   - **Rule Selection**: Uses SHAP importance from both XGBoost and CatBoost (from Step 7) to filter and prioritize rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) top 300 SHAP-filtered rules (or all rules above 10th percentile, whichever is larger). Causal analysis filters the final rule set based on causal importance scores.
 9. **Risk Calculator + Dashboard Deployment** via `9_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
 
 ## Phase 1: Monte Carlo CV + Feature Importance
@@ -348,7 +352,7 @@ flowchart TD
 |----------|----------------|-----------|
 | What itemsets are most common? | FpGrowth | Frequent co-occurrence patterns |
 | How do itemsets play out temporally? | BupaR | Process flows and sequences |
-| Which itemsets drive model predictions? | CatBoost + FFA | Risk-influential patterns |
+| Which itemsets drive model predictions? | XGBoost FFA + CatBoost SHAP | Risk-influential patterns (XGBoost FFA with CatBoost SHAP filtering) |
 | Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis |
 
 ## Output Paths Summary

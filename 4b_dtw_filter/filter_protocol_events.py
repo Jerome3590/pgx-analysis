@@ -572,7 +572,7 @@ def calculate_event_intervals(
     
     # Set DuckDB settings for performance (optimized for EC2: 32 cores, 1TB RAM)
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
-    con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
+    con.execute("PRAGMA threads=1")  # Default to 1 thread per connection (prevents CPU oversubscription)
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
@@ -691,7 +691,7 @@ def filter_administrative_events(
     
     # Set DuckDB settings for performance (optimized for EC2: 32 cores, 1TB RAM)
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
-    con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
+    con.execute("PRAGMA threads=1")  # Default to 1 thread per connection (prevents CPU oversubscription)
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
@@ -888,7 +888,7 @@ def create_research_outputs_for_review(
     
     # Set DuckDB settings for performance (optimized for EC2: 32 cores, 1TB RAM)
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
-    con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
+    con.execute("PRAGMA threads=1")  # Default to 1 thread per connection (prevents CPU oversubscription)
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
     # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
@@ -1329,7 +1329,7 @@ if __name__ == "__main__":
     con = duckdb.connect()
     # Set DuckDB settings for performance (optimized for EC2: 32 cores, 1TB RAM)
     # Note: memory_limit uses SET, threads uses PRAGMA per DuckDB docs
-    con.execute("PRAGMA threads=0")  # Use all available cores (32) - auto-detect
+    con.execute("PRAGMA threads=1")  # Default to 1 thread per connection (prevents CPU oversubscription)
     con.execute("SET memory_limit='512GB'")  # Use 50% of 1TB RAM (leaves room for OS/Python)
     # Use fast NVMe storage for temp files with PID-based unique directory (avoids conflicts with multiple cores)
     # Format: /mnt/nvme/duckdb_tmp/worker_{pid}_{timestamp}_{uuid}

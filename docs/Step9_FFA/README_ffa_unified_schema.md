@@ -2,7 +2,9 @@
 
 ## Overview
 
-All model types (CatBoost, XGBoost, XGBoost RF) now use a **unified schema** and **base class** (`BaseSymbolicExplainer`) to ensure consistency and maintainability.
+**Note**: FFA analysis is performed only for XGBoost models. CatBoost FFA is not performed due to CatBoost's complex hashing and CTR for categorical variables. CatBoost SHAP values are used for feature importance filtering in XGBoost FFA.
+
+All model types (CatBoost, XGBoost, XGBoost RF) use a **unified schema** and **base class** (`BaseSymbolicExplainer`) to ensure consistency and maintainability. However, only XGBoost models are used for FFA analysis in the current workflow.
 
 ## Unified DataFrame Schema
 
@@ -61,6 +63,7 @@ All explainers inherit from `BaseSymbolicExplainer` which provides:
 - **Tree Types**: Oblivious trees (uses DataFrame approach)
 - **Implementation**: `_explode_oblivious_tree_to_dataframe()` converts oblivious tree structure to unified schema
 - **Special Handling**: Non-oblivious trees use fallback traversal method
+- **FFA Status**: **NOT used in current workflow** - CatBoost FFA is not performed due to complex hashing and CTR. CatBoost SHAP values are used for feature importance filtering in XGBoost FFA instead.
 
 ### XGBoost (`XGBoostSymbolicExplainer`)
 - **Tree Types**: Standard binary trees (uses DataFrame approach)
@@ -79,24 +82,20 @@ All explainers inherit from `BaseSymbolicExplainer` which provides:
 
 ```python
 from base_symbolic_explainer import BaseSymbolicExplainer, TREE_PATH_SCHEMA
-from catboost_axp_explainer import CatBoostSymbolicExplainer
 from xgboost_axp_explainer import XGBoostSymbolicExplainer
 
-# All explainers have the same interface
-explainers = [
-    CatBoostSymbolicExplainer(path_config),
-    XGBoostSymbolicExplainer(path_config)
-]
+# Note: CatBoost FFA is not performed in the current workflow
+# Only XGBoost explainers are used for FFA analysis
+explainer = XGBoostSymbolicExplainer(path_config)
 
-for explainer in explainers:
-    explainer.fit_from_model_json(model_json)
-    
-    # All use the same DataFrame schema
-    df_paths = explainer._explode_tree_to_dataframe(tree, tree_idx=0)
-    assert list(df_paths.columns) == TREE_PATH_SCHEMA
-    
-    # All use the same rule creation logic
-    explainer._create_rules_from_dataframe(df_paths)
+explainer.fit_from_model_json(model_json)
+
+# Uses the unified DataFrame schema
+df_paths = explainer._explode_tree_to_dataframe(tree, tree_idx=0)
+assert list(df_paths.columns) == TREE_PATH_SCHEMA
+
+# Uses the unified rule creation logic
+explainer._create_rules_from_dataframe(df_paths)
     
     # All use the same explanation methods
     explanations = explainer.explain_dataset(X, predictions=y)

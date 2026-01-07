@@ -34,7 +34,11 @@ This guide explains how to conduct causal analysis using **TWO complementary app
 
 ## Model Ensemble
 
-We use all three models together because:
+**Note**: FFA analysis is performed only for XGBoost models. CatBoost FFA is not performed due to CatBoost's complex hashing and CTR for categorical variables. CatBoost SHAP values are used for feature importance filtering in XGBoost FFA.
+
+We use XGBoost models for FFA-based causal analysis because:
+- **XGBoost FFA**: Direct rule extraction from JSON model structure enables symbolic logic analysis
+- **CatBoost SHAP**: Used for feature importance filtering (not for FFA rule extraction)
 - **Robustness**: Different models may capture different patterns
 - **Consensus**: Features important across all models are more reliable
 - **Weighted Aggregation**: Models are weighted by their performance (coverage rate)
@@ -132,8 +136,9 @@ CAUSAL_CONFIG = {
 
 ## Model Weights
 
+**Note**: FFA-based causal analysis uses only XGBoost models. CatBoost SHAP values are used for feature importance filtering, but CatBoost FFA is not performed.
+
 Models are weighted by their explanation coverage rate:
-- **CatBoost**: Weighted by coverage rate (typically ~96%)
 - **XGBoost**: Weighted by coverage rate (typically ~100%)
 - **XGBoost RF**: Weighted by coverage rate (typically ~100%)
 

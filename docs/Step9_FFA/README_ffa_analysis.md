@@ -13,17 +13,18 @@ Formal Feature Attribution (FFA) Analysis provides a comprehensive framework for
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 - **Formal Verification**: Use SAT solvers for consistency checking and minimal explanation extraction
 
-**Important**: The rule extraction process differs by model type:
+**Important**: FFA analysis is performed **only for XGBoost models**:
 
-- **XGBoost**: JSON is used directly to extract rules (no SHAP intermediary needed for rule extraction)
-- **CatBoost**: Uses SHAP values as a translation layer due to complex JSON hashing and CTR (Counter-based Target Statistics) that make direct conversion difficult
+- **XGBoost FFA**: JSON is used directly to extract rules from XGBoost model structure
+- **CatBoost FFA**: **NOT performed** due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables that make direct rule extraction difficult
+- **CatBoost SHAP**: Used for feature importance filtering (not for FFA rule extraction)
 
-For both model types, SHAP values are then used to augment and prioritize rules (not filter them out):
+The workflow uses SHAP values from both models to filter and prioritize rules:
 
-1. Extracts all possible rules from the model JSON (directly for XGBoost, via SHAP translation for CatBoost)
-2. Uses SHAP importance values (required from Step 7) to augment and prioritize rules for AXP computation
-3. Computes AXP explanations from the SHAP-prioritized rule set
-4. Causal analysis filters the final rule set based on causal importance
+1. **XGBoost FFA**: Extracts all possible rules directly from XGBoost JSON model structure
+2. **SHAP-Augmented Rule Filtering**: Uses SHAP importance values from **both XGBoost and CatBoost** (required from Step 7) to filter and prioritize rules for AXP computation
+3. **AXP Computation**: Computes AXP explanations from the SHAP-filtered rule set
+4. **Causal Analysis**: Filters the final rule set based on causal importance scores
 
 ## Architecture
 
@@ -89,14 +90,14 @@ CatBoost uses CTR transformations for categorical features, which require specia
 - Extract CTR mappings from `ctr_data`
 - Map hash values to categorical feature indices
 - Resolve CTR split indices to feature names and borders
-- **Why SHAP is needed**: CatBoost's complex JSON hashing and CTR make direct rule extraction difficult. SHAP values act as a translation layer to bridge the gap between the complex JSON structure and interpretable rules.
+- **Why CatBoost FFA is not performed**: CatBoost's complex JSON hashing and CTR make direct rule extraction difficult. Instead, CatBoost SHAP values are used for feature importance filtering in XGBoost FFA.
 
 ### 3. Symbolic Rule Extraction
 
 **Model-Specific Approaches:**
 
 - **XGBoost**: JSON is parsed directly to extract tree structures and convert them to Boolean formulas
-- **CatBoost**: Due to complex JSON hashing and CTR, SHAP values are used as a translation layer to extract rules from the model structure
+- **CatBoost**: FFA analysis is **NOT performed** due to complex JSON hashing and CTR. CatBoost SHAP values are used for feature importance filtering in XGBoost FFA instead.
 
 **Common Process:**
 
@@ -107,14 +108,13 @@ CatBoost uses CTR transformations for categorical features, which require specia
 
 ### 4. SHAP-Augmented Rule Prioritization (REQUIRED)
 
-- **SHAP values are required**: Loads SHAP importance scores from Step 7 (SHAP Analysis)
-- **For CatBoost**: SHAP values serve a dual purpose:
-
-  1. **Translation layer**: Helps extract rules from complex JSON hashing and CTR structures
-  2. **Prioritization**: Scores and prioritizes rules for AXP computation
-
-- **For XGBoost**: SHAP values are used only for prioritization (rules are extracted directly from JSON)
+- **SHAP values are required**: Loads SHAP importance scores from Step 7 (SHAP Analysis) for **both XGBoost and CatBoost**
+- **Model-Specific Usage**:
+  - **XGBoost FFA**: Rules are extracted directly from XGBoost JSON, then SHAP filters/prioritizes them
+  - **CatBoost FFA**: **NOT performed** - CatBoost's complex hashing and CTR make direct rule extraction difficult
+  - **CatBoost SHAP**: Used for feature importance filtering in XGBoost FFA (not for CatBoost FFA rule extraction)
 - **Rule Scoring**: Each rule is scored by summing the SHAP importance values of all features in the rule
+  - Uses SHAP importance from **both XGBoost and CatBoost** to filter/prioritize rules
 - **Hybrid Filtering Strategy**: Uses top-K + percentile threshold to balance performance and coverage:
   - **Top-K strategy**: Takes top 300 rules by SHAP score (globally important rules)
   - **Percentile threshold**: Also includes all rules above 10th percentile (safety net for important rules)
@@ -124,6 +124,7 @@ CatBoost uses CTR transformations for categorical features, which require specia
   1. **First 100 matched rules**: Common patterns (order-based coverage)
   2. **Random 100 matched rules**: Diversity through sampling (seed=42 for reproducibility)
   3. **Top SHAP rules**: Top 300 by SHAP score OR all above 10th percentile (whichever is larger)
+     - Uses SHAP importance from both XGBoost and CatBoost
   4. **Final rule set for AXP**: Union of all three sets (deduplicated) → ~300-500 unique rules
 - **Error Handling**: Raises `FileNotFoundError` or `ValueError` if SHAP data is missing or malformed
 - **Key Points**:
@@ -133,8 +134,8 @@ CatBoost uses CTR transformations for categorical features, which require specia
   - **Coverage**: Percentile threshold ensures we don't miss important rules that rank lower globally
   - **Trade-off**: Prioritizes most important rules; may miss rare variants (acceptable for performance)
   - **Causal analysis filters the final rule set** based on causal importance scores
-  - **XGBoost**: Rules are extracted directly from JSON, then SHAP filters/prioritizes them
-  - **CatBoost**: SHAP values act as a translation layer to extract rules from complex JSON/CTR, then filters/prioritizes them
+  - **XGBoost FFA only**: FFA analysis is performed only for XGBoost models
+  - **CatBoost SHAP**: Used for feature importance filtering, not for FFA rule extraction
 
 ### 5. Anchored Explanations (AXP)
 
