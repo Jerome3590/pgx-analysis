@@ -21,6 +21,62 @@ This document describes the comprehensive patient-level explanation system that 
 3. **Robustness**: Different perspectives reduce method-specific biases
 4. **Actionability**: Causal analysis shows what can be changed
 
+## The Consensus Filter Philosophy: CatBoost SHAP + XGBoost FFA
+
+### Why CatBoost FFA is Not Performed
+
+**Technical Limitation**: CatBoost FFA is not performed due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) transformations for categorical variables that make direct symbolic rule extraction difficult.
+
+**However, this limitation functions as a deliberate quality control mechanism** within the pipeline's design philosophy.
+
+### The "Model Agreement" Philosophy
+
+The pipeline explicitly values **robustness over sensitivity**. In the feature importance phase, the system uses an aggregation method designed to **"Reward Model Agreement"**.
+
+#### The Mechanism
+- Features that are important in multiple models (CatBoost, XGBoost, and XGBoost RF) receive higher scores than those found by a single model.
+- **CatBoost SHAP** identifies features with high importance in CatBoost's model space
+- **XGBoost FFA** requires that these features can be translated into symbolic Boolean logic rules
+- Only features that pass **both** filters (CatBoost SHAP > 0 **AND** XGBoost rule existence) proceed to causal analysis
+
+#### The Benefit
+This approach **"reduces the risk of model-specific artifacts"**. If CatBoost finds a signal that XGBoost (using a different mathematical structure) cannot replicate, there is a higher probability that the signal is an artifact of CatBoost's specific encoding (CTR) rather than a universal biological truth. By "dropping" these signals from the causal analysis, the system inherently filters for higher-confidence features.
+
+### CatBoost vs. Rare Noise
+
+While CatBoost is designed to handle high-cardinality data, it handles rare categories by **"shrinking them toward the global mean"** to reduce overfitting.
+
+#### The Risk
+Despite this regularization, CatBoost can still overfit to "idiosyncratic" patterns in the training data, particularly with complex categorical interactions.
+
+#### The Safeguard
+XGBoost in this pipeline is configured to use the **"exact" tree method** specifically to preserve full split resolution. If this rigorous exact method cannot find a split that corresponds to the CatBoost signal, it suggests the signal might be weak or dependent on CatBoost's specific "Ordered Target Statistics" transformation.
+
+### Causal Analysis Requires Strict Logic
+
+The Formal Feature Attribution (FFA) module is designed to produce **"high-confidence candidates for clinical decision-making"**.
+
+#### Logical Necessity
+FFA requires converting a model into symbolic Boolean logic to test counterfactuals (e.g., "If NOT Drug A, then NO Risk").
+
+#### The Benefit
+If a pattern is so complex or model-specific that it cannot be translated into a symbolic rule (via XGBoost), it is likely too opaque or unstable to serve as the basis for a clinical intervention. Excluding these "un-translatable" CatBoost signals ensures that the final causal recommendations are grounded in logic that can be explicitly verified.
+
+### Summary: The Consensus Filter
+
+By requiring that a feature be:
+1. **Detected by CatBoost** (high SHAP importance) **AND**
+2. **Describable by XGBoost** (symbolic rule existence)
+
+The system ensures that the **FFA Causal Analysis** only focuses on signals robust enough to be found by two fundamentally different tree-building algorithms. This "gap" effectively serves as a **quality control mechanism** that:
+
+- ✅ Filters out model-specific artifacts
+- ✅ Ensures logical translatability for clinical use
+- ✅ Prioritizes robustness over sensitivity
+- ✅ Produces high-confidence candidates for clinical decision-making
+
+**Trade-off**: While this approach may miss rare variants found only by CatBoost, it ensures that all features entering causal analysis have been validated by multiple model architectures and can be expressed as interpretable logical rules.
+
 ## Architecture
 
 ```

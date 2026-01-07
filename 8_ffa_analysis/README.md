@@ -141,3 +141,14 @@ outputs/
 - **Interactive Dashboards**: Plotly-based risk exploration tools
 - **Formal Verification**: SAT solver integration for consistency checking
 
+### The Consensus Filter Philosophy
+
+While CatBoost FFA is not performed due to technical limitations, this design choice functions as a **deliberate quality control mechanism**:
+
+- **Model Agreement**: Features must be detected by CatBoost (SHAP > 0) **AND** describable by XGBoost (symbolic rule existence)
+- **Robustness Over Sensitivity**: Filters out model-specific artifacts and overfitting patterns
+- **Logical Translatability**: Ensures all causal recommendations can be expressed as interpretable Boolean logic
+- **Clinical Confidence**: Produces high-confidence candidates validated by multiple model architectures
+
+**Trade-off**: May miss rare variants found only by CatBoost, but ensures all features entering causal analysis are robust and interpretable. See [`docs/Step10_Results/README_combined_ffa_shap_causal_analysis.md`](../docs/Step10_Results/README_combined_ffa_shap_causal_analysis.md) for detailed explanation.
+

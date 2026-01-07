@@ -43,6 +43,35 @@ We use XGBoost models for FFA-based causal analysis because:
 - **Consensus**: Features important across all models are more reliable
 - **Weighted Aggregation**: Models are weighted by their performance (coverage rate)
 
+### The Consensus Filter: Why CatBoost SHAP + XGBoost FFA Works
+
+While the inability to generate rules for signals found *only* by CatBoost is a technical gap, the documentation suggests this acts as a **"Consensus Filter"** that screens out model-specific artifacts and potential overfitting.
+
+#### 1. The "Model Agreement" Philosophy
+
+The pipeline explicitly values **robustness over sensitivity**. In the feature importance phase, the system uses an aggregation method designed to **"Reward Model Agreement"**.
+
+- **The Mechanism**: Features that are important in multiple models (CatBoost, XGBoost, and XGBoost RF) receive higher scores than those found by a single model.
+- **The Benefit**: This approach "reduces the risk of model-specific artifacts". If CatBoost finds a signal that XGBoost (using a different mathematical structure) cannot replicate, there is a higher probability that the signal is an artifact of CatBoost's specific encoding (CTR) rather than a universal biological truth. By "dropping" these signals from the causal analysis, the system inherently filters for higher-confidence features.
+
+#### 2. CatBoost vs. Rare Noise
+
+While CatBoost is designed to handle high-cardinality data, the documentation notes it handles rare categories by **"shrinking them toward the global mean"** to reduce overfitting.
+
+- **The Risk**: Despite this regularization, CatBoost can still overfit to "idiosyncratic" patterns in the training data, particularly with complex categorical interactions.
+- **The Safeguard**: XGBoost in this pipeline is configured to use the **"exact" tree method** specifically to preserve full split resolution. If this rigorous exact method cannot find a split that corresponds to the CatBoost signal, it suggests the signal might be weak or dependent on CatBoost's specific "Ordered Target Statistics" transformation.
+
+#### 3. Causal Analysis Requires Strict Logic
+
+The Formal Feature Attribution (FFA) module is designed to produce **"high-confidence candidates for clinical decision-making"**.
+
+- **Logical Necessity**: FFA requires converting a model into symbolic Boolean logic to test counterfactuals (e.g., "If NOT Drug A, then NO Risk").
+- **The Benefit**: If a pattern is so complex or model-specific that it cannot be translated into a symbolic rule (via XGBoost), it is likely too opaque or unstable to serve as the basis for a clinical intervention. Excluding these "un-translatable" CatBoost signals ensures that the final causal recommendations are grounded in logic that can be explicitly verified.
+
+#### Summary
+
+By requiring that a feature be **detected by CatBoost** (high SHAP) *and* **describable by XGBoost** (symbolic rule existence), the system ensures that the **FFA Causal Analysis** only focuses on signals robust enough to be found by two fundamentally different tree-building algorithms. This "gap" effectively serves as a quality control mechanism that filters out model-specific artifacts and ensures logical translatability for clinical use.
+
 ## Counterfactual Interventions
 
 ### Single-Feature Interventions
