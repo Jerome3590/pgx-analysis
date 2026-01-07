@@ -136,12 +136,25 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     else:
         random_rules = matched.copy()
     
-    # Set 3: Top K rules by SHAP importance (limit to top 300 to reduce computation)
-    # Score all matched rules and take top K
+    # Set 3: Top K rules by SHAP importance with percentile threshold fallback
+    # Score all matched rules and take top K OR all above percentile (whichever is larger)
     rule_scores = [(rid, score_rule_by_shap(rid)) for rid in matched]
     rule_scores = [(rid, score) for rid, score in rule_scores if score > 0]
     rule_scores.sort(key=lambda x: x[1], reverse=True)
-    shap_filtered_matched = [rid for rid, score in rule_scores[:300]]  # Top 300 by SHAP score
+
+    # Take top 300
+    top_300 = [rid for rid, score in rule_scores[:300]]
+
+    # Also include all rules above 10th percentile (safety net for important rules)
+    if len(rule_scores) > 0:
+        import numpy as np
+        scores = [score for _, score in rule_scores]
+        percentile_10 = np.percentile(scores, 10.0)
+        percentile_rules = [rid for rid, score in rule_scores if score >= percentile_10]
+        # Use larger set to ensure coverage
+        shap_filtered_matched = percentile_rules if len(percentile_rules) > len(top_300) else top_300
+    else:
+        shap_filtered_matched = top_300
     
     # Union all three sets to get final unique rule set
     combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched))
@@ -440,20 +453,29 @@ class BaseSymbolicExplainer(ABC):
         
         return score
     
-    def _filter_rules_by_shap(self, rule_ids: List[int], top_k: int = 300, min_shap_score: float = 0.0) -> List[int]:
+    def _filter_rules_by_shap(self, rule_ids: List[int], top_k: int = 300, min_shap_score: float = 0.0, 
+                              percentile_threshold: float = None) -> List[int]:
         """
-        Filter rules to only include top K rules by SHAP importance score.
-        
-        This reduces the number of rules significantly while keeping the most important ones,
-        improving AXP computation speed and focusing on high-signal rules.
-        
+        Filter rules using hybrid approach: top-K OR threshold-based (whichever captures more rules).
+
+        This reduces the number of rules while ensuring we don't miss important rules that might
+        be ranked lower globally but are still significant (above threshold).
+
+        Strategy:
+        - Score all rules by SHAP importance
+        - Take top K rules by score
+        - Also take all rules above percentile threshold (if provided) or min_shap_score
+        - Return union of both sets (ensures we don't miss threshold-important rules)
+
         Args:
             rule_ids: List of rule indices to filter
             top_k: Maximum number of top rules to return (default: 300)
             min_shap_score: Minimum SHAP score threshold (default: 0.0, filters out zero-importance rules)
-            
+            percentile_threshold: Optional percentile threshold (0-100). If provided, also includes
+                                 all rules above this percentile, even if beyond top_k.
+
         Returns:
-            List of rule indices with highest SHAP importance scores (up to top_k)
+            List of rule indices: top K rules OR all rules above threshold (whichever set is larger)
         """
         # Score all rules
         rule_scores = []
@@ -461,21 +483,44 @@ class BaseSymbolicExplainer(ABC):
             shap_score = self._score_rule_by_shap(rid)
             if shap_score > min_shap_score:
                 rule_scores.append((rid, shap_score))
-        
+
         if not rule_scores:
             return []
-        
-        # Sort by SHAP score (descending) and take top K
+
+        # Sort by SHAP score (descending)
         rule_scores.sort(key=lambda x: x[1], reverse=True)
-        top_rules = [rid for rid, score in rule_scores[:top_k]]
-        
+        scores = [score for _, score in rule_scores]
+
+        # Strategy 1: Take top K rules
+        top_k_rules = [rid for rid, score in rule_scores[:top_k]]
+
+        # Strategy 2: Also include rules above percentile threshold (if provided)
+        threshold_rules = top_k_rules.copy()  # Start with top K
+        if percentile_threshold is not None and percentile_threshold > 0:
+            import numpy as np
+            threshold_value = np.percentile(scores, percentile_threshold)
+            # Add all rules above percentile threshold (even if beyond top_k)
+            threshold_rules = [rid for rid, score in rule_scores if score >= threshold_value]
+            # Deduplicate
+            threshold_rules = list(dict.fromkeys(threshold_rules))  # Preserves order
+
+        # Return union: ensures we get top K but also don't miss threshold-important rules
+        # Use the larger set to ensure coverage
+        if len(threshold_rules) > len(top_k_rules):
+            selected_rules = threshold_rules
+            strategy = f"percentile_threshold (>{percentile_threshold}th percentile)"
+        else:
+            selected_rules = top_k_rules
+            strategy = f"top_k={top_k}"
+
         if hasattr(self, 'logger'):
             self.logger.info(
                 f"_filter_rules_by_shap: Filtered {len(rule_ids)} rules -> "
-                f"{len(top_rules)} top rules (top_k={top_k}, min_score={min_shap_score:.6f})"
+                f"{len(selected_rules)} rules using {strategy} "
+                f"(min_score={min_shap_score:.6f}, max_score={scores[0]:.6f if scores else 0:.6f})"
             )
-        
-        return top_rules
+
+        return selected_rules
     
     def _compute_axp(self, rule_ids: List[int]) -> List[int]:
         """
@@ -516,9 +561,15 @@ class BaseSymbolicExplainer(ABC):
         else:
             random_rules = rule_ids.copy()
         
-        # Set 3: Top K rules by SHAP importance (default: top 300, reduces computation time)
-        # This is more aggressive than "all rules with SHAP > 0" which could be thousands
-        shap_filtered_rules = self._filter_rules_by_shap(rule_ids, top_k=300, min_shap_score=0.0)
+        # Set 3: Top K rules by SHAP importance with percentile threshold fallback
+        # Uses top 300 OR all rules above 10th percentile (whichever is larger)
+        # This ensures we don't miss important rules while still reducing computation
+        shap_filtered_rules = self._filter_rules_by_shap(
+            rule_ids, 
+            top_k=300, 
+            min_shap_score=0.0,
+            percentile_threshold=10.0  # Include all rules above 10th percentile as safety net
+        )
         
         if hasattr(self, 'logger'):
             self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, Top SHAP: {len(shap_filtered_rules)}")
