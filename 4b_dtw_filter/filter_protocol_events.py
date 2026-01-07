@@ -567,10 +567,11 @@ def calculate_event_intervals(
     logger.info("Calculating event intervals from {0}".format(model_data_path))
 
     con = duckdb.connect()
-
-    # Set DuckDB pragmas for performance
-    con.execute("PRAGMA threads=0")  # Use all available cores
-    con.execute("PRAGMA memory_limit='8GB'")  # Adjust based on available RAM
+    
+    # Set DuckDB pragmas for performance (optimized for EC2: 32 cores, 1TB RAM)
+    con.execute("PRAGMA threads=0")  # Use all available cores (32)
+    con.execute("PRAGMA memory_limit='256GB'")  # Use generous memory for large operations
+    con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
 
     # Build query with LAG() instead of self-join
     max_interval_filter = ""
@@ -680,10 +681,11 @@ def filter_administrative_events(
         target_date_field = "first_ed_non_opioid_date"
 
     con = duckdb.connect()
-
-    # Set DuckDB pragmas for performance
-    con.execute("PRAGMA threads=0")  # Use all available cores
-    con.execute("PRAGMA memory_limit='8GB'")  # Adjust based on available RAM
+    
+    # Set DuckDB pragmas for performance (optimized for EC2: 32 cores, 1TB RAM)
+    con.execute("PRAGMA threads=0")  # Use all available cores (32)
+    con.execute("PRAGMA memory_limit='256GB'")  # Use generous memory for large operations
+    con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
 
     # Register administrative code sets as temporary tables
     if administrative_codes['icd']:
@@ -871,10 +873,11 @@ def create_research_outputs_for_review(
 
     # Use DuckDB for efficient sequence extraction
     con = duckdb.connect()
-
-    # Set DuckDB pragmas for performance
-    con.execute("PRAGMA threads=0")  # Use all available cores
-    con.execute("PRAGMA memory_limit='8GB'")  # Adjust based on available RAM
+    
+    # Set DuckDB pragmas for performance (optimized for EC2: 32 cores, 1TB RAM)
+    con.execute("PRAGMA threads=0")  # Use all available cores (32)
+    con.execute("PRAGMA memory_limit='256GB'")  # Use generous memory for large operations
+    con.execute("PRAGMA enable_progress_bar=true")  # Show progress for long-running queries
 
     # Create a temporary view with activity codes and calculate event_seq
     con.execute(f"""
