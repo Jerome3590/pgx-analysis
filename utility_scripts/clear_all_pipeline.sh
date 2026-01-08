@@ -106,26 +106,34 @@ if objects_to_delete:
 echo ""
 echo "[6/6] Clearing ALL S3 checkpoints..."
 python -c "
-import boto3
-s3_client = boto3.client('s3')
-checkpoint_bucket = 'pgx-repository'
-prefix = 'pipeline_checkpoints/'
-paginator = s3_client.get_paginator('list_objects_v2')
-pages = paginator.paginate(Bucket=checkpoint_bucket, Prefix=prefix)
-objects_to_delete = []
-for page in pages:
-    if 'Contents' in page:
-        for obj in page['Contents']:
-            objects_to_delete.append({'Key': obj['Key']})
-if objects_to_delete:
-    # Delete in batches of 1000
-    for i in range(0, len(objects_to_delete), 1000):
-        batch = objects_to_delete[i:i+1000]
-        s3_client.delete_objects(Bucket=checkpoint_bucket, Delete={'Objects': batch})
-    print(f'  Deleted {len(objects_to_delete)} checkpoint files')
-else:
-    print('  No checkpoints found')
-" 2>/dev/null || echo "  (S3 clearing skipped - may need AWS credentials)"
+import sys
+try:
+    import boto3
+    s3_client = boto3.client('s3')
+    checkpoint_bucket = 'pgx-repository'
+    prefix = 'pipeline_checkpoints/'
+    paginator = s3_client.get_paginator('list_objects_v2')
+    pages = paginator.paginate(Bucket=checkpoint_bucket, Prefix=prefix)
+    objects_to_delete = []
+    for page in pages:
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                objects_to_delete.append({'Key': obj['Key']})
+    if objects_to_delete:
+        # Delete in batches of 1000
+        for i in range(0, len(objects_to_delete), 1000):
+            batch = objects_to_delete[i:i+1000]
+            s3_client.delete_objects(Bucket=checkpoint_bucket, Delete={'Objects': batch})
+        print(f'  ✓ Deleted {len(objects_to_delete)} checkpoint files')
+    else:
+        print('  ✓ No checkpoints found')
+except ImportError:
+    print('  ✗ boto3 not installed - skipping S3 checkpoint clearing')
+    sys.exit(1)
+except Exception as e:
+    print(f'  ✗ Error clearing S3 checkpoints: {e}')
+    sys.exit(1)
+" 2>&1 || echo "  (S3 clearing skipped - check AWS credentials and boto3 installation)"
 
 # Clear time logs
 echo ""

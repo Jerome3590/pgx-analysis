@@ -82,7 +82,11 @@ echo ""
 echo -e "Data root: ${YELLOW}$DATA_ROOT${NC}"
 echo -e "Cohort filter: ${YELLOW}${COHORT_FILTER:-all}${NC}"
 echo -e "Age band filter: ${YELLOW}${AGE_BAND_FILTER:-all}${NC}"
-echo -e "Mode: ${YELLOW}${DRY_RUN:+DRY RUN (preview only)}${DRY_RUN:-LIVE (will delete)}${NC}"
+if [ "$DRY_RUN" = true ]; then
+    echo -e "Mode: ${YELLOW}DRY RUN (preview only)${NC}"
+else
+    echo -e "Mode: ${YELLOW}LIVE (will delete)${NC}"
+fi
 echo ""
 
 # Find model_events.parquet files
@@ -181,10 +185,10 @@ FAILED=0
 for file in "${FILES_TO_DELETE[@]}"; do
     if rm -f "$file"; then
         echo -e "${GREEN}✓ Deleted: $file${NC}"
-        ((DELETED++))
+        DELETED=$((DELETED + 1))
     else
         echo -e "${RED}✗ Failed to delete: $file${NC}"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 done
 
