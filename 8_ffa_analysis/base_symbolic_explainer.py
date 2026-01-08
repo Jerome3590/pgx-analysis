@@ -9,7 +9,7 @@ import logging
 import os
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Optional, Any, Union, Set
 from itertools import count
 from abc import ABC, abstractmethod
 
@@ -456,10 +456,22 @@ class BaseSymbolicExplainer(ABC):
         
         return score
     
+    def _get_features_in_rule(self, rule_id: int) -> Set[str]:
+        """Get set of feature names in a rule."""
+        clause = self.rule_clauses[rule_id]
+        features = set()
+        for lit in clause:
+            feat_idx, _, _ = self.id_condition_map[lit]
+            feat_name = self.feature_names.get(feat_idx, f"f{feat_idx}")
+            features.add(feat_name)
+        return features
+    
     def _filter_rules_by_shap(self, rule_ids: List[int], top_k: int = 300, min_shap_score: float = 0.0, 
-                              percentile_threshold: float = None) -> List[int]:
+                              percentile_threshold: float = None, ensure_shap_coverage: bool = True) -> List[int]:
         """
         Filter rules using hybrid approach: top-K OR threshold-based (whichever captures more rules).
+        
+        NEW: Also ensures features with SHAP > 0 are represented in the filtered rule set.
 
         This reduces the number of rules while ensuring we don't miss important rules that might
         be ranked lower globally but are still significant (above threshold).
@@ -468,7 +480,8 @@ class BaseSymbolicExplainer(ABC):
         - Score all rules by SHAP importance
         - Take top K rules by score
         - Also take all rules above percentile threshold (if provided) or min_shap_score
-        - Return union of both sets (ensures we don't miss threshold-important rules)
+        - NEW: Ensure all features with SHAP > 0 are represented (add rules containing them if missing)
+        - Return union of all sets
 
         Args:
             rule_ids: List of rule indices to filter
@@ -476,9 +489,11 @@ class BaseSymbolicExplainer(ABC):
             min_shap_score: Minimum SHAP score threshold (default: 0.0, filters out zero-importance rules)
             percentile_threshold: Optional percentile threshold (0-100). If provided, also includes
                                  all rules above this percentile, even if beyond top_k.
+            ensure_shap_coverage: If True, ensures all features with SHAP > 0 are represented (default: True)
 
         Returns:
-            List of rule indices: top K rules OR all rules above threshold (whichever set is larger)
+            List of rule indices: top K rules OR all rules above threshold (whichever set is larger),
+            plus rules needed to cover features with SHAP > 0
         """
         # Score all rules
         rule_scores = []
@@ -507,14 +522,66 @@ class BaseSymbolicExplainer(ABC):
             # Deduplicate
             threshold_rules = list(dict.fromkeys(threshold_rules))  # Preserves order
 
-        # Return union: ensures we get top K but also don't miss threshold-important rules
-        # Use the larger set to ensure coverage
+        # Use the larger set from strategies 1 and 2
         if len(threshold_rules) > len(top_k_rules):
-            selected_rules = threshold_rules
+            selected_rules = threshold_rules.copy()
             strategy = f"percentile_threshold (>{percentile_threshold}th percentile)"
         else:
-            selected_rules = top_k_rules
+            selected_rules = top_k_rules.copy()
             strategy = f"top_k={top_k}"
+
+        # Strategy 3: Ensure features with SHAP > 0 are represented
+        if ensure_shap_coverage and self.shap_importance_map:
+            # Get all features with SHAP > 0
+            features_with_shap = {
+                feat for feat, score in self.shap_importance_map.items() 
+                if score > 0
+            }
+            
+            # Get features already covered by selected rules
+            covered_features = set()
+            for rid in selected_rules:
+                covered_features.update(self._get_features_in_rule(rid))
+            
+            # Find missing features (SHAP > 0 but not in selected rules)
+            missing_features = features_with_shap - covered_features
+            
+            if missing_features and hasattr(self, 'logger'):
+                self.logger.info(
+                    f"_filter_rules_by_shap: {len(missing_features)} features with SHAP > 0 "
+                    f"not covered by selected rules. Adding rules to ensure coverage."
+                )
+            
+            # For each missing feature, find at least one rule that contains it
+            # Prefer rules with higher SHAP scores
+            coverage_rules = []
+            for feat in missing_features:
+                # Find all rules containing this feature
+                rules_with_feat = []
+                for rid, score in rule_scores:
+                    if feat in self._get_features_in_rule(rid):
+                        rules_with_feat.append((rid, score))
+                
+                # Sort by score and take the best one
+                if rules_with_feat:
+                    rules_with_feat.sort(key=lambda x: x[1], reverse=True)
+                    best_rule_id = rules_with_feat[0][0]
+                    if best_rule_id not in selected_rules:
+                        coverage_rules.append(best_rule_id)
+                        covered_features.add(feat)
+            
+            # Add coverage rules to selected set
+            if coverage_rules:
+                selected_rules.extend(coverage_rules)
+                selected_rules = list(dict.fromkeys(selected_rules))  # Deduplicate
+                strategy += f" + {len(coverage_rules)} coverage rules for SHAP > 0 features"
+                
+                if hasattr(self, 'logger'):
+                    final_coverage = len(covered_features) / len(features_with_shap) * 100 if features_with_shap else 0
+                    self.logger.info(
+                        f"_filter_rules_by_shap: Coverage: {len(covered_features)}/{len(features_with_shap)} "
+                        f"features with SHAP > 0 ({final_coverage:.1f}%)"
+                    )
 
         if hasattr(self, 'logger'):
             max_score = scores[0] if scores else 0.0
@@ -567,12 +634,14 @@ class BaseSymbolicExplainer(ABC):
         
         # Set 3: Top K rules by SHAP importance with percentile threshold fallback
         # Uses top 300 OR all rules above 10th percentile (whichever is larger)
+        # NEW: Also ensures all features with SHAP > 0 are represented
         # This ensures we don't miss important rules while still reducing computation
         shap_filtered_rules = self._filter_rules_by_shap(
             rule_ids, 
             top_k=300, 
             min_shap_score=0.0,
-            percentile_threshold=10.0  # Include all rules above 10th percentile as safety net
+            percentile_threshold=10.0,  # Include all rules above 10th percentile as safety net
+            ensure_shap_coverage=True  # Ensure features with SHAP > 0 are represented
         )
         
         if hasattr(self, 'logger'):
