@@ -723,7 +723,20 @@ def filter_administrative_events(
 
         # Register administrative code lists as small in-memory tables
         # (DuckDB handles joining/IN efficiently; avoids Python per-row checks)
-        icd_codes = sorted({str(x) for x in administrative_codes.get("icd", set()) if str(x).strip()})
+        # Add both dot and no-dot versions to handle different code formats in data
+        icd_codes_set = set()
+        for code in administrative_codes.get("icd", set()):
+            code_str = str(code).strip()
+            if code_str:
+                icd_codes_set.add(code_str)  # Original format
+                icd_codes_set.add(code_str.replace('.', ''))  # No-dot format
+                # If no dots, try to add dot version (e.g., Z3403 -> Z34.03)
+                if '.' not in code_str and len(code_str) >= 5:
+                    if code_str.startswith('Z') or code_str.startswith('V'):
+                        # Z/V codes: Z/V + 2 digits + rest (e.g., Z3403 -> Z34.03, V7231 -> V72.31)
+                        icd_codes_set.add(f"{code_str[:3]}.{code_str[3:]}")
+        
+        icd_codes = sorted(icd_codes_set)
         cpt_codes = sorted({str(x) for x in administrative_codes.get("cpt", set()) if str(x).strip()})
         drug_codes = sorted({str(x) for x in administrative_codes.get("drug", set()) if str(x).strip()})
 
