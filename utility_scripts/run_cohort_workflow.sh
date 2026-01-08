@@ -282,6 +282,39 @@ except:
             fi
         fi
         
+        # For Step 8, verify FFA outputs exist before skipping
+        # Check for required outputs: axp_explanations, feature_importance, and causal_importance
+        if [ "$step_num" = "8" ]; then
+            AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
+            # Check for required FFA outputs (XGBoost model outputs)
+            FFA_EXPLANATIONS="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/xgboost/axp_explanations.parquet"
+            FFA_IMPORTANCE="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/xgboost/feature_importance_axp.parquet"
+            FFA_CAUSAL="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/xgboost/causal_importance.parquet"
+            
+            if [ ! -f "$FFA_EXPLANATIONS" ] || [ ! -f "$FFA_IMPORTANCE" ] || [ ! -f "$FFA_CAUSAL" ]; then
+                MISSING_FILES=()
+                [ ! -f "$FFA_EXPLANATIONS" ] && MISSING_FILES+=("axp_explanations.parquet")
+                [ ! -f "$FFA_IMPORTANCE" ] && MISSING_FILES+=("feature_importance_axp.parquet")
+                [ ! -f "$FFA_CAUSAL" ] && MISSING_FILES+=("causal_importance.parquet")
+                
+                log "Step 8 marked as completed but required FFA outputs missing: ${MISSING_FILES[*]}. Re-running to download/regenerate..."
+                # Clear the completion flag so we run the step
+                python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '8' in data['step_times']:
+        data['step_times']['8']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                STEP_COMPLETED="no"
+            fi
+        fi
+        
         if [ "$STEP_COMPLETED" = "yes" ]; then
             PREV_DURATION=$(python3 -c "
 import json
@@ -503,16 +536,16 @@ if ! should_skip "9"; then
         warn "Step 9 skipped: Models not found at $MODEL_DIR"
         warn "Step 6 must complete first for this cohort/age_band"
     else
-        # Prepare models for this specific cohort/age_band only
-        if $PYTHON_CMD 10_risk_dashboard/prepare_models.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND"; then
-            log "✅ Model preparation completed for $COHORT_NAME/$AGE_BAND"
+        # Prepare models for this cohort (processes all age bands for the cohort)
+        if $PYTHON_CMD 9_risk_dashboard/prepare_models.py --cohort "$COHORT_NAME"; then
+            log "✅ Model preparation completed for $COHORT_NAME"
         else
             warn "Step 9: Model preparation had warnings (check logs)"
         fi
         
-        # Generate metadata for this specific cohort/age_band only
-        if $PYTHON_CMD 10_risk_dashboard/generate_metadata.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND"; then
-            log "✅ Metadata generation completed for $COHORT_NAME/$AGE_BAND"
+        # Generate metadata for this cohort (processes all age bands for the cohort)
+        if $PYTHON_CMD 9_risk_dashboard/generate_metadata.py --cohort "$COHORT_NAME"; then
+            log "✅ Metadata generation completed for $COHORT_NAME"
         else
             warn "Step 9: Metadata generation had warnings (check logs)"
         fi
@@ -537,7 +570,7 @@ if ! should_skip "11"; then
     log "  ./utility_scripts/build_dashboard.sh"
     log ""
     log "To build Docker image for deployment:"
-    log "  cd 10_risk_dashboard && ./docker_build.sh"
+    log "  cd 9_risk_dashboard && ./docker_build.sh"
     log ""
     warn "Step 11: Skipped (use build_dashboard.sh when ready to deploy)"
 fi
