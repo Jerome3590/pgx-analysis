@@ -942,13 +942,12 @@ def _calculate_grouped_causal_effect(
         if mod_group_key in modified_group_axps:
             # Use cached modified AXP
             modified_axp = modified_group_axps[mod_group_key]
-        elif mod_group_key == orig_group_key:
-            # Rules didn't change - AXP might still change if feature appears in AXP
-            # For efficiency, assume it's the same (conservative approximation)
-            modified_axp = original_axp
-            modified_group_axps[mod_group_key] = modified_axp
         else:
             # Need to compute modified AXP (cache it for other instances with same modified rules)
+            # IMPORTANT: Even if rules don't change (mod_group_key == orig_group_key), we still
+            # recompute AXP because the feature intervention might change which features appear
+            # in the AXP even if the same rules match. This fixes the conservative approximation
+            # that was causing all binary features (drugs/ICDs) to have 0.0 causal importance.
             if mod_group_key:
                 try:
                     axp_literals = explainer._compute_axp(matched_mod)

@@ -240,10 +240,11 @@ The grouped comparison approach is particularly robust for binary classification
    - If flip causes rule change → new group → AXP recomputed
    - If flip doesn't change rules → same group → AXP unchanged (conservative approximation)
 
-5. **Conservative Approximation**:
-   - If rules don't change after intervention, AXP is assumed unchanged
-   - This may miss edge cases where feature appears in AXP but rules unchanged
-   - However, this is rare and the approximation is conservative (may underestimate causal effect slightly)
+5. **Full AXP Recomputation**:
+   - Even when rules don't change after intervention, AXP is recomputed
+   - This ensures we detect features that appear in explanations but don't change rule matching
+   - Previously, a conservative approximation assumed AXP unchanged when rules didn't change, causing all binary features (drugs/ICDs) to have 0.0 causal importance
+   - The fix ensures accurate causal importance for all features, including drugs that appear in AXP
 
 **Bottom Line**: Grouping is robust for binary outcomes because it respects class boundaries and ensures instances with identical rule patterns get identical explanations, while dramatically improving computational efficiency.
 
@@ -331,7 +332,7 @@ The causal analysis is implemented in `perform_causal_analysis()` in `run_full_f
      - Rules are filtered by predicted class before grouping
      - Same rules → same AXP (for that class), ensuring consistency
    - **Performance benefit**: Reduces computation from O(n) to O(g) where g << n (groups << instances)
-   - **Conservative approximation**: If rules don't change after intervention, AXP is assumed unchanged (may miss edge cases where feature appears in AXP but rules unchanged)
+   - **Full AXP recomputation**: Even when rules don't change, AXP is recomputed to detect features that appear in explanations but don't change rule matching (fixes conservative approximation issue)
 
 4. **Causal Score Calculation**:
    - `causal_importance` = Fraction of instances with changed explanations
