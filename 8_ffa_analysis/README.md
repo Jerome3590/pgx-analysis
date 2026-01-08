@@ -247,6 +247,46 @@ The grouped comparison approach is particularly robust for binary classification
 
 **Bottom Line**: Grouping is robust for binary outcomes because it respects class boundaries and ensures instances with identical rule patterns get identical explanations, while dramatically improving computational efficiency.
 
+### How Partial Condition Satisfaction is Handled
+
+**Important**: Rules use **strict AND logic** - a rule matches only if **ALL conditions are satisfied**.
+
+1. **Rule Matching Logic**:
+   - Each rule is a **conjunction** (AND) of conditions: `condition1 AND condition2 AND condition3`
+   - A rule matches an instance **only if ALL conditions are true**
+   - If a rule has 3 conditions but only 2 are satisfied → **rule does NOT match**
+   - There is **no partial matching** - it's all-or-nothing
+
+2. **Example**:
+   ```
+   Rule: (age > 25) AND (drug_count > 3) AND (icd_code == "E11")
+   
+   Instance A: age=30, drug_count=5, icd_code="E11" → ✅ Rule MATCHES (all 3 conditions true)
+   Instance B: age=30, drug_count=5, icd_code="E10" → ❌ Rule DOES NOT MATCH (only 2/3 conditions true)
+   Instance C: age=30, drug_count=2, icd_code="E11" → ❌ Rule DOES NOT MATCH (only 2/3 conditions true)
+   ```
+
+3. **Grouping Behavior**:
+   - Instances are grouped by their **complete set of matched rules**
+   - If two instances have different partial matches (e.g., Instance B vs Instance C above), they may match different rules entirely
+   - Instances with **identical complete rule sets** are grouped together
+   - This ensures **deterministic grouping** - same rules → same group → same AXP
+
+4. **Intervention Effects**:
+   - When a feature is intervened (e.g., set to median), it may cause:
+     - A previously matched rule to **no longer match** (one condition now false)
+     - A previously unmatched rule to **now match** (one condition now true)
+   - This creates a **new group** with different rules → AXP recomputed
+   - The grouping correctly captures these changes
+
+5. **Why This is Robust**:
+   - **No ambiguity**: Rules either match completely or don't match at all
+   - **Deterministic**: Same conditions → same rule matches → same group
+   - **Sensitive to changes**: Any condition change can alter rule matches and create new groups
+   - **Efficient**: Only fully-matched rules are considered, avoiding complex partial-match logic
+
+**Key Insight**: The strict AND logic means that partial condition satisfaction doesn't create "partial groups" - instead, instances with different partial matches end up in different groups based on which complete rules they satisfy. This makes the grouping approach both robust and efficient.
+
 ### Technical Implementation
 
 The causal analysis is implemented in `perform_causal_analysis()` in `run_full_ffa_analysis.py`:
