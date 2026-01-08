@@ -394,14 +394,19 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[D
                     tmp_path = tmp_file.name
                 s3_client.download_file("pgxdatalake", s3_key, tmp_path)
                 shap_path = Path(tmp_path)
-            except Exception:
-                return None
+            except Exception as e:
+                # S3 download failed, will raise FileNotFoundError below
+                pass
         except ImportError:
-            return None
+            # boto3 not available, will raise FileNotFoundError below
+            pass
     
     if not shap_path.exists():
         raise FileNotFoundError(
-            f"SHAP importance file not found at {shap_path}. "
+            f"SHAP importance file not found for {cohort}/{age_band} ({model_type}). "
+            f"Checked locations:\n"
+            f"  - Local: {PROJECT_ROOT / '7_shap_analysis' / 'outputs' / cohort / age_band_fname / f'{cohort}_{age_band_fname}_shap_global_importance_{model_type}.csv'}\n"
+            f"  - S3: s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_global_importance_{model_type}.csv\n"
             f"SHAP values are required. Please run Step 7 (SHAP Analysis) first."
         )
     

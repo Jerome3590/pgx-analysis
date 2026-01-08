@@ -251,6 +251,37 @@ except:
             fi
         fi
         
+        # For Step 7, verify SHAP outputs exist before skipping
+        # Step 8 needs SHAP outputs from Step 7, so check for them
+        if [ "$step_num" = "7" ]; then
+            AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
+            # Check for required SHAP outputs (XGBoost is required, CatBoost is optional)
+            SHAP_IMPORTANCE_XGB="$PROJECT_ROOT/7_shap_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/${COHORT_NAME}_${AGE_BAND_FNAME}_shap_global_importance_xgboost.csv"
+            SHAP_VALUES_XGB="$PROJECT_ROOT/7_shap_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/${COHORT_NAME}_${AGE_BAND_FNAME}_shap_sample_values_xgboost.parquet"
+            
+            if [ ! -f "$SHAP_IMPORTANCE_XGB" ] || [ ! -f "$SHAP_VALUES_XGB" ]; then
+                MISSING_FILES=()
+                [ ! -f "$SHAP_IMPORTANCE_XGB" ] && MISSING_FILES+=("SHAP global importance CSV")
+                [ ! -f "$SHAP_VALUES_XGB" ] && MISSING_FILES+=("SHAP sample values parquet")
+                
+                log "Step 7 marked as completed but required SHAP outputs missing: ${MISSING_FILES[*]}. Re-running to download/regenerate..."
+                # Clear the completion flag so we run the step
+                python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '7' in data['step_times']:
+        data['step_times']['7']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                STEP_COMPLETED="no"
+            fi
+        fi
+        
         if [ "$STEP_COMPLETED" = "yes" ]; then
             PREV_DURATION=$(python3 -c "
 import json
