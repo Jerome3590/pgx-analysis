@@ -377,7 +377,7 @@ except:
 " 2>/dev/null || true
         # Re-run Step 4a
         log "Re-running Step 4a..."
-        python 4a_model_data/create_model_data.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND" || {
+        $PYTHON_CMD 4a_model_data/create_model_data.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND" || {
             error "Step 4a failed to generate model_events.parquet"
             exit 1
         }
