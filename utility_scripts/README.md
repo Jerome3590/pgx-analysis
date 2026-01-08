@@ -270,6 +270,49 @@ python utility_scripts/check_shap_s3_files.py --cohort opioid_ed --age-band 13-2
 
 ---
 
+### Check Dashboard Artifacts in S3
+
+**Script:** `check_dashboard_artifacts.py`
+
+Comprehensive check for all dashboard artifacts in S3, including:
+- **SHAP Analysis (Step 7)**: Global importance and sample values for XGBoost and CatBoost
+- **FFA Analysis (Step 8)**: AXP explanations, feature importance, **causal importance**, and interaction analysis
+- **Model Artifacts (Step 6)**: XGBoost JSON, CatBoost CBM, model selection metadata
+
+**Usage:**
+```bash
+# Check specific cohort/age band
+python utility_scripts/check_dashboard_artifacts.py --cohort <cohort> --age-band <age_band>
+
+# Check all cohorts and age bands
+python utility_scripts/check_dashboard_artifacts.py --all-cohorts
+```
+
+**Examples:**
+```bash
+# Check specific cohort
+python utility_scripts/check_dashboard_artifacts.py --cohort opioid_ed --age-band 13-24
+
+# Check all cohorts (comprehensive status report)
+python utility_scripts/check_dashboard_artifacts.py --all-cohorts
+```
+
+**Output:**
+- Per-category status (SHAP, FFA, Model Artifacts)
+- File-by-file existence check with S3 paths
+- Summary statistics (found/missing counts, completion percentage)
+- Overall status indicator (✅ Complete / ⚠️ Partial / ❌ Missing)
+
+**Key Artifacts Checked:**
+- `causal_importance.parquet` - Single-feature causal analysis results
+- `interaction_analysis.parquet` - Multi-feature interaction analysis results
+- `axp_explanations.parquet` - Anchored explanations for instances
+- `feature_importance_axp.parquet` - Feature importance from FFA
+- SHAP global importance and sample values (XGBoost and CatBoost)
+- Model artifacts (JSON, CBM, metadata)
+
+---
+
 ### Check Cohort Status
 
 **Script:** `check_cohort_status.py`
