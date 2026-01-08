@@ -109,7 +109,12 @@ def check_dashboard_artifacts(cohort: str, age_band: str, verbose: bool = False)
         total_files += stats["total"]
         
         completion = (stats["found"] / stats["total"] * 100) if stats["total"] > 0 else 0
-        status_icon = "✅" if stats["missing"] == 0 else "⚠️" if stats["found"] > 0 else "❌"
+        if stats["missing"] == 0:
+            status_icon = "[OK]"
+        elif stats["found"] > 0:
+            status_icon = "[PARTIAL]"
+        else:
+            status_icon = "[MISSING]"
         
         print(f"\n{status_icon} {category}:")
         print(f"    Found: {stats['found']}/{stats['total']} ({completion:.1f}%)")
@@ -121,11 +126,11 @@ def check_dashboard_artifacts(cohort: str, age_band: str, verbose: bool = False)
     print(f"Overall: {total_found}/{total_files} files found ({overall_completion:.1f}%)")
     
     if total_missing == 0:
-        print("✅ All dashboard artifacts are available!")
+        print("[OK] All dashboard artifacts are available!")
     elif total_found == 0:
-        print("❌ No dashboard artifacts found. Pipeline may not have run yet.")
+        print("[MISSING] No dashboard artifacts found. Pipeline may not have run yet.")
     else:
-        print(f"⚠️  {total_missing} artifact(s) missing. Dashboard may have limited functionality.")
+        print(f"[PARTIAL] {total_missing} artifact(s) missing. Dashboard may have limited functionality.")
     
     print(f"{'='*80}\n")
     
@@ -189,11 +194,11 @@ def check_all_cohorts() -> None:
             
             if total_missing == 0:
                 complete_cohorts += 1
-                status = "✅"
+                status = "[OK]"
             elif total_missing < 4:  # Some missing but not critical
-                status = "⚠️"
+                status = "[PARTIAL]"
             else:
-                status = "❌"
+                status = "[MISSING]"
             
             print(f"{status} {cohort:20} {age_band:10} - {total_missing} missing artifact(s)")
     
