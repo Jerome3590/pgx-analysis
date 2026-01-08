@@ -24,6 +24,7 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
   - **SHAP Requirement**: SHAP values from Step 7 (both XGBoost and CatBoost) are required (raises error if not available)
   - **Performance Optimization**: Limits rule sets to ~300-500 unique rules for efficient AXP computation
 - **Causal Analysis**: Measure causal responsibility through counterfactual analysis
+  - **Model-Based Causal Importance**: Measures how interventions on features affect the model's explanations and predictions
   - **Single-Feature Causal Analysis**: Tests individual feature effects
   - **Multi-Feature Interaction Analysis**: Tests combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
   - **SHAP/FFA/Causal Filtering**: Only tests combinations of features with ANY importance > 0 (SHAP OR FFA OR causal) to reduce combinatorial explosion
@@ -152,3 +153,134 @@ While CatBoost FFA is not performed due to technical limitations, this design ch
 
 **Trade-off**: May miss rare variants found only by CatBoost, but ensures all features entering causal analysis are robust and interpretable. See [`docs/Step10_Results/README_combined_ffa_shap_causal_analysis.md`](../docs/Step10_Results/README_combined_ffa_shap_causal_analysis.md) for detailed explanation.
 
+---
+
+## Model-Based Causal Importance
+
+### Overview
+
+**Model-based causal importance** measures how interventions on features affect the model's explanations and predictions. Unlike correlation-based feature importance (e.g., SHAP, permutation importance), causal importance uses counterfactual reasoning to identify features that causally drive the model's decision-making process.
+
+### What It Measures
+
+Causal importance answers the question: **"When I change this feature, how much does the model's explanation change?"**
+
+The analysis performs interventions on features and measures the resulting change in explanations (AXP - Abductive Explanations):
+
+1. **Interventions**:
+   - **Continuous features**: Set to median value (neutral baseline)
+   - **Binary features**: Flip values (0→1, 1→0)
+   - Creates a counterfactual dataset where the feature is modified
+
+2. **Change Measurement**:
+   - Generates explanations (AXP) for original and modified instances
+   - Calculates the fraction of instances where explanations changed
+   - **Causal Importance Score** = Fraction of instances with changed explanations
+
+3. **Higher Score = Stronger Causal Effect**:
+   - Score of 0.0 = Feature has no causal effect (explanations unchanged)
+   - Score of 1.0 = Feature always causes explanation changes (perfect causal effect)
+   - Score of 0.5 = Feature causes explanation changes in 50% of instances
+
+### Why This Captures True Signal
+
+**Model-based causal importance** captures true signal better than correlation-based methods because:
+
+1. **Filters Spurious Correlations**:
+   - Features that correlate with the outcome but don't causally affect predictions get low scores
+   - Only features that actually drive the model's reasoning receive high scores
+
+2. **Measures Intervention Effects**:
+   - Uses counterfactual reasoning: "What if this feature changed?"
+   - Tests actual causal mechanisms rather than statistical associations
+
+3. **Model-Based Causal Inference**:
+   - Identifies features the model actually relies on for its reasoning
+   - Focuses on features that causally affect the model's explanations and predictions
+
+4. **More Robust Than Simple Importance**:
+   - More robust than SHAP or permutation importance
+   - Measures intervention effects rather than just associations
+   - Filters out features that are correlated but not causally relevant
+
+### Important Distinction: Model-Based vs. True Causal Inference
+
+**Model-Based Causal Inference** (what we measure):
+- Measures: "What features causally affect the **model's predictions**?"
+- Answers: Which features drive the model's decision-making process
+- Use case: Understanding model behavior, identifying robust features
+
+**True Causal Inference** (what we don't measure):
+- Would measure: "What features causally affect the **true outcome**?"
+- Would require: Randomized controlled trials (RCTs) or natural experiments
+- Use case: Clinical decision-making, policy recommendations
+
+### Technical Implementation
+
+The causal analysis is implemented in `perform_causal_analysis()` in `run_full_ffa_analysis.py`:
+
+1. **Feature Selection**:
+   - Filters to features with FFA importance > 0
+   - Only analyzes features that appear in model explanations
+
+2. **Intervention Creation**:
+   - For each feature, creates modified dataset with intervention applied
+   - Binary features: Values flipped (0→1, 1→0)
+   - Continuous features: Set to median value
+
+3. **Explanation Comparison**:
+   - Generates AXP explanations for original and modified instances
+   - Uses grouped comparison for efficiency (instances with same rules grouped together)
+   - Measures fraction of instances where explanations changed
+
+4. **Causal Score Calculation**:
+   - `causal_importance` = Fraction of instances with changed explanations
+   - Higher score = Feature has stronger causal effect on model's reasoning
+
+### Output Format
+
+The causal importance results are saved to:
+- `outputs/{cohort}/{age_band}/xgboost/causal_importance.parquet`
+
+Columns:
+- `feature`: Feature name
+- `causal_importance`: Causal importance score (0.0 to 1.0)
+- `median_value`: Median value used for intervention (continuous features)
+- `is_binary`: Whether feature is binary (0/1)
+- `intervention`: Description of intervention applied
+
+### Top 10 Causal Importance Features
+
+After Step 8 completes, the workflow automatically prints the top 10 causal importance features:
+
+```
+================================================================================
+TOP 10 CAUSAL IMPORTANCE FEATURES
+================================================================================
+   1. feature_name_1                                        0.123456
+   2. feature_name_2                                        0.098765
+   ...
+  10. feature_name_10                                       0.045678
+================================================================================
+```
+
+These features represent the features that, when changed, most strongly affect the model's explanations and predictions.
+
+### When to Use Causal Importance
+
+**Use causal importance when**:
+- You want to identify features that causally drive model predictions
+- You need to filter out spurious correlations
+- You want robust features for clinical decision-making
+- You need interpretable features that can be expressed as Boolean logic
+
+**Don't use causal importance when**:
+- You need true causal inference from observational data (requires RCTs)
+- You want to understand population-level causal effects
+- You need to make policy recommendations without experimental validation
+
+### References
+
+For detailed technical documentation, see:
+- [`docs/Step9_FFA/README_ffa_causal_analysis.md`](../docs/Step9_FFA/README_ffa_causal_analysis.md) - Dual-approach causal analysis guide
+- `run_full_ffa_analysis.py` - Implementation of `perform_causal_analysis()`
