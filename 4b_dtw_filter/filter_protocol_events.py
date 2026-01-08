@@ -661,31 +661,38 @@ def filter_administrative_events(
         
         # Add hardcoded administrative codes (preventive/administrative codes that should always be filtered)
         # These codes were identified from aggregated feature importance files as administrative/preventive
-        hardcoded_admin_icd = {
-            # Z00: General health examinations (preventive/routine)
-            'Z00.00', 'Z00.01', 'Z00.110', 'Z00.111', 'Z00.12', 'Z00.121', 'Z00.129', 'Z00.3', 'Z00.70', 'Z00.8',
-            # Z01: Special examinations (preventive/routine)
-            'Z01.00', 'Z01.01', 'Z01.10', 'Z01.30', 'Z01.31', 'Z01.41', 'Z01.411', 'Z01.419', 'Z01.42', 'Z01.70',
-            'Z01.810', 'Z01.811', 'Z01.812', 'Z01.818', 'Z01.82', 'Z01.83', 'Z01.84', 'Z01.89',
-            # Z02: Administrative examinations (clearly administrative)
-            'Z02.0', 'Z02.1', 'Z02.2', 'Z02.5', 'Z02.83', 'Z02.89', 'Z02.9',
-            # Z03: Medical observation for suspected conditions (ruled out - administrative)
-            'Z03.6', 'Z03.71', 'Z03.72', 'Z03.73', 'Z03.74', 'Z03.75', 'Z03.79', 'Z03.89',
-            # Z04: Examination for legal/administrative purposes (clearly administrative)
-            'Z04.1', 'Z04.3', 'Z04.41', 'Z04.42', 'Z04.8', 'Z04.89', 'Z04.9',
-            # Z08: Follow-up examination after treatment for malignant neoplasm (administrative follow-up)
-            'Z08',
-            # Z09: Follow-up examination after treatment for other conditions (administrative follow-up)
-            'Z09',
-            # Z34: Supervision of normal pregnancy (preventive/routine)
-            'Z34.00', 'Z34.01', 'Z34.02', 'Z34.03', 'Z34.80', 'Z34.81', 'Z34.82', 'Z34.83', 'Z34.90', 'Z34.91', 'Z34.92', 'Z34.93',
-            # Z39: Encounter for maternal postpartum care and examination (administrative follow-up)
-            'Z39.0', 'Z39.1', 'Z39.2',
-            # Z51: Encounters for other aftercare and medical care (administrative aftercare)
-            'Z51.0', 'Z51.11', 'Z51.12', 'Z51.5', 'Z51.6', 'Z51.81', 'Z51.89',
-            # V72: Other medical examination (preventive/administrative)
-            'V72.31', 'V72.40', 'V72.41', 'V72.42', 'V72.5', 'V72.61', 'V72.7', 'V72.81', 'V72.83', 'V72.85',
-        }
+        # Only including codes that were actually found in the aggregated feature importance analysis
+        hardcoded_admin_icd = set()
+        
+        # Z00: General health examinations (preventive/routine) - codes found in aggregated FI
+        z00_codes = ['Z00.00', 'Z00.01', 'Z00.110', 'Z00.111', 'Z00.12', 'Z00.121', 'Z00.129', 'Z00.3', 'Z00.70', 'Z00.8']
+        # Z01: Special examinations (preventive/routine) - codes found in aggregated FI
+        z01_codes = ['Z01.00', 'Z01.01', 'Z01.10', 'Z01.30', 'Z01.31', 'Z01.41', 'Z01.411', 'Z01.419', 'Z01.42', 'Z01.70',
+                     'Z01.810', 'Z01.811', 'Z01.812', 'Z01.818', 'Z01.82', 'Z01.83', 'Z01.84', 'Z01.89']
+        # Z02: Administrative examinations (clearly administrative) - codes found in aggregated FI
+        z02_codes = ['Z02.0', 'Z02.1', 'Z02.2', 'Z02.5', 'Z02.83', 'Z02.89', 'Z02.9']
+        # Z03: Medical observation for suspected conditions (ruled out - administrative) - codes found in aggregated FI
+        z03_codes = ['Z03.6', 'Z03.71', 'Z03.72', 'Z03.73', 'Z03.74', 'Z03.75', 'Z03.79', 'Z03.89']
+        # Z04: Examination for legal/administrative purposes (clearly administrative) - codes found in aggregated FI
+        z04_codes = ['Z04.1', 'Z04.3', 'Z04.41', 'Z04.42', 'Z04.8', 'Z04.89', 'Z04.9']
+        # Z08: Follow-up examination after treatment for malignant neoplasm (administrative follow-up)
+        z08_codes = ['Z08']
+        # Z09: Follow-up examination after treatment for other conditions (administrative follow-up)
+        z09_codes = ['Z09']
+        # Z34: Supervision of normal pregnancy (preventive/routine) - codes found in aggregated FI
+        z34_codes = ['Z34.00', 'Z34.01', 'Z34.02', 'Z34.03', 'Z34.80', 'Z34.81', 'Z34.82', 'Z34.83', 'Z34.90', 'Z34.91', 'Z34.92', 'Z34.93']
+        # Z39: Encounter for maternal postpartum care and examination (administrative follow-up) - codes found in aggregated FI
+        z39_codes = ['Z39.0', 'Z39.1', 'Z39.2']
+        # Z51: Encounters for other aftercare and medical care (administrative aftercare) - codes found in aggregated FI
+        z51_codes = ['Z51.0', 'Z51.11', 'Z51.12', 'Z51.5', 'Z51.6', 'Z51.81', 'Z51.89']
+        # V72: Other medical examination (preventive/administrative) - codes found in aggregated FI
+        v72_codes = ['V72.31', 'V72.40', 'V72.41', 'V72.42', 'V72.5', 'V72.61', 'V72.7', 'V72.81', 'V72.83', 'V72.85']
+        
+        # Add all codes (with dots) and also normalized versions (without dots) to handle both formats
+        all_icd_codes = z00_codes + z01_codes + z02_codes + z03_codes + z04_codes + z08_codes + z09_codes + z34_codes + z39_codes + z51_codes + v72_codes
+        for code in all_icd_codes:
+            hardcoded_admin_icd.add(code)  # With dots (standard format)
+            hardcoded_admin_icd.add(code.replace('.', ''))  # Without dots (aggregated FI format)
         administrative_codes['icd'].update(hardcoded_admin_icd)
         
         # Add hardcoded administrative CPT codes (preventive/administrative procedures that should always be filtered)

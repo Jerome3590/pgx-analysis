@@ -182,28 +182,40 @@ def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
     data_root = get_data_root()
     is_linux_system = is_linux()
     
-    # Build candidate paths - prioritize data root on Linux, project root on Windows
+    # Build candidate paths - prioritize filtered data (model_events_no_protocols.parquet) if Step 4b has run
+    # Then fall back to unfiltered data (model_events.parquet)
     if is_linux_system:
         # On Linux/EC2: prioritize /mnt/nvme
         candidates = [
+            # Prefer filtered data (Step 4b output) if available
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            # Fall back to unfiltered data
             data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
             PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
         ]
         # Download destination: prefer data root on Linux
-        download_dest = candidates[0]
+        download_dest = data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
     else:
         # On Windows: prioritize project root
         candidates = [
+            # Prefer filtered data (Step 4b output) if available
+            PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            # Fall back to unfiltered data
             PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
             data_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
         ]
         # Download destination: prefer project root on Windows
-        download_dest = candidates[0]
+        download_dest = PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
     
-    # Check each candidate
+    # Check each candidate (filtered data first, then unfiltered)
     for path in candidates:
         if path.exists():
-            print(f"Found model_events.parquet at: {path}")
+            if "no_protocols" in path.name:
+                print(f"Found filtered model_events_no_protocols.parquet at: {path} (administrative codes already filtered)")
+            else:
+                print(f"Found model_events.parquet at: {path} (using unfiltered data - Step 4b may not have run)")
             return path
     
     # Log which paths we checked
