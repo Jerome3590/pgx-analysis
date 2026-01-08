@@ -520,38 +520,123 @@ run_step "7" "SHAP Analysis (Best CatBoost Model)" \
 run_step "8" "FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)" \
     "python 8_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
+# Print top 10 causal importance features (even if Step 8 was skipped)
+AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
+CAUSAL_FILE="$PROJECT_ROOT/8_ffa_analysis/outputs/$COHORT_NAME/$AGE_BAND_FNAME/xgboost/causal_importance.parquet"
+if [ -f "$CAUSAL_FILE" ]; then
+    log "Printing top 10 causal importance features..."
+    $PYTHON_CMD -c "
+import pandas as pd
+from pathlib import Path
+try:
+    causal_path = Path('$CAUSAL_FILE')
+    if causal_path.exists():
+        df = pd.read_parquet(causal_path)
+        if len(df) > 0:
+            df_sorted = df.sort_values('causal_importance', ascending=False)
+            top_10 = df_sorted.head(10)[['feature', 'causal_importance']]
+            print('\n' + '=' * 80)
+            print('TOP 10 CAUSAL IMPORTANCE FEATURES')
+            print('=' * 80)
+            for rank, (_, row) in enumerate(top_10.iterrows(), start=1):
+                print(f'  {rank:2d}. {row[\"feature\"]:<50} {row[\"causal_importance\"]:>10.6f}')
+            print('=' * 80 + '\n')
+except Exception as e:
+    print(f'Warning: Could not load causal importance: {e}')
+" 2>/dev/null || true
+fi
+
 # Step 9: Risk Dashboard (BupaR/DTW/FP-Growth visualizations + causal analysis)
-# Prepare models and metadata for this specific cohort/age_band
-# This step can run independently for each cohort/age_band - doesn't require all cohorts
+# Prepare models and metadata - ONLY runs when ALL required cohorts are complete
 if ! should_skip "9"; then
     log "=========================================="
     log "Step 9: Risk Dashboard Preparation"
     log "=========================================="
-    log "Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only"
-    log "Preparing dashboard artifacts for cohort: $COHORT_NAME, age_band: $AGE_BAND"
+    log "Note: Step 9 requires ALL cohorts to be complete before running"
     
-    # Check if required inputs exist (Step 6 models)
-    MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/${AGE_BAND_FNAME}/models"
-    if [ ! -d "$MODEL_DIR" ] || [ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]; then
-        warn "Step 9 skipped: Models not found at $MODEL_DIR"
-        warn "Step 6 must complete first for this cohort/age_band"
+    # Define required cohorts and age bands
+    REQUIRED_COHORTS=("opioid_ed" "non_opioid_ed")
+    OPIOID_AGE_BANDS=("13-24" "25-44" "45-54" "55-64")
+    NON_OPIOID_AGE_BANDS=("65-74" "75-84" "85-94")
+    
+    # Check if all required cohorts/age_bands have completed Step 8
+    log "Checking if all required cohorts are complete..."
+    ALL_COMPLETE=true
+    MISSING_COHORTS=()
+    
+    # Check opioid_ed cohort
+    for age_band in "${OPIOID_AGE_BANDS[@]}"; do
+        age_band_fname=$(echo "$age_band" | tr '-' '_')
+        STEP8_OUTPUT="$PROJECT_ROOT/8_ffa_analysis/outputs/opioid_ed/$age_band_fname/xgboost/causal_importance.parquet"
+        if [ ! -f "$STEP8_OUTPUT" ]; then
+            ALL_COMPLETE=false
+            MISSING_COHORTS+=("opioid_ed/$age_band")
+        fi
+    done
+    
+    # Check non_opioid_ed cohort
+    for age_band in "${NON_OPIOID_AGE_BANDS[@]}"; do
+        age_band_fname=$(echo "$age_band" | tr '-' '_')
+        STEP8_OUTPUT="$PROJECT_ROOT/8_ffa_analysis/outputs/non_opioid_ed/$age_band_fname/xgboost/causal_importance.parquet"
+        if [ ! -f "$STEP8_OUTPUT" ]; then
+            ALL_COMPLETE=false
+            MISSING_COHORTS+=("non_opioid_ed/$age_band")
+        fi
+    done
+    
+    if [ "$ALL_COMPLETE" = false ]; then
+        warn "Step 9 skipped: Not all required cohorts are complete"
+        warn "Missing cohorts/age_bands:"
+        for missing in "${MISSING_COHORTS[@]}"; do
+            warn "  - $missing"
+        done
+        warn "Step 9 will run automatically when all cohorts complete Step 8"
     else
-        # Prepare models for this cohort (processes all age bands for the cohort)
-        if $PYTHON_CMD 9_risk_dashboard/prepare_models.py --cohort "$COHORT_NAME"; then
-            log "✅ Model preparation completed for $COHORT_NAME"
+        log "✓ All required cohorts are complete. Running Step 9..."
+        log "Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only"
+        
+        # Prepare models for all cohorts
+        for cohort in "${REQUIRED_COHORTS[@]}"; do
+            log "Preparing models for $cohort..."
+            if $PYTHON_CMD 9_risk_dashboard/prepare_models.py --cohort "$cohort"; then
+                log "✅ Model preparation completed for $cohort"
+            else
+                error "Step 9: Model preparation failed for $cohort"
+                exit 1
+            fi
+        done
+        
+        # Generate metadata for all cohorts
+        for cohort in "${REQUIRED_COHORTS[@]}"; do
+            log "Generating metadata for $cohort..."
+            if $PYTHON_CMD 9_risk_dashboard/generate_metadata.py --cohort "$cohort"; then
+                log "✅ Metadata generation completed for $cohort"
+            else
+                error "Step 9: Metadata generation failed for $cohort"
+                exit 1
+            fi
+        done
+        
+        # Prepare CPIC data
+        log "Preparing CPIC data..."
+        if $PYTHON_CMD 9_risk_dashboard/prepare_cpic_data.py; then
+            log "✅ CPIC data preparation completed"
         else
-            warn "Step 9: Model preparation had warnings (check logs)"
+            error "Step 9: CPIC data preparation failed"
+            exit 1
         fi
         
-        # Generate metadata for this cohort (processes all age bands for the cohort)
-        if $PYTHON_CMD 9_risk_dashboard/generate_metadata.py --cohort "$COHORT_NAME"; then
-            log "✅ Metadata generation completed for $COHORT_NAME"
+        # Prepare lambda_dir for Docker build
+        log "Preparing lambda_dir for Docker build..."
+        if $PYTHON_CMD 9_risk_dashboard/prepare_lambda_dir.py; then
+            log "✅ Lambda directory preparation completed"
         else
-            warn "Step 9: Metadata generation had warnings (check logs)"
+            error "Step 9: Lambda directory preparation failed"
+            exit 1
         fi
         
-        log "✅ Step 9 completed successfully for $COHORT_NAME/$AGE_BAND"
-        log "Note: Dashboard can be built incrementally as cohorts complete"
+        log "✅ Step 9 completed successfully - all cohorts processed"
+        log "Dashboard is ready for Docker build and deployment"
     fi
 fi
 
