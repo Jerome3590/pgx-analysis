@@ -688,6 +688,27 @@ def filter_administrative_events(
         }
         administrative_codes['icd'].update(hardcoded_admin_icd)
         
+        # Add hardcoded administrative CPT codes (preventive/administrative procedures that should always be filtered)
+        # These codes were identified from aggregated feature importance files as administrative/preventive
+        hardcoded_admin_cpt = set()
+        
+        # CPT 99000-99099: Administrative services (clearly administrative)
+        admin_cpt_99000 = [99000, 99001, 99024, 99050, 99051, 99053, 99058, 99070, 99078]
+        # CPT 99400-99499: Preventive medicine (administrative/preventive)
+        admin_cpt_99400 = [99401, 99402, 99403, 99404, 99406, 99407, 99408, 99409, 99420, 99429, 99441, 99442, 99443, 99444, 99460, 99462, 99464, 99471, 99472, 99480, 99484, 99487, 99490, 99495, 99496, 99497, 99499]
+        # CPT 99381-99397: Preventive visits (administrative/preventive)
+        admin_cpt_99381 = [99381, 99382, 99383, 99384, 99385, 99386, 99387, 99391, 99392, 99393, 99394, 99395, 99396, 99397]
+        
+        for code in admin_cpt_99000 + admin_cpt_99400 + admin_cpt_99381:
+            hardcoded_admin_cpt.add(str(code))
+        
+        # S codes: Administrative billing codes (non-clinical)
+        admin_s_codes = ['S0201', 'S0109', 'S9083', 'S0990XA', 'S0028']
+        for code in admin_s_codes:
+            hardcoded_admin_cpt.add(code)  # S codes are stored as CPT codes
+        
+        administrative_codes['cpt'].update(hardcoded_admin_cpt)
+        
         # If research outputs don't exist, start with hardcoded sets (will filter known admin codes + post-event leakage)
         if (not administrative_codes.get("icd")) and (not administrative_codes.get("cpt")) and (not administrative_codes.get("drug")):
             logger.info(
