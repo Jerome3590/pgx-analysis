@@ -285,7 +285,24 @@ The grouped comparison approach is particularly robust for binary classification
    - **Sensitive to changes**: Any condition change can alter rule matches and create new groups
    - **Efficient**: Only fully-matched rules are considered, avoiding complex partial-match logic
 
-**Key Insight**: The strict AND logic means that partial condition satisfaction doesn't create "partial groups" - instead, instances with different partial matches end up in different groups based on which complete rules they satisfy. This makes the grouping approach both robust and efficient.
+**Key Insight**: The strict AND logic means that partial condition satisfaction doesn't create "partial groups" - instead, instances with different partial matches end up matching **different, simpler rules** that only require the subset of conditions they satisfy. This makes the grouping approach both robust and efficient.
+
+**Example of Rule Hierarchy**:
+```
+Rule A (complex): (age > 25) AND (drug_count > 3) AND (icd_code == "E11")
+Rule B (simpler): (age > 25) AND (drug_count > 3)
+Rule C (simpler): (age > 25) AND (icd_code == "E11")
+
+Instance with age=30, drug_count=5, icd_code="E10":
+- Rule A: ❌ Does NOT match (icd_code condition fails)
+- Rule B: ✅ MATCHES (both age and drug_count conditions satisfied)
+- Rule C: ❌ Does NOT match (icd_code condition fails)
+
+→ Instance matches Rule B (the simpler rule for the subset it satisfies)
+→ Instance is grouped with other instances that match Rule B
+```
+
+This is exactly how decision trees work - each rule represents a **complete path** through the tree. If you don't satisfy all conditions in one path, you match a different path (different rule) that corresponds to the conditions you do satisfy. The grouping correctly captures this by grouping instances by their **complete set of matched rules**.
 
 ### Technical Implementation
 
