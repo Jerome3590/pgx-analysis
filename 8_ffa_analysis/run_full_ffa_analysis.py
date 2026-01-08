@@ -835,6 +835,136 @@ def get_model_features_for_causal_analysis(X: pd.DataFrame) -> List[str]:
 
 
 
+def _calculate_grouped_causal_effect(
+    explainer: Any, 
+    X_original: pd.DataFrame, 
+    X_modified: pd.DataFrame, 
+    y: np.ndarray,
+    feat_name: str
+) -> float:
+    """
+    Calculate causal effect by grouping instances by matching rules.
+    
+    Instead of computing AXP for each row individually, we:
+    1. Group instances by their matching rules (before modification)
+    2. Compute AXP once per group
+    3. Identify which groups are affected by feature modification
+    4. Only recompute AXP for affected groups
+    
+    This is much more efficient when many instances have the same rule matches.
+    
+    Args:
+        explainer: FFA explainer instance
+        X_original: Original feature matrix
+        X_modified: Modified feature matrix (with feature intervention)
+        y: Predicted classes
+        feat_name: Name of feature being modified
+        
+    Returns:
+        Fraction of instances where explanations changed
+    """
+    from collections import defaultdict
+    
+    # Step 1: Group instances by matching rules (original)
+    original_groups = defaultdict(list)  # group_key -> list of instance indices
+    original_group_axps = {}  # group_key -> AXP (list of literals)
+    
+    logger.debug(f"  Grouping {len(X_original)} instances by matching rules...")
+    
+    for idx in range(len(X_original)):
+        instance = X_original.iloc[idx].values if isinstance(X_original, pd.DataFrame) else X_original[idx]
+        predicted_class = y[idx]
+        
+        # Get matching rules for this instance
+        matched_rules = explainer._satisfied_rules(instance, predicted_class)
+        
+        # Create group key from sorted rule IDs (instances with same rules get same key)
+        group_key = tuple(sorted(matched_rules)) if matched_rules else tuple()
+        
+        original_groups[group_key].append(idx)
+    
+    logger.debug(f"  Found {len(original_groups)} unique rule groups")
+    
+    # Step 2: Compute AXP once per group (original)
+    for group_key, instance_indices in original_groups.items():
+        if group_key not in original_group_axps:
+            if group_key:  # Has matching rules
+                # Use first instance in group to compute AXP
+                first_idx = instance_indices[0]
+                instance = X_original.iloc[first_idx].values if isinstance(X_original, pd.DataFrame) else X_original[first_idx]
+                predicted_class = y[first_idx]
+                
+                # Get instance-specific SHAP for rule filtering
+                instance_shap_values = {}
+                if hasattr(explainer, 'shap_values_df') and explainer.shap_values_df is not None:
+                    if first_idx in explainer.shap_values_df.index:
+                        instance_shap_row = explainer.shap_values_df.loc[first_idx]
+                        instance_shap_values = instance_shap_row.to_dict()
+                
+                # Compute AXP for this group
+                # Note: _compute_axp uses global SHAP importance map, not instance-specific
+                # Instance-specific SHAP is used in the worker function for rule scoring
+                # For grouped comparison, we use global SHAP map (faster, slight approximation)
+                try:
+                    axp_literals = explainer._compute_axp(list(group_key))
+                    original_group_axps[group_key] = tuple(sorted(axp_literals))
+                except Exception as e:
+                    logger.debug(f"  Error computing AXP for group {group_key[:5]}...: {e}")
+                    original_group_axps[group_key] = tuple()
+            else:
+                original_group_axps[group_key] = tuple()  # No matching rules
+    
+    # Step 3: Identify affected groups and compute modified AXP (with caching)
+    modified_group_axps = {}  # Cache modified AXP per group key
+    total_changes = 0
+    total_instances = len(X_original)
+    
+    for idx in range(len(X_original)):
+        instance_orig = X_original.iloc[idx].values if isinstance(X_original, pd.DataFrame) else X_original[idx]
+        instance_mod = X_modified.iloc[idx].values if isinstance(X_modified, pd.DataFrame) else X_modified[idx]
+        predicted_class = y[idx]
+        
+        # Get original group key and AXP
+        matched_orig = explainer._satisfied_rules(instance_orig, predicted_class)
+        orig_group_key = tuple(sorted(matched_orig)) if matched_orig else tuple()
+        original_axp = original_group_axps.get(orig_group_key, tuple())
+        
+        # Get modified matching rules and group key
+        matched_mod = explainer._satisfied_rules(instance_mod, predicted_class)
+        mod_group_key = tuple(sorted(matched_mod)) if matched_mod else tuple()
+        
+        # Get or compute modified AXP (with caching)
+        if mod_group_key in modified_group_axps:
+            # Use cached modified AXP
+            modified_axp = modified_group_axps[mod_group_key]
+        elif mod_group_key == orig_group_key:
+            # Rules didn't change - AXP might still change if feature appears in AXP
+            # For efficiency, assume it's the same (conservative approximation)
+            modified_axp = original_axp
+            modified_group_axps[mod_group_key] = modified_axp
+        else:
+            # Need to compute modified AXP (cache it for other instances with same modified rules)
+            if mod_group_key:
+                try:
+                    axp_literals = explainer._compute_axp(matched_mod)
+                    modified_axp = tuple(sorted(axp_literals))
+                    modified_group_axps[mod_group_key] = modified_axp
+                except Exception as e:
+                    logger.debug(f"  Error computing modified AXP for group {mod_group_key[:5]}...: {e}")
+                    modified_axp = tuple()
+                    modified_group_axps[mod_group_key] = modified_axp
+            else:
+                modified_axp = tuple()
+                modified_group_axps[mod_group_key] = modified_axp
+        
+        # Compare AXP
+        if original_axp != modified_axp:
+            total_changes += 1
+    
+    change_rate = total_changes / total_instances if total_instances > 0 else 0.0
+    return change_rate
+
+
 def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray, 
                            feature_importance_df: pd.DataFrame, cohort: str, age_band: str,
                            model_type: str = "xgboost", output_dir: Optional[Path] = None) -> pd.DataFrame:
@@ -966,39 +1096,62 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 X_modified[feat_name] = median_val
                 intervention_val = f"median ({median_val:.4f})"
             
-            # Count how many explanations change
-            # Note: Must pass full feature set, not just the single feature
-            logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Generating original explanations for {feat_name} (sample size: {causal_sample_size})...")
-            orig_start = time.time()
+            # Calculate change rate using grouped comparison (avoids row-by-row explain_dataset calls)
+            # Group instances by matching rules and only compute AXP once per group
+            logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Analyzing {feat_name} using grouped rule comparison (sample size: {causal_sample_size})...")
             try:
-                original_explanations = explainer.explain_dataset(
-                    X_sample,  # Pass full feature set
-                    predictions=y_sample,
-                    return_df=True,
-                    show_progress=True,  # Enable progress visibility
-                    n_jobs=1  # Use single worker for causal analysis to save memory
+                change_rate = _calculate_grouped_causal_effect(
+                    explainer, X_sample, X_modified, y_sample, feat_name
                 )
-                orig_duration = time.time() - orig_start
-                logger.info(f"  Original explanations generated in {orig_duration:.2f} seconds")
+                changes = int(change_rate * len(X_sample))
+                logger.info(f"  Feature {feat_name}: {changes}/{len(X_sample)} explanations changed ({change_rate:.2%}) [grouped]")
             except Exception as e:
-                logger.error(f"  Error generating original explanations for {feat_name}: {e}")
-                continue
-            
-            logger.info(f"  Generating modified explanations for {feat_name}...")
-            mod_start = time.time()
-            try:
-                modified_explanations = explainer.explain_dataset(
-                    X_modified,  # Pass full feature set
-                    predictions=y_sample,
-                    return_df=True,
-                    show_progress=True,  # Enable progress visibility
-                    n_jobs=1  # Use single worker for causal analysis to save memory
-                )
-                mod_duration = time.time() - mod_start
-                logger.info(f"  Modified explanations generated in {mod_duration:.2f} seconds")
-            except Exception as e:
-                logger.error(f"  Error generating modified explanations for {feat_name}: {e}")
-                continue
+                logger.warning(f"  Grouped comparison failed for {feat_name}: {e}. Falling back to row-by-row.")
+                # Fallback to original row-by-row comparison
+                logger.info(f"  Generating original explanations for {feat_name}...")
+                orig_start = time.time()
+                try:
+                    original_explanations = explainer.explain_dataset(
+                        X_sample,
+                        predictions=y_sample,
+                        return_df=True,
+                        show_progress=False,
+                        n_jobs=1
+                    )
+                    orig_duration = time.time() - orig_start
+                    logger.info(f"  Original explanations generated in {orig_duration:.2f} seconds")
+                except Exception as e2:
+                    logger.error(f"  Error generating original explanations for {feat_name}: {e2}")
+                    change_rate = 0.0
+                    continue
+                
+                logger.info(f"  Generating modified explanations for {feat_name}...")
+                mod_start = time.time()
+                try:
+                    modified_explanations = explainer.explain_dataset(
+                        X_modified,
+                        predictions=y_sample,
+                        return_df=True,
+                        show_progress=False,
+                        n_jobs=1
+                    )
+                    mod_duration = time.time() - mod_start
+                    logger.info(f"  Modified explanations generated in {mod_duration:.2f} seconds")
+                except Exception as e2:
+                    logger.error(f"  Error generating modified explanations for {feat_name}: {e2}")
+                    change_rate = 0.0
+                    continue
+                
+                if len(original_explanations) > 0 and len(modified_explanations) > 0:
+                    changes = sum(
+                        1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
+                        if orig != mod
+                    )
+                    change_rate = changes / len(original_explanations)
+                    logger.info(f"  Feature {feat_name}: {changes}/{len(original_explanations)} explanations changed ({change_rate:.2%}) [row-by-row fallback]")
+                else:
+                    change_rate = 0.0
+                    logger.warning(f"  Feature {feat_name}: No explanations generated")
             
             feat_duration = time.time() - feat_start
             logger.info(f"  Feature {feat_name} completed in {feat_duration:.2f} seconds")
@@ -1011,18 +1164,6 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             del X_sample, X_modified, y_sample
             import gc
             gc.collect()
-            
-            # Calculate change rate
-            if len(original_explanations) > 0 and len(modified_explanations) > 0:
-                changes = sum(
-                    1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
-                    if orig != mod
-                )
-                change_rate = changes / len(original_explanations)
-                logger.info(f"  Feature {feat_name}: {changes}/{len(original_explanations)} explanations changed ({change_rate:.2%})")
-            else:
-                change_rate = 0.0
-                logger.warning(f"  Feature {feat_name}: No explanations generated")
             
             causal_scores.append({
                 'feature': feat_name,
@@ -1874,6 +2015,7 @@ def main():
     else:
         expected_model_types = [args.model_type]
     
+    # Check if we can skip (need explanations, importance, AND causal to skip)
     all_outputs_exist = True
     for model_type in expected_model_types:
         model_output_dir = OUTPUT_DIR / model_type
@@ -1881,7 +2023,8 @@ def main():
         importance_path = model_output_dir / 'feature_importance_axp.parquet'
         causal_path = model_output_dir / 'causal_importance.parquet'
         
-        if not (explanations_path.exists() and importance_path.exists()):
+        # Need all three to skip (causal may need to be regenerated with new grouped approach)
+        if not (explanations_path.exists() and importance_path.exists() and causal_path.exists()):
             all_outputs_exist = False
             break
     
@@ -1972,18 +2115,27 @@ def main():
                     except Exception as e:
                         logger.warning(f"Could not download {s3_key}: {e}")
                     
-                    # Download causal (optional, Parquet format)
-                    s3_key = f"gold/ffa_analysis/{COHORT_NAME}/{AGE_BAND}/{model_type}/causal_importance.parquet"
-                    causal_path = model_output_dir / 'causal_importance.parquet'
-                    try:
-                        s3_client.download_file(S3_BUCKET, s3_key, str(causal_path))
-                        logger.info(f"Downloaded {causal_path} from S3")
-                    except Exception:
-                        pass  # Causal analysis is optional
+                    # Skip downloading causal to allow regeneration with new grouped comparison method
+                    # Causal analysis will be regenerated with optimized grouped approach
+                    logger.info(f"Skipping causal download - will regenerate with grouped comparison method")
                 
-                logger.info(f"Step 7 outputs downloaded from S3; skipping regeneration.")
-                print(f"[SKIP] Step 7 outputs downloaded from S3 for {COHORT_NAME}/{AGE_BAND}")
-                return
+                # Check if causal analysis needs to be run (may need regeneration with grouped approach)
+                causal_needs_regeneration = False
+                for model_type in expected_model_types:
+                    model_output_dir = OUTPUT_DIR / model_type
+                    causal_path = model_output_dir / 'causal_importance.parquet'
+                    if not causal_path.exists():
+                        causal_needs_regeneration = True
+                        break
+                
+                if causal_needs_regeneration:
+                    logger.info(f"Causal analysis missing - will regenerate with grouped comparison method")
+                    print(f"[INFO] Causal analysis will be regenerated with grouped comparison method")
+                    # Continue to run analysis (causal will be regenerated)
+                else:
+                    logger.info(f"Step 7 outputs downloaded from S3; skipping regeneration.")
+                    print(f"[SKIP] Step 7 outputs downloaded from S3 for {COHORT_NAME}/{AGE_BAND}")
+                    return
             except Exception as e:
                 logger.warning(f"Could not download from S3: {e}. Will regenerate outputs.")
     except ImportError:
