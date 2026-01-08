@@ -1120,7 +1120,7 @@ def main() -> None:
     all_required_exist = all((out_dir / fname).exists() for fname in expected_outputs)
     
     if all_required_exist:
-        print(f"[SKIP] Step 8 outputs already exist locally for {args.cohort}/{args.age_band}")
+        print(f"[SKIP] Step 7 outputs already exist locally for {args.cohort}/{args.age_band}")
         
         # Still try to upload to S3 if not already there (idempotent upload)
         try:
@@ -1163,8 +1163,12 @@ def main() -> None:
             f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
         ]
 
-        if check_step_outputs_exist(s3_output_paths) or check_step_checkpoint_exists("7_shap_analysis", args.cohort, args.age_band):
-            print(f"[SKIP] Step 8 outputs already exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
+        # Only skip if outputs actually exist (not just checkpoint)
+        # Checkpoint might exist but outputs might be missing
+        s3_outputs_exist = check_step_outputs_exist(s3_output_paths)
+        
+        if s3_outputs_exist:
+            print(f"[SKIP] Step 7 outputs already exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
             
             # Download from S3 to local
             try:
@@ -1174,13 +1178,15 @@ def main() -> None:
                 
                 out_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Download XGBoost outputs
+                downloaded_files = []
+                # Download XGBoost outputs (required)
                 for fname in expected_outputs:
                     s3_key = f"gold/shap_analysis/{args.cohort}/{args.age_band}/{fname}"
                     local_path = out_dir / fname
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(local_path))
                         print(f"Downloaded {local_path} from S3")
+                        downloaded_files.append(local_path)
                     except Exception as e:
                         print(f"Warning: Could not download {s3_key}: {e}")
                 
@@ -1191,13 +1197,22 @@ def main() -> None:
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(local_path))
                         print(f"Downloaded {local_path} from S3")
+                        downloaded_files.append(local_path)
                     except Exception:
                         pass  # CatBoost outputs are optional
                 
-                print(f"[SKIP] Step 8 outputs downloaded from S3 for {args.cohort}/{args.age_band}")
-                return
+                # Verify that required files actually exist before skipping
+                all_required_exist = all((out_dir / fname).exists() for fname in expected_outputs)
+                if all_required_exist:
+                    print(f"[SKIP] Step 7 outputs downloaded from S3 for {args.cohort}/{args.age_band}")
+                    return
+                else:
+                    print(f"[WARNING] Required SHAP outputs missing after download attempt. Will regenerate.")
             except Exception as e:
                 print(f"Warning: Could not download from S3: {e}. Will regenerate outputs.")
+        elif check_step_checkpoint_exists("7_shap_analysis", args.cohort, args.age_band):
+            # Checkpoint exists but outputs don't - this is inconsistent, regenerate
+            print(f"[WARNING] Step 7 checkpoint exists in S3 but outputs are missing. Will regenerate outputs.")
     except ImportError:
         pass  # Fallback to local-only if checkpoint_utils not available
 
