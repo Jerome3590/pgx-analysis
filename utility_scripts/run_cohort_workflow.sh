@@ -205,11 +205,35 @@ except:
     if [ "$STEP_COMPLETED" = "yes" ]; then
         # For Step 6, verify essential files exist before skipping
         # (Python script handles S3 downloads, but we need to let it run if files are missing)
+        # Step 7 needs both the features CSV AND the model files, so check for both
         if [ "$step_num" = "6" ]; then
             AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
             FEATURES_CSV="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/$AGE_BAND_FNAME/${COHORT_NAME}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
-            if [ ! -f "$FEATURES_CSV" ]; then
-                log "Step 6 marked as completed but features CSV missing. Re-running to download/regenerate..."
+            
+            # Check for model files that Step 7 needs
+            XGBOOST_JOBLIB="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/$AGE_BAND_FNAME/models/xgboost.joblib"
+            XGBOOST_UBJ="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/$AGE_BAND_FNAME/models/xgboost_model.ubj"
+            CATBOOST_CBM="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/$AGE_BAND_FNAME/final_model_json/${COHORT_NAME}_${AGE_BAND_FNAME}_best_catboost_model.cbm"
+            CATBOOST_JSON="$PROJECT_ROOT/6_final_model/outputs/$COHORT_NAME/$AGE_BAND_FNAME/final_model_json/${COHORT_NAME}_${AGE_BAND_FNAME}_best_catboost_model.json"
+            
+            # At least one XGBoost model file and one CatBoost model file must exist
+            XGBOOST_EXISTS=false
+            if [ -f "$XGBOOST_JOBLIB" ] || [ -f "$XGBOOST_UBJ" ]; then
+                XGBOOST_EXISTS=true
+            fi
+            
+            CATBOOST_EXISTS=false
+            if [ -f "$CATBOOST_CBM" ] || [ -f "$CATBOOST_JSON" ]; then
+                CATBOOST_EXISTS=true
+            fi
+            
+            if [ ! -f "$FEATURES_CSV" ] || [ "$XGBOOST_EXISTS" = false ] || [ "$CATBOOST_EXISTS" = false ]; then
+                MISSING_FILES=()
+                [ ! -f "$FEATURES_CSV" ] && MISSING_FILES+=("features CSV")
+                [ "$XGBOOST_EXISTS" = false ] && MISSING_FILES+=("XGBoost model")
+                [ "$CATBOOST_EXISTS" = false ] && MISSING_FILES+=("CatBoost model")
+                
+                log "Step 6 marked as completed but required files missing: ${MISSING_FILES[*]}. Re-running to download/regenerate..."
                 # Clear the completion flag so we run the step
                 python3 -c "
 import json
