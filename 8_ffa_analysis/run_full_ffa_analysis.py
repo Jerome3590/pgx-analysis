@@ -1599,6 +1599,15 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         causal_df.to_parquet(causal_path, index=False, compression='snappy', engine='pyarrow')
         logger.info(f"Saved {len(causal_df)} causal importance scores")
         print(f"[OK] Saved causal importance to: {causal_path}")
+        
+        # Print top 10 causal importance features
+        print("\n" + "=" * 80)
+        print("TOP 10 CAUSAL IMPORTANCE FEATURES")
+        print("=" * 80)
+        top_10_causal = causal_df.head(10)[['feature', 'causal_importance']].copy()
+        for rank, (_, row) in enumerate(top_10_causal.iterrows(), start=1):
+            print(f"  {rank:2d}. {row['feature']:<50} {row['causal_importance']:>10.6f}")
+        print("=" * 80 + "\n")
     else:
         logger.warning("No causal importance to save")
     
