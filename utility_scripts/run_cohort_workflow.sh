@@ -335,22 +335,62 @@ run_step "4a" "Model Data Creation (Cases + Controls)" \
     "python 4a_model_data/create_model_data.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
 # Validate Step 4a output (check that controls are present and file exists)
-if ! should_skip "4a"; then
-    log "Validating Step 4a output (checking for controls)..."
+# Always validate, even if step was skipped due to checkpoint
+log "Validating Step 4a output (checking for controls)..."
+
+# Check if file was actually generated
+data_root=$(python3 -c "import sys; sys.path.insert(0, '.'); from py_helpers.env_utils import get_data_root; print(get_data_root())" 2>/dev/null || echo "$PROJECT_ROOT")
+expected_file_linux="$data_root/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+expected_file_local="$PROJECT_ROOT/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+
+if [ ! -f "$expected_file_linux" ] && [ ! -f "$expected_file_local" ]; then
+    # File missing - check if checkpoint says it's complete
+    STEP_COMPLETED=$(python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE') as f:
+        data = json.load(f)
+        step_times = data.get('step_times', {})
+        step_key = '4a'
+        if step_key in step_times and step_times[step_key].get('completed', False):
+            print('yes')
+        else:
+            print('no')
+except:
+    print('no')
+" 2>/dev/null || echo "no")
     
-    # Check if file was actually generated
-    data_root=$(python3 -c "import sys; sys.path.insert(0, '.'); from py_helpers.env_utils import get_data_root; print(get_data_root())" 2>/dev/null || echo "$PROJECT_ROOT")
-    expected_file_linux="$data_root/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
-    expected_file_local="$PROJECT_ROOT/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
-    
-    if [ ! -f "$expected_file_linux" ] && [ ! -f "$expected_file_local" ]; then
+    if [ "$STEP_COMPLETED" = "yes" ]; then
+        warn "Step 4a marked as completed but output file is missing. Clearing checkpoint and re-running..."
+        # Clear the completion flag
+        python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '4a' in data['step_times']:
+        data['step_times']['4a']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+        # Re-run Step 4a
+        log "Re-running Step 4a..."
+        python 4a_model_data/create_model_data.py --cohort "$COHORT_NAME" --age-band "$AGE_BAND" || {
+            error "Step 4a failed to generate model_events.parquet"
+            exit 1
+        }
+    else
         error "Step 4a validation failed: model_events.parquet was not generated"
         error "Expected at: $expected_file_linux or $expected_file_local"
         error "Please check Step 4a output above for errors."
         exit 1
     fi
-    
-    # Check for controls
+fi
+
+# Check for controls (only if not explicitly skipped via SKIP_STEPS)
+if ! should_skip "4a"; then
     if $PYTHON_CMD utility_scripts/validate_model_data_controls.py \
         --cohort "$COHORT_NAME" --age-band "$AGE_BAND" 2>&1 | grep -q "WARNING: Missing controls"; then
         error "Step 4a validation failed: Missing controls in model_events.parquet"
