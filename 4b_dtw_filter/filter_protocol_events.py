@@ -651,11 +651,28 @@ def filter_administrative_events(
             age_band=age_band,
             protocol_threshold_pct=admin_code_threshold_pct,
         )
-        # If research outputs don't exist, start with empty sets (will only filter post-event leakage)
+        
+        # Add hardcoded administrative codes (preventive/administrative codes that should always be filtered)
+        hardcoded_admin_icd = {
+            'Z34.03',  # Encounter for supervision of normal pregnancy, third trimester (preventive)
+            'V72.31',  # Routine gynecological examination (preventive/administrative)
+            'Z00.00',  # Encounter for general adult medical examination without abnormal findings
+            'Z00.01',  # Encounter for general adult medical examination with abnormal findings
+            'Z00.121', # Encounter for routine child health examination with abnormal findings
+            'Z00.129', # Encounter for routine child health examination without abnormal findings
+        }
+        administrative_codes['icd'].update(hardcoded_admin_icd)
+        
+        # If research outputs don't exist, start with hardcoded sets (will filter known admin codes + post-event leakage)
         if (not administrative_codes.get("icd")) and (not administrative_codes.get("cpt")) and (not administrative_codes.get("drug")):
             logger.info(
                 "No administrative codes found in research outputs. "
                 "Will only filter post-event leakage (events on/after target date)."
+            )
+        else:
+            logger.info(
+                f"Using {len(administrative_codes['icd'])} ICD administrative codes "
+                f"(including {len(hardcoded_admin_icd)} hardcoded preventive codes)"
             )
 
     con = duckdb.connect()
