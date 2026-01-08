@@ -71,15 +71,50 @@ def load_model_json(cohort: str, age_band: str) -> Dict:
     """Load model JSON from S3 or local."""
     age_band_fname = age_band.replace("-", "_")
     
-    # Try S3 first
-    s3_key = f"gold/final_model/{cohort}/{age_band_fname}/*_best_xgboost_model.json"
+    # Try S3 first (check both possible path formats)
+    s3_prefixes = [
+        f"gold/final_model/{cohort}/{age_band_fname}/",
+        f"gold/final_model/{cohort}/{age_band}/",  # Age band with dashes
+    ]
     
-    # For now, try local
-    local_path = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+    for s3_prefix in s3_prefixes:
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=OUTPUT_BUCKET,
+                Prefix=s3_prefix,
+                MaxKeys=100
+            )
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    if obj['Key'].endswith('_best_xgboost_model.json'):
+                        print(f"  Found model JSON in S3: s3://{OUTPUT_BUCKET}/{obj['Key']}")
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.json', mode='w') as tmp_file:
+                            tmp_path = tmp_file.name
+                        s3_client.download_file(OUTPUT_BUCKET, obj['Key'], tmp_path)
+                        with open(tmp_path, 'r') as f:
+                            result = json.load(f)
+                        Path(tmp_path).unlink()
+                        return result
+        except Exception as e:
+            print(f"  Error checking S3 prefix {s3_prefix}: {e}")
+            continue
     
-    if local_path.exists():
-        with open(local_path, 'r') as f:
-            return json.load(f)
+    # Try local paths (multiple possible locations)
+    local_paths = [
+        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
+        PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
+    ]
+    
+    for local_path in local_paths:
+        if local_path.exists():
+            try:
+                print(f"  Found model JSON locally: {local_path}")
+                with open(local_path, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"  Error reading {local_path}: {e}")
+                continue
     
     return None
 
@@ -120,7 +155,7 @@ def extract_rules_from_model(model_json: Dict) -> List[Dict]:
 
 
 def analyze_rule_composition(cohort: str, age_band: str):
-    """Analyze rule composition for a cohort."""
+    """Analyze rule composition for a cohort using actual explainer initialization."""
     print(f"\n{'='*80}")
     print(f"Rule Composition Analysis: {cohort.upper()} / {age_band}")
     print(f"{'='*80}\n")
@@ -130,100 +165,166 @@ def analyze_rule_composition(cohort: str, age_band: str):
     shap_map = load_shap_importance(cohort, age_band)
     if not shap_map:
         print(f"[ERROR] Could not load SHAP importance for {cohort}/{age_band}")
-        return
+        return None
     
     features_with_shap = {f: score for f, score in shap_map.items() if score > 0}
     print(f"  Found {len(features_with_shap)} features with SHAP > 0")
     print(f"  Total features in SHAP: {len(shap_map)}")
     
-    # Load model JSON
-    print("\nLoading model JSON...")
-    model_json = load_model_json(cohort, age_band)
-    if not model_json:
-        print(f"[ERROR] Could not load model JSON for {cohort}/{age_band}")
-        return
-    
-    feature_names = model_json.get('feature_names', [])
-    print(f"  Found {len(feature_names)} features in model")
-    
-    # Extract rules (simplified - would need full tree parsing for complete analysis)
-    print("\nExtracting rules from model...")
-    rules = extract_rules_from_model(model_json)
-    print(f"  Extracted {len(rules)} rule conditions")
-    
-    # Analyze feature coverage in rules
-    print("\nAnalyzing feature coverage in rules...")
-    features_in_rules = set()
-    features_with_shap_in_rules = set()
-    feature_rule_counts = Counter()
-    
-    for rule in rules:
-        feat_name = rule.get('feature_name', '')
-        if feat_name:
-            features_in_rules.add(feat_name)
-            feature_rule_counts[feat_name] += 1
+    # Try to initialize explainer (like FFA does)
+    print("\nInitializing explainer to extract rules...")
+    try:
+        from pathlib import Path as PathLib
+        import sys as sys_module
+        
+        # Add FFA analysis to path
+        ffa_path = PROJECT_ROOT / "8_ffa_analysis"
+        if str(ffa_path) not in sys_module.path:
+            sys_module.path.insert(0, str(ffa_path))
+        
+        from run_full_ffa_analysis import (
+            load_model_json as ffa_load_model_json,
+            extract_feature_mappings,
+            load_shap_importance as ffa_load_shap,
+            initialize_explainer,
+            load_data
+        )
+        
+        age_band_fname = age_band.replace("-", "_")
+        
+        # Load model JSON (try S3 first, then local)
+        model_json = load_model_json(cohort, age_band)
+        if not model_json:
+            print(f"  [WARNING] Model JSON not found locally or in S3")
+            print(f"  Skipping rule extraction (would need model JSON to analyze)")
+            return {
+                'cohort': cohort,
+                'age_band': age_band,
+                'features_with_shap': len(features_with_shap),
+                'status': 'model_json_not_found'
+            }
+        
+        # Create a temporary path for the explainer (it expects a Path object)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp_file:
+            json.dump(model_json, tmp_file)
+            model_json_path = Path(tmp_file.name)
+        feature_mappings = extract_feature_mappings(model_json)
+        
+        # Load SHAP (using FFA function) - includes both importance map and values DataFrame
+        shap_map_ffa, shap_values_df = ffa_load_shap(cohort, age_band, "xgboost")
+        
+        if shap_values_df is None or len(shap_values_df) == 0:
+            print(f"  [WARNING] SHAP values DataFrame not available, loading sample...")
+            # Try to load a small sample for diagnostic purposes
+            try:
+                from py_helpers.shap_parquet_loader import load_shap_parquet
+                age_band_fname = age_band.replace("-", "_")
+                s3_shap_path = f"gold/shap_analysis/{cohort}/{age_band_fname}/shap_sample_values_xgboost.parquet"
+                shap_values_df = load_shap_parquet(OUTPUT_BUCKET, s3_shap_path, max_rows=1000)
+                print(f"  Loaded {len(shap_values_df)} SHAP value rows for diagnostic")
+            except Exception as e:
+                print(f"  [ERROR] Could not load SHAP values: {e}")
+                return None
+        
+        # Initialize explainer
+        print("  Initializing explainer (this may take a moment)...")
+        explainer = initialize_explainer(
+            model_json_path=model_json_path,
+            model_json=model_json,
+            feature_mappings=feature_mappings,
+            feature_names=None,
+            shap_importance_map=shap_map_ffa,
+            shap_values_df=shap_values_df
+        )
+        
+        if explainer is None:
+            print(f"  [ERROR] Could not initialize explainer")
+            return None
+        
+        # Analyze rules from explainer
+        print(f"\nAnalyzing {len(explainer.rule_clauses)} rules from explainer...")
+        
+        # Extract features from all rules
+        features_in_rules = set()
+        features_with_shap_in_rules = set()
+        feature_rule_counts = Counter()
+        rules_with_shap_features = 0
+        rules_without_shap_features = 0
+        
+        for rule_idx, clause in enumerate(explainer.rule_clauses):
+            rule_features = set()
+            has_shap_feature = False
             
-            if feat_name in features_with_shap:
-                features_with_shap_in_rules.add(feat_name)
-    
-    print(f"  Features appearing in rules: {len(features_in_rules)}")
-    print(f"  Features with SHAP > 0 appearing in rules: {len(features_with_shap_in_rules)}")
-    print(f"  Coverage: {len(features_with_shap_in_rules)/len(features_with_shap)*100:.1f}% of SHAP > 0 features")
-    
-    # Find features with SHAP > 0 that DON'T appear in rules
-    missing_features = features_with_shap.keys() - features_with_shap_in_rules
-    print(f"\n  Features with SHAP > 0 NOT in rules: {len(missing_features)}")
-    if missing_features:
-        print("  Top 10 missing features (by SHAP):")
-        missing_with_shap = [(f, shap_map[f]) for f in missing_features]
-        missing_with_shap.sort(key=lambda x: x[1], reverse=True)
-        for feat, shap_score in missing_with_shap[:10]:
-            print(f"    {feat}: SHAP={shap_score:.6f}")
-    
-    # Analyze rule scores
-    print("\nAnalyzing rule SHAP scores...")
-    rule_scores = []
-    for rule in rules:
-        feat_name = rule.get('feature_name', '')
-        if feat_name:
-            score = shap_map.get(feat_name, 0.0)
-            rule_scores.append({
-                'feature': feat_name,
-                'shap_score': score,
-                'has_shap': score > 0
-            })
-    
-    if rule_scores:
-        df_scores = pd.DataFrame(rule_scores)
-        rules_with_shap = len(df_scores[df_scores['has_shap'] == True])
-        rules_without_shap = len(df_scores[df_scores['has_shap'] == False])
+            for lit in clause:
+                feat_idx, _, _ = explainer.id_condition_map[lit]
+                feat_name = explainer.feature_names.get(feat_idx, f"f{feat_idx}")
+                rule_features.add(feat_name)
+                feature_rule_counts[feat_name] += 1
+                
+                if shap_map_ffa.get(feat_name, 0) > 0:
+                    has_shap_feature = True
+            
+            features_in_rules.update(rule_features)
+            features_with_shap_in_rules.update(
+                f for f in rule_features if shap_map_ffa.get(f, 0) > 0
+            )
+            
+            if has_shap_feature:
+                rules_with_shap_features += 1
+            else:
+                rules_without_shap_features += 1
         
-        print(f"  Rules with features having SHAP > 0: {rules_with_shap} ({rules_with_shap/len(rule_scores)*100:.1f}%)")
-        print(f"  Rules with features having SHAP = 0: {rules_without_shap} ({rules_without_shap/len(rule_scores)*100:.1f}%)")
+        print(f"  Features appearing in rules: {len(features_in_rules)}")
+        print(f"  Features with SHAP > 0 appearing in rules: {len(features_with_shap_in_rules)}")
+        if features_with_shap:
+            coverage = len(features_with_shap_in_rules) / len(features_with_shap) * 100
+            print(f"  Coverage: {coverage:.1f}% of SHAP > 0 features")
         
-        if rules_without_shap > 0:
-            print(f"\n  [WARNING] {rules_without_shap} rules contain only features with SHAP = 0")
+        # Find missing features
+        missing_features = set(features_with_shap.keys()) - features_with_shap_in_rules
+        print(f"\n  Features with SHAP > 0 NOT in rules: {len(missing_features)}")
+        if missing_features:
+            print("  Top 10 missing features (by SHAP):")
+            missing_with_shap = [(f, shap_map_ffa[f]) for f in missing_features]
+            missing_with_shap.sort(key=lambda x: x[1], reverse=True)
+            for feat, shap_score in missing_with_shap[:10]:
+                print(f"    {feat}: SHAP={shap_score:.6f}")
+        
+        # Rule composition analysis
+        print(f"\nRule Composition:")
+        print(f"  Rules with SHAP > 0 features: {rules_with_shap_features} ({rules_with_shap_features/len(explainer.rule_clauses)*100:.1f}%)")
+        print(f"  Rules WITHOUT SHAP > 0 features: {rules_without_shap_features} ({rules_without_shap_features/len(explainer.rule_clauses)*100:.1f}%)")
+        
+        if rules_without_shap_features > 0:
+            print(f"\n  [WARNING] {rules_without_shap_features} rules contain ONLY features with SHAP = 0")
             print(f"  These rules might be noise or artifacts")
-    
-    # Feature frequency analysis
-    print("\nTop 20 features by rule frequency:")
-    for feat, count in feature_rule_counts.most_common(20):
-        shap_score = shap_map.get(feat, 0.0)
-        has_shap = "✓" if shap_score > 0 else "✗"
-        print(f"  {has_shap} {feat}: {count} rules, SHAP={shap_score:.6f}")
-    
-    return {
-        'cohort': cohort,
-        'age_band': age_band,
-        'total_features': len(feature_names),
-        'features_with_shap': len(features_with_shap),
-        'features_in_rules': len(features_in_rules),
-        'features_with_shap_in_rules': len(features_with_shap_in_rules),
-        'coverage': len(features_with_shap_in_rules) / len(features_with_shap) if features_with_shap else 0,
-        'missing_features': len(missing_features),
-        'rules_with_shap': rules_with_shap if rule_scores else 0,
-        'rules_without_shap': rules_without_shap if rule_scores else 0,
-    }
+        
+        # Feature frequency analysis
+        print("\nTop 20 features by rule frequency:")
+        for feat, count in feature_rule_counts.most_common(20):
+            shap_score = shap_map_ffa.get(feat, 0.0)
+            has_shap = "[SHAP>0]" if shap_score > 0 else "[SHAP=0]"
+            print(f"  {has_shap} {feat}: {count} rules, SHAP={shap_score:.6f}")
+        
+        return {
+            'cohort': cohort,
+            'age_band': age_band,
+            'total_rules': len(explainer.rule_clauses),
+            'features_with_shap': len(features_with_shap),
+            'features_in_rules': len(features_in_rules),
+            'features_with_shap_in_rules': len(features_with_shap_in_rules),
+            'coverage': len(features_with_shap_in_rules) / len(features_with_shap) if features_with_shap else 0,
+            'missing_features': len(missing_features),
+            'rules_with_shap': rules_with_shap_features,
+            'rules_without_shap': rules_without_shap_features,
+        }
+        
+    except Exception as e:
+        print(f"  [ERROR] Could not initialize explainer: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def analyze_all_cohorts():
