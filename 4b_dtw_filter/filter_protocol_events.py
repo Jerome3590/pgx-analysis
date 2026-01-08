@@ -444,7 +444,14 @@ def classify_event_as_administrative(
         if icd_col in event_row.index:
             icd_code = event_row.get(icd_col)
             if pd.notna(icd_code) and str(icd_code).strip():
-                if str(icd_code) in administrative_codes.get('icd', set()):
+                icd_str = str(icd_code).strip()
+                # Check both with and without dots (Z34.03 vs Z3403)
+                admin_icd_set = administrative_codes.get('icd', set())
+                if icd_str in admin_icd_set:
+                    return True
+                # Also check normalized version (remove dots for comparison)
+                icd_normalized = icd_str.replace('.', '')
+                if icd_normalized in {code.replace('.', '') for code in admin_icd_set}:
                     return True
     
     # Check CPT codes
