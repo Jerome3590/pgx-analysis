@@ -48,6 +48,38 @@ bash utility_scripts/run_all_cohorts_workflow.sh [--skip-steps STEP1,STEP2]
 
 ## Clearing Outputs
 
+### Clear ALL Pipeline Outputs (Complete Reset)
+
+**Script:** `clear_all_pipeline.sh`
+
+Clears **ALL** pipeline outputs and checkpoints for all cohorts, forcing a complete restart from scratch.
+
+**Usage:**
+```bash
+bash utility_scripts/clear_all_pipeline.sh
+```
+
+**What it clears:**
+- **Step 3**: Feature Importance outputs (local + S3)
+- **Step 4a**: Model Data (`model_events.parquet`)
+- **Step 4b**: DTW Filter outputs (`model_events_no_protocols.parquet`)
+- **Step 5**: PGx Analysis outputs (all cohorts/age bands)
+- **Step 6**: Final Model outputs (all cohorts/age bands)
+- **Step 7**: SHAP Analysis outputs (all cohorts/age bands)
+- **Step 8**: FFA Analysis outputs (all cohorts/age bands)
+- **All S3 checkpoints**: `s3://pgx-repository/pipeline_checkpoints/`
+- **Time logs**: `utility_scripts/time_log.json`
+
+**Example:**
+```bash
+# Clear everything and start fresh
+bash utility_scripts/clear_all_pipeline.sh
+```
+
+**Note:** This script requires confirmation before proceeding. It will prompt you to type "yes" to confirm.
+
+---
+
 ### Clear Model Outputs (Steps 6, 7, 8)
 
 **Script:** `clear_models.sh`
