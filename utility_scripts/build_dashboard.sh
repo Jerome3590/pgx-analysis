@@ -138,6 +138,24 @@ for cohort in "${REQUIRED_COHORTS[@]}"; do
 done
 
 log ""
+log "Preparing CPIC data..."
+
+# Prepare CPIC data
+if ! python prepare_cpic_data.py; then
+    error "  Failed to prepare CPIC data"
+    exit 1
+fi
+
+log ""
+log "Preparing lambda_dir for Docker build..."
+
+# Prepare lambda_dir with all required files
+if ! python prepare_lambda_dir.py; then
+    error "  Failed to prepare lambda_dir"
+    exit 1
+fi
+
+log ""
 log "=========================================="
 log "Dashboard Preparation Complete"
 log "=========================================="
@@ -145,8 +163,8 @@ log ""
 log "All cohorts processed: ${REQUIRED_COHORTS[*]}"
 log ""
 log "Next steps:"
-log "  1. Review models/ directory: $DASHBOARD_DIR/models/"
-log "  2. Review metadata/ directory: $DASHBOARD_DIR/../10_results/metadata/"
-log "  3. Build Docker image: cd $DASHBOARD_DIR && ./docker_build.sh"
+log "  1. Verify lambda_dir: cd $DASHBOARD_DIR && python prepare_lambda_dir.py --verify-only"
+log "  2. Build Docker image: cd $DASHBOARD_DIR && docker build -t pgx-risk-dashboard ."
+log "  3. Push to ECR: cd $DASHBOARD_DIR && ./docker_build.sh"
 log "  4. Deploy to AWS Lambda/ECR"
 

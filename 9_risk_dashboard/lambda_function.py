@@ -23,6 +23,7 @@ Environment Variables:
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from io import BytesIO
 
@@ -122,9 +123,26 @@ def determine_cohort_and_age_band(age: int) -> Tuple[str, str]:
 
 
 def load_metadata(cohort: str) -> Dict[str, Any]:
-    """Load metadata JSON from S3."""
-    key = f"{METADATA_PREFIX}/metadata_{cohort}.json"
+    """
+    Load metadata JSON from container filesystem or S3.
     
+    Priority:
+    1. Container filesystem (/var/task/metadata/) - fastest, bundled in image
+    2. S3 fallback - for development or if container metadata not available
+    """
+    metadata_file = f"metadata_{cohort}.json"
+    container_path = Path(f"/var/task/metadata/{metadata_file}")
+    
+    # Try container filesystem first
+    if container_path.exists():
+        try:
+            with open(container_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load metadata from container: {e}. Trying S3...")
+    
+    # Fallback to S3
+    key = f"{METADATA_PREFIX}/{metadata_file}"
     try:
         obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
         data = json.loads(obj["Body"].read().decode("utf-8"))
@@ -132,7 +150,7 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code")
         if code in ("NoSuchKey", "404", "NotFound"):
-            raise FileNotFoundError(f"Metadata not found: s3://{S3_BUCKET}/{key}")
+            raise FileNotFoundError(f"Metadata not found: s3://{S3_BUCKET}/{key} or {container_path}")
         raise
 
 

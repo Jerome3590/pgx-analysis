@@ -17,10 +17,12 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Building Lambda container image...${NC}"
 
-# Step 1: Prepare models (if not already done)
-if [ ! -d "models" ]; then
-    echo -e "${YELLOW}Models directory not found. Preparing models...${NC}"
-    python prepare_models.py --all
+# Step 1: Prepare lambda_dir (if not already done)
+if [ ! -d "lambda_dir/models" ]; then
+    echo -e "${YELLOW}lambda_dir not found. Running build_dashboard.sh to prepare...${NC}"
+    cd ..
+    bash utility_scripts/build_dashboard.sh
+    cd 9_risk_dashboard
 fi
 
 # Step 2: Build Docker image
