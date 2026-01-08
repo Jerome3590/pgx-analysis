@@ -705,8 +705,10 @@ def filter_administrative_events(
         admin_cpt_99400 = [99401, 99402, 99403, 99404, 99406, 99407, 99408, 99409, 99420, 99429, 99441, 99442, 99443, 99444, 99460, 99462, 99464, 99471, 99472, 99480, 99484, 99487, 99490, 99495, 99496, 99497, 99499]
         # CPT 99381-99397: Preventive visits (administrative/preventive)
         admin_cpt_99381 = [99381, 99382, 99383, 99384, 99385, 99386, 99387, 99391, 99392, 99393, 99394, 99395, 99396, 99397]
+        # CPT 99211: Level 1 office visit (minimal complexity, often routine/preventive)
+        admin_cpt_level1_office = [99211]
 
-        for code in admin_cpt_99000 + admin_cpt_99400 + admin_cpt_99381:
+        for code in admin_cpt_99000 + admin_cpt_99400 + admin_cpt_99381 + admin_cpt_level1_office:
             hardcoded_admin_cpt.add(str(code))
 
         # S codes: Administrative billing codes (non-clinical)
