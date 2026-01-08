@@ -13,6 +13,8 @@ Handles:
 - GET /metadata - Returns valid codes for cohorts/age_bands
 - POST /risk - Calculates risk score using ensemble of all three models
 - POST /risk/comparison - Compares risk scores for different scenarios
+- POST /causal/importance - Returns causal importance for features (optionally filtered by selected drugs)
+- POST /causal/interactions - Returns multi-feature interaction analysis results
 
 Environment Variables:
 - PGX_RESULTS_BUCKET: S3 bucket name (default: pgxdatalake)
@@ -473,6 +475,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_risk_comparison(event)
             else:
                 return handle_risk(event)
+        elif method == "POST" and path.endswith("/causal"):
+            if path.endswith("/causal/interactions"):
+                return handle_causal_interactions(event)
+            elif path.endswith("/causal/importance"):
+                return handle_causal_importance(event)
         
         return _response(404, {"error": f"Unsupported route: {method} {path}"})
     
@@ -1066,6 +1073,142 @@ def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
             'interactions': interactions,
             'top_interactions': top_interactions,
             'summary': summary
+        })
+    
+    except Exception as e:
+        import traceback
+        return _response(500, {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+
+
+def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboost") -> pd.DataFrame:
+    """
+    Load causal importance results from S3.
+    
+    Args:
+        cohort: Cohort name
+        age_band: Age band
+        model_type: Model type ('xgboost', 'catboost', 'xgboost_rf')
+    
+    Returns:
+        DataFrame with causal importance results, or empty DataFrame if not found
+    """
+    if not MODEL_LIBS_AVAILABLE:
+        print("ERROR: pandas not available. Cannot load causal importance.")
+        return pd.DataFrame()
+    
+    age_band_fname = age_band.replace("-", "_")
+    
+    # Try container filesystem first
+    if USE_CONTAINER_MODELS:
+        container_causal_path = Path(MODEL_BASE_PATH).parent.parent / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / model_type / "causal_importance.parquet"
+        if container_causal_path.exists():
+            try:
+                return pd.read_parquet(container_causal_path)
+            except Exception as e:
+                print(f"Warning: Failed to load causal importance from container: {e}")
+    
+    # Fallback to S3
+    s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/causal_importance.parquet"
+    
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        df = pd.read_parquet(BytesIO(obj["Body"].read()))
+        print(f"Loaded causal importance from S3: s3://{S3_BUCKET}/{s3_key}")
+        return df
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404", "NotFound"):
+            print(f"Causal importance not found: s3://{S3_BUCKET}/{s3_key}")
+            return pd.DataFrame()
+        raise
+
+
+def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    POST /causal/importance
+    
+    Returns single-feature causal importance results, optionally filtered by selected drugs.
+    
+    Request Body:
+    {
+        "cohort": "opioid_ed",
+        "age_band": "25-44",
+        "selected_drugs": ["DRUG_A", "DRUG_B"],  // optional - filter to these drugs
+        "top_n": 10,  // optional, default 10 - return top N features
+        "model_type": "xgboost"  // optional, default "xgboost"
+    }
+    
+    Response:
+    {
+        "causal_importance": [
+            {
+                "feature": "item_DRUG_A",
+                "causal_importance": 0.123456,
+                "rank": 1
+            },
+            ...
+        ],
+        "summary": {
+            "total_features": 50,
+            "filtered_features": 5,
+            "selected_drugs": ["DRUG_A", "DRUG_B"]
+        }
+    }
+    """
+    try:
+        body = json.loads(event.get("body") or "{}")
+        cohort = body.get("cohort")
+        age_band = body.get("age_band")
+        selected_drugs = body.get("selected_drugs", [])
+        top_n = body.get("top_n", 10)
+        model_type = body.get("model_type", "xgboost")
+        
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band are required"})
+        
+        # Load causal importance results from S3 (pre-computed)
+        causal_df = load_causal_importance(cohort, age_band, model_type)
+        
+        if causal_df.empty:
+            return _response(200, {
+                "causal_importance": [],
+                "summary": {
+                    "total_features": 0,
+                    "filtered_features": 0,
+                    "selected_drugs": selected_drugs,
+                    "message": "No causal importance results found. Run Step 8 (FFA Analysis) first."
+                }
+            })
+        
+        # Filter to selected drugs if provided
+        filtered_df = causal_df.copy()
+        if selected_drugs:
+            # Convert drug codes to feature names (item_DRUG_CODE format)
+            selected_features = [f"item_{drug.upper()}" for drug in selected_drugs]
+            # Filter to features that match selected drugs
+            filtered_df = filtered_df[filtered_df['feature'].isin(selected_features)]
+        
+        # Sort by causal importance and get top N
+        filtered_df = filtered_df.sort_values('causal_importance', ascending=False)
+        top_df = filtered_df.head(top_n).copy()
+        top_df['rank'] = range(1, len(top_df) + 1)
+        
+        # Format response
+        causal_importance = top_df[['feature', 'causal_importance', 'rank']].to_dict('records')
+        
+        summary = {
+            "total_features": len(causal_df),
+            "filtered_features": len(filtered_df),
+            "selected_drugs": selected_drugs,
+            "top_n_returned": len(causal_importance)
+        }
+        
+        return _response(200, {
+            "causal_importance": causal_importance,
+            "summary": summary
         })
     
     except Exception as e:
