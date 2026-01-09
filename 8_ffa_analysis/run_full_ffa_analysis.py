@@ -649,11 +649,26 @@ def generate_explanations(explainer: Any, X: pd.DataFrame, y: np.ndarray) -> pd.
     print("Generating Anchored Explanations (AXP)")
     print(f"{'='*80}\n")
     
+    # Preserve instance_index if present (for SHAP alignment), but exclude from explainer input
+    instance_index_col = None
+    if 'instance_index' in X.columns:
+        instance_index_col = X['instance_index'].copy()
+        X_for_explainer = X.drop('instance_index', axis=1).copy()
+        logger.debug("Excluded instance_index from explainer input (preserved for SHAP alignment)")
+    else:
+        X_for_explainer = X.copy()
+    
     # Filter to target class
     logger.info(f"Filtering to target class {ANALYSIS_CONFIG['target_class']}...")
     mask = (y == ANALYSIS_CONFIG['target_class'])
-    X_class = X[mask].reset_index(drop=True)
+    X_class = X_for_explainer[mask].reset_index(drop=True)
     y_class = y[mask]
+    
+    # Preserve instance_index for filtered subset
+    if instance_index_col is not None:
+        instance_index_class = instance_index_col[mask].reset_index(drop=True)
+    else:
+        instance_index_class = None
     
     # Limit samples for testing if configured (set to None to use all)
     max_exp_samples = ANALYSIS_CONFIG.get('max_explanation_samples')
