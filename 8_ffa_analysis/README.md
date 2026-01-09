@@ -384,8 +384,22 @@ These features represent the features that, when changed, most strongly affect t
 - You want to understand population-level causal effects
 - You need to make policy recommendations without experimental validation
 
+### Feature Pruning Pipeline
+
+For a detailed guide on **where pruning belongs** in the FFA pipeline and **what pruning is allowed/forbidden** at each stage, see:
+
+- **[PRUNING_PIPELINE.md](PRUNING_PIPELINE.md)** - Complete pruning stage mapping and implementation status
+
+**Key principle:**
+> **Never prune before you measure causality.  
+> Always prune before combinatorics.  
+> Only early-stop after you've committed.**
+
+The most critical pruning gate is **Stage 2.5** (after univariate causal analysis, before interaction generation), which is currently **not yet implemented**.
+
 ### References
 
 For detailed technical documentation, see:
 - [`docs/Step9_FFA/README_ffa_causal_analysis.md`](../docs/Step9_FFA/README_ffa_causal_analysis.md) - Dual-approach causal analysis guide
 - `run_full_ffa_analysis.py` - Implementation of `perform_causal_analysis()`
+- `PRUNING_PIPELINE.md` - Feature pruning pipeline guide
