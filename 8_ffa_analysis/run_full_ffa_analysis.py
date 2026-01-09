@@ -1026,7 +1026,8 @@ def _calculate_grouped_causal_effect(
 
 def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray, 
                            feature_importance_df: pd.DataFrame, cohort: str, age_band: str,
-                           model_type: str = "xgboost", output_dir: Optional[Path] = None) -> pd.DataFrame:
+                           model_type: str = "xgboost", output_dir: Optional[Path] = None,
+                           shap_map: Optional[Dict[str, float]] = None) -> pd.DataFrame:
     """Perform causal analysis by measuring prediction changes.
     
     Only analyzes aggregated feature importance features (drug/ICD/CPT codes) plus PGx features.
@@ -1067,14 +1068,14 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
     )
     
     # Sort by combined importance (SHAP + FFA)
-    if shap_map_for_pruning and not feature_importance_df.empty:
+    if shap_map and not feature_importance_df.empty:
         ffa_importance_map = dict(zip(
             feature_importance_df['feature'],
             feature_importance_df['importance']
         ))
         available_features = sorted(
             available_features,
-            key=lambda f: (shap_map_for_pruning.get(f, 0.0) + ffa_importance_map.get(f, 0.0)),
+            key=lambda f: (shap_map.get(f, 0.0) + ffa_importance_map.get(f, 0.0)),
             reverse=True
         )
     elif not feature_importance_df.empty:
@@ -2212,7 +2213,7 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         logger.info("Step 7: Performing causal analysis...")
         try:
             causal_df = perform_causal_analysis(explainer, X, y, feature_importance_df, COHORT_NAME, AGE_BAND, 
-                                                model_type=model_type, output_dir=OUTPUT_DIR)
+                                                model_type=model_type, output_dir=OUTPUT_DIR, shap_map=shap_map)
         except MemoryError:
             logger.warning("Memory error during causal analysis. Skipping causal analysis.")
             print("[WARNING] Memory error during causal analysis. Skipping causal analysis.")
