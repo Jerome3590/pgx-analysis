@@ -708,13 +708,21 @@ def generate_explanations(explainer: Any, X: pd.DataFrame, y: np.ndarray) -> pd.
             logger.info(f"Processing batch {batch_idx+1}/{n_batches} (instances {start_idx}-{end_idx-1})...")
             batch_start = time.time()
             
+            # Ensure instance_index is not passed to explainer (should already be excluded, but double-check)
+            X_batch_clean = X_batch.drop('instance_index', axis=1) if 'instance_index' in X_batch.columns else X_batch
+            
             df_batch = explainer.explain_dataset(
-                X_batch,
+                X_batch_clean,
                 predictions=y_batch,
                 return_df=True,
                 show_progress=False,  # Disable progress for batches
                 n_jobs=n_jobs
             )
+            
+            # Re-attach instance_index to results if available
+            if instance_index_class is not None:
+                batch_indices = instance_index_class.iloc[start_idx:end_idx].values
+                df_batch['instance_index'] = batch_indices
             
             all_axps.append(df_batch)
             batch_time = time.time() - batch_start
