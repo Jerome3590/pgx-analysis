@@ -2152,8 +2152,8 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             return None
         
         # Validate feature count matches model expectations
-        # Exclude non-feature columns (like mi_person_key) from comparison
-        non_feature_cols = {'mi_person_key', 'person_key', 'patient_id', 'id'}
+        # Exclude non-feature columns (like mi_person_key, instance_index) from comparison
+        non_feature_cols = {'mi_person_key', 'person_key', 'patient_id', 'id', 'instance_index'}
         feature_cols = [col for col in X.columns if col not in non_feature_cols]
         X_features_only = X[feature_cols].copy()
         
@@ -2161,8 +2161,8 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         expected_n_features = len(model_feature_names) if model_feature_names else None
         
         if expected_n_features and len(feature_cols) != expected_n_features:
-            logger.warning(f"Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs), model expects {expected_n_features}")
-            print(f"[WARNING] Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs), model expects {expected_n_features}")
+            logger.warning(f"Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs and instance_index), model expects {expected_n_features}")
+            print(f"[WARNING] Feature count mismatch: CSV has {len(feature_cols)} features (excluding IDs and instance_index), model expects {expected_n_features}")
             
             # Try to align features with model's expected feature names
             if model_feature_names:
@@ -2181,20 +2181,31 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                     X_features_only = X_features_only[expected_features]
                     logger.info(f"Reordered features to match model expectations")
                 else:
-                    # Filter out ID columns from extra_features for clearer error message
+                    # Filter out ID columns and instance_index from extra_features for clearer error message
                     extra_features_filtered = extra_features - non_feature_cols
                     if extra_features_filtered:
                         logger.error(f"Feature sets don't match. Extra in CSV: {list(extra_features_filtered)[:10]}...")
                         raise ValueError(f"Feature mismatch: CSV has {len(extra_features_filtered)} extra features not in model: {list(extra_features_filtered)[:5]}")
                     else:
-                        # Only ID columns are extra, which is fine - just reorder
+                        # Only ID columns/instance_index are extra, which is fine - just reorder
                         X_features_only = X_features_only[expected_features]
-                        logger.info(f"Reordered features to match model expectations (ignoring extra ID columns)")
+                        logger.info(f"Reordered features to match model expectations (ignoring extra ID columns and instance_index)")
+        
+        # Store instance_index separately if it exists (for SHAP alignment)
+        instance_index_col = None
+        if 'instance_index' in X.columns:
+            instance_index_col = X['instance_index'].copy()
+            logger.debug("Preserved instance_index column for SHAP alignment")
         
         # Use features-only DataFrame for analysis (keep original X for reference if needed)
         X = X_features_only
         logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
         print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
+        
+        # Re-attach instance_index if it was preserved (for downstream SHAP alignment)
+        if instance_index_col is not None:
+            X['instance_index'] = instance_index_col.values
+            logger.debug("Re-attached instance_index column to feature matrix for SHAP alignment")
         
         logger.info(f"Feature matrix validated: {len(X.columns)} features, {len(X)} samples")
         print(f"[OK] Feature matrix: {len(X.columns)} features, {len(X)} samples")
