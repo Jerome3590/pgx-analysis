@@ -1016,7 +1016,8 @@ def _calculate_grouped_causal_effect(
     X_modified: pd.DataFrame, 
     y: np.ndarray,
     feat_name: str,
-    original_indices_mapping: Optional[List[int]] = None
+    original_indices_mapping: Optional[List[int]] = None,
+    is_binary: bool = False
 ) -> float:
     """
     Calculate causal effect by grouping instances by matching rules.
