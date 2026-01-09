@@ -236,9 +236,10 @@ The grouped comparison approach is particularly robust for binary classification
    - **No accuracy loss**: Instances in same group have identical rules, so identical AXP
 
 4. **Handles Binary Feature Interventions**:
-   - For binary features, intervention flips values (0→1, 1→0)
-   - If flip causes rule change → new group → AXP recomputed
-   - If flip doesn't change rules → same group → AXP unchanged (conservative approximation)
+   - For binary features, intervention removes feature (1→0) only on instances where feature is present
+   - Only instances with feature=1 are tested, ensuring realistic counterfactuals
+   - If removal causes rule change → new group → AXP recomputed
+   - Even if rules don't change, AXP is recomputed to detect features that appear in explanations
 
 5. **Full AXP Recomputation**:
    - Even when rules don't change after intervention, AXP is recomputed
