@@ -1422,10 +1422,11 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             
             logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Analyzing {feat_name} using grouped rule comparison (effective sample size: {effective_sample_size})...")
             try:
-                # Pass original indices mapping for SHAP alignment
+                # Pass original indices mapping for SHAP alignment and binary flag
                 change_rate = _calculate_grouped_causal_effect(
                     explainer, X_sample_filtered, X_modified_filtered, y_sample_filtered, feat_name,
-                    original_indices_mapping=filtered_original_indices
+                    original_indices_mapping=filtered_original_indices,
+                    is_binary=is_binary
                 )
                 changes = int(change_rate * effective_sample_size)
                 
