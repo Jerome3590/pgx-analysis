@@ -1154,8 +1154,38 @@ def _calculate_grouped_causal_effect(
                 modified_group_axps[mod_group_key] = modified_axp
         
         # Compare AXP
-        if original_axp != modified_axp:
+        # For binary features, also check if the feature appears in the original AXP
+        # If it does and we're removing it, that's a change even if the AXP computation is the same
+        feature_appears_in_axp = False
+        if is_binary and feat_name and hasattr(explainer, 'id_condition_map') and hasattr(explainer, 'feature_names'):
+            # Check if feature appears in original AXP literals
+            for lit in original_axp:
+                try:
+                    feat_idx, thresh, direction = explainer.id_condition_map[lit]
+                    axp_feat_name = explainer.feature_names.get(feat_idx, None)
+                    # Check if this literal corresponds to the feature we're modifying
+                    # For binary features, we're looking for "feature > 0" (direction=1, thresh=0)
+                    if axp_feat_name == feat_name:
+                        # Check if removing the feature (setting to 0) would invalidate this literal
+                        # For binary features: if literal is "feature > 0" and we set feature=0, it's invalidated
+                        if direction == 1 and thresh == 0.0:  # "feature > 0"
+                            feature_appears_in_axp = True
+                            break
+                        # Also check for "feature > threshold" where threshold < 1 (e.g., > 0.5)
+                        elif direction == 1 and thresh < 1.0:
+                            # If we set feature=0, this condition becomes false
+                            feature_appears_in_axp = True
+                            break
+                except (KeyError, IndexError, ValueError):
+                    continue
+        
+        # Count as change if:
+        # 1. AXP literals changed (different minimal hitting set)
+        # 2. Feature appears in original AXP and we're removing it (for binary features)
+        if original_axp != modified_axp or feature_appears_in_axp:
             total_changes += 1
+            if feature_appears_in_axp and original_axp == modified_axp:
+                logger.debug(f"    Instance {idx}: Feature {feat_name} appears in AXP, removal counts as change")
     
     change_rate = total_changes / total_instances if total_instances > 0 else 0.0
     return change_rate
