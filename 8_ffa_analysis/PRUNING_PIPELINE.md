@@ -113,7 +113,10 @@ graph TD
 
 **Code location:** `run_full_analysis_for_model()` lines 2092-2100
 
-**Current filtering:** Only features with `feature_importance_df['importance'] > 0` are tested (line 1001)
+**Current filtering:** 
+- Only features with `feature_importance_df['importance'] > 0` are tested (line 1001)
+- Filters to model-relevant features (`item_*`, `pgx_*`, `n_events`) via `get_model_features_for_causal_analysis()` (line 995)
+- **Missing:** Prevalence filter, AXP coverage filter, SHAP union filter
 
 ---
 
@@ -403,18 +406,69 @@ if not causal_df.empty:
 
 ---
 
+## Pruning Rules (Recommended Implementation)
+
+### A) Univariate Causal Pruning (Stage 2.5 - Before `perform_causal_analysis`)
+
+**Location:** After `calculate_feature_importance()`, before `perform_causal_analysis()`
+
+**Rules:**
+
+1. **Feature must exist in X and be model-relevant**
+   - Already implemented: Filters to `item_*`, `pgx_*`, `n_events` features
+   - Code: `get_model_features_for_causal_analysis()` (line 821)
+
+2. **Binary prevalence filter (removal-mode)**
+   - Require `support_1 = #(x=1)` ≥ `min_present_support`
+   - Default: 10-30 depending on sample size
+   - **NOT YET IMPLEMENTED**
+
+3. **AXP coverage filter**
+   - Require `coverage ≥ min_axp_coverage`
+   - Already computed in `calculate_feature_importance()`
+   - **NOT YET IMPLEMENTED** (coverage exists but not used for pruning)
+
+4. **Importance-union filter**
+   - Only test if `SHAP > 0 OR FFA > 0` (or both)
+   - Currently: Only tests features with `FFA importance > 0` (line 1001)
+   - **PARTIALLY IMPLEMENTED** (missing SHAP union)
+
+### B) Interaction Pruning (Stage 3 - Inside `perform_multi_feature_causal_analysis`)
+
+**Location:** Before generating `all_combinations`, after feature selection
+
+**Current implementation:**
+- ✅ Union importance rule (SHAP>0 OR FFA>0 OR causal>0) - Line 1331-1354
+- ✅ Combination SHAP filtering (all features above threshold) - Line 1428-1466
+- ✅ Optional combined SHAP threshold - Line 1458-1464
+
+**Missing (to add):**
+
+1. **Co-occurrence support**
+   - For pair (A,B) require `#(A=1 & B=1) ≥ min_cooccur_support`
+   - **NOT YET IMPLEMENTED**
+
+2. **Binary intervention consistency**
+   - Apply same `binary_intervention_mode` as univariate
+   - ✅ **IMPLEMENTED** (line 1559) - Uses `ANALYSIS_CONFIG.get('binary_intervention_mode')`
+
+3. **Cap combinations per size**
+   - Even after SHAP filtering, cap at `max_combinations_per_size`
+   - **NOT YET IMPLEMENTED**
+
+---
+
 ## Next Steps
 
 1. **Implement Stage 2.5 Pruning Gate** (highest priority)
-   - Add pruning function after `perform_causal_analysis()`
-   - Apply Rules 1-6
-   - Filter `causal_df` before passing to interaction analysis
+   - Add pruning function after `calculate_feature_importance()`, before `perform_causal_analysis()`
+   - Apply Rules 1-4 (prevalence, AXP coverage, importance-union)
+   - Filter features before causal analysis
 
 2. **Enhance Stage 3 Pruning**
-   - Add AND-mask size check
-   - Add AXP co-occurrence filtering
-   - Add lift/association filtering
-   - Add dominance/redundancy pre-filtering
+   - Add co-occurrence support check (`#(A=1 & B=1) ≥ threshold`)
+   - Add cap on combinations per size (`max_combinations_per_size`)
+   - ✅ Binary intervention mode already consistent
 
 3. **Enhance Stage 4 Runtime Pruning**
    - Add early stopping for zero changes
@@ -423,9 +477,25 @@ if not causal_df.empty:
 
 ---
 
+## Binary Intervention Mode Consistency
+
+**Current status:** ✅ **CONSISTENT**
+
+- Univariate causal analysis: Uses `binary_intervention_mode` (line 1128)
+- Interaction analysis: Uses `binary_intervention_mode` (line 1559)
+- Both respect the same mode: `remove_only`, `add_only`, or `flip`
+
+**Mode options:**
+- `remove_only` (default): Test only rows where `x=1`, set to `0`
+- `add_only`: Test only rows where `x=0`, set to `1`
+- `flip`: Flip all rows (`0↔1`)
+- `both`: Run removal + insertion separately (not yet implemented)
+
+---
+
 ## References
 
-- **Rules 1-6**: Primary feature pruning criteria
-- **Rules 7-11**: Interaction candidate pruning
+- **Rules 1-4**: Univariate causal pruning (prevalence, AXP coverage, importance-union)
+- **Rules 5-11**: Interaction candidate pruning (co-occurrence, caps, etc.)
 - **Rules 12-13**: Runtime pruning during interaction testing
 - See methodology documentation for detailed rule definitions
