@@ -116,6 +116,7 @@ ANALYSIS_CONFIG = {
     'min_coverage': 0.8,
     'n_permutations': 100,  # Reduced for faster execution
     'random_seed': 1997,
+    'binary_intervention_mode': 'remove_only',  # remove_only | add_only | flip
     'max_samples': 10000,  # Limit data samples to prevent OOM
     'max_explanation_samples': 1000,  # Limit number of instances for explanation generation
     # Limit parallel workers to reduce memory usage (use 1-4 instead of all CPUs)
@@ -332,6 +333,12 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
             target_col = col
             break
     
+    # Preserve a stable instance identifier for SHAP alignment and downstream tracing
+    # (important if we sample/reset indices elsewhere).
+    if 'instance_index' not in data.columns:
+        data = data.copy()
+        data.insert(0, 'instance_index', data.index.astype(int))
+    
     if target_col:
         logger.info(f"Found target column: {target_col}")
         y = data[target_col].values
@@ -477,11 +484,27 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str) -> Tuple[D
                     shap_loader.close()
                     
                     logger.info(f"Loaded individual SHAP values via DuckDB: {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
+                    # If SHAP parquet contains an explicit instance identifier, use it as index for safe alignment
+                    if 'instance_index' in shap_values_df.columns:
+                        shap_values_df = shap_values_df.set_index('instance_index', drop=True)
+                        # Ensure integer index if possible
+                        try:
+                            shap_values_df.index = shap_values_df.index.astype(int)
+                        except Exception:
+                            pass
                 except ImportError:
                     # Fallback to pandas if DuckDB not available
                     logger.warning("DuckDB not available, falling back to pandas.read_parquet")
                     shap_values_df = pd.read_parquet(shap_values_path)
                     logger.info(f"Loaded individual SHAP values via pandas: {len(shap_values_df)} instances, {len(shap_values_df.columns)} features")
+                    # If SHAP parquet contains an explicit instance identifier, use it as index for safe alignment
+                    if 'instance_index' in shap_values_df.columns:
+                        shap_values_df = shap_values_df.set_index('instance_index', drop=True)
+                        # Ensure integer index if possible
+                        try:
+                            shap_values_df.index = shap_values_df.index.astype(int)
+                        except Exception:
+                            pass
                 
                 # Ensure index is set properly (should be instance indices)
                 if isinstance(shap_values_df, pd.DataFrame) and shap_values_df.index.name is None and shap_values_df.index.dtype == 'int64':
@@ -901,18 +924,23 @@ def _calculate_grouped_causal_effect(
                 predicted_class = y[first_idx]
                 
                 # Get instance-specific SHAP for rule filtering
-                # Map filtered index to original index for SHAP lookup
-                instance_shap_values = {}
-                if hasattr(explainer, 'shap_values_df') and explainer.shap_values_df is not None:
-                    # Map filtered index to original index
+                # IMPORTANT: use a stable instance identifier when available (instance_index column),
+                # because DataFrame positional indices can be reset during sampling/filtering.
+                instance_shap_values: Dict[str, float] = {}
+                shap_lookup_idx = first_idx
+                try:
+                    if isinstance(X_original, pd.DataFrame) and 'instance_index' in X_original.columns:
+                        shap_lookup_idx = int(X_original.iloc[first_idx]['instance_index'])
+                except Exception:
+                    # Fallback: try original_indices_mapping if available
                     if original_indices_mapping is not None and first_idx < len(original_indices_mapping):
-                        original_idx = original_indices_mapping[first_idx]
+                        shap_lookup_idx = original_indices_mapping[first_idx]
                     else:
-                        original_idx = first_idx  # Fallback: assume indices match
-                    
-                    # Try original index first, then fallback to filtered index
-                    if original_idx in explainer.shap_values_df.index:
-                        instance_shap_row = explainer.shap_values_df.loc[original_idx]
+                        shap_lookup_idx = first_idx
+                
+                if hasattr(explainer, 'shap_values_df') and explainer.shap_values_df is not None:
+                    if shap_lookup_idx in explainer.shap_values_df.index:
+                        instance_shap_row = explainer.shap_values_df.loc[shap_lookup_idx]
                         instance_shap_values = instance_shap_row.to_dict()
                     elif first_idx in explainer.shap_values_df.index:
                         # Fallback: try filtered index
@@ -1113,40 +1141,74 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             # Create modified dataset with appropriate intervention
             X_modified = X_sample.copy()
             if is_binary:
-                # For binary features: Only test instances where feature is PRESENT (value=1)
-                # and remove it (set to 0). This tests "What happens if we remove this drug/ICD?"
-                # This is more realistic than flipping all instances (0->1, 1->0)
-                present_mask = X_sample[feat_name] == 1
-                num_present = present_mask.sum()
+                # For binary features: configurable intervention semantics
+                mode = ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
                 
-                if num_present > 0:
-                    # Only modify instances where feature is present
-                    X_modified.loc[present_mask, feat_name] = 0
-                    intervention_val = f"removed (1->0, {num_present}/{len(X_sample)} instances)"
-                    # Filter to only instances where feature was present for comparison
-                    # This ensures we're comparing apples to apples and normalizing by |S_f|, not N
-                    X_sample_filtered = X_sample[present_mask].copy()
-                    X_modified_filtered = X_modified[present_mask].copy()
-                    y_sample_filtered = y_sample[present_mask]
+                if mode == 'remove_only':
+                    # Test only instances where feature is present (1) and remove it (1->0)
+                    test_mask = X_sample[feat_name] == 1
+                    num_test = int(test_mask.sum())
+                    if num_test == 0:
+                        logger.warning(
+                            f"  Feature {feat_name}: No instances with value=1 (n1=0), skipping (cannot measure removal effect)"
+                        )
+                        continue
+                    X_modified.loc[test_mask, feat_name] = 0
+                    intervention_val = f"removed (1->0, {num_test}/{len(X_sample)} instances)"
+                    X_sample_filtered = X_sample[test_mask].copy()
+                    X_modified_filtered = X_modified[test_mask].copy()
+                    y_sample_filtered = y_sample[test_mask]
                     
-                    # Preserve original indices for SHAP alignment
-                    # Map filtered positions back to original indices
-                    if isinstance(present_mask, pd.Series):
-                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if present_mask.iloc[i]]
-                    else:
-                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if present_mask[i]]
-                    
-                    # Sanity check: Verify we're only testing instances where feature was 1
+                    # Sanity checks
                     assert (X_sample_filtered[feat_name] == 1).all(), \
                         f"Sanity check failed: All filtered instances should have {feat_name} == 1"
                     assert (X_modified_filtered[feat_name] == 0).all(), \
                         f"Sanity check failed: All modified instances should have {feat_name} == 0"
+                    
+                elif mode == 'add_only':
+                    # Test only instances where feature is absent (0) and add it (0->1)
+                    test_mask = X_sample[feat_name] == 0
+                    num_test = int(test_mask.sum())
+                    if num_test == 0:
+                        logger.warning(
+                            f"  Feature {feat_name}: No instances with value=0 (n0=0), skipping (cannot measure addition effect)"
+                        )
+                        continue
+                    X_modified.loc[test_mask, feat_name] = 1
+                    intervention_val = f"added (0->1, {num_test}/{len(X_sample)} instances)"
+                    X_sample_filtered = X_sample[test_mask].copy()
+                    X_modified_filtered = X_modified[test_mask].copy()
+                    y_sample_filtered = y_sample[test_mask]
+                    
+                    # Sanity checks
+                    assert (X_sample_filtered[feat_name] == 0).all(), \
+                        f"Sanity check failed: All filtered instances should have {feat_name} == 0"
+                    assert (X_modified_filtered[feat_name] == 1).all(), \
+                        f"Sanity check failed: All modified instances should have {feat_name} == 1"
+                    
+                elif mode == 'flip':
+                    # Flip all instances (0<->1)
+                    test_mask = np.ones(len(X_sample), dtype=bool)
+                    num_test = len(X_sample)
+                    X_modified[feat_name] = 1 - X_sample[feat_name]
+                    intervention_val = f"flipped (0<->1, {num_test}/{len(X_sample)} instances)"
+                    X_sample_filtered = X_sample.copy()
+                    X_modified_filtered = X_modified.copy()
+                    y_sample_filtered = y_sample.copy()
+                    
                 else:
-                    # No instances with feature=1, skip this feature (don't add to results)
-                    # This is the correct behavior: if feature never appears, we can't measure removal effect
-                    logger.warning(f"  Feature {feat_name}: No instances with value=1 (n1=0), skipping (cannot measure removal effect)")
-                    # Skip this feature entirely - don't add to causal_scores
-                    continue
+                    raise ValueError(f"Unknown binary_intervention_mode: {mode}")
+                
+                # Preserve original indices for SHAP alignment
+                # Map filtered positions back to original indices
+                if mode != 'flip':
+                    if isinstance(test_mask, pd.Series):
+                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if test_mask.iloc[i]]
+                    else:
+                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if test_mask[i]]
+                else:
+                    filtered_original_indices = original_indices
+                    
             else:
                 # For continuous features: set to median
                 X_modified[feat_name] = median_val
@@ -1511,8 +1573,13 @@ def perform_multi_feature_causal_analysis(
                 # Calculate sum of individual effects
                 sum_individual = sum(individual_effects_map.get(f, 0.0) for f in feature_combo)
                 
-                # For multi-feature interactions, only test instances where ALL features in combination are present
-                # This matches the univariate "remove-only on present subset" logic for consistency
+                # For multi-feature interactions, use configurable binary intervention mode
+                mode = ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
+                
+                # For binary presence/absence indicators, choose semantics:
+                # - remove_only: test rows where ALL binary feats are present; set them to 0
+                # - add_only: test rows where ALL binary feats are absent; set them to 1
+                # - flip: test all rows; flip all binary feats
                 binary_features = []
                 continuous_features = []
                 
@@ -1524,29 +1591,40 @@ def perform_multi_feature_causal_analysis(
                     else:
                         continuous_features.append(feat_name)
                 
-                # Filter to instances where ALL binary features are present (value=1)
-                # For continuous features, we test all instances (set to median)
+                # Determine test mask based on mode
                 if binary_features:
-                    # Create mask: all binary features must be 1
-                    present_mask = pd.Series(True, index=X_sample.index)
-                    for feat_name in binary_features:
-                        present_mask = present_mask & (X_sample[feat_name] == 1)
+                    if mode == 'remove_only':
+                        # Test only rows where ALL binary features are present (1)
+                        test_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_features:
+                            test_mask = test_mask & (X_sample[feat_name] == 1)
+                    elif mode == 'add_only':
+                        # Test only rows where ALL binary features are absent (0)
+                        test_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_features:
+                            test_mask = test_mask & (X_sample[feat_name] == 0)
+                    elif mode == 'flip':
+                        # Test all rows
+                        test_mask = pd.Series(True, index=X_sample.index)
+                    else:
+                        raise ValueError(f"Unknown binary_intervention_mode: {mode}")
                     
-                    num_present = present_mask.sum()
+                    num_test = int(test_mask.sum())
                     
-                    if num_present == 0:
-                        # No instances where all binary features are present, skip this combination
-                        logger.debug(f"    Combination {combo_idx+1}: No instances with all binary features present, skipping")
+                    # If combo contains binary features but none match the test mask, skip
+                    if binary_features and num_test == 0:
+                        logger.debug(f"    Combination {combo_idx+1}: No instances match test mask for mode '{mode}', skipping")
                         continue
                     
-                    # Filter to instances where all binary features are present
-                    X_sample_filtered = X_sample[present_mask].copy()
-                    y_sample_filtered = y_sample[present_mask]
+                    # Filter to test subset
+                    X_sample_filtered = X_sample[test_mask].copy()
+                    y_sample_filtered = y_sample[test_mask]
                 else:
                     # No binary features, test all instances
+                    test_mask = pd.Series(True, index=X_sample.index)
                     X_sample_filtered = X_sample.copy()
                     y_sample_filtered = y_sample
-                    num_present = len(X_sample)
+                    num_test = len(X_sample)
                 
                 # Create modified dataset with all features in combination modified
                 X_modified_filtered = X_sample_filtered.copy()
@@ -1556,11 +1634,20 @@ def perform_multi_feature_causal_analysis(
                     is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
                     
                     if is_binary:
-                        # Remove binary features (set to 0) - only instances where feature was 1 are in filtered set
-                        X_modified_filtered[feat_name] = 0
+                        if mode == 'remove_only':
+                            # Remove binary features (set to 0) - only instances where feature was 1 are in filtered set
+                            X_modified_filtered[feat_name] = 0
+                        elif mode == 'add_only':
+                            # Add binary features (set to 1) - only instances where feature was 0 are in filtered set
+                            X_modified_filtered[feat_name] = 1
+                        elif mode == 'flip':
+                            # Flip binary features (0<->1)
+                            X_modified_filtered[feat_name] = 1 - X_sample_filtered[feat_name]
+                        else:
+                            raise ValueError(f"Unknown binary_intervention_mode: {mode}")
                     else:
-                        # Set continuous features to median
-                        median_val = X_sample_filtered[feat_name].median()
+                        # For continuous features: set to median (only on masked subset)
+                        median_val = X_sample[feat_name].median()
                         X_modified_filtered[feat_name] = median_val
                 
                 # Generate original explanations (on filtered subset)
@@ -1675,6 +1762,18 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
     model_output_dir = OUTPUT_DIR / model_type
     logger.info(f"Creating output directory: {model_output_dir}")
     model_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Add run metadata to outputs for easy comparison across runs
+    run_binary_mode = ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
+    for _df in (df_axps, feature_importance_df, causal_df, interaction_df):
+        if _df is None:
+            continue
+        try:
+            if isinstance(_df, pd.DataFrame) and 'binary_intervention_mode' not in _df.columns:
+                _df['binary_intervention_mode'] = run_binary_mode
+        except Exception:
+            # Don't fail saving just because metadata couldn't be attached
+            pass
     
     # Save explanations (Parquet format for efficiency)
     explanations_path = None
@@ -2094,7 +2193,16 @@ def main():
         default="all",
         help="Which model type to analyze (default: all).",
     )
+    parser.add_argument(
+        "--binary-intervention-mode",
+        choices=["remove_only", "add_only", "flip"],
+        default=ANALYSIS_CONFIG.get("binary_intervention_mode", "remove_only"),
+        help="Binary intervention semantics: remove_only (1->0 on present), add_only (0->1 on absent), flip (0<->1 on all).",
+    )
     args = parser.parse_args()
+    
+    # Apply CLI override
+    ANALYSIS_CONFIG['binary_intervention_mode'] = args.binary_intervention_mode
     
     # Update global variables after parsing args
     COHORT_NAME = args.cohort_name
