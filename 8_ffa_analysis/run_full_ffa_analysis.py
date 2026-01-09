@@ -1691,23 +1691,6 @@ def perform_multi_feature_causal_analysis(
             feature_combinations = all_combinations
         
         logger.info(f"  Final combinations to test for size {interaction_size}: {len(feature_combinations)}")
-            
-            # Optional: Apply combined SHAP threshold if configured (but don't limit count)
-            min_combined_shap_threshold = ANALYSIS_CONFIG.get('min_combined_shap_threshold', 0.0)
-            if min_combined_shap_threshold > 0.0:
-                filtered_combinations = [
-                    combo for combo, _, combined_shap, _ in combination_scores
-                    if combined_shap >= min_combined_shap_threshold
-                ]
-                logger.info(f"  Further filtered to {len(filtered_combinations)} combinations with combined SHAP >= {min_combined_shap_threshold}")
-            
-            feature_combinations = filtered_combinations
-        else:
-            # No SHAP filtering available - warn and use all combinations
-            logger.warning("  No SHAP values available for filtering. Testing all combinations (may be slow).")
-            feature_combinations = all_combinations
-        
-        logger.info(f"  Generated {len(feature_combinations)} combinations of size {interaction_size}")
         
         for combo_idx, feature_combo in enumerate(tqdm(feature_combinations, desc=f"Size {interaction_size}")):
             try:
