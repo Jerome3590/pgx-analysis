@@ -845,7 +845,8 @@ def _calculate_grouped_causal_effect(
     X_original: pd.DataFrame, 
     X_modified: pd.DataFrame, 
     y: np.ndarray,
-    feat_name: str
+    feat_name: str,
+    original_indices_mapping: Optional[List[int]] = None
 ) -> float:
     """
     Calculate causal effect by grouping instances by matching rules.
@@ -900,10 +901,26 @@ def _calculate_grouped_causal_effect(
                 predicted_class = y[first_idx]
                 
                 # Get instance-specific SHAP for rule filtering
+                # Map filtered index to original index for SHAP lookup
                 instance_shap_values = {}
                 if hasattr(explainer, 'shap_values_df') and explainer.shap_values_df is not None:
-                    if first_idx in explainer.shap_values_df.index:
+                    # Map filtered index to original index
+                    if original_indices_mapping is not None and first_idx < len(original_indices_mapping):
+                        original_idx = original_indices_mapping[first_idx]
+                    else:
+                        original_idx = first_idx  # Fallback: assume indices match
+                    
+                    # Try original index first, then fallback to filtered index
+                    if original_idx in explainer.shap_values_df.index:
+                        instance_shap_row = explainer.shap_values_df.loc[original_idx]
+                        instance_shap_values = instance_shap_row.to_dict()
+                    elif first_idx in explainer.shap_values_df.index:
+                        # Fallback: try filtered index
                         instance_shap_row = explainer.shap_values_df.loc[first_idx]
+                        instance_shap_values = instance_shap_row.to_dict()
+                    elif len(explainer.shap_values_df) > first_idx:
+                        # Fallback: positional access
+                        instance_shap_row = explainer.shap_values_df.iloc[first_idx]
                         instance_shap_values = instance_shap_row.to_dict()
                 
                 # Compute AXP for this group
@@ -1081,6 +1098,11 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             X_sample = X_class.head(causal_sample_size).copy()
             y_sample = y_class[:causal_sample_size]
             
+            # Preserve original indices for SHAP alignment
+            # After reset_index(drop=True), indices are 0, 1, 2, ... but SHAP values may use original indices
+            # Store mapping: filtered_index -> original_index for SHAP lookup
+            original_indices = X_sample.index.tolist() if hasattr(X_sample.index, 'tolist') else list(range(len(X_sample)))
+            
             # Detect if feature is binary (0/1 only)
             unique_vals = X_sample[feat_name].unique()
             is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
@@ -1091,24 +1113,74 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             # Create modified dataset with appropriate intervention
             X_modified = X_sample.copy()
             if is_binary:
-                # For binary features: flip the values (0->1, 1->0)
-                # This creates a meaningful intervention
-                X_modified[feat_name] = 1 - X_sample[feat_name]
-                intervention_val = "flipped (0<->1)"
+                # For binary features: Only test instances where feature is PRESENT (value=1)
+                # and remove it (set to 0). This tests "What happens if we remove this drug/ICD?"
+                # This is more realistic than flipping all instances (0->1, 1->0)
+                present_mask = X_sample[feat_name] == 1
+                num_present = present_mask.sum()
+                
+                if num_present > 0:
+                    # Only modify instances where feature is present
+                    X_modified.loc[present_mask, feat_name] = 0
+                    intervention_val = f"removed (1->0, {num_present}/{len(X_sample)} instances)"
+                    # Filter to only instances where feature was present for comparison
+                    # This ensures we're comparing apples to apples and normalizing by |S_f|, not N
+                    X_sample_filtered = X_sample[present_mask].copy()
+                    X_modified_filtered = X_modified[present_mask].copy()
+                    y_sample_filtered = y_sample[present_mask]
+                    
+                    # Preserve original indices for SHAP alignment
+                    # Map filtered positions back to original indices
+                    if isinstance(present_mask, pd.Series):
+                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if present_mask.iloc[i]]
+                    else:
+                        filtered_original_indices = [original_indices[i] for i in range(len(X_sample)) if present_mask[i]]
+                    
+                    # Sanity check: Verify we're only testing instances where feature was 1
+                    assert (X_sample_filtered[feat_name] == 1).all(), \
+                        f"Sanity check failed: All filtered instances should have {feat_name} == 1"
+                    assert (X_modified_filtered[feat_name] == 0).all(), \
+                        f"Sanity check failed: All modified instances should have {feat_name} == 0"
+                else:
+                    # No instances with feature=1, skip this feature (don't add to results)
+                    # This is the correct behavior: if feature never appears, we can't measure removal effect
+                    logger.warning(f"  Feature {feat_name}: No instances with value=1 (n1=0), skipping (cannot measure removal effect)")
+                    # Skip this feature entirely - don't add to causal_scores
+                    continue
             else:
                 # For continuous features: set to median
                 X_modified[feat_name] = median_val
                 intervention_val = f"median ({median_val:.4f})"
+                X_sample_filtered = X_sample
+                X_modified_filtered = X_modified
+                y_sample_filtered = y_sample
+                # For continuous features, no filtering, so use original indices as-is
+                filtered_original_indices = original_indices
             
             # Calculate change rate using grouped comparison (avoids row-by-row explain_dataset calls)
             # Group instances by matching rules and only compute AXP once per group
-            logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Analyzing {feat_name} using grouped rule comparison (sample size: {causal_sample_size})...")
+            # For binary features, we only test instances where feature was present (normalized by |S_f|, not N)
+            effective_sample_size = len(X_sample_filtered)
+            
+            # Sanity check: For binary features, changes can never exceed num_present
+            if is_binary:
+                max_possible_changes = effective_sample_size
+                logger.debug(f"  Sanity check: max_possible_changes = {max_possible_changes} (all {effective_sample_size} instances with feature=1)")
+            
+            logger.info(f"  [{feat_idx+1}/{len(remaining_features)}] Analyzing {feat_name} using grouped rule comparison (effective sample size: {effective_sample_size})...")
             try:
+                # Pass original indices mapping for SHAP alignment
                 change_rate = _calculate_grouped_causal_effect(
-                    explainer, X_sample, X_modified, y_sample, feat_name
+                    explainer, X_sample_filtered, X_modified_filtered, y_sample_filtered, feat_name,
+                    original_indices_mapping=filtered_original_indices
                 )
-                changes = int(change_rate * len(X_sample))
-                logger.info(f"  Feature {feat_name}: {changes}/{len(X_sample)} explanations changed ({change_rate:.2%}) [grouped]")
+                changes = int(change_rate * effective_sample_size)
+                
+                # Sanity check: For binary features, changes should not exceed effective_sample_size
+                if is_binary and changes > effective_sample_size:
+                    logger.warning(f"  Sanity check failed: changes ({changes}) > effective_sample_size ({effective_sample_size})")
+                
+                logger.info(f"  Feature {feat_name}: {changes}/{effective_sample_size} explanations changed ({change_rate:.2%}) [grouped, normalized by |S_f|={effective_sample_size}]")
             except Exception as e:
                 logger.warning(f"  Grouped comparison failed for {feat_name}: {e}. Falling back to row-by-row.")
                 # Fallback to original row-by-row comparison
@@ -1439,28 +1511,64 @@ def perform_multi_feature_causal_analysis(
                 # Calculate sum of individual effects
                 sum_individual = sum(individual_effects_map.get(f, 0.0) for f in feature_combo)
                 
-                # Create modified dataset with all features in combination modified
-                X_modified = X_sample.copy()
+                # For multi-feature interactions, only test instances where ALL features in combination are present
+                # This matches the univariate "remove-only on present subset" logic for consistency
+                binary_features = []
+                continuous_features = []
                 
                 for feat_name in feature_combo:
-                    # Detect if feature is binary
                     unique_vals = X_sample[feat_name].unique()
+                    is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
+                    if is_binary:
+                        binary_features.append(feat_name)
+                    else:
+                        continuous_features.append(feat_name)
+                
+                # Filter to instances where ALL binary features are present (value=1)
+                # For continuous features, we test all instances (set to median)
+                if binary_features:
+                    # Create mask: all binary features must be 1
+                    present_mask = pd.Series(True, index=X_sample.index)
+                    for feat_name in binary_features:
+                        present_mask = present_mask & (X_sample[feat_name] == 1)
+                    
+                    num_present = present_mask.sum()
+                    
+                    if num_present == 0:
+                        # No instances where all binary features are present, skip this combination
+                        logger.debug(f"    Combination {combo_idx+1}: No instances with all binary features present, skipping")
+                        continue
+                    
+                    # Filter to instances where all binary features are present
+                    X_sample_filtered = X_sample[present_mask].copy()
+                    y_sample_filtered = y_sample[present_mask]
+                else:
+                    # No binary features, test all instances
+                    X_sample_filtered = X_sample.copy()
+                    y_sample_filtered = y_sample
+                    num_present = len(X_sample)
+                
+                # Create modified dataset with all features in combination modified
+                X_modified_filtered = X_sample_filtered.copy()
+                
+                for feat_name in feature_combo:
+                    unique_vals = X_sample_filtered[feat_name].unique()
                     is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
                     
                     if is_binary:
-                        # Flip binary features
-                        X_modified[feat_name] = 1 - X_sample[feat_name]
+                        # Remove binary features (set to 0) - only instances where feature was 1 are in filtered set
+                        X_modified_filtered[feat_name] = 0
                     else:
                         # Set continuous features to median
-                        median_val = X_sample[feat_name].median()
-                        X_modified[feat_name] = median_val
+                        median_val = X_sample_filtered[feat_name].median()
+                        X_modified_filtered[feat_name] = median_val
                 
-                # Generate original explanations
-                logger.debug(f"    Generating original explanations for combination {combo_idx+1}/{len(feature_combinations)}...")
+                # Generate original explanations (on filtered subset)
+                logger.debug(f"    Generating original explanations for combination {combo_idx+1}/{len(feature_combinations)} (n={len(X_sample_filtered)})...")
                 try:
                     original_explanations = explainer.explain_dataset(
-                        X_sample,
-                        predictions=y_sample,
+                        X_sample_filtered,
+                        predictions=y_sample_filtered,
                         return_df=True,
                         show_progress=True,  # Enable progress visibility
                         n_jobs=1  # Single worker to save memory
@@ -1469,12 +1577,12 @@ def perform_multi_feature_causal_analysis(
                     logger.error(f"    Error generating original explanations for combination {combo_idx+1}: {e}")
                     continue
                 
-                # Generate modified explanations
-                logger.debug(f"    Generating modified explanations for combination {combo_idx+1}/{len(feature_combinations)}...")
+                # Generate modified explanations (on filtered subset)
+                logger.debug(f"    Generating modified explanations for combination {combo_idx+1}/{len(feature_combinations)} (n={len(X_modified_filtered)})...")
                 try:
                     modified_explanations = explainer.explain_dataset(
-                        X_modified,
-                        predictions=y_sample,
+                        X_modified_filtered,
+                        predictions=y_sample_filtered,
                         return_df=True,
                         show_progress=True,  # Enable progress visibility
                         n_jobs=1
@@ -1483,13 +1591,13 @@ def perform_multi_feature_causal_analysis(
                     logger.error(f"    Error generating modified explanations for combination {combo_idx+1}: {e}")
                     continue
                 
-                # Calculate combined causal effect
+                # Calculate combined causal effect (normalized by |S_f|, not N)
                 if len(original_explanations) > 0 and len(modified_explanations) > 0:
                     changes = sum(
                         1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
                         if orig != mod
                     )
-                    combined_effect = changes / len(original_explanations)
+                    combined_effect = changes / len(original_explanations)  # Normalized by filtered sample size
                     explanation_change_rate = combined_effect
                 else:
                     combined_effect = 0.0
@@ -1508,7 +1616,7 @@ def perform_multi_feature_causal_analysis(
                         'combined_causal_importance': combined_effect,
                         'sum_individual_effects': sum_individual,
                         'interaction_effect': interaction_effect,
-                        'n_instances_tested': len(X_sample),
+                        'n_instances_tested': len(X_sample_filtered),  # Actual instances tested (filtered subset)
                         'explanation_change_rate': explanation_change_rate,
                         'synergy_type': 'positive' if interaction_effect > 0.01 else ('negative' if interaction_effect < -0.01 else 'neutral')
                     })
