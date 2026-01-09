@@ -386,16 +386,29 @@ These features represent the features that, when changed, most strongly affect t
 
 ### Feature Pruning Pipeline
 
-For a detailed guide on **where pruning belongs** in the FFA pipeline and **what pruning is allowed/forbidden** at each stage, see:
+For detailed guides on **where pruning belongs** in the FFA pipeline and **how to implement pruning rules**, see:
 
 - **[PRUNING_PIPELINE.md](PRUNING_PIPELINE.md)** - Complete pruning stage mapping and implementation status
+- **[PRUNING_PIPELINE_DIAGRAM.md](PRUNING_PIPELINE_DIAGRAM.md)** - Visual pipeline diagram with code locations
+- **[PRUNING_RULES.md](PRUNING_RULES.md)** - Detailed pruning rules with implementation code examples
 
 **Key principle:**
 > **Never prune before you measure causality.  
 > Always prune before combinatorics.  
 > Only early-stop after you've committed.**
 
-The most critical pruning gate is **Stage 2.5** (after univariate causal analysis, before interaction generation), which is currently **not yet implemented**.
+**Current status:**
+- ✅ **Binary intervention mode consistency**: Univariate and interaction analysis both use the same `binary_intervention_mode` (default: `remove_only`)
+- ⚠️ **Stage 2.5 pruning gate**: NOT YET IMPLEMENTED (highest priority)
+- ⚠️ **Stage 3 interaction pruning**: PARTIALLY IMPLEMENTED (only SHAP filtering, missing co-occurrence and capping)
+- ⚠️ **Stage 4 runtime pruning**: PARTIALLY IMPLEMENTED (basic mask filtering, missing early stopping)
+
+**Recommended pruning rules:**
+1. **Prevalence filter**: Require `#(x=1) ≥ min_support` for binary features (removal mode)
+2. **AXP coverage**: Require `coverage ≥ min_coverage` (already computed, not yet used for pruning)
+3. **Importance-union**: Test if `SHAP > 0 OR FFA > 0` (currently only checks FFA)
+4. **Co-occurrence**: Require `#(A=1 & B=1) ≥ min_cooccur` for interaction pairs
+5. **Cap combinations**: Limit to top-K combinations per size to prevent explosion
 
 ### References
 
