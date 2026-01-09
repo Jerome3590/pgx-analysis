@@ -1057,19 +1057,12 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
         available_features = [f for f in top_features if f in X_class.columns]
     
     # Stage 2.5: Apply primary pruning gate
-    # Load SHAP map if available (needed for importance-union filter)
-    shap_map_for_pruning = None
-    try:
-        shap_map_for_pruning, _ = load_shap_importance(cohort, age_band, model_type)
-    except Exception:
-        logger.debug("SHAP map not available for pruning, using FFA-only filter")
-    
-    # Apply pruning rules
+    # Apply pruning rules (SHAP map passed as parameter)
     available_features = prune_features_for_causal_analysis(
         available_features,
         X_class,
         feature_importance_df,
-        shap_map=shap_map_for_pruning,
+        shap_map=shap_map,
         binary_intervention_mode=ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
     )
     
