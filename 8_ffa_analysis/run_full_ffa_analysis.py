@@ -137,6 +137,9 @@ ANALYSIS_CONFIG = {
     'min_cooccur_support': 5,   # Minimum co-occurrence for pairs
     'min_cooccur_support_triplet': 3,  # Minimum co-occurrence for triplets
     'max_combinations_per_size': 1000,  # Cap on combinations per size
+    # Stage 4: Runtime pruning
+    'early_stopping_n': 10,     # Check first N instances for early stopping
+    'enable_early_stopping': True,  # Enable early stopping for zero changes
     'min_interaction_effect': 0.01,  # Minimum interaction effect to report
     'causal_sample_size': 50,  # Sample size for causal analysis (reduced from 100)
     'causal_checkpoint_interval': 10,  # Save progress every N features for idempotency
@@ -1783,6 +1786,59 @@ def perform_multi_feature_causal_analysis(
                 except Exception as e:
                     logger.error(f"    Error generating original explanations for combination {combo_idx+1}: {e}")
                     continue
+                
+                # Stage 4: Runtime pruning - Early stopping check
+                # Check first N instances for zero changes before generating full modified explanations
+                enable_early_stopping = ANALYSIS_CONFIG.get('enable_early_stopping', True)
+                early_stopping_n = ANALYSIS_CONFIG.get('early_stopping_n', 10)
+                
+                if enable_early_stopping and len(original_explanations) > early_stopping_n:
+                    # Generate modified explanations for first N instances only
+                    X_modified_early = X_modified_filtered.head(early_stopping_n).copy()
+                    y_sample_early = y_sample_filtered[:early_stopping_n]
+                    
+                    try:
+                        modified_explanations_early = explainer.explain_dataset(
+                            X_modified_early,
+                            predictions=y_sample_early,
+                            return_df=True,
+                            show_progress=False,  # Disable progress for early check
+                            n_jobs=1
+                        )
+                        
+                        # Check for zero changes in early sample
+                        early_changes = sum(
+                            1 for orig, mod in zip(
+                                original_explanations['axp'].head(early_stopping_n),
+                                modified_explanations_early['axp'],
+                                strict=True
+                            )
+                            if orig != mod
+                        )
+                        
+                        # If zero changes in early sample and we have many instances, skip full computation
+                        if early_changes == 0 and len(original_explanations) > (early_stopping_n * 2):
+                            logger.debug(f"    Early stopping: zero changes in first {early_stopping_n} instances (n={len(original_explanations)}), skipping full computation")
+                            combined_effect = 0.0
+                            explanation_change_rate = 0.0
+                            
+                            # Still record the result (with zero effect) for completeness
+                            feature_combo_str = "|".join(sorted(feature_combo))
+                            interaction_results.append({
+                                'feature_combination': feature_combo_str,
+                                'interaction_size': interaction_size,
+                                'combined_causal_importance': 0.0,
+                                'sum_individual_effects': sum_individual,
+                                'interaction_effect': -sum_individual,  # Negative of individual (no combined effect)
+                                'n_instances_tested': len(X_sample_filtered),
+                                'explanation_change_rate': 0.0,
+                                'synergy_type': 'neutral'
+                            })
+                            continue
+                        
+                    except Exception as e:
+                        logger.debug(f"    Early stopping check failed: {e}. Proceeding with full computation.")
+                        # Fall through to full computation
                 
                 # Generate modified explanations (on filtered subset)
                 logger.debug(f"    Generating modified explanations for combination {combo_idx+1}/{len(feature_combinations)} (n={len(X_modified_filtered)})...")
