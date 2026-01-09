@@ -398,9 +398,9 @@ if not causal_df.empty:
 | Stage 0 | ❌ Forbidden | ✅ Correct | No pruning occurs |
 | Stage 1 | ❌ Forbidden | ✅ Correct | Only annotation |
 | Stage 2 | ❌ Forbidden | ✅ Correct | Only measurement |
-| **Stage 2.5** | ✅ **Required** | ⚠️ **MISSING** | **CRITICAL GAP** |
-| Stage 3 | ✅ Required | ⚠️ Partial | Only SHAP filtering |
-| Stage 4 | ✅ Allowed | ⚠️ Partial | Basic mask filtering |
+| **Stage 2.5** | ✅ **Required** | ✅ **COMPLETE** | Prevalence, AXP coverage, importance-union |
+| Stage 3 | ✅ Required | ✅ **COMPLETE** | SHAP filtering, co-occurrence, capping |
+| Stage 4 | ✅ Allowed | ✅ **COMPLETE** | Early stopping for zero changes |
 | Stage 5 | ❌ Forbidden | ✅ Correct | Only classification |
 | Stage 6 | ✅ Optional | ✅ Correct | Post-hoc only |
 
