@@ -122,11 +122,21 @@ ANALYSIS_CONFIG = {
     # Limit parallel workers to reduce memory usage (use 1-4 instead of all CPUs)
     'n_jobs': min(4, max(1, get_sklearn_n_jobs())),
     'batch_size': 100,  # Process explanations in batches
+    # Stage 2.5: Univariate causal pruning
+    'min_present_support': 10,  # Minimum # instances with feature=1 for removal mode
+    'min_absent_support': 10,   # Minimum # instances with feature=0 for addition mode
+    'min_axp_coverage': 0.01,   # Minimum AXP coverage (1% of explanations)
+    'min_shap_for_causal': 0.0, # Minimum SHAP importance for causal testing
+    'min_ffa_for_causal': 0.0,  # Minimum FFA importance for causal testing
     # Multi-feature interaction analysis
     'enable_interaction_analysis': False,  # Set to True to enable multi-feature interaction testing
     'max_interaction_size': 2,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
     'interaction_top_k': 10,  # Top K features to consider for interactions (reduced from 20 to limit computation)
     'interaction_sample_size': 50,  # Sample size for interaction testing (reduced from 100)
+    # Stage 3: Interaction pruning
+    'min_cooccur_support': 5,   # Minimum co-occurrence for pairs
+    'min_cooccur_support_triplet': 3,  # Minimum co-occurrence for triplets
+    'max_combinations_per_size': 1000,  # Cap on combinations per size
     'min_interaction_effect': 0.01,  # Minimum interaction effect to report
     'causal_sample_size': 50,  # Sample size for causal analysis (reduced from 100)
     'causal_checkpoint_interval': 10,  # Save progress every N features for idempotency
@@ -1045,26 +1055,45 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
         # Filter to features with importance > 0
         top_features = feature_importance_df[feature_importance_df['importance'] > 0]['feature'].tolist()
         available_features = [f for f in top_features if f in X_class.columns]
-    else:
-        # Filter available features to those with FFA importance > 0
-        if not feature_importance_df.empty:
-            # Create a mapping of feature -> importance from FFA results
-            ffa_importance_map = dict(zip(
-                feature_importance_df['feature'],
-                feature_importance_df['importance'],
-                strict=True
-            ))
-            
-            # Filter to features with importance > 0 and sort by FFA importance
-            available_features = [
-                f for f in available_features 
-                if ffa_importance_map.get(f, 0) > 0
-            ]
-            available_features = sorted(
-                available_features,
-                key=lambda f: ffa_importance_map.get(f, 0),
-                reverse=True
-            )
+    
+    # Stage 2.5: Apply primary pruning gate
+    # Load SHAP map if available (needed for importance-union filter)
+    shap_map_for_pruning = None
+    try:
+        shap_map_for_pruning, _ = load_shap_importance(cohort, age_band, model_type)
+    except Exception:
+        logger.debug("SHAP map not available for pruning, using FFA-only filter")
+    
+    # Apply pruning rules
+    available_features = prune_features_for_causal_analysis(
+        available_features,
+        X_class,
+        feature_importance_df,
+        shap_map=shap_map_for_pruning,
+        binary_intervention_mode=ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
+    )
+    
+    # Sort by combined importance (SHAP + FFA)
+    if shap_map_for_pruning and not feature_importance_df.empty:
+        ffa_importance_map = dict(zip(
+            feature_importance_df['feature'],
+            feature_importance_df['importance']
+        ))
+        available_features = sorted(
+            available_features,
+            key=lambda f: (shap_map_for_pruning.get(f, 0.0) + ffa_importance_map.get(f, 0.0)),
+            reverse=True
+        )
+    elif not feature_importance_df.empty:
+        ffa_importance_map = dict(zip(
+            feature_importance_df['feature'],
+            feature_importance_df['importance']
+        ))
+        available_features = sorted(
+            available_features,
+            key=lambda f: ffa_importance_map.get(f, 0.0),
+            reverse=True
+        )
     
     logger.info(f"Found {len(available_features)} features available in data for causal analysis")
     
@@ -1548,6 +1577,120 @@ def perform_multi_feature_causal_analysis(
             
             logger.info(f"  Filtered {len(all_combinations)} combinations to {len(filtered_combinations)} based on SHAP importance > {min_individual_shap_threshold}")
             logger.info(f"    (All features in combinations have SHAP > {min_individual_shap_threshold})")
+            
+            # Optional: Apply combined SHAP threshold if configured (but don't limit count)
+            min_combined_shap_threshold = ANALYSIS_CONFIG.get('min_combined_shap_threshold', 0.0)
+            if min_combined_shap_threshold > 0.0:
+                filtered_combinations = [
+                    combo for combo, _, combined_shap, _ in combination_scores
+                    if combined_shap >= min_combined_shap_threshold
+                ]
+                logger.info(f"  Further filtered to {len(filtered_combinations)} combinations with combined SHAP >= {min_combined_shap_threshold}")
+            
+            all_combinations = filtered_combinations
+            
+            # Stage 3: Apply interaction candidate pruning
+            # Rule 5: Co-occurrence support filter
+            min_cooccur_support = ANALYSIS_CONFIG.get('min_cooccur_support', 5)
+            min_cooccur_triplet = ANALYSIS_CONFIG.get('min_cooccur_support_triplet', 3)
+            binary_mode = ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
+            
+            pruned_combinations = []
+            for combo in all_combinations:
+                # Identify binary features in combination
+                binary_feats = []
+                for feat_name in combo:
+                    unique_vals = X_sample[feat_name].unique()
+                    if len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1}):
+                        binary_feats.append(feat_name)
+                
+                # Apply co-occurrence filter for binary features
+                if binary_feats:
+                    if binary_mode == 'remove_only':
+                        # Require all binary features = 1
+                        cooccur_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_feats:
+                            cooccur_mask = cooccur_mask & (X_sample[feat_name] == 1)
+                        cooccur_count = int(cooccur_mask.sum())
+                        threshold = min_cooccur_triplet if interaction_size >= 3 else min_cooccur_support
+                    elif binary_mode == 'add_only':
+                        # Require all binary features = 0
+                        cooccur_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_feats:
+                            cooccur_mask = cooccur_mask & (X_sample[feat_name] == 0)
+                        cooccur_count = int(cooccur_mask.sum())
+                        threshold = min_cooccur_triplet if interaction_size >= 3 else min_cooccur_support
+                    else:  # flip mode - no co-occurrence filter
+                        pruned_combinations.append(combo)
+                        continue
+                    
+                    if cooccur_count < threshold:
+                        logger.debug(f"    Pruned combo {combo[:2]}: insufficient co-occurrence ({cooccur_count} < {threshold})")
+                        continue
+                
+                # Combination passed co-occurrence filter
+                pruned_combinations.append(combo)
+            
+            all_combinations = pruned_combinations
+            logger.info(f"  After co-occurrence pruning: {len(all_combinations)} combinations")
+            
+            # Rule 6: Cap combinations per size
+            max_combinations_per_size = ANALYSIS_CONFIG.get('max_combinations_per_size', 1000)
+            if len(all_combinations) > max_combinations_per_size:
+                # Already sorted by SHAP score, take top-K
+                logger.info(f"  Capping size-{interaction_size} combinations: {len(all_combinations)} -> {max_combinations_per_size}")
+                all_combinations = all_combinations[:max_combinations_per_size]
+            
+            feature_combinations = all_combinations
+        else:
+            # No SHAP filtering available - apply co-occurrence and capping only
+            min_cooccur_support = ANALYSIS_CONFIG.get('min_cooccur_support', 5)
+            min_cooccur_triplet = ANALYSIS_CONFIG.get('min_cooccur_support_triplet', 3)
+            binary_mode = ANALYSIS_CONFIG.get('binary_intervention_mode', 'remove_only')
+            
+            pruned_combinations = []
+            for combo in all_combinations:
+                # Identify binary features in combination
+                binary_feats = []
+                for feat_name in combo:
+                    unique_vals = X_sample[feat_name].unique()
+                    if len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1}):
+                        binary_feats.append(feat_name)
+                
+                # Apply co-occurrence filter for binary features
+                if binary_feats:
+                    if binary_mode == 'remove_only':
+                        cooccur_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_feats:
+                            cooccur_mask = cooccur_mask & (X_sample[feat_name] == 1)
+                        cooccur_count = int(cooccur_mask.sum())
+                        threshold = min_cooccur_triplet if interaction_size >= 3 else min_cooccur_support
+                    elif binary_mode == 'add_only':
+                        cooccur_mask = pd.Series(True, index=X_sample.index)
+                        for feat_name in binary_feats:
+                            cooccur_mask = cooccur_mask & (X_sample[feat_name] == 0)
+                        cooccur_count = int(cooccur_mask.sum())
+                        threshold = min_cooccur_triplet if interaction_size >= 3 else min_cooccur_support
+                    else:  # flip mode
+                        pruned_combinations.append(combo)
+                        continue
+                    
+                    if cooccur_count < threshold:
+                        continue
+                
+                pruned_combinations.append(combo)
+            
+            all_combinations = pruned_combinations
+            
+            # Cap combinations per size
+            max_combinations_per_size = ANALYSIS_CONFIG.get('max_combinations_per_size', 1000)
+            if len(all_combinations) > max_combinations_per_size:
+                logger.info(f"  Capping size-{interaction_size} combinations: {len(all_combinations)} -> {max_combinations_per_size}")
+                all_combinations = all_combinations[:max_combinations_per_size]
+            
+            feature_combinations = all_combinations
+        
+        logger.info(f"  Final combinations to test for size {interaction_size}: {len(feature_combinations)}")
             
             # Optional: Apply combined SHAP threshold if configured (but don't limit count)
             min_combined_shap_threshold = ANALYSIS_CONFIG.get('min_combined_shap_threshold', 0.0)
