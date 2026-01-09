@@ -854,6 +854,117 @@ def calculate_feature_importance(df_axps: pd.DataFrame) -> pd.DataFrame:
     return importance_df
 
 
+def prune_features_for_causal_analysis(
+    available_features: List[str],
+    X_class: pd.DataFrame,
+    feature_importance_df: pd.DataFrame,
+    shap_map: Optional[Dict[str, float]] = None,
+    binary_intervention_mode: str = 'remove_only'
+) -> List[str]:
+    """
+    Stage 2.5: Primary Feature Pruning Gate
+    
+    Apply pruning rules before univariate causal analysis:
+    1. Prevalence filter (binary features)
+    2. AXP coverage filter
+    3. Importance-union filter (SHAP OR FFA)
+    
+    Args:
+        available_features: List of candidate features
+        X_class: Feature matrix (filtered to target class)
+        feature_importance_df: AXP-based feature importance
+        shap_map: SHAP importance scores (optional)
+        binary_intervention_mode: Binary intervention mode (remove_only/add_only/flip)
+    
+    Returns:
+        Pruned list of features
+    """
+    if not available_features:
+        return []
+    
+    pruned_features = []
+    n_samples = len(X_class)
+    
+    # Build importance maps
+    ffa_map = {}
+    if not feature_importance_df.empty:
+        ffa_map = dict(zip(
+            feature_importance_df['feature'],
+            feature_importance_df['importance']
+        ))
+    
+    # Get coverage map
+    coverage_map = {}
+    if not feature_importance_df.empty and 'coverage' in feature_importance_df.columns:
+        coverage_map = dict(zip(
+            feature_importance_df['feature'],
+            feature_importance_df['coverage']
+        ))
+    
+    # Get configuration
+    min_present_support = ANALYSIS_CONFIG.get('min_present_support', 10)
+    min_absent_support = ANALYSIS_CONFIG.get('min_absent_support', 10)
+    min_axp_coverage = ANALYSIS_CONFIG.get('min_axp_coverage', 0.01)
+    min_shap = ANALYSIS_CONFIG.get('min_shap_for_causal', 0.0)
+    min_ffa = ANALYSIS_CONFIG.get('min_ffa_for_causal', 0.0)
+    
+    # Scale support thresholds with sample size
+    if n_samples > 0:
+        min_present_support = max(5, int(min_present_support * (n_samples / 100)))
+        min_absent_support = max(5, int(min_absent_support * (n_samples / 100)))
+    
+    logger.info(f"Pruning features: {len(available_features)} candidates")
+    logger.info(f"  Prevalence thresholds: present={min_present_support}, absent={min_absent_support}")
+    logger.info(f"  AXP coverage threshold: {min_axp_coverage}")
+    logger.info(f"  Importance thresholds: SHAP>={min_shap}, FFA>={min_ffa}")
+    
+    for feat_name in available_features:
+        if feat_name not in X_class.columns:
+            continue
+        
+        # Rule 1: Feature relevance (already filtered by get_model_features_for_causal_analysis)
+        # Skip if not in data
+        if feat_name not in X_class.columns:
+            continue
+        
+        # Rule 2: Prevalence filter (for binary features)
+        unique_vals = X_class[feat_name].unique()
+        is_binary = len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1})
+        
+        if is_binary:
+            if binary_intervention_mode == 'remove_only':
+                support = int((X_class[feat_name] == 1).sum())
+                if support < min_present_support:
+                    logger.debug(f"  Pruned {feat_name}: insufficient present support ({support} < {min_present_support})")
+                    continue
+            elif binary_intervention_mode == 'add_only':
+                support = int((X_class[feat_name] == 0).sum())
+                if support < min_absent_support:
+                    logger.debug(f"  Pruned {feat_name}: insufficient absent support ({support} < {min_absent_support})")
+                    continue
+            # For 'flip' mode, no prevalence filter
+        
+        # Rule 3: AXP coverage filter
+        coverage = coverage_map.get(feat_name, 0.0)
+        if coverage < min_axp_coverage:
+            logger.debug(f"  Pruned {feat_name}: insufficient AXP coverage ({coverage:.4f} < {min_axp_coverage})")
+            continue
+        
+        # Rule 4: Importance-union filter (SHAP OR FFA)
+        shap_importance = shap_map.get(feat_name, 0.0) if shap_map else 0.0
+        ffa_importance = ffa_map.get(feat_name, 0.0)
+        
+        if shap_importance < min_shap and ffa_importance < min_ffa:
+            logger.debug(f"  Pruned {feat_name}: insufficient importance (SHAP={shap_importance:.4f}, FFA={ffa_importance:.4f})")
+            continue
+        
+        # Feature passed all pruning rules
+        pruned_features.append(feat_name)
+    
+    logger.info(f"Pruning complete: {len(pruned_features)}/{len(available_features)} features retained")
+    return pruned_features
+
+
 def get_model_features_for_causal_analysis(X: pd.DataFrame) -> List[str]:
     """
     Get the features that the model actually uses for causal analysis.
