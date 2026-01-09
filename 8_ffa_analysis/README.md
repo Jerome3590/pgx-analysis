@@ -315,8 +315,11 @@ The causal analysis is implemented in `perform_causal_analysis()` in `run_full_f
 
 2. **Intervention Creation**:
    - For each feature, creates modified dataset with intervention applied
-   - Binary features: Values flipped (0→1, 1→0)
-   - Continuous features: Set to median value
+   - **Binary features**: Only test instances where feature is present (value=1), remove feature (set to 0)
+     - Normalized by `|S_f|` (number of instances with feature=1), not `N` (total instances)
+     - Skips features with no instances where feature=1
+   - **Continuous features**: Set to median value
+   - **Multi-feature interactions**: Only test instances where ALL binary features in combination are present
 
 3. **Explanation Comparison**:
    - Generates AXP explanations for original and modified instances
