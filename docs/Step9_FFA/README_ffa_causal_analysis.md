@@ -144,7 +144,14 @@ ANALYSIS_CONFIG = {
 1. **Baseline**: Get explanations from all models on original data
 2. **Intervention**: Apply intervention, get new explanations
 3. **Change Measurement**: Count how many explanations change
-4. **Aggregation**: Weight by model performance, average across interventions
+4. **Support Calculation**: Count number of intervenable instances
+   - For binary features (remove_only): Number of instances where `feature == 1`
+   - For binary features (add_only): Number of instances where `feature == 0`
+   - For continuous features: Total sample size
+5. **Confidence Calculation**: Fraction of intervenable instances where intervention caused change
+   - `confidence = changes / support`
+   - Same as `causal_importance` (Intervention Rate - IR)
+6. **Aggregation**: Weight by model performance, average across interventions
 
 ### Probability-Based Method:
 1. **Baseline**: Get probability predictions from all models
@@ -156,6 +163,26 @@ ANALYSIS_CONFIG = {
 - Normalizes both methods to [0,1] scale
 - Averages normalized scores
 - Provides unified causal importance ranking
+
+### Metrics Explained
+
+**Support (Support(j))**:
+- Number of instances available for intervention
+- Higher support = more reliable causal estimate
+- Used for filtering features with insufficient support (pruning)
+
+**Confidence**:
+- Fraction of intervenable instances where intervention caused change
+- `confidence = causal_importance = change_rate`
+- Range: 0.0 to 1.0
+- `confidence = 1.0` means feature always affects explanations when present
+
+**Causal Importance (IR(j) - Intervention Rate)**:
+- Same as confidence in our implementation
+- Fraction of instances with changed explanations after intervention
+- Higher score = stronger causal effect on model's reasoning
+
+See [`8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md`](../../8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md) for detailed explanation.
 
 ## Usage
 
@@ -183,8 +210,18 @@ CAUSAL_CONFIG = {
 
 ### 1. **CSV Results**
 
-#### Explainer-Based Method:
-- `causal_importance_explainer_method.csv`: FFA-based causal scores
+#### Explainer-Based Method (FFA):
+- `causal_importance.parquet`: FFA-based causal scores (from `run_full_ffa_analysis.py`)
+  - `feature`: Feature name
+  - `causal_importance`: Causal importance score (IR - Intervention Rate, 0.0 to 1.0)
+  - `support`: Number of intervenable instances (Support - number of instances where intervention can be applied)
+  - `confidence`: Confidence score (0.0 to 1.0) - Same as `causal_importance` (fraction of intervenable instances that changed)
+  - `median_value`: Median value used for intervention (continuous features)
+  - `is_binary`: Whether feature is binary (0/1)
+  - `intervention`: Description of intervention applied
+
+#### Explainer-Based Method (CSV - Legacy):
+- `causal_importance_explainer_method.csv`: FFA-based causal scores (from `combined_causal_analysis.py`)
   - `causal_importance`: Overall causal importance (average across interventions)
   - `remove_effect`, `median_effect`, `zero_effect`, `increase_effect`: Individual intervention effects
 
@@ -210,15 +247,38 @@ CAUSAL_CONFIG = {
 
 ## Interpretation
 
-### Causal Importance Score
+### Causal Importance Score (IR - Intervention Rate)
 - **Higher score** = Feature has stronger causal effect
 - **Score = 0** = Feature has no causal effect (changing it doesn't change predictions)
+- **Score = 1.0** = Feature always causes explanation changes (perfect causal effect)
 - **Score > 0.1** = Feature has meaningful causal effect
+
+### Support (Support(j))
+- **Number of intervenable instances**: How many instances are available for intervention
+- **For binary features (remove_only)**: Number of instances where `feature == 1`
+- **For binary features (add_only)**: Number of instances where `feature == 0`
+- **For continuous features**: Total sample size
+- **Higher support** = More reliable causal estimate (more instances tested)
+- **Low support (< 10)** = Less reliable (few instances available for intervention)
+
+### Confidence
+- **Fraction of intervenable instances where intervention caused change**
+- **Same as `causal_importance`** in our implementation
+- **`confidence = changes / support`**
+- **Range**: 0.0 to 1.0
+- **`confidence = 1.0`**: Feature always affects explanations when present
+- **`confidence = 0.5`**: Feature affects explanations in 50% of intervenable instances
 
 ### Intervention Effects
 - **Remove/Median**: Shows effect of neutralizing the feature
 - **Zero**: Shows effect of completely removing feature signal
 - **Increase**: Shows effect of amplifying the feature
+
+### Example Interpretation
+For a feature with `support = 50` and `confidence = 1.0`:
+- 50 instances had the feature present (support)
+- Removing it changed the explanation in all 50 instances (confidence = 1.0)
+- This indicates a strong, reliable causal relationship
 
 ## Model Weights
 

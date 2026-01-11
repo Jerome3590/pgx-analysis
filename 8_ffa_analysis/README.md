@@ -175,12 +175,22 @@ The analysis performs interventions on features and measures the resulting chang
 2. **Change Measurement**:
    - Generates explanations (AXP) for original and modified instances
    - Calculates the fraction of instances where explanations changed
-   - **Causal Importance Score** = Fraction of instances with changed explanations
+   - **Causal Importance Score (IR)** = Fraction of instances with changed explanations
+   - **Support** = Number of intervenable instances (instances where intervention can be applied)
+   - **Confidence** = Same as causal importance (fraction of intervenable instances that changed)
 
 3. **Higher Score = Stronger Causal Effect**:
-   - Score of 0.0 = Feature has no causal effect (explanations unchanged)
-   - Score of 1.0 = Feature always causes explanation changes (perfect causal effect)
-   - Score of 0.5 = Feature causes explanation changes in 50% of instances
+   - **Causal Importance (IR)**: 
+     - Score of 0.0 = Feature has no causal effect (explanations unchanged)
+     - Score of 1.0 = Feature always causes explanation changes (perfect causal effect)
+     - Score of 0.5 = Feature causes explanation changes in 50% of instances
+   - **Support**:
+     - Higher support = More instances tested = More reliable estimate
+     - Low support (< 10) = Less reliable (few instances available for intervention)
+   - **Confidence**:
+     - Same interpretation as causal importance
+     - `confidence = 1.0` means feature always affects explanations when present
+     - `confidence = 0.5` means feature affects explanations in 50% of intervenable instances
 
 ### Why This Captures True Signal
 
@@ -339,8 +349,11 @@ The causal analysis is implemented in `perform_causal_analysis()` in `run_full_f
    - **Full AXP recomputation**: Even when rules don't change, AXP is recomputed to detect features that appear in explanations but don't change rule matching (fixes conservative approximation issue)
 
 4. **Causal Score Calculation**:
-   - `causal_importance` = Fraction of instances with changed explanations
+   - `causal_importance` = Fraction of instances with changed explanations (IR - Intervention Rate)
+   - `support` = Number of intervenable instances (Support - number of instances where intervention can be applied)
+   - `confidence` = Same as `causal_importance` (fraction of intervenable instances that changed)
    - Higher score = Feature has stronger causal effect on model's reasoning
+   - Higher support = More reliable causal estimate (more instances tested)
 
 ### Output Format
 
@@ -349,10 +362,24 @@ The causal importance results are saved to:
 
 Columns:
 - `feature`: Feature name
-- `causal_importance`: Causal importance score (0.0 to 1.0)
+- `causal_importance`: Causal importance score (0.0 to 1.0) - **IR(j)** (Intervention Rate)
+- `support`: Number of intervenable instances - **Support(j)**
+  - For binary features (remove_only): Number of instances where `feature == 1`
+  - For binary features (add_only): Number of instances where `feature == 0`
+  - For continuous features: Total sample size
+- `confidence`: Confidence score (0.0 to 1.0) - Fraction of intervenable instances where intervention caused change
+  - Same as `causal_importance` in our implementation
+  - `confidence = changes / support`
 - `median_value`: Median value used for intervention (continuous features)
 - `is_binary`: Whether feature is binary (0/1)
 - `intervention`: Description of intervention applied
+
+**Metrics Explained:**
+- **Support (Support(j))**: Number of instances available for intervention. Higher support = more reliable causal estimate.
+- **Confidence**: Fraction of intervenable instances where the intervention caused a change. `confidence = 1.0` means the feature always affects explanations when present.
+- **Causal Importance (IR(j))**: Same as confidence - fraction of instances with changed explanations after intervention.
+
+See [`SUPPORT_CONFIDENCE_METRICS.md`](SUPPORT_CONFIDENCE_METRICS.md) for detailed explanation of support and confidence metrics.
 
 ### Top 10 Causal Importance Features
 
@@ -362,14 +389,21 @@ After Step 8 completes, the workflow automatically prints the top 10 causal impo
 ================================================================================
 TOP 10 CAUSAL IMPORTANCE FEATURES
 ================================================================================
-   1. feature_name_1                                        0.123456
-   2. feature_name_2                                        0.098765
+   1. feature_name_1                                        1.000000
+   2. feature_name_2                                        0.950000
    ...
-  10. feature_name_10                                       0.045678
+  10. feature_name_10                                       0.850000
 ================================================================================
 ```
 
 These features represent the features that, when changed, most strongly affect the model's explanations and predictions.
+
+**Interpreting Results:**
+- **Score of 1.000000**: Feature appears in AXP for all instances where it's present, and removing it always changes the explanation
+- **Score of 0.940000**: Feature affects explanations in 94% of intervenable instances
+- **Support**: Check the `support` column in `causal_importance.parquet` to see how many instances were tested
+  - Higher support = more reliable estimate
+  - Low support (< 10) = less reliable (few instances available for intervention)
 
 ### When to Use Causal Importance
 

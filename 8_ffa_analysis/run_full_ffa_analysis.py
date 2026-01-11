@@ -1472,8 +1472,9 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                         1 for orig, mod in zip(original_explanations['axp'], modified_explanations['axp'], strict=True)
                         if orig != mod
                     )
-                    change_rate = changes / len(original_explanations)
-                    logger.info(f"  Feature {feat_name}: {changes}/{len(original_explanations)} explanations changed ({change_rate:.2%}) [row-by-row fallback]")
+                    # Use effective_sample_size for normalization (consistent with grouped method)
+                    change_rate = changes / effective_sample_size
+                    logger.info(f"  Feature {feat_name}: {changes}/{effective_sample_size} explanations changed ({change_rate:.2%}) [row-by-row fallback]")
                 else:
                     change_rate = 0.0
                     logger.warning(f"  Feature {feat_name}: No explanations generated")
@@ -1490,9 +1491,23 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
             import gc
             gc.collect()
             
+            # Calculate support (number of intervenable instances)
+            # For binary features in remove_only mode: number of instances with feature=1
+            # For binary features in add_only mode: number of instances with feature=0
+            # For continuous features: total sample size
+            support = effective_sample_size
+            
+            # Calculate confidence (fraction of instances where intervention caused change)
+            # This is the same as causal_importance (change_rate) for our use case
+            # For binary features: confidence = change_rate (fraction of intervenable instances that changed)
+            # For continuous features: confidence = change_rate (fraction of all instances that changed)
+            confidence = change_rate
+            
             causal_scores.append({
                 'feature': feat_name,
-                'causal_importance': change_rate,
+                'causal_importance': change_rate,  # IR(j) - Intervention Rate
+                'support': support,  # Support(j) - Number of intervenable instances
+                'confidence': confidence,  # Confidence = change_rate (fraction that changed)
                 'median_value': median_val,
                 'is_binary': is_binary,
                 'intervention': intervention_val
