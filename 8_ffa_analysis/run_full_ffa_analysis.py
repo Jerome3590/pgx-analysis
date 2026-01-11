@@ -1160,35 +1160,18 @@ def _calculate_grouped_causal_effect(
         feature_appears_in_axp = False
         if is_binary and feat_name and hasattr(explainer, 'id_condition_map') and hasattr(explainer, 'feature_names'):
             # Check if feature appears in original AXP literals
+            # For binary features, if the feature appears in the AXP at all, removing it (1->0) should count as a change
+            # because it changes the explanation composition, even if the condition still holds
             for lit in original_axp:
                 try:
                     feat_idx, thresh, direction = explainer.id_condition_map[lit]
                     axp_feat_name = explainer.feature_names.get(feat_idx, None)
                     # Check if this literal corresponds to the feature we're modifying
                     if axp_feat_name == feat_name:
-                        # For binary features, check if removing the feature (setting to 0) would invalidate this literal
-                        # Binary features in XGBoost typically use threshold=0.5:
-                        # - direction=0 (<=): feature <= 0.5 means feature == 0
-                        # - direction=1 (>): feature > 0.5 means feature == 1
-                        # 
-                        # If we're removing the feature (1->0), we need to check if the literal requires feature=1
-                        # This happens when:
-                        # 1. direction=1 and thresh < 1.0 (e.g., > 0.5 or > 0.0) - requires feature=1
-                        # 2. direction=0 and thresh >= 0.5 - this is ambiguous, but typically means feature==0
-                        #    However, if threshold is exactly 0.5, then <= 0.5 matches 0, so removing 1->0 doesn't affect it
-                        #    But if threshold > 0.5 (e.g., <= 1.0), then both 0 and 1 match, so removing doesn't affect it
-                        
-                        # For remove_only mode: we're setting feature=1 to feature=0
-                        # The literal is invalidated if it requires feature=1 (i.e., direction=1 with thresh < 1.0)
-                        if direction == 1 and thresh < 1.0:
-                            # This literal requires feature > threshold (where threshold < 1.0)
-                            # If feature was 1, it satisfied this; if we set it to 0, it no longer satisfies
-                            feature_appears_in_axp = True
-                            break
-                        # Also handle edge case: direction=1 with thresh=0.0 means "feature > 0" (i.e., feature==1)
-                        elif direction == 1 and thresh == 0.0:
-                            feature_appears_in_axp = True
-                            break
+                        # Feature appears in AXP - for binary features, this means it's part of the explanation
+                        # Removing it (1->0) changes the explanation, so count it as a change
+                        feature_appears_in_axp = True
+                        break
                 except (KeyError, IndexError, ValueError):
                     continue
         
