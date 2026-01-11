@@ -418,9 +418,10 @@ class BaseSymbolicExplainer(ABC):
                 self.logger.info(f"_satisfied_rules: Checked {check_idx}/{total_rules_for_class} rules, matched {len(matched)}, elapsed {elapsed:.2f}s")
             
             # Check if all conditions in clause are satisfied
+            # Use _literal_condition_holds for proper binary/categorical handling
             if all(
-                (instance[feat] <= thresh if dir == 0 else instance[feat] > thresh)
-                for (feat, thresh, dir) in (self.id_condition_map[lit] for lit in clause)
+                self._literal_condition_holds(instance, lit)
+                for lit in clause
             ):
                 matched.append(idx)
         
@@ -992,6 +993,13 @@ class BaseSymbolicExplainer(ABC):
         """
         Check if a literal's condition holds for an instance.
         
+        Handles binary features (0/1) and categorical variables correctly:
+        - For binary features: XGBoost uses threshold=0.5 to split 0 vs 1
+          * direction=0 (<=): feature <= 0.5 matches feature == 0
+          * direction=1 (>): feature > 0.5 matches feature == 1
+        - For categorical (one-hot encoded): same as binary
+        - For continuous: standard threshold comparison
+        
         Args:
             x: Feature vector
             lit: Literal ID
@@ -1001,7 +1009,23 @@ class BaseSymbolicExplainer(ABC):
         """
         feat_idx, threshold, direction = self.id_condition_map[lit]
         value = x[feat_idx]
-        return value <= threshold if direction == 0 else value > threshold
+        
+        # Standard comparison works correctly for both binary and continuous features
+        # For binary features with threshold=0.5:
+        # - value=0, direction=0 (<= 0.5): 0 <= 0.5 = True ✓
+        # - value=1, direction=0 (<= 0.5): 1 <= 0.5 = False ✓
+        # - value=0, direction=1 (> 0.5): 0 > 0.5 = False ✓
+        # - value=1, direction=1 (> 0.5): 1 > 0.5 = True ✓
+        # 
+        # For edge cases with threshold=0.0 or threshold=1.0:
+        # - threshold=0.0, direction=1 (> 0.0): matches value=1 only ✓
+        # - threshold=1.0, direction=0 (<= 1.0): matches both 0 and 1 (always true)
+        #   This is correct behavior - if threshold=1.0, the condition is always satisfied
+        
+        if direction == 0:
+            return value <= threshold
+        else:  # direction == 1
+            return value > threshold
     
     def _satisfied_clauses_for_instance(self, x: np.ndarray, target_class: int) -> List[List[int]]:
         """

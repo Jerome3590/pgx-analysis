@@ -63,16 +63,28 @@ if [ "$CLEAR_ALL" = true ]; then
     # Step 6: Final Model Outputs
     MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs"
     if [ -d "$MODEL_DIR" ]; then
-        echo "Removing: $MODEL_DIR"
+        echo "Removing model outputs (preserving training data)..."
         echo "  This includes all cohort/age_band model outputs:"
         echo "    - Model selection metadata JSON files"
-        echo "    - Final features CSV files (train_final_features_no_leakage.csv)"
-        echo "    - Final features Parquet files (inputs/model_train/final_features.parquet)"
         echo "    - Model JSON files (XGBoost, CatBoost) in final_model_json/"
         echo "    - Model binaries (.joblib, .cbm) in models/"
         echo "    - Feature importance CSV files"
-        rm -rf "$MODEL_DIR"
-        echo "✅ Local model outputs cleared"
+        echo "  PRESERVING (required for FFA analysis):"
+        echo "    - Final features CSV files (train_final_features_no_leakage.csv)"
+        echo "    - Final features Parquet files (inputs/model_train/final_features.parquet)"
+        
+        # Find and preserve training data files before deletion
+        find "$MODEL_DIR" -name "train_final_features_no_leakage.csv" -o -path "*/inputs/model_train/final_features.parquet" | while read -r file; do
+            if [ -f "$file" ]; then
+                echo "  Preserving: $file"
+            fi
+        done
+        
+        # Delete everything except training data
+        find "$MODEL_DIR" -type f ! -name "train_final_features_no_leakage.csv" ! -path "*/inputs/model_train/final_features.parquet" -delete
+        find "$MODEL_DIR" -type d -empty -delete
+        
+        echo "✅ Local model outputs cleared (training data preserved)"
     else
         echo "No local model outputs found at $MODEL_DIR"
     fi
@@ -117,10 +129,12 @@ if [ "$CLEAR_ALL" = true ]; then
         echo ""
         echo "Clearing S3 outputs..."
         
-        echo "  Clearing Step 6 (Final Model) outputs..."
-        aws s3 rm s3://pgxdatalake/gold/final_model/ --recursive || {
+        echo "  Clearing Step 6 (Final Model) outputs (preserving training data in S3)..."
+        # Clear model files but preserve training data
+        aws s3 rm s3://pgxdatalake/gold/final_model/ --recursive --exclude "*/inputs/model_train/final_features.parquet" --exclude "*/inputs/model_test/final_features.parquet" || {
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
+        echo "  Note: Training data files (final_features.parquet) are preserved in S3"
         
         echo "  Clearing Step 7 (SHAP Analysis) outputs..."
         aws s3 rm s3://pgxdatalake/gold/shap_analysis/ --recursive || {
@@ -147,16 +161,49 @@ else
     # Step 6: Final Model Outputs
     MODEL_DIR="$PROJECT_ROOT/6_final_model/outputs/$COHORT/$AGE_BAND_FNAME"
     if [ -d "$MODEL_DIR" ]; then
-        echo "Removing: $MODEL_DIR"
+        echo "Removing model outputs for $COHORT/$AGE_BAND (preserving training data)..."
         echo "  This includes:"
         echo "    - Model selection metadata JSON"
-        echo "    - Final features CSV (train_final_features_no_leakage.csv)"
-        echo "    - Final features Parquet (inputs/model_train/final_features.parquet)"
         echo "    - Model JSON files (XGBoost, CatBoost)"
         echo "    - Model binaries (.joblib, .cbm)"
         echo "    - Feature importance CSV"
+        echo "  PRESERVING (required for FFA analysis):"
+        echo "    - Final features CSV (train_final_features_no_leakage.csv)"
+        echo "    - Final features Parquet (inputs/model_train/final_features.parquet)"
+        
+        # Preserve training data files
+        TRAIN_CSV="$MODEL_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
+        TRAIN_PARQUET="$MODEL_DIR/inputs/model_train/final_features.parquet"
+        
+        # Create temp directory to store preserved files
+        TEMP_DIR=$(mktemp -d)
+        if [ -f "$TRAIN_CSV" ]; then
+            mkdir -p "$TEMP_DIR"
+            cp "$TRAIN_CSV" "$TEMP_DIR/"
+            echo "  Preserved CSV: $TRAIN_CSV"
+        fi
+        if [ -f "$TRAIN_PARQUET" ]; then
+            mkdir -p "$(dirname "$TEMP_DIR/inputs/model_train/")"
+            cp "$TRAIN_PARQUET" "$TEMP_DIR/inputs/model_train/"
+            echo "  Preserved Parquet: $TRAIN_PARQUET"
+        fi
+        
+        # Delete directory
         rm -rf "$MODEL_DIR"
-        echo "✅ Local model outputs cleared for $COHORT/$AGE_BAND"
+        
+        # Restore preserved files
+        if [ -d "$TEMP_DIR" ] && [ "$(ls -A $TEMP_DIR 2>/dev/null)" ]; then
+            mkdir -p "$MODEL_DIR"
+            if [ -f "$TEMP_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv" ]; then
+                cp "$TEMP_DIR/${COHORT}_${AGE_BAND_FNAME}_train_final_features_no_leakage.csv" "$MODEL_DIR/"
+            fi
+            if [ -d "$TEMP_DIR/inputs" ]; then
+                cp -r "$TEMP_DIR/inputs" "$MODEL_DIR/"
+            fi
+            rm -rf "$TEMP_DIR"
+        fi
+        
+        echo "✅ Local model outputs cleared for $COHORT/$AGE_BAND (training data preserved)"
     else
         echo "No local model outputs found at $MODEL_DIR"
     fi
@@ -201,10 +248,12 @@ else
         echo ""
         echo "Clearing S3 outputs for $COHORT/$AGE_BAND..."
         
-        echo "  Clearing Step 6 (Final Model) outputs..."
-        aws s3 rm "s3://pgxdatalake/gold/final_model/$COHORT/$AGE_BAND/" --recursive || {
+        echo "  Clearing Step 6 (Final Model) outputs (preserving training data in S3)..."
+        # Clear model files but preserve training data
+        aws s3 rm "s3://pgxdatalake/gold/final_model/$COHORT/$AGE_BAND/" --recursive --exclude "*/inputs/model_train/final_features.parquet" --exclude "*/inputs/model_test/final_features.parquet" || {
             echo "⚠️  Warning: Could not clear S3 models (may not exist or no permissions)"
         }
+        echo "  Note: Training data files (final_features.parquet) are preserved in S3"
         
         echo "  Clearing Step 7 (SHAP Analysis) outputs..."
         aws s3 rm "s3://pgxdatalake/gold/shap_analysis/$COHORT/$AGE_BAND/" --recursive || {

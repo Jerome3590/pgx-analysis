@@ -70,7 +70,10 @@ def run_final_model_analysis(
     if not skip_feature_build:
         print("\n[1/6] Building final feature table...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "build_final_cohort_model_features.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "build_final_cohort_model_features.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "build_final_cohort_model_features.py"
             result = subprocess.run(
                 [sys.executable, str(script_path), "--cohort-name", cohort_name, "--age-band", age_band],
                 cwd=PROJECT_ROOT,
@@ -94,7 +97,10 @@ def run_final_model_analysis(
     if not skip_leakage_removal:
         print("\n[2/6] Removing target leakage...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "remove_target_leakage.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "remove_target_leakage.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "remove_target_leakage.py"
             result = subprocess.run(
                 [sys.executable, str(script_path), "--cohort-name", cohort_name, "--age-band", age_band],
                 cwd=PROJECT_ROOT,
@@ -118,7 +124,10 @@ def run_final_model_analysis(
     if not skip_train_test:
         print("\n[3/6] Preparing train/test splits...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "prepare_train_test_s3.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "prepare_train_test_s3.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "prepare_train_test_s3.py"
             result = subprocess.run(
                 [sys.executable, str(script_path), "--cohort-name", cohort_name, "--age-band", age_band],
                 cwd=PROJECT_ROOT,
@@ -142,7 +151,10 @@ def run_final_model_analysis(
     if not skip_training:
         print("\n[4/6] Training final model...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "train_final_model.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "train_final_model.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "train_final_model.py"
             result = subprocess.run(
                 [sys.executable, str(script_path), "--cohort-name", cohort_name, "--age-band", age_band],
                 cwd=PROJECT_ROOT,
@@ -163,7 +175,10 @@ def run_final_model_analysis(
         # Step 5: Extract feature importance
         print("\n[5/6] Extracting feature importance...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "extract_final_feature_importance.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "extract_final_feature_importance.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "extract_final_feature_importance.py"
             result = subprocess.run(
                 [sys.executable, str(script_path), "--cohort-name", cohort_name, "--age-band", age_band],
                 cwd=PROJECT_ROOT,
@@ -187,7 +202,10 @@ def run_final_model_analysis(
     if not skip_visualizations:
         print("\n[6/6] Creating visualizations...")
         try:
-            script_path = PROJECT_ROOT / "8_final_model" / "create_model_plots.py"
+            # Try 6_final_model first (current), then 8_final_model (legacy)
+            script_path = PROJECT_ROOT / "6_final_model" / "create_model_plots.py"
+            if not script_path.exists():
+                script_path = PROJECT_ROOT / "8_final_model" / "create_model_plots.py"
             result = subprocess.run(
                 [
                     sys.executable,

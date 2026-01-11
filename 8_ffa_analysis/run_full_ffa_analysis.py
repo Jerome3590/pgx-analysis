@@ -1165,16 +1165,28 @@ def _calculate_grouped_causal_effect(
                     feat_idx, thresh, direction = explainer.id_condition_map[lit]
                     axp_feat_name = explainer.feature_names.get(feat_idx, None)
                     # Check if this literal corresponds to the feature we're modifying
-                    # For binary features, we're looking for "feature > 0" (direction=1, thresh=0)
                     if axp_feat_name == feat_name:
-                        # Check if removing the feature (setting to 0) would invalidate this literal
-                        # For binary features: if literal is "feature > 0" and we set feature=0, it's invalidated
-                        if direction == 1 and thresh == 0.0:  # "feature > 0"
+                        # For binary features, check if removing the feature (setting to 0) would invalidate this literal
+                        # Binary features in XGBoost typically use threshold=0.5:
+                        # - direction=0 (<=): feature <= 0.5 means feature == 0
+                        # - direction=1 (>): feature > 0.5 means feature == 1
+                        # 
+                        # If we're removing the feature (1->0), we need to check if the literal requires feature=1
+                        # This happens when:
+                        # 1. direction=1 and thresh < 1.0 (e.g., > 0.5 or > 0.0) - requires feature=1
+                        # 2. direction=0 and thresh >= 0.5 - this is ambiguous, but typically means feature==0
+                        #    However, if threshold is exactly 0.5, then <= 0.5 matches 0, so removing 1->0 doesn't affect it
+                        #    But if threshold > 0.5 (e.g., <= 1.0), then both 0 and 1 match, so removing doesn't affect it
+                        
+                        # For remove_only mode: we're setting feature=1 to feature=0
+                        # The literal is invalidated if it requires feature=1 (i.e., direction=1 with thresh < 1.0)
+                        if direction == 1 and thresh < 1.0:
+                            # This literal requires feature > threshold (where threshold < 1.0)
+                            # If feature was 1, it satisfied this; if we set it to 0, it no longer satisfies
                             feature_appears_in_axp = True
                             break
-                        # Also check for "feature > threshold" where threshold < 1 (e.g., > 0.5)
-                        elif direction == 1 and thresh < 1.0:
-                            # If we set feature=0, this condition becomes false
+                        # Also handle edge case: direction=1 with thresh=0.0 means "feature > 0" (i.e., feature==1)
+                        elif direction == 1 and thresh == 0.0:
                             feature_appears_in_axp = True
                             break
                 except (KeyError, IndexError, ValueError):
@@ -2571,14 +2583,82 @@ def main():
         / AGE_BAND_FNAME
         / "final_model_json"
     )
-    DATA_PATH = (
+    # Try multiple locations for data file
+    data_paths_to_try = [
+        # Primary location: 6_final_model outputs
         PROJECT_ROOT
         / "6_final_model"
         / "outputs"
         / COHORT_NAME
         / AGE_BAND_FNAME
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
-    )
+        / "inputs"
+        / "model_train"
+        / "final_features.parquet",
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / COHORT_NAME
+        / AGE_BAND_FNAME
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
+        # Alternative: data folder (various structures)
+        PROJECT_ROOT
+        / "data"
+        / COHORT_NAME
+        / AGE_BAND_FNAME
+        / "final_features.parquet",
+        PROJECT_ROOT
+        / "data"
+        / COHORT_NAME
+        / AGE_BAND_FNAME
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
+        PROJECT_ROOT
+        / "data"
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
+        # Data folder with cohorts structure (check latest year)
+        PROJECT_ROOT
+        / "data"
+        / "cohorts"
+        / f"cohort_name={COHORT_NAME}"
+        / "event_year=2019"
+        / f"age_band={AGE_BAND}"
+        / "final_features.parquet",
+        PROJECT_ROOT
+        / "data"
+        / "cohorts"
+        / f"cohort_name={COHORT_NAME}"
+        / "event_year=2020"
+        / f"age_band={AGE_BAND}"
+        / "final_features.parquet",
+        # Gold cohorts directory
+        PROJECT_ROOT
+        / "data"
+        / "gold_cohorts"
+        / f"cohort_name={COHORT_NAME}"
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
+        PROJECT_ROOT
+        / "data"
+        / "gold_cohorts"
+        / f"cohort_name={COHORT_NAME}"
+        / "final_features.parquet",
+        PROJECT_ROOT
+        / "data"
+        / "gold_cohorts"
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
+    ]
+    
+    DATA_PATH = None
+    for path in data_paths_to_try:
+        if path.exists():
+            DATA_PATH = path
+            logger.info(f"Found data file at: {DATA_PATH}")
+            break
+    
+    if DATA_PATH is None:
+        logger.warning(f"Data file not found in any of the expected locations:")
+        for path in data_paths_to_try:
+            logger.warning(f"  - {path}")
+        # Set to the primary expected location for error message clarity
+        DATA_PATH = data_paths_to_try[1]
     OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

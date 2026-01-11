@@ -4,18 +4,14 @@ Build final training feature table for a given cohort and age band.
 
 This script merges, for a specified `(cohort_name, age_band)`:
 - Base target patient list from `model_data`
-- FP-Growth features (itemsets, rules, metrics)
-- BupaR sequence and time-to-event features
-- DTW trajectory features (prototype DTW distances)
 - PGx pharmacogenomics features (allele frequencies, drug-gene mappings)
+
+NOTE: BupaR, FP-Growth, and DTW features are NOT included to avoid target leakage.
+These features are used only for visualization/dashboard purposes, not for model training.
 
 Outputs a patient-level CSV and Parquet (one row per `mi_person_key`) under:
   `6_final_model/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_train_final_features.csv`
   `6_final_model/outputs/{cohort_name}/{age_band_fname}/inputs/model_train/final_features.parquet`
-
-Currently supported cohorts:
-- `opioid_ed`  – expects BupaR files with F1120 naming (`pre_f1120`, `post_f1120`, `time_to_f1120`)
-- `non_opioid_ed` – expects BupaR files with HCG naming (`pre_hcg`, `time_to_hcg`)
 """
 
 import argparse
@@ -56,10 +52,12 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
 
     con = duckdb.connect()
     # Get both target and control patients
+    # Convert Path to string with forward slashes for cross-platform compatibility (Windows/Linux)
+    model_data_path_str = str(model_data_path).replace('\\', '/')
     base_df = con.execute(
         f"""
         SELECT DISTINCT mi_person_key, target
-        FROM read_parquet('{model_data_path}')
+        FROM read_parquet('{model_data_path_str}')
         WHERE target IN (0, 1)
         """
     ).df()
@@ -72,157 +70,159 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     n_control = len(base_df[base_df['target'] == 0])
     print(f"[INFO] Loaded {n_target} target patients and {n_control} control patients from {model_data_path}")
     print(f"[INFO] Total: {len(base_df)} patients")
+    print(f"[INFO] NOTE: BupaR, FP-Growth, and DTW features are excluded to avoid target leakage.")
+    print(f"[INFO] These features are used only for visualization/dashboard purposes.")
 
     # ------------------------------------------------------------------
-    # Source 2: BupaR patient features (pre/post + time-to-event)
+    # Source 2: Item features (CPT, ICD, Drug Name binary indicators)
     # ------------------------------------------------------------------
-    bupar_root = (
+    # Load aggregated feature importance to get list of important codes/drugs
+    fi_csv = (
         project_root
-        / "5a_bupaR_analysis"
+        / "3_feature_importance"
         / "outputs"
         / cohort_name
-        / age_band_fname
-        / "features"
-    )
-
-    # Filenames depend on cohort
-    if cohort_name == "opioid_ed":
-        pre_bupar_csv = (
-            bupar_root
-            / f"{cohort_name}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv"
-        )
-        post_bupar_csv = (
-            bupar_root
-            / f"{cohort_name}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv"
-        )
-        time_to_bupar_csv = (
-            bupar_root
-            / f"{cohort_name}_{age_band_fname}_train_target_time_to_f1120_features_bupar.csv"
-        )
-    elif cohort_name == "non_opioid_ed":
-        pre_bupar_csv = (
-            bupar_root
-            / f"{cohort_name}_{age_band_fname}_train_target_pre_hcg_patient_features_bupar.csv"
-        )
-        # Polypharmacy pipeline does not define post-HCG features (descriptive only)
-        post_bupar_csv = None
-        time_to_bupar_csv = (
-            bupar_root
-            / f"{cohort_name}_{age_band_fname}_train_target_time_to_hcg_features_bupar.csv"
-        )
-    else:
-        raise ValueError(
-            f"Unsupported cohort_name for BupaR feature merging: {cohort_name}"
-        )
-
-    if not pre_bupar_csv.exists():
-        raise FileNotFoundError(f"Pre-target BupaR features not found: {pre_bupar_csv}")
-    if time_to_bupar_csv is None or not time_to_bupar_csv.exists():
-        raise FileNotFoundError(
-            f"Time-to-event BupaR features not found: {time_to_bupar_csv}"
-        )
-
-    pre_df = pd.read_csv(pre_bupar_csv)
-    time_to_df = pd.read_csv(time_to_bupar_csv)
-    post_df = None
-
-    if post_bupar_csv is not None and post_bupar_csv.exists():
-        post_df = pd.read_csv(post_bupar_csv)
-    elif cohort_name == "opioid_ed":
-        # For opioid_ed we expect post-F1120; for safety, require it
-        raise FileNotFoundError(f"Post-target BupaR features not found: {post_bupar_csv}")
-
-    # In BupaR outputs, the ID column may be case_id or mi_person_key
-    # Use feature engineering files which should have mi_person_key
-    bupar_features_csv = (
-        project_root
-        / "5a_bupaR_analysis"
-        / "outputs"
-        / "feature_engineering"
-        / f"bupaR_added_features_{cohort_name}_{age_band_fname}.csv"
+        / age_band
+        / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
     )
     
-    if bupar_features_csv.exists():
-        # Use consolidated BupaR features file if available
-        bupar_features_df = pd.read_csv(bupar_features_csv)
-        bupar_features_df['mi_person_key'] = bupar_features_df['mi_person_key'].astype(str)
-        print(f"[INFO] Using consolidated BupaR features file ({len(bupar_features_df.columns) - 1} features)")
-        # Replace individual dataframes with consolidated one
-        pre_df = bupar_features_df.copy()
-        post_df = None  # Already included in consolidated file
-        time_to_df = pd.DataFrame(columns=['mi_person_key'])  # Placeholder
-    else:
-        # Fallback to individual BupaR files
-        if "case_id" in pre_df.columns:
-            pre_df = pre_df.rename(columns={"case_id": "mi_person_key"})
-        if post_df is not None and "case_id" in post_df.columns:
-            post_df = post_df.rename(columns={"case_id": "mi_person_key"})
-        if "case_id" in time_to_df.columns:
-            time_to_df = time_to_df.rename(columns={"case_id": "mi_person_key"})
-
-    msg = (
-        f"[INFO] Loaded BupaR pre-target features for {len(pre_df)} patients, "
-        f"time-to-event features for {len(time_to_df)} patients"
-    )
-    if post_df is not None:
-        msg += f", post-target features for {len(post_df)} patients"
-    print(msg)
-
-    # ------------------------------------------------------------------
-    # Source 3: DTW trajectory features (prototype distances)
-    # ------------------------------------------------------------------
-    # Try feature engineering directory first (new structure)
-    dtw_csv = (
-        project_root
-        / "6_dtw_analysis"
-        / "outputs"
-        / "feature_engineering"
-        / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
-    )
-    
-    # Fallback to old structure if new doesn't exist
-    if not dtw_csv.exists():
-        dtw_root = (
+    # Fallback to alternative location
+    if not fi_csv.exists():
+        fi_csv = (
             project_root
-            / "6_dtw_analysis"
+            / "3_feature_importance"
             / "outputs"
             / cohort_name
-            / age_band_fname
-            / "features"
+            / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
         )
-        dtw_csv = dtw_root / f"{cohort_name}_{age_band_fname}_train_target_dtw_features.csv"
-
-    if not dtw_csv.exists():
-        raise FileNotFoundError(f"DTW features not found: {dtw_csv}")
-
-    dtw_df = pd.read_csv(dtw_csv)
-    # Ensure mi_person_key column exists (may be case_id in old format)
-    if "case_id" in dtw_df.columns and "mi_person_key" not in dtw_df.columns:
-        dtw_df = dtw_df.rename(columns={"case_id": "mi_person_key"})
-    print(f"[INFO] Loaded DTW features for {len(dtw_df)} patients ({len(dtw_df.columns) - 1} features)")
-
-    # ------------------------------------------------------------------
-    # Source 4: FP-Growth features
-    # ------------------------------------------------------------------
-    fpgrowth_csv = (
-        project_root
-        / "4_fpgrowth_analysis"
-        / "outputs"
-        / "feature_engineering"
-        / f"fpgrowth_added_features_{cohort_name}_{age_band_fname}.csv"
-    )
-
-    fpgrowth_df = None
-    if fpgrowth_csv.exists():
-        fpgrowth_df = pd.read_csv(fpgrowth_csv)
-        # Ensure mi_person_key is string type
-        fpgrowth_df['mi_person_key'] = fpgrowth_df['mi_person_key'].astype(str)
-        print(f"[INFO] Loaded FP-Growth features for {len(fpgrowth_df)} patients ({len(fpgrowth_df.columns) - 1} features)")
+    
+    # Try downloading from S3 if not found locally
+    if not fi_csv.exists():
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            s3_client = boto3.client("s3")
+            bucket = "pgxdatalake"
+            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+            
+            print(f"[INFO] Feature importance CSV not found locally. Downloading from S3: s3://{bucket}/{s3_key}")
+            
+            fi_csv = (
+                project_root
+                / "3_feature_importance"
+                / "outputs"
+                / cohort_name
+                / age_band
+                / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+            )
+            fi_csv.parent.mkdir(parents=True, exist_ok=True)
+            
+            s3_client.download_file(bucket, s3_key, str(fi_csv))
+            print(f"[OK] Downloaded feature importance CSV to {fi_csv}")
+        except (ImportError, ClientError, Exception) as e:
+            print(f"[WARNING] Feature importance CSV not found locally and S3 download failed: {e}")
+            fi_csv = None
+    
+    item_features_df = None
+    if fi_csv and fi_csv.exists():
+        # Load feature importance to get list of important codes/drugs
+        fi_df = pd.read_csv(fi_csv)
+        important_features = fi_df['feature'].tolist()
+        
+        # Filter to item_* features only
+        important_items = [f.replace('item_', '') for f in important_features if f.startswith('item_')]
+        
+        print(f"[INFO] Creating binary indicators for {len(important_items)} important codes/drugs from feature importance")
+        
+        # Create binary indicators for each important code/drug
+        # Use a more efficient approach: load all events and create features in pandas
+        con = duckdb.connect()
+        
+        # Load all relevant columns from model_data
+        # Convert Path to string with forward slashes for cross-platform compatibility (Windows/Linux)
+        model_data_path_str = str(model_data_path).replace('\\', '/')
+        events_df = con.execute(
+            f"""
+            SELECT 
+                CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+                procedure_code,
+                cpt_mod_1_code,
+                cpt_mod_2_code,
+                primary_icd_diagnosis_code,
+                two_icd_diagnosis_code,
+                three_icd_diagnosis_code,
+                four_icd_diagnosis_code,
+                five_icd_diagnosis_code,
+                six_icd_diagnosis_code,
+                seven_icd_diagnosis_code,
+                eight_icd_diagnosis_code,
+                nine_icd_diagnosis_code,
+                ten_icd_diagnosis_code,
+                two_icd_procedure_code,
+                three_icd_procedure_code,
+                four_icd_procedure_code,
+                five_icd_procedure_code,
+                six_icd_procedure_code,
+                seven_icd_procedure_code,
+                eight_icd_procedure_code,
+                nine_icd_procedure_code,
+                ten_icd_procedure_code,
+                drug_name
+            FROM read_parquet('{model_data_path_str}')
+            """
+        ).df()
+        con.close()
+        
+        # Create a set of all codes/drugs from all columns
+        all_codes = set()
+        code_columns = [
+            'procedure_code', 'cpt_mod_1_code', 'cpt_mod_2_code',
+            'primary_icd_diagnosis_code', 'two_icd_diagnosis_code', 'three_icd_diagnosis_code',
+            'four_icd_diagnosis_code', 'five_icd_diagnosis_code', 'six_icd_diagnosis_code',
+            'seven_icd_diagnosis_code', 'eight_icd_diagnosis_code', 'nine_icd_diagnosis_code',
+            'ten_icd_diagnosis_code', 'two_icd_procedure_code', 'three_icd_procedure_code',
+            'four_icd_procedure_code', 'five_icd_procedure_code', 'six_icd_procedure_code',
+            'seven_icd_procedure_code', 'eight_icd_procedure_code', 'nine_icd_procedure_code',
+            'ten_icd_procedure_code', 'drug_name'
+        ]
+        
+        for col in code_columns:
+            if col in events_df.columns:
+                all_codes.update(events_df[col].dropna().unique())
+        
+        # Create binary indicators for each important item (more efficient: build all at once)
+        item_feature_dict = {}
+        
+        for item in important_items:
+            item_feature_name = f"item_{item}"
+            
+            # Check if patient has this code/drug in any column
+            mask = pd.Series(False, index=events_df.index)
+            for col in code_columns:
+                if col in events_df.columns:
+                    mask |= (events_df[col] == item)
+            
+            # Get patients who have this code/drug
+            patients_with_item = set(events_df.loc[mask, 'mi_person_key'].unique())
+            
+            # Store binary indicator for later concatenation
+            item_feature_dict[item_feature_name] = base_df['mi_person_key'].isin(patients_with_item).astype(int)
+        
+        # Create DataFrame from all item features at once (avoids fragmentation)
+        if item_feature_dict:
+            item_features_df = pd.DataFrame(item_feature_dict)
+            item_features_df.insert(0, 'mi_person_key', base_df['mi_person_key'].values)
+            n_item_features = len(item_feature_dict)
+            print(f"[INFO] Created {n_item_features} item_* binary features")
+        else:
+            item_features_df = None
     else:
-        print(f"[WARNING] FP-Growth features not found: {fpgrowth_csv}")
+        print(f"[WARNING] Feature importance CSV not found. Skipping item_* feature creation.")
+        print(f"[WARNING] Expected location: {fi_csv}")
 
     # ------------------------------------------------------------------
-    # Source 5: PGx features
+    # Source 3: PGx features (REQUIRED - no target leakage)
     # ------------------------------------------------------------------
     # Try multiple possible paths (current structure and legacy)
     pgx_csv = (
@@ -282,67 +282,58 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
             pgx_csv.parent.mkdir(parents=True, exist_ok=True)
 
             s3_client.download_file(bucket, s3_key, str(pgx_csv))
-            print(f"✓ Downloaded PGx features to {pgx_csv}")
+            print(f"[OK] Downloaded PGx features to {pgx_csv}")
 
             pgx_df = pd.read_csv(pgx_csv)
             pgx_df['mi_person_key'] = pgx_df['mi_person_key'].astype(str)
             print(f"[INFO] Loaded PGx features for {len(pgx_df)} patients ({len(pgx_df.columns) - 1} features)")
         except (ImportError, ClientError, Exception) as e:
-            print(f"[WARNING] PGx features not found locally and S3 download failed: {e}")
-            print("[WARNING] Expected locations:")
+            print(f"[ERROR] PGx features not found locally and S3 download failed: {e}")
+            print("[ERROR] Expected locations:")
             pgx_path_1 = project_root / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
             pgx_path_2 = project_root / "5c_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
             s3_path = f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv"
             print(f"  - {pgx_path_1}")
             print(f"  - {pgx_path_2}")
             print(f"  - {s3_path}")
+            raise FileNotFoundError(
+                f"PGx features are required but not found. Checked local paths and S3: {s3_path}"
+            )
+    
+    # PGx features are required
+    if pgx_df is None:
+        raise FileNotFoundError(
+            f"PGx features are required but could not be loaded. "
+            f"Please ensure PGx features exist locally or in S3."
+        )
 
     # ------------------------------------------------------------------
-    # Merge all features on mi_person_key
+    # Merge features on mi_person_key (item_* + PGx + base_df)
     # ------------------------------------------------------------------
     # Ensure base_df mi_person_key is string type
     base_df['mi_person_key'] = base_df['mi_person_key'].astype(str)
     
-    # Ensure all other dataframes have mi_person_key as string
-    # Also drop 'target' column from feature dataframes (keep only from base_df)
-    if pre_df is not None:
-        pre_df['mi_person_key'] = pre_df['mi_person_key'].astype(str)
-        if 'target' in pre_df.columns:
-            pre_df = pre_df.drop(columns=['target'])
-    if post_df is not None:
-        post_df['mi_person_key'] = post_df['mi_person_key'].astype(str)
-        if 'target' in post_df.columns:
-            post_df = post_df.drop(columns=['target'])
-    if time_to_df is not None:
-        time_to_df['mi_person_key'] = time_to_df['mi_person_key'].astype(str)
-        if 'target' in time_to_df.columns:
-            time_to_df = time_to_df.drop(columns=['target'])
-    if dtw_df is not None:
-        dtw_df['mi_person_key'] = dtw_df['mi_person_key'].astype(str)
-        if 'target' in dtw_df.columns:
-            dtw_df = dtw_df.drop(columns=['target'])
-    if fpgrowth_df is not None:
-        fpgrowth_df['mi_person_key'] = fpgrowth_df['mi_person_key'].astype(str)
-        if 'target' in fpgrowth_df.columns:
-            fpgrowth_df = fpgrowth_df.drop(columns=['target'])
-    if pgx_df is not None:
-        pgx_df['mi_person_key'] = pgx_df['mi_person_key'].astype(str)
-        if 'target' in pgx_df.columns:
-            pgx_df = pgx_df.drop(columns=['target'])
-
-    merged = base_df.merge(pre_df, on="mi_person_key", how="left")
-    if post_df is not None:
-        merged = merged.merge(post_df, on="mi_person_key", how="left", suffixes=("_pre", "_post"))
-    merged = merged.merge(time_to_df, on="mi_person_key", how="left")
-    merged = merged.merge(dtw_df, on="mi_person_key", how="left")
+    # Start with base_df
+    merged = base_df.copy()
     
-    # Add FP-Growth features
-    if fpgrowth_df is not None:
-        merged = merged.merge(fpgrowth_df, on="mi_person_key", how="left")
+    # Add item_* features if available
+    if item_features_df is not None:
+        item_features_df['mi_person_key'] = item_features_df['mi_person_key'].astype(str)
+        merged = merged.merge(item_features_df, on="mi_person_key", how="left")
+        # Fill NaN with 0 for item_* features (patient doesn't have the code/drug)
+        item_cols = [c for c in item_features_df.columns if c.startswith('item_')]
+        for col in item_cols:
+            if col in merged.columns:
+                merged[col] = merged[col].fillna(0).astype(int)
     
     # Add PGx features
-    if pgx_df is not None:
-        merged = merged.merge(pgx_df, on="mi_person_key", how="left")
+    # Ensure PGx dataframe has mi_person_key as string
+    # Also drop 'target' column from PGx dataframe (keep only from base_df)
+    pgx_df['mi_person_key'] = pgx_df['mi_person_key'].astype(str)
+    if 'target' in pgx_df.columns:
+        pgx_df = pgx_df.drop(columns=['target'])
+    
+    merged = merged.merge(pgx_df, on="mi_person_key", how="left")
     
     # Clean up any duplicate target columns (from merges with suffixes)
     if 'target_x' in merged.columns:
@@ -381,7 +372,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Build final patient-level feature table for a cohort/age_band, "
-            "combining model_data targets with BupaR and DTW features."
+            "combining model_data targets with PGx features only. "
+            "BupaR, FP-Growth, and DTW features are excluded to avoid target leakage."
         )
     )
     parser.add_argument(

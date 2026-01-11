@@ -42,9 +42,10 @@ def prepare_train_test_s3(
     age_band_fname = age_band.replace("-", "_")
     
     # Load final feature table (prefer no_leakage version)
+    # Try 6_final_model first (current structure), then 8_final_model (legacy)
     feature_table_path = (
         project_root
-        / "8_final_model"
+        / "6_final_model"
         / "outputs"
         / cohort_name
         / age_band_fname
@@ -52,6 +53,27 @@ def prepare_train_test_s3(
     )
     
     # Fallback to regular version if no_leakage doesn't exist
+    if not feature_table_path.exists():
+        feature_table_path = (
+            project_root
+            / "6_final_model"
+            / "outputs"
+            / cohort_name
+            / age_band_fname
+            / f"{cohort_name}_{age_band_fname}_train_final_features.csv"
+        )
+    
+    # Legacy fallback: try 8_final_model
+    if not feature_table_path.exists():
+        feature_table_path = (
+            project_root
+            / "8_final_model"
+            / "outputs"
+            / cohort_name
+            / age_band_fname
+            / f"{cohort_name}_{age_band_fname}_train_final_features_no_leakage.csv"
+        )
+    
     if not feature_table_path.exists():
         feature_table_path = (
             project_root
@@ -164,40 +186,66 @@ def prepare_train_test_s3(
         print("[WARNING] Target column missing in test features, adding default target=1")
         test_features['target'] = 1
     
-    # Create local input directories (inputs folder, not outputs)
-    local_input_dir = (
+    # Create local input directories in BOTH locations for compatibility
+    # Primary location: 6_final_model/outputs (for Step 8 FFA analysis)
+    primary_input_dir = (
+        project_root
+        / "6_final_model"
+        / "outputs"
+        / cohort_name
+        / age_band_fname
+        / "inputs"
+    )
+    primary_input_dir.mkdir(parents=True, exist_ok=True)
+    
+    primary_train_dir = primary_input_dir / "model_train"
+    primary_test_dir = primary_input_dir / "model_test"
+    primary_train_dir.mkdir(exist_ok=True)
+    primary_test_dir.mkdir(exist_ok=True)
+    
+    # Legacy location: 8_final_model/inputs (for backward compatibility)
+    legacy_input_dir = (
         project_root
         / "8_final_model"
         / "inputs"
         / cohort_name
         / age_band_fname
     )
-    local_input_dir.mkdir(parents=True, exist_ok=True)
+    legacy_input_dir.mkdir(parents=True, exist_ok=True)
     
-    train_dir = local_input_dir / "model_train"
-    test_dir = local_input_dir / "model_test"
-    train_dir.mkdir(exist_ok=True)
-    test_dir.mkdir(exist_ok=True)
+    legacy_train_dir = legacy_input_dir / "model_train"
+    legacy_test_dir = legacy_input_dir / "model_test"
+    legacy_train_dir.mkdir(exist_ok=True)
+    legacy_test_dir.mkdir(exist_ok=True)
     
-    # Save locally as Parquet (more efficient than CSV)
-    train_path = train_dir / "final_features.parquet"
-    test_path = test_dir / "final_features.parquet"
+    # Save locally as Parquet (more efficient than CSV) in BOTH locations
+    primary_train_path = primary_train_dir / "final_features.parquet"
+    primary_test_path = primary_test_dir / "final_features.parquet"
+    legacy_train_path = legacy_train_dir / "final_features.parquet"
+    legacy_test_path = legacy_test_dir / "final_features.parquet"
     
-    print(f"\n[INFO] Saving train dataset to {train_path}")
-    train_features.to_parquet(train_path, index=False, engine='pyarrow')
+    print(f"\n[INFO] Saving train dataset to primary location: {primary_train_path}")
+    train_features.to_parquet(primary_train_path, index=False, engine='pyarrow')
     print(f"[INFO] Train dataset: {len(train_features)} rows, {len(train_features.columns)} columns")
     
+    # Also save to legacy location
+    print(f"[INFO] Also saving to legacy location: {legacy_train_path}")
+    train_features.to_parquet(legacy_train_path, index=False, engine='pyarrow')
+    
     if len(test_features) > 0:
-        print(f"[INFO] Saving test dataset to {test_path}")
-        test_features.to_parquet(test_path, index=False, engine='pyarrow')
+        print(f"[INFO] Saving test dataset to primary location: {primary_test_path}")
+        test_features.to_parquet(primary_test_path, index=False, engine='pyarrow')
         print(f"[INFO] Test dataset: {len(test_features)} rows, {len(test_features.columns)} columns")
+        
+        # Also save to legacy location
+        print(f"[INFO] Also saving to legacy location: {legacy_test_path}")
+        test_features.to_parquet(legacy_test_path, index=False, engine='pyarrow')
     
-    # Upload to S3
-    aws_cli = shutil.which("aws")
-    if not aws_cli:
-        print("[WARNING] AWS CLI not found, skipping S3 upload")
-        return
+    # Use primary path for S3 upload
+    train_path = primary_train_path
+    test_path = primary_test_path
     
+    # Upload to S3 (CRITICAL: Training data must be in S3 for FFA analysis)
     # S3 structure: inputs folder (replicating local structure)
     s3_base = f"s3://pgxdatalake/gold/final_model/{cohort_name}/{age_band}"
     s3_train_path = f"{s3_base}/inputs/model_train/final_features.parquet"
@@ -207,30 +255,73 @@ def prepare_train_test_s3(
     s3_train_path_legacy = f"{s3_base}/model_train/final_features.parquet"
     s3_test_path_legacy = f"{s3_base}/model_test/final_features.parquet"
     
-    print(f"\n[INFO] Uploading train dataset to S3: {s3_train_path}")
-    try:
-        subprocess.run(
-            [aws_cli, "s3", "cp", str(train_path), s3_train_path],
-            check=True,
-            capture_output=True
-        )
-        print(f"[INFO] Train dataset uploaded successfully")
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Failed to upload train dataset: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+    upload_success = False
     
-    if len(test_features) > 0:
-        print(f"[INFO] Uploading test dataset to S3: {s3_test_path}")
+    # Try AWS CLI first (faster for large files)
+    aws_cli = shutil.which("aws")
+    if aws_cli:
+        print(f"\n[INFO] Uploading train dataset to S3 using AWS CLI: {s3_train_path}")
         try:
             subprocess.run(
-                [aws_cli, "s3", "cp", str(test_path), s3_test_path],
+                [aws_cli, "s3", "cp", str(train_path), s3_train_path],
                 check=True,
                 capture_output=True
             )
-            print(f"[INFO] Test dataset uploaded successfully")
+            print(f"[INFO] Train dataset uploaded successfully to S3")
+            upload_success = True
         except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Failed to upload test dataset: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+            print(f"[WARNING] AWS CLI upload failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+            print(f"[INFO] Trying boto3 fallback...")
     
-    # Also save metadata files
+    # Fallback to boto3 if AWS CLI fails or is not available
+    if not upload_success:
+        try:
+            import boto3
+            s3_client = boto3.client('s3')
+            bucket = 'pgxdatalake'
+            s3_key_train = f"gold/final_model/{cohort_name}/{age_band}/inputs/model_train/final_features.parquet"
+            
+            print(f"\n[INFO] Uploading train dataset to S3 using boto3: s3://{bucket}/{s3_key_train}")
+            s3_client.upload_file(str(train_path), bucket, s3_key_train)
+            print(f"[INFO] Train dataset uploaded successfully to S3")
+            upload_success = True
+        except ImportError:
+            print(f"[ERROR] boto3 not available. Cannot upload to S3.")
+            print(f"[ERROR] Training data must be uploaded to S3 for FFA analysis to work!")
+            raise RuntimeError("S3 upload failed and boto3 is not available. Install boto3: pip install boto3")
+        except Exception as e:
+            print(f"[ERROR] boto3 upload failed: {e}")
+            raise RuntimeError(f"Failed to upload training data to S3: {e}")
+    
+    if len(test_features) > 0:
+        upload_test_success = False
+        if aws_cli:
+            print(f"[INFO] Uploading test dataset to S3 using AWS CLI: {s3_test_path}")
+            try:
+                subprocess.run(
+                    [aws_cli, "s3", "cp", str(test_path), s3_test_path],
+                    check=True,
+                    capture_output=True
+                )
+                print(f"[INFO] Test dataset uploaded successfully to S3")
+                upload_test_success = True
+            except subprocess.CalledProcessError as e:
+                print(f"[WARNING] AWS CLI upload failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
+        
+        if not upload_test_success:
+            try:
+                import boto3
+                s3_client = boto3.client('s3')
+                bucket = 'pgxdatalake'
+                s3_key_test = f"gold/final_model/{cohort_name}/{age_band}/inputs/model_test/final_features.parquet"
+                
+                print(f"[INFO] Uploading test dataset to S3 using boto3: s3://{bucket}/{s3_key_test}")
+                s3_client.upload_file(str(test_path), bucket, s3_key_test)
+                print(f"[INFO] Test dataset uploaded successfully to S3")
+            except Exception as e:
+                print(f"[WARNING] Test dataset upload failed: {e} (non-critical)")
+    
+    # Also save metadata files (in both locations)
     metadata_train = {
         'cohort': cohort_name,
         'age_band': age_band,
@@ -252,8 +343,9 @@ def prepare_train_test_s3(
     }
     
     import json
-    metadata_train_path = train_dir / "metadata.json"
-    metadata_test_path = test_dir / "metadata.json"
+    # Save metadata in primary location
+    metadata_train_path = primary_train_dir / "metadata.json"
+    metadata_test_path = primary_test_dir / "metadata.json"
     
     with open(metadata_train_path, 'w') as f:
         json.dump(metadata_train, f, indent=2)
