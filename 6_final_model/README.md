@@ -198,7 +198,11 @@ See `final_model.ipynb` for the full Python workflow:
 
 - `final_model.ipynb`: MC-CV comparison, Optuna tuning, temporal calibration, and final model export.
 - `build_final_cohort_model_features.py`: Builds the final feature table from `model_data`, FP-Growth, BupaR, and PGx features.
+  - For `non_opioid_ed` cohort: Filters to drug-only item features (excludes ICD/CPT codes for polypharmacy analysis)
 - `remove_target_leakage.py`: Removes target leakage features including DTW features (DTW is for filtering, not features).
+  - Validates item_* features against event data to detect post-target leakage
+  - Removes non-predictive markers (SUBOXONE, BUPRENORPHINE, F1123)
+  - For `non_opioid_ed` cohort: Removes any ICD/CPT features that may have slipped through
 - `prepare_train_test_s3.py`: Splits final feature table into train/test sets using temporal validation and uploads to S3.
 - `train_final_model.py`: Trains final model with MC-CV comparison across CatBoost, XGBoost, and XGBoost RF.
 - `analyze_trigger_features.py`: Analyzes trajectory and pre-event features for triggering/thresholding, calculates cohort-specific percentiles and suggested thresholds.
@@ -549,6 +553,16 @@ high_risk_patients = flag_high_risk_patients(feature_df, 'opioid_ed', '0-12')
    - Time-to-target features
    - DTW features (DTW is for filtering, not features)
    - F1120 code itself
+   - Post-target drug/ICD/CPT events (validates against event data)
+   - Non-predictive markers (SUBOXONE, BUPRENORPHINE, F1123)
+
+6. **Cohort-Specific Feature Filtering**:
+   - **non_opioid_ed (Polypharmacy) Cohort**: Only drug events are included as item features
+     - Excludes ICD codes (`item_icd_*`)
+     - Excludes CPT codes (`item_cpt_*`)
+     - Includes only drug features (`item_drug_*`)
+     - Rationale: Polypharmacy analysis focuses on drug interactions and medication patterns
+   - **opioid_ed Cohort**: Includes all event types (drugs, ICD codes, CPT codes)
 
 ## TODOs
 

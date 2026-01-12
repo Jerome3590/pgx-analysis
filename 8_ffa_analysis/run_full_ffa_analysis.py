@@ -129,9 +129,9 @@ ANALYSIS_CONFIG = {
     'min_shap_for_causal': 0.0, # Minimum SHAP importance for causal testing
     'min_ffa_for_causal': 0.0,  # Minimum FFA importance for causal testing
     # Multi-feature interaction analysis
-    'enable_interaction_analysis': False,  # Set to True to enable multi-feature interaction testing
-    'max_interaction_size': 2,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
-    'interaction_top_k': 10,  # Top K features to consider for interactions (reduced from 20 to limit computation)
+    'enable_interaction_analysis': True,  # Set to True to enable multi-feature interaction testing
+    'max_interaction_size': 3,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
+    'interaction_top_k': 40,  # Top K features to consider for interactions
     'interaction_sample_size': 50,  # Sample size for interaction testing (reduced from 100)
     # Stage 3: Interaction pruning
     'min_cooccur_support': 5,   # Minimum co-occurrence for pairs
@@ -145,6 +145,13 @@ ANALYSIS_CONFIG = {
     'causal_checkpoint_interval': 10,  # Save progress every N features for idempotency
     'min_combined_shap_threshold': 0.0,  # Minimum combined SHAP score for feature combinations (0 = no filtering)
     'min_individual_shap_threshold': 0.0,  # Minimum individual SHAP score per feature in combination (0 = only filter features with SHAP > 0, which is automatic)
+    # Excluded features (non-predictive markers/confounders)
+    'excluded_features': [
+        'item_drug_SUBOXONE',  # Treatment medication - marker, not predictive
+        'item_drug_BUPRENORPHINE_HCL',  # Treatment medication - marker, not predictive
+        'item_drug_BUPRENORPHINE_HCL_NALOXON',  # Treatment medication - marker, not predictive
+        'item_icd_F1123',  # Opioid dependence ICD code - marker, not predictive
+    ],
 }
 
 
@@ -913,13 +920,23 @@ def prune_features_for_causal_analysis(
         min_present_support = max(5, int(min_present_support * (n_samples / 100)))
         min_absent_support = max(5, int(min_absent_support * (n_samples / 100)))
     
+    # Get excluded features list
+    excluded_features = set(ANALYSIS_CONFIG.get('excluded_features', []))
+    
     logger.info(f"Pruning features: {len(available_features)} candidates")
     logger.info(f"  Prevalence thresholds: present={min_present_support}, absent={min_absent_support}")
     logger.info(f"  AXP coverage threshold: {min_axp_coverage}")
     logger.info(f"  Importance thresholds: SHAP>={min_shap}, FFA>={min_ffa}")
+    if excluded_features:
+        logger.info(f"  Excluded features: {', '.join(sorted(excluded_features))}")
     
     for feat_name in available_features:
         if feat_name not in X_class.columns:
+            continue
+        
+        # Rule 0: Excluded features (non-predictive markers/confounders)
+        if feat_name in excluded_features:
+            logger.debug(f"  Pruned {feat_name}: excluded (non-predictive marker/confounder)")
             continue
         
         # Rule 1: Feature relevance (already filtered by get_model_features_for_causal_analysis)

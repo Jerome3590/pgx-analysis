@@ -27,6 +27,13 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
   - **Model-Based Causal Importance**: Measures how interventions on features affect the model's explanations and predictions
   - **Single-Feature Causal Analysis**: Tests individual feature effects
   - **Multi-Feature Interaction Analysis**: Tests combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
+    - **Default Configuration**: Enabled by default (`enable_interaction_analysis: True`)
+    - **Interaction Sizes**: Tests pairs (size 2) AND triplets (size 3) when `max_interaction_size: 3`
+    - **Top Features**: Tests top 40 features by default (`interaction_top_k: 40`)
+    - **Drug Interaction Calculator**: For `non_opioid_ed` cohort (drug-only features), this serves as a drug interaction causal calculator for ED visits
+      - Identifies which drug combinations causally increase ED visit risk
+      - Measures synergy/antagonism effects (positive = synergy, negative = antagonism)
+      - Output: `interaction_analysis.parquet` with drug-drug and drug-drug-drug interaction effects
   - **SHAP/FFA/Causal Filtering**: Only tests combinations of features with ANY importance > 0 (SHAP OR FFA OR causal) to reduce combinatorial explosion
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 

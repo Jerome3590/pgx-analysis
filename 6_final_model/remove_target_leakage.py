@@ -24,6 +24,12 @@ warnings.filterwarnings("ignore")
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
+
 
 def remove_target_leakage(
     project_root: Path,
@@ -131,6 +137,185 @@ def remove_target_leakage(
         safe_features = [c for c in safe_features if c not in f1120_features]
         leakage_features.extend(f1120_features)
         df_clean = df[safe_features].copy()
+    
+    # Remove non-predictive markers/confounders
+    excluded_markers = [
+        'item_drug_SUBOXONE',  # Treatment medication - marker, not predictive
+        'item_drug_BUPRENORPHINE_HCL',  # Treatment medication - marker, not predictive
+        'item_drug_BUPRENORPHINE_HCL_NALOXON',  # Treatment medication - marker, not predictive
+        'item_icd_F1123',  # Opioid dependence ICD code - marker, not predictive
+    ]
+    found_excluded = [c for c in df_clean.columns if c in excluded_markers]
+    if found_excluded:
+        print(f"\n[INFO] Removing {len(found_excluded)} non-predictive markers/confounders:")
+        for f in found_excluded:
+            print(f"  - {f}")
+        safe_features = [c for c in safe_features if c not in found_excluded]
+        leakage_features.extend(found_excluded)
+        df_clean = df[safe_features].copy()
+    
+    # 5. For non_opioid_ed cohort: remove ICD and CPT features (polypharmacy uses drugs only)
+    if "non_opioid" in cohort_name.lower() or "ed_non_opioid" in cohort_name.lower():
+        item_icd_features_to_remove = [c for c in df_clean.columns if c.startswith('item_icd_')]
+        item_cpt_features_to_remove = [c for c in df_clean.columns if c.startswith('item_cpt_')]
+        if item_icd_features_to_remove or item_cpt_features_to_remove:
+            print(f"\n[INFO] For non_opioid_ed cohort: Removing ICD and CPT features (polypharmacy uses drugs only)")
+            print(f"  Removing {len(item_icd_features_to_remove)} ICD features and {len(item_cpt_features_to_remove)} CPT features")
+            safe_features = [c for c in safe_features if c not in item_icd_features_to_remove and c not in item_cpt_features_to_remove]
+            leakage_features.extend(item_icd_features_to_remove)
+            leakage_features.extend(item_cpt_features_to_remove)
+            df_clean = df[safe_features].copy()
+    
+    # 6. Validate item_* features for post-target leakage (drugs and ICD codes)
+    print(f"\n[INFO] Validating item_* features for post-target leakage...")
+    item_drug_features = [c for c in df_clean.columns if c.startswith('item_drug_')]
+    item_icd_features = [c for c in df_clean.columns if c.startswith('item_icd_')]
+    item_cpt_features = [c for c in df_clean.columns if c.startswith('item_cpt_')]
+    
+    post_target_item_features = []
+    
+    if DUCKDB_AVAILABLE and (item_drug_features or item_icd_features or item_cpt_features):
+        # Check underlying event data for post-target leakage
+        model_data_path = (
+            project_root
+            / "model_data"
+            / f"cohort_name={cohort_name}"
+            / f"age_band={age_band}"
+            / "model_events.parquet"
+        )
+        
+        # Also try alternative location
+        if not model_data_path.exists():
+            model_data_path = (
+                project_root
+                / "4a_model_data"
+                / f"cohort_name={cohort_name}"
+                / f"age_band={age_band}"
+                / "model_events_no_protocols.parquet"
+            )
+        
+        if model_data_path.exists():
+            try:
+                # Determine target date field
+                if "opioid" in cohort_name.lower():
+                    target_date_field = "first_opioid_ed_date"
+                else:
+                    target_date_field = "first_ed_non_opioid_date"
+                
+                con = duckdb.connect()
+                model_data_path_str = str(model_data_path).replace('\\', '/')
+                
+                # Check each item feature for post-target events
+                for feature_name in item_drug_features + item_icd_features + item_cpt_features:
+                    # Extract the code/drug name from feature name
+                    # Format: item_drug_DRUG_NAME or item_icd_ICD_CODE or item_cpt_CPT_CODE
+                    if feature_name.startswith('item_drug_'):
+                        code_name = feature_name.replace('item_drug_', '')
+                        code_column = 'drug_name'
+                    elif feature_name.startswith('item_icd_'):
+                        code_name = feature_name.replace('item_icd_', '')
+                        # Check all ICD diagnosis columns
+                        code_column = None  # Will check all ICD columns
+                    elif feature_name.startswith('item_cpt_'):
+                        code_name = feature_name.replace('item_cpt_', '')
+                        code_column = 'procedure_code'
+                    else:
+                        continue
+                    
+                    # Get patients who have this feature = 1
+                    patients_with_feature = df_clean[df_clean[feature_name] == 1]['mi_person_key'].astype(str).unique().tolist()
+                    
+                    if not patients_with_feature or len(patients_with_feature) == 0:
+                        continue
+                    
+                    # Limit to reasonable batch size for query (avoid SQL injection and query size limits)
+                    # Check in batches if needed
+                    max_batch_size = 1000
+                    post_target_found = False
+                    
+                    for i in range(0, len(patients_with_feature), max_batch_size):
+                        batch = patients_with_feature[i:i + max_batch_size]
+                        patient_list = ','.join([f"'{p.replace(\"'\", \"''\")}'" for p in batch])
+                        
+                        # Check if any of these patients have this code/drug AFTER target event
+                        if code_column == 'drug_name':
+                            # Check drug_name column
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND drug_name = '{code_name.replace("'", "''")}'
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+                        elif code_column == 'procedure_code':
+                            # Check procedure_code column
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND procedure_code = '{code_name.replace("'", "''")}'
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+                        else:
+                            # Check all ICD diagnosis columns
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND (
+                                primary_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR two_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR three_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR four_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR five_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR six_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR seven_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR eight_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR nine_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR ten_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                              )
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+                        
+                        result = con.execute(query).df()
+                        post_target_count = result.iloc[0]['post_target_count'] if len(result) > 0 else 0
+                        
+                        if post_target_count > 0:
+                            post_target_found = True
+                            if feature_name not in post_target_item_features:
+                                post_target_item_features.append(feature_name)
+                                print(f"  [WARNING] {feature_name}: {post_target_count} post-target events found (TARGET LEAKAGE)")
+                            break  # Found leakage, no need to check more batches
+                    
+                    if post_target_found:
+                        continue  # Move to next feature
+                
+                con.close()
+                
+            except Exception as e:
+                print(f"  [WARNING] Could not validate item_* features against event data: {e}")
+                print(f"  [INFO] Skipping post-target validation (this is a best-effort check)")
+        
+        else:
+            print(f"  [INFO] Model data file not found for validation: {model_data_path}")
+            print(f"  [INFO] Skipping post-target validation (this is a best-effort check)")
+    
+    if post_target_item_features:
+        print(f"\n[WARNING] Found {len(post_target_item_features)} item_* features with post-target events:")
+        for f in post_target_item_features:
+            print(f"  - {f}")
+        print("[INFO] These features may include post-target events and should be removed")
+        safe_features = [c for c in safe_features if c not in post_target_item_features]
+        leakage_features.extend(post_target_item_features)
+        df_clean = df[safe_features].copy()
+    else:
+        print(f"  [OK] No post-target leakage detected in item_* features")
     
     print(f"\n[INFO] Clean dataset: {len(df_clean)} patients, {len(df_clean.columns)} columns")
     print(f"[INFO] Removed {len(df.columns) - len(df_clean.columns)} columns")

@@ -133,6 +133,31 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         # Filter to item_* features only
         important_items = [f.replace('item_', '') for f in important_features if f.startswith('item_')]
         
+        # For non_opioid_ed cohort: only include drug events (exclude ICD and CPT codes)
+        if "non_opioid" in cohort_name.lower() or "ed_non_opioid" in cohort_name.lower():
+            original_count = len(important_items)
+            # Filter to only drug items (exclude ICD and CPT)
+            important_items = [item for item in important_items if item.startswith('drug_')]
+            excluded_icd_cpt = original_count - len(important_items)
+            if excluded_icd_cpt > 0:
+                print(f"[INFO] For non_opioid_ed cohort: Excluded {excluded_icd_cpt} ICD/CPT codes (polypharmacy analysis uses drugs only)")
+        
+        # Exclude non-predictive markers/confounders
+        # Note: important_items has format like 'drug_SUBOXONE' or 'icd_F1123' (item_ prefix already removed)
+        excluded_items = [
+            'drug_SUBOXONE',  # Treatment medication - marker, not predictive
+            'drug_BUPRENORPHINE_HCL',  # Treatment medication - marker, not predictive
+            'drug_BUPRENORPHINE_HCL_NALOXON',  # Treatment medication - marker, not predictive
+            'icd_F1123',  # Opioid dependence ICD code - marker, not predictive
+        ]
+        original_count = len(important_items)
+        actually_excluded = [item for item in important_items if item in excluded_items]
+        important_items = [item for item in important_items if item not in excluded_items]
+        excluded_count = original_count - len(important_items)
+        
+        if excluded_count > 0:
+            print(f"[INFO] Excluded {excluded_count} non-predictive markers/confounders: {', '.join(actually_excluded)}")
+        
         print(f"[INFO] Creating binary indicators for {len(important_items)} important codes/drugs from feature importance")
         
         # Create binary indicators for each important code/drug

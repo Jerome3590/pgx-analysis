@@ -46,4 +46,6 @@ s3_outputs/
 # Archived workflow steps (no longer part of active pipeline)
 archived/
 
+# Log files
+*.log
 
