@@ -270,13 +270,18 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
                     if not patients_with_feature or len(patients_with_feature) == 0:
                         continue
 
+                    # Sanitize code_name for SQL (escape single quotes)
+                    sanitized_code_name = code_name.replace("'", "''")
+
                     # Limit to reasonable batch size for query
                     max_batch_size = 1000
                     post_target_found = False
 
                     for i in range(0, len(patients_with_feature), max_batch_size):
                         batch = patients_with_feature[i:i + max_batch_size]
-                        patient_list = ",".join([f"'{p.replace(\"'\", \"''\")}'" for p in batch])
+                        # Sanitize patient IDs for SQL (escape single quotes)
+                        sanitized_patients = [p.replace("'", "''") for p in batch]
+                        patient_list = ",".join([f"'{p}'" for p in sanitized_patients])
 
                         # Check if any of these patients have this code/drug AFTER target event
                         if code_column == "drug_name":
@@ -284,7 +289,7 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
                             SELECT COUNT(*) as post_target_count
                             FROM read_parquet('{model_data_path_str}')
                             WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
-                              AND drug_name = '{code_name.replace("'", "''")}'
+                              AND drug_name = '{sanitized_code_name}'
                               AND {target_date_field} IS NOT NULL
                               AND event_date IS NOT NULL
                               AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
@@ -294,7 +299,7 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
                             SELECT COUNT(*) as post_target_count
                             FROM read_parquet('{model_data_path_str}')
                             WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
-                              AND procedure_code = '{code_name.replace("'", "''")}'
+                              AND procedure_code = '{sanitized_code_name}'
                               AND {target_date_field} IS NOT NULL
                               AND event_date IS NOT NULL
                               AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
@@ -306,16 +311,16 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
                             FROM read_parquet('{model_data_path_str}')
                             WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
                               AND (
-                                primary_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR two_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR three_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR four_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR five_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR six_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR seven_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR eight_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR nine_icd_diagnosis_code = '{code_name.replace("'", "''")}'
-                                OR ten_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                primary_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR two_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR three_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR four_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR five_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR six_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR seven_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR eight_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR nine_icd_diagnosis_code = '{sanitized_code_name}'
+                                OR ten_icd_diagnosis_code = '{sanitized_code_name}'
                               )
                               AND {target_date_field} IS NOT NULL
                               AND event_date IS NOT NULL
