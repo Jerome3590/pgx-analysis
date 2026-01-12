@@ -2081,8 +2081,18 @@ def perform_multi_feature_causal_analysis(
                            f"(combined={combined_effect:.3f}, individual_sum={sum_individual:.3f}, "
                            f"interaction={interaction_effect:.3f})")
                 
-                # Cleanup
-                del X_modified
+                # Cleanup - delete variables that were created in this iteration
+                try:
+                    del X_modified_filtered, X_sample_filtered, original_explanations, modified_explanations
+                except NameError:
+                    pass  # Some variables may not exist if early stopping triggered
+                
+                # Cleanup optional early stopping variables
+                try:
+                    del X_modified_early, modified_explanations_early
+                except NameError:
+                    pass  # These only exist if early stopping was attempted
+                
                 import gc
                 gc.collect()
                 
