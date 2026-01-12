@@ -80,10 +80,10 @@ def _load_feature_table(path: Path, required: bool = True) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
+def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str) -> pd.DataFrame:
     """
-    Remove obvious target-leakage features based on naming conventions,
-    mirroring the logic in the legacy remove_target_leakage.py script.
+    Remove target-leakage features based on naming conventions and data validation,
+    matching the comprehensive logic in 6_final_model/remove_target_leakage.py.
 
     This drops:
       - Columns starting with 'post_'
@@ -93,21 +93,40 @@ def remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
       - Datetime helper columns: 'target_time', 'first_time'
       - DTW-derived features (any column with 'dtw' in its name)
       - Any feature whose name contains 'F1120'
+      - Non-predictive markers/confounders (SUBOXONE, BUPRENORPHINE, F1123)
+      - For non_opioid_ed cohort: ICD and CPT features (polypharmacy uses drugs only)
+      - item_* features with post-target events (validated against event data)
     """
     cols = list(df.columns)
     leakage: set[str] = set()
 
-    # Post-event features
+    print(f"\n[INFO] Removing target leakage features for {cohort}/{age_band}")
+    print(f"[INFO] Original dataset: {len(df)} patients, {len(df.columns)} columns")
+
+    # 1. Post-event features (calculated AFTER target event)
     post_features = [c for c in cols if c.startswith("post_")]
     leakage.update(post_features)
+    if post_features:
+        print(f"\n[INFO] Post-event features (TARGET LEAKAGE): {len(post_features)}")
+        for f in post_features[:10]:
+            print(f"  - {f}")
+        if len(post_features) > 10:
+            print(f"  ... and {len(post_features) - 10} more")
 
-    # Time-to-target features
+    # 2. Time-to-target features (reference the target event)
     time_to_features = [
         c for c in cols if "time_to" in c.lower() or "time_to_" in c.lower()
     ]
     leakage.update(time_to_features)
+    if time_to_features:
+        print(f"\n[INFO] Time-to-target features (TARGET LEAKAGE): {len(time_to_features)}")
+        for f in time_to_features[:10]:
+            print(f"  - {f}")
+        if len(time_to_features) > 10:
+            print(f"  ... and {len(time_to_features) - 10} more")
 
-    # Time-window features referencing target (but not generic intervals)
+    # 2b. Time-window features that reference target event (30d, 90d, 180d before target)
+    # NOTE: Time intervals BETWEEN consecutive events (e.g., drug_interval_mean) are OK
     time_window_features = [
         c
         for c in cols
@@ -115,28 +134,242 @@ def remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
         and "interval" not in c.lower()
     ]
     leakage.update(time_window_features)
+    if time_window_features:
+        print(f"\n[INFO] Time-window features referencing target (TARGET LEAKAGE): {len(time_window_features)}")
+        for f in time_window_features[:10]:
+            print(f"  - {f}")
+        if len(time_window_features) > 10:
+            print(f"  ... and {len(time_window_features) - 10} more")
 
-    # Datetime helper columns
+    # Note: Time interval features (between consecutive events) are KEPT - they're predictive
+    interval_features = [c for c in cols if "interval" in c.lower()]
+    if interval_features:
+        print(f"\n[INFO] Time interval features (KEPT - predictive): {len(interval_features)}")
+        for f in interval_features[:5]:
+            print(f"  - {f}")
+        if len(interval_features) > 5:
+            print(f"  ... and {len(interval_features) - 5} more")
+
+    # 3. Target time and first time (datetime columns, not features but should be removed)
     datetime_features = [c for c in ("target_time", "first_time") if c in cols]
     leakage.update(datetime_features)
 
-    # DTW features – used for protocol filtering, not as model inputs
+    # 4. DTW features (REMOVED - used for protocol filtering, not as features)
     dtw_features = [c for c in cols if "dtw" in c.lower()]
     leakage.update(dtw_features)
+    if dtw_features:
+        print(f"\n[INFO] DTW features found: {len(dtw_features)}")
+        print("[INFO] DTW features are REMOVED - DTW is used for protocol filtering, not feature engineering")
+        print("[INFO] DTW captures standard care protocols that both targets and controls follow")
+        print("[INFO] Sequence information comes from BupaR, not DTW")
+        for f in dtw_features[:10]:
+            print(f"  - {f}")
+        if len(dtw_features) > 10:
+            print(f"  ... and {len(dtw_features) - 10} more")
 
-    # Any feature explicitly referencing F1120
-    f1120_features = [c for c in cols if "F1120" in c.upper()]
-    leakage.update(f1120_features)
+    # Remove initial leakage features
+    safe_features = [c for c in cols if c not in leakage]
+    df_clean = df[safe_features].copy()
 
-    if leakage:
-        kept = [c for c in cols if c not in leakage]
-        print(
-            "Removing potential target-leakage features:\n  "
-            + ", ".join(sorted(leakage))
+    # Verify no F1120 in feature names (should be excluded during feature engineering)
+    f1120_features = [c for c in df_clean.columns if "F1120" in c.upper()]
+    if f1120_features:
+        print(f"\n[WARNING] Found {len(f1120_features)} features with F1120 in name:")
+        for f in f1120_features:
+            print(f"  - {f}")
+        print("[INFO] These should be removed - F1120 must be excluded from final model features")
+        safe_features = [c for c in safe_features if c not in f1120_features]
+        leakage.update(f1120_features)
+        df_clean = df[safe_features].copy()
+
+    # 5. Remove non-predictive markers/confounders
+    excluded_markers = [
+        "item_drug_SUBOXONE",  # Treatment medication - marker, not predictive
+        "item_drug_BUPRENORPHINE_HCL",  # Treatment medication - marker, not predictive
+        "item_drug_BUPRENORPHINE_HCL_NALOXON",  # Treatment medication - marker, not predictive
+        "item_icd_F1123",  # Opioid dependence ICD code - marker, not predictive
+    ]
+    found_excluded = [c for c in df_clean.columns if c in excluded_markers]
+    if found_excluded:
+        print(f"\n[INFO] Removing {len(found_excluded)} non-predictive markers/confounders:")
+        for f in found_excluded:
+            print(f"  - {f}")
+        safe_features = [c for c in safe_features if c not in found_excluded]
+        leakage.update(found_excluded)
+        df_clean = df[safe_features].copy()
+
+    # 6. For non_opioid_ed cohort: remove ICD and CPT features (polypharmacy uses drugs only)
+    if "non_opioid" in cohort.lower() or "ed_non_opioid" in cohort.lower():
+        item_icd_features_to_remove = [c for c in df_clean.columns if c.startswith("item_icd_")]
+        item_cpt_features_to_remove = [c for c in df_clean.columns if c.startswith("item_cpt_")]
+        if item_icd_features_to_remove or item_cpt_features_to_remove:
+            print(f"\n[INFO] For non_opioid_ed cohort: Removing ICD and CPT features (polypharmacy uses drugs only)")
+            print(f"  Removing {len(item_icd_features_to_remove)} ICD features and {len(item_cpt_features_to_remove)} CPT features")
+            safe_features = [c for c in safe_features if c not in item_icd_features_to_remove and c not in item_cpt_features_to_remove]
+            leakage.update(item_icd_features_to_remove)
+            leakage.update(item_cpt_features_to_remove)
+            df_clean = df[safe_features].copy()
+
+    # 7. Validate item_* features for post-target leakage (drugs and ICD codes)
+    print(f"\n[INFO] Validating item_* features for post-target leakage...")
+    item_drug_features = [c for c in df_clean.columns if c.startswith("item_drug_")]
+    item_icd_features = [c for c in df_clean.columns if c.startswith("item_icd_")]
+    item_cpt_features = [c for c in df_clean.columns if c.startswith("item_cpt_")]
+
+    post_target_item_features = []
+
+    if item_drug_features or item_icd_features or item_cpt_features:
+        # Check underlying event data for post-target leakage
+        model_data_path = (
+            PROJECT_ROOT
+            / "model_data"
+            / f"cohort_name={cohort}"
+            / f"age_band={age_band}"
+            / "model_events.parquet"
         )
-        return df[kept].copy()
 
-    return df
+        # Also try alternative location
+        if not model_data_path.exists():
+            model_data_path = (
+                PROJECT_ROOT
+                / "4a_model_data"
+                / f"cohort_name={cohort}"
+                / f"age_band={age_band}"
+                / "model_events_no_protocols.parquet"
+            )
+
+        if model_data_path.exists():
+            try:
+                # Determine target date field
+                if "opioid" in cohort.lower():
+                    target_date_field = "first_opioid_ed_date"
+                else:
+                    target_date_field = "first_ed_non_opioid_date"
+
+                con = duckdb.connect()
+                model_data_path_str = str(model_data_path).replace("\\", "/")
+
+                # Check each item feature for post-target events
+                for feature_name in item_drug_features + item_icd_features + item_cpt_features:
+                    # Extract the code/drug name from feature name
+                    if feature_name.startswith("item_drug_"):
+                        code_name = feature_name.replace("item_drug_", "")
+                        code_column = "drug_name"
+                    elif feature_name.startswith("item_icd_"):
+                        code_name = feature_name.replace("item_icd_", "")
+                        code_column = None  # Will check all ICD columns
+                    elif feature_name.startswith("item_cpt_"):
+                        code_name = feature_name.replace("item_cpt_", "")
+                        code_column = "procedure_code"
+                    else:
+                        continue
+
+                    # Get patients who have this feature = 1
+                    patients_with_feature = df_clean[df_clean[feature_name] == 1]["mi_person_key"].astype(str).unique().tolist()
+
+                    if not patients_with_feature or len(patients_with_feature) == 0:
+                        continue
+
+                    # Limit to reasonable batch size for query
+                    max_batch_size = 1000
+                    post_target_found = False
+
+                    for i in range(0, len(patients_with_feature), max_batch_size):
+                        batch = patients_with_feature[i:i + max_batch_size]
+                        patient_list = ",".join([f"'{p.replace(\"'\", \"''\")}'" for p in batch])
+
+                        # Check if any of these patients have this code/drug AFTER target event
+                        if code_column == "drug_name":
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND drug_name = '{code_name.replace("'", "''")}'
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+                        elif code_column == "procedure_code":
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND procedure_code = '{code_name.replace("'", "''")}'
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+                        else:
+                            # Check all ICD diagnosis columns
+                            query = f"""
+                            SELECT COUNT(*) as post_target_count
+                            FROM read_parquet('{model_data_path_str}')
+                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                              AND (
+                                primary_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR two_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR three_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR four_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR five_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR six_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR seven_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR eight_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR nine_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                                OR ten_icd_diagnosis_code = '{code_name.replace("'", "''")}'
+                              )
+                              AND {target_date_field} IS NOT NULL
+                              AND event_date IS NOT NULL
+                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                            """
+
+                        result = con.execute(query).df()
+                        post_target_count = result.iloc[0]["post_target_count"] if len(result) > 0 else 0
+
+                        if post_target_count > 0:
+                            post_target_found = True
+                            if feature_name not in post_target_item_features:
+                                post_target_item_features.append(feature_name)
+                                print(f"  [WARNING] {feature_name}: {post_target_count} post-target events found (TARGET LEAKAGE)")
+                            break  # Found leakage, no need to check more batches
+
+                    if post_target_found:
+                        continue  # Move to next feature
+
+                con.close()
+
+            except Exception as e:
+                print(f"  [WARNING] Could not validate item_* features against event data: {e}")
+                print(f"  [INFO] Skipping post-target validation (this is a best-effort check)")
+        else:
+            print(f"  [INFO] Model data file not found for validation: {model_data_path}")
+            print(f"  [INFO] Skipping post-target validation (this is a best-effort check)")
+
+    if post_target_item_features:
+        print(f"\n[WARNING] Found {len(post_target_item_features)} item_* features with post-target events:")
+        for f in post_target_item_features:
+            print(f"  - {f}")
+        print("[INFO] These features may include post-target events and should be removed")
+        safe_features = [c for c in safe_features if c not in post_target_item_features]
+        leakage.update(post_target_item_features)
+        df_clean = df[safe_features].copy()
+    else:
+        print(f"  [OK] No post-target leakage detected in item_* features")
+
+    # Verify important predictive features are preserved
+    sequence_features = [c for c in df_clean.columns if "sequence" in c.lower() or "trace" in c.lower()]
+    interval_features_kept = [c for c in safe_features if "interval" in c.lower()]
+    fpgrowth_features_kept = [c for c in safe_features if any(x in c for x in ["itemset", "rule", "support", "confidence", "lift"])]
+
+    print(f"\n[INFO] Preserving important predictive features:")
+    print(f"  Sequence features (top/rare): {len([c for c in sequence_features if c in safe_features])}")
+    print(f"  Time interval features (between events): {len(interval_features_kept)}")
+    print(f"  FP-Growth features (itemsets/rules): {len(fpgrowth_features_kept)}")
+
+    print(f"\n[INFO] Removing {len(leakage)} leakage features")
+    print(f"[INFO] Clean dataset: {len(df_clean)} patients, {len(df_clean.columns)} columns")
+    print(f"[INFO] All features are from events BEFORE F1120 (excluding F1120 and everything after)")
+
+    return df_clean
 
 
 def _validate_s3_file_has_controls(s3_path: str) -> dict:
@@ -1033,7 +1266,7 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
     final = final.dropna(subset=["target"])
 
     # Apply target-leakage removal rules before returning the feature matrix.
-    final = remove_target_leakage_features(final)
+    final = remove_target_leakage_features(final, cohort=cohort, age_band=age_band)
     
     # Validate: Check for duplicate column names (excluding merge key)
     duplicate_cols = final.columns[final.columns.duplicated()].tolist()
