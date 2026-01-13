@@ -1713,15 +1713,7 @@ def perform_multi_feature_causal_analysis(
     
     logger.info(f"Selected {len(available_features)} features with SHAP > 0 OR FFA > 0 OR causal > 0")
     print(f"  - Features with ANY importance (SHAP/FFA/causal) > 0: {len(available_features)}")
-    
-    # Limit to top K features to prevent combinatorial explosion
-    # This is critical for drug interaction analysis where many drugs may have SHAP > 0
-    if len(available_features) > top_k:
-        logger.info(f"  Limiting to top {top_k} features (from {len(available_features)}) to prevent combinatorial explosion")
-        print(f"  - Limiting to top {top_k} features (from {len(available_features)}) to prevent combinatorial explosion")
-        available_features = available_features[:top_k]
-    
-    print(f"  - This ensures drug combinations with highest importance signal are tested")
+    print(f"  - Including all features with SHAP > 0 (no top_k limit)")
     
     if len(available_features) < 2:
         logger.warning(f"Not enough features ({len(available_features)}) for interaction analysis. Need at least 2.")
