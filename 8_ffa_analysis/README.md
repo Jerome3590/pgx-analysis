@@ -13,7 +13,7 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
   - **CatBoost FFA**: **NOT performed** due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables that make direct rule extraction difficult
   - **CatBoost SHAP**: Used for feature importance filtering (not for FFA rule extraction)
 - **Anchored Explanations (AXP)**: Generate instance-level explanations using rule matching
-  - **Rule Selection Logic**: Union of three sets:
+  - **Rule Selection Logic**: Union of five sets:
     1. **First 100 matched rules** - Common patterns
     2. **Random sample of 100 matched rules** - Diversity and coverage
     3. **Top-K SHAP rules with percentile threshold** - Hybrid approach:
@@ -21,6 +21,10 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
        - OR all rules above 10th percentile threshold (whichever captures more rules)
        - Uses SHAP importance from **both XGBoost and CatBoost** to filter/prioritize rules
        - Balances performance (limits rule count) with coverage (doesn't miss important rules)
+    4. **Fallback SHAP=0 rules** - Up to 100 rules with SHAP=0 that aren't already covered
+    5. **Top 100 most frequent rules** - Rules that match most often across dataset (NEW: Set 5)
+       - Ensures frequent patterns are captured, matching reference implementation's implicit weighting
+       - Rule frequencies are computed once before explanation generation
   - **SHAP Requirement**: SHAP values from Step 7 (both XGBoost and CatBoost) are required (raises error if not available)
   - **Performance Optimization**: Limits rule sets to ~300-500 unique rules for efficient AXP computation
 - **Causal Analysis**: Measure causal responsibility through counterfactual analysis

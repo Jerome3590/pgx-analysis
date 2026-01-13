@@ -49,6 +49,7 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     feature_names = explainer_state['feature_names']
     _class_rule_indices = explainer_state.get('_class_rule_indices', {})
     shap_importance_map = explainer_state.get('shap_importance_map', {})
+    rule_frequencies = explainer_state.get('rule_frequencies', {})  # NEW: Get rule frequencies for Set 5
     
     if not shap_importance_map:
         raise ValueError("shap_importance_map is required in explainer_state. Only rules with SHAP importance > 0 will be used.")
@@ -170,8 +171,18 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     max_fallback_rules = 100
     fallback_rules = missing_shap_zero_rules[:max_fallback_rules]
     
-    # Union all four sets to get final unique rule set
-    combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched) | set(fallback_rules))
+    # Set 5: Top 100 most frequent rules (across dataset)
+    # This ensures frequent patterns are captured, matching reference implementation's implicit weighting
+    frequent_rules = []
+    if rule_frequencies:
+        # Sort rules by frequency (descending)
+        sorted_by_freq = sorted(rule_frequencies.items(), key=lambda x: x[1], reverse=True)
+        # Take top 100 frequent rules that match this instance
+        max_frequent_rules = 100
+        frequent_rules = [rule_id for rule_id, freq in sorted_by_freq[:max_frequent_rules] if rule_id in matched]
+    
+    # Union all five sets to get final unique rule set
+    combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched) | set(fallback_rules) | set(frequent_rules))
     
     # Compute AXP if we have any rules
     if not combined_rule_ids:
@@ -268,6 +279,7 @@ class BaseSymbolicExplainer(ABC):
         self._class_rule_indices = {}  # Cache: maps class -> list of rule indices for that class
         self.shap_importance_map = shap_importance_map  # Feature name -> SHAP importance (for validation)
         self.shap_values_df = shap_values_df  # Individual SHAP values per instance (REQUIRED)
+        self.rule_frequencies = {}  # Maps rule_id -> frequency (how often rule matches across dataset)
         self.setup_logging()
     
     def setup_logging(self, log_file: Optional[str] = None, level: int = logging.INFO) -> None:
@@ -612,9 +624,11 @@ class BaseSymbolicExplainer(ABC):
         Process:
         1. Take first 100 rules (from all matched rules)
         2. Take random sample of 100 rules (from all matched rules)
-        3. Take all rules with SHAP importance > 0
-        4. Union all three sets to get final unique rule set
-        5. Compute AXP from the union
+        3. Take top 300 SHAP-scored rules OR all above 10th percentile
+        4. Take up to 100 SHAP=0 rules as fallback
+        5. Take top 100 most frequent rules (across dataset) - Set 5
+        6. Union all five sets to get final unique rule set
+        7. Compute AXP from the union
         
         Args:
             rule_ids: List of rule indices
@@ -656,11 +670,30 @@ class BaseSymbolicExplainer(ABC):
             ensure_shap_coverage=True  # Ensure features with SHAP > 0 are represented
         )
         
-        if hasattr(self, 'logger'):
-            self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, Top SHAP: {len(shap_filtered_rules)}")
+        # Set 4: Fallback - include SHAP = 0 rules that aren't already covered
+        # Score all matched rules to identify SHAP = 0 rules
+        rule_scores = [(rid, self._score_rule_by_shap(rid)) for rid in rule_ids]
+        shap_zero_rules = [rid for rid, score in rule_scores if score == 0]
+        covered_rules = set(first_rules) | set(random_rules) | set(shap_filtered_rules)
+        missing_shap_zero_rules = [rid for rid in shap_zero_rules if rid not in covered_rules]
+        max_fallback_rules = 100
+        fallback_rules = missing_shap_zero_rules[:max_fallback_rules]
         
-        # Union all three sets to get final unique rule set
-        combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_rules))
+        # Set 5: Top 100 most frequent rules (across dataset)
+        # This ensures frequent patterns are captured, matching reference implementation's implicit weighting
+        frequent_rules = []
+        if hasattr(self, 'rule_frequencies') and self.rule_frequencies:
+            # Sort rules by frequency (descending)
+            sorted_by_freq = sorted(self.rule_frequencies.items(), key=lambda x: x[1], reverse=True)
+            # Take top 100 frequent rules that match this instance
+            max_frequent_rules = 100
+            frequent_rules = [rule_id for rule_id, freq in sorted_by_freq[:max_frequent_rules] if rule_id in rule_ids]
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(f"_compute_axp: First 100: {len(first_rules)}, Random 100: {len(random_rules)}, Top SHAP: {len(shap_filtered_rules)}, Fallback: {len(fallback_rules)}, Frequent: {len(frequent_rules)}")
+        
+        # Union all five sets to get final unique rule set
+        combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_rules) | set(fallback_rules) | set(frequent_rules))
         
         if not combined_rule_ids:
             if hasattr(self, 'logger'):
@@ -801,6 +834,61 @@ class BaseSymbolicExplainer(ABC):
         op = "<=" if direction == 0 else ">"
         return f"{feat} {op} {thresh}"
     
+    def compute_rule_frequencies(self, X: Union[np.ndarray, pd.DataFrame], 
+                                 predictions: np.ndarray) -> Dict[int, int]:
+        """
+        Compute how often each rule matches across the dataset.
+        
+        This is used to identify frequent rules for Set 5 (rule frequency-based selection).
+        Rule frequencies are computed once and reused for all instances.
+        
+        Args:
+            X: Feature matrix (numpy array or DataFrame)
+            predictions: Array of predicted classes (required)
+            
+        Returns:
+            Dictionary mapping rule_id -> frequency (number of instances where rule matches)
+        """
+        if isinstance(X, pd.DataFrame):
+            X = X.values
+        
+        if predictions is None:
+            raise ValueError("Please provide the predicted class labels for each instance.")
+        
+        from collections import defaultdict
+        rule_frequencies = defaultdict(int)
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(f"Computing rule frequencies across {len(X)} instances...")
+        
+        for i, (instance, predicted_class) in enumerate(zip(X, predictions, strict=True)):
+            # Ensure instance is 1D numpy array
+            if isinstance(instance, pd.Series):
+                instance = instance.values
+            if not isinstance(instance, np.ndarray):
+                instance = np.array(instance)
+            if instance.ndim > 1:
+                instance = instance.flatten()
+            
+            # Get matching rules for this instance
+            matched_rules = self._satisfied_rules(instance, predicted_class)
+            
+            # Count frequency of each matched rule
+            for rule_id in matched_rules:
+                rule_frequencies[rule_id] += 1
+            
+            # Log progress every 1000 instances
+            if hasattr(self, 'logger') and (i + 1) % 1000 == 0:
+                self.logger.info(f"  Processed {i+1}/{len(X)} instances for rule frequency computation...")
+        
+        if hasattr(self, 'logger'):
+            self.logger.info(f"Computed frequencies for {len(rule_frequencies)} unique rules")
+            if rule_frequencies:
+                max_freq = max(rule_frequencies.values())
+                self.logger.info(f"  Max frequency: {max_freq}, Mean frequency: {sum(rule_frequencies.values()) / len(rule_frequencies):.2f}")
+        
+        return dict(rule_frequencies)
+    
     def explain_dataset(self, X: Union[np.ndarray, pd.DataFrame], 
                        predictions: Optional[np.ndarray] = None,
                        return_df: bool = True,
@@ -824,6 +912,10 @@ class BaseSymbolicExplainer(ABC):
         
         if predictions is None:
             raise ValueError("Please provide the predicted class labels for each instance.")
+        
+        # Compute rule frequencies if not already computed (for Set 5)
+        if not self.rule_frequencies:
+            self.rule_frequencies = self.compute_rule_frequencies(X, predictions)
         
         # Determine number of jobs
         if n_jobs == -1:
@@ -887,7 +979,8 @@ class BaseSymbolicExplainer(ABC):
             'id_condition_map': self.id_condition_map,
             'feature_names': self.feature_names,
             '_class_rule_indices': self._class_rule_indices,
-            'shap_importance_map': self.shap_importance_map
+            'shap_importance_map': self.shap_importance_map,
+            'rule_frequencies': self.rule_frequencies  # NEW: Include rule frequencies for Set 5
         }
         
         # Create tasks
