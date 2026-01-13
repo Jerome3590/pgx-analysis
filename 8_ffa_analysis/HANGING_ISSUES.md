@@ -238,6 +238,16 @@ logger.info(f"[DEBUG] Starting section X at {time.time()}")
 
 ## Configuration Recommendations
 
+**Current Status:** ✅ **UPDATED**
+
+Interaction analysis now uses:
+- **Cohort-specific interaction sizes**: 
+  - `opioid_ed`: size 2 only (pairs)
+  - `non_opioid_ed`/`polypharmacy`: size 2 and 3 (pairs and triplets)
+- **No top_k limit**: Includes all features with SHAP > 0 OR FFA > 0 OR causal > 0
+- **Co-occurrence filtering**: Still applies to reduce combinations
+- **Capping**: `max_combinations_per_size` still applies (default: 1000)
+
 Update `ANALYSIS_CONFIG` defaults:
 
 ```python
@@ -246,8 +256,8 @@ ANALYSIS_CONFIG = {
     'n_jobs': 1,  # Keep single-threaded for memory
     'batch_size': 50,  # Smaller batches
     'causal_sample_size': 20,  # Reduce from 100
-    'interaction_top_k': 5,  # Reduce from 20
-    'max_interaction_combinations': 50,  # New limit
+    'interaction_top_k': 50,  # Config exists but not used (all SHAP > 0 included)
+    'max_combinations_per_size': 1000,  # Cap combinations per size
     'skip_causal': False,  # Option to skip
     'max_causal_time': 3600,  # 1 hour max
 }

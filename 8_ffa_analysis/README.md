@@ -32,13 +32,18 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
   - **Single-Feature Causal Analysis**: Tests individual feature effects
   - **Multi-Feature Interaction Analysis**: Tests combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
     - **Default Configuration**: Enabled by default (`enable_interaction_analysis: True`)
-    - **Interaction Sizes**: Tests pairs (size 2) AND triplets (size 3) when `max_interaction_size: 3`
-    - **Top Features**: Tests top 40 features by default (`interaction_top_k: 40`)
+    - **Cohort-Specific Interaction Sizes**:
+      - **First cohort (`opioid_ed`)**: Tests pairs only (size 2)
+      - **Second cohort (`non_opioid_ed`/`polypharmacy`)**: Tests pairs and triplets (size 2 and 3)
+      - Prevents combinatorial explosion for first cohort while allowing higher-order interactions for polypharmacy
+    - **Feature Selection**: Includes ALL features with SHAP > 0 OR FFA > 0 OR causal > 0 (no top_k limit)
+      - Features sorted by combined importance (SHAP + causal + FFA) for prioritization
+      - Safe for drug-only features where all drugs with any importance signal should be tested
     - **Drug Interaction Calculator**: For `non_opioid_ed` cohort (drug-only features), this serves as a drug interaction causal calculator for ED visits
       - Identifies which drug combinations causally increase ED visit risk
       - Measures synergy/antagonism effects (positive = synergy, negative = antagonism)
       - Output: `interaction_analysis.parquet` with drug-drug and drug-drug-drug interaction effects
-  - **SHAP/FFA/Causal Filtering**: Only tests combinations of features with ANY importance > 0 (SHAP OR FFA OR causal) to reduce combinatorial explosion
+  - **SHAP/FFA/Causal Filtering**: Only tests combinations of features with ANY importance > 0 (SHAP OR FFA OR causal)
 - **Feature Importance**: Calculate importance scores from explanations and causal effects
 
 ### Core Components

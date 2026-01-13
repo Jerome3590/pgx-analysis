@@ -52,45 +52,50 @@ Example with 100 features, 50 samples:
 
 ---
 
-### 2. Multi-Feature Interaction Analysis (EXPLOSIVE) ⚠️
+### 2. Multi-Feature Interaction Analysis (CONTROLLED) ✅
 
 **Location:** `run_full_ffa_analysis.py:perform_multi_feature_causal_analysis()`
 
+**Cohort-Specific Interaction Sizes:**
+- **First cohort (`opioid_ed`)**: Tests size 2 only (pairs)
+- **Second cohort (`non_opioid_ed`/`polypharmacy`)**: Tests size 2 and 3 (pairs and triplets)
+
+**Feature Selection:**
+- Includes ALL features with SHAP > 0 OR FFA > 0 OR causal > 0 (no top_k limit)
+- Features sorted by combined importance (SHAP + causal + FFA) for prioritization
+- Safe for drug-only features where all drugs with any importance signal should be tested
+
 **Combinatorial Growth:**
 ```
-For K top features, testing interactions of size 2 and 3:
+For N features with SHAP > 0, testing interactions:
 
-2-way combinations: C(K, 2) = K × (K-1) / 2
-3-way combinations: C(K, 3) = K × (K-1) × (K-2) / 6
+First cohort (opioid_ed) - size 2 only:
+- 2-way combinations: C(N, 2) = N × (N-1) / 2
+
+Second cohort (non_opioid_ed/polypharmacy) - size 2 and 3:
+- 2-way combinations: C(N, 2) = N × (N-1) / 2
+- 3-way combinations: C(N, 3) = N × (N-1) × (N-2) / 6
 
 Each combination requires 2 explanation runs (original + modified)
-Each explanation processes M samples
+Each explanation processes M samples (default: 50)
 
-Total combinations:
-- K=10: C(10,2) + C(10,3) = 45 + 120 = 165 combinations
-- K=20: C(20,2) + C(20,3) = 190 + 1,140 = 1,330 combinations
-- K=30: C(30,2) + C(30,3) = 435 + 4,060 = 4,495 combinations
-
-Total explanation runs:
-- K=10: 165 × 2 = 330 runs
-- K=20: 1,330 × 2 = 2,660 runs
-- K=30: 4,495 × 2 = 8,990 runs
+Example with N=50 features:
+- First cohort: C(50,2) = 1,225 pairs
+- Second cohort: C(50,2) + C(50,3) = 1,225 + 19,600 = 20,825 combinations
 
 Total explanation instances (with 50 samples):
-- K=10: 330 × 50 = 16,500 instances
-- K=20: 2,660 × 50 = 133,000 instances
-- K=30: 8,990 × 50 = 449,500 instances
+- First cohort: 1,225 × 2 × 50 = 122,500 instances
+- Second cohort: 20,825 × 2 × 50 = 2,082,500 instances
 ```
 
 **Time Estimates (assuming 0.1s per instance):**
-- K=10: 1,650 seconds = **27 minutes**
-- K=20: 13,300 seconds = **3.7 hours**
-- K=30: 44,950 seconds = **12.5 hours**
+- First cohort (N=50): 12,250 seconds = **3.4 hours**
+- Second cohort (N=50): 208,250 seconds = **57.8 hours**
 
-**Current Status:** ✅ **PARTIALLY FIXED**
-- Reduced `interaction_top_k`: 20 → 10
-- Added `max_interaction_combinations`: 100 hard limit
-- But still exponential growth if K increases
+**Current Status:** ✅ **CONTROLLED**
+- Cohort-specific interaction sizes prevent explosion for first cohort
+- Includes all features with SHAP > 0 (no arbitrary top_k limit)
+- Co-occurrence filtering and capping still apply to reduce combinations
 
 ---
 
