@@ -2487,9 +2487,25 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
             print("[WARNING] No explanations generated.")
             return None
         
+        # Save explanations early (before causal/interaction analysis)
+        model_output_dir = OUTPUT_DIR / model_type
+        model_output_dir.mkdir(parents=True, exist_ok=True)
+        explanations_path = model_output_dir / 'axp_explanations.parquet'
+        logger.info(f"Saving explanations early to: {explanations_path}")
+        df_axps.to_parquet(explanations_path, index=False, compression='snappy', engine='pyarrow')
+        logger.info(f"Saved {len(df_axps)} explanations (early save)")
+        print(f"[OK] Saved explanations early: {explanations_path}")
+        
         # Step 6: Calculate feature importance
         logger.info("Step 6: Calculating feature importance...")
         feature_importance_df = calculate_feature_importance(df_axps)
+        
+        # Save feature importance early (before causal/interaction analysis)
+        importance_path = model_output_dir / 'feature_importance_axp.parquet'
+        logger.info(f"Saving feature importance early to: {importance_path}")
+        feature_importance_df.to_parquet(importance_path, index=False, compression='snappy', engine='pyarrow')
+        logger.info(f"Saved {len(feature_importance_df)} feature importance scores (early save)")
+        print(f"[OK] Saved feature importance early: {importance_path}")
         
         # Step 7: Perform causal analysis (optional, can be skipped if memory is tight)
         logger.info("Step 7: Performing causal analysis...")
