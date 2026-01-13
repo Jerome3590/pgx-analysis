@@ -202,7 +202,7 @@ cd "$PROJECT_ROOT"
 
 # Run with interaction analysis enabled
 # Note: Use 'catboost' as model type to test with CatBoost model
-python3 8_ffa_analysis/run_full_ffa_analysis.py \
+python3 utility_scripts/run_full_ffa_analysis.py \
     --cohort-name "$COHORT" \
     --age-band "$AGE_BAND" \
     --model-type catboost \

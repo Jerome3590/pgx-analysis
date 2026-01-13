@@ -48,7 +48,7 @@ FFA Analysis transforms opaque models into interpretable symbolic rules suitable
 
 ### Core Components
 
-- **`run_full_ffa_analysis.py`** - Main script to run complete FFA analysis workflow
+- **`utility_scripts/run_full_ffa_analysis.py`** - Main script to run complete FFA analysis workflow (moved to utility_scripts for better organization)
 - **`ffa_analysis.py`** - Core FFA analysis functions
 - **`base_symbolic_explainer.py`** - Base class for unified symbolic explainers
 - **`catboost_axp_explainer.py`** - CatBoost-specific explainer implementation

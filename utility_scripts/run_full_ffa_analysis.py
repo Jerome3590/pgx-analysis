@@ -30,6 +30,8 @@ warnings.filterwarnings('ignore')
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+# Add 8_ffa_analysis to path for imports (since script is now in utility_scripts/)
+sys.path.insert(0, str(PROJECT_ROOT / "8_ffa_analysis"))
 
 # Set up logging (under 8_ffa_analysis)
 LOG_DIR = PROJECT_ROOT / "8_ffa_analysis" / "logs"
@@ -49,7 +51,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info(f"Logging initialized. Log file: {LOG_FILE}")
 
-# Import explainers
+# Import explainers (from 8_ffa_analysis module)
 try:
     from catboost_axp_explainer import CatBoostSymbolicExplainer, PathConfig
     CATBOOST_EXPLAINER_AVAILABLE = True

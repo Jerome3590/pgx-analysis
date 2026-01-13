@@ -518,7 +518,7 @@ run_step "7" "SHAP Analysis (Best CatBoost Model)" \
 
 # Step 8: FFA Analysis (uses best XGBoost model JSON and SHAP importance from Step 7)
 run_step "8" "FFA Analysis (Best XGBoost Model, uses SHAP from Step 7)" \
-    "python 8_ffa_analysis/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
+    "python utility_scripts/run_full_ffa_analysis.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
 # Print top 10 causal importance features (even if Step 8 was skipped)
 AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
