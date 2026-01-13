@@ -2617,6 +2617,11 @@ def main():
         default=ANALYSIS_CONFIG.get("binary_intervention_mode", "remove_only"),
         help="Binary intervention semantics: remove_only (1->0 on present), add_only (0->1 on absent), flip (0<->1 on all).",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force rerun even if outputs already exist. Clears existing outputs and runs from start.",
+    )
     args = parser.parse_args()
     
     # Apply CLI override
@@ -2742,6 +2747,19 @@ def main():
         if not (explanations_path.exists() and importance_path.exists() and causal_path.exists()):
             all_outputs_exist = False
             break
+    
+    # If --force flag is set, clear existing outputs and rerun from start
+    if args.force:
+        logger.info("--force flag set: Clearing existing outputs and rerunning from start...")
+        print("[FORCE] Clearing existing outputs and rerunning from start...")
+        for model_type in expected_model_types:
+            model_output_dir = OUTPUT_DIR / model_type
+            if model_output_dir.exists():
+                import shutil
+                shutil.rmtree(model_output_dir)
+                logger.info(f"Cleared output directory: {model_output_dir}")
+                print(f"  Cleared: {model_output_dir}")
+        all_outputs_exist = False  # Force run even if outputs existed
     
     if all_outputs_exist:
         logger.info(f"Step 7 outputs already exist locally for {COHORT_NAME}/{AGE_BAND}; skipping.")
