@@ -1631,7 +1631,18 @@ def perform_multi_feature_causal_analysis(
     y_class = y[mask]
     
     # Get top K features from causal analysis (by causal importance)
-    max_interaction_size = ANALYSIS_CONFIG.get('max_interaction_size', 2)
+    # Cohort-specific max interaction size:
+    # - First cohort (opioid_ed): size 2 only (pairs)
+    # - Second cohort (non_opioid_ed/polypharmacy): size 2 and 3 (pairs and triplets)
+    if cohort == 'opioid_ed':
+        max_interaction_size = 2  # Only pairs for first cohort
+    elif cohort in ['non_opioid_ed', 'polypharmacy']:
+        max_interaction_size = 3  # Pairs and triplets for polypharmacy cohort
+    else:
+        # Default: use config value or fallback to 2
+        max_interaction_size = ANALYSIS_CONFIG.get('max_interaction_size', 2)
+    
+    logger.info(f"Using max_interaction_size={max_interaction_size} for cohort '{cohort}'")
     top_k = ANALYSIS_CONFIG.get('interaction_top_k', 20)
     sample_size = ANALYSIS_CONFIG.get('interaction_sample_size', 100)
     min_effect = ANALYSIS_CONFIG.get('min_interaction_effect', 0.01)
@@ -1711,7 +1722,8 @@ def perform_multi_feature_causal_analysis(
     
     logger.info(f"Analyzing interactions for top {len(available_features)} features")
     print(f"Analyzing interactions for top {len(available_features)} features")
-    print(f"  - Max interaction size: {max_interaction_size}")
+    print(f"  - Cohort: {cohort}")
+    print(f"  - Max interaction size: {max_interaction_size} (cohort-specific)")
     print(f"  - Sample size: {sample_size}")
     
     # Create mapping of feature -> individual causal importance
