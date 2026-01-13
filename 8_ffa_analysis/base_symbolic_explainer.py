@@ -142,25 +142,36 @@ def _explain_instance_worker(task: Tuple[int, List[float], int, Dict, Optional[D
     # Set 3: Top K rules by SHAP importance with percentile threshold fallback
     # Score all matched rules and take top K OR all above percentile (whichever is larger)
     rule_scores = [(rid, score_rule_by_shap(rid)) for rid in matched]
-    rule_scores = [(rid, score) for rid, score in rule_scores if score > 0]
-    rule_scores.sort(key=lambda x: x[1], reverse=True)
+    rule_scores.sort(key=lambda x: x[1], reverse=True)  # Sort all rules by score (including score = 0)
+    
+    # Separate rules with SHAP > 0 from rules with SHAP = 0
+    shap_positive_rules = [(rid, score) for rid, score in rule_scores if score > 0]
+    shap_zero_rules = [rid for rid, score in rule_scores if score == 0]
 
-    # Take top 300
-    top_300 = [rid for rid, score in rule_scores[:300]]
+    # Take top 300 from SHAP > 0 rules
+    top_300 = [rid for rid, score in shap_positive_rules[:300]]
 
     # Also include all rules above 10th percentile (safety net for important rules)
-    if len(rule_scores) > 0:
+    if len(shap_positive_rules) > 0:
         import numpy as np
-        scores = [score for _, score in rule_scores]
+        scores = [score for _, score in shap_positive_rules]
         percentile_10 = np.percentile(scores, 10.0)
-        percentile_rules = [rid for rid, score in rule_scores if score >= percentile_10]
+        percentile_rules = [rid for rid, score in shap_positive_rules if score >= percentile_10]
         # Use larger set to ensure coverage
         shap_filtered_matched = percentile_rules if len(percentile_rules) > len(top_300) else top_300
     else:
         shap_filtered_matched = top_300
     
-    # Union all three sets to get final unique rule set
-    combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched))
+    # Set 4: Fallback - include SHAP = 0 rules that aren't already covered
+    # This ensures we don't miss rules that might be important for FFA but have SHAP = 0
+    covered_rules = set(first_rules) | set(random_rules) | set(shap_filtered_matched)
+    missing_shap_zero_rules = [rid for rid in shap_zero_rules if rid not in covered_rules]
+    # Add up to 100 additional SHAP = 0 rules for completeness
+    max_fallback_rules = 100
+    fallback_rules = missing_shap_zero_rules[:max_fallback_rules]
+    
+    # Union all four sets to get final unique rule set
+    combined_rule_ids = list(set(first_rules) | set(random_rules) | set(shap_filtered_matched) | set(fallback_rules))
     
     # Compute AXP if we have any rules
     if not combined_rule_ids:
