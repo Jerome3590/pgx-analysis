@@ -131,7 +131,7 @@ ANALYSIS_CONFIG = {
     # Multi-feature interaction analysis
     'enable_interaction_analysis': True,  # Set to True to enable multi-feature interaction testing
     'max_interaction_size': 3,  # Maximum number of features to test together (2 = pairs, 3 = triplets, etc.)
-    'interaction_top_k': 40,  # Top K features to consider for interactions
+    'interaction_top_k': 50,  # Top K features to consider for interactions
     'interaction_sample_size': 50,  # Sample size for interaction testing (reduced from 100)
     # Stage 3: Interaction pruning
     'min_cooccur_support': 5,   # Minimum co-occurrence for pairs
@@ -1713,7 +1713,15 @@ def perform_multi_feature_causal_analysis(
     
     logger.info(f"Selected {len(available_features)} features with SHAP > 0 OR FFA > 0 OR causal > 0")
     print(f"  - Features with ANY importance (SHAP/FFA/causal) > 0: {len(available_features)}")
-    print(f"  - This ensures ALL drug combinations with any importance signal are tested")
+    
+    # Limit to top K features to prevent combinatorial explosion
+    # This is critical for drug interaction analysis where many drugs may have SHAP > 0
+    if len(available_features) > top_k:
+        logger.info(f"  Limiting to top {top_k} features (from {len(available_features)}) to prevent combinatorial explosion")
+        print(f"  - Limiting to top {top_k} features (from {len(available_features)}) to prevent combinatorial explosion")
+        available_features = available_features[:top_k]
+    
+    print(f"  - This ensures drug combinations with highest importance signal are tested")
     
     if len(available_features) < 2:
         logger.warning(f"Not enough features ({len(available_features)}) for interaction analysis. Need at least 2.")
