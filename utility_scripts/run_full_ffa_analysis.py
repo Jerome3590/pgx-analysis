@@ -389,7 +389,19 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
         logger.info(f"Sampled data: {len(data)} rows")
     
     # Separate features and target
-    target_cols = ['target', 'is_target_case']
+    # For cohort.parquet files: use is_target_case (target column can't be used)
+    # For final_features.parquet files: use target (standard)
+    # Priority: is_target_case first (for cohort.parquet), then target (for final_features.parquet)
+    is_cohort_file = 'cohort.parquet' in str(data_path) or 'cohort_name=' in str(data_path)
+    
+    if is_cohort_file:
+        # For cohort.parquet: prioritize is_target_case, ignore target column
+        target_cols = ['is_target_case']
+        logger.info("Detected cohort.parquet file - using is_target_case as target (target column cannot be used)")
+    else:
+        # For final_features.parquet: use target column
+        target_cols = ['target', 'is_target_case']
+    
     target_col = None
     for col in target_cols:
         if col in data.columns:
@@ -405,11 +417,21 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
     if target_col:
         logger.info(f"Found target column: {target_col}")
         y = data[target_col].values
-        X = data.drop(target_col, axis=1)
+        
+        # For cohort.parquet: drop both is_target_case and target (if present) from features
+        # For final_features.parquet: drop only target column
+        cols_to_drop = [target_col]
+        if is_cohort_file and 'target' in data.columns:
+            cols_to_drop.append('target')
+            logger.info("Dropping 'target' column from features (cohort.parquet - using is_target_case instead)")
+        
+        X = data.drop(cols_to_drop, axis=1)
         target_dist = Counter(y)
         logger.info(f"Target distribution: {dict(target_dist)}")
         print(f"[OK] Data loaded: {len(X)} samples, {len(X.columns)} features")
         print(f"  - Target distribution: {target_dist}")
+        if is_cohort_file:
+            print(f"  - Using is_target_case as target (cohort.parquet format)")
     else:
         logger.warning("No target column found. Using all columns as features.")
         print("[WARNING] No target column found. Using all columns as features.")
