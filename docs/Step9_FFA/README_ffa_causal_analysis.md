@@ -41,17 +41,32 @@ Model-based causal importance is more robust than correlation-based methods beca
 - Faster processing - test data is smaller than training data
 - Aligns with temporal validation best practices
 
-**Test data paths checked** (in order, highest priority first):
-1. **`/mnt/nvme/` drive** (Linux/EC2):
-   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
-   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
-   - `/mnt/nvme/data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
-2. **Project root** (fallback):
-   - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
-   - `6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
-   - `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
+**Test data lookup strategy** (in order):
+1. **Check local paths first** (fastest - `/mnt/nvme/4a_model_data/` on Linux/EC2):
+   - `/mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux/EC2 - highest priority, where test data is stored)
+   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Linux/EC2 - alternative)
+   - `/mnt/nvme/gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Linux/EC2 - synced from S3)
+   - `/mnt/nvme/gold/final_model/{cohort}/{age_band}/model_test/final_features.parquet` (Linux/EC2)
+   - `/mnt/nvme/data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux/EC2)
+   - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (project root)
+   - `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (project root)
+2. **If not found locally, check S3 and sync** (source of truth - has controls):
+   - Checks S3 paths:
+     - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
+     - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/model_test/final_features.parquet`
+     - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band_fname}/inputs/model_test/final_features.parquet`
+     - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band_fname}/model_test/final_features.parquet`
+   - Syncs to `/mnt/nvme/4a_model_data/` (if Linux/EC2) or project root:
+     - Downloads to `/mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux - matches step 4a structure)
+     - Or `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Windows/local)
 
-**If test data not found**: Script exits with error code 1, listing all checked paths.
+**Benefits of this approach**:
+- ✅ Fast local access first (checks `/mnt/nvme/` before S3)
+- ✅ S3 is the source of truth (contains test data with controls)
+- ✅ Automatic sync ensures latest data with controls when needed
+- ✅ Skips S3 download if file already exists locally
+
+**If test data not found**: Script exits with error code 1, listing all checked paths (S3 and local).
 
 ## Causal Importance Calculation
 
