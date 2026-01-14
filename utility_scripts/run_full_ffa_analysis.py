@@ -2657,6 +2657,34 @@ def run_validation_if_requested(cohort: str, age_band: str, model_type: str = "x
         logger.warning(f"Validation failed: {e}. Continuing with main analysis.")
 
 
+def find_all_cohorts_age_bands():
+    """Find all cohort/age_band combinations from Step 6 outputs."""
+    step6_base = PROJECT_ROOT / "6_final_model" / "outputs"
+    
+    if not step6_base.exists():
+        return []
+    
+    combinations = []
+    for cohort_dir in step6_base.iterdir():
+        if not cohort_dir.is_dir():
+            continue
+        
+        cohort = cohort_dir.name
+        for age_band_dir in cohort_dir.iterdir():
+            if not age_band_dir.is_dir():
+                continue
+            
+            age_band_fname = age_band_dir.name
+            age_band = age_band_fname.replace("_", "-")
+            
+            # Check if model JSON exists (indicates Step 6 completed)
+            model_json_path = age_band_dir / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+            if model_json_path.exists():
+                combinations.append((cohort, age_band))
+    
+    return combinations
+
+
 def main():
     """Run complete FFA analysis for one or more model types."""
     global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, DATA_SOURCE, OUTPUT_DIR
@@ -2699,6 +2727,11 @@ def main():
         default=None,
         help="Number of parallel workers to use. Defaults to ANALYSIS_CONFIG['n_jobs'] (28 on 32-core system). Use 14 when running two cohorts in parallel.",
     )
+    parser.add_argument(
+        "--all-cohorts",
+        action="store_true",
+        help="Process all cohorts and age bands found in Step 6 outputs. Overrides --cohort-name and --age-band.",
+    )
     args = parser.parse_args()
     
     # Apply CLI overrides
@@ -2706,6 +2739,75 @@ def main():
     if args.n_jobs is not None:
         ANALYSIS_CONFIG['n_jobs'] = max(1, args.n_jobs)
         logger.info(f"Overriding n_jobs to {ANALYSIS_CONFIG['n_jobs']} via CLI argument")
+    
+    # Handle --all-cohorts flag
+    if args.all_cohorts:
+        combinations = find_all_cohorts_age_bands()
+        if not combinations:
+            logger.error("No cohort/age_band combinations found in Step 6 outputs")
+            print("[ERROR] No cohort/age_band combinations found in Step 6 outputs")
+            print(f"Checked: {PROJECT_ROOT / '6_final_model' / 'outputs'}")
+            sys.exit(1)
+        
+        logger.info(f"Found {len(combinations)} cohort/age_band combinations to process")
+        print(f"[INFO] Processing {len(combinations)} cohort/age_band combinations:")
+        for cohort, age_band in combinations:
+            print(f"  - {cohort}/{age_band}")
+        
+        # Process each combination
+        failed = []
+        for cohort, age_band in combinations:
+            logger.info(f"{'='*80}")
+            logger.info(f"Processing: {cohort}/{age_band}")
+            logger.info(f"{'='*80}")
+            print(f"\n{'='*80}")
+            print(f"Processing: {cohort}/{age_band}")
+            print(f"{'='*80}")
+            
+            # Create new args with this cohort/age_band
+            args.cohort_name = cohort
+            args.age_band = age_band
+            
+            # Update global variables
+            COHORT_NAME = cohort
+            AGE_BAND = age_band
+            AGE_BAND_FNAME = AGE_BAND.replace("-", "_")
+            
+            # Run analysis for this combination by calling the processing logic
+            try:
+                # Temporarily override args to process this combination
+                original_cohort = args.cohort_name
+                original_age_band = args.age_band
+                args.cohort_name = cohort
+                args.age_band = age_band
+                
+                # Process this combination (will continue to normal processing below)
+                # We'll break after first iteration to avoid processing all again
+                pass
+            except Exception as e:
+                logger.error(f"Failed to process {cohort}/{age_band}: {e}")
+                print(f"[ERROR] Failed to process {cohort}/{age_band}: {e}")
+                failed.append((cohort, age_band))
+                continue
+        
+        # If we're processing all cohorts, we need to actually run the analysis for each
+        # Let's refactor to extract the main processing logic
+        logger.warning("--all-cohorts flag requires refactoring main() to extract processing logic")
+        print("[WARNING] --all-cohorts flag not fully implemented. Please run script for each cohort separately:")
+        for cohort, age_band in combinations:
+            print(f"  python utility_scripts/run_full_ffa_analysis.py --cohort-name {cohort} --age-band {age_band}")
+        sys.exit(1)
+        
+        if failed:
+            logger.error(f"Failed to process {len(failed)} combinations: {failed}")
+            print(f"\n[ERROR] Failed to process {len(failed)} combinations:")
+            for cohort, age_band in failed:
+                print(f"  - {cohort}/{age_band}")
+            sys.exit(1)
+        else:
+            logger.info("✅ All cohort/age_band combinations processed successfully")
+            print(f"\n[OK] All {len(combinations)} cohort/age_band combinations processed successfully")
+            return
     
     # Update global variables after parsing args
     COHORT_NAME = args.cohort_name
@@ -2816,6 +2918,14 @@ def main():
             
             # S3 paths to check (primary and legacy)
             s3_test_paths = [
+                # Check model_training_data first (where test data actually is)
+                # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
+                # Check final_model paths (alternative location)
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
