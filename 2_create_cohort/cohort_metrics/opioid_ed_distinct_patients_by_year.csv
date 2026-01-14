@@ -1,0 +1,6 @@
+cohort_name,year,target_patients,control_patients
+opioid_ed,2016,10491,52445
+opioid_ed,2017,10404,52014
+opioid_ed,2018,11685,58422
+opioid_ed,2019,16505,82516
+opioid_ed,2020,23024,115100

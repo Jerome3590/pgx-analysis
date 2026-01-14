@@ -1,0 +1,489 @@
+---
+title: "Medical Dataset - APCD"
+author: "Jerome Dixon"
+date: February 24, 2023
+editor: source
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    html-math-method: katex
+    df-print: paged
+    embed-resources: true
+    fontsize: "11pt"
+    code-fold: true
+    code-summary: "Show the code"
+    smooth-scroll: true
+editor_options: 
+  chunk_output_type: inline
+execute:
+  echo: true
+  message: false
+  warning: false
+  eval: true
+---
+
+## Build Cohorts 
+
+
+```{r}
+
+library(here)
+library(reticulate)
+
+```
+
+```{python}
+
+import pandas as pd
+import catboost
+from io import BytesIO
+import boto3
+import duckdb
+import numpy as np
+import matplotlib.pyplot as plt
+import shap
+
+```
+
+### Medical Dataset
+
+```{python}
+
+# Define cohort and S3 paths
+s3_bucket = "pgxdatalake"
+s3_prefix = f"medical"
+
+medical_input_path = f"s3://{s3_bucket}/{s3_prefix}/*.parquet"
+
+# Enable S3 support in DuckDB
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+
+# AWS Credentials
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Check schema by selecting zero rows
+medical_schema = duckdb.sql(f"SELECT * FROM read_parquet('{medical_input_path}') LIMIT 0").df()
+
+print("Medical Schema:\n", medical_schema)
+
+```
+
+#### Rename Columns
+
+```{python column-names}
+
+import duckdb
+
+# Setup
+s3_bucket = "pgxdatalake"
+s3_prefix = "medical"
+medical_input_path = f"s3://{s3_bucket}/{s3_prefix}/*.parquet"
+
+# Enable S3 support
+duckdb.sql("INSTALL httpfs; LOAD httpfs;")
+duckdb.sql("CALL load_aws_credentials('pgx');")
+
+# Create initial view and compute `event_date` using STRPTIME
+duckdb.sql(f"""
+CREATE OR REPLACE VIEW medical AS
+SELECT
+  *,
+  STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date
+FROM read_parquet('{medical_input_path}')
+""")
+
+# Create updated view with renames and column removal
+duckdb.sql("""
+CREATE OR REPLACE VIEW medical_rename AS
+SELECT
+  -- Rename selected diagnosis and procedure columns
+  "2nd_icd_diagnosis_code" AS two_icd_diagnosis_code,
+  "2nd_icd_diagnosis_desc" AS two_icd_diagnosis_desc,
+  "2nd_icd_rollup" AS two_icd_diagnosis_rollup,
+  "3rd_icd_diagnosis_code" AS three_icd_diagnosis_code,
+  "3rd_icd_diagnosis_desc" AS three_icd_diagnosis_desc,
+  "3rd_icd_rollup" AS three_icd_diagnosis_rollup,
+  "4th_icd_diagnosis_code" AS four_icd_diagnosis_code,
+  "4th_icd_diagnosis_desc" AS four_icd_diagnosis_desc,
+  "4th_icd_rollup" AS four_icd_diagnosis_rollup,
+  "5th_icd_diagnosis_code" AS five_icd_diagnosis_code,
+  "5th_icd_diagnosis_desc" AS five_icd_diagnosis_desc,
+  "5th_icd_rollup" AS five_icd_diagnosis_rollup,
+  "6th_icd_diagnosis_code" AS six_icd_diagnosis_code,
+  "6th_icd_diagnosis_desc" AS six_icd_diagnosis_desc,
+  "6th_icd_rollup" AS six_icd_diagnosis_rollup,
+  "7th_icd_diagnosis_code" AS seven_icd_diagnosis_code,
+  "7th_icd_diagnosis_desc" AS seven_icd_diagnosis_desc,
+  "7th_icd_rollup" AS seven_icd_diagnosis_rollup,
+  "8th_icd_diagnosis_code" AS eight_icd_diagnosis_code,
+  "8th_icd_diagnosis_desc" AS eight_icd_diagnosis_desc,
+  "8th_icd_rollup" AS eight_icd_diagnosis_rollup,
+  "9th_icd_diagnosis_code" AS nine_icd_diagnosis_code,
+  "9th_icd_diagnosis_desc" AS nine_icd_diagnosis_desc,
+  "9th_icd_rollup" AS nine_icd_diagnosis_rollup,
+  "10th_icd_diagnosis_code" AS ten_icd_diagnosis_code,
+  "10th_icd_diagnosis_desc" AS ten_icd_diagnosis_desc,
+  "10th_icd_rollup" AS ten_icd_diagnosis_rollup,
+  "2nd_icd_procedure_code" AS two_icd_procedure_code,
+  "2nd_icd_procedure_desc" AS two_icd_procedure_desc,
+  "3rd_icd_procedure_code" AS three_icd_procedure_code,
+  "3rd_icd_procedure_desc" AS three_icd_procedure_desc,
+  "4th_icd_procedure_code" AS four_icd_procedure_code,
+  "4th_icd_procedure_desc" AS four_icd_procedure_desc,
+  "5th_icd_procedure_code" AS five_icd_procedure_code,
+  "5th_icd_procedure_desc" AS five_icd_procedure_desc,
+  "6th_icd_procedure_code" AS six_icd_procedure_code,
+  "6th_icd_procedure_desc" AS six_icd_procedure_desc,
+  "7th_icd_procedure_code" AS seven_icd_procedure_code,
+  "7th_icd_procedure_desc" AS seven_icd_procedure_desc,
+  "8th_icd_procedure_code" AS eight_icd_procedure_code,
+  "8th_icd_procedure_desc" AS eight_icd_procedure_desc,
+  "9th_icd_procedure_code" AS nine_icd_procedure_code,
+  "9th_icd_procedure_desc" AS nine_icd_procedure_desc,
+  "10th_icd_procedure_code" AS ten_icd_procedure_code,
+  "10th_icd_procedure_desc" AS ten_icd_procedure_desc,
+  event_date,
+  -- All remaining columns
+  *
+EXCLUDE (
+  incurred_date,
+  member_age_band_dos,
+  claim_id,
+  claim_status,
+  primary_insurance_flag,
+  adult_flag
+)
+FROM medical
+""")
+
+# Preview 15 rows
+preview_df = duckdb.sql("SELECT * FROM medical_rename LIMIT 15").df()
+print(preview_df)
+
+```
+
+#### Add Age Bands, Year
+
+```{python medical-upated1}
+
+import duckdb
+
+duckdb.sql("""
+CREATE OR REPLACE VIEW medical_augmented AS
+SELECT
+  *,
+  
+  -- Parse event_date (assumes format is integer YYYYMMDD)
+  STRPTIME(CAST(event_date AS VARCHAR), '%Y%m%d') AS event_date,
+
+  -- Extract year from parsed date
+  EXTRACT(YEAR FROM event_date) AS event_year,
+  
+  -- Age band logic
+  CASE
+    WHEN Member_Age_DOS BETWEEN 0 AND 12 THEN '0-12'
+    WHEN Member_Age_DOS BETWEEN 13 AND 24 THEN '13-24'
+    WHEN Member_Age_DOS BETWEEN 25 AND 44 THEN '25-44'
+    WHEN Member_Age_DOS BETWEEN 45 AND 54 THEN '45-54'
+    WHEN Member_Age_DOS BETWEEN 55 AND 64 THEN '55-64'
+    WHEN Member_Age_DOS BETWEEN 65 AND 74 THEN '65-74'
+    WHEN Member_Age_DOS BETWEEN 75 AND 84 THEN '75-84'
+    WHEN Member_Age_DOS BETWEEN 85 AND 94 THEN '85-94'
+    WHEN Member_Age_DOS BETWEEN 95 AND 114 THEN '95-114'
+    ELSE 'Other'
+  END AS age_band
+
+FROM medical_rename;
+""")
+
+
+```
+
+##### Demographics
+
+```{python}
+
+import duckdb
+import os
+
+# Output folder for demographics
+output_dir = "demographics_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# Demographic columns to analyze
+demographic_columns = [
+    "Mi_Person_Key",
+    "Member_Zip_Code_DOS",
+    "Member_County_DOS",
+    "Member_Age_DOS",
+    "Member_Gender",
+    "Member_Race"
+]
+
+# Loop and save frequency counts per demographic column
+for col in demographic_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',');
+    """)
+    print(f"Saved: {output_path}")
+
+
+```
+
+##### Service Providers
+
+```{python}
+
+import duckdb
+import os
+
+# Output folder for service provider frequency counts
+output_dir = "service_provider_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# Service Provider columns to analyze
+provider_columns = [
+    'Place_of_Service', 'Service_Provider_Name', 
+    'Service_Provider_NPI', 'Service_Provider_ZIP', 
+    'Service_Provider_County', 'Service_Provider_State'
+]
+
+# Loop and save frequency counts per service provider column
+for col in provider_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved stratified file: {output_path}")
+
+
+```
+
+##### Insurance
+
+```{python}
+
+import duckdb
+import os
+
+# Output folder for service provider
+output_dir = "ins_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# Insurance column to analyze
+insurance_columns = ['Payer_LOB']
+
+# Loop and save frequency counts per service provider column
+for col in insurance_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved stratified file: {output_path}")
+
+
+```
+
+##### ICD Diagnosis Codes
+
+```{python}
+
+import duckdb
+import os
+
+# Output folder for service provider
+output_dir = "icd_code_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# List of ICD diagnosis code columns
+icd_code_columns = [
+    "primary_icd_diagnosis_code",
+    "two_icd_diagnosis_code",
+    "three_icd_diagnosis_code",
+    "four_icd_diagnosis_code",
+    "five_icd_diagnosis_code",
+    "six_icd_diagnosis_code",
+    "seven_icd_diagnosis_code",
+    "eight_icd_diagnosis_code",
+    "nine_icd_diagnosis_code",
+    "ten_icd_diagnosis_code"
+]
+
+# Run frequency count for each column in the DuckDB medical_final view
+for col in icd_code_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved stratified file: {output_path}")
+
+
+```
+
+###### ICD Diagnosis Descriptions
+
+```{python}
+
+import duckdb
+import os
+
+# set output directory
+output_dir = "icd_desc_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# Diagnosis description columns
+diagnosis_desc_columns = [
+    "primary_icd_diagnosis_desc",
+    "two_icd_diagnosis_desc",
+    "three_icd_diagnosis_desc",
+    "four_icd_diagnosis_desc",
+    "five_icd_diagnosis_desc",
+    "six_icd_diagnosis_desc",
+    "seven_icd_diagnosis_desc",
+    "eight_icd_diagnosis_desc",
+    "nine_icd_diagnosis_desc",
+    "ten_icd_diagnosis_desc"
+]
+
+# Loop and save frequency count for each description column
+for col in diagnosis_desc_columns:
+    output_path = os.path.join(output_dir, f"{col}.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved: {output_path}")
+
+
+```
+
+##### Procedure Codes (CPT)
+
+```{python}
+
+import duckdb
+import os
+
+# output folder for procedure codes
+output_dir = "cpt_code_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# CPTprocedure code columns
+cpt_code_columns = [
+    "primary_icd_procedure_code",
+    "two_icd_procedure_code",
+    "three_icd_procedure_code",
+    "four_icd_procedure_code",
+    "five_icd_procedure_code",
+    "six_icd_procedure_code",
+    "seven_icd_procedure_code",
+    "eight_icd_procedure_code",
+    "nine_icd_procedure_code",
+    "ten_icd_procedure_code"
+]
+
+# Loop through and save frequency counts
+for col in cpt_code_columns:
+    output_path = os.path.join(output_dir, f"{col}_by_age_year.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT 
+                age_band,
+                event_year,
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY age_band, event_year, {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved stratified file: {output_path}")
+
+
+```
+
+###### CPT Procedure Descriptions
+
+```{python}
+
+import duckdb
+import os
+
+# Output directory for procedure descriptions
+output_dir = "cpt_desc_freq_counts"
+os.makedirs(output_dir, exist_ok=True)
+
+# List of ICD procedure description columns
+cpt_desc_columns = [
+    "primary_icd_procedure_desc",
+    "two_icd_procedure_desc",
+    "three_icd_procedure_desc",
+    "four_icd_procedure_desc",
+    "five_icd_procedure_desc",
+    "six_icd_procedure_desc",
+    "seven_icd_procedure_desc",
+    "eight_icd_procedure_desc",
+    "nine_icd_procedure_desc",
+    "ten_icd_procedure_desc"
+]
+
+# Loop and save frequency count per column
+for col in cpt_desc_columns:
+    output_path = os.path.join(output_dir, f"{col}.csv")
+    duckdb.sql(f"""
+        COPY (
+            SELECT
+                {col} AS value,
+                COUNT(*) AS frequency
+            FROM medical_augmented
+            GROUP BY {col}
+            ORDER BY frequency DESC
+        ) TO '{output_path}' WITH (HEADER, DELIMITER ',')
+    """)
+    print(f"Saved: {output_path}")
+
+```
