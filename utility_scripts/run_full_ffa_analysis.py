@@ -2975,21 +2975,10 @@ def main():
             import boto3
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
-            s3_test_paths = [
-                # Check model_training_data first (where test data actually is)
-                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                # Check final_model paths (alternative location)
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-            ]
             logger.error("")
             logger.error("S3 test data paths checked:")
-            for s3_key in s3_test_paths:
-                logger.error(f"  - s3://{S3_BUCKET}/{s3_key}")
+            logger.error(f"  - s3://{S3_BUCKET}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+            logger.error(f"  - s3://{S3_BUCKET}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/cohort.parquet")
         except Exception:
             logger.error("")
             logger.error("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
