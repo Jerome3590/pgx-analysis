@@ -2900,28 +2900,24 @@ def main():
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
             
-            # Check model_training_data S3 path - try both final_features.parquet and cohort.parquet
-            # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/
+            # Check S3 paths for final_features.parquet (cohort.parquet is raw data, not suitable)
+            # Priority 1: gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet (standard location)
+            # Priority 2: gold/model_training_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+            # NOTE: cohort.parquet is raw cohort data (~45 features) - NOT suitable for FFA analysis
+            #       final_features.parquet has all engineered features (~11K features) - REQUIRED for model
             s3_paths_to_try = [
-                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
-                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/cohort.parquet",  # Raw cohort data with controls/targets
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",  # Standard location
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",  # Alternative location
             ]
             
             s3_found = False
             for s3_key in s3_paths_to_try:
+            
                 try:
                     # Check if file exists in S3
                     logger.info(f"Checking S3: s3://{S3_BUCKET}/{s3_key}")
                     print(f"[INFO] Checking S3: s3://{S3_BUCKET}/{s3_key}")
                     s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-                    
-                    # Determine sync path based on which file we found
-                    if s3_key.endswith("cohort.parquet"):
-                        # If it's cohort.parquet, sync to same name (will need feature engineering later)
-                        sync_path = sync_dir / "cohort.parquet"
-                    else:
-                        # If it's final_features.parquet, use that
-                        sync_path = sync_dir / "final_features.parquet"
                     
                     # Create sync directory
                     sync_dir.mkdir(parents=True, exist_ok=True)
@@ -2958,10 +2954,12 @@ def main():
                     continue
             
             if not s3_found:
-                logger.error(f"Test data not found in S3 at any of the checked paths")
-                print(f"[ERROR] Test data not found in S3 at any of the checked paths:")
+                logger.error(f"Test data (final_features.parquet) not found in S3 at any of the checked paths")
+                print(f"[ERROR] Test data (final_features.parquet) not found in S3 at any of the checked paths:")
                 for s3_key in s3_paths_to_try:
                     print(f"  - s3://{S3_BUCKET}/{s3_key}")
+                print(f"[ERROR] NOTE: cohort.parquet exists but is raw data (~45 features) - NOT suitable for FFA analysis")
+                print(f"[ERROR]       final_features.parquet is required (~11K engineered features matching the model)")
                     
         except ImportError:
             logger.warning("boto3 not available, skipping S3 lookup")
