@@ -2630,10 +2630,19 @@ def main():
         action="store_true",
         help="Force rerun even if outputs already exist. Clears existing outputs and runs from start.",
     )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=None,
+        help="Number of parallel workers to use. Defaults to ANALYSIS_CONFIG['n_jobs'] (28 on 32-core system). Use 14 when running two cohorts in parallel.",
+    )
     args = parser.parse_args()
     
-    # Apply CLI override
+    # Apply CLI overrides
     ANALYSIS_CONFIG['binary_intervention_mode'] = args.binary_intervention_mode
+    if args.n_jobs is not None:
+        ANALYSIS_CONFIG['n_jobs'] = max(1, args.n_jobs)
+        logger.info(f"Overriding n_jobs to {ANALYSIS_CONFIG['n_jobs']} via CLI argument")
     
     # Update global variables after parsing args
     COHORT_NAME = args.cohort_name
