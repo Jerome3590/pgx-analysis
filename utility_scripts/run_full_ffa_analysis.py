@@ -2804,6 +2804,9 @@ def main():
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
+                # Check cohorts_model_data path (step 4a structure - may have test data)
+                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/event_year=2019/final_features.parquet",
+                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/model_test/final_features.parquet",
             ]
             
             # Try to find and sync from S3
