@@ -1,0 +1,51 @@
+.vscode
+.trunk
+.Rproj.user
+.Rproj*
+*.Rhistory
+.html
+.venv/
+.venv*
+.cursorrules
+
+data/*
+testing/*
+from_s3/*
+
+# Ignore canonical 4a_model_data parquet cohorts (event-level model data),
+# but keep build code and documentation.
+4a_model_data/*
+4a_model_data/*/**
+!4a_model_data/*.py
+!4a_model_data/README*.md
+
+
+*.pyc
+.ipynb_checkpoints/
+__pycache__/
+
+Notes/*
+logs/
+*.xlsx
+
+medical_head.txt
+pharmacy_head.txt
+
+# Per-patient feature-engineering artifacts (keyed by mi_person_key)
+*/outputs/*
+# Exception: Global drug-to-CPIC mapping (shared resource, should be in repo)
+!5_pgx_analysis/outputs/
+!5_pgx_analysis/outputs/global/
+!5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv
+*/model_outputs/*
+s3_outputs/
+
+# Local ICD code lookup files (large, should not be in repo)
+4b_dtw_filter/code_lookup/
+
+# Archived workflow steps (no longer part of active pipeline)
+archived/
+
+# Log files
+*.log
+
