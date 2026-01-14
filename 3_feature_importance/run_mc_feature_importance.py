@@ -797,6 +797,26 @@ def run_mc_feature_importance(
         agg_df.to_csv(agg_path, index=False)
         print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
         print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
+        
+        # Upload to S3
+        try:
+            s3_key_agg = (
+                f"gold/feature_importance/{cohort}/{age_band}/"
+                f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            )
+            import io
+            obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
+            s3_client.put_object(
+                Bucket=S3_BUCKET,
+                Key=s3_key_agg,
+                Body=io.BytesIO(obj_bytes),
+                ContentType='text/csv'
+            )
+            print(f"✓ Uploaded aggregated feature importance to S3: s3://{S3_BUCKET}/{s3_key_agg}")
+        except Exception as e:
+            print(f"[WARN] Failed to upload to S3: {e}")
+            print(f"  File saved locally at: {agg_path}")
+            print(f"  You can manually upload with: aws s3 cp {agg_path} s3://{S3_BUCKET}/{s3_key_agg}")
 
     # Return the XGBoost boosting table by default
     return results.get("xgb", pd.DataFrame())
