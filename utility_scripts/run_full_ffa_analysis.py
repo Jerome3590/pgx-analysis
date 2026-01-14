@@ -2846,6 +2846,8 @@ def main():
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
             # Check gold paths (synced from S3 - matches S3 structure)
+            # Check model_training_data first (where test data actually is)
+            data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
             # Check cohorts_model_data paths (step 4a structure - may have test data)
