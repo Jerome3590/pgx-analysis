@@ -293,9 +293,11 @@ def filter_cohort_events_for_items(
 
     All heavy lifting is done in DuckDB; pandas is not used for event-level data.
     """
-    if not important_items:
-        print(f"[WARN] No important items for {cohort_name}/{age_band}; skipping.")
-        return
+    # If important_items is empty, create model_events.parquet with ALL events (no filtering)
+    # This allows Step 3 to run and generate feature importance, then Step 4a can be re-run with filtering
+    use_all_events = len(important_items) == 0
+    if use_all_events:
+        print(f"[INFO] No feature importance CSVs found. Creating model_events.parquet with ALL events (no filtering) for {cohort_name}/{age_band}.")
 
     # Build list of local cohort parquet paths for this cohort/age_band across years
     cohort_parquet_paths: List[str] = []
@@ -377,20 +379,45 @@ def filter_cohort_events_for_items(
         f"'{p}'" for p in (medical_parquet_paths + pharmacy_parquet_paths)
     )
 
-    item_list_literal = ", ".join(f"'{v}'" for v in important_items)
+    # Build SQL filter condition for items
+    # If important_items is empty, don't filter (keep all events)
+    if use_all_events:
+        item_filter_condition = "TRUE"  # Keep all events
+    else:
+        item_list_literal = ", ".join(f"'{v}'" for v in important_items)
+        if not item_list_literal:
+            item_list_literal = "''"  # Empty string to avoid SQL syntax error
 
-    # Build ICD diagnosis conditions dynamically from ALL_ICD_DIAGNOSIS_COLUMNS
-    icd_conditions = " OR ".join(
-        f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
-    )
+        # Build ICD diagnosis conditions dynamically from ALL_ICD_DIAGNOSIS_COLUMNS
+        icd_conditions = " OR ".join(
+            f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+        if not icd_conditions:
+            icd_conditions = "FALSE"  # Empty condition
+        
+        # Build the full filter condition
+        item_filter_condition = f"""(
+            drug_name IN ({item_list_literal}) OR
+            {icd_conditions} OR
+            procedure_code IN ({item_list_literal})
+        )"""
 
-    print(
-        f"[INFO] Building model events for {cohort_name}/{age_band} "
-        f"from {len(cohort_parquet_paths)} cohort files, "
-        f"{len(medical_parquet_paths)} medical globs, "
-        f"{len(pharmacy_parquet_paths)} pharmacy globs, "
-        f"using {len(important_items)} important items."
-    )
+    if use_all_events:
+        print(
+            f"[INFO] Building model events for {cohort_name}/{age_band} "
+            f"from {len(cohort_parquet_paths)} cohort files, "
+            f"{len(medical_parquet_paths)} medical globs, "
+            f"{len(pharmacy_parquet_paths)} pharmacy globs, "
+            f"with ALL events (no filtering - feature importance CSVs not found)."
+        )
+    else:
+        print(
+            f"[INFO] Building model events for {cohort_name}/{age_band} "
+            f"from {len(cohort_parquet_paths)} cohort files, "
+            f"{len(medical_parquet_paths)} medical globs, "
+            f"{len(pharmacy_parquet_paths)} pharmacy globs, "
+            f"using {len(important_items)} important items."
+        )
 
     out_dir = (
         output_root
@@ -586,11 +613,7 @@ def filter_cohort_events_for_items(
                     1 AS target
                 FROM read_parquet([{cohort_paths_literal}])
                 WHERE
-                    is_target_case = 1 AND (
-                        drug_name IN ({item_list_literal}) OR
-                        {icd_conditions} OR
-                        procedure_code IN ({item_list_literal})
-                    )
+                    is_target_case = 1 AND {item_filter_condition}
             ) TO '{str(out_path)}'
             (FORMAT PARQUET)
         """
@@ -625,11 +648,7 @@ def filter_cohort_events_for_items(
             1 AS target
         FROM read_parquet([{cohort_paths_literal}])
         WHERE
-            is_target_case = 1 AND (
-                drug_name IN ({item_list_literal}) OR
-                {icd_conditions} OR
-                procedure_code IN ({item_list_literal})
-            )
+            is_target_case = 1 AND {item_filter_condition}
     """
 
     control_events_query = f"""
@@ -885,6 +904,29 @@ def main() -> None:
         if args.cohort and args.age_band:
             print(
                 f"[INFO] Looking for: {args.cohort}_{args.age_band.replace('-', '_')}_aggregated_feature_importance.csv"
+            )
+            print(
+                f"[INFO] Creating model_events.parquet with ALL events (no filtering) "
+                f"so Step 3 can generate feature importance."
+            )
+            # Create model_events.parquet with all events (no filtering) so Step 3 can run
+            YEARS = [2016, 2017, 2018, 2019]
+            local_cohort_root = resolve_local_cohort_root()
+            local_medical_root = resolve_local_medical_root()
+            local_pharmacy_root = resolve_local_pharmacy_root()
+            
+            # Call filter_cohort_events_for_items with empty important_items
+            # This will create model_events.parquet with all events
+            filter_cohort_events_for_items(
+                cohort_name=args.cohort,
+                age_band=args.age_band,
+                important_items=[],  # Empty list = no filtering, keep all events
+                years=YEARS,
+                output_root=model_data_root,
+                local_cohort_root=local_cohort_root,
+                local_medical_root=local_medical_root,
+                local_pharmacy_root=local_pharmacy_root,
+                sample_ratio=DEFAULT_SAMPLE_RATIO,
             )
         return
 

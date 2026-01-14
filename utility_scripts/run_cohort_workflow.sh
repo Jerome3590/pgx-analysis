@@ -476,19 +476,20 @@ except:
     fi
 }
 
-# Step 4a: Model Data Creation (with controls)
-# Generate model_events.parquet with cases AND controls from gold medical/pharmacy data
-# This must run BEFORE Step 3 and Step 4b to ensure local files with controls exist
-# (Otherwise Step 3 and Step 4b will download from S3, which may have files without controls)
-# The script validates controls and uploads to S3 automatically
-run_step "4a" "Model Data Creation (Cases + Controls)" \
-    "python 4a_model_data/create_model_data.py --cohort $COHORT_NAME --age-band $AGE_BAND"
-
 # Step 3: Feature Importance (check for completed aggregated feature importances)
 # This step is idempotent - will skip if results already exist
-# Requires model_events.parquet from Step 4a
+# Can work with cohort.parquet files if model_events.parquet doesn't exist yet
 run_step "3" "Feature Importance (Check/Generate Aggregated)" \
     "python 3_feature_importance/run_mc_feature_importance.py --cohort $COHORT_NAME --age_band $AGE_BAND"
+
+# Step 4a: Model Data Creation (with controls)
+# Generate model_events.parquet with cases AND controls from gold medical/pharmacy data
+# This must run BEFORE Step 4b to ensure local files with controls exist
+# (Otherwise Step 4b will download from S3, which may have files without controls)
+# The script validates controls and uploads to S3 automatically
+# Uses aggregated feature importance CSVs from Step 3 to filter events
+run_step "4a" "Model Data Creation (Cases + Controls)" \
+    "python 4a_model_data/create_model_data.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
 # Validate Step 4a output (check that controls are present and file exists)
 # Always validate, even if step was skipped due to checkpoint
