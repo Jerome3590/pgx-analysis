@@ -16,6 +16,7 @@ import json
 import logging
 import time
 import ast
+import os
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -123,7 +124,8 @@ ANALYSIS_CONFIG = {
     'max_explanation_samples': 1000,  # Limit number of instances for explanation generation
     # Use most CPUs for parallelization (leave 4 cores free for system)
     # With 32 cores available, use 24-28 workers for maximum throughput
-    'n_jobs': min(28, max(1, get_sklearn_n_jobs())),
+    # Use os.cpu_count() directly for ProcessPoolExecutor (not sklearn's conservative defaults)
+    'n_jobs': min(28, max(1, os.cpu_count() or 1)),
     'batch_size': 100,  # Process explanations in batches
     # Stage 2.5: Univariate causal pruning
     'min_present_support': 10,  # Minimum # instances with feature=1 for removal mode
