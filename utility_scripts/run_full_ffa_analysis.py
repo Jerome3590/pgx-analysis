@@ -2705,26 +2705,39 @@ def main():
         / "final_model_json"
     )
     # Try test data (2019) first - if found, use ONLY test data (faster, better validation)
-    # Only fall back to training data (2016-2018) if test data not available
+    # Strategy: Check /mnt/nvme/ first, then S3 sync if not found locally
     from py_helpers.env_utils import get_data_root, is_linux
     
     # Get data root (typically /mnt/nvme on Linux)
     data_root = get_data_root() if is_linux() else None
+    
+    DATA_PATH = None
+    DATA_SOURCE = None
+    
+    # Step 1: Check local paths first (including /mnt/nvme/4a_model_data/)
+    logger.info("Checking local paths for test data (2019)...")
+    print("[INFO] Checking local paths for test data (2019)...")
     
     test_data_paths = []
     
     # Check /mnt/nvme first (Linux/EC2) - highest priority
     if data_root:
         test_data_paths.extend([
+            # Check /mnt/nvme/4a_model_data/ first (where test data with controls is stored)
+            # Structure matches step 4a: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+            data_root / "4a_model_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
+            # Also check step 6 paths (standard location)
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
+            # Check gold paths (synced from S3)
+            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
+            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
+            # Check data/cohorts structure
             data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
         ])
     
     # Check project root paths (fallback)
     test_data_paths.extend([
-        # Test data (2019) - preferred for validation
-        # Rules extracted from training model (2016-2018), validated on test data (2019)
         PROJECT_ROOT
         / "6_final_model"
         / "outputs"
@@ -2739,7 +2752,6 @@ def main():
         / COHORT_NAME
         / AGE_BAND_FNAME
         / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-        # Alternative: Test data from event_year=2019 structure
         PROJECT_ROOT
         / "data"
         / "cohorts"
@@ -2749,9 +2761,7 @@ def main():
         / "final_features.parquet",
     ])
     
-    # Check test data first - if found, use ONLY test data (don't check train)
-    DATA_PATH = None
-    DATA_SOURCE = None
+    # Check local paths
     for path in test_data_paths:
         if path.exists():
             DATA_PATH = path
@@ -2762,26 +2772,165 @@ def main():
             print(f"[INFO] Test data is smaller than training data, so processing will be faster")
             break
     
+    # Step 2: If not found locally, check S3 and sync to /mnt/nvme/4a_model_data/
+    if DATA_PATH is None:
+        logger.info("Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
+        print("[INFO] Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
+        
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+            
+            # S3 paths to check (primary and legacy)
+            s3_test_paths = [
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
+            ]
+            
+            # Try to find and sync from S3
+            for s3_key in s3_test_paths:
+                try:
+                    # Check if file exists in S3
+                    s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                    
+                    # Determine sync destination: /mnt/nvme/4a_model_data/ if available (matches step 4a structure), otherwise project root
+                    if data_root:
+                        # Sync to /mnt/nvme/4a_model_data/ drive (fast local storage, where test data with controls is stored)
+                        # Structure matches step 4a: /mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+                        sync_dir = data_root / "4a_model_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
+                        sync_path = sync_dir / "final_features.parquet"
+                    else:
+                        # Fallback to project root if not Linux (use step 6 standard location)
+                        sync_dir = PROJECT_ROOT / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test"
+                        sync_path = sync_dir / "final_features.parquet"
+                    
+                    sync_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    logger.info(f"Syncing test data from S3 to local storage: s3://{S3_BUCKET}/{s3_key} -> {sync_path}")
+                    print(f"[INFO] Syncing test data from S3: s3://{S3_BUCKET}/{s3_key}")
+                    print(f"[INFO] Destination: {sync_path}")
+                    
+                    s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
+                    
+                    if sync_path.exists():
+                        DATA_PATH = sync_path
+                        DATA_SOURCE = "test (2019) [synced from S3]"
+                        logger.info(f"Successfully synced test data from S3 to: {DATA_PATH}")
+                        logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
+                        print(f"[OK] Successfully synced test data from S3")
+                        print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+                        print(f"[INFO] Test data is smaller than training data, so processing will be faster")
+                        break
+                    
+                except ClientError as e:
+                    if e.response['Error']['Code'] == '404':
+                        # File doesn't exist, try next path
+                        continue
+                    else:
+                        logger.warning(f"Error checking S3 path {s3_key}: {e}")
+                        continue
+                except Exception as e:
+                    logger.warning(f"Error syncing from S3 path {s3_key}: {e}")
+                    continue
+                    
+        except ImportError:
+            logger.warning("boto3 not available, skipping S3 lookup")
+            print("[WARNING] boto3 not available, skipping S3 lookup")
+        except Exception as e:
+            logger.warning(f"Error during S3 lookup: {e}")
+            print(f"[WARNING] Error during S3 lookup: {e}")
+    
     # Require test data - no fallback to training data
     if DATA_PATH is None:
         logger.error("=" * 80)
         logger.error("ERROR: Test data (2019) not found. Test data is required for FFA analysis.")
         logger.error("=" * 80)
-        logger.error("Test data paths checked:")
-        for path in test_data_paths:
-            logger.error(f"  - {path}")
+        logger.error("Data lookup strategy:")
+        logger.error("  1. Check S3 first (source of truth with controls)")
+        logger.error("  2. Sync from S3 to /mnt/nvme/4a_model_data/ drive (if Linux) or project root")
+        logger.error("  3. Read from local storage (/mnt/nvme/4a_model_data/ or project root)")
         logger.error("")
-        logger.error("Please ensure test data (2019) exists at one of the above paths.")
+        logger.error("Local test data paths checked:")
+        if data_root:
+            logger.error(f"  - {data_root}/4a_model_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet (synced from S3)")
+            logger.error(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet")
+            logger.error(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet")
+            logger.error(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
+            logger.error(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
+            logger.error(f"  - {data_root}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        logger.error(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
+        logger.error(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
+        logger.error(f"  - {PROJECT_ROOT}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        
+        # List S3 paths that were checked
+        try:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+            s3_test_paths = [
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
+            ]
+            logger.error("")
+            logger.error("S3 test data paths checked:")
+            for s3_key in s3_test_paths:
+                logger.error(f"  - s3://{S3_BUCKET}/{s3_key}")
+        except Exception:
+            logger.error("")
+            logger.error("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
+        
+        logger.error("")
+        logger.error("Please ensure test data (2019) exists in S3 or at one of the local paths above.")
         logger.error("Test data is required for proper validation of rules on unseen data.")
         logger.error("=" * 80)
         print("=" * 80)
         print("[ERROR] Test data (2019) not found. Test data is required for FFA analysis.")
         print("=" * 80)
-        print("Test data paths checked:")
-        for path in test_data_paths:
-            print(f"  - {path}")
+        print("Data lookup strategy:")
+        print("  1. Check S3 first (source of truth with controls)")
+        print("  2. Sync from S3 to /mnt/nvme/4a_model_data/ drive (if Linux) or project root")
+        print("  3. Read from local storage (/mnt/nvme/4a_model_data/ or project root)")
         print("")
-        print("Please ensure test data (2019) exists at one of the above paths.")
+        print("Local test data paths checked:")
+        if data_root:
+            print(f"  - {data_root}/4a_model_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet (synced from S3)")
+            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet")
+            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet")
+            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
+            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
+            print(f"  - {data_root}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
+        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
+        print(f"  - {PROJECT_ROOT}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        
+        # List S3 paths that were checked
+        try:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+            s3_test_paths = [
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
+            ]
+            print("")
+            print("S3 test data paths checked:")
+            for s3_key in s3_test_paths:
+                print(f"  - s3://{S3_BUCKET}/{s3_key}")
+        except Exception:
+            print("")
+            print("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
+        
+        print("")
+        print("Please ensure test data (2019) exists in S3 or at one of the local paths above.")
         print("Test data is required for proper validation of rules on unseen data.")
         print("=" * 80)
         sys.exit(1)
