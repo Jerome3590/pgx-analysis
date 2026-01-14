@@ -391,8 +391,8 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
     # Separate features and target
     # For cohort.parquet files: use is_target_case (target column can't be used)
     # For final_features.parquet files: use target (standard)
-    # Priority: is_target_case first (for cohort.parquet), then target (for final_features.parquet)
-    is_cohort_file = 'cohort.parquet' in str(data_path) or 'cohort_name=' in str(data_path)
+    # Check if filename is actually cohort.parquet (not just path containing cohort_name=)
+    is_cohort_file = data_path.name == 'cohort.parquet'
     
     if is_cohort_file:
         # For cohort.parquet: prioritize is_target_case, ignore target column
