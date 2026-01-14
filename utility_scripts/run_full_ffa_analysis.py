@@ -2442,23 +2442,40 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                 if missing_features:
                     logger.error(f"Missing features in CSV: {list(missing_features)[:10]}...")
                     print(f"[ERROR] Missing features in CSV: {len(missing_features)} features")
-                    raise ValueError(f"Feature mismatch: CSV missing {len(missing_features)} features expected by model. "
-                                   f"First few missing: {list(missing_features)[:5]}")
+                    print(f"[INFO] Model was trained on training data (2016-2018), but test data (2019) has different features.")
+                    print(f"[INFO] Solution: Add missing features with 0 values to align with model's expected feature set.")
+                    
+                    # Add missing features with 0 values (features that appeared in training but not in test)
+                    for feat in missing_features:
+                        X_features_only[feat] = 0
+                    
+                    logger.info(f"Added {len(missing_features)} missing features with 0 values to align with model")
+                    print(f"[OK] Added {len(missing_features)} missing features with 0 values")
+                
+                # Handle extra features (features in test data but not in training)
+                extra_features_filtered = extra_features - non_feature_cols
+                if extra_features_filtered:
+                    logger.warning(f"CSV has {len(extra_features_filtered)} extra features not in model: {list(extra_features_filtered)[:5]}")
+                    print(f"[WARNING] Removing {len(extra_features_filtered)} extra features not in model (features that appear in test but not in training)")
+                    # Remove extra features (features that appear in test but not in training)
+                    X_features_only = X_features_only.drop(columns=list(extra_features_filtered))
+                    logger.info(f"Removed {len(extra_features_filtered)} extra features to align with model")
                 
                 # Reorder columns to match model's expected order
-                if set(feature_cols) == set(expected_features):
+                if set(X_features_only.columns) == set(expected_features):
                     X_features_only = X_features_only[expected_features]
                     logger.info(f"Reordered features to match model expectations")
                 else:
-                    # Filter out ID columns and instance_index from extra_features for clearer error message
-                    extra_features_filtered = extra_features - non_feature_cols
-                    if extra_features_filtered:
-                        logger.error(f"Feature sets don't match. Extra in CSV: {list(extra_features_filtered)[:10]}...")
-                        raise ValueError(f"Feature mismatch: CSV has {len(extra_features_filtered)} extra features not in model: {list(extra_features_filtered)[:5]}")
-                    else:
-                        # Only ID columns/instance_index are extra, which is fine - just reorder
+                    # Update feature_cols after adding/removing features
+                    feature_cols = list(X_features_only.columns)
+                    if set(feature_cols) == set(expected_features):
                         X_features_only = X_features_only[expected_features]
-                        logger.info(f"Reordered features to match model expectations (ignoring extra ID columns and instance_index)")
+                        logger.info(f"Reordered features to match model expectations")
+                    else:
+                        # Only ID columns/instance_index differences remain, which is fine
+                        common_features = [f for f in expected_features if f in X_features_only.columns]
+                        X_features_only = X_features_only[common_features]
+                        logger.info(f"Aligned features: {len(common_features)} features match model expectations")
         
         # Store instance_index separately if it exists (for SHAP alignment)
         instance_index_col = None
