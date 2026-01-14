@@ -41,10 +41,15 @@ Model-based causal importance is more robust than correlation-based methods beca
 - Faster processing - test data is smaller than training data
 - Aligns with temporal validation best practices
 
-**Test data paths checked** (in order):
-1. `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
-2. `6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
-3. `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
+**Test data paths checked** (in order, highest priority first):
+1. **`/mnt/nvme/` drive** (Linux/EC2):
+   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
+   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
+   - `/mnt/nvme/data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
+2. **Project root** (fallback):
+   - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
+   - `6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
+   - `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
 
 **If test data not found**: Script exits with error code 1, listing all checked paths.
 

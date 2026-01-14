@@ -2706,7 +2706,23 @@ def main():
     )
     # Try test data (2019) first - if found, use ONLY test data (faster, better validation)
     # Only fall back to training data (2016-2018) if test data not available
-    test_data_paths = [
+    from py_helpers.env_utils import get_data_root, is_linux
+    
+    # Get data root (typically /mnt/nvme on Linux)
+    data_root = get_data_root() if is_linux() else None
+    
+    test_data_paths = []
+    
+    # Check /mnt/nvme first (Linux/EC2) - highest priority
+    if data_root:
+        test_data_paths.extend([
+            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
+            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
+            data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
+        ])
+    
+    # Check project root paths (fallback)
+    test_data_paths.extend([
         # Test data (2019) - preferred for validation
         # Rules extracted from training model (2016-2018), validated on test data (2019)
         PROJECT_ROOT
@@ -2731,7 +2747,7 @@ def main():
         / "event_year=2019"
         / f"age_band={AGE_BAND}"
         / "final_features.parquet",
-    ]
+    ])
     
     # Check test data first - if found, use ONLY test data (don't check train)
     DATA_PATH = None
