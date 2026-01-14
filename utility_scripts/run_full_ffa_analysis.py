@@ -2878,45 +2878,68 @@ def main():
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
             
-            # Only check model_training_data S3 path (where test data actually is)
-            s3_key = f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet"
+            # Check model_training_data S3 path - try both final_features.parquet and cohort.parquet
+            # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/
+            s3_paths_to_try = [
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/cohort.parquet",  # Raw cohort data with controls/targets
+            ]
             
-            try:
-                # Check if file exists in S3
-                logger.info(f"Checking S3: s3://{S3_BUCKET}/{s3_key}")
-                print(f"[INFO] Checking S3: s3://{S3_BUCKET}/{s3_key}")
-                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-                
-                # Create sync directory
-                sync_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Download from S3
-                logger.info(f"Syncing test data from S3 to: {sync_path}")
-                print(f"[INFO] Syncing test data from S3 to: {sync_path}")
-                s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
-                
-                if sync_path.exists():
-                    DATA_PATH = sync_path
-                    DATA_SOURCE = "test (2019) [synced from S3]"
-                    logger.info(f"Successfully synced test data from S3 to: {DATA_PATH}")
-                    logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
-                    print(f"[OK] Successfully synced test data from S3")
-                    print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
-                    print(f"[INFO] Test data is smaller than training data, so processing will be faster")
-                else:
-                    logger.error(f"Download completed but file not found at: {sync_path}")
-                    print(f"[ERROR] Download completed but file not found at: {sync_path}")
+            s3_found = False
+            for s3_key in s3_paths_to_try:
+                try:
+                    # Check if file exists in S3
+                    logger.info(f"Checking S3: s3://{S3_BUCKET}/{s3_key}")
+                    print(f"[INFO] Checking S3: s3://{S3_BUCKET}/{s3_key}")
+                    s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
                     
-            except ClientError as e:
-                if e.response['Error']['Code'] == '404':
-                    logger.error(f"Test data not found in S3: s3://{S3_BUCKET}/{s3_key}")
-                    print(f"[ERROR] Test data not found in S3: s3://{S3_BUCKET}/{s3_key}")
-                else:
-                    logger.error(f"Error checking S3: {e}")
-                    print(f"[ERROR] Error checking S3: {e}")
-            except Exception as e:
-                logger.error(f"Error syncing from S3: {e}")
-                print(f"[ERROR] Error syncing from S3: {e}")
+                    # Determine sync path based on which file we found
+                    if s3_key.endswith("cohort.parquet"):
+                        # If it's cohort.parquet, sync to same name (will need feature engineering later)
+                        sync_path = sync_dir / "cohort.parquet"
+                    else:
+                        # If it's final_features.parquet, use that
+                        sync_path = sync_dir / "final_features.parquet"
+                    
+                    # Create sync directory
+                    sync_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Download from S3
+                    logger.info(f"Syncing test data from S3 to: {sync_path}")
+                    print(f"[INFO] Syncing test data from S3 to: {sync_path}")
+                    s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
+                    
+                    if sync_path.exists():
+                        DATA_PATH = sync_path
+                        DATA_SOURCE = "test (2019) [synced from S3]"
+                        logger.info(f"Successfully synced test data from S3 to: {DATA_PATH}")
+                        logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
+                        print(f"[OK] Successfully synced test data from S3")
+                        print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+                        print(f"[INFO] Test data is smaller than training data, so processing will be faster")
+                        s3_found = True
+                        break
+                    else:
+                        logger.error(f"Download completed but file not found at: {sync_path}")
+                        print(f"[ERROR] Download completed but file not found at: {sync_path}")
+                        
+                except ClientError as e:
+                    if e.response['Error']['Code'] == '404':
+                        # File doesn't exist, try next path
+                        logger.debug(f"S3 path not found (404): s3://{S3_BUCKET}/{s3_key}")
+                        continue
+                    else:
+                        logger.warning(f"Error checking S3 path {s3_key}: {e}")
+                        continue
+                except Exception as e:
+                    logger.warning(f"Error syncing from S3 path {s3_key}: {e}")
+                    continue
+            
+            if not s3_found:
+                logger.error(f"Test data not found in S3 at any of the checked paths")
+                print(f"[ERROR] Test data not found in S3 at any of the checked paths:")
+                for s3_key in s3_paths_to_try:
+                    print(f"  - s3://{S3_BUCKET}/{s3_key}")
                     
         except ImportError:
             logger.warning("boto3 not available, skipping S3 lookup")
