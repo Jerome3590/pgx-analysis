@@ -2440,10 +2440,10 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                 extra_features = set(feature_cols) - set(expected_features)
                 
                 if missing_features:
-                    logger.error(f"Missing features in CSV: {list(missing_features)[:10]}...")
-                    print(f"[ERROR] Missing features in CSV: {len(missing_features)} features")
+                    logger.warning(f"Missing features in CSV: {len(missing_features)} features (will add with 0 values)")
+                    print(f"[WARNING] Missing features in CSV: {len(missing_features)} features")
                     print(f"[INFO] Model was trained on training data (2016-2018), but test data (2019) has different features.")
-                    print(f"[INFO] Solution: Add missing features with 0 values to align with model's expected feature set.")
+                    print(f"[INFO] Solution: Adding missing features with 0 values to align with model's expected feature set.")
                     
                     # Add missing features with 0 values (features that appeared in training but not in test)
                     for feat in missing_features:
@@ -2461,21 +2461,34 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                     X_features_only = X_features_only.drop(columns=list(extra_features_filtered))
                     logger.info(f"Removed {len(extra_features_filtered)} extra features to align with model")
                 
+                # After adding missing and removing extra, we should have exactly the expected features
                 # Reorder columns to match model's expected order
-                if set(X_features_only.columns) == set(expected_features):
+                current_features = set(X_features_only.columns)
+                expected_features_set = set(expected_features)
+                
+                if current_features == expected_features_set:
+                    # Perfect match - just reorder
                     X_features_only = X_features_only[expected_features]
-                    logger.info(f"Reordered features to match model expectations")
+                    logger.info(f"Reordered {len(expected_features)} features to match model expectations")
+                    print(f"[OK] Feature alignment complete: {len(expected_features)} features match model")
                 else:
-                    # Update feature_cols after adding/removing features
-                    feature_cols = list(X_features_only.columns)
-                    if set(feature_cols) == set(expected_features):
-                        X_features_only = X_features_only[expected_features]
-                        logger.info(f"Reordered features to match model expectations")
-                    else:
-                        # Only ID columns/instance_index differences remain, which is fine
-                        common_features = [f for f in expected_features if f in X_features_only.columns]
-                        X_features_only = X_features_only[common_features]
-                        logger.info(f"Aligned features: {len(common_features)} features match model expectations")
+                    # Check what's missing or extra after alignment
+                    still_missing = expected_features_set - current_features
+                    still_extra = current_features - expected_features_set
+                    
+                    if still_missing:
+                        logger.warning(f"Still missing {len(still_missing)} features after alignment - adding them")
+                        for feat in still_missing:
+                            X_features_only[feat] = 0
+                    
+                    if still_extra:
+                        logger.warning(f"Still have {len(still_extra)} extra features after alignment - removing them")
+                        X_features_only = X_features_only.drop(columns=list(still_extra))
+                    
+                    # Final reorder
+                    X_features_only = X_features_only[expected_features]
+                    logger.info(f"Final feature alignment: {len(X_features_only.columns)} features match model expectations")
+                    print(f"[OK] Feature alignment complete: {len(X_features_only.columns)} features match model")
         
         # Store instance_index separately if it exists (for SHAP alignment)
         instance_index_col = None
