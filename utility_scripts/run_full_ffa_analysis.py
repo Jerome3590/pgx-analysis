@@ -2723,16 +2723,13 @@ def main():
     # Check /mnt/nvme first (Linux/EC2) - highest priority
     if data_root:
         test_data_paths.extend([
-            # Check /mnt/nvme/4a_model_data/ first (where test data with controls is stored)
-            # Structure matches step 4a: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
-            data_root / "4a_model_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
-            # Also check step 6 paths (standard location)
+            # Check step 6 paths first (standard location for final_features.parquet)
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
             data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-            # Check gold paths (synced from S3)
+            # Check gold paths (synced from S3 - matches S3 structure)
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
-            # Check data/cohorts structure
+            # Check data/cohorts structure (alternative)
             data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
         ])
     
@@ -2798,11 +2795,10 @@ def main():
                     # Check if file exists in S3
                     s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
                     
-                    # Determine sync destination: /mnt/nvme/4a_model_data/ if available (matches step 4a structure), otherwise project root
+                    # Determine sync destination: /mnt/nvme/gold/ (matches S3 structure) or /mnt/nvme/6_final_model/, otherwise project root
                     if data_root:
-                        # Sync to /mnt/nvme/4a_model_data/ drive (fast local storage, where test data with controls is stored)
-                        # Structure matches step 4a: /mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
-                        sync_dir = data_root / "4a_model_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
+                        # Sync to /mnt/nvme/gold/final_model/ (matches S3 structure exactly - preferred)
+                        sync_dir = data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test"
                         sync_path = sync_dir / "final_features.parquet"
                     else:
                         # Fallback to project root if not Linux (use step 6 standard location)
