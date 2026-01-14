@@ -655,7 +655,7 @@ def filter_cohort_events_for_items(
 
     print(f"[INFO] Wrote model_events.parquet for {cohort_name}/{age_band}: {out_path}")
     
-    # Validate that controls are present
+    # Validate that controls are present and ratio is approximately correct
     validation_result = _validate_model_events_has_controls(out_path)
     if not validation_result["has_controls"]:
         print(
@@ -663,9 +663,33 @@ def filter_cohort_events_for_items(
             f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
         )
         sys.exit(1)
+    
+    # Validate control:case ratio (should be approximately sample_ratio:1)
+    n_cases = validation_result['n_cases']
+    n_controls = validation_result['n_controls']
+    actual_ratio = n_controls / max(n_cases, 1)
+    expected_ratio = sample_ratio
+    
+    # Allow 20% tolerance (e.g., 4:1 to 6:1 for 5:1 target)
+    tolerance = 0.2
+    min_ratio = expected_ratio * (1 - tolerance)
+    max_ratio = expected_ratio * (1 + tolerance)
+    
+    if actual_ratio < min_ratio or actual_ratio > max_ratio:
+        print(
+            f"[WARN] Control:case ratio is {actual_ratio:.2f}:1, expected approximately "
+            f"{expected_ratio}:1 (tolerance: {min_ratio:.2f}-{max_ratio:.2f}:1). "
+            f"Cases: {n_cases}, Controls: {n_controls}"
+        )
+        # Don't fail - this is a warning, not an error (may be due to limited control candidates)
+    else:
+        print(
+            f"[INFO] Control:case ratio validation passed: {actual_ratio:.2f}:1 "
+            f"(target: {expected_ratio}:1)"
+        )
+    
     print(
-        f"[INFO] Validation passed: {validation_result['n_cases']} cases, "
-        f"{validation_result['n_controls']} controls"
+        f"[INFO] Validation passed: {n_cases} cases, {n_controls} controls"
     )
     
     # Upload to S3 using aws s3 sync (best-effort)

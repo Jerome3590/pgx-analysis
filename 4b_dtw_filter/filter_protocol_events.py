@@ -882,12 +882,36 @@ def filter_administrative_events(
             (100.0 * admin_n / max(original_n, 1)),
         )
         logger.info("Saved filtered model_data to %s", output_path)
+        
+        # Validate that controls are preserved after filtering
+        validation_result = _validate_model_events_has_controls(output_path)
+        if not validation_result["has_controls"]:
+            logger.error(
+                f"Filtered file {output_path} is missing controls! "
+                f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
+            )
+            logger.error(
+                "This indicates controls were incorrectly filtered out. "
+                "Administrative event filtering should preserve both cases and controls."
+            )
+            raise ValueError(
+                f"Controls lost during filtering: {validation_result['n_cases']} cases, "
+                f"{validation_result['n_controls']} controls"
+            )
+        
+        # Log control preservation
+        logger.info(
+            f"Controls preserved after filtering: {validation_result['n_cases']} cases, "
+            f"{validation_result['n_controls']} controls"
+        )
 
         return {
             "original_events": original_n,
             "filtered_events": kept_n,
             "removed_events": original_n - kept_n,
             "administrative_events": admin_n,
+            "n_cases": validation_result["n_cases"],
+            "n_controls": validation_result["n_controls"],
         }
     finally:
         con.close()
