@@ -294,7 +294,6 @@ The analysis generates several outputs:
 - **Feature Importance (AXP)**: Parquet/CSV with feature importance scores from explanations
 - **Causal Importance**: Parquet with causal importance scores from counterfactual analysis
   - Includes `causal_importance` (IR - Intervention Rate), `support` (Support - number of intervenable instances), and `confidence` (fraction that changed)
-  - See [`8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md`](../../8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md) for detailed explanation
 - **Explanations Summary**: Parquet/CSV with per-instance explanation metadata
 - **Visualizations**: PNG plots of feature importance and causal relationships
 - **Model Info**: JSON with model metadata and metrics

@@ -1,89 +1,118 @@
-# Combined Causal Analysis Guide - Dual Approach
+# Causal Analysis Guide - Formal Feature Attribution (FFA)
 
 ## Overview
 
-This guide explains how to conduct causal analysis using **TWO complementary approaches** with all three models (CatBoost, XGBoost, XGBoost RF) together for comprehensive feature attribution.
+This guide explains how to conduct **model-based causal analysis** using Formal Feature Attribution (FFA) to measure how interventions on features affect model explanations and predictions. This approach uses counterfactual reasoning to identify features that causally drive the model's decision-making process.
 
-## Dual Approach Methodology
+## Key Concepts
 
-### Approach 1: **Explainer-Based (FFA) Method**
-- Uses Formal Feature Attribution (FFA) explainers
-- Measures how **explanations change** with interventions
-- Focuses on **rule-based** causal effects
-- Aligned with symbolic logic and interpretability
+### Model-Based Causal Importance
 
-### Approach 2: **Probability-Based Method**
-- Uses actual model predictions
-- Measures how **prediction probabilities change** with interventions
-- Focuses on **quantitative** causal effects
-- Provides direct probability impact estimates
+**What it measures**: "What features causally affect the **model's predictions**?"
 
-### Why Both Approaches?
+**How it works**:
+1. **Interventions**: Modify features in the dataset (e.g., remove a drug, set to median)
+2. **Counterfactual Comparison**: Generate explanations for original vs. modified instances
+3. **Change Measurement**: Calculate fraction of instances where explanations changed
+4. **Causal Score**: Higher score = stronger causal effect on model reasoning
 
-1. **Complementary Insights**: 
-   - FFA explains *why* (rules/logic)
-   - Probability shows *how much* (magnitude)
+**Important Distinction**:
+- ✅ **Model-Based Causal Inference** (what we measure): Which features drive the model's decision-making
+- ❌ **True Causal Inference** (what we don't measure): Which features causally affect the true outcome (requires RCTs)
 
-2. **Validation**: 
-   - Agreement between methods increases confidence
-   - Disagreement highlights areas needing investigation
+### Why This Captures True Signal
 
-3. **Robustness**: 
-   - Different perspectives on the same causal question
-   - Reduces method-specific biases
+Model-based causal importance is more robust than correlation-based methods because:
 
-## Model Ensemble
+1. **Filters Spurious Correlations**: Features that correlate but don't causally affect predictions get low scores
+2. **Measures Intervention Effects**: Uses counterfactual reasoning ("What if this feature changed?")
+3. **Model-Based Causal Inference**: Identifies features the model actually relies on
+4. **More Robust Than Simple Importance**: Measures intervention effects rather than just associations
 
-**Note**: FFA analysis is performed only for XGBoost models. CatBoost FFA is not performed due to CatBoost's complex hashing and CTR for categorical variables. CatBoost SHAP values are used for feature importance filtering in XGBoost FFA.
+## Data Requirements
 
-We use XGBoost models for FFA-based causal analysis because:
-- **XGBoost FFA**: Direct rule extraction from JSON model structure enables symbolic logic analysis
-- **CatBoost SHAP**: Used for feature importance filtering (not for FFA rule extraction)
-- **Robustness**: Different models may capture different patterns
-- **Consensus**: Features important across all models are more reliable
-- **Weighted Aggregation**: Models are weighted by their performance (coverage rate)
+### Test Data Required
 
-### The Consensus Filter: Why CatBoost SHAP + XGBoost FFA Works
+**FFA analysis requires test data (2019) for validation** - no fallback to training data.
 
-While the inability to generate rules for signals found *only* by CatBoost is a technical gap, the documentation suggests this acts as a **"Consensus Filter"** that screens out model-specific artifacts and potential overfitting.
+**Why test data?**
+- Rules are extracted from training model (2016-2018) - correct
+- Rules are validated on test data (2019) - ensures generalizability
+- Faster processing - test data is smaller than training data
+- Aligns with temporal validation best practices
 
-#### 1. The "Model Agreement" Philosophy
+**Test data paths checked** (in order):
+1. `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
+2. `6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_test_final_features_no_leakage.csv`
+3. `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet`
 
-The pipeline explicitly values **robustness over sensitivity**. In the feature importance phase, the system uses an aggregation method designed to **"Reward Model Agreement"**.
+**If test data not found**: Script exits with error code 1, listing all checked paths.
 
-- **The Mechanism**: Features that are important in multiple models (CatBoost, XGBoost, and XGBoost RF) receive higher scores than those found by a single model.
-- **The Benefit**: This approach "reduces the risk of model-specific artifacts". If CatBoost finds a signal that XGBoost (using a different mathematical structure) cannot replicate, there is a higher probability that the signal is an artifact of CatBoost's specific encoding (CTR) rather than a universal biological truth. By "dropping" these signals from the causal analysis, the system inherently filters for higher-confidence features.
+## Causal Importance Calculation
 
-#### 2. CatBoost vs. Rare Noise
+### Single-Feature Causal Analysis
 
-While CatBoost is designed to handle high-cardinality data, the documentation notes it handles rare categories by **"shrinking them toward the global mean"** to reduce overfitting.
+**Process**:
+1. **Baseline**: Get explanations (AXP) from model on original data
+2. **Intervention**: Apply intervention, get new explanations
+3. **Change Measurement**: Count how many explanations changed
+4. **Support Calculation**: Count number of intervenable instances
+5. **Confidence Calculation**: Fraction of intervenable instances where intervention caused change
+6. **Causal Score**: Same as confidence (fraction of instances with changed explanations)
 
-- **The Risk**: Despite this regularization, CatBoost can still overfit to "idiosyncratic" patterns in the training data, particularly with complex categorical interactions.
-- **The Safeguard**: XGBoost in this pipeline is configured to use the **"exact" tree method** specifically to preserve full split resolution. If this rigorous exact method cannot find a split that corresponds to the CatBoost signal, it suggests the signal might be weak or dependent on CatBoost's specific "Ordered Target Statistics" transformation.
+**Interventions**:
+- **Binary features (remove_only mode)**: Remove feature (1→0) on instances where feature=1
+- **Binary features (add_only mode)**: Add feature (0→1) on instances where feature=0
+- **Continuous features**: Set to median value (neutral baseline)
 
-#### 3. Causal Analysis Requires Strict Logic
+**Output**: `causal_importance.parquet` contains:
+- `feature`: Feature name
+- `causal_importance`: Causal importance score (IR - Intervention Rate, 0.0 to 1.0)
+- `support`: Number of intervenable instances (Support - number of instances where intervention can be applied)
+- `confidence`: Confidence score (0.0 to 1.0) - Same as `causal_importance`
+- `median_value`: Median value used for intervention (continuous features)
+- `is_binary`: Whether feature is binary (0/1)
+- `intervention`: Description of intervention applied
 
-The Formal Feature Attribution (FFA) module is designed to produce **"high-confidence candidates for clinical decision-making"**.
+### Metrics Explained
 
-- **Logical Necessity**: FFA requires converting a model into symbolic Boolean logic to test counterfactuals (e.g., "If NOT Drug A, then NO Risk").
-- **The Benefit**: If a pattern is so complex or model-specific that it cannot be translated into a symbolic rule (via XGBoost), it is likely too opaque or unstable to serve as the basis for a clinical intervention. Excluding these "un-translatable" CatBoost signals ensures that the final causal recommendations are grounded in logic that can be explicitly verified.
+#### Causal Importance (IR(j) - Intervention Rate)
+- **Definition**: Fraction of instances with changed explanations after intervention
+- **Range**: 0.0 to 1.0
+- **Interpretation**:
+  - `0.0` = Feature has no causal effect (explanations unchanged)
+  - `1.0` = Feature always causes explanation changes (perfect causal effect)
+  - `0.5` = Feature causes explanation changes in 50% of instances
+  - `> 0.1` = Feature has meaningful causal effect
 
-#### Summary
+#### Support (Support(j))
+- **Definition**: Number of intervenable instances for feature j
+- **Calculation**:
+  - **Binary features (remove_only)**: Number of instances where `feature == 1`
+  - **Binary features (add_only)**: Number of instances where `feature == 0`
+  - **Continuous features**: Total sample size
+- **Interpretation**:
+  - Higher support = More reliable causal estimate (more instances tested)
+  - Low support (< 10) = Less reliable (few instances available for intervention)
+- **Use Case**: Used for filtering features with insufficient support (pruning)
 
-By requiring that a feature be **detected by CatBoost** (high SHAP) *and* **describable by XGBoost** (symbolic rule existence), the system ensures that the **FFA Causal Analysis** only focuses on signals robust enough to be found by two fundamentally different tree-building algorithms. This "gap" effectively serves as a quality control mechanism that filters out model-specific artifacts and ensures logical translatability for clinical use.
+#### Confidence
+- **Definition**: Fraction of intervenable instances where intervention caused change
+- **Calculation**: `confidence = changes / support = causal_importance`
+- **Range**: 0.0 to 1.0
+- **Interpretation**:
+  - `confidence = 1.0` = Feature always affects explanations when present
+  - `confidence = 0.5` = Feature affects explanations in 50% of intervenable instances
+- **Note**: In our implementation, `confidence` and `causal_importance` are identical
 
-## Counterfactual Interventions
+**Example**:
+For `item_drug_FUROSEMIDE` with `support = 50` and `confidence = 1.0`:
+- 50 instances had the feature present (support)
+- Removing it changed the explanation in all 50 instances (confidence = 1.0)
+- This indicates a strong, reliable causal relationship
 
-### Single-Feature Interventions
 
-For each feature, we create interventions:
-- **Remove**: Set feature to median (neutral value)
-- **Median**: Set to median value
-- **Zero**: Set to zero
-- **Increase**: Increase by one standard deviation
-- **Decrease**: Decrease by one standard deviation
-
-### Multi-Feature Interaction Testing
+### Multi-Feature Interaction Analysis
 
 **Purpose**: Test combinations of features (pairs, triplets, etc.) to detect synergies/antagonisms
 
@@ -92,14 +121,23 @@ For each feature, we create interventions:
   - SHAP importance > 0 (model-level), OR
   - FFA importance > 0 (explanation-based), OR
   - Causal importance > 0 (individual causal effect)
-- This dramatically reduces combinatorial explosion:
-  - **Without filtering**: 11,060 features → C(11,060, 2) = **61 million pairs** (impossible!)
-  - **With filtering**: ~20-100 important features → C(50, 2) = **1,225 pairs** (manageable)
-  - **99.5%+ reduction** in feature count
+- **No top_k limit**: All features with any importance signal are included
+- Features sorted by combined importance (SHAP + causal + FFA) for prioritization
+- **Safe for drug-only features**: All drugs with any importance signal should be tested
+
+**Why this filtering works**:
+- **Without filtering**: 11,060 features → C(11,060, 2) = **61 million pairs** (impossible!)
+- **With filtering**: ~20-100 important features → C(50, 2) = **1,225 pairs** (manageable)
+- **99.5%+ reduction** in feature count
+
+**Cohort-Specific Configuration**:
+- **First cohort (`opioid_ed`)**: Tests pairs only (size 2)
+- **Second cohort (`non_opioid_ed`/`polypharmacy`)**: Tests pairs and triplets (size 2 and 3)
+- Prevents combinatorial explosion for first cohort while allowing higher-order interactions for polypharmacy
 
 **Combination Testing Process**:
 1. Select all features with ANY importance > 0 (SHAP OR FFA OR causal)
-2. Generate all combinations of size 2, 3, ..., up to `max_interaction_size` (default: 2)
+2. Generate all combinations of size 2, 3, ..., up to `max_interaction_size` (cohort-specific)
 3. For each combination:
    - Modify ALL features in the combination simultaneously
    - Generate explanations for modified instances
@@ -126,159 +164,239 @@ For each feature, we create interventions:
 - `n_instances_tested`: Number of instances tested
 - `explanation_change_rate`: Fraction of explanations that changed
 
+**Drug Interaction Calculator**: For `non_opioid_ed` cohort (drug-only features), this serves as a drug interaction causal calculator for ED visits:
+- Identifies which drug combinations causally increase ED visit risk
+- Measures synergy/antagonism effects (positive = synergy, negative = antagonism)
+- Output: `interaction_analysis.parquet` with drug-drug and drug-drug-drug interaction effects
+
 **Configuration**:
 ```python
 ANALYSIS_CONFIG = {
-    'enable_interaction_analysis': False,  # Set to True to enable
-    'max_interaction_size': 2,  # Test pairs (2), triplets (3), etc.
+    'enable_interaction_analysis': True,  # Enabled by default
+    'max_interaction_size': 2,  # Cohort-specific: 2 for opioid_ed, 3 for polypharmacy
     'interaction_sample_size': 50,  # Sample size for interaction testing
     'min_interaction_effect': 0.01,  # Minimum interaction effect to report
-    'min_combined_shap_threshold': 0.0,  # Optional: filter by combined SHAP score
-    'min_individual_shap_threshold': 0.0,  # Filter: only features with SHAP > 0
+    'binary_intervention_mode': 'remove_only',  # remove_only or add_only
 }
 ```
 
-## Causal Importance Calculation
+## Technical Implementation
 
-### Explainer-Based Method:
-1. **Baseline**: Get explanations from all models on original data
-2. **Intervention**: Apply intervention, get new explanations
-3. **Change Measurement**: Count how many explanations change
-4. **Support Calculation**: Count number of intervenable instances
-   - For binary features (remove_only): Number of instances where `feature == 1`
-   - For binary features (add_only): Number of instances where `feature == 0`
-   - For continuous features: Total sample size
-5. **Confidence Calculation**: Fraction of intervenable instances where intervention caused change
-   - `confidence = changes / support`
-   - Same as `causal_importance` (Intervention Rate - IR)
-6. **Aggregation**: Weight by model performance, average across interventions
+### Rule Grouping for Efficiency
 
-### Probability-Based Method:
-1. **Baseline**: Get probability predictions from all models
-2. **Intervention**: Apply intervention, get new probabilities
-3. **Change Measurement**: Calculate absolute probability change
-4. **Aggregation**: Weight by model performance, average across interventions
+The causal analysis uses **rule grouping** to dramatically improve efficiency:
 
-### Combined Method:
-- Normalizes both methods to [0,1] scale
-- Averages normalized scores
-- Provides unified causal importance ranking
+**How it works**:
+1. **Class-Specific Rule Matching**: Rules matched per predicted class (0 or 1)
+2. **Deterministic Grouping**: Instances with identical rules AND same predicted class form a group
+3. **Efficiency**: O(n) → O(g) where g << n (groups << instances)
+   - Typical: 10,000 instances → ~100-500 groups (20-100x reduction)
+4. **No Accuracy Loss**: Instances in same group have identical rules, so identical AXP
 
-### Metrics Explained
+**Why it's robust for binary outcomes**:
+- Respects class boundaries (Class 0 vs Class 1)
+- Ensures instances with identical rule patterns get identical explanations
+- Handles binary feature interventions correctly (only test instances where feature=1)
+- Full AXP recomputation even when rules don't change (detects features in explanations)
 
-**Support (Support(j))**:
-- Number of instances available for intervention
-- Higher support = more reliable causal estimate
-- Used for filtering features with insufficient support (pruning)
+### Partial Condition Satisfaction
 
-**Confidence**:
-- Fraction of intervenable instances where intervention caused change
-- `confidence = causal_importance = change_rate`
-- Range: 0.0 to 1.0
-- `confidence = 1.0` means feature always affects explanations when present
+**Important**: Rules use **strict AND logic** - a rule matches only if **ALL conditions are satisfied**.
 
-**Causal Importance (IR(j) - Intervention Rate)**:
-- Same as confidence in our implementation
-- Fraction of instances with changed explanations after intervention
-- Higher score = stronger causal effect on model's reasoning
+- **No partial matching**: If a rule has 3 conditions but only 2 are satisfied → rule does NOT match
+- **Deterministic**: Same conditions → same rule matches → same group
+- **Sensitive to changes**: Any condition change can alter rule matches and create new groups
 
-See [`8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md`](../../8_ffa_analysis/SUPPORT_CONFIDENCE_METRICS.md) for detailed explanation.
+**Example**:
+```
+Rule: (age > 25) AND (drug_count > 3) AND (icd_code == "E11")
+
+Instance A: age=30, drug_count=5, icd_code="E11" → ✅ Rule MATCHES
+Instance B: age=30, drug_count=5, icd_code="E10" → ❌ Rule DOES NOT MATCH
+Instance C: age=30, drug_count=2, icd_code="E11" → ❌ Rule DOES NOT MATCH
+```
+
+Instances with different partial matches end up matching **different, simpler rules** that only require the subset of conditions they satisfy.
+
+### Feature Pruning
+
+**Key principle**:
+> **Never prune before you measure causality.  
+> Always prune before combinatorics.  
+> Only early-stop after you've committed.**
+
+**Current status**:
+- ✅ **Binary intervention mode consistency**: Univariate and interaction analysis both use the same `binary_intervention_mode` (default: `remove_only`)
+- ⚠️ **Stage 2.5 pruning gate**: NOT YET IMPLEMENTED (highest priority)
+- ⚠️ **Stage 3 interaction pruning**: PARTIALLY IMPLEMENTED (only SHAP filtering, missing co-occurrence and capping)
+
+For detailed guides on pruning, see:
+- [`8_ffa_analysis/PRUNING_PIPELINE.md`](../../8_ffa_analysis/PRUNING_PIPELINE.md) - Complete pruning stage mapping
+- [`8_ffa_analysis/PRUNING_RULES.md`](../../8_ffa_analysis/PRUNING_RULES.md) - Detailed pruning rules
 
 ## Usage
 
-### Basic Usage
+### Running FFA Causal Analysis
 
-```python
-python combined_causal_analysis.py
+```bash
+# Run complete FFA analysis (includes causal analysis)
+python utility_scripts/run_full_ffa_analysis.py \
+    --cohort opioid_ed \
+    --age_band 13-24 \
+    --model-type xgboost
+
+# Force rerun (clears existing outputs)
+python utility_scripts/run_full_ffa_analysis.py \
+    --cohort opioid_ed \
+    --age_band 13-24 \
+    --model-type xgboost \
+    --force
+
+# Adjust parallel workers (for CPU optimization)
+python utility_scripts/run_full_ffa_analysis.py \
+    --cohort opioid_ed \
+    --age_band 13-24 \
+    --model-type xgboost \
+    --n-jobs 14
 ```
 
 ### Configuration
 
-Edit the `CAUSAL_CONFIG` in `combined_causal_analysis.py`:
+Edit `ANALYSIS_CONFIG` in `utility_scripts/run_full_ffa_analysis.py`:
 
 ```python
-CAUSAL_CONFIG = {
-    'target_class': 1,
-    'sample_size': 500,  # Number of instances to analyze
-    'top_k_features': 20,  # Number of top features
-    'intervention_types': ['remove', 'median', 'zero', 'increase'],
-    'random_seed': 1997,
+ANALYSIS_CONFIG = {
+    'max_samples': None,  # None = use all data
+    'n_jobs': 14,  # Number of parallel workers (default: min(28, cpu_count()))
+    'enable_interaction_analysis': True,  # Enable multi-feature interactions
+    'max_interaction_size': 2,  # Cohort-specific: 2 for opioid_ed, 3 for polypharmacy
+    'interaction_sample_size': 50,  # Sample size for interaction testing
+    'min_interaction_effect': 0.01,  # Minimum interaction effect to report
+    'binary_intervention_mode': 'remove_only',  # remove_only or add_only
 }
 ```
 
 ## Outputs
 
-### 1. **CSV Results**
+### Single-Feature Causal Analysis
 
-#### Explainer-Based Method (FFA):
-- `causal_importance.parquet`: FFA-based causal scores (from `run_full_ffa_analysis.py`)
-  - `feature`: Feature name
-  - `causal_importance`: Causal importance score (IR - Intervention Rate, 0.0 to 1.0)
-  - `support`: Number of intervenable instances (Support - number of instances where intervention can be applied)
-  - `confidence`: Confidence score (0.0 to 1.0) - Same as `causal_importance` (fraction of intervenable instances that changed)
-  - `median_value`: Median value used for intervention (continuous features)
-  - `is_binary`: Whether feature is binary (0/1)
-  - `intervention`: Description of intervention applied
+**File**: `8_ffa_analysis/outputs/{cohort}/{age_band}/{model_type}/causal_importance.parquet`
 
-#### Explainer-Based Method (CSV - Legacy):
-- `causal_importance_explainer_method.csv`: FFA-based causal scores (from `combined_causal_analysis.py`)
-  - `causal_importance`: Overall causal importance (average across interventions)
-  - `remove_effect`, `median_effect`, `zero_effect`, `increase_effect`: Individual intervention effects
+**Schema**:
+```python
+{
+    'feature': str,                    # Feature name
+    'causal_importance': float,        # IR(j) - Intervention Rate (0.0 to 1.0)
+    'support': int,                    # Support(j) - Number of intervenable instances
+    'confidence': float,                # Confidence - Same as causal_importance
+    'median_value': float,             # Median value (for continuous features)
+    'is_binary': bool,                 # Whether feature is binary
+    'intervention': str                 # Intervention description
+}
+```
 
-#### Probability-Based Method:
-- `causal_importance_probability_method.csv`: Probability-based causal scores
-  - `causal_importance`: Overall causal importance (average across interventions)
-  - `remove_effect`, `median_effect`, `zero_effect`, `increase_effect`: Individual intervention effects
+**Example**:
+```python
+{
+    'feature': 'item_drug_FUROSEMIDE',
+    'causal_importance': 1.000000,      # All interventions caused changes
+    'support': 50,                      # 50 instances with feature=1
+    'confidence': 1.000000,            # 100% of interventions caused changes
+    'median_value': 0.0,               # Not used for binary features
+    'is_binary': True,
+    'intervention': 'removed (1->0, 50/1000 instances)'
+}
+```
 
-#### Combined Method:
-- `causal_importance_combined.csv`: Unified results from both methods
-  - `combined_importance`: Normalized average of both methods
-  - `explainer_importance`: Explainer-based score
-  - `probability_importance`: Probability-based score
-  - All intervention effects from both methods
+### Multi-Feature Interaction Analysis
 
-### 2. **Visualizations**
-- `combined_causal_analysis_dual_approach.png`: Comprehensive visualization
-  - **Panel 1**: Top features by explainer-based method
-  - **Panel 2**: Top features by probability-based method
-  - **Panel 3**: Top features by combined method
-  - **Panel 4**: Scatter plot comparing both methods
-  - **Panels 5-6**: Intervention effects for top features (both methods)
+**File**: `8_ffa_analysis/outputs/{cohort}/{age_band}/{model_type}/interaction_analysis.parquet`
+
+**Schema**:
+```python
+{
+    'feature_combination': str,         # Feature names joined by "|"
+    'interaction_size': int,            # Number of features (2, 3, etc.)
+    'combined_causal_importance': float,  # Combined effect
+    'sum_individual_effects': float,    # Sum of individual effects
+    'interaction_effect': float,         # Difference (combined - individual)
+    'synergy_type': str,                # positive/negative/neutral
+    'n_instances_tested': int,          # Number of instances tested
+    'explanation_change_rate': float    # Fraction of explanations that changed
+}
+```
 
 ## Interpretation
 
-### Causal Importance Score (IR - Intervention Rate)
-- **Higher score** = Feature has stronger causal effect
-- **Score = 0** = Feature has no causal effect (changing it doesn't change predictions)
-- **Score = 1.0** = Feature always causes explanation changes (perfect causal effect)
-- **Score > 0.1** = Feature has meaningful causal effect
+### Causal Importance Score
 
-### Support (Support(j))
-- **Number of intervenable instances**: How many instances are available for intervention
-- **For binary features (remove_only)**: Number of instances where `feature == 1`
-- **For binary features (add_only)**: Number of instances where `feature == 0`
-- **For continuous features**: Total sample size
-- **Higher support** = More reliable causal estimate (more instances tested)
-- **Low support (< 10)** = Less reliable (few instances available for intervention)
+**High Score (e.g., 1.0)**:
+- Feature always causes explanation changes
+- Strong, reliable causal relationship
+- Good candidate for clinical decision-making
 
-### Confidence
-- **Fraction of intervenable instances where intervention caused change**
-- **Same as `causal_importance`** in our implementation
-- **`confidence = changes / support`**
-- **Range**: 0.0 to 1.0
-- **`confidence = 1.0`**: Feature always affects explanations when present
-- **`confidence = 0.5`**: Feature affects explanations in 50% of intervenable instances
+**Medium Score (e.g., 0.5)**:
+- Feature causes explanation changes in 50% of instances
+- Moderate causal effect
+- May depend on context or other features
 
-### Intervention Effects
-- **Remove/Median**: Shows effect of neutralizing the feature
-- **Zero**: Shows effect of completely removing feature signal
-- **Increase**: Shows effect of amplifying the feature
+**Low Score (e.g., 0.1)**:
+- Feature rarely causes explanation changes
+- Weak causal effect
+- May be spurious correlation
 
-### Example Interpretation
-For a feature with `support = 50` and `confidence = 1.0`:
-- 50 instances had the feature present (support)
-- Removing it changed the explanation in all 50 instances (confidence = 1.0)
-- This indicates a strong, reliable causal relationship
+**Zero Score (0.0)**:
+- Feature never causes explanation changes
+- No causal effect on model reasoning
+- Can be safely ignored
+
+### Support and Confidence
+
+**High Support + High Confidence** (e.g., `support = 100`, `confidence = 1.0`):
+- Feature appears in many instances AND always affects explanations
+- **Conclusion**: Strong, reliable causal relationship
+
+**Low Support + High Confidence** (e.g., `support = 5`, `confidence = 1.0`):
+- Feature appears in few instances BUT always affects explanations when present
+- **Conclusion**: Potentially important but needs more data to confirm
+
+**High Support + Low Confidence** (e.g., `support = 100`, `confidence = 0.1`):
+- Feature appears in many instances BUT rarely affects explanations
+- **Conclusion**: Feature is common but not causally important
+
+**Low Support + Low Confidence** (e.g., `support = 5`, `confidence = 0.2`):
+- Feature appears in few instances AND rarely affects explanations
+- **Conclusion**: Feature is likely not causally important
+
+### Interaction Effects
+
+**Positive Interaction (Synergy)**:
+- Combined effect > sum of individual effects
+- Example: Drug A + Drug B together have stronger effect than A alone + B alone
+- **Clinical implication**: Drug combination increases risk more than expected
+
+**Negative Interaction (Antagonism)**:
+- Combined effect < sum of individual effects
+- Example: Drug A + Drug B together have weaker effect than expected
+- **Clinical implication**: Drug combination may have protective or neutralizing effect
+
+**Neutral**:
+- Combined effect ≈ sum of individual effects
+- **Clinical implication**: No interaction, effects are additive
+
+## When to Use Causal Importance
+
+**Use causal importance when**:
+- ✅ You want to identify features that causally drive model predictions
+- ✅ You need to filter out spurious correlations
+- ✅ You want robust features for clinical decision-making
+- ✅ You need interpretable features that can be expressed as Boolean logic
+- ✅ You want to understand drug interactions and synergies
+
+**Don't use causal importance when**:
+- ❌ You need true causal inference from observational data (requires RCTs)
+- ❌ You want to understand population-level causal effects
+- ❌ You need to make policy recommendations without experimental validation
 
 ## Model Weights
 
@@ -294,10 +412,18 @@ Weights are normalized so they sum to 1.0.
 
 ```
 Top 10 Features by Causal Importance:
-1. medical_code_itemsets_max_support: 0.682
-2. cpt_code_itemsets_matched_count: 0.610
-3. drug_name_itemsets_max_support: 0.528
-4. cpt_code_itemsets_max_support: 0.514
+1. item_drug_FUROSEMIDE: 1.000 (support: 50, confidence: 1.000)
+2. item_drug_LISINOPRIL: 0.940 (support: 75, confidence: 0.940)
+3. item_drug_AMLODIPINE_BESYLATE: 0.920 (support: 60, confidence: 0.920)
+...
+
+Top Drug Interactions (Synergy):
+1. item_drug_FUROSEMIDE|item_drug_LISINOPRIL: +0.15 (positive synergy)
+2. item_drug_AMLODIPINE_BESYLATE|item_drug_OMEPRAZOLE: +0.12 (positive synergy)
+...
+
+Top Drug Interactions (Antagonism):
+1. item_drug_LEVOTHYROXINE_SODIUM|item_drug_LISINOPRIL: -0.10 (negative synergy)
 ...
 ```
 
@@ -306,12 +432,20 @@ Top 10 Features by Causal Importance:
 1. **Feature Selection**: Use causal importance to select features for intervention
 2. **Policy Analysis**: Understand which features have the strongest causal effects
 3. **Risk Assessment**: Identify modifiable risk factors
-4. **Model Improvement**: Focus on features with high causal importance
+4. **Drug Interaction Analysis**: Use interaction analysis to identify drug combinations that increase ED visit risk
+5. **Model Improvement**: Focus on features with high causal importance
 
 ## Notes
 
-- Causal analysis requires careful interpretation - correlation ≠ causation
-- Results are model-dependent - different models may show different causal patterns
-- Use domain expertise to validate causal findings
-- Consider confounders and mediators in real-world applications
+- **Causal analysis requires careful interpretation** - correlation ≠ causation
+- **Results are model-dependent** - different models may show different causal patterns
+- **Use domain expertise** to validate causal findings
+- **Consider confounders and mediators** in real-world applications
+- **Test data required** - ensures validation on unseen data
+- **Support and confidence** help assess reliability of causal estimates
 
+## Related Documentation
+
+- [`8_ffa_analysis/README.md`](../../8_ffa_analysis/README.md) - Complete FFA analysis framework overview
+- [`8_ffa_analysis/PRUNING_PIPELINE.md`](../../8_ffa_analysis/PRUNING_PIPELINE.md) - Pruning pipeline and implementation status
+- [`docs/Step9_FFA/README_ffa_analysis.md`](README_ffa_analysis.md) - FFA analysis overview

@@ -86,8 +86,29 @@ MODEL_JSON_BASE = (
     / AGE_BAND_FNAME
     / "final_model_json"
 )
-# Try Parquet first (preferred), fall back to CSV
-DATA_PATH_PARQUET = (
+# Try test data first (2019) for validation, then fall back to training data (2016-2018)
+# Test data paths (preferred for validation)
+DATA_PATH_TEST_PARQUET = (
+    PROJECT_ROOT
+    / "6_final_model"
+    / "outputs"
+    / COHORT_NAME
+    / AGE_BAND_FNAME
+    / "inputs"
+    / "model_test"
+    / "final_features.parquet"
+)
+DATA_PATH_TEST_CSV = (
+    PROJECT_ROOT
+    / "6_final_model"
+    / "outputs"
+    / COHORT_NAME
+    / AGE_BAND_FNAME
+    / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv"
+)
+
+# Training data paths (fallback if test data not available)
+DATA_PATH_TRAIN_PARQUET = (
     PROJECT_ROOT
     / "6_final_model"
     / "outputs"
@@ -97,7 +118,7 @@ DATA_PATH_PARQUET = (
     / "model_train"
     / "final_features.parquet"
 )
-DATA_PATH_CSV = (
+DATA_PATH_TRAIN_CSV = (
     PROJECT_ROOT
     / "6_final_model"
     / "outputs"
@@ -105,8 +126,25 @@ DATA_PATH_CSV = (
     / AGE_BAND_FNAME
     / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv"
 )
+
+# Prioritize test data (2019) for validation, fall back to training data (2016-2018)
 # Use Parquet if available, otherwise CSV
-DATA_PATH = DATA_PATH_PARQUET if DATA_PATH_PARQUET.exists() else DATA_PATH_CSV
+if DATA_PATH_TEST_PARQUET.exists():
+    DATA_PATH = DATA_PATH_TEST_PARQUET
+    DATA_SOURCE = "test (2019)"
+elif DATA_PATH_TEST_CSV.exists():
+    DATA_PATH = DATA_PATH_TEST_CSV
+    DATA_SOURCE = "test (2019)"
+elif DATA_PATH_TRAIN_PARQUET.exists():
+    DATA_PATH = DATA_PATH_TRAIN_PARQUET
+    DATA_SOURCE = "train (2016-2018)"
+    logger.warning("Test data (2019) not found. Using training data (2016-2018) as fallback. "
+                   "For best validation, use test data (2019).")
+else:
+    DATA_PATH = DATA_PATH_TRAIN_CSV
+    DATA_SOURCE = "train (2016-2018)"
+    logger.warning("Test data (2019) not found. Using training data (2016-2018) as fallback. "
+                   "For best validation, use test data (2019).")
 OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -2369,6 +2407,12 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
         
         # Step 3: Load data
         logger.info("Step 3: Loading data...")
+        if DATA_SOURCE:
+            logger.info(f"Using data source: {DATA_SOURCE} (for rule validation and explanation generation)")
+            if DATA_SOURCE == "test (2019)":
+                print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+            else:
+                print(f"[INFO] Using data source: {DATA_SOURCE} (for rule validation and explanation generation)")
         X, y = load_data(DATA_PATH, max_samples=ANALYSIS_CONFIG.get('max_samples'))
         
         if y is None:
@@ -2598,7 +2642,7 @@ def run_validation_if_requested(cohort: str, age_band: str, model_type: str = "x
 
 def main():
     """Run complete FFA analysis for one or more model types."""
-    global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, OUTPUT_DIR
+    global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, DATA_SOURCE, OUTPUT_DIR
 
     parser = argparse.ArgumentParser(
         description="Run FFA analysis for specified model types."
@@ -2660,38 +2704,26 @@ def main():
         / AGE_BAND_FNAME
         / "final_model_json"
     )
-    # Try multiple locations for data file
-    data_paths_to_try = [
-        # Primary location: 6_final_model outputs
+    # Try test data (2019) first - if found, use ONLY test data (faster, better validation)
+    # Only fall back to training data (2016-2018) if test data not available
+    test_data_paths = [
+        # Test data (2019) - preferred for validation
+        # Rules extracted from training model (2016-2018), validated on test data (2019)
         PROJECT_ROOT
         / "6_final_model"
         / "outputs"
         / COHORT_NAME
         / AGE_BAND_FNAME
         / "inputs"
-        / "model_train"
+        / "model_test"
         / "final_features.parquet",
         PROJECT_ROOT
         / "6_final_model"
         / "outputs"
         / COHORT_NAME
         / AGE_BAND_FNAME
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
-        # Alternative: data folder (various structures)
-        PROJECT_ROOT
-        / "data"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / "final_features.parquet",
-        PROJECT_ROOT
-        / "data"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
-        PROJECT_ROOT
-        / "data"
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
-        # Data folder with cohorts structure (check latest year)
+        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
+        # Alternative: Test data from event_year=2019 structure
         PROJECT_ROOT
         / "data"
         / "cohorts"
@@ -2699,43 +2731,44 @@ def main():
         / "event_year=2019"
         / f"age_band={AGE_BAND}"
         / "final_features.parquet",
-        PROJECT_ROOT
-        / "data"
-        / "cohorts"
-        / f"cohort_name={COHORT_NAME}"
-        / "event_year=2020"
-        / f"age_band={AGE_BAND}"
-        / "final_features.parquet",
-        # Gold cohorts directory
-        PROJECT_ROOT
-        / "data"
-        / "gold_cohorts"
-        / f"cohort_name={COHORT_NAME}"
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
-        PROJECT_ROOT
-        / "data"
-        / "gold_cohorts"
-        / f"cohort_name={COHORT_NAME}"
-        / "final_features.parquet",
-        PROJECT_ROOT
-        / "data"
-        / "gold_cohorts"
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_train_final_features_no_leakage.csv",
     ]
     
+    # Check test data first - if found, use ONLY test data (don't check train)
     DATA_PATH = None
-    for path in data_paths_to_try:
+    DATA_SOURCE = None
+    for path in test_data_paths:
         if path.exists():
             DATA_PATH = path
-            logger.info(f"Found data file at: {DATA_PATH}")
+            DATA_SOURCE = "test (2019)"
+            logger.info(f"Found test data (2019) at: {DATA_PATH}")
+            logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
+            print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+            print(f"[INFO] Test data is smaller than training data, so processing will be faster")
             break
     
+    # Require test data - no fallback to training data
     if DATA_PATH is None:
-        logger.warning(f"Data file not found in any of the expected locations:")
-        for path in data_paths_to_try:
-            logger.warning(f"  - {path}")
-        # Set to the primary expected location for error message clarity
-        DATA_PATH = data_paths_to_try[1]
+        logger.error("=" * 80)
+        logger.error("ERROR: Test data (2019) not found. Test data is required for FFA analysis.")
+        logger.error("=" * 80)
+        logger.error("Test data paths checked:")
+        for path in test_data_paths:
+            logger.error(f"  - {path}")
+        logger.error("")
+        logger.error("Please ensure test data (2019) exists at one of the above paths.")
+        logger.error("Test data is required for proper validation of rules on unseen data.")
+        logger.error("=" * 80)
+        print("=" * 80)
+        print("[ERROR] Test data (2019) not found. Test data is required for FFA analysis.")
+        print("=" * 80)
+        print("Test data paths checked:")
+        for path in test_data_paths:
+            print(f"  - {path}")
+        print("")
+        print("Please ensure test data (2019) exists at one of the above paths.")
+        print("Test data is required for proper validation of rules on unseen data.")
+        print("=" * 80)
+        sys.exit(1)
     OUTPUT_DIR = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / COHORT_NAME / AGE_BAND_FNAME
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

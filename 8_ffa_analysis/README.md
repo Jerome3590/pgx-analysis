@@ -395,7 +395,7 @@ Columns:
 - **Confidence**: Fraction of intervenable instances where the intervention caused a change. `confidence = 1.0` means the feature always affects explanations when present.
 - **Causal Importance (IR(j))**: Same as confidence - fraction of instances with changed explanations after intervention.
 
-See [`SUPPORT_CONFIDENCE_METRICS.md`](SUPPORT_CONFIDENCE_METRICS.md) for detailed explanation of support and confidence metrics.
+See [`docs/Step9_FFA/README_ffa_causal_analysis.md`](../docs/Step9_FFA/README_ffa_causal_analysis.md) for detailed explanation of support and confidence metrics.
 
 ### Top 10 Causal Importance Features
 
