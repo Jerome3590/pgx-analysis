@@ -2752,6 +2752,8 @@ def main():
             # Check data/cohorts structure (alternative)
             data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
         ])
+        logger.info(f"Data root (Linux/EC2): {data_root}")
+        print(f"[INFO] Checking local paths under: {data_root}")
     
     # Check project root paths (fallback)
     test_data_paths.extend([
@@ -2778,16 +2780,27 @@ def main():
         / "final_features.parquet",
     ])
     
+    logger.info(f"Checking {len(test_data_paths)} local paths for test data...")
+    print(f"[INFO] Checking {len(test_data_paths)} local paths...")
+    
     # Check local paths
-    for path in test_data_paths:
+    for i, path in enumerate(test_data_paths, 1):
+        logger.debug(f"Checking path {i}/{len(test_data_paths)}: {path}")
         if path.exists():
             DATA_PATH = path
             DATA_SOURCE = "test (2019)"
             logger.info(f"Found test data (2019) at: {DATA_PATH}")
             logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
+            print(f"[OK] Found test data at: {DATA_PATH}")
             print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
             print(f"[INFO] Test data is smaller than training data, so processing will be faster")
             break
+        else:
+            logger.debug(f"Path does not exist: {path}")
+    
+    if DATA_PATH is None:
+        logger.info("Test data not found in any local paths checked")
+        print(f"[INFO] Test data not found in {len(test_data_paths)} local paths checked")
     
     # Step 2: If not found locally, check S3 and sync to /mnt/nvme/4a_model_data/
     if DATA_PATH is None:
