@@ -2833,83 +2833,30 @@ def main():
     DATA_PATH = None
     DATA_SOURCE = None
     
-    # Step 1: Check local paths first (including /mnt/nvme/4a_model_data/)
-    logger.info("Checking local paths for test data (2019)...")
-    print("[INFO] Checking local paths for test data (2019)...")
+    # Check S3 and sync to /mnt/nvme/ (simplified: S3-first approach)
+    logger.info("Checking S3 for test data (2019) and syncing to /mnt/nvme/...")
+    print("[INFO] Checking S3 for test data (2019) and syncing to /mnt/nvme/...")
     
-    test_data_paths = []
+    if not data_root:
+        logger.error("Data root (/mnt/nvme) not available. Cannot sync test data.")
+        print("[ERROR] Data root (/mnt/nvme) not available. Cannot sync test data.")
+        sys.exit(1)
     
-    # Check /mnt/nvme first (Linux/EC2) - highest priority
-    if data_root:
-        test_data_paths.extend([
-            # Check step 6 paths first (standard location for final_features.parquet)
-            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
-            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-            # Check gold paths (synced from S3 - matches S3 structure)
-            # Check model_training_data first (where test data actually is)
-            data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
-            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
-            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
-            # Check cohorts_model_data paths (step 4a structure - may have test data)
-            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "event_year=2019" / "final_features.parquet",
-            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "model_test" / "final_features.parquet",
-            # Check data/cohorts structure (alternative)
-            data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
-        ])
-        logger.info(f"Data root (Linux/EC2): {data_root}")
-        print(f"[INFO] Checking local paths under: {data_root}")
+    # Define sync destination (where we'll download from S3)
+    sync_dir = data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
+    sync_path = sync_dir / "final_features.parquet"
     
-    # Check project root paths (fallback)
-    test_data_paths.extend([
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / "inputs"
-        / "model_test"
-        / "final_features.parquet",
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-        PROJECT_ROOT
-        / "data"
-        / "cohorts"
-        / f"cohort_name={COHORT_NAME}"
-        / "event_year=2019"
-        / f"age_band={AGE_BAND}"
-        / "final_features.parquet",
-    ])
-    
-    logger.info(f"Checking {len(test_data_paths)} local paths for test data...")
-    print(f"[INFO] Checking {len(test_data_paths)} local paths...")
-    
-    # Check local paths
-    for i, path in enumerate(test_data_paths, 1):
-        logger.debug(f"Checking path {i}/{len(test_data_paths)}: {path}")
-        if path.exists():
-            DATA_PATH = path
-            DATA_SOURCE = "test (2019)"
-            logger.info(f"Found test data (2019) at: {DATA_PATH}")
-            logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
-            print(f"[OK] Found test data at: {DATA_PATH}")
-            print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
-            print(f"[INFO] Test data is smaller than training data, so processing will be faster")
-            break
-        else:
-            logger.debug(f"Path does not exist: {path}")
-    
-    if DATA_PATH is None:
-        logger.info("Test data not found in any local paths checked")
-        print(f"[INFO] Test data not found in {len(test_data_paths)} local paths checked")
-    
-    # Step 2: If not found locally, check S3 and sync to /mnt/nvme/4a_model_data/
-    if DATA_PATH is None:
-        logger.info("Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
-        print("[INFO] Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
+    # Quick check if already synced locally
+    if sync_path.exists():
+        DATA_PATH = sync_path
+        DATA_SOURCE = "test (2019) [synced from S3]"
+        logger.info(f"Test data already synced locally at: {DATA_PATH}")
+        print(f"[OK] Test data already synced locally at: {DATA_PATH}")
+        print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+    else:
+        # Need to sync from S3
+        logger.info("Test data not found locally. Syncing from S3...")
+        print("[INFO] Test data not found locally. Syncing from S3...")
         
         try:
             import boto3
@@ -3018,6 +2965,11 @@ def main():
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
             s3_test_paths = [
+                # Check model_training_data first (where test data actually is)
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
+                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
+                # Check final_model paths (alternative location)
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
                 f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
