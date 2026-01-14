@@ -2865,70 +2865,45 @@ def main():
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
             
-            # S3 paths to check (primary and legacy)
-            s3_test_paths = [
-                # Check model_training_data first (where test data actually is)
-                # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
-                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/model_training_data/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-                # Check final_model paths (alternative location)
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-                # Check cohorts_model_data path (step 4a structure - may have test data)
-                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/event_year=2019/final_features.parquet",
-                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/model_test/final_features.parquet",
-            ]
+            # Only check model_training_data S3 path (where test data actually is)
+            s3_key = f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet"
             
-            # Try to find and sync from S3
-            for s3_key in s3_test_paths:
-                try:
-                    # Check if file exists in S3
-                    s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            try:
+                # Check if file exists in S3
+                logger.info(f"Checking S3: s3://{S3_BUCKET}/{s3_key}")
+                print(f"[INFO] Checking S3: s3://{S3_BUCKET}/{s3_key}")
+                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                
+                # Create sync directory
+                sync_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Download from S3
+                logger.info(f"Syncing test data from S3 to: {sync_path}")
+                print(f"[INFO] Syncing test data from S3 to: {sync_path}")
+                s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
+                
+                if sync_path.exists():
+                    DATA_PATH = sync_path
+                    DATA_SOURCE = "test (2019) [synced from S3]"
+                    logger.info(f"Successfully synced test data from S3 to: {DATA_PATH}")
+                    logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
+                    print(f"[OK] Successfully synced test data from S3")
+                    print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+                    print(f"[INFO] Test data is smaller than training data, so processing will be faster")
+                else:
+                    logger.error(f"Download completed but file not found at: {sync_path}")
+                    print(f"[ERROR] Download completed but file not found at: {sync_path}")
                     
-                    # Determine sync destination: /mnt/nvme/gold/ (matches S3 structure), otherwise project root
-                    if data_root:
-                        # Sync to /mnt/nvme/gold/model_training_data/ (matches S3 structure exactly - where test data actually is)
-                        # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
-                        sync_dir = data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
-                        sync_path = sync_dir / "final_features.parquet"
-                    else:
-                        # Fallback to project root if not Linux (use step 6 standard location)
-                        sync_dir = PROJECT_ROOT / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test"
-                        sync_path = sync_dir / "final_features.parquet"
-                    
-                    sync_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    logger.info(f"Syncing test data from S3 to local storage: s3://{S3_BUCKET}/{s3_key} -> {sync_path}")
-                    print(f"[INFO] Syncing test data from S3: s3://{S3_BUCKET}/{s3_key}")
-                    print(f"[INFO] Destination: {sync_path}")
-                    
-                    s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
-                    
-                    if sync_path.exists():
-                        DATA_PATH = sync_path
-                        DATA_SOURCE = "test (2019) [synced from S3]"
-                        logger.info(f"Successfully synced test data from S3 to: {DATA_PATH}")
-                        logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
-                        print(f"[OK] Successfully synced test data from S3")
-                        print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
-                        print(f"[INFO] Test data is smaller than training data, so processing will be faster")
-                        break
-                    
-                except ClientError as e:
-                    if e.response['Error']['Code'] == '404':
-                        # File doesn't exist, try next path
-                        continue
-                    else:
-                        logger.warning(f"Error checking S3 path {s3_key}: {e}")
-                        continue
-                except Exception as e:
-                    logger.warning(f"Error syncing from S3 path {s3_key}: {e}")
-                    continue
+            except ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                    logger.error(f"Test data not found in S3: s3://{S3_BUCKET}/{s3_key}")
+                    print(f"[ERROR] Test data not found in S3: s3://{S3_BUCKET}/{s3_key}")
+                else:
+                    logger.error(f"Error checking S3: {e}")
+                    print(f"[ERROR] Error checking S3: {e}")
+            except Exception as e:
+                logger.error(f"Error syncing from S3: {e}")
+                print(f"[ERROR] Error syncing from S3: {e}")
                     
         except ImportError:
             logger.warning("boto3 not available, skipping S3 lookup")
@@ -2991,43 +2966,20 @@ def main():
         print("[ERROR] Test data (2019) not found. Test data is required for FFA analysis.")
         print("=" * 80)
         print("Data lookup strategy:")
-        print("  1. Check S3 first (source of truth with controls)")
-        print("  2. Sync from S3 to /mnt/nvme/4a_model_data/ drive (if Linux) or project root")
-        print("  3. Read from local storage (/mnt/nvme/4a_model_data/ or project root)")
+        print("  1. Check S3: gold/model_training_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet")
+        print("  2. Sync from S3 to /mnt/nvme/gold/model_training_data/ (matches S3 structure)")
         print("")
-        print("Local test data paths checked:")
+        print("S3 path checked:")
+        print(f"  - s3://pgxdatalake/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        print("")
+        print("Local sync destination:")
         if data_root:
-            print(f"  - {data_root}/4a_model_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet (synced from S3)")
-            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet")
-            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet")
-            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
-            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
-            print(f"  - {data_root}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
-        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
-        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
-        print(f"  - {PROJECT_ROOT}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
-        
-        # List S3 paths that were checked
-        try:
-            import boto3
-            s3_client = boto3.client("s3")
-            S3_BUCKET = "pgxdatalake"
-            s3_test_paths = [
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-            ]
-            print("")
-            print("S3 test data paths checked:")
-            for s3_key in s3_test_paths:
-                print(f"  - s3://{S3_BUCKET}/{s3_key}")
-        except Exception:
-            print("")
-            print("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
+            print(f"  - {data_root}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        else:
+            print("  - Data root (/mnt/nvme) not available")
         
         print("")
-        print("Please ensure test data (2019) exists in S3 or at one of the local paths above.")
+        print("Please ensure test data (2019) exists in S3 at the path above.")
         print("Test data is required for proper validation of rules on unseen data.")
         print("=" * 80)
         sys.exit(1)
