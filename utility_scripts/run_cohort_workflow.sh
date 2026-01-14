@@ -203,6 +203,73 @@ except:
 " 2>/dev/null || echo "no")
     
     if [ "$STEP_COMPLETED" = "yes" ]; then
+        # For Step 4a, verify model_events.parquet exists AND has controls before skipping
+        if [ "$step_num" = "4a" ]; then
+            AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
+            data_root=$(python3 -c "import sys; sys.path.insert(0, '.'); from py_helpers.env_utils import get_data_root; print(get_data_root())" 2>/dev/null || echo "$PROJECT_ROOT")
+            
+            # Check multiple possible locations
+            MODEL_EVENTS_LINUX="$data_root/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+            MODEL_EVENTS_LOCAL="$PROJECT_ROOT/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+            
+            MODEL_EVENTS_FILE=""
+            if [ -f "$MODEL_EVENTS_LINUX" ]; then
+                MODEL_EVENTS_FILE="$MODEL_EVENTS_LINUX"
+            elif [ -f "$MODEL_EVENTS_LOCAL" ]; then
+                MODEL_EVENTS_FILE="$MODEL_EVENTS_LOCAL"
+            fi
+            
+            if [ -z "$MODEL_EVENTS_FILE" ]; then
+                log "Step 4a marked as completed but model_events.parquet is missing. Re-running to regenerate..."
+                # Clear the completion flag so we run the step
+                python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '4a' in data['step_times']:
+        data['step_times']['4a']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                STEP_COMPLETED="no"
+            else
+                # File exists - verify it has controls
+                HAS_CONTROLS=$(python3 -c "
+import duckdb
+con = duckdb.connect()
+try:
+    result = con.execute(\"SELECT COUNT(*) FILTER (WHERE target = 0) AS n_controls FROM read_parquet('$MODEL_EVENTS_FILE')\").fetchone()
+    n_controls = result[0] if result else 0
+    print('yes' if n_controls > 0 else 'no')
+except:
+    print('no')
+finally:
+    con.close()
+" 2>/dev/null || echo "no")
+                
+                if [ "$HAS_CONTROLS" != "yes" ]; then
+                    log "Step 4a marked as completed but model_events.parquet has no controls. Re-running to add controls..."
+                    # Clear the completion flag so we run the step
+                    python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '4a' in data['step_times']:
+        data['step_times']['4a']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                    STEP_COMPLETED="no"
+                fi
+            fi
+        fi
+        
         # For Step 6, verify essential files exist before skipping
         # (Python script handles S3 downloads, but we need to let it run if files are missing)
         # Step 7 needs both the features CSV AND the model files, so check for both
