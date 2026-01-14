@@ -2941,10 +2941,11 @@ def main():
                     # Check if file exists in S3
                     s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
                     
-                    # Determine sync destination: /mnt/nvme/gold/ (matches S3 structure) or /mnt/nvme/6_final_model/, otherwise project root
+                    # Determine sync destination: /mnt/nvme/gold/ (matches S3 structure), otherwise project root
                     if data_root:
-                        # Sync to /mnt/nvme/gold/final_model/ (matches S3 structure exactly - preferred)
-                        sync_dir = data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test"
+                        # Sync to /mnt/nvme/gold/model_training_data/ (matches S3 structure exactly - where test data actually is)
+                        # Structure: cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+                        sync_dir = data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
                         sync_path = sync_dir / "final_features.parquet"
                     else:
                         # Fallback to project root if not Linux (use step 6 standard location)
