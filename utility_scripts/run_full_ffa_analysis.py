@@ -2746,6 +2746,9 @@ def main():
             # Check gold paths (synced from S3 - matches S3 structure)
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
             data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
+            # Check cohorts_model_data paths (step 4a structure - may have test data)
+            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "event_year=2019" / "final_features.parquet",
+            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "model_test" / "final_features.parquet",
             # Check data/cohorts structure (alternative)
             data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
         ])
