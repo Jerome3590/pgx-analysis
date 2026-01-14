@@ -511,6 +511,11 @@ run_step "5" "PGx Feature Engineering" \
 run_step "6" "Final Model Training (Aggregated Features + PGx, No Encoding)" \
     "python 6_final_model_selection/run_final_model.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
+# Step 6.5: Prepare Train/Test Split (creates final_features.parquet for FFA)
+# This creates train/test final_features.parquet files that FFA analysis needs
+run_step "6.5" "Prepare Train/Test Split (final_features.parquet)" \
+    "python 6_final_model/prepare_train_test_s3.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
+
 # Step 7: SHAP Analysis (uses best CatBoost model binary)
 # Must run before Step 8 (FFA) since FFA uses SHAP values to prioritize rules
 run_step "7" "SHAP Analysis (Best CatBoost Model)" \
