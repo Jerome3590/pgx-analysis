@@ -121,8 +121,9 @@ ANALYSIS_CONFIG = {
     'binary_intervention_mode': 'remove_only',  # remove_only | add_only | flip
     'max_samples': 10000,  # Limit data samples to prevent OOM
     'max_explanation_samples': 1000,  # Limit number of instances for explanation generation
-    # Limit parallel workers to reduce memory usage (use 1-4 instead of all CPUs)
-    'n_jobs': min(4, max(1, get_sklearn_n_jobs())),
+    # Use most CPUs for parallelization (leave 4 cores free for system)
+    # With 32 cores available, use 24-28 workers for maximum throughput
+    'n_jobs': min(28, max(1, get_sklearn_n_jobs())),
     'batch_size': 100,  # Process explanations in batches
     # Stage 2.5: Univariate causal pruning
     'min_present_support': 10,  # Minimum # instances with feature=1 for removal mode
@@ -699,7 +700,7 @@ def generate_explanations(explainer: Any, X: pd.DataFrame, y: np.ndarray) -> pd.
         logger.info(f"Calling explain_dataset on {len(X_class)} instances (this may take a while)...")
         logger.info(f"  - Total rules: {len(explainer.rule_clauses) if hasattr(explainer, 'rule_clauses') else 'unknown'}")
         logger.info(f"  - Rules for class {ANALYSIS_CONFIG['target_class']}: {sum(1 for p in explainer.rule_predictions if p == ANALYSIS_CONFIG['target_class']) if hasattr(explainer, 'rule_predictions') else 'unknown'}")
-        logger.info(f"  - Using {n_jobs} parallel workers (limited for memory efficiency)")
+        logger.info(f"  - Using {n_jobs} parallel workers (optimized for CPU utilization)")
         logger.info(f"  - Processing in batches of {batch_size}")
         
         explain_start = time.time()
@@ -1455,12 +1456,13 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 logger.info(f"  Generating original explanations for {feat_name}...")
                 orig_start = time.time()
                 try:
+                    n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
                     original_explanations = explainer.explain_dataset(
                         X_sample,
                         predictions=y_sample,
                         return_df=True,
                         show_progress=False,
-                        n_jobs=1
+                        n_jobs=n_jobs
                     )
                     orig_duration = time.time() - orig_start
                     logger.info(f"  Original explanations generated in {orig_duration:.2f} seconds")
@@ -1472,12 +1474,13 @@ def perform_causal_analysis(explainer: Any, X: pd.DataFrame, y: np.ndarray,
                 logger.info(f"  Generating modified explanations for {feat_name}...")
                 mod_start = time.time()
                 try:
+                    n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
                     modified_explanations = explainer.explain_dataset(
                         X_modified,
                         predictions=y_sample,
                         return_df=True,
                         show_progress=False,
-                        n_jobs=1
+                        n_jobs=n_jobs
                     )
                     mod_duration = time.time() - mod_start
                     logger.info(f"  Modified explanations generated in {mod_duration:.2f} seconds")
@@ -1983,12 +1986,13 @@ def perform_multi_feature_causal_analysis(
                 # Generate original explanations (on filtered subset)
                 logger.debug(f"    Generating original explanations for combination {combo_idx+1}/{len(feature_combinations)} (n={len(X_sample_filtered)})...")
                 try:
+                    n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
                     original_explanations = explainer.explain_dataset(
                         X_sample_filtered,
                         predictions=y_sample_filtered,
                         return_df=True,
                         show_progress=True,  # Enable progress visibility
-                        n_jobs=1  # Single worker to save memory
+                        n_jobs=n_jobs
                     )
                 except Exception as e:
                     logger.error(f"    Error generating original explanations for combination {combo_idx+1}: {e}")
@@ -2005,12 +2009,13 @@ def perform_multi_feature_causal_analysis(
                     y_sample_early = y_sample_filtered[:early_stopping_n]
                     
                     try:
+                        n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
                         modified_explanations_early = explainer.explain_dataset(
                             X_modified_early,
                             predictions=y_sample_early,
                             return_df=True,
                             show_progress=False,  # Disable progress for early check
-                            n_jobs=1
+                            n_jobs=n_jobs
                         )
                         
                         # Check for zero changes in early sample
@@ -2050,12 +2055,13 @@ def perform_multi_feature_causal_analysis(
                 # Generate modified explanations (on filtered subset)
                 logger.debug(f"    Generating modified explanations for combination {combo_idx+1}/{len(feature_combinations)} (n={len(X_modified_filtered)})...")
                 try:
+                    n_jobs = ANALYSIS_CONFIG.get('n_jobs', 2)
                     modified_explanations = explainer.explain_dataset(
                         X_modified_filtered,
                         predictions=y_sample_filtered,
                         return_df=True,
                         show_progress=True,  # Enable progress visibility
-                        n_jobs=1
+                        n_jobs=n_jobs
                     )
                 except Exception as e:
                     logger.error(f"    Error generating modified explanations for combination {combo_idx+1}: {e}")
