@@ -56,8 +56,14 @@ def check_s3_file_exists(s3_path: str, profile: Optional[str] = None) -> bool:
 
 
 def upload_file_to_s3(local_path: Path, s3_path: str, profile: Optional[str] = None) -> bool:
-    """Upload a file to S3."""
+    """Upload a file to S3 and verify it was uploaded successfully."""
     try:
+        # Check file exists locally
+        if not local_path.exists():
+            print(f"    [ERROR] Local file does not exist: {local_path}")
+            return False
+        
+        # Upload file
         cmd = ['aws', 's3', 'cp', str(local_path), s3_path]
         if profile:
             cmd.extend(['--profile', profile])
@@ -66,11 +72,17 @@ def upload_file_to_s3(local_path: Path, s3_path: str, profile: Optional[str] = N
             capture_output=True,
             text=True
         )
-        if result.returncode == 0:
-            return True
-        else:
-            print(f"    [ERROR] AWS CLI error: {result.stderr}")
+        
+        if result.returncode != 0:
+            print(f"    [ERROR] AWS CLI upload failed: {result.stderr}")
             return False
+        
+        # Verify file was uploaded successfully
+        if not check_s3_file_exists(s3_path, profile):
+            print(f"    [ERROR] File uploaded but verification failed: {s3_path}")
+            return False
+        
+        return True
     except Exception as e:
         print(f"    [ERROR] Failed to upload: {e}")
         return False
@@ -224,6 +236,7 @@ def sync_missing_models(
     print()
     print(f"Project Root: {project_root}")
     print(f"Model Base Dir: {model_base_dir}")
+    print(f"Current Directory: {Path.cwd()}")
     print(f"S3 Bucket: {S3_BUCKET}")
     if profile:
         print(f"AWS Profile: {profile}")
@@ -232,6 +245,18 @@ def sync_missing_models(
     if dry_run:
         print(f"[DRY RUN] No files will be uploaded")
     print()
+    
+    # Verify project root structure
+    expected_dirs = [
+        project_root / "6_final_model",
+        project_root / "py_helpers",
+    ]
+    missing_dirs = [d for d in expected_dirs if not d.exists()]
+    if missing_dirs:
+        print(f"[WARN] Some expected directories not found:")
+        for d in missing_dirs:
+            print(f"  - {d}")
+        print()
     
     # Check if model base directory exists
     if not model_base_dir.exists():
@@ -249,8 +274,29 @@ def sync_missing_models(
             print()
             print(f"Age Band: {age_band}")
             
+            # Debug: Show what directories we're checking
+            age_band_fname = age_band.replace('-', '_')
+            check_dirs = [
+                project_root / "6_final_model" / "outputs" / cohort / age_band_fname,
+                project_root / "6_final_model" / "model_outputs" / cohort / age_band_fname,
+            ]
+            print(f"  Checking directories:")
+            for check_dir in check_dirs:
+                exists = "EXISTS" if check_dir.exists() else "NOT FOUND"
+                print(f"    {check_dir} - {exists}")
+            
             # Find local files (checks both outputs/ and model_outputs/)
             local_files = find_local_model_files(project_root, cohort, age_band)
+            
+            # Debug: Show what files were found
+            print(f"  Found files:")
+            for file_type, files in local_files.items():
+                if files:
+                    print(f"    {file_type}: {len(files)} file(s)")
+                    for f in files[:2]:  # Show first 2
+                        print(f"      - {f}")
+                    if len(files) > 2:
+                        print(f"      ... and {len(files) - 2} more")
             
             # Get expected S3 paths
             s3_paths = get_expected_s3_files(cohort, age_band)
@@ -284,11 +330,12 @@ def sync_missing_models(
                     print(f"    [DRY RUN] Would upload")
                     uploaded += 1
                 else:
+                    print(f"    Uploading to S3...")
                     if upload_file_to_s3(local_file, s3_path, profile):
-                        print(f"    [OK] Uploaded successfully")
+                        print(f"    [OK] Uploaded and verified in S3")
                         uploaded += 1
                     else:
-                        print(f"    [ERROR] Failed to upload")
+                        print(f"    [ERROR] Failed to upload or verify")
                         errors += 1
     
     return (total_checked, uploaded, skipped, errors)
@@ -328,46 +375,66 @@ def main():
     if args.project_root:
         project_root = Path(args.project_root).resolve()
     else:
-        # Try to auto-detect
-        project_root = PROJECT_ROOT
-        if not project_root.exists():
-            # Try common EC2 locations
-            for path_str in [
-                "/home/pgx3874/pgx-analysis",
-                "/mnt/nvme/pgx-analysis",
-                Path.home() / "pgx-analysis"
-            ]:
-                test_path = Path(path_str)
-                if test_path.exists():
-                    project_root = test_path
-                    break
-            else:
-                print("[ERROR] Could not find project root. Please specify --project-root")
-                sys.exit(1)
+        # Try to auto-detect - check multiple locations
+        candidates = [
+            PROJECT_ROOT,  # From script location
+            Path.cwd().parent if Path.cwd().name in ["6_final_model", "utility_scripts"] else Path.cwd(),  # Current dir or parent
+            Path("/home/pgx3874/pgx-analysis"),  # Common EC2 location
+            Path("/mnt/nvme/pgx-analysis"),  # NVMe location
+            Path.home() / "pgx-analysis",  # User home
+        ]
+        
+        # Remove duplicates and check existence
+        seen = set()
+        project_root = None
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if candidate.exists() and (candidate / "6_final_model").exists():
+                project_root = candidate
+                print(f"[INFO] Found project root: {project_root}")
+                break
+        
+        if project_root is None:
+            print("[ERROR] Could not find project root. Please specify --project-root")
+            print(f"Checked: {[str(c) for c in candidates]}")
+            print(f"Current working directory: {Path.cwd()}")
+            sys.exit(1)
     
     # Determine model base directory
     if args.model_base_dir:
         model_base_dir = Path(args.model_base_dir).resolve()
     else:
-        # Try multiple possible locations
+        # Try multiple possible locations (check both outputs/ and model_outputs/)
         possible_dirs = [
             project_root / "6_final_model" / "outputs",
             project_root / "6_final_model" / "model_outputs",
             project_root / "6_final_model_selection" / "outputs",
             Path("/mnt/nvme") / "6_final_model" / "outputs",
             Path("/mnt/nvme") / "6_final_model" / "model_outputs",
+            # Also check relative to current directory
+            Path.cwd() / "outputs" if Path.cwd().name == "6_final_model" else None,
+            Path.cwd() / "model_outputs" if Path.cwd().name == "6_final_model" else None,
         ]
         
+        # Filter out None values
+        possible_dirs = [d for d in possible_dirs if d is not None]
+        
         model_base_dir = None
+        print(f"[INFO] Checking for model directories...")
         for test_dir in possible_dirs:
+            print(f"  Checking: {test_dir}")
             if test_dir.exists():
                 model_base_dir = test_dir
-                print(f"[INFO] Using model directory: {model_base_dir}")
+                print(f"[INFO] Found model directory: {model_base_dir}")
                 break
         
         if model_base_dir is None:
             print("[ERROR] Could not find model base directory. Please specify --model-base-dir")
             print(f"Tried: {[str(d) for d in possible_dirs]}")
+            print(f"Project root: {project_root}")
+            print(f"Current directory: {Path.cwd()}")
             sys.exit(1)
     
     # Run sync
