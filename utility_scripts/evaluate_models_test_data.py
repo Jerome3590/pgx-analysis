@@ -83,6 +83,42 @@ def download_from_s3(s3_path: str, local_path: Path, profile: Optional[str] = No
         return False
 
 
+def upload_to_s3(local_path: Path, s3_path: str, profile: Optional[str] = None) -> bool:
+    """Upload file to S3 and verify it was uploaded successfully."""
+    try:
+        import subprocess
+        
+        # Check file exists locally
+        if not local_path.exists():
+            print(f"  [ERROR] Local file does not exist: {local_path}")
+            return False
+        
+        # Upload file
+        cmd = ['aws', 's3', 'cp', str(local_path), s3_path]
+        if profile:
+            cmd.extend(['--profile', profile])
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"  [ERROR] AWS CLI upload failed: {result.stderr}")
+            return False
+        
+        # Verify file was uploaded successfully
+        verify_cmd = ['aws', 's3', 'ls', s3_path]
+        if profile:
+            verify_cmd.extend(['--profile', profile])
+        verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
+        
+        if verify_result.returncode != 0:
+            print(f"  [ERROR] File uploaded but verification failed: {s3_path}")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"  [ERROR] Failed to upload: {e}")
+        return False
+
+
 def load_test_data(cohort: str, age_band: str, profile: Optional[str] = None, use_duckdb: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
     """Load 2019 test data from S3. Uses DuckDB for memory-efficient loading if available."""
     age_band_fname = age_band_to_fname(age_band)
@@ -789,16 +825,29 @@ def evaluate_model(
     }
 
 
-def save_results(results: Dict, cohort: str, age_band: str, model_type: str, output_dir: Path):
-    """Save evaluation results."""
+def save_results(results: Dict, cohort: str, age_band: str, model_type: str, output_dir: Path, profile: Optional[str] = None, upload_to_s3_flag: bool = True):
+    """Save evaluation results and optionally upload to S3."""
     age_band_fname = age_band_to_fname(age_band)
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Determine profile
+    if profile is None:
+        profile = S3_PROFILE
     
     # Save metrics
     metrics_path = output_dir / f"{cohort}_{age_band_fname}_{model_type}_test_metrics.json"
     with open(metrics_path, 'w') as f:
         json.dump(results['metrics'], f, indent=2)
     print(f"\n  Saved metrics to: {metrics_path}")
+    
+    # Upload metrics to S3
+    if upload_to_s3_flag:
+        s3_metrics_path = f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/model_evaluation/{metrics_path.name}"
+        print(f"  Uploading metrics to S3...")
+        if upload_to_s3(metrics_path, s3_metrics_path, profile):
+            print(f"  [OK] Uploaded metrics to S3")
+        else:
+            print(f"  [WARN] Failed to upload metrics to S3")
     
     # Save feature importance
     importance_path = output_dir / f"{cohort}_{age_band_fname}_{model_type}_test_feature_importance.csv"
@@ -862,6 +911,11 @@ def main():
         default=None,
         help="Output directory (default: 8_ffa_analysis/results/model_evaluation)"
     )
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Skip uploading results to S3 (default: upload to S3)"
+    )
     
     args = parser.parse_args()
     
@@ -892,6 +946,7 @@ def main():
     
     # Process each cohort/age_band
     all_results = []
+    upload_to_s3_flag = not args.no_upload
     for cohort, age_band in cohorts_to_process:
         for model_type in model_types:
             try:
@@ -903,7 +958,7 @@ def main():
                     profile=profile
                 )
                 
-                save_results(results, cohort, age_band, model_type, output_dir)
+                save_results(results, cohort, age_band, model_type, output_dir, profile=profile, upload_to_s3_flag=upload_to_s3_flag)
                 all_results.append(results['metrics'])
                 
             except Exception as e:
@@ -920,6 +975,15 @@ def main():
         print(f"\n{'='*80}")
         print(f"Saved combined summary to: {summary_path}")
         print(f"{'='*80}")
+        
+        # Upload summary to S3
+        if upload_to_s3_flag:
+            s3_summary_path = f"s3://{S3_BUCKET}/gold/final_model/model_evaluation_summary.csv"
+            print(f"\nUploading summary to S3...")
+            if upload_to_s3(summary_path, s3_summary_path, profile):
+                print(f"[OK] Uploaded summary to S3: {s3_summary_path}")
+            else:
+                print(f"[WARN] Failed to upload summary to S3")
         
         # Print summary
         print("\nSummary of Test Set Performance (Calibrated):")
