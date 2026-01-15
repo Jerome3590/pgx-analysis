@@ -11,6 +11,9 @@ This script:
 Model files needed:
 - XGBoost: xgboost.joblib, xgboost_model.ubj, or best_xgboost_model.json
 - CatBoost: catboost_model.cbm, catboost.joblib, or best_catboost_model.json
+- Feature importance CSV
+- Features CSV
+- Model performance metrics (from evaluate_models_test_data.py)
 """
 
 import argparse
@@ -351,6 +354,77 @@ def sync_missing_models(
                     else:
                         print(f"    [ERROR] Failed to upload or verify")
                         errors += 1
+    
+    # Also sync model performance metrics from evaluation
+    print()
+    print("=" * 80)
+    print("Syncing Model Performance Metrics")
+    print("=" * 80)
+    
+    metrics_dir = project_root / "8_ffa_analysis" / "results" / "model_evaluation"
+    if metrics_dir.exists():
+        print(f"Found metrics directory: {metrics_dir}")
+        
+        # Sync individual metrics JSON files
+        for cohort, age_bands in COHORTS.items():
+            for age_band in age_bands:
+                age_band_fname = age_band.replace('-', '_')
+                
+                # Check for metrics files for both model types
+                for model_type in ['xgboost', 'catboost']:
+                    metrics_file = metrics_dir / f"{cohort}_{age_band_fname}_{model_type}_test_metrics.json"
+                    if metrics_file.exists():
+                        total_checked += 1
+                        s3_metrics_path = f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/model_evaluation/{metrics_file.name}"
+                        
+                        if check_s3_file_exists(s3_metrics_path, profile):
+                            print(f"  [OK] Already in S3: {metrics_file.name}")
+                            skipped += 1
+                        else:
+                            print(f"  [UPLOAD] {metrics_file.name}")
+                            print(f"    Local:  {metrics_file}")
+                            print(f"    S3:     {s3_metrics_path}")
+                            
+                            if dry_run:
+                                print(f"    [DRY RUN] Would upload")
+                                uploaded += 1
+                            else:
+                                print(f"    Uploading to S3...")
+                                if upload_file_to_s3(metrics_file, s3_metrics_path, profile):
+                                    print(f"    [OK] Uploaded and verified in S3")
+                                    uploaded += 1
+                                else:
+                                    print(f"    [ERROR] Failed to upload or verify")
+                                    errors += 1
+        
+        # Sync summary CSV
+        summary_file = metrics_dir / "test_evaluation_summary.csv"
+        if summary_file.exists():
+            total_checked += 1
+            s3_summary_path = f"s3://{S3_BUCKET}/gold/final_model/model_evaluation_summary.csv"
+            
+            if check_s3_file_exists(s3_summary_path, profile):
+                print(f"  [OK] Already in S3: {summary_file.name}")
+                skipped += 1
+            else:
+                print(f"  [UPLOAD] {summary_file.name}")
+                print(f"    Local:  {summary_file}")
+                print(f"    S3:     {s3_summary_path}")
+                
+                if dry_run:
+                    print(f"    [DRY RUN] Would upload")
+                    uploaded += 1
+                else:
+                    print(f"    Uploading to S3...")
+                    if upload_file_to_s3(summary_file, s3_summary_path, profile):
+                        print(f"    [OK] Uploaded and verified in S3")
+                        uploaded += 1
+                    else:
+                        print(f"    [ERROR] Failed to upload or verify")
+                        errors += 1
+    else:
+        print(f"[INFO] Metrics directory not found: {metrics_dir}")
+        print(f"  (Model performance metrics may not have been evaluated yet)")
     
     return (total_checked, uploaded, skipped, errors)
 
