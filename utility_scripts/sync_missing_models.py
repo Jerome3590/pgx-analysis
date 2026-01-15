@@ -110,7 +110,9 @@ def find_local_model_files(
         'catboost_cbm': [],
         'catboost_joblib': [],
         'catboost_json': [],
-        'metadata': []
+        'metadata': [],
+        'feature_importance': [],
+        'features_csv': []
     }
     
     # Check both outputs/ and model_outputs/ directories
@@ -169,6 +171,16 @@ def find_local_model_files(
             metadata_file = base_dir / cohort / age_band_fname / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
             if metadata_file.exists() and metadata_file not in found_files['metadata']:
                 found_files['metadata'].append(metadata_file)
+            
+            # Check for feature importance CSV (in outputs/)
+            fi_csv = base_dir / cohort / age_band_fname / f"{cohort}_{age_band_fname}_xgboost_feature_importance.csv"
+            if fi_csv.exists() and fi_csv not in found_files['feature_importance']:
+                found_files['feature_importance'].append(fi_csv)
+            
+            # Check for features CSV (in outputs/)
+            features_csv = base_dir / cohort / age_band_fname / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
+            if features_csv.exists() and features_csv not in found_files['features_csv']:
+                found_files['features_csv'].append(features_csv)
         
         # Check model_outputs/ directory (mirror location)
         elif base_dir.name == "model_outputs":
@@ -210,6 +222,8 @@ def get_expected_s3_files(cohort: str, age_band: str) -> Dict[str, str]:
         'catboost_joblib': f"{base_s3}/catboost.joblib",
         'catboost_json': f"{base_s3}/{cohort}_{age_band_fname}_best_catboost_model.json",
         'metadata': f"{base_s3}/{cohort}_{age_band_fname}_model_selection_metadata.json",
+        'feature_importance': f"{base_s3}/{cohort}_{age_band_fname}_xgboost_feature_importance.csv",
+        'features_csv': f"{base_s3}/{cohort}_{age_band_fname}_train_final_features_no_leakage.csv",
     }
 
 
