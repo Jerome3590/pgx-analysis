@@ -126,7 +126,7 @@ def sync_models_to_s3(
                 print(f"  [SKIP] Directory not found: {local_dir}")
                 continue
             
-            # Files to sync
+            # Files to sync from final_model_json directory
             files_to_sync = [
                 (
                     local_dir / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
@@ -144,6 +144,20 @@ def sync_models_to_s3(
                     "Best CatBoost Binary"
                 ),
             ]
+            
+            # Also sync joblib and binary models from models directory
+            models_dir = model_base_dir / cohort / age_band_fname / "models"
+            if models_dir.exists():
+                joblib_files = [
+                    (models_dir / "xgboost.joblib", f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/xgboost.joblib", "XGBoost Joblib"),
+                    (models_dir / "catboost.joblib", f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/catboost.joblib", "CatBoost Joblib"),
+                    (models_dir / "xgboost_model.ubj", f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/xgboost_model.ubj", "XGBoost Binary (.ubj)"),
+                    (models_dir / "catboost_model.cbm", f"s3://{S3_BUCKET}/gold/final_model/{cohort}/{age_band}/catboost_model.cbm", "CatBoost Binary (.cbm)"),
+                ]
+                
+                for local_file, s3_path, file_type in joblib_files:
+                    if local_file.exists():
+                        files_to_sync.append((local_file, s3_path, file_type))
             
             # Also sync model selection metadata
             metadata_local = model_base_dir / cohort / age_band_fname / f"{cohort}_{age_band_fname}_model_selection_metadata.json"

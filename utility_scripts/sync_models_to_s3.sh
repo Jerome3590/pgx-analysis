@@ -137,12 +137,29 @@ for cohort in "${!COHORTS[@]}"; do
             continue
         fi
         
-        # Files to sync
+        # Files to sync from final_model_json directory
         declare -a files_to_sync=(
             "$local_dir/${cohort}_${age_band_fname}_best_xgboost_model.json|gold/final_model/${cohort}/${age_band}/${cohort}_${age_band_fname}_best_xgboost_model.json|Best XGBoost JSON"
             "$local_dir/${cohort}_${age_band_fname}_best_catboost_model.json|gold/final_model/${cohort}/${age_band}/${cohort}_${age_band_fname}_best_catboost_model.json|Best CatBoost JSON"
             "$local_dir/${cohort}_${age_band_fname}_best_catboost_model.cbm|gold/final_model/${cohort}/${age_band}/${cohort}_${age_band_fname}_best_catboost_model.cbm|Best CatBoost Binary"
         )
+        
+        # Also sync joblib and binary models from models directory (for predictions)
+        models_dir="$MODEL_BASE_DIR/$cohort/$age_band_fname/models"
+        if [ -d "$models_dir" ]; then
+            if [ -f "$models_dir/xgboost.joblib" ]; then
+                files_to_sync+=("$models_dir/xgboost.joblib|gold/final_model/${cohort}/${age_band}/xgboost.joblib|XGBoost Joblib")
+            fi
+            if [ -f "$models_dir/catboost.joblib" ]; then
+                files_to_sync+=("$models_dir/catboost.joblib|gold/final_model/${cohort}/${age_band}/catboost.joblib|CatBoost Joblib")
+            fi
+            if [ -f "$models_dir/xgboost_model.ubj" ]; then
+                files_to_sync+=("$models_dir/xgboost_model.ubj|gold/final_model/${cohort}/${age_band}/xgboost_model.ubj|XGBoost Binary (.ubj)")
+            fi
+            if [ -f "$models_dir/catboost_model.cbm" ]; then
+                files_to_sync+=("$models_dir/catboost_model.cbm|gold/final_model/${cohort}/${age_band}/catboost_model.cbm|CatBoost Binary (.cbm)")
+            fi
+        fi
         
         # Also sync model selection metadata
         metadata_local="$MODEL_BASE_DIR/$cohort/$age_band_fname/${cohort}_${age_band_fname}_model_selection_metadata.json"
