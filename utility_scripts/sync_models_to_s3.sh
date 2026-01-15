@@ -12,7 +12,16 @@ NC='\033[0m' # No Color
 
 # S3 bucket
 S3_BUCKET="pgxdatalake"
-S3_PROFILE="${AWS_PROFILE:-mushin}"
+# On EC2, use IAM role (no profile needed). On local, use profile if set.
+if [ -n "$AWS_PROFILE" ]; then
+    S3_PROFILE="$AWS_PROFILE"
+elif [ -f "/sys/hypervisor/uuid" ] || [ -d "/sys/class/dmi/id" ]; then
+    # Likely on EC2 - don't use profile
+    S3_PROFILE=""
+else
+    # Local machine - default to mushin if not set
+    S3_PROFILE="${AWS_PROFILE:-mushin}"
+fi
 
 # Project root (adjust if needed)
 PROJECT_ROOT="${PROJECT_ROOT:-/home/pgx3874/pgx-analysis}"
@@ -42,7 +51,11 @@ echo ""
 echo "Project Root: $PROJECT_ROOT"
 echo "Model Base Dir: $MODEL_BASE_DIR"
 echo "S3 Bucket: $S3_BUCKET"
-echo "AWS Profile: $S3_PROFILE"
+if [ -n "$S3_PROFILE" ]; then
+    echo "AWS Profile: $S3_PROFILE"
+else
+    echo "AWS Profile: (using IAM role - EC2)"
+fi
 echo ""
 
 # Check if AWS CLI is available
@@ -68,8 +81,15 @@ sync_file_to_s3() {
         return 1
     fi
     
+    # Build AWS CLI command (with or without profile)
+    if [ -n "$S3_PROFILE" ]; then
+        AWS_CMD_PROFILE="--profile $S3_PROFILE"
+    else
+        AWS_CMD_PROFILE=""
+    fi
+    
     # Check if file already exists in S3
-    if aws s3 ls "$s3_path" --profile "$S3_PROFILE" &> /dev/null; then
+    if aws s3 ls "$s3_path" $AWS_CMD_PROFILE &> /dev/null; then
         echo -e "${YELLOW}[SKIP] Already exists in S3: $s3_path${NC}"
         return 0
     fi
@@ -79,7 +99,7 @@ sync_file_to_s3() {
     echo "  Local:  $local_file"
     echo "  S3:     $s3_path"
     
-    if aws s3 cp "$local_file" "$s3_path" --profile "$S3_PROFILE"; then
+    if aws s3 cp "$local_file" "$s3_path" $AWS_CMD_PROFILE; then
         echo -e "${GREEN}[OK]${NC} Uploaded successfully"
         return 0
     else

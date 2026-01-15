@@ -24,14 +24,26 @@ COHORTS: Dict[str, List[str]] = {
 
 # S3 configuration
 S3_BUCKET = "pgxdatalake"
-S3_PROFILE = "mushin"  # Default AWS profile
+# On EC2, use IAM role (no profile needed). On local, use profile if set.
+import os
+if os.environ.get('AWS_PROFILE'):
+    S3_PROFILE = os.environ.get('AWS_PROFILE')
+elif os.path.exists('/sys/hypervisor/uuid') or os.path.exists('/sys/class/dmi/id'):
+    # Likely on EC2 - don't use profile
+    S3_PROFILE = None
+else:
+    # Local machine - default to mushin if not set
+    S3_PROFILE = os.environ.get('AWS_PROFILE', 'mushin')
 
 
-def check_s3_file_exists(s3_path: str, profile: str = S3_PROFILE) -> bool:
+def check_s3_file_exists(s3_path: str, profile: str = None) -> bool:
     """Check if a file exists in S3."""
     try:
+        cmd = ['aws', 's3', 'ls', s3_path]
+        if profile:
+            cmd.extend(['--profile', profile])
         result = subprocess.run(
-            ['aws', 's3', 'ls', s3_path, '--profile', profile],
+            cmd,
             capture_output=True,
             text=True
         )
@@ -40,11 +52,14 @@ def check_s3_file_exists(s3_path: str, profile: str = S3_PROFILE) -> bool:
         return False
 
 
-def upload_file_to_s3(local_path: Path, s3_path: str, profile: str = S3_PROFILE) -> bool:
+def upload_file_to_s3(local_path: Path, s3_path: str, profile: str = None) -> bool:
     """Upload a file to S3."""
     try:
+        cmd = ['aws', 's3', 'cp', str(local_path), s3_path]
+        if profile:
+            cmd.extend(['--profile', profile])
         result = subprocess.run(
-            ['aws', 's3', 'cp', str(local_path), s3_path, '--profile', profile],
+            cmd,
             capture_output=True,
             text=True
         )
@@ -58,7 +73,7 @@ def sync_models_to_s3(
     project_root: Path,
     model_base_dir: Path,
     dry_run: bool = False,
-    profile: str = S3_PROFILE
+    profile: str = None
 ) -> Tuple[int, int, int, int]:
     """
     Sync model files from local EC2 storage to S3.
@@ -78,7 +93,10 @@ def sync_models_to_s3(
     print(f"Project Root: {project_root}")
     print(f"Model Base Dir: {model_base_dir}")
     print(f"S3 Bucket: {S3_BUCKET}")
-    print(f"AWS Profile: {profile}")
+    if profile:
+        print(f"AWS Profile: {profile}")
+    else:
+        print(f"AWS Profile: (using IAM role - EC2)")
     if dry_run:
         print(f"[DRY RUN] No files will be uploaded")
     print()
@@ -190,7 +208,7 @@ def main():
         "--profile",
         type=str,
         default=S3_PROFILE,
-        help=f"AWS profile to use (default: {S3_PROFILE})"
+        help=f"AWS profile to use (default: auto-detect, None on EC2)"
     )
     parser.add_argument(
         "--dry-run",
