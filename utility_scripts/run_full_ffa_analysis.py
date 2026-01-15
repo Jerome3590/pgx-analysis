@@ -2210,8 +2210,12 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         if _df is None:
             continue
         try:
-            if isinstance(_df, pd.DataFrame) and 'binary_intervention_mode' not in _df.columns:
-                _df['binary_intervention_mode'] = run_binary_mode
+            if isinstance(_df, pd.DataFrame):
+                if 'binary_intervention_mode' not in _df.columns:
+                    _df['binary_intervention_mode'] = run_binary_mode
+                # Add data source metadata to track whether test or train data was used
+                if 'data_source' not in _df.columns and DATA_SOURCE:
+                    _df['data_source'] = DATA_SOURCE
         except Exception:
             # Don't fail saving just because metadata couldn't be attached
             pass
