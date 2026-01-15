@@ -227,7 +227,7 @@ def load_xgboost_model(cohort: str, age_band: str, profile: Optional[str] = None
         if not local_joblib.exists():
             print(f"  Checking for joblib model: {s3_path}")
             if download_from_s3(s3_path, local_joblib, profile):
-                print(f"  ✓ Loaded joblib model from S3")
+                print(f"  [OK] Loaded joblib model from S3")
                 model = joblib.load(local_joblib)
                 # Extract booster if it's an XGBClassifier
                 if hasattr(model, 'get_booster'):
@@ -254,7 +254,7 @@ def load_xgboost_model(cohort: str, age_band: str, profile: Optional[str] = None
         if not local_ubj.exists():
             print(f"  Checking for .ubj binary model: {s3_path}")
             if download_from_s3(s3_path, local_ubj, profile):
-                print(f"  ✓ Loaded .ubj binary model from S3")
+                print(f"  [OK] Loaded .ubj binary model from S3")
                 booster = xgb.Booster()
                 booster.load_model(str(local_ubj))
                 # Try to get feature names from booster
@@ -370,16 +370,38 @@ def compute_feature_importance_xgboost(booster, feature_names: List[str]) -> pd.
     importance_gain = booster.get_score(importance_type='gain')
     importance_weight = booster.get_score(importance_type='weight')
     
+    # Handle case where booster uses f0, f1, ... format vs feature names
+    # Map feature indices to names
+    gain_values = []
+    weight_values = []
+    
+    for i, feat_name in enumerate(feature_names):
+        # Try both f{i} format and feature name
+        gain_val = importance_gain.get(f'f{i}', importance_gain.get(feat_name, 0))
+        weight_val = importance_weight.get(f'f{i}', importance_weight.get(feat_name, 0))
+        gain_values.append(gain_val)
+        weight_values.append(weight_val)
+    
     # Create DataFrame
     importance_df = pd.DataFrame({
         'feature': feature_names,
-        'importance_gain': [importance_gain.get(f'f{i}', 0) for i in range(len(feature_names))],
-        'importance_weight': [importance_weight.get(f'f{i}', 0) for i in range(len(feature_names))]
+        'importance_gain': gain_values,
+        'importance_weight': weight_values
     })
     
-    # Normalize
-    importance_df['importance_gain_norm'] = importance_df['importance_gain'] / importance_df['importance_gain'].sum()
-    importance_df['importance_weight_norm'] = importance_df['importance_weight'] / importance_df['importance_weight'].sum()
+    # Normalize (handle division by zero)
+    gain_sum = importance_df['importance_gain'].sum()
+    weight_sum = importance_df['importance_weight'].sum()
+    
+    if gain_sum > 0:
+        importance_df['importance_gain_norm'] = importance_df['importance_gain'] / gain_sum
+    else:
+        importance_df['importance_gain_norm'] = 0.0
+    
+    if weight_sum > 0:
+        importance_df['importance_weight_norm'] = importance_df['importance_weight'] / weight_sum
+    else:
+        importance_df['importance_weight_norm'] = 0.0
     
     return importance_df.sort_values('importance_gain', ascending=False)
 
