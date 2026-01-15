@@ -39,6 +39,14 @@ from sklearn.metrics import (
 
 warnings.filterwarnings("ignore")
 
+# Try to import duckdb for memory-efficient parquet reading
+try:
+    import duckdb
+    HAS_DUCKDB = True
+except ImportError:
+    HAS_DUCKDB = False
+    print("[WARN] DuckDB not available. Install with: pip install duckdb")
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -75,8 +83,8 @@ def download_from_s3(s3_path: str, local_path: Path, profile: Optional[str] = No
         return False
 
 
-def load_test_data(cohort: str, age_band: str, profile: Optional[str] = None) -> Tuple[pd.DataFrame, pd.Series]:
-    """Load 2019 test data from S3."""
+def load_test_data(cohort: str, age_band: str, profile: Optional[str] = None, use_duckdb: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
+    """Load 2019 test data from S3. Uses DuckDB for memory-efficient loading if available."""
     age_band_fname = age_band_to_fname(age_band)
     
     # Try S3 first
@@ -92,18 +100,49 @@ def load_test_data(cohort: str, age_band: str, profile: Optional[str] = None) ->
         if not download_from_s3(s3_path, local_cache, profile):
             raise FileNotFoundError(f"Could not download test data from {s3_path}")
     
-    # Load parquet
-    df = pd.read_parquet(local_cache)
-    
-    if "target" not in df.columns:
-        raise ValueError(f"'target' column not found in test data")
-    
-    y = df["target"].astype(int)
-    X = df.drop(columns=["mi_person_key", "target", "person_key"], errors="ignore")
-    
-    # Keep only numeric columns (models expect numeric features)
-    numeric_cols = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
-    X = X[numeric_cols].copy()
+    # Use DuckDB for memory-efficient loading if available
+    if use_duckdb and HAS_DUCKDB:
+        print(f"  Loading data with DuckDB (memory-efficient)...")
+        conn = duckdb.connect()
+        
+        # Read a small sample to get column names and types
+        sample_df = conn.execute(f"SELECT * FROM read_parquet('{str(local_cache)}') LIMIT 1").df()
+        all_cols = list(sample_df.columns)
+        
+        # Identify numeric columns (exclude target and key columns)
+        exclude_cols = ['mi_person_key', 'target', 'person_key']
+        numeric_cols = [col for col in all_cols 
+                       if col not in exclude_cols 
+                       and pd.api.types.is_numeric_dtype(sample_df[col])]
+        
+        # Load target separately
+        target_query = f"SELECT target FROM read_parquet('{str(local_cache)}')"
+        y = conn.execute(target_query).df()['target'].astype(int)
+        
+        # Load numeric features
+        numeric_cols_str = ', '.join([f'"{col}"' for col in numeric_cols])
+        features_query = f"SELECT {numeric_cols_str} FROM read_parquet('{str(local_cache)}')"
+        X = conn.execute(features_query).df()
+        
+        conn.close()
+        
+        print(f"  Loaded {len(X)} rows, {len(X.columns)} numeric features")
+    else:
+        # Fallback to pandas
+        if use_duckdb:
+            print(f"  [WARN] DuckDB not available, using pandas (may use more memory)...")
+        
+        df = pd.read_parquet(local_cache)
+        
+        if "target" not in df.columns:
+            raise ValueError(f"'target' column not found in test data")
+        
+        y = df["target"].astype(int)
+        X = df.drop(columns=["mi_person_key", "target", "person_key"], errors="ignore")
+        
+        # Keep only numeric columns (models expect numeric features)
+        numeric_cols = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
+        X = X[numeric_cols].copy()
     
     return X, y
 
@@ -422,8 +461,61 @@ def compute_feature_importance_catboost(model) -> pd.DataFrame:
     return importance_df.sort_values('importance', ascending=False)
 
 
-def compute_shap_values_xgboost(booster, X_test: pd.DataFrame, feature_names: List[str], n_samples: Optional[int] = None) -> Tuple[np.ndarray, pd.DataFrame]:
-    """Compute SHAP values for XGBoost model."""
+def sample_test_data_duckdb(parquet_path: Path, feature_names: List[str], n_samples: int, include_target: bool = False, random_seed: int = 42) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
+    """Sample rows from parquet file using DuckDB without loading full dataset.
+    
+    Returns:
+        X_sample: DataFrame with features
+        y_sample: Series with target (if include_target=True), else None
+    """
+    if not HAS_DUCKDB:
+        raise ImportError("DuckDB required for memory-efficient sampling")
+    
+    conn = duckdb.connect()
+    
+    # Use ORDER BY RANDOM() with LIMIT for efficient random sampling
+    # This is more memory-efficient than loading full dataset
+    feature_cols_str = ', '.join([f'"{col}"' for col in feature_names])
+    
+    # Get total row count first
+    total_rows = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{str(parquet_path)}')").fetchone()[0]
+    
+    if n_samples >= total_rows:
+        # No need to sample
+        if include_target:
+            query = f"SELECT {feature_cols_str}, target FROM read_parquet('{str(parquet_path)}')"
+        else:
+            query = f"SELECT {feature_cols_str} FROM read_parquet('{str(parquet_path)}')"
+    else:
+        # Sample using ORDER BY RANDOM() - DuckDB optimizes this
+        if include_target:
+            query = f"""
+                SELECT {feature_cols_str}, target
+                FROM read_parquet('{str(parquet_path)}')
+                ORDER BY RANDOM()
+                LIMIT {n_samples}
+            """
+        else:
+            query = f"""
+                SELECT {feature_cols_str}
+                FROM read_parquet('{str(parquet_path)}')
+                ORDER BY RANDOM()
+                LIMIT {n_samples}
+            """
+    
+    result_df = conn.execute(query).df()
+    conn.close()
+    
+    if include_target:
+        y_sample = result_df['target'].astype(int)
+        X_sample = result_df.drop(columns=['target'])
+        return X_sample, y_sample
+    else:
+        return result_df, None
+
+
+def compute_shap_values_xgboost(booster, X_test: pd.DataFrame, feature_names: List[str], n_samples: Optional[int] = None, parquet_path: Optional[Path] = None) -> Tuple[np.ndarray, pd.DataFrame]:
+    """Compute SHAP values for XGBoost model. Uses DuckDB for memory-efficient sampling if available."""
     try:
         import shap
     except ImportError:
@@ -431,10 +523,15 @@ def compute_shap_values_xgboost(booster, X_test: pd.DataFrame, feature_names: Li
     
     import xgboost as xgb
     
-    # Sample if requested
+    # Sample if requested - use DuckDB if parquet_path provided and DuckDB available
     if n_samples and len(X_test) > n_samples:
-        sample_idx = np.random.choice(len(X_test), size=n_samples, replace=False)
-        X_sample = X_test.iloc[sample_idx].copy()
+        if parquet_path and HAS_DUCKDB:
+            print(f"  Sampling {n_samples} rows using DuckDB (memory-efficient)...")
+            X_sample, _ = sample_test_data_duckdb(parquet_path, feature_names, n_samples, include_target=False)
+            sample_idx = np.arange(len(X_sample))  # New index for sampled data
+        else:
+            sample_idx = np.random.choice(len(X_test), size=n_samples, replace=False)
+            X_sample = X_test.iloc[sample_idx].copy()
     else:
         X_sample = X_test.copy()
         sample_idx = np.arange(len(X_test))
@@ -452,24 +549,30 @@ def compute_shap_values_xgboost(booster, X_test: pd.DataFrame, feature_names: Li
         shap_values = shap_values[1]  # Positive class
     
     # Create DataFrame
-    shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index)
+    shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index if hasattr(X_sample, 'index') else np.arange(len(X_sample)))
     
     return shap_values, shap_df
 
 
-def compute_shap_values_catboost(model, X_test: pd.DataFrame, y_test: pd.Series, n_samples: Optional[int] = None) -> Tuple[np.ndarray, pd.DataFrame]:
-    """Compute SHAP values for CatBoost model."""
+def compute_shap_values_catboost(model, X_test: pd.DataFrame, y_test: pd.Series, n_samples: Optional[int] = None, parquet_path: Optional[Path] = None) -> Tuple[np.ndarray, pd.DataFrame]:
+    """Compute SHAP values for CatBoost model. Uses DuckDB for memory-efficient sampling if available."""
     try:
         import shap
         from catboost import Pool
     except ImportError:
         raise ImportError("SHAP or CatBoost not installed")
     
-    # Sample if requested
+    # Sample if requested - use DuckDB if parquet_path provided and DuckDB available
     if n_samples and len(X_test) > n_samples:
-        sample_idx = np.random.choice(len(X_test), size=n_samples, replace=False)
-        X_sample = X_test.iloc[sample_idx].copy()
-        y_sample = y_test.iloc[sample_idx].copy()
+        if parquet_path and HAS_DUCKDB:
+            print(f"  Sampling {n_samples} rows using DuckDB (memory-efficient)...")
+            feature_names = model.feature_names_
+            X_sample, y_sample = sample_test_data_duckdb(parquet_path, feature_names, n_samples, include_target=True)
+            sample_idx = np.arange(len(X_sample))  # New index for sampled data
+        else:
+            sample_idx = np.random.choice(len(X_test), size=n_samples, replace=False)
+            X_sample = X_test.iloc[sample_idx].copy()
+            y_sample = y_test.iloc[sample_idx].copy()
     else:
         X_sample = X_test.copy()
         y_sample = y_test.copy()
@@ -506,7 +609,7 @@ def compute_shap_values_catboost(model, X_test: pd.DataFrame, y_test: pd.Series,
             
             # Create DataFrame
             feature_names = model.feature_names_
-            shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index)
+            shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index if hasattr(X_sample, 'index') else np.arange(len(X_sample)))
             return shap_values, shap_df
         else:
             raise
@@ -521,7 +624,7 @@ def compute_shap_values_catboost(model, X_test: pd.DataFrame, y_test: pd.Series,
     
     # Create DataFrame
     feature_names = model.feature_names_
-    shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index)
+    shap_df = pd.DataFrame(shap_values, columns=feature_names, index=X_sample.index if hasattr(X_sample, 'index') else np.arange(len(X_sample)))
     
     return shap_values, shap_df
 
@@ -540,9 +643,13 @@ def evaluate_model(
     
     age_band_fname = age_band_to_fname(age_band)
     
+    # Get parquet path for DuckDB sampling
+    local_cache = PROJECT_ROOT / "tmp" / "test_data" / f"{cohort}_{age_band_fname}_test.parquet"
+    parquet_path = local_cache if local_cache.exists() else None
+    
     # Load test data
     print("\n[1/6] Loading 2019 test data...")
-    X_test, y_test = load_test_data(cohort, age_band, profile)
+    X_test, y_test = load_test_data(cohort, age_band, profile, use_duckdb=True)
     print(f"  Test data: {len(X_test)} patients, {len(X_test.columns)} features")
     print(f"  Target distribution: {y_test.value_counts().to_dict()}")
     
@@ -651,9 +758,9 @@ def evaluate_model(
     # SHAP analysis
     print(f"\n[6/6] Computing SHAP values...")
     if model_type == 'xgboost':
-        shap_values, shap_df = compute_shap_values_xgboost(booster, X_test, feature_names, n_shap_samples)
+        shap_values, shap_df = compute_shap_values_xgboost(booster, X_test, feature_names, n_shap_samples, parquet_path)
     else:
-        shap_values, shap_df = compute_shap_values_catboost(model_obj, X_test, y_test, n_shap_samples)
+        shap_values, shap_df = compute_shap_values_catboost(model_obj, X_test, y_test, n_shap_samples, parquet_path)
     
     # Global SHAP importance
     shap_importance = pd.DataFrame({
