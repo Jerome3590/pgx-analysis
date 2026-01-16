@@ -6,9 +6,9 @@ Create model-ready event-level data filtered to important features, with
 This script is intentionally DuckDB + Parquet only for event-level data
 to avoid pandas memory pressure on large cohorts:
 
-1. Reads aggregated feature-importance CSVs from:
-     - 3_feature_importance/outputs/
-     - or, if not present locally, from 3_feature_importance/from_s3/by_cohort/**/
+1. Reads cohort_feature_importance CSVs from Step 3b:
+     - 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv
+   REQUIRED: Step 3b must run before Step 4a (will error if files not found)
 2. Extracts the `feature` column (e.g., `item_99284`, `item_AMOXICILLIN`) and
    strips the `item_` prefix to get raw item codes.
 3. For each (cohort_name, age_band) combination in those files, it:
@@ -75,7 +75,7 @@ from py_helpers.constants import (
 from py_helpers.env_utils import get_data_root, is_linux
 
 
-OUTPUTS_DIR = PROJECT_ROOT / "3_feature_importance" / "outputs"
+STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
 # Use OS-aware path resolution: /mnt/nvme/4a_model_data on Linux, PROJECT_ROOT/4a_model_data on Windows
 def get_model_data_root() -> Path:
     """Get the root directory for model data output (OS-aware)."""
@@ -184,26 +184,31 @@ def resolve_local_pharmacy_root() -> Path:
 
 def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
     """
-    Parse cohort_name and age_band from an aggregated CSV filename.
+    Parse cohort_name and age_band from a cohort_feature_importance CSV filename (Step 3b output).
 
-    Current pattern (from 3_feature_importance/outputs or from_s3/by_cohort):
-        {cohort_name}_{age_band_fname}_aggregated_feature_importance.csv
+    Expected pattern (from 3b_feature_importance_eda/outputs):
+        {cohort_name}_{age_band_fname}_cohort_feature_importance.csv
+    
+    REQUIRED: Step 3b must run before Step 4a (no fallback to aggregated_feature_importance).
 
     Example:
-        opioid_ed_0_12_aggregated_feature_importance.csv
+        opioid_ed_0_12_cohort_feature_importance.csv
         -> cohort_name = opioid_ed
         -> age_band    = 0-12
     """
-    stem = path.stem  # e.g. opioid_ed_0_12_aggregated_feature_importance
+    stem = path.stem  # e.g. opioid_ed_0_12_cohort_feature_importance
     parts = stem.split("_")
 
-    # Expect pattern: {cohort_name}_{age_band_fname}_aggregated_feature_importance
-    # where age_band_fname is something like "0_12" or "13_24".
-    if len(parts) < 5:
-        raise ValueError(f"Unexpected aggregated filename format: {path.name}")
-
-    cohort_name_tokens = parts[:-5]
-    age_band_tokens = parts[-5:-3]
+    # Check for cohort_feature_importance pattern (Step 3b refined - REQUIRED)
+    if not stem.endswith("_cohort_feature_importance"):
+        raise ValueError(f"Unexpected feature importance filename format: {path.name}. Expected *_cohort_feature_importance.csv")
+    
+    # Pattern: {cohort_name}_{age_band_fname}_cohort_feature_importance
+    if len(parts) < 4:
+        raise ValueError(f"Unexpected refined filename format: {path.name}")
+    
+    cohort_name_tokens = parts[:-4]
+    age_band_tokens = parts[-4:-2]
 
     cohort_name = "_".join(cohort_name_tokens)
     age_band_fname = "_".join(age_band_tokens)
@@ -773,9 +778,9 @@ def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str
         print(f"[WARN] Error syncing to S3: {e}")
 
 
-def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
+def download_cohort_feature_importance_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
     """
-    Download aggregated feature importance files from S3.
+    Download cohort_feature_importance files from S3 (Step 3b outputs).
     
     If cohort and age_band are specified, downloads only that file.
     Otherwise, lists all available files in S3.
@@ -787,9 +792,9 @@ def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional
         age_band_fname = age_band.replace("-", "_")
         s3_key = (
             f"gold/feature_importance/{cohort}/{age_band}/"
-            f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         )
-        local_path = OUTPUTS_DIR / cohort / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        local_path = STEP3B_OUTPUTS_DIR / cohort / age_band_fname / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         
         try:
             s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -819,8 +824,8 @@ def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional
                             age_band = age_prefix_info["Prefix"].split("/")[-2]
                             age_band_fname = age_band.replace("-", "_")
                             
-                            s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-                            local_path = OUTPUTS_DIR / cohort_name / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+                            s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
+                            local_path = STEP3B_OUTPUTS_DIR / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
                             
                             try:
                                 s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -862,66 +867,74 @@ def main() -> None:
     model_data_root = get_model_data_root()
     model_data_root.mkdir(parents=True, exist_ok=True)
 
-    # Discover aggregated feature-importance CSVs
-    # Files are stored in: outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv
+    # Discover cohort_feature_importance CSVs from Step 3b (REQUIRED - no fallback)
+    # Step 3b must run before Step 4a to produce refined feature importances
+    # Expected location: 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv
     aggregated_files = []
     
-    # If both cohort and age_band are specified, look for specific file first
+    # If both cohort and age_band are specified, look for specific file
     if args.cohort and args.age_band:
         age_band_fname = args.age_band.replace("-", "_")
-        specific_file = OUTPUTS_DIR / args.cohort / f"{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        if specific_file.exists():
-            aggregated_files.append(specific_file)
-            print(f"[INFO] Found local aggregated file: {specific_file}")
+        
+        # Check for Step 3b refined feature importance (REQUIRED)
+        refined_file = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
+        if refined_file.exists():
+            aggregated_files.append(refined_file)
+            print(f"[INFO] Found Step 3b refined feature importance: {refined_file}")
         else:
-            # Try downloading from S3
-            print(f"[INFO] Local file not found. Checking S3 for {args.cohort}/{args.age_band}...")
-            downloaded = download_aggregated_from_s3(args.cohort, args.age_band)
-            if downloaded:
-                aggregated_files.extend(downloaded)
+            # Error out - Step 3b must run first
+            print(f"[ERROR] Step 3b refined feature importance not found: {refined_file}")
+            print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
+            print(f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}")
+            sys.exit(1)
     else:
-        # Check in outputs/{cohort}/ subdirectories
-        for cohort_dir in OUTPUTS_DIR.iterdir():
+        # Check Step 3b refined files for all cohorts
+        if not STEP3B_OUTPUTS_DIR.exists():
+            print(f"[ERROR] Step 3b outputs directory not found: {STEP3B_OUTPUTS_DIR}")
+            print(f"[ERROR] Step 3b must run before Step 4a")
+            sys.exit(1)
+        
+        for cohort_dir in STEP3B_OUTPUTS_DIR.iterdir():
             if not cohort_dir.is_dir():
                 continue
             # Filter by cohort if specified
             if args.cohort and cohort_dir.name != args.cohort:
                 continue
-            cohort_files = sorted(
-                cohort_dir.glob("*_aggregated_feature_importance.csv")
-            )
-            aggregated_files.extend(cohort_files)
+            
+            # Check each age_band subdirectory
+            for age_band_dir in cohort_dir.iterdir():
+                if not age_band_dir.is_dir():
+                    continue
+                refined_files = sorted(
+                    age_band_dir.glob("*_cohort_feature_importance.csv")
+                )
+                if not refined_files:
+                    print(f"[WARN] No cohort_feature_importance.csv found in {age_band_dir}")
+                    print(f"[WARN] Step 3b must run for this cohort/age_band before Step 4a")
+                aggregated_files.extend(refined_files)
         
-        # Fallback: if outputs/ is empty locally, try downloading from S3
         if not aggregated_files:
-            print(f"[INFO] No local aggregated feature importance files found. Checking S3...")
-            aggregated_files = download_aggregated_from_s3(args.cohort, args.age_band)
+            print(f"[ERROR] No cohort_feature_importance files found in {STEP3B_OUTPUTS_DIR}")
+            print(f"[ERROR] Step 3b must run before Step 4a")
+            sys.exit(1)
     
     if not aggregated_files:
         print(
-            f"[WARN] No aggregated feature-importance CSVs found locally or in S3."
+            f"[ERROR] No cohort_feature_importance CSVs found."
         )
         if args.cohort and args.age_band:
+            age_band_fname = args.age_band.replace("-", "_")
+            expected_file = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
             print(
-                f"[INFO] Looking for: {args.cohort}_{args.age_band.replace('-', '_')}_aggregated_feature_importance.csv"
+                f"[ERROR] Expected file: {expected_file}"
             )
             print(
-                f"[INFO] Creating model_events.parquet with ALL events (no filtering) "
-                f"so Step 3 can generate feature importance."
+                f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files."
             )
-            # Create model_events.parquet with all events (no filtering) so Step 3 can run
-            YEARS = [2016, 2017, 2018, 2019]
-            local_cohort_root = resolve_local_cohort_root()
-            local_medical_root = resolve_local_medical_root()
-            local_pharmacy_root = resolve_local_pharmacy_root()
-            
-            # Call filter_cohort_events_for_items with empty important_items
-            # This will create model_events.parquet with all events
-            filter_cohort_events_for_items(
-                cohort_name=args.cohort,
-                age_band=args.age_band,
-                important_items=[],  # Empty list = no filtering, keep all events
-                years=YEARS,
+            print(
+                f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}"
+            )
+        sys.exit(1)
                 output_root=model_data_root,
                 local_cohort_root=local_cohort_root,
                 local_medical_root=local_medical_root,

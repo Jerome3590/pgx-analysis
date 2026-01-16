@@ -1,0 +1,44 @@
+{
+  "cohort": "non_opioid_ed",
+  "age_band": "65-74",
+  "model_type": "catboost",
+  "n_test_samples": 529887,
+  "n_features": 1514,
+  "optimal_threshold": 0.1935483870967742,
+  "recall_raw": 0.937198164238649,
+  "precision_raw": 0.8642159710120875,
+  "f1_raw": 0.8992286733949882,
+  "accuracy_raw": 0.9603538112842926,
+  "roc_auc_raw": 0.985788785676968,
+  "pr_auc_raw": 0.9269500727768811,
+  "logloss_raw": 0.10917356369904066,
+  "brier_raw": 0.03118565354887687,
+  "recall_calibrated": 0.9724735784348034,
+  "precision_calibrated": 0.8239998644458376,
+  "f1_calibrated": 0.8921012442271621,
+  "accuracy_calibrated": 0.9555999675402491,
+  "roc_auc_calibrated": 0.9859335057054436,
+  "pr_auc_calibrated": 0.9245908854119546,
+  "logloss_calibrated": 0.10803497824621515,
+  "brier_calibrated": 0.030963739842728575,
+  "confusion_matrix_raw": [
+    [
+      415147,
+      14727
+    ],
+    [
+      6281,
+      93732
+    ]
+  ],
+  "confusion_matrix_calibrated": [
+    [
+      409100,
+      20774
+    ],
+    [
+      2753,
+      97260
+    ]
+  ]
+}

@@ -14,7 +14,8 @@ set -euo pipefail
 #
 # Steps:
 #   3: Feature Importance (check for completed aggregated feature importances)
-#   4a: Model Data Creation (generate model_events.parquet with cases + controls)
+#   3b: Feature Importance EDA and Refinement (BupaR + DTW to refine features)
+#   4a: Model Data Creation (generate model_events.parquet with cases + controls, uses refined features from Step 3b)
 #   4b: DTW Protocol Filtering (administrative/scheduling/non-medical codes, keep all surgeries)
 #   5c: PGx Feature Engineering (only feature engineering step)
 #   6: Final Model Training (use aggregated features + PGx, no encoding, select best by recall/AUC-PR)
@@ -482,12 +483,20 @@ except:
 run_step "3" "Feature Importance (Check/Generate Aggregated)" \
     "python 3_feature_importance/run_mc_feature_importance.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
+# Step 3b: Feature Importance EDA and Refinement
+# Analyzes aggregated feature importances using BupaR (post-target) and DTW (trajectories)
+# Filters and refines features to produce cohort_feature_importance files
+# REQUIRED: Step 3b must run before Step 4a (Step 4a requires cohort_feature_importance files)
+# Note: Step 3b can use cohort.parquet files from Step 2 if model_events.parquet doesn't exist yet
+run_step "3b" "Feature Importance EDA and Refinement (BupaR + DTW)" \
+    "python 3b_feature_importance_eda/run_step_3b.py --cohort $COHORT_NAME --age-band $AGE_BAND"
+
 # Step 4a: Model Data Creation (with controls)
 # Generate model_events.parquet with cases AND controls from gold medical/pharmacy data
 # This must run BEFORE Step 4b to ensure local files with controls exist
 # (Otherwise Step 4b will download from S3, which may have files without controls)
 # The script validates controls and uploads to S3 automatically
-# Uses aggregated feature importance CSVs from Step 3 to filter events
+# REQUIRES: cohort_feature_importance files from Step 3b (will error if not found)
 run_step "4a" "Model Data Creation (Cases + Controls)" \
     "python 4a_model_data/create_model_data.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 

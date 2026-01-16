@@ -7,7 +7,8 @@ Feature importance, pattern mining, and final model development for the Prescrip
 The analysis workflow implements a multi-stage approach to feature discovery, noise reduction, model development, and interpretation:
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
-2. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets)  
+2. **Feature Refinement (Step 3b)** using BupaR post-target analysis and DTW trajectory analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
+3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Step 3b  
 3. **DTW-Based Protocol Filtering (Step 4b)** in `4b_dtw_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (BupaR, FP-Growth, DTW trajectory features, PGx)**.  
 4. **Extreme-Density Transaction Handling (Step 4b extension)** for all cohorts  
    - Run `5b_fpgrowth_analysis/extract_extreme_density_cohort.py` once per `(cohort, age_band)` to split out an `{cohort}_extreme_density` cohort and **rewrite the base `4a_model_data` `model_events.parquet` without extreme-density patients**.  
@@ -29,7 +30,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 **Goal**: Robust, model-agnostic feature ranking on noisy, high-dimensional data, using
 strict temporal validation and a small, focused model ensemble.
 
-**Process (implemented in `3_feature_importance/` and `4a_model_data/`):**
+**Process (implemented in `3_feature_importance/`, `3b_feature_importance_eda/`, and `4a_model_data/`):**
 1. **Monte Carlo Cross-Validation (MC‑CV)**  
    - Train on **2016–2018** and evaluate on a strict **2019 holdout** (no leakage).  
    - Default **10 splits** for feature-importance screening; many more (≈1000) for the final model.
@@ -47,9 +48,14 @@ strict temporal validation and a small, focused model ensemble.
    - Aggregate permutation scores per feature across MC‑CV splits.  
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
-5. **Model Data Extraction (`4a_model_data/`)**  
-   - Use the final aggregated importance to drive `4a_model_data` extraction and downstream pattern
-     mining / trajectory analysis.
+5. **Feature Refinement (Step 3b - `3b_feature_importance_eda/`)**  
+   - **BupaR Post-Target Analysis**: Analyze sequences after target event to identify post-target leakage features
+   - **DTW Trajectory Analysis**: Analyze trajectories to identify non-value-added administrative/scheduling codes
+   - **Filter and Refine**: Remove flagged features and generate refined `cohort_feature_importance` files
+   - Output: `cohort_feature_importance.csv` files that feed into Step 4a
+6. **Model Data Extraction (`4a_model_data/`)**  
+   - Use the refined `cohort_feature_importance` files from Step 3b to drive `4a_model_data` extraction
+   - If Step 3b files are missing, Step 4a will error (no fallback to aggregated importances)
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -97,7 +103,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
 **model-ready event dataset** that downstream methods (FP-Growth, BupaR, DTW) consume:
 
 - **Target cohort (opioid_ed)**:
-  - Read `*_aggregated_feature_importance.csv` to get the top important `item_*` features.
+  - Read `*_cohort_feature_importance.csv` from Step 3b (REQUIRED - no fallback to aggregated importances)
   - Strip the `item_` prefix to recover raw drug / ICD / procedure codes.
   - For each age band and event year, filter GOLD cohort events to **only those rows where at least one important item appears** in:
     - `drug_name`
@@ -162,7 +168,7 @@ For each `(cohort, age_band)` we optionally run the following standardized sub-p
        `4a_model_data/cohort_name={cohort}/age_band={band}/extreme_density_patients_{band_fname}.csv`.  
      - New cohort with only extreme patients:  
        `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events.parquet`.  
-     - Updated base `model_events.parquet` with extreme patients removed, plus a backup:  
+     - Creates base `model_events.parquet` with extreme patients removed, plus a backup:  
        `model_events_with_extreme.parquet` in the same folder.
 
 2. **Summarize and visualize the extreme-density cohort**  
@@ -310,8 +316,15 @@ flowchart TD
         B --> C[Top Features Selection]
     end
     
+    subgraph "Step 3b: Feature Refinement"
+        C --> C1[BupaR Post-Target Analysis]
+        C --> C2[DTW Trajectory Analysis]
+        C1 --> C3[Refined Cohort Feature Importance]
+        C2 --> C3
+    end
+    
     subgraph "Step 4: Model Data & Filtering"
-        C --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        C3 --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
         D --> E[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
@@ -335,15 +348,26 @@ flowchart TD
     
     subgraph "Step 9: Risk Dashboard"
         L --> N[Risk Dashboard<br/>Model Deployment]
-        N --> O[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
+        K --> N
+        N --> N1[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
+        N --> N2[Backend API<br/>Lambda Function]
+        N --> N3[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
+        N1 --> N4[Production Deployment<br/>S3 + API Gateway + Lambda]
+        N2 --> N4
+        N3 --> N4
     end
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#bbf,stroke:#333,stroke-width:2px
     style F fill:#bfb,stroke:#333,stroke-width:2px
     style J fill:#fbb,stroke:#333,stroke-width:2px
-    style L fill:#fbf,stroke:#333,stroke-width:2px
-    style N fill:#ffb,stroke:#333,stroke-width:2px
+    style K fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
+    style L fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
+    style N fill:#ffb,stroke:#333,stroke-width:2px    %% Risk Dashboard
+    style N1 fill:#ffb,stroke:#333,stroke-width:2px    %% Frontend
+    style N2 fill:#ffb,stroke:#333,stroke-width:2px    %% Backend
+    style N3 fill:#ffb,stroke:#333,stroke-width:2px    %% Visualizations
+    style N4 fill:#ffb,stroke:#333,stroke-width:2px    %% Deployment
 ```
 
 ## Key Insights
@@ -387,10 +411,6 @@ flowchart TD
 - `s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv` - Global drug-gene mapping cache
 - `s3://pgxdatalake/gold/pgx_features/global/pgx_allele_frequencies_global.csv` - Global allele frequency cache
 
-**Legacy S3 Location (for backward compatibility):**
-- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv` - Legacy intermediate features
-- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv` - Legacy final features
-
 **Checkpoints:**
 - `s3://pgx-repository/pipeline_checkpoints/5_pgx_analysis/{cohort}/{age_band}/checkpoint.json` - Step 5 completion checkpoint
 - `s3://pgx-repository/7_pgx_log/{cohort}/{age_band}/pgx_{cohort}_{age_band}.log` - Step 5 execution logs
@@ -406,7 +426,7 @@ flowchart TD
 
 The workflow checks for existing outputs in this order:
 1. **Local files**: Checks cohort-level, then global cache
-2. **S3 files**: Checks global cache → cohort-level → legacy age-band paths
+2. **S3 files**: Checks global cache → cohort-level paths
 3. **Checkpoints**: Checks `pgx-repository` bucket for completion checkpoints
 
 If outputs exist, the step is skipped. To force regeneration, use:

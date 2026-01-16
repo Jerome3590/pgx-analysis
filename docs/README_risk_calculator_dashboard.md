@@ -104,6 +104,12 @@ This structure follows a **separation of concerns** approach:
 
 **Workflow**: `Data Preparation → Visualizations → Frontend/Backend → Deployment`
 
+This organization provides:
+- ✅ **Clear Organization**: Each directory has a single, clear purpose
+- ✅ **Easy Maintenance**: Related files are grouped together
+- ✅ **Better Onboarding**: New developers can understand structure quickly
+- ✅ **Scalable**: Easy to add new features or visualization types
+
 ## Core Components
 
 ### Frontend (`frontend/`)
@@ -307,7 +313,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
   - Query params: `cohort`, `age_band`
   - Returns: S3 paths to BupaR visualization images
 
-See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboard.md) for complete API documentation.
+See [README_results_dashboard.md](Step10_Results/README_results_dashboard.md) for complete API documentation.
 
 ## Data Sources
 
@@ -454,32 +460,32 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 ### Related Documentation
 
-- `visualizations/fpgrowth/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
-- `visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
+- `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
+- `9_risk_dashboard/visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `8_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)
 
 ## Documentation
 
-For detailed documentation, see [`docs/Step10_Results/`](../docs/Step10_Results/):
+For detailed documentation, see [`Step10_Results/`](Step10_Results/):
 
 **Main Documentation**:
-- **[README_results_dashboard.md](../docs/Step10_Results/README_results_dashboard.md)** - Complete dashboard system overview
-- **[README_results_value_proposition.md](../docs/Step10_Results/README_results_value_proposition.md)** - Business value and use cases
-- **[README_results_deployment.md](../docs/Step10_Results/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
-- **[README_results_prediction.md](../docs/Step10_Results/README_results_prediction.md)** - Prediction workflow and technical details
-- **[README_results_quickstart.md](../docs/Step10_Results/README_results_quickstart.md)** - Quick start guide for predictions
+- **[README_results_dashboard.md](Step10_Results/README_results_dashboard.md)** - Complete dashboard system overview
+- **[README_results_value_proposition.md](Step10_Results/README_results_value_proposition.md)** - Business value and use cases
+- **[README_results_deployment.md](Step10_Results/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
+- **[README_results_prediction.md](Step10_Results/README_results_prediction.md)** - Prediction workflow and technical details
+- **[README_results_quickstart.md](Step10_Results/README_results_quickstart.md)** - Quick start guide for predictions
 
 **Feature Documentation**:
-- **[README_results_pgx_card.md](../docs/Step10_Results/README_results_pgx_card.md)** - PGx Patient Card feature
-- **[README_results_ensemble.md](../docs/Step10_Results/README_results_ensemble.md)** - Ensemble model approach
-- **[README_results_model_weights.md](../docs/Step10_Results/README_results_model_weights.md)** - Performance-based model weighting
+- **[README_results_pgx_card.md](Step10_Results/README_results_pgx_card.md)** - PGx Patient Card feature
+- **[README_results_ensemble.md](Step10_Results/README_results_ensemble.md)** - Ensemble model approach
+- **[README_results_model_weights.md](Step10_Results/README_results_model_weights.md)** - Performance-based model weighting
 
 **Deployment Guides**:
-- **[README_results_deployment_ecr.md](../docs/Step10_Results/README_results_deployment_ecr.md)** - Lambda ECR container deployment
-- **[README_results_deployment_cpic.md](../docs/Step10_Results/README_results_deployment_cpic.md)** - CPIC data deployment
+- **[README_results_deployment_ecr.md](Step10_Results/README_results_deployment_ecr.md)** - Lambda ECR container deployment
+- **[README_results_deployment_cpic.md](Step10_Results/README_results_deployment_cpic.md)** - CPIC data deployment
 
 **Reference**:
-- **[README_results_storage.md](../docs/Step10_Results/README_results_storage.md)** - Storage analysis and container sizing
-- **[README_results_age_bands.md](../docs/Step10_Results/README_results_age_bands.md)** - Supported age bands and mappings
+- **[README_results_storage.md](Step10_Results/README_results_storage.md)** - Storage analysis and container sizing
+- **[README_results_age_bands.md](Step10_Results/README_results_age_bands.md)** - Supported age bands and mappings
 
-See [`docs/Step10_Results/README.md`](../docs/Step10_Results/README.md) for complete documentation index.
+See [`Step10_Results/README.md`](Step10_Results/README.md) for complete documentation index.

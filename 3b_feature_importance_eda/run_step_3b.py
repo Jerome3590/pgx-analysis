@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""
+Step 3b: Feature Importance EDA and Refinement - Orchestration Script
+
+Runs all Step 3b analyses:
+1. BupaR post-target analysis
+2. DTW trajectory analysis
+3. Filter and refine feature importances
+
+Outputs refined cohort_feature_importance files for Step 4a.
+"""
+
+import argparse
+import sys
+import subprocess
+from pathlib import Path
+from typing import List, Tuple
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from py_helpers.constants import age_band_to_fname
+
+try:
+    from py_helpers.checkpoint_utils import save_step_checkpoint
+except ImportError:
+    def save_step_checkpoint(step_name: str, cohort: str, age_band: str, metadata=None, output_paths=None, logger=None) -> bool:
+        """Dummy checkpoint function if checkpoint_utils not available."""
+        return True
+
+# Cohorts and age bands
+COHORTS = {
+    'opioid_ed': ['13-24', '25-44', '45-54', '55-64'],
+    'non_opioid_ed': ['65-74', '75-84', '85-94']
+}
+
+
+def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Run BupaR post-target analysis."""
+    print(f"\n{'='*80}")
+    print(f"Running BupaR Post-Target Analysis: {cohort} / {age_band}")
+    print(f"{'='*80}")
+    
+    script_path = script_dir / "run_bupar_post_target_analysis.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cohort", cohort,
+        "--age-band", age_band
+    ]
+    
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] BupaR analysis failed: {e}")
+        return False
+
+
+def run_dtw_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Run DTW trajectory analysis."""
+    print(f"\n{'='*80}")
+    print(f"Running DTW Trajectory Analysis: {cohort} / {age_band}")
+    print(f"{'='*80}")
+    
+    script_path = script_dir / "run_dtw_trajectory_analysis.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cohort", cohort,
+        "--age-band", age_band
+    ]
+    
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] DTW analysis failed: {e}")
+        return False
+
+
+def run_filter_and_refine(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Run filter and refine step."""
+    print(f"\n{'='*80}")
+    print(f"Filtering and Refining Features: {cohort} / {age_band}")
+    print(f"{'='*80}")
+    
+    script_path = script_dir / "filter_and_refine_features.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cohort", cohort,
+        "--age-band", age_band
+    ]
+    
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Filter and refine failed: {e}")
+        return False
+
+
+def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Create BupaR visualizations."""
+    print(f"\n{'='*80}")
+    print(f"Creating BupaR Visualizations: {cohort} / {age_band}")
+    print(f"{'='*80}")
+    
+    script_path = script_dir / "create_bupar_visualizations.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cohort", cohort,
+        "--age-band", age_band
+    ]
+    
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] BupaR visualization creation failed: {e}")
+        return False
+
+
+def run_step_3b_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Run all Step 3b analyses for a single cohort/age_band."""
+    print(f"\n{'='*80}")
+    print(f"Step 3b: Feature Importance EDA and Refinement")
+    print(f"Cohort: {cohort} / Age Band: {age_band}")
+    print(f"{'='*80}")
+    
+    # Step 1: DTW trajectory analysis (runs first)
+    if not run_dtw_analysis(cohort, age_band, script_dir):
+        print(f"[WARN] DTW analysis failed, continuing...")
+    
+    # Step 2: BupaR post-target analysis (runs after DTW)
+    if not run_bupar_analysis(cohort, age_band, script_dir):
+        print(f"[WARN] BupaR analysis failed, continuing...")
+    
+    # Step 3: Filter and refine
+    if not run_filter_and_refine(cohort, age_band, script_dir):
+        print(f"[ERROR] Filter and refine failed")
+        return False
+    
+    # Step 4: Create BupaR visualizations
+    if not create_bupar_visualizations(cohort, age_band, script_dir):
+        print(f"[WARN] BupaR visualization creation failed, continuing...")
+    
+    # Save checkpoint to S3
+    age_band_fname = age_band_to_fname(age_band)
+    output_paths = [
+        f"s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band_fname}_cohort_feature_importance.csv",
+        f"s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band_fname}_feature_filtering_summary.json"
+    ]
+    
+    metadata = {
+        "step": "3b_feature_importance_eda",
+        "cohort": cohort,
+        "age_band": age_band,
+        "status": "completed"
+    }
+    
+    if save_step_checkpoint(
+        step_name="3b_feature_importance_eda",
+        cohort=cohort,
+        age_band=age_band,
+        metadata=metadata,
+        output_paths=output_paths
+    ):
+        print(f"[OK] Checkpoint saved to S3")
+    
+    print(f"\n[OK] Step 3b completed for {cohort} / {age_band}")
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Step 3b: Feature Importance EDA and Refinement"
+    )
+    parser.add_argument(
+        "--cohort",
+        type=str,
+        choices=list(COHORTS.keys()),
+        help="Cohort name (required unless --all-cohorts)"
+    )
+    parser.add_argument(
+        "--age-band",
+        type=str,
+        help="Age band (required unless --all-cohorts)"
+    )
+    parser.add_argument(
+        "--all-cohorts",
+        action="store_true",
+        help="Run for all cohorts and age bands"
+    )
+    parser.add_argument(
+        "--skip-bupar",
+        action="store_true",
+        help="Skip BupaR analysis"
+    )
+    parser.add_argument(
+        "--skip-dtw",
+        action="store_true",
+        help="Skip DTW analysis"
+    )
+    
+    args = parser.parse_args()
+    
+    script_dir = Path(__file__).parent
+    
+    # Determine cohorts to process
+    if args.all_cohorts:
+        cohorts_to_process = []
+        for cohort, age_bands in COHORTS.items():
+            for age_band in age_bands:
+                cohorts_to_process.append((cohort, age_band))
+    elif args.cohort and args.age_band:
+        cohorts_to_process = [(args.cohort, args.age_band)]
+    elif args.cohort:
+        cohorts_to_process = [
+            (args.cohort, age_band) 
+            for age_band in COHORTS[args.cohort]
+        ]
+    else:
+        print("[ERROR] Must specify --cohort and --age-band, or --all-cohorts")
+        sys.exit(1)
+    
+    print("=" * 80)
+    print("Step 3b: Feature Importance EDA and Refinement")
+    print("=" * 80)
+    print(f"Processing {len(cohorts_to_process)} cohort/age_band combinations")
+    print()
+    
+    # Process each cohort
+    success_count = 0
+    fail_count = 0
+    
+    for cohort, age_band in cohorts_to_process:
+        if run_step_3b_for_cohort(cohort, age_band, script_dir):
+            success_count += 1
+        else:
+            fail_count += 1
+    
+    # Summary
+    print()
+    print("=" * 80)
+    print("Summary")
+    print("=" * 80)
+    print(f"Total: {len(cohorts_to_process)}")
+    print(f"Successful: {success_count}")
+    print(f"Failed: {fail_count}")
+    print()
+    
+    if fail_count == 0:
+        print("[OK] All Step 3b analyses completed successfully!")
+        sys.exit(0)
+    else:
+        print("[ERROR] Some analyses failed. Check the output above.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

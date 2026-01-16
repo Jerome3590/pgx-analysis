@@ -38,16 +38,17 @@ This asymmetry is intentional and standard for classification problems:
 
 ### Feature-Importance Filtering
 
-Aggregated feature-importance CSVs (from Step 3) drive the case-side event filtering:
+Refined feature-importance CSVs (from Step 3b) drive the case-side event filtering:
 
-- Inputs:
-  - `3_feature_importance/outputs/*_aggregated_feature_importance.csv`
-  - or downloaded mirrors under `3_feature_importance/from_s3/by_cohort/**`
+- Inputs (REQUIRED - Step 3b must run before Step 4a):
+  - `3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv`
+  - or downloaded from S3: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv`
 - For each `(cohort_name, age_band)`:
   - The `feature` column is parsed; `item_` prefixes are stripped to get raw item codes.
   - The resulting item list is used in the DuckDB query that filters **case events**:
     - keep only events where `drug_name`, any ICD diagnosis column, or `procedure_code` matches one of the important items.
   - Control events are never filtered by this list; they remain a neutral reference.
+- **Note**: Step 4a requires `cohort_feature_importance` files from Step 3b. There is no fallback to `aggregated_feature_importance` files from Step 3. Step 3b must run before Step 4a.
 
 ### Idempotency and Rebuilds
 

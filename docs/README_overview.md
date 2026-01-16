@@ -49,10 +49,11 @@ graph TD
     
     L --> L1[run_shap_analysis.py]
     
-    N --> N1[Risk Dashboard]
-    N --> N2[bupaR_dashboard_visual]
-    N --> N3[fpgrowth_dashboard_visual]
-    N --> N4[dtw_dashboard_visual]
+    N --> N1[frontend/<br/>Dashboard HTML]
+    N --> N2[backend/<br/>Lambda Function]
+    N --> N3[visualizations/<br/>DTW + FP-Growth + BupaR]
+    N --> N4[data_preparation/<br/>Model + Metadata Prep]
+    N --> N5[deployment/<br/>Docker + ECR]
     
     O --> O1[common_imports.py]
     O --> O2[duckdb_utils.py]
@@ -101,7 +102,8 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
-- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls
+- Feature refinement (`3b_feature_importance_eda/`) using BupaR + DTW to filter and refine features, producing `cohort_feature_importance` files
+- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Step 3b
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
@@ -124,8 +126,15 @@ flowchart TD
         B2 --> B3[Top Features Selection]
     end
     
+    subgraph "Step 3b: Feature Refinement"
+        B3 --> B4[BupaR Post-Target Analysis]
+        B3 --> B5[DTW Trajectory Analysis]
+        B4 --> B6[Refined Cohort Feature Importance]
+        B5 --> B6
+    end
+    
     subgraph "Step 4: Model Data & Filtering"
-        B3 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
         C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
@@ -149,7 +158,13 @@ flowchart TD
     
     subgraph "Step 9: Risk Dashboard"
         F2 --> G1[Risk Dashboard<br/>Model Deployment]
-        G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
+        F1 --> G1
+        G1 --> G2[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
+        G1 --> G3[Backend API<br/>Lambda Function]
+        G1 --> G4[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
+        G2 --> G5[Production Deployment<br/>S3 + API Gateway + Lambda]
+        G3 --> G5
+        G4 --> G5
     end
     
     style A1 fill:#f9f,stroke:#333,stroke-width:2px
@@ -258,7 +273,7 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 - Treatment variables (drugs)
 - Post-treatment variables (mediators/outcomes)
 
-## Recent Enhancements
+## Key Design Decisions
 
 ### Drug Event Explosion Strategy
 - **Patient-Level → Drug-Level Transformation**: Each drug prescription becomes a separate row

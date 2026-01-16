@@ -73,14 +73,15 @@ Runs all cohorts and age bands sequentially.
 
 ### Workflow Steps (Executed Automatically)
 
-1. **Step 3**: Feature Importance (Monte Carlo CV)
-2. **Step 4a**: Model Data Creation (`model_events.parquet`)
-3. **Step 4b**: DTW Protocol Filtering
-4. **Step 5c**: PGx Feature Engineering
-5. **Step 6**: Final Model Training
-6. **Step 7**: SHAP Analysis (CatBoost)
-7. **Step 8**: FFA Analysis (XGBoost, uses SHAP from Step 7)
-8. **Step 9**: Risk Dashboard (visualizations)
+1. **Step 3**: Feature Importance (Monte Carlo CV) - Aggregated feature importances
+2. **Step 3b**: Feature Importance EDA and Refinement - BupaR + DTW analysis to refine features
+3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Step 3b
+4. **Step 4b**: DTW Protocol Filtering
+5. **Step 5c**: PGx Feature Engineering
+6. **Step 6**: Final Model Training
+7. **Step 7**: SHAP Analysis (CatBoost + XGBoost)
+8. **Step 8**: FFA Analysis (XGBoost, uses SHAP from Step 7)
+9. **Step 9**: Risk Dashboard - Production deployment with frontend dashboard, backend API (Lambda), and visualization tabs (Causal Analysis, DTW Trajectories, FP-Growth Patterns, BupaR Process Mining)
 
 The scripts are idempotent and will skip completed steps automatically.
 
@@ -91,12 +92,13 @@ pgx-analysis/
 ├── 1_apcd_input_data/          # Step 1: APCD data preprocessing (bronze → silver → gold)
 ├── 2_create_cohort/            # Step 2: Cohort creation and QA
 ├── 3_feature_importance/       # Step 3: MC-CV feature importance (aggregated importances)
+├── 3b_feature_importance_eda/  # Step 3b: Feature refinement (BupaR + DTW EDA)
 ├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
 ├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
 ├── 5_pgx_analysis/             # Step 5: PGx feature engineering
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
-├── 7_ffa_analysis/             # Step 8: Formal Feature Attribution (FFA) analysis (uses SHAP to prioritize rules)
-├── 8_shap_analysis/            # Step 7: SHAP-based post-model analysis
+├── 7_shap_analysis/            # Step 7: SHAP-based post-model analysis (CatBoost + XGBoost)
+├── 8_ffa_analysis/             # Step 8: Formal Feature Attribution (FFA) analysis (uses SHAP to prioritize rules)
 ├── 9_risk_dashboard/           # Step 9: Risk dashboard (includes BupaR/FP-Growth/DTW visuals)
 ├── utility_scripts/            # Workflow execution scripts (run_cohort_workflow.sh)
 ├── py_helpers/                 # Shared Python helper utilities
@@ -120,8 +122,15 @@ flowchart TD
         B2 --> B3[Top Features Selection]
     end
     
+    subgraph "Step 3b: Feature Refinement"
+        B3 --> B4[BupaR Post-Target Analysis]
+        B3 --> B5[DTW Trajectory Analysis]
+        B4 --> B6[Refined Cohort Feature Importance]
+        B5 --> B6
+    end
+    
     subgraph "Step 4: Model Data & Filtering"
-        B3 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
         C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
     end
     
@@ -145,7 +154,13 @@ flowchart TD
     
     subgraph "Step 9: Risk Dashboard"
         F2 --> G1[Risk Dashboard<br/>Model Deployment]
-        G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
+        F1 --> G1
+        G1 --> G2[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
+        G1 --> G3[Backend API<br/>Lambda Function]
+        G1 --> G4[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
+        G2 --> G5[Production Deployment<br/>S3 + API Gateway + Lambda]
+        G3 --> G5
+        G4 --> G5
     end
     
     style A1 fill:#f9f,stroke:#333,stroke-width:2px
@@ -159,7 +174,11 @@ flowchart TD
     style E4 fill:#fbb,stroke:#333,stroke-width:2px
     style F1 fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
     style F2 fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
-    style G1 fill:#ffb,stroke:#333,stroke-width:2px
+    style G1 fill:#ffb,stroke:#333,stroke-width:2px    %% Risk Dashboard
+    style G2 fill:#ffb,stroke:#333,stroke-width:2px    %% Frontend
+    style G3 fill:#ffb,stroke:#333,stroke-width:2px    %% Backend
+    style G4 fill:#ffb,stroke:#333,stroke-width:2px    %% Visualizations
+    style G5 fill:#ffb,stroke:#333,stroke-width:2px    %% Deployment
 ```
 
 ## Key Features
