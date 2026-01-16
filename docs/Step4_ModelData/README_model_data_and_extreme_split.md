@@ -40,8 +40,8 @@ DTW-derived time-window rules are used to flag and drop protocol patterns while 
 **Goal**: Move patients with extremely dense medical histories into a dedicated `{cohort}_extreme_density` cohort so they **do not drive the main models**, while still being available for exploratory analysis.
 
 - **Scripts**:  
-  - `5b_fpgrowth_analysis/extract_extreme_density_cohort.py`  
-  - `5b_fpgrowth_analysis/summarize_extreme_density_cohort.py`
+  - `9_risk_dashboard/visualizations/fpgrowth/extract_extreme_density_cohort.py`  
+  - `9_risk_dashboard/visualizations/fpgrowth/summarize_extreme_density_cohort.py`
 
 #### Extraction (`extract_extreme_density_cohort.py`)
 
@@ -72,8 +72,8 @@ The updated `model_events.parquet` is what feeds **all main feature engineering 
   - Transaction-size histogram PNG  
   - Aggregate JSON summary (`extreme_density_summary_{band_fname}.json`)
 
-For `opioid_ed`, these summaries are complemented by BupaR process mining in  
-`5a_bupaR_analysis/create_bupar_outputs_opioid_ed_extreme.R`, which builds an extreme-only eventlog and plots under `feature_engineering_outputs/5_bupar/opioid_ed_extreme_density/{age_band}/plots`.
+For `opioid_ed`, these summaries can be complemented by BupaR process mining visualizations in  
+`9_risk_dashboard/visualizations/bupar/` for exploratory analysis (visualization-only, not used in models).
 
 #### Z Code Analysis: Routine Examinations in Extreme vs Standard Cohorts
 
@@ -139,10 +139,7 @@ Z codes identified as administrative (particularly Z02 codes for administrative 
 ### How Step 4 Connects to Later Steps
 
 - **Main cohorts** (with extreme-density patients removed) flow into:
-  - FP-Growth (`5b_fpgrowth_analysis/`)
-  - BupaR (`5a_bupaR_analysis/`)
-  - DTW trajectories (`5d_dtw_analysis/`)
-  - PGx (`5c_pgx_analysis/`)
-  - Final model (`6_final_model/`)
-- **Extreme cohorts** mirror the same feature-engineering stack for **exploratory visualization and transition-risk marker discovery**, but **do not feed the risk calculator models directly**.
+  - PGx feature engineering (`5_pgx_analysis/`)
+  - Final model training (`6_final_model_selection/`)
+- **Extreme cohorts** are available for **exploratory visualization analysis** (FP-Growth, BupaR, DTW visualizations in `9_risk_dashboard/visualizations/`), but **do not feed the risk calculator models directly**.
 

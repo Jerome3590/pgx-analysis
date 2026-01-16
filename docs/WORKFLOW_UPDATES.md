@@ -18,9 +18,9 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 - **Script**: `4b_dtw_filter/filter_protocol_events.py`
 - **Output**: Filtered model events data
 
-### Step 5c: PGx Feature Engineering
+### Step 5: PGx Feature Engineering
 - **Purpose**: Generate PGx features (ONLY feature engineering step)
-- **Script**: `5c_pgx_analysis/run_analysis.py`
+- **Script**: `5_pgx_analysis/run_analysis.py`
 - **Output**: PGx feature tables
 - **Note**: BupaR, DTW, and FP-Growth are no longer used as features, only for dashboard visualizations
 
