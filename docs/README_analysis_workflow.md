@@ -298,10 +298,68 @@ flowchart TD
 
 | Question | Analysis Method | Insights |
 |----------|----------------|-----------|
-| What itemsets are most common? | FpGrowth | Frequent co-occurrence patterns |
-| How do itemsets play out temporally? | BupaR | Process flows and sequences |
+| What itemsets are most common? | FP-Growth (visualization) | Frequent co-occurrence patterns for exploratory analysis |
+| How do itemsets play out temporally? | BupaR (visualization) | Process flows and sequences for clinical interpretation |
 | Which itemsets drive model predictions? | XGBoost FFA + CatBoost SHAP | Risk-influential patterns (XGBoost FFA with CatBoost SHAP filtering) |
-| Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis |
+| Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis (visualization complements causal analysis) |
+
+## Lessons Learned
+
+### Why FP-Growth, BupaR, and DTW Are Visualization-Only
+
+**FP-Growth**:
+- **Target Leakage Risk**: Patterns mined from combined target+control data can encode target-specific information
+- **Direct Leakage**: Rules may include target codes (e.g., F1120) as consequents, creating perfect target leakage
+- **Solution**: Use FP-Growth for visualization and exploratory analysis only, not as model features
+
+**BupaR**:
+- **Complexity vs. Benefit**: Process mining features add significant complexity without sufficient predictive benefit over aggregated feature importances
+- **Value in Exploration**: BupaR visualizations provide valuable clinical insights into patient pathways
+- **Solution**: Use BupaR in Step 3b for feature refinement (post-target analysis) and in Step 9 for dashboard visualizations, but not as model features
+
+**DTW**:
+- **Protocol Filtering**: DTW excels at identifying standard care protocols that both targets and controls follow
+- **Non-Predictive**: These protocols are non-predictive by design (they're standard care)
+- **Solution**: Use DTW for protocol filtering (Step 4b) and trajectory visualization (Step 9), but not as model features
+
+### Why Aggregated Features Are Used Directly (No Encoding)
+
+**Initial Approach**: Feature encoding step to convert categorical features to numeric codes.
+
+**Final Approach**: Use aggregated feature importances directly from Step 3.
+
+**Key Insights**:
+- **MC-CV Already Filters**: The Monte Carlo cross-validation process already identifies and ranks the most important features
+- **Reduced Complexity**: Eliminating encoding reduces pipeline complexity and potential sources of error
+- **Maintains Predictive Power**: Aggregated importances capture the essential signals without encoding overhead
+- **PGx Adds Value**: PGx features provide additional pharmacogenomic information that complements aggregated features
+
+**Result**: Simpler, more maintainable pipeline with equivalent or better predictive performance.
+
+### Why SHAP Filters FFA Rules
+
+**Approach**: Use SHAP importance from Step 7 to filter and prioritize rules for FFA (Step 8) AXP computation.
+
+**Key Insights**:
+- **Rule Explosion**: Without filtering, FFA can generate thousands of rules, many of which are noise
+- **SHAP as Quality Filter**: SHAP importance identifies features that actually contribute to predictions
+- **Three-Set Union**: Rule selection uses union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) top 300 SHAP-filtered rules
+- **Causal Filtering**: Final rule set further filtered based on causal importance scores
+
+**Result**: Focused, high-quality rule set for causal analysis that balances comprehensiveness with interpretability.
+
+### Why CatBoost FFA Is Not Performed
+
+**Technical Limitation**: CatBoost's complex hashing and CTR (Counter-based Target Statistics) transformations make symbolic rule extraction difficult.
+
+**Design Philosophy**: This limitation functions as a deliberate quality control mechanism.
+
+**Key Insights**:
+- **Model Agreement**: Requiring features to be detected by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) filters out model-specific artifacts
+- **Robustness**: If CatBoost finds a signal that XGBoost cannot replicate, it may be an artifact of CatBoost's specific encoding
+- **Clinical Actionability**: Features that can't be translated to symbolic rules are too opaque for clinical decision-making
+
+**Result**: Higher-confidence features in causal analysis, with explicit logical verification possible.
 
 ## Output Paths Summary
 

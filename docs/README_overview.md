@@ -299,6 +299,55 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 | **Scalability** | O(n²) for each pair | Handles thousands of cases |
 | **Interpretability** | "These sequences are X% similar" | "80% of patients follow path A→B→C" |
 
+## Lessons Learned
+
+### Feature Engineering Simplification
+
+**Initial Approach**: Multiple feature engineering steps (BupaR, FP-Growth, DTW, PGx) with all features combined for final model.
+
+**Final Approach**: Single feature engineering step (PGx only) with aggregated feature importances used directly.
+
+**Key Insights**:
+- **FP-Growth Features**: Removed due to target leakage concerns. Patterns mined from combined target+control data can encode target-specific information, creating artificial predictive power that doesn't generalize.
+- **BupaR Features**: Moved to visualization-only. While valuable for exploratory analysis, process mining features add complexity without sufficient predictive benefit over aggregated importances.
+- **DTW Features**: Used for protocol filtering (Step 4b) but not as model features. DTW captures standard care protocols that both targets and controls follow, making them non-predictive.
+- **Aggregated Features**: Using feature importances directly (no encoding) simplifies the pipeline while maintaining predictive power. The MC-CV aggregation already captures the most important signals.
+
+**Result**: Streamlined workflow focused on PGx analysis as the primary feature engineering step, with other methods used for visualization and exploratory analysis only.
+
+### Model Selection Philosophy
+
+**Approach**: Use ensemble of three models (CatBoost, XGBoost, XGBoost RF) with "Model Agreement" philosophy.
+
+**Key Insights**:
+- **Robustness over Sensitivity**: Features important in multiple models receive higher scores than those found by a single model.
+- **CatBoost FFA Limitation**: CatBoost's complex hashing and CTR transformations make symbolic rule extraction difficult. This limitation functions as a quality control mechanism.
+- **Consensus Filter**: Requiring features to be detected by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) filters out model-specific artifacts.
+- **Selection Criteria**: Primary metric is Recall (for clinical sensitivity), secondary is AUC-PR (for precision-recall balance).
+
+**Result**: More robust feature selection and model interpretation, with higher confidence in final predictions.
+
+### Visualization vs. Feature Engineering
+
+**Key Insight**: Not all analysis methods need to produce model features. Some methods are more valuable for exploratory analysis and clinical interpretation.
+
+**BupaR, FP-Growth, DTW**: 
+- **As Features**: Added complexity, potential leakage (FP-Growth), or non-predictive patterns (DTW protocols)
+- **As Visualizations**: Provide valuable clinical insights, pathway analysis, and pattern discovery without affecting model integrity
+
+**Result**: Cleaner model pipeline with rich exploratory visualizations that complement but don't compromise the predictive model.
+
+### Temporal Validation Strategy
+
+**Approach**: Strict temporal validation with 2016-2018 training and 2019 holdout, excluding 2020 (COVID-19).
+
+**Key Insights**:
+- **Prevents Data Leakage**: Future data never seen during training ensures true temporal validation
+- **COVID Impact**: 2020 excluded due to pandemic-related changes in healthcare patterns
+- **Consistency**: Same train/test split across feature importance, model training, and evaluation ensures features generalize
+
+**Result**: More reliable model performance estimates and better generalization to future data.
+
 ## Related Documentation
 
 - [`README_data_pipeline.md`](README_data_pipeline.md) - Data processing and cohort creation
