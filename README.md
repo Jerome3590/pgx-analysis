@@ -41,8 +41,8 @@ bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
 # Run non_opioid_ed 65-74
 bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
-# Skip specific steps (e.g., skip step 5c)
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24 --skip-steps 5c
+# Skip specific steps (e.g., skip step 5)
+bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24 --skip-steps 5
 ```
 
 ### All Cohorts in a Group
@@ -77,7 +77,7 @@ Runs all cohorts and age bands sequentially.
 2. **Step 3b**: Feature Importance EDA and Refinement - BupaR + DTW analysis to refine features
 3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Step 3b
 4. **Step 4b**: DTW Protocol Filtering
-5. **Step 5c**: PGx Feature Engineering
+5. **Step 5**: PGx Feature Engineering
 6. **Step 6**: Final Model Training
 7. **Step 7**: SHAP Analysis (CatBoost + XGBoost)
 8. **Step 8**: FFA Analysis (XGBoost, uses SHAP from Step 7)
@@ -142,8 +142,10 @@ flowchart TD
         D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
         E1 --> E2[CatBoost Training]
         E1 --> E3[XGBoost Training]
-        E2 --> E4[Model Selection & Evaluation]
+        E1 --> E3a[XGBoost RF Training]
+        E2 --> E4[Model Selection & Evaluation<br/>Best XGBoost Variant<br/>Recall + AUC-PR]
         E3 --> E4
+        E3a --> E4
     end
     
     subgraph "Step 7-8: Post-Model Analysis"
@@ -171,6 +173,7 @@ flowchart TD
     style E1 fill:#fbb,stroke:#333,stroke-width:2px
     style E2 fill:#fbb,stroke:#333,stroke-width:2px    %% CatBoost
     style E3 fill:#bbf,stroke:#333,stroke-width:2px    %% XGBoost
+    style E3a fill:#bbf,stroke:#333,stroke-width:2px   %% XGBoost RF
     style E4 fill:#fbb,stroke:#333,stroke-width:2px
     style F1 fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
     style F2 fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
@@ -184,8 +187,10 @@ flowchart TD
 ## Key Features
 
 - **Feature Screening** with a focused model ensemble (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
-- **Structure Discovery** and noise reduction with FP-Growth, process mining (BupaR), and dynamic time warping (DTW)
-- **Final Model Development** combining features from all analysis methods for prediction and causal inference
+- **Feature Refinement** using BupaR post-target analysis and DTW trajectory analysis to filter and refine features
+- **Structure Discovery** via FP-Growth, process mining (BupaR), and dynamic time warping (DTW) for visualization and exploratory analysis (not used as model features)
+- **Final Model Development** combining aggregated feature importances with PGx features for prediction and causal inference
+- **Model Selection** based on Recall (primary) and AUC-PR (secondary) metrics, selecting best XGBoost variant
 
 ## Developer Conventions
 
