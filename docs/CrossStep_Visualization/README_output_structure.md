@@ -93,13 +93,13 @@ Use this checklist to track progress:
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 7** ✅
 
-- [ ] **Step 7: SHAP Analysis** (`8_shap_analysis/`)
+- [ ] **Step 7: SHAP Analysis** (`7_shap_analysis/`)
   - [ ] SHAP values computed
   - [ ] Global importance calculated
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 8** ✅
 
-- [ ] **Step 8: Formal Feature Attribution** (`7_ffa_analysis/`)
+- [ ] **Step 8: Formal Feature Attribution** (`8_ffa_analysis/`)
   - [ ] Feature attribution computed (rule selection: first 100 + random 100 + all SHAP > 0)
   - [ ] Causal analysis completed
   - [ ] Results uploaded to S3 (if applicable)

@@ -38,8 +38,8 @@ This folder contains documentation for the Formal Feature Attribution Analysis f
 
 ## 📚 Related Documentation
 
-- **Step 8**: See [`../Step8_FinalModel/`](../Step8_FinalModel/) for model training details
-- **Step 10**: See [`../Step10_Results/`](../Step10_Results/) for dashboard deployment
+- **Step 6**: See [`../Step6_FinalModel/`](../Step6_FinalModel/) for model training details
+- **Step 9**: See [`../Step9_RiskDashboard/`](../Step9_RiskDashboard/) for dashboard deployment
 - **Main Index**: See [`../README.md`](../README.md) for complete documentation index
 
 ## 🔑 Key Concepts

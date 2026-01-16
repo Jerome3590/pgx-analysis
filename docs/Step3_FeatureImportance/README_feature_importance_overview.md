@@ -9,7 +9,7 @@ This folder contains documentation for feature importance analysis methodology a
 
 ## Related Documentation
 
-- **Step 8**: See [`../Step8_FinalModel/`](../Step8_FinalModel/) for final model development
-- **Step 10**: See [`../Step10_Results/`](../Step10_Results/) for dashboard using feature importances
+- **Step 6**: See [`../Step6_FinalModel/`](../Step6_FinalModel/) for final model development
+- **Step 9**: See [`../Step9_RiskDashboard/`](../Step9_RiskDashboard/) for dashboard using feature importances
 - **Main Index**: See [`../README.md`](../README.md) for complete documentation index
 

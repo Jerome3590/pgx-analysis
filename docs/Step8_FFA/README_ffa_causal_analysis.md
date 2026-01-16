@@ -468,4 +468,4 @@ Top Drug Interactions (Antagonism):
 
 - [`8_ffa_analysis/README.md`](../../8_ffa_analysis/README.md) - Complete FFA analysis framework overview
 - [`8_ffa_analysis/PRUNING_PIPELINE.md`](../../8_ffa_analysis/PRUNING_PIPELINE.md) - Pruning pipeline and implementation status
-- [`docs/Step9_FFA/README_ffa_analysis.md`](README_ffa_analysis.md) - FFA analysis overview
+- [`docs/Step8_FFA/README_ffa_analysis.md`](README_ffa_analysis.md) - FFA analysis overview

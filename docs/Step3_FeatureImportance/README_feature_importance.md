@@ -612,7 +612,7 @@ Your codebase has FPGrowth analysis that finds **frequent drug combinations**:
 
 - **Anchored Explanations (AXP)**: Rule-based explanations per patient
 - **Causal Analysis**: Intervention effects for specific patients
-- See [`../Step9_FFA/`](../Step9_FFA/) for details
+- See [`../Step8_FFA/`](../Step8_FFA/) for details
 
 **Use case**: Patient-specific rule-based explanations
 

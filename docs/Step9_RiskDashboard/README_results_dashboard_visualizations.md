@@ -105,7 +105,9 @@ User Selects Codes → Risk Score Calculated → Visualizations Load
 
 - **[README_results_dashboard_tabs.md](README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
 - **[README_results_dashboard.md](README_results_dashboard.md)** - Complete dashboard system overview
-- **[../Step5a_BupaR/README_bupaR.md](../Step5a_BupaR/README_bupaR.md)** - BupaR analysis details
-- **[../Step5b_FPGrowth/README_fpgrowth.md](../Step5b_FPGrowth/README_fpgrowth.md)** - FP-Growth analysis details
-- **[../Step5d_DTW/README_dtw_overview.md](../Step5d_DTW/README_dtw_overview.md)** - DTW analysis details
+- **[README_bupar_dashboard_visualizations.md](README_bupar_dashboard_visualizations.md)** - BupaR process mining dashboard visualizations
+- **[README_fpgrowth_dashboard_visualizations.md](README_fpgrowth_dashboard_visualizations.md)** - FP-Growth pattern mining dashboard visualizations
+- **[README_dtw_dashboard_visualizations.md](README_dtw_dashboard_visualizations.md)** - DTW trajectory dashboard visualizations
+- **Visualization Implementation**: See `9_risk_dashboard/visualizations/` for BupaR, FP-Growth, and DTW visualization generation scripts
+- **Feature Refinement**: See `3b_feature_importance_eda/` for BupaR and DTW analysis used in Step 3b
 

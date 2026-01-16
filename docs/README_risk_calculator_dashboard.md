@@ -313,7 +313,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
   - Query params: `cohort`, `age_band`
   - Returns: S3 paths to BupaR visualization images
 
-See [README_results_dashboard.md](Step10_Results/README_results_dashboard.md) for complete API documentation.
+See [README_results_dashboard.md](Step9_RiskDashboard/README_results_dashboard.md) for complete API documentation.
 
 ## Data Sources
 
@@ -466,26 +466,26 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 ## Documentation
 
-For detailed documentation, see [`Step10_Results/`](Step10_Results/):
+For detailed documentation, see [`Step9_RiskDashboard/`](Step9_RiskDashboard/):
 
 **Main Documentation**:
-- **[README_results_dashboard.md](Step10_Results/README_results_dashboard.md)** - Complete dashboard system overview
-- **[README_results_value_proposition.md](Step10_Results/README_results_value_proposition.md)** - Business value and use cases
-- **[README_results_deployment.md](Step10_Results/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
-- **[README_results_prediction.md](Step10_Results/README_results_prediction.md)** - Prediction workflow and technical details
-- **[README_results_quickstart.md](Step10_Results/README_results_quickstart.md)** - Quick start guide for predictions
+- **[README_results_dashboard.md](Step9_RiskDashboard/README_results_dashboard.md)** - Complete dashboard system overview
+- **[README_results_value_proposition.md](Step9_RiskDashboard/README_results_value_proposition.md)** - Business value and use cases
+- **[README_results_deployment.md](Step9_RiskDashboard/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
+- **[README_results_prediction.md](Step9_RiskDashboard/README_results_prediction.md)** - Prediction workflow and technical details
+- **[README_results_quickstart.md](Step9_RiskDashboard/README_results_quickstart.md)** - Quick start guide for predictions
 
 **Feature Documentation**:
-- **[README_results_pgx_card.md](Step10_Results/README_results_pgx_card.md)** - PGx Patient Card feature
-- **[README_results_ensemble.md](Step10_Results/README_results_ensemble.md)** - Ensemble model approach
-- **[README_results_model_weights.md](Step10_Results/README_results_model_weights.md)** - Performance-based model weighting
+- **[README_results_pgx_card.md](Step9_RiskDashboard/README_results_pgx_card.md)** - PGx Patient Card feature
+- **[README_results_ensemble.md](Step9_RiskDashboard/README_results_ensemble.md)** - Ensemble model approach
+- **[README_results_model_weights.md](Step9_RiskDashboard/README_results_model_weights.md)** - Performance-based model weighting
 
 **Deployment Guides**:
-- **[README_results_deployment_ecr.md](Step10_Results/README_results_deployment_ecr.md)** - Lambda ECR container deployment
-- **[README_results_deployment_cpic.md](Step10_Results/README_results_deployment_cpic.md)** - CPIC data deployment
+- **[README_results_deployment_ecr.md](Step9_RiskDashboard/README_results_deployment_ecr.md)** - Lambda ECR container deployment
+- **[README_results_deployment_cpic.md](Step9_RiskDashboard/README_results_deployment_cpic.md)** - CPIC data deployment
 
 **Reference**:
-- **[README_results_storage.md](Step10_Results/README_results_storage.md)** - Storage analysis and container sizing
-- **[README_results_age_bands.md](Step10_Results/README_results_age_bands.md)** - Supported age bands and mappings
+- **[README_results_storage.md](Step9_RiskDashboard/README_results_storage.md)** - Storage analysis and container sizing
+- **[README_results_age_bands.md](Step9_RiskDashboard/README_results_age_bands.md)** - Supported age bands and mappings
 
-See [`Step10_Results/README.md`](Step10_Results/README.md) for complete documentation index.
+See [`Step9_RiskDashboard/README.md`](Step9_RiskDashboard/README.md) for complete documentation index.

@@ -118,10 +118,8 @@ Step 9 runs **after** all model training and analysis steps (Steps 3-8) and prov
 ## 📚 Related Documentation
 
 - **Step 3**: See [`../Step3_FeatureImportance/`](../Step3_FeatureImportance/) for feature importance analysis
-- **Step 5a**: See [`../Step5a_BupaR/`](../Step5a_BupaR/) for BupaR process mining
-- **Step 5b**: See [`../Step5b_FPGrowth/`](../Step5b_FPGrowth/) for FP-Growth analysis
-- **Step 5d**: See [`../Step5d_DTW/`](../Step5d_DTW/) for DTW trajectory analysis
-- **Step 6**: See [`../Step8_FinalModel/`](../Step8_FinalModel/) for model training
-- **Step 7**: See [`../../8_shap_analysis/`](../../8_shap_analysis/) for SHAP analysis
-- **Step 8**: See [`../Step9_FFA/`](../Step9_FFA/) for FFA causal analysis (uses SHAP to prioritize rules)
+- **Step 3b**: See [`../../3b_feature_importance_eda/`](../../3b_feature_importance_eda/) for BupaR and DTW feature refinement
+- **Step 6**: See [`../Step6_FinalModel/`](../Step6_FinalModel/) for model training
+- **Step 7**: See [`../../7_shap_analysis/`](../../7_shap_analysis/) for SHAP analysis
+- **Step 8**: See [`../Step8_FFA/`](../Step8_FFA/) for FFA causal analysis (uses SHAP to prioritize rules)
 - **Main Index**: See [`../README.md`](../README.md) for complete documentation index

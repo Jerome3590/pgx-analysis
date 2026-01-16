@@ -152,12 +152,12 @@ The system ensures that the **FFA Causal Analysis** only focuses on signals robu
 
 ```bash
 # Step 1: Run SHAP analysis (Step 7)
-python 8_shap_analysis/run_shap_analysis.py \
+python 7_shap_analysis/run_shap_analysis.py \
     --cohort non_opioid_ed \
     --age_band 65-74
 
 # Step 2: Run FFA analysis (Step 8) - uses SHAP from Step 7
-python 7_ffa_analysis/run_full_ffa_analysis.py \
+python 8_ffa_analysis/run_full_ffa_analysis.py \
     --cohort-name non_opioid_ed \
     --age-band 65-74
 
@@ -427,21 +427,21 @@ The dashboard displays:
 
 If SHAP results are not found:
 - Check that Step 7 SHAP analysis has been run
-- Verify file paths in `8_shap_analysis/outputs/`
+- Verify file paths in `7_shap_analysis/outputs/`
 - Check for `*_shap_global_importance_*.csv` files
 
 ### Missing FFA Results
 
 If FFA results are not found:
 - Check that Step 8 FFA analysis has been run
-- Verify file paths in `7_ffa_analysis/outputs/`
+- Verify file paths in `8_ffa_analysis/outputs/`
 - Check for `axp_explanations.csv` and `feature_importance_axp.csv`
 
 ### Missing Causal Results
 
 If causal results are not found:
 - Check that Step 8 causal analysis (within FFA) has been run
-- Verify file paths in `7_ffa_analysis/outputs/`
+- Verify file paths in `8_ffa_analysis/outputs/`
 - Check for `causal_importance_*.csv` files
 
 ### Low Consensus Rate
@@ -483,8 +483,8 @@ If causal analysis fails:
 
 ## Related Documentation
 
-- **Step 7**: [`../../8_shap_analysis/`](../../8_shap_analysis/) - SHAP analysis implementation
-- **Step 8**: [`../Step9_FFA/`](../Step9_FFA/) - FFA and causal analysis (uses SHAP to prioritize rules)
+- **Step 7**: [`../../7_shap_analysis/`](../../7_shap_analysis/) - SHAP analysis implementation
+- **Step 8**: [`../Step8_FFA/`](../Step8_FFA/) - FFA and causal analysis (uses SHAP to prioritize rules)
 - **Parallelization**: [`../CrossStep_Development/README_parallelization_pipeline.md`](../CrossStep_Development/README_parallelization_pipeline.md) - Performance optimization
 - **Dashboard**: [`README_results_dashboard.md`](README_results_dashboard.md) - Dashboard integration
 

@@ -107,7 +107,7 @@ For every `(cohort, age_band)` above we run:
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
-- post-model analysis: SHAP (`8_shap_analysis/`) followed by FFA (`7_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
+- post-model analysis: SHAP (`7_shap_analysis/`) followed by FFA (`8_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 - risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
@@ -190,8 +190,8 @@ pgx-analysis/
 ├── 4b_dtw_filter/              # DTW-based protocol filtering (creates model_events_no_protocols.parquet used by downstream feature engineering)
 ├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
 ├── 6_final_model_selection/    # Final model development and evaluation
-├── 7_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
-├── 8_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
+├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
+├── 8_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
 ├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, and deployment artifacts (Lambda + S3)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
@@ -232,7 +232,7 @@ pgx-analysis/
 - Model outputs include trained models, feature importance, and evaluation metrics
 - `catboost_models/` - Trained model artifacts and metadata
 
-**🎯 7_ffa_analysis: Feature Attribution**
+**🎯 8_ffa_analysis: Feature Attribution**
 - `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
 - `ffa_analysis.py` - Feature Filtering and Analysis pipeline
 - Tree export and causal inference
