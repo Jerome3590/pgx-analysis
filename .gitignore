@@ -49,3 +49,5 @@ archived/
 # Log files
 *.log
 
+# Local cache/temporary files
+tmp/
