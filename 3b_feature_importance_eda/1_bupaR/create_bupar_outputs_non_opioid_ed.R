@@ -29,7 +29,7 @@ suppressPackageStartupMessages({
 project_root <- getwd()  # assume you launched from project root
 
 cohort_name    <- "non_opioid_ed"
-control_cohort <- "opioid_ed"
+control_cohort <- "non_opioid_non_ed"
 
 # Optional command line argument to set age band; default is 65-74
 args <- commandArgs(trailingOnly = TRUE)
@@ -270,6 +270,9 @@ if (file.exists(control_model_data_path)) {
       " age_band=", age_band, " across years ", paste(train_years, collapse=","), "\n", sep = "")
 } else {
   warning("Control model_data parquet not found: ", control_model_data_path)
+  cat("\n⚠️  Control cohort '", control_cohort, "' model_events.parquet not found.\n", sep = "")
+  cat("   To create it, run:\n")
+  cat("   python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, "\n\n", sep = "")
   pgx_df_control <- pgx_df[0, ]
 }
 
@@ -370,7 +373,7 @@ print(sankey_eventlog)
 
 cat("\n--- Pre-HCG (before first HCG ICD) analysis ---\n")
 
-ev_all <- events(target_eventlog) %>%
+ev_all <- target_eventlog %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
@@ -401,7 +404,7 @@ print(pre_target_eventlog)
 trace_explorer(pre_target_eventlog, coverage = 0.8)
 
 # 2) Drug-only sequences before HCG
-pre_drug_sequences <- events(pre_target_eventlog) %>%
+pre_drug_sequences <- pre_target_eventlog %>%
   arrange(case_id, timestamp) %>%
   filter(grepl("^DRUG:", activity)) %>%
   group_by(case_id) %>%
@@ -417,7 +420,7 @@ print(head(pre_drug_sequences))
 process_map(pre_target_eventlog, type = "frequency")
 
 # 4) Per-patient pre-HCG features
-pre_patient_features <- events(pre_target_eventlog) %>%
+pre_patient_features <- pre_target_eventlog %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   summarise(
@@ -438,7 +441,7 @@ save_bupar_csv(
 # Time-to-HCG and time-window features (per patient)
 # -------------------------------------------------------------------
 
-target_times <- events(target_eventlog) %>%
+target_times <- target_eventlog %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
@@ -452,7 +455,7 @@ target_times <- events(target_eventlog) %>%
     .groups = "drop"
   )
 
-pre_events_with_t <- events(pre_target_eventlog) %>%
+pre_events_with_t <- pre_target_eventlog %>%
   inner_join(target_times, by = "case_id") %>%
   mutate(
     dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
