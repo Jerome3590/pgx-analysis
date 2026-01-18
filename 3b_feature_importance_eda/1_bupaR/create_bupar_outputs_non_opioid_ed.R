@@ -3,9 +3,10 @@
 # End-to-end bupaR analysis for Cohort 2 (POLYPHARMACY_ED, non_opioid_ed),
 # configurable age band (65–74, 75–84, 85–94).
 #
-# - Builds target-only and combined event logs from model_data + FP-Growth TRAIN outputs
+# - Builds target-only and combined event logs from model_data
 # - Runs pre-HCG sequence analyses (no post-target to avoid leakage)
 # - Exports pre-HCG, time-to-HCG per-patient features, trace tables, and process matrices
+# Note: FP-Growth filtering removed due to target leakage concerns
 #
 
 suppressPackageStartupMessages({
@@ -13,7 +14,6 @@ suppressPackageStartupMessages({
   library(arrow)
   library(dplyr)
   library(tidyr)
-  library(jsonlite)
   library(readr)
   library(bupaR)
   library(bupaverse)
@@ -76,23 +76,10 @@ if (is.null(model_data_path)) {
   model_data_path <- model_data_candidates[1]
 }
 
-fpgrowth_root <- file.path(
-  project_root,
-  "4_fpgrowth_analysis",
-  "outputs",
-  cohort_name
-)
-
-target_dir_train <- file.path(fpgrowth_root, "target", age_band_fname, "train")
-
-itemsets_drug_target_path    <- file.path(target_dir_train, "drug_name_itemsets_target_only.json")
-itemsets_icd_target_path     <- file.path(target_dir_train, "icd_code_itemsets_target_only.json")
-itemsets_medical_target_path <- file.path(target_dir_train, "medical_code_itemsets_target_only.json")
-
 cat("Project root:         ", project_root, "\n", sep = "")
 cat("Data root:            ", data_root, "\n", sep = "")
 cat("Model data path:      ", model_data_path, "\n", sep = "")
-cat("FP-Growth target dir: ", target_dir_train, "\n\n", sep = "")
+cat("Note: Using all codes from model_data (FP-Growth filtering removed)\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Helper for saving CSVs locally + to S3
@@ -145,40 +132,9 @@ pgx_df_target1 <- pgx_df %>%
 cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
 
 # -------------------------------------------------------------------
-# Load FP-Growth target-only itemsets and build allowed code set
+# Note: FP-Growth filtering removed - using all codes from model_data
+# This ensures we capture all pre-HCG events for analysis
 # -------------------------------------------------------------------
-
-allowed_codes <- character(0)
-
-if (file.exists(itemsets_drug_target_path)) {
-  drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
-  drug_codes <- unique(unlist(drug_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, drug_codes)
-  cat("Loaded ", length(drug_codes), " unique drug codes from target-only itemsets.\n", sep = "")
-} else {
-  warning("Drug target-only itemsets not found at ", itemsets_drug_target_path)
-}
-
-if (file.exists(itemsets_icd_target_path)) {
-  icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
-  icd_codes <- unique(unlist(icd_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, icd_codes)
-  cat("Loaded ", length(icd_codes), " unique ICD codes from target-only itemsets.\n", sep = "")
-} else {
-  warning("ICD target-only itemsets not found at ", itemsets_icd_target_path)
-}
-
-if (file.exists(itemsets_medical_target_path)) {
-  medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
-  medical_codes <- unique(unlist(medical_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, medical_codes)
-  cat("Loaded ", length(medical_codes), " unique medical (ICD+CPT) codes from target-only itemsets.\n", sep = "")
-} else {
-  warning("Medical target-only itemsets not found at ", itemsets_medical_target_path)
-}
-
-cat("Total unique allowed codes from FP-Growth itemsets: ",
-    length(allowed_codes), "\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Build DRUG/ICD/CPT activities and target_eventlog
@@ -237,13 +193,6 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     values_to = "code"
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
-  {
-    if (length(allowed_codes) > 0) {
-      dplyr::filter(., code %in% allowed_codes)
-    } else {
-      .
-    }
-  } %>%
   mutate(
     activity = dplyr::case_when(
       source == "drug_name" ~ paste0("DRUG:", code),
@@ -371,13 +320,6 @@ pgx_df_all_long <- pgx_df_all %>%
     values_to = "code"
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
-  {
-    if (length(allowed_codes) > 0) {
-      dplyr::filter(., code %in% allowed_codes)
-    } else {
-      .
-    }
-  } %>%
   mutate(
     activity = dplyr::case_when(
       source == "drug_name" ~ paste0("DRUG:", code),

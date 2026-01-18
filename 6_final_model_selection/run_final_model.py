@@ -906,6 +906,37 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
         # Create a view so we can reference it multiple times without re-reading the parquet
         con.execute(f"CREATE OR REPLACE VIEW events_view AS SELECT * FROM read_parquet('{events_path}')")
         
+        # Check if target column exists, if not create it based on F1120 presence
+        # F1120 (opioid dependence) indicates a target case (target=1)
+        columns_info = con.execute("DESCRIBE events_view").df()
+        has_target_column = 'target' in columns_info['column_name'].values
+        
+        if not has_target_column:
+            print("[WARN] Target column not found in model_events.parquet")
+            print("[INFO] Creating target column based on F1120 presence (F1120 = target=1)")
+            # Create target column: 1 if patient has F1120 in any ICD diagnosis column, 0 otherwise
+            con.execute(f"""
+                CREATE OR REPLACE VIEW events_view AS
+                SELECT 
+                    *,
+                    CASE 
+                        WHEN primary_icd_diagnosis_code LIKE '%F1120%'
+                          OR two_icd_diagnosis_code LIKE '%F1120%'
+                          OR three_icd_diagnosis_code LIKE '%F1120%'
+                          OR four_icd_diagnosis_code LIKE '%F1120%'
+                          OR five_icd_diagnosis_code LIKE '%F1120%'
+                          OR six_icd_diagnosis_code LIKE '%F1120%'
+                          OR seven_icd_diagnosis_code LIKE '%F1120%'
+                          OR eight_icd_diagnosis_code LIKE '%F1120%'
+                          OR nine_icd_diagnosis_code LIKE '%F1120%'
+                          OR ten_icd_diagnosis_code LIKE '%F1120%'
+                        THEN 1
+                        ELSE 0
+                    END AS target
+                FROM read_parquet('{events_path}')
+            """)
+            print("[OK] Target column created successfully")
+        
         # Aggregate event-level data to one row per patient with label
         # Use MAX(target) to handle patients with mixed targets (prefer case=1 if any event is case)
         # This ensures each patient appears only once

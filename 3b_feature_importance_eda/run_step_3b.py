@@ -2,10 +2,11 @@
 """
 Step 3b: Feature Importance EDA and Refinement - Orchestration Script
 
-Runs all Step 3b analyses:
-1. BupaR post-target analysis
-2. DTW trajectory analysis
-3. Filter and refine feature importances
+Runs all Step 3b analyses in order:
+1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
+2. BupaR post-target analysis (identify pre/post F1120 ICD/CPT events)
+3. DTW trajectory analysis (trajectories, visualizations, additional non-informative events)
+4. Filter and refine feature importances
 
 Outputs refined cohort_feature_importance files for Step 4a.
 """
@@ -58,26 +59,6 @@ def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
         return False
 
 
-def run_dtw_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
-    """Run DTW trajectory analysis."""
-    print(f"\n{'='*80}")
-    print(f"Running DTW Trajectory Analysis: {cohort} / {age_band}")
-    print(f"{'='*80}")
-    
-    script_path = script_dir / "run_dtw_trajectory_analysis.py"
-    cmd = [
-        sys.executable,
-        str(script_path),
-        "--cohort", cohort,
-        "--age-band", age_band
-    ]
-    
-    try:
-        result = subprocess.run(cmd, check=True)
-        return result.returncode == 0
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] DTW analysis failed: {e}")
-        return False
 
 
 def run_filter_and_refine(cohort: str, age_band: str, script_dir: Path) -> bool:
@@ -131,15 +112,17 @@ def run_step_3b_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool
     print(f"Cohort: {cohort} / Age Band: {age_band}")
     print(f"{'='*80}")
     
-    # Step 1: DTW trajectory analysis (runs first)
-    if not run_dtw_analysis(cohort, age_band, script_dir):
-        print(f"[WARN] DTW analysis failed, continuing...")
+    # Step 1: Administrative/Non-informative code filtering (runs first)
+    # This loads administrative codes from lookup table and filters them
+    # Note: This is handled in filter_and_refine_features.py, but we document it here
+    print(f"\n[INFO] Step 1: Administrative/Non-informative code filtering")
+    print(f"       (Handled in filter_and_refine step using administrative_codes_lookup.json)")
     
-    # Step 2: BupaR post-target analysis (runs after DTW)
+    # Step 2: BupaR post-target analysis (identify pre/post F1120 events)
     if not run_bupar_analysis(cohort, age_band, script_dir):
         print(f"[WARN] BupaR analysis failed, continuing...")
     
-    # Step 3: Filter and refine
+    # Step 3: Filter and refine (combines all filtering results)
     if not run_filter_and_refine(cohort, age_band, script_dir):
         print(f"[ERROR] Filter and refine failed")
         return False

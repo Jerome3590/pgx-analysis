@@ -2,7 +2,7 @@
 """
 Filter and Refine Feature Importances
 
-Combines BupaR post-target analysis and DTW trajectory analysis to filter
+Combines BupaR post-target analysis to filter
 and refine aggregated feature importances from Step 3.
 
 Outputs refined cohort_feature_importance files for Step 4a.
@@ -127,13 +127,85 @@ def sanitize_feature_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def normalize_feature_name(feature: str) -> str:
+    """
+    Normalize feature name to match aggregated importance format.
+    
+    Aggregated importance uses: item_80307, item_SUBOXONE, item_F1120
+    Safe filter uses: item_cpt_80307, item_drug_SUBOXONE, item_icd_F1120
+    
+    This function converts from safe filter format to aggregated importance format.
+    """
+    if not feature.startswith('item_'):
+        return feature
+    
+    # Remove item_ prefix
+    code = feature[5:]
+    
+    # Check if it has type prefix (item_cpt_, item_drug_, item_icd_)
+    if code.startswith('cpt_'):
+        # item_cpt_80307 -> item_80307
+        return f"item_{code[4:]}"
+    elif code.startswith('drug_'):
+        # item_drug_SUBOXONE -> item_SUBOXONE
+        return f"item_{code[5:]}"
+    elif code.startswith('icd_'):
+        # item_icd_F1120 -> item_F1120
+        return f"item_{code[4:]}"
+    else:
+        # Already in normalized format (item_80307)
+        return feature
+
+
+def normalize_feature_set(features: Set[str]) -> Set[str]:
+    """Normalize a set of feature names."""
+    return {normalize_feature_name(f) for f in features}
+
+
+def load_safe_feature_filter(cohort: str, age_band: str, output_dir: Path) -> tuple[Optional[Set[str]], Optional[Set[str]]]:
+    """
+    Load safe feature filter JSON and return sets of features to keep (cases) and exclude (controls).
+    
+    Normalizes feature names to match aggregated importance format:
+    - item_cpt_80307 -> item_80307
+    - item_drug_SUBOXONE -> item_SUBOXONE
+    - item_icd_F1120 -> item_F1120
+    
+    Returns:
+        Tuple of (features_to_keep_for_cases, features_to_exclude_for_controls)
+        Both are normalized sets, or (None, None) if file not found
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    filter_path = output_dir / f"{cohort}_{age_band_fname}_safe_feature_filter.json"
+    
+    if filter_path.exists():
+        print(f"Loading safe feature filter from: {filter_path}")
+        with open(filter_path, 'r') as f:
+            filter_data = json.load(f)
+        
+        # Normalize feature names to match aggregated importance format
+        features_to_keep_raw = filter_data.get('all_features_to_keep', [])
+        features_to_exclude_raw = filter_data.get('all_features_to_exclude', [])
+        
+        features_to_keep = normalize_feature_set(set(features_to_keep_raw))
+        features_to_exclude = normalize_feature_set(set(features_to_exclude_raw))
+        
+        print(f"  Found {len(features_to_keep_raw)} features to keep (for cases - whitelist)")
+        print(f"  Found {len(features_to_exclude_raw)} features to exclude (for controls - blacklist)")
+        print(f"  Normalized: {len(features_to_keep)} keep, {len(features_to_exclude)} exclude")
+        return features_to_keep, features_to_exclude
+    
+    print(f"[WARN] Safe feature filter not found: {filter_path}")
+    print(f"       Will fall back to BupaR CSV-based filtering")
+    return None, None
+
+
 def filter_and_refine_features(
     aggregated_fi: pd.DataFrame,
     bupar_results: pd.DataFrame,
-    dtw_results: pd.DataFrame,
     filter_post_target: bool = True,
-    filter_non_value_added: bool = True,
-    min_importance_threshold: float = 0.0
+    min_importance_threshold: float = 0.0,
+    safe_feature_filter: Optional[tuple[Set[str], Optional[Set[str]]]] = None
 ) -> pd.DataFrame:
     """
     Filter and refine feature importances based on EDA results.
@@ -141,10 +213,9 @@ def filter_and_refine_features(
     Args:
         aggregated_fi: Aggregated feature importance DataFrame from Step 3
         bupar_results: BupaR post-target analysis results
-        dtw_results: DTW trajectory analysis results
         filter_post_target: Whether to filter post-target leakage features
-        filter_non_value_added: Whether to filter non-value-added features
         min_importance_threshold: Minimum importance threshold to keep
+        safe_feature_filter: Tuple of (features_to_keep_for_cases, features_to_exclude_for_controls)
     
     Returns:
         Refined feature importance DataFrame
@@ -159,34 +230,60 @@ def filter_and_refine_features(
     filtering_summary = {
         'original_count': len(refined_fi),
         'filtered_by_post_target': 0,
-        'filtered_by_non_value_added': 0,
         'filtered_by_threshold': 0,
+        'filtered_by_safe_filter': 0,
         'final_count': 0
     }
     
-    # Filter post-target leakage features
-    if filter_post_target and not bupar_results.empty:
-        post_target_features = set(
+    # Use safe feature filter if available
+    # safe_feature_filter is a tuple: (features_to_keep_for_cases, features_to_exclude_for_controls)
+    if safe_feature_filter is not None and filter_post_target:
+        features_to_keep, features_to_exclude = safe_feature_filter
+        
+        if features_to_keep is not None:
+            before_count = len(refined_fi)
+            
+            # Normalize feature names for comparison
+            refined_fi['feature_normalized'] = refined_fi['feature'].apply(normalize_feature_name)
+            
+            # Apply whitelist for cases: keep only features in the whitelist
+            # Controls will use blacklist (exclude only leakage) - handled separately in Step 4a
+            refined_fi = refined_fi[refined_fi['feature_normalized'].isin(features_to_keep)].copy()
+            
+            # Drop the temporary normalized column
+            if 'feature_normalized' in refined_fi.columns:
+                refined_fi = refined_fi.drop(columns=['feature_normalized'])
+            
+            filtering_summary['filtered_by_safe_filter'] = before_count - len(refined_fi)
+            filtering_summary['filtered_by_post_target'] = filtering_summary['filtered_by_safe_filter']
+            
+            print(f"Applied safe feature filter (whitelist for cases): kept {len(refined_fi)} features")
+            print(f"  Excluded {filtering_summary['filtered_by_safe_filter']} features (post-target leakage + not in whitelist)")
+            if features_to_exclude:
+                print(f"  NOTE: Controls will use blacklist approach (exclude only {len(features_to_exclude)} leakage features, keep all other features)")
+    
+    # Fallback to old approach if safe filter not available
+    elif filter_post_target and not bupar_results.empty:
+        post_target_features_raw = set(
             bupar_results[bupar_results['is_post_target_leakage'] == 1]['feature'].tolist()
         )
         
+        # Normalize feature names to match aggregated importance format
+        post_target_features = normalize_feature_set(post_target_features_raw)
+        
         before_count = len(refined_fi)
-        refined_fi = refined_fi[~refined_fi['feature'].isin(post_target_features)]
+        # Normalize aggregated importance features for comparison
+        refined_fi['feature_normalized'] = refined_fi['feature'].apply(normalize_feature_name)
+        refined_fi = refined_fi[~refined_fi['feature_normalized'].isin(post_target_features)].copy()
+        
+        # Drop the temporary normalized column
+        if 'feature_normalized' in refined_fi.columns:
+            refined_fi = refined_fi.drop(columns=['feature_normalized'])
+        
         filtering_summary['filtered_by_post_target'] = before_count - len(refined_fi)
         
-        print(f"Filtered {filtering_summary['filtered_by_post_target']} post-target leakage features")
+        print(f"Filtered {filtering_summary['filtered_by_post_target']} post-target leakage features (fallback method)")
     
-    # Filter non-value-added features
-    if filter_non_value_added and not dtw_results.empty:
-        non_value_added_features = set(
-            dtw_results[dtw_results['is_non_value_added'] == 1]['feature'].tolist()
-        )
-        
-        before_count = len(refined_fi)
-        refined_fi = refined_fi[~refined_fi['feature'].isin(non_value_added_features)]
-        filtering_summary['filtered_by_non_value_added'] = before_count - len(refined_fi)
-        
-        print(f"Filtered {filtering_summary['filtered_by_non_value_added']} non-value-added features")
     
     # Filter by minimum importance threshold
     if 'importance_scaled_by_model_sum' in refined_fi.columns:
@@ -221,12 +318,6 @@ def main():
         help="Path to BupaR results CSV (default: auto-detect)"
     )
     parser.add_argument(
-        "--dtw-results",
-        type=str,
-        default=None,
-        help="Path to DTW results CSV (default: auto-detect)"
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
@@ -242,11 +333,6 @@ def main():
         "--no-filter-post-target",
         action="store_true",
         help="Don't filter post-target leakage features"
-    )
-    parser.add_argument(
-        "--no-filter-non-value-added",
-        action="store_true",
-        help="Don't filter non-value-added features"
     )
     
     args = parser.parse_args()
@@ -282,27 +368,36 @@ def main():
     else:
         print(f"[WARN] BupaR results not found: {bupar_path}")
     
-    # Load DTW results
-    if args.dtw_results:
-        dtw_path = Path(args.dtw_results)
-    else:
-        dtw_path = output_dir / f"{args.cohort}_{age_band_fname}_dtw_trajectory_analysis.csv"
-    
-    dtw_results = pd.DataFrame()
-    if dtw_path.exists():
-        print(f"Loading DTW results from: {dtw_path}")
-        dtw_results = pd.read_csv(dtw_path)
-    else:
-        print(f"[WARN] DTW results not found: {dtw_path}")
+    # Load safe feature filter (preferred approach)
+    # Returns tuple: (features_to_keep_for_cases, features_to_exclude_for_controls)
+    safe_feature_filter = None
+    if not args.no_filter_post_target:
+        features_to_keep, features_to_exclude = load_safe_feature_filter(args.cohort, args.age_band, output_dir)
+        if features_to_keep is not None:
+            safe_feature_filter = (features_to_keep, features_to_exclude)
+            
+            # Save control exclusions file for Step 4a
+            if features_to_exclude is not None and len(features_to_exclude) > 0:
+                control_exclusions_path = output_dir / f"{args.cohort}_{age_band_fname}_control_feature_exclusions.json"
+                control_exclusions = {
+                    "description": "Features to exclude for controls (blacklist approach). Controls keep all features except these post-target leakage features.",
+                    "cohort": args.cohort,
+                    "age_band": args.age_band,
+                    "approach": "blacklist",
+                    "features_to_exclude": sorted(list(features_to_exclude)),
+                    "count": len(features_to_exclude)
+                }
+                with open(control_exclusions_path, 'w') as f:
+                    json.dump(control_exclusions, f, indent=2)
+                print(f"[OK] Saved control feature exclusions to: {control_exclusions_path}")
     
     # Filter and refine
     refined_fi, filtering_summary = filter_and_refine_features(
         aggregated_fi=aggregated_fi,
         bupar_results=bupar_results,
-        dtw_results=dtw_results,
         filter_post_target=not args.no_filter_post_target,
-        filter_non_value_added=not args.no_filter_non_value_added,
-        min_importance_threshold=args.min_importance
+        min_importance_threshold=args.min_importance,
+        safe_feature_filter=safe_feature_filter
     )
     
     # Save refined feature importance
@@ -335,8 +430,10 @@ def main():
     # Print summary
     print("\nFiltering Summary:")
     print(f"  Original features: {filtering_summary['original_count']}")
-    print(f"  Filtered by post-target: {filtering_summary['filtered_by_post_target']}")
-    print(f"  Filtered by non-value-added: {filtering_summary['filtered_by_non_value_added']}")
+    if filtering_summary.get('filtered_by_safe_filter', 0) > 0:
+        print(f"  Filtered by safe feature filter (whitelist): {filtering_summary['filtered_by_safe_filter']}")
+    else:
+        print(f"  Filtered by post-target: {filtering_summary['filtered_by_post_target']}")
     print(f"  Filtered by threshold: {filtering_summary['filtered_by_threshold']}")
     print(f"  Final features: {filtering_summary['final_count']}")
     

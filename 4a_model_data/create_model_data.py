@@ -265,6 +265,41 @@ def _validate_model_events_has_controls(parquet_path: Path) -> dict:
         con.close()
 
 
+def load_control_exclusions(cohort_name: str, age_band: str, step3b_outputs_dir: Path) -> Optional[List[str]]:
+    """
+    Load control feature exclusions JSON and return list of item codes to exclude.
+    
+    Returns:
+        List of item codes (without 'item_' prefix) to exclude for controls, or None if not found
+    """
+    import json
+    from py_helpers.constants import age_band_to_fname
+    
+    age_band_fname = age_band_to_fname(age_band)
+    exclusions_path = step3b_outputs_dir / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_control_feature_exclusions.json"
+    
+    if exclusions_path.exists():
+        with open(exclusions_path, 'r') as f:
+            exclusions_data = json.load(f)
+        
+        # Get features to exclude and remove 'item_' prefix
+        features_to_exclude = exclusions_data.get('features_to_exclude', [])
+        # Features are already normalized: item_80307, item_SUBOXONE, item_F1120
+        # Just remove 'item_' prefix to get the code
+        items_to_exclude = []
+        for feature in features_to_exclude:
+            if feature.startswith('item_'):
+                code = feature[5:]  # Remove 'item_'
+                items_to_exclude.append(code)
+            else:
+                # Already without prefix
+                items_to_exclude.append(feature)
+        
+        return items_to_exclude
+    
+    return None
+
+
 def filter_cohort_events_for_items(
     cohort_name: str,
     age_band: str,
@@ -275,6 +310,7 @@ def filter_cohort_events_for_items(
     local_medical_root: Path,
     local_pharmacy_root: Path,
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
+    control_exclusions: Optional[List[str]] = None,
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4a_model_data/.
@@ -656,6 +692,22 @@ def filter_cohort_events_for_items(
             is_target_case = 1 AND {item_filter_condition}
     """
 
+    # Build control exclusion filter (blacklist approach)
+    # Controls keep all features EXCEPT post-target leakage features
+    control_exclusion_condition = "TRUE"  # Default: no exclusions
+    if control_exclusions and len(control_exclusions) > 0:
+        exclusion_list_literal = ", ".join(f"'{v}'" for v in control_exclusions)
+        # Build exclusion conditions for all item-bearing columns
+        exclusion_icd_conditions = " OR ".join(
+            f"{col} IN ({exclusion_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+        control_exclusion_condition = f"""NOT (
+            drug_name IN ({exclusion_list_literal}) OR
+            {exclusion_icd_conditions} OR
+            procedure_code IN ({exclusion_list_literal})
+        )"""
+        print(f"[INFO] Applying control exclusions: excluding {len(control_exclusions)} post-target leakage features")
+    
     control_events_query = f"""
         SELECT
             {common_cols_sql_control},
@@ -663,6 +715,7 @@ def filter_cohort_events_for_items(
         FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
         JOIN control_patients cp
             ON c.mi_person_key = cp.mi_person_key
+        WHERE {control_exclusion_condition}
     """
 
     final_query = f"""
@@ -935,13 +988,6 @@ def main() -> None:
                 f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}"
             )
         sys.exit(1)
-                output_root=model_data_root,
-                local_cohort_root=local_cohort_root,
-                local_medical_root=local_medical_root,
-                local_pharmacy_root=local_pharmacy_root,
-                sample_ratio=DEFAULT_SAMPLE_RATIO,
-            )
-        return
 
     # Default years: match feature-importance temporal setup (2016–2018 train, 2019 test)
     YEARS = [2016, 2017, 2018, 2019]
@@ -975,6 +1021,11 @@ def main() -> None:
             )
             continue
 
+        # Load control exclusions (blacklist for controls)
+        control_exclusions = load_control_exclusions(cohort_name, age_band, STEP3B_OUTPUTS_DIR)
+        if control_exclusions:
+            print(f"[INFO] Loaded {len(control_exclusions)} control exclusions for {cohort_name}/{age_band}")
+
         filter_cohort_events_for_items(
             cohort_name=cohort_name,
             age_band=age_band,
@@ -985,6 +1036,7 @@ def main() -> None:
             local_medical_root=local_medical_root,
             local_pharmacy_root=local_pharmacy_root,
             sample_ratio=DEFAULT_SAMPLE_RATIO,
+            control_exclusions=control_exclusions,
         )
 
 

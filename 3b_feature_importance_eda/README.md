@@ -3,8 +3,9 @@
 ## Overview
 
 Step 3b performs additional exploratory data analysis on aggregated feature importances from Step 3, using:
-1. **BupaR analysis** for transactions past the target event
-2. **DTW analysis** for trajectories and non-value-added ICD/CPT codes
+1. **Administrative/Non-informative code filtering** (remove non-informative ICD/CPT codes from lookup table)
+2. **BupaR analysis** to identify pre/post F1120 ICD/CPT events (target leakage detection)
+3. **DTW analysis** for trajectories, visualizations, and additional non-informative events
 
 Based on this EDA, we filter and update the aggregated feature importances to produce refined `cohort_feature_importance` files that feed into Step 4a model data creation.
 
@@ -44,19 +45,23 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 ## Workflow
 
 1. **Load aggregated feature importances** from Step 3
-2. **BupaR Post-Target Analysis**:
-   - Analyze sequences after target event
+2. **Administrative/Non-informative Code Filtering**:
+   - Load administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
+   - Remove non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
+3. **BupaR Post-Target Analysis** (`1_bupaR/`):
+   - Analyze sequences before and after target event (F1120)
    - Identify features that appear primarily post-target (potential leakage)
+   - Flag post-target leakage features for filtering
+4. **DTW Trajectory Analysis** (`2_dtw/`):
+   - Create patient trajectories and generate visualizations
+   - Analyze trajectories for additional non-value-added codes
+   - Identify additional administrative, scheduling, and non-medical codes
    - Flag features for filtering
-3. **DTW Trajectory Analysis**:
-   - Analyze trajectories for non-value-added codes
-   - Identify administrative, scheduling, and non-medical codes
-   - Flag features for filtering
-4. **Filter and Update Feature Importances**:
-   - Remove flagged features
+5. **Filter and Update Feature Importances**:
+   - Remove flagged features (administrative + post-target + additional non-informative)
    - Adjust importance scores based on EDA findings
    - Generate refined `cohort_feature_importance` files
-5. **Save outputs locally and upload to S3**:
+6. **Save outputs locally and upload to S3**:
    - Save all outputs to local filesystem
    - Upload to S3 for checkpointing and Step 4a consumption
    - Save checkpoint metadata to S3

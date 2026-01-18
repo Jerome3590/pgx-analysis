@@ -76,7 +76,7 @@ def run_bupar_analysis(
     print(f"[INFO] Using Rscript: {rscript}")
     
     # Determine which R script to use based on cohort
-    bupar_dir = project_root / "3b_feature_importance_eda" / "2_bupaR"
+    bupar_dir = project_root / "3b_feature_importance_eda" / "1_bupaR"
     
     if cohort == "opioid_ed":
         r_script = bupar_dir / "create_bupar_outputs_opioid_ed.R"
@@ -105,8 +105,23 @@ def run_bupar_analysis(
             cmd,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',  # Replace encoding errors instead of failing
             cwd=str(project_root)
         )
+        
+        # Filter out encoding errors from stderr (they're harmless)
+        if result.stderr:
+            # Remove UnicodeDecodeError messages from stderr
+            stderr_lines = result.stderr.split('\n')
+            filtered_stderr = [line for line in stderr_lines 
+                             if 'UnicodeDecodeError' not in line 
+                             and 'charmap' not in line 
+                             and 'codec' not in line]
+            if filtered_stderr:
+                result.stderr = '\n'.join(filtered_stderr)
+            else:
+                result.stderr = ''
         
         if result.returncode != 0:
             print(f"[ERROR] R script failed with return code {result.returncode}")
@@ -136,6 +151,36 @@ def run_bupar_analysis(
                 print(f"  - {f}")
         else:
             print(f"[OK] All expected BupaR output files created")
+        
+        # Create post-target analysis CSV
+        print(f"\n[INFO] Creating post-target analysis CSV...")
+        try:
+            create_analysis_script = project_root / "3b_feature_importance_eda" / "create_bupar_post_target_analysis.py"
+            if create_analysis_script.exists():
+                # Note: subprocess already imported at top of file
+                cmd = [
+                    sys.executable,
+                    str(create_analysis_script),
+                    "--cohort", cohort,
+                    "--age-band", age_band
+                ]
+                result_analysis = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(project_root)
+                )
+                if result_analysis.returncode == 0:
+                    print(f"[OK] Post-target analysis CSV created successfully")
+                    if result_analysis.stdout:
+                        print(result_analysis.stdout)
+                else:
+                    print(f"[WARN] Failed to create post-target analysis CSV:")
+                    print(result_analysis.stderr)
+            else:
+                print(f"[WARN] Post-target analysis script not found: {create_analysis_script}")
+        except Exception as e:
+            print(f"[WARN] Error creating post-target analysis CSV: {e}")
         
         return True
         
