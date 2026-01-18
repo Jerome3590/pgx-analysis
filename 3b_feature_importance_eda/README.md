@@ -21,7 +21,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 
 - **Aggregated feature importances** from Step 3:
   - `3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
-- **Model events data** (for BupaR/DTW analysis):
+- **Model events data** (for BupaR analysis):
   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
 
 ## Outputs
@@ -103,8 +103,6 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 
 ### Feature Filtering Scripts
 - `create_safe_feature_filter_json.py` - Creates safe feature filter JSON (exclude leakage, keep pre-target)
-- `create_post_target_filter_json.py` - Creates post-target leakage filter JSON
-- `create_pre_target_predictive_features_json.py` - Creates pre-target predictive features JSON
 - `analyze_leakage_features.py` - Analyzes and categorizes leakage features
 
 ### Validation Scripts

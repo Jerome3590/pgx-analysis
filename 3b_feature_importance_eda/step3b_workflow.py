@@ -875,7 +875,7 @@ if existing_filtering_config_path.exists():
             
             # Load codes into appropriate categories based on stored counts
             codes_list = sorted(list(existing_codes))
-            admin_count = existing_config.get('administrative_codes_count', existing_config.get('dtw_non_value_added_count', 0))  # Support old format
+            admin_count = existing_config.get('administrative_codes_count', 0)
             bupar_count = existing_config.get('bupar_post_target_count', 0)
             
             if admin_count > 0:

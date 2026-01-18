@@ -5,7 +5,7 @@ Step 3b: Feature Importance EDA and Refinement - Orchestration Script
 Runs all Step 3b analyses in order:
 1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
 2. BupaR post-target analysis (identify pre/post F1120 ICD/CPT events)
-3. DTW trajectory analysis (trajectories, visualizations, additional non-informative events)
+3. Create safe feature filter (exclude leakage, keep pre-target features)
 4. Filter and refine feature importances
 
 Outputs refined cohort_feature_importance files for Step 4a.

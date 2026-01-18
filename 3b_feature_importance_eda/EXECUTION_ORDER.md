@@ -87,7 +87,7 @@ The pipeline now executes in this order:
 **Administrative code filtering runs first** because:
 - Removes clearly non-informative codes before other analyses
 - Uses pre-identified administrative codes from lookup table
-- Reduces noise in subsequent BupaR and DTW analyses
+- Reduces noise in subsequent BupaR analysis
 
 **BupaR analysis runs second** because:
 - Identifies pre vs post-F1120 events (critical for target leakage prevention)
