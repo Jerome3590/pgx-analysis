@@ -1766,8 +1766,21 @@ def train_and_evaluate(
     xgb_rf_recall_mean = float(np.mean(metrics["xgb_rf"]["recall"])) if metrics["xgb_rf"]["recall"] else 0.0
     xgb_rf_pr_auc_mean = float(np.mean(metrics["xgb_rf"]["pr_auc"])) if metrics["xgb_rf"]["pr_auc"] else 0.0
     
+    # Calculate CatBoost mean metrics (if available)
+    cb_recall_mean = None
+    cb_pr_auc_mean = None
+    cb_auc_mean = None
+    cb_logloss_mean = None
+    if have_catboost and metrics.get("catboost") and metrics["catboost"].get("recall"):
+        cb_recall_mean = float(np.mean(metrics["catboost"]["recall"]))
+        cb_pr_auc_mean = float(np.mean(metrics["catboost"]["pr_auc"]))
+        cb_auc_mean = float(np.mean(metrics["catboost"]["auc"]))
+        cb_logloss_mean = float(np.mean(metrics["catboost"]["logloss"]))
+    
     print(f"XGBoost:      Recall={xgb_recall_mean:.4f}, AUC-PR={xgb_pr_auc_mean:.4f}")
     print(f"XGBoost RF:   Recall={xgb_rf_recall_mean:.4f}, AUC-PR={xgb_rf_pr_auc_mean:.4f}")
+    if cb_recall_mean is not None:
+        print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
     # Select best XGBoost variant: Primary = Recall, Secondary = AUC-PR
     if xgb_recall_mean > xgb_rf_recall_mean:
@@ -1801,6 +1814,15 @@ def train_and_evaluate(
         "xgb_rf_pr_auc_mean": xgb_rf_pr_auc_mean,
         "selection_reason": selection_reason,
     }
+    
+    # Add CatBoost metrics if available
+    if cb_recall_mean is not None:
+        selection_metadata.update({
+            "catboost_recall_mean": cb_recall_mean,
+            "catboost_pr_auc_mean": cb_pr_auc_mean,
+            "catboost_auc_mean": cb_auc_mean,
+            "catboost_logloss_mean": cb_logloss_mean,
+        })
     
     metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
     s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
