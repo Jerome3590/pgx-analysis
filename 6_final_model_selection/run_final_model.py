@@ -773,17 +773,28 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             f"gold/feature_importance/{cohort}/{age_band}/"
             f"{cohort}_{age_band_fname_s3}_cohort_feature_importance.csv"
         )
+        s3_path = f"s3://{S3_BUCKET}/{s3_key}"
+        
+        print(f"[INFO] Step 3b refined feature importance not found locally.")
+        print(f"[INFO] Checking S3: {s3_path}")
+        
         try:
+            # Check if file exists in S3
             s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-            print(f"[INFO] Step 3b refined feature importance not found locally. Downloading from S3...")
+            print(f"[INFO] Found in S3. Downloading...")
             refined_csv_path.parent.mkdir(parents=True, exist_ok=True)
             obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
             with open(refined_csv_path, 'wb') as f:
                 f.write(obj['Body'].read())
-            print(f"[INFO] Downloaded from S3: {refined_csv_path}")
+            print(f"[INFO] Successfully downloaded from S3: {refined_csv_path}")
+        except s3_client.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == '404':
+                print(f"[WARN] File not found in S3: {s3_path}")
+            else:
+                print(f"[WARN] S3 check failed (error: {error_code}): {e}")
         except Exception as e:
-            # File doesn't exist in S3 either
-            pass
+            print(f"[WARN] S3 download failed: {e}")
     
     # REQUIRED: Step 3b refined feature importance must exist (no fallback)
     if not refined_csv_path.exists():
