@@ -6,7 +6,7 @@
 # - Builds target-only and combined event logs from model_data
 # - Runs pre-HCG sequence analyses (no post-target to avoid leakage)
 # - Exports pre-HCG, time-to-HCG per-patient features, trace tables, and process matrices
-# Note: FP-Growth filtering removed due to target leakage concerns
+# Uses all events from model_events.parquet directly
 #
 
 suppressPackageStartupMessages({
@@ -79,7 +79,7 @@ if (is.null(model_data_path)) {
 cat("Project root:         ", project_root, "\n", sep = "")
 cat("Data root:            ", data_root, "\n", sep = "")
 cat("Model data path:      ", model_data_path, "\n", sep = "")
-cat("Note: Using all codes from model_data (FP-Growth filtering removed)\n\n", sep = "")
+cat("Note: Using all codes from model_events.parquet\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Helper for saving CSVs locally + to S3
@@ -132,7 +132,7 @@ pgx_df_target1 <- pgx_df %>%
 cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
 
 # -------------------------------------------------------------------
-# Note: FP-Growth filtering removed - using all codes from model_data
+# Using all codes from model_events.parquet
 # This ensures we capture all pre-HCG events for analysis
 # -------------------------------------------------------------------
 

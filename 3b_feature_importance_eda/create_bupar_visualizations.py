@@ -103,7 +103,7 @@ def check_prerequisites(cohort: str, age_band: str) -> tuple[bool, str]:
     if not r_script:
         return False, f"R script not found for cohort {cohort}"
     
-    # Note: FP-Growth itemsets are optional - R script will handle missing files gracefully
+    # R script uses model_events.parquet directly
     return True, ""
 
 

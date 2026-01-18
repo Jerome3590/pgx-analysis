@@ -1,7 +1,7 @@
 # BupaR Process Mining Documentation
 
 ## Overview
-This document describes how to use the outputs of the FP-Growth cohort pipeline as event logs for BupaR process mining in R. All scripts in this directory are R-based for consistency and to enable execution in a single R Jupyter notebook kernel.
+This document describes how to use model events data for BupaR process mining in R. All scripts in this directory are R-based for consistency and to enable execution in a single R Jupyter notebook kernel. The BupaR analysis uses `model_events.parquet` directly without any preprocessing filtering.
 
 ---
 
@@ -85,18 +85,21 @@ For each cohort/age-band combination:
 ---
 
 
-## 1. Input Format from FP-Growth (Long Table)
+## 1. Input Format from Model Events (Parquet)
 
-The main input is an event log table (long format):
+The main input is an event log table (long format) from `model_events.parquet`:
 
-| mi_person_key | drug_name      | timestamp   | ...optional columns... |
+| mi_person_key | activity       | event_date   | ...optional columns... |
 |---------------|---------------|-------------|-----------------------|
-| 12345         | ACETAMINOPHEN  | 2020-01-01  | ...                   |
-| 12345         | IBUPROFEN      | 2020-01-02  | ...                   |
+| 12345         | DRUG:ACETAMINOPHEN  | 2020-01-01  | ...                   |
+| 12345         | DRUG:IBUPROFEN      | 2020-01-02  | ...                   |
+| 12345         | ICD:F1120           | 2020-01-15  | ...                   |
+| 12345         | CPT:80307           | 2020-01-20  | ...                   |
 
-- **Source:** `fpgrowth_features/` (partitioned by cohort, age_band, event_year)
+- **Source:** `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+- **Format:** Parquet file with event-level data including ICD codes, CPT codes, and drugs
 - **How to use:** This table is the direct input to BupaR for process mining and sequence analysis.
-- **Best Practice:** Join to the wide encoding table if you need drug features in the event log.
+- **Activity Format:** Activities are prefixed with type (e.g., `DRUG:`, `ICD:`, `CPT:`) for easy categorization
 
 ---
 
@@ -127,12 +130,9 @@ eventlog <- eventlog(
 ---
 
 
-## 4. Handoff from FP-Growth
+## 4. Data Source
 
-- The FP-Growth cohort pipeline produces event logs in the required long format for BupaR.
-- No further transformation is needed if columns match (`mi_person_key`, `drug_name`, `timestamp`).
-- For drug features, join event log to wide encoding table on `drug_name`.
-
----
-
-*This document is focused on BupaR process mining. For FP-Growth logic and outputs, see `FpGROWTH_README.md`.*
+- The `model_events.parquet` file contains all events (ICD codes, CPT codes, drugs) in long format.
+- The R scripts (`create_bupar_outputs_*.R`) read this parquet file directly using DuckDB.
+- Events are transformed into BupaR event log format with activities prefixed by type (DRUG:, ICD:, CPT:).
+- No preprocessing filtering is applied - all events from `model_events.parquet` are used.
