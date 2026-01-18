@@ -191,8 +191,8 @@ except ModuleNotFoundError as e:
 # 3. Manual override: Change values below
 
 # Check for command-line arguments
-COHORT = "opioid_ed"
-AGE_BAND = "25-44"
+COHORT = "non_opioid_ed"
+AGE_BAND = "85-94"
 
 # First, try command-line arguments
 # Only parse if running as script (not in Jupyter/interactive mode)
@@ -508,7 +508,9 @@ if result.returncode == 0:
     print(f"\n✅ BupaR analysis completed successfully")
 else:
     print(f"\n❌ BupaR analysis failed with return code {result.returncode}")
-    if "Rscript not found" in result.stderr or "Rscript not found" in result.stdout:
+    stderr_text = result.stderr or ""
+    stdout_text = result.stdout or ""
+    if "Rscript not found" in stderr_text or "Rscript not found" in stdout_text:
         print("\n💡 Tip: Make sure R is installed and Rscript is in your PATH")
         print(f"   Current RSCRIPT_BIN: {RSCRIPT_BIN if RSCRIPT_BIN else 'Not found (will use auto-detection)'}")
         print("   Rscript detection is configured in the OS detection section at the top of this file")
