@@ -800,9 +800,9 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             f"or Step 3 aggregated: {agg_csv_path}"
         )
     
-    df = pd.read_csv(agg_csv_path)
+    df = pd.read_csv(csv_path)
     if "feature" not in df.columns:
-        raise ValueError(f"'feature' column not found in {agg_csv_path}")
+        raise ValueError(f"'feature' column not found in {csv_path}")
     
     # Filter out features with zero or negative importance (no signal)
     importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
