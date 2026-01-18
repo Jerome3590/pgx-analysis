@@ -42,8 +42,9 @@ cat("=== bupaR Analysis: Cohort 2 (POLYPHARMACY_ED, non_opioid_ed) ===\n")
 cat("  Age band:       ", age_band, "\n", sep = "")
 cat("  Control cohort: ", control_cohort, "\n\n", sep = "")
 
-# Cohort-specific target ICD definition (HCG* codes)
-target_icd_patterns <- c("HCG")
+# Cohort-specific target definition: ED visits (hcg_line IS NOT NULL)
+# For non_opioid_ed, the target is the first ED visit, not an ICD code
+# We'll identify target events by checking if hcg_line is not null in the original data
 
 # OS-aware model data path resolution
 # Try data root first (for EC2/Linux: /mnt/nvme/4a_model_data), then project root
@@ -150,6 +151,12 @@ if (!file.exists(model_data_path)) {
 }
 
 con <- dbConnect(duckdb::duckdb())
+
+# Check if hcg_line or first_ed_non_opioid_date column exists in the parquet file
+schema_query <- sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path)
+schema_info <- dbGetQuery(con, schema_query)
+has_hcg_line <- "hcg_line" %in% schema_info$column_name
+has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
 
 query <- sprintf(
   "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
@@ -397,15 +404,50 @@ print(sankey_eventlog)
 
 cat("\n--- Pre-HCG (before first HCG ICD) analysis ---\n")
 
+# For non_opioid_ed, target is ED visit (hcg_line IS NOT NULL)
+# We need to join back to pgx_df to get hcg_line information
+# First, create a mapping from (case_id, timestamp) to hcg_line
+if (has_hcg_line) {
+  target_date_map <- pgx_df_target1 %>%
+    filter(!is.na(hcg_line)) %>%
+    group_by(mi_person_key) %>%
+    summarise(
+      target_date = min(event_date, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    rename(case_id = mi_person_key)
+} else if (has_first_ed_date) {
+  target_date_map <- pgx_df_target1 %>%
+    filter(!is.na(first_ed_non_opioid_date)) %>%
+    group_by(mi_person_key) %>%
+    summarise(
+      target_date = min(first_ed_non_opioid_date, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    rename(case_id = mi_person_key)
+} else {
+  # Fallback: use first event date for each patient (shouldn't happen, but handle gracefully)
+  cat("WARNING: Neither hcg_line nor first_ed_non_opioid_date found in model_events.parquet\n")
+  cat("Using first event date as target date (this may not be correct)\n")
+  target_date_map <- pgx_df_target1 %>%
+    group_by(mi_person_key) %>%
+    summarise(
+      target_date = min(event_date, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    rename(case_id = mi_person_key)
+}
+
 ev_all <- target_eventlog %>%
+  left_join(target_date_map, by = "case_id") %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
     event_index = row_number(),
-    is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target   = any(is_target_icd),
+    is_target_event = !is.na(target_date) & timestamp >= target_date,
+    has_target = any(!is.na(target_date)),
     first_target_index = ifelse(has_target,
-                                min(event_index[is_target_icd]),
+                                min(event_index[is_target_event], na.rm = TRUE),
                                 NA_integer_)
   ) %>%
   ungroup()
@@ -428,66 +470,143 @@ pre_target_eventlog <- events_pre_target %>%
 cat("Pre-HCG eventlog summary:\n")
 print(pre_target_eventlog)
 
-# 1) Trace explorer (printed summary; visuals if running interactively)
-trace_explorer(pre_target_eventlog, coverage = 0.8)
-
-# 2) Drug-only sequences before HCG
-pre_drug_sequences <- pre_target_eventlog %>%
-  arrange(case_id, timestamp) %>%
-  filter(grepl("^DRUG:", activity)) %>%
-  group_by(case_id) %>%
-  summarise(
-    drug_sequence = list(activity),
-    .groups = "drop"
+# Check if pre-HCG eventlog is empty
+if (n_events(pre_target_eventlog) == 0) {
+  cat("No pre-HCG events found; skipping pre-HCG trace and feature analysis for this cohort/age band.\n")
+  
+  # Create empty data frames for consistency
+  pre_drug_sequences <- data.frame(
+    case_id = character(0),
+    drug_sequence = I(list())
   )
-
-cat("Sample pre-HCG drug-only sequences:\n")
-print(head(pre_drug_sequences))
-
-# 3) Process map for pre-HCG trajectories
-process_map(pre_target_eventlog, type = "frequency")
-
-# 4) Per-patient pre-HCG features
-pre_patient_features <- pre_target_eventlog %>%
-  arrange(case_id, timestamp) %>%
-  group_by(case_id) %>%
-  summarise(
-    pre_n_events            = n(),
-    pre_n_drug_events       = sum(grepl("^DRUG:", activity)),
-    pre_n_icd_events        = sum(grepl("^ICD:", activity)),
-    pre_n_cpt_events        = sum(grepl("^CPT:", activity)),
-    pre_n_unique_activities = n_distinct(activity),
-    .groups = "drop"
+  
+  pre_patient_features <- data.frame(
+    case_id = character(0),
+    pre_n_events = integer(0),
+    pre_n_drug_events = integer(0),
+    pre_n_icd_events = integer(0),
+    pre_n_cpt_events = integer(0),
+    pre_n_unique_activities = integer(0)
   )
-
-save_bupar_csv(
-  pre_patient_features,
-  sprintf("%s_%s_train_target_pre_hcg_patient_features_bupar.csv", cohort_name, age_band_fname)
-)
+  
+  # Save empty patient features (for consistency with workflow)
+  save_bupar_csv(
+    pre_patient_features,
+    sprintf("%s_%s_train_target_pre_hcg_patient_features_bupar.csv", cohort_name, age_band_fname)
+  )
+  
+} else {
+  # 1) Trace explorer (printed summary; visuals if running interactively)
+  tryCatch({
+    trace_explorer(pre_target_eventlog, coverage = 0.8)
+  }, error = function(e) {
+    cat("Warning: trace_explorer failed:", conditionMessage(e), "\n")
+  })
+  
+  # 2) Drug-only sequences before HCG
+  pre_drug_sequences <- pre_target_eventlog %>%
+    arrange(case_id, timestamp) %>%
+    filter(grepl("^DRUG:", activity)) %>%
+    group_by(case_id) %>%
+    summarise(
+      drug_sequence = list(activity),
+      .groups = "drop"
+    )
+  
+  cat("Sample pre-HCG drug-only sequences:\n")
+  print(head(pre_drug_sequences))
+  
+  # 3) Process map for pre-HCG trajectories
+  tryCatch({
+    process_map(pre_target_eventlog, type = "frequency")
+  }, error = function(e) {
+    cat("Warning: process_map failed:", conditionMessage(e), "\n")
+  })
+  
+  # 4) Per-patient pre-HCG features
+  pre_patient_features <- pre_target_eventlog %>%
+    arrange(case_id, timestamp) %>%
+    group_by(case_id) %>%
+    summarise(
+      pre_n_events            = n(),
+      pre_n_drug_events       = sum(grepl("^DRUG:", activity)),
+      pre_n_icd_events        = sum(grepl("^ICD:", activity)),
+      pre_n_cpt_events        = sum(grepl("^CPT:", activity)),
+      pre_n_unique_activities = n_distinct(activity),
+      .groups = "drop"
+    )
+  
+  save_bupar_csv(
+    pre_patient_features,
+    sprintf("%s_%s_train_target_pre_hcg_patient_features_bupar.csv", cohort_name, age_band_fname)
+  )
+}
 
 # -------------------------------------------------------------------
 # Time-to-HCG and time-window features (per patient)
 # -------------------------------------------------------------------
 
-target_times <- target_eventlog %>%
-  arrange(case_id, timestamp) %>%
-  group_by(case_id) %>%
-  mutate(
-    is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target    = any(is_target_icd)
-  ) %>%
-  filter(has_target) %>%
-  summarise(
-    target_time = min(timestamp[is_target_icd]),
-    first_time  = min(timestamp),
-    .groups = "drop"
-  )
+# Use the target_date_map we created earlier (in the pre-HCG section)
+# If target_date_map doesn't exist yet, create it here
+if (!exists("target_date_map")) {
+  if (has_hcg_line) {
+    target_date_map <- pgx_df_target1 %>%
+      filter(!is.na(hcg_line)) %>%
+      group_by(mi_person_key) %>%
+      summarise(
+        target_date = min(event_date, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      rename(case_id = mi_person_key)
+  } else if (has_first_ed_date) {
+    target_date_map <- pgx_df_target1 %>%
+      filter(!is.na(first_ed_non_opioid_date)) %>%
+      group_by(mi_person_key) %>%
+      summarise(
+        target_date = min(first_ed_non_opioid_date, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      rename(case_id = mi_person_key)
+  } else {
+    # Fallback: use first event date for each patient
+    target_date_map <- pgx_df_target1 %>%
+      group_by(mi_person_key) %>%
+      summarise(
+        target_date = min(event_date, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      rename(case_id = mi_person_key)
+  }
+}
 
-pre_events_with_t <- pre_target_eventlog %>%
-  inner_join(target_times, by = "case_id") %>%
+target_times <- target_date_map %>%
   mutate(
-    dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
+    target_time = as.POSIXct(target_date),
+    first_time  = target_time  # For non_opioid_ed, first_time is same as target_time
+  ) %>%
+  select(case_id, target_time, first_time)
+
+# Only create time-to-HCG features if we have pre-HCG events
+if (n_events(pre_target_eventlog) > 0) {
+  pre_events_with_t <- pre_target_eventlog %>%
+    inner_join(target_times, by = "case_id") %>%
+    mutate(
+      dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
+    )
+} else {
+  # Create empty data frame with same structure
+  pre_events_with_t <- data.frame(
+    case_id = character(0),
+    activity = character(0),
+    timestamp = as.POSIXct(character(0)),
+    activity_instance_id = integer(0),
+    lifecycle_id = character(0),
+    resource_id = character(0),
+    target_time = as.POSIXct(character(0)),
+    first_time = as.POSIXct(character(0)),
+    dt_days = numeric(0)
   )
+}
 
 hcg_time_features <- pre_events_with_t %>%
   group_by(case_id, target_time, first_time) %>%
