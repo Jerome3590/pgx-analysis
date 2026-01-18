@@ -314,6 +314,101 @@ if (is.null(control_model_data_path)) {
   }
 }
 
+# Validate 5:1 ratio if control cohort exists
+needs_recreation <- FALSE
+if (file.exists(control_model_data_path)) {
+  # Check ratio: should be approximately 5:1 (controls:cases)
+  query_control_count <- sprintf(
+    "SELECT COUNT(DISTINCT mi_person_key) as n_controls FROM read_parquet('%s') WHERE event_year IN (%s)",
+    control_model_data_path,
+    paste(train_years, collapse = ",")
+  )
+  n_controls <- dbGetQuery(con, query_control_count)$n_controls[1]
+  
+  # Get number of cases from target cohort
+  query_case_count <- sprintf(
+    "SELECT COUNT(DISTINCT mi_person_key) as n_cases FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1",
+    model_data_path,
+    paste(train_years, collapse = ",")
+  )
+  n_cases <- dbGetQuery(con, query_case_count)$n_cases[1]
+  
+  # Calculate actual ratio
+  actual_ratio <- ifelse(n_cases > 0, n_controls / n_cases, 0)
+  expected_ratio <- 5.0
+  tolerance <- 0.2  # Allow 20% tolerance (4:1 to 6:1)
+  min_ratio <- expected_ratio * (1 - tolerance)
+  max_ratio <- expected_ratio * (1 + tolerance)
+  
+  if (actual_ratio < min_ratio || actual_ratio > max_ratio) {
+    cat("\n⚠️  Control cohort ratio validation failed:\n", sep = "")
+    cat("   Actual ratio: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " controls, ", n_cases, " cases)\n", sep = "")
+    cat("   Expected ratio: ", sprintf("%.2f", expected_ratio), ":1 (tolerance: ", sprintf("%.2f", min_ratio), "-", sprintf("%.2f", max_ratio), ":1)\n", sep = "")
+    cat("   Will recreate control cohort to achieve 5:1 ratio...\n\n", sep = "")
+    needs_recreation <- TRUE
+  } else {
+    cat("✅ Control cohort ratio validation passed: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " controls, ", n_cases, " cases)\n", sep = "")
+  }
+}
+
+# Recreate control cohort if needed or if missing
+if (needs_recreation || !file.exists(control_model_data_path)) {
+  if (needs_recreation) {
+    # Remove existing file
+    if (file.exists(control_model_data_path)) {
+      file.remove(control_model_data_path)
+      cat("[INFO] Removed existing control cohort file for recreation\n")
+    }
+  }
+  
+  # Calculate required sample size for 5:1 ratio
+  if (!exists("n_cases")) {
+    query_case_count <- sprintf(
+      "SELECT COUNT(DISTINCT mi_person_key) as n_cases FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1",
+      model_data_path,
+      paste(train_years, collapse = ",")
+    )
+    n_cases <- dbGetQuery(con, query_case_count)$n_cases[1]
+  }
+  
+  required_controls <- max(ceiling(n_cases * 5), 1000)  # At least 1000 controls, or 5x cases
+  
+  cat("[INFO] Creating control cohort with ", required_controls, " controls (target: 5:1 ratio with ", n_cases, " cases)\n", sep = "")
+  
+  # Call Python script to create control cohort
+  python_script <- file.path(project_root, "4a_model_data", "create_control_cohort_model_data.py")
+  python_cmd <- Sys.which("python3")
+  if (python_cmd == "") {
+    python_cmd <- Sys.which("python")
+  }
+  
+  if (python_cmd != "" && file.exists(python_script)) {
+    recreate_cmd <- c(
+      python_cmd,
+      python_script,
+      "--age-band", age_band,
+      "--sample-size", as.character(required_controls)
+    )
+    
+    cat("[INFO] Running: ", paste(recreate_cmd, collapse = " "), "\n", sep = "")
+    recreate_result <- system2(python_cmd, c(python_script, "--age-band", age_band, "--sample-size", as.character(required_controls)), 
+                               stdout = TRUE, stderr = TRUE)
+    
+    if (file.exists(control_model_data_path)) {
+      cat("[OK] Control cohort recreated successfully\n")
+    } else {
+      cat("[WARN] Control cohort recreation may have failed. Check output above.\n")
+    }
+  } else {
+    cat("[ERROR] Cannot recreate control cohort: Python or script not found\n")
+    cat("   Python: ", python_cmd, "\n", sep = "")
+    cat("   Script: ", python_script, "\n", sep = "")
+    cat("   Please run manually:\n")
+    cat("   python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
+  }
+}
+
+# Load control cohort (after recreation if needed)
 if (file.exists(control_model_data_path)) {
   query_control <- sprintf(
     "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
