@@ -269,6 +269,14 @@ print(target_eventlog)
 # Combined TARGET + CONTROL eventlog for Sankey
 # -------------------------------------------------------------------
 
+# Source utility functions for control cohort management
+utils_path <- file.path(project_root, "3b_feature_importance_eda", "1_bupaR", "control_cohort_utils.R")
+if (file.exists(utils_path)) {
+  source(utils_path)
+} else {
+  stop("Control cohort utility functions not found. Expected at: ", utils_path)
+}
+
 # Control model data path - use same OS-aware resolution
 control_model_data_candidates <- c(
   file.path(data_root, "4a_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
@@ -283,52 +291,25 @@ for (candidate in control_model_data_candidates) {
   }
 }
 
-# If not found, try downloading from S3
+# If not found, use first candidate
 if (is.null(control_model_data_path)) {
   control_model_data_path <- control_model_data_candidates[1]
-  
-  # Try to download from S3 if not found locally
-  control_s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", control_cohort, "/age_band=", age_band, "/model_events.parquet")
-  cat("Control model data not found locally. Checking S3: ", control_s3_path, "\n", sep = "")
-  
-  # Create directory if it doesn't exist
-  dir.create(dirname(control_model_data_path), recursive = TRUE, showWarnings = FALSE)
-  
-  # Try AWS CLI sync
-  aws_cli <- Sys.which("aws")
-  if (aws_cli != "") {
-    cat("Downloading control cohort from S3 using AWS CLI...\n")
-    sync_cmd <- c("s3", "cp", control_s3_path, control_model_data_path)
-    sync_result <- system2(aws_cli, sync_cmd, stdout = TRUE, stderr = TRUE)
-    
-    if (file.exists(control_model_data_path)) {
-      cat("Successfully downloaded control cohort from S3: ", control_model_data_path, "\n", sep = "")
-    } else {
-      cat("Failed to download control cohort from S3. Error output:\n")
-      cat(paste(sync_result, collapse = "\n"), "\n")
-    }
-  } else {
-    cat("AWS CLI not found. Cannot download control cohort from S3.\n")
-  }
 }
 
-if (file.exists(control_model_data_path)) {
-  query_control <- sprintf(
-    "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-    control_model_data_path,
-    paste(train_years, collapse = ",")
-  )
-  pgx_df_control <- dbGetQuery(con, query_control)
-  cat("Loaded ", nrow(pgx_df_control), " control events for ", control_cohort,
-      " age_band=", age_band, " across years ", paste(train_years, collapse=","), "\n", sep = "")
-  
-} else {
-  warning("Control model_data parquet not found: ", control_model_data_path)
-  warning("To create the control cohort, run:")
-  warning("  python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band)
-  warning("Skipping control cohort analysis - using target-only data.")
-  pgx_df_control <- pgx_df[0, ]
-}
+# Use utility function to validate and ensure control cohort with 5:1 ratio
+control_result <- ensure_control_cohort_with_ratio(
+  con = con,
+  control_cohort = control_cohort,
+  control_model_data_path = control_model_data_path,
+  model_data_path = model_data_path,
+  age_band = age_band,
+  train_years = train_years,
+  project_root = project_root,
+  expected_ratio = 5.0,
+  tolerance = 0.2
+)
+
+pgx_df_control <- control_result$pgx_df_control
 
 # Ensure consistent data types before binding rows
 # Find common columns and convert to same types
