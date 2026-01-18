@@ -737,7 +737,10 @@ def _create_aggregated_feature_importance_visualizations(
 
 def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n: int = None) -> List[tuple[str, str]]:
     """
-    Load aggregated feature importance codes (drug/ICD/CPT) from Step 3.
+    Load refined feature importance codes (drug/ICD/CPT) from Step 3b (cohort_feature_importance).
+    
+    This function now uses the Step 3b refined feature importance files, which include
+    leakage filtering and refinement from BupaR post-target analysis.
     
     Args:
         cohort: Cohort name
@@ -747,12 +750,22 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
                If set, limits to top_n to prevent memory/SQL issues.
     
     Returns:
-        List of item codes (drug names, ICD codes, CPT codes) from aggregated FI CSV,
+        List of item codes (drug names, ICD codes, CPT codes) from refined FI CSV,
         sorted by importance_scaled (descending), optionally limited to top_n.
     """
     age_band_fname = age_band.replace("-", "_")
     
-    # Try local path first
+    # Try Step 3b refined feature importance first (REQUIRED - matches Step 4a)
+    refined_csv_path = (
+        PROJECT_ROOT
+        / "3b_feature_importance_eda"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
+    )
+    
+    # Fallback: try Step 3 aggregated feature importance (for backwards compatibility)
     agg_csv_path = (
         PROJECT_ROOT
         / "3_feature_importance"
@@ -761,7 +774,7 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
     )
     
-    # Fallback: try S3 download location
+    # Fallback: try S3 download location for aggregated
     if not agg_csv_path.exists():
         agg_csv_path = (
             PROJECT_ROOT
@@ -772,10 +785,19 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
         )
     
-    if not agg_csv_path.exists():
+    # Use refined if available, otherwise fall back to aggregated
+    if refined_csv_path.exists():
+        csv_path = refined_csv_path
+        print(f"[INFO] Using Step 3b refined feature importance: {csv_path}")
+    elif agg_csv_path.exists():
+        csv_path = agg_csv_path
+        print(f"[WARN] Step 3b refined feature importance not found. Using Step 3 aggregated: {csv_path}")
+        print(f"[WARN] Step 3b should run before Step 6 to use refined features with leakage filtering")
+    else:
         raise FileNotFoundError(
-            f"Aggregated feature importance CSV not found for {cohort}/{age_band}. "
-            f"Expected at: {agg_csv_path}"
+            f"Feature importance CSV not found for {cohort}/{age_band}. "
+            f"Expected Step 3b refined: {refined_csv_path} "
+            f"or Step 3 aggregated: {agg_csv_path}"
         )
     
     df = pd.read_csv(agg_csv_path)
