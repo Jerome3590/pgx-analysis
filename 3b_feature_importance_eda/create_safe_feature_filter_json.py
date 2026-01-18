@@ -12,13 +12,27 @@ This script:
 import argparse
 import sys
 import json
+import os
+import platform
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Set
 import pandas as pd
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Detect operating system and set project root
+IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
+
+if IS_WINDOWS:
+    # Windows: Use current workspace directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+elif IS_LINUX:
+    # Linux/EC2: Use EC2 path
+    PROJECT_ROOT = Path('/home/pgx3874/pgx-analysis')
+else:
+    # Fallback: Use current file's parent directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
@@ -47,10 +61,21 @@ def create_safe_feature_filter_json(
 ):
     """Create safe feature filter: exclude post-target leakage, keep all pre-target features."""
     age_band_fname = age_band_to_fname(age_band)
-    project_root = Path(__file__).parent.parent
+    project_root = PROJECT_ROOT
     
     # Load BupaR analysis results
     analysis_path = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname / f"{cohort}_{age_band_fname}_bupar_post_target_analysis.csv"
+    
+    # Check if file exists in wrong location (features/ subdirectory) and move it
+    wrong_location = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname / "features" / f"{cohort}_{age_band_fname}_bupar_post_target_analysis.csv"
+    if wrong_location.exists() and not analysis_path.exists():
+        print(f"[INFO] Found file in wrong location: {wrong_location}")
+        print(f"       Moving to correct location: {analysis_path}")
+        wrong_location.rename(analysis_path)
+    elif wrong_location.exists() and analysis_path.exists():
+        # Both exist - remove the one in wrong location
+        print(f"[INFO] File exists in both locations. Removing wrong location: {wrong_location}")
+        wrong_location.unlink()
     
     if not analysis_path.exists():
         print(f"[ERROR] Analysis file not found: {analysis_path}")

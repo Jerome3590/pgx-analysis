@@ -11,13 +11,27 @@ Outputs refined cohort_feature_importance files for Step 4a.
 import argparse
 import sys
 import re
+import os
+import platform
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 import pandas as pd
 import json
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Detect operating system and set project root
+IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
+
+if IS_WINDOWS:
+    # Windows: Use current workspace directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+elif IS_LINUX:
+    # Linux/EC2: Use EC2 path
+    PROJECT_ROOT = Path('/home/pgx3874/pgx-analysis')
+else:
+    # Fallback: Use current file's parent directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname

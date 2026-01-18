@@ -13,13 +13,27 @@ This script:
 
 import argparse
 import sys
+import os
+import platform
 import pandas as pd
 from pathlib import Path
 from typing import Set, Dict
 import json
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Detect operating system and set project root
+IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
+
+if IS_WINDOWS:
+    # Windows: Use current workspace directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+elif IS_LINUX:
+    # Linux/EC2: Use EC2 path
+    PROJECT_ROOT = Path('/home/pgx3874/pgx-analysis')
+else:
+    # Fallback: Use current file's parent directory
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
@@ -489,6 +503,18 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_path = output_dir / f"{args.cohort}_{age_band_fname}_bupar_post_target_analysis.csv"
+    
+    # Check if file exists in wrong location (features/ subdirectory) and move it
+    wrong_location = output_dir / "features" / f"{args.cohort}_{age_band_fname}_bupar_post_target_analysis.csv"
+    if wrong_location.exists() and not output_path.exists():
+        print(f"\n[INFO] Found file in wrong location: {wrong_location}")
+        print(f"       Moving to correct location: {output_path}")
+        wrong_location.rename(output_path)
+    elif wrong_location.exists() and output_path.exists():
+        # Both exist - remove the one in wrong location
+        print(f"\n[INFO] File exists in both locations. Removing wrong location: {wrong_location}")
+        wrong_location.unlink()
+    
     results_df.to_csv(output_path, index=False)
     
     print(f"\n[OK] Saved post-target analysis to: {output_path}")

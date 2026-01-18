@@ -520,6 +520,17 @@ else:
 # Load BupaR results
 bupar_results_path = OUTPUT_DIR / f"{COHORT}_{AGE_BAND_FNAME}_bupar_post_target_analysis.csv"
 
+# Check if file exists in wrong location (features/ subdirectory) and move it
+wrong_location = OUTPUT_DIR / "features" / f"{COHORT}_{AGE_BAND_FNAME}_bupar_post_target_analysis.csv"
+if wrong_location.exists() and not bupar_results_path.exists():
+    print(f"⚠️  Found BupaR results in wrong location: {wrong_location}")
+    print(f"   Moving to correct location: {bupar_results_path}")
+    wrong_location.rename(bupar_results_path)
+elif wrong_location.exists() and bupar_results_path.exists():
+    # Both exist - remove the one in wrong location
+    print(f"⚠️  BupaR results exist in both locations. Removing wrong location: {wrong_location}")
+    wrong_location.unlink()
+
 if bupar_results_path.exists():
     bupar_results = pd.read_csv(bupar_results_path)
     print(f"✅ Loaded BupaR results: {len(bupar_results)} features analyzed")
