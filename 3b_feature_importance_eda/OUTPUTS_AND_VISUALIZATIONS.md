@@ -14,9 +14,8 @@ Step 3b creates comprehensive outputs including data files, feature engineering 
 │       ├── plots/                       # Visualization PNG files
 │       ├── {cohort}_{age_band}_cohort_feature_importance.csv
 │       └── {cohort}_{age_band}_feature_filtering_summary.json
-└── feature_engineering/
-    ├── dtw_features_{cohort}_{age_band}.csv
-    └── dtw_added_features_{cohort}_{age_band}.csv
+       ├── {cohort}_{age_band}_bupar_post_target_analysis.csv
+       └── {cohort}_{age_band}_safe_feature_filter.json
 ```
 
 ## Data Outputs
@@ -32,29 +31,11 @@ Step 3b creates comprehensive outputs including data files, feature engineering 
 
 **Features:**
 - Feature names are sanitized (spaces/special chars → underscores)
-- Filtered based on BupaR post-target analysis
-- Filtered based on DTW non-value-added analysis
+- Filtered based on BupaR post-target analysis (safe feature filter)
+- Filtered based on administrative/non-informative codes
 - Sorted by importance score
 
-### 2. DTW Feature Engineering Files
-
-**Location:** `outputs/feature_engineering/`
-
-| File | Description | Columns |
-|------|-------------|---------|
-| `dtw_features_{cohort}_{age_band}.csv` | Intermediate DTW features | `mi_person_key` + DTW feature columns |
-| `dtw_added_features_{cohort}_{age_band}.csv` | Final merged DTW features | `mi_person_key` + DTW feature columns |
-
-**DTW Features Include:**
-- Trajectory cluster memberships (drug, ICD, CPT)
-- DTW distances to prototype trajectories
-- Trajectory characteristics (length, diversity, temporal properties)
-- Cluster properties (target rates, sizes)
-- Archetype matching scores
-
-**Example:** `dtw_features_opioid_ed_13_24.csv` contains 12 DTW features for 11,776 patients
-
-### 3. BupaR Feature Files
+### 2. BupaR Feature Files
 
 **Location:** `outputs/{cohort}/{age_band_fname}/features/`
 
@@ -120,50 +101,6 @@ The following visualizations are created conditionally (only if events of that t
 | `{cohort}_{age_band}_post_f1120_gantt_drugs.png` | Post-F1120 drug codes timeline | 16" × 10" |
 | `{cohort}_{age_band}_post_f1120_gantt_cpt.png` | Post-F1120 CPT codes timeline | 16" × 10" |
 
-## DTW Trajectory Visualizations
-
-DTW visualizations are created automatically during DTW feature creation to visualize patient trajectory patterns.
-
-### DTW Analysis Overview
-
-| File | Description | Dimensions |
-|------|-------------|------------|
-| `dtw_trajectory_analysis_{cohort}_{age_band}.png` | **4-panel overview** of DTW trajectory analysis | 15" × 12" |
-
-**Panel 1: Trajectory Length Distribution**
-- Histogram of trajectory lengths (number of events per patient)
-- Shows median trajectory length
-- Purpose: Understand sequence length patterns
-
-**Panel 2: Trajectory Diversity Distribution**
-- Histogram of unique items per trajectory
-- Shows median diversity
-- Purpose: Understand how varied patient trajectories are
-
-**Panel 3: Top 20 Most Common Items**
-- Horizontal bar chart of most frequent items across all trajectories
-- Shows top 20 items (drugs/ICD/CPT codes)
-- Purpose: Identify common patterns in patient journeys
-
-**Panel 4: DTW Distance Distribution**
-- Histogram of minimum DTW distances to nearest prototype
-- Shows median distance
-- Purpose: Understand trajectory similarity patterns
-
-### Sample Trajectory Timeline
-
-| File | Description | Dimensions |
-|------|-------------|------------|
-| `dtw_sample_trajectories_{cohort}_{age_band}.png` | Sample patient trajectories visualized as timelines | 14" × variable |
-
-**Content:**
-- Shows 10 sample patient trajectories (shortest, median, longest, + random samples)
-- Each trajectory displayed as a horizontal timeline
-- Patient ID and trajectory length labeled
-- First, middle, and last items labeled (for trajectories > 10 events)
-- Purpose: Visualize actual patient journey patterns
-
-**Note:** DTW visualizations require `matplotlib` and `seaborn`. If these are not available, visualizations will be skipped with a warning.
 
 ## S3 Upload Locations
 
@@ -173,44 +110,38 @@ All outputs are automatically uploaded to S3:
 - `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv`
 - `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band}_feature_filtering_summary.json`
 
-### DTW Features
-- `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/dtw_features_{cohort}_{age_band}.csv`
-- `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/dtw_added_features_{cohort}_{age_band}.csv`
-
 ### BupaR Features
 - `s3://pgxdatalake/gold/bupar/{cohort}/{age_band}/{cohort}_{age_band}_train_target_*_bupar.csv`
 
 ### Visualizations
 - `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/*.png`
   - BupaR visualizations: `*_activity_frequency.png`, `*_gantt*.png`, `*_sequence*.png`
-  - DTW visualizations: `dtw_trajectory_analysis_*.png`, `dtw_sample_trajectories_*.png`
 
 ## Example Output Summary
 
 For `opioid_ed/13-24`:
 
-### Data Files Created: 14
+### Data Files Created: 12
 - 1 refined feature importance CSV
 - 1 filtering summary JSON
-- 2 DTW feature CSVs
-- 10 BupaR feature CSVs
+- 1 post-target analysis CSV
+- 1 safe feature filter JSON
+- 10+ BupaR feature CSVs
 
-### Visualizations Created: 11 PNG files
-- **BupaR (9 files):**
+### Visualizations Created: 9+ PNG files
+- **BupaR Process Mining Visualizations:**
   - 1 overall activity frequency
   - 1 activity milestones Gantt
   - 1 activity sequence top
-  - 1 overall ICD Gantt
-  - 1 pre-F1120 activity frequency
-  - 1 pre-F1120 Gantt
+  - 1 overall ICD Gantt (if ICD events exist)
+  - 1 pre-F1120 activity frequency (if pre-F1120 events exist)
+  - 1 pre-F1120 Gantt (if pre-F1120 events exist)
   - 1 post-F1120 activity frequency
   - 1 post-F1120 Gantt
-  - 1 post-F1120 ICD Gantt
-- **DTW (2 files):**
-  - 1 trajectory analysis overview (4-panel)
-  - 1 sample trajectory timeline
+  - 1 post-F1120 ICD Gantt (if ICD events exist)
+  - Additional code-type specific Gantt charts (drugs, CPT) if events exist
 
-**Total Size:** ~1.5 MB (visualizations) + ~2 MB (data files)
+**Total Size:** ~1-2 MB (visualizations) + ~2-5 MB (data files, depending on cohort size)
 
 ## Usage in Downstream Steps
 
@@ -220,9 +151,9 @@ For `opioid_ed/13-24`:
   - Feature names are sanitized (no spaces/special chars)
 
 ### Model Training
-- **DTW Features:** `dtw_added_features_{cohort}_{age_band}.csv`
-  - Merged with model data for training
 - **BupaR Features:** Available for feature engineering (if needed)
+  - Pre-F1120 features: `*_pre_f1120_patient_features_bupar.csv`
+  - Time-to-F1120 features: `*_time_to_f1120_features_bupar.csv`
 
 ### Analysis and Reporting
 - **Visualizations:** Used for presentations and reports
