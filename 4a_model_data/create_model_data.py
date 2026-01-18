@@ -972,8 +972,17 @@ def main() -> None:
                     age_band_dir.glob("*_cohort_feature_importance.csv")
                 )
                 if not refined_files:
-                    print(f"[WARN] No cohort_feature_importance.csv found in {age_band_dir}")
-                    print(f"[WARN] Step 3b must run for this cohort/age_band before Step 4a")
+                    # Try downloading from S3 if not found locally
+                    cohort_name = cohort_dir.name
+                    age_band = age_band_dir.name.replace("_", "-")
+                    print(f"[INFO] No cohort_feature_importance.csv found locally in {age_band_dir}")
+                    print(f"[INFO] Attempting to download from S3 for {cohort_name}/{age_band}...")
+                    downloaded = download_cohort_feature_importance_from_s3(cohort_name, age_band)
+                    if downloaded:
+                        refined_files = downloaded
+                        print(f"[INFO] Successfully downloaded from S3: {refined_files[0]}")
+                    else:
+                        print(f"[WARN] Could not download from S3. Step 3b must run for this cohort/age_band before Step 4a")
                 aggregated_files.extend(refined_files)
         
         if not aggregated_files:
