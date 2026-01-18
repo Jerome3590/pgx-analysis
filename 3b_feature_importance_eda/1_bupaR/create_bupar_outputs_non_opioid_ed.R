@@ -642,11 +642,51 @@ cat("\n--- Target-only global process mining ---\n")
 trace_explorer(target_eventlog, coverage = 0.8)
 
 # Save trace summary as tabular output
-traces_target <- edeaR::traces(target_eventlog)
+traces_target <- bupaR::traces(target_eventlog)
+traces_target_df <- as.data.frame(traces_target) %>%
+  arrange(desc(absolute_frequency))
+
 save_bupar_csv(
-  traces_target,
+  traces_target_df,
   sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
 )
+
+# Categorize traces into top sequences and rare sequences
+total_cases <- n_cases(target_eventlog)
+top_n_threshold <- max(20, ceiling(total_cases * 0.1))  # Top 20 sequences or top 10% of cases, whichever is larger
+rare_threshold <- 1  # Sequences that appear only once
+
+# Top sequences (most frequent)
+top_sequences <- traces_target_df %>%
+  filter(absolute_frequency >= top_n_threshold) %>%
+  mutate(sequence_category = "top")
+
+# Rare sequences (appear only once or very infrequently)
+rare_sequences <- traces_target_df %>%
+  filter(absolute_frequency <= rare_threshold) %>%
+  mutate(sequence_category = "rare")
+
+# Save top sequences
+if (nrow(top_sequences) > 0) {
+  save_bupar_csv(
+    top_sequences,
+    sprintf("%s_%s_train_target_traces_top_bupar.csv", cohort_name, age_band_fname)
+  )
+  cat(sprintf("Saved %d top sequences (frequency >= %d)\n", nrow(top_sequences), top_n_threshold))
+} else {
+  cat("No top sequences found (all sequences are rare)\n")
+}
+
+# Save rare sequences
+if (nrow(rare_sequences) > 0) {
+  save_bupar_csv(
+    rare_sequences,
+    sprintf("%s_%s_train_target_traces_rare_bupar.csv", cohort_name, age_band_fname)
+  )
+  cat(sprintf("Saved %d rare sequences (frequency <= %d)\n", nrow(rare_sequences), rare_threshold))
+} else {
+  cat("No rare sequences found\n")
+}
 
 # 2) Process Matrix and CSV export
 pm_target <- process_matrix(target_eventlog, type = "frequency")
