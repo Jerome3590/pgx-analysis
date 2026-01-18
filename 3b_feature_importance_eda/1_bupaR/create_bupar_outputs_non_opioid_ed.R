@@ -87,6 +87,18 @@ cat("Note: Using all codes from model_events.parquet\n\n", sep = "")
 
 bup_ar_output_root <- file.path(project_root, "3b_feature_importance_eda", "outputs")
 
+# Create plots directory and open PDF device to capture any base graphics
+# This prevents Rplots.pdf from being created in the project root
+plots_dir <- file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+# Open a PDF device for base graphics (trace_explorer, process_map, etc.)
+# This routes base graphics to the correct output directory instead of project root
+rplots_path <- file.path(plots_dir, sprintf("%s_%s_Rplots.pdf", cohort_name, age_band_fname))
+pdf(file = rplots_path, width = 12, height = 9)
+
 save_bupar_csv <- function(df, filename,
                            cohort = cohort_name,
                            age_fname = age_band_fname,
