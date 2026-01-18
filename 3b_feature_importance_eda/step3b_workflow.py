@@ -500,7 +500,8 @@ cmd = [
 
 result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
 
-print(result.stdout)
+if result.stdout:
+    print(result.stdout)
 if result.stderr:
     print("STDERR:", result.stderr)
 
@@ -1036,7 +1037,8 @@ cmd = [
 
 result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
 
-print(result.stdout)
+if result.stdout:
+    print(result.stdout)
 if result.stderr:
     print("STDERR:", result.stderr)
 
