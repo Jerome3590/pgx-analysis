@@ -34,7 +34,7 @@ suppressPackageStartupMessages({
 project_root <- getwd()  # assume you launched from project root
 
 cohort_name    <- "opioid_ed"
-control_cohort <- "non_opioid_ed"
+control_cohort <- "non_opioid_non_ed"
 
 # Optional command line argument to set age band; default is 0-12
 args <- commandArgs(trailingOnly = TRUE)

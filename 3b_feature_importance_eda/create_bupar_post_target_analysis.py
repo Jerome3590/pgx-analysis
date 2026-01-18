@@ -132,7 +132,15 @@ def analyze_post_target_leakage_from_events(
     age_band_fname = age_band_to_fname(age_band)
     
     # Find model_events.parquet file
+    # Check EC2 path first (/mnt/nvme), then project root
+    data_root = os.getenv("PGX_DATA_ROOT", "")
+    if not data_root and IS_LINUX:
+        data_root = "/mnt/nvme"
+    elif not data_root:
+        data_root = str(project_root)
+    
     model_data_paths = [
+        Path(data_root) / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
         project_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
         project_root / "model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
     ]
@@ -156,6 +164,9 @@ def analyze_post_target_leakage_from_events(
     # Query to analyze each feature's pre/post F1120 distribution
     # For opioid_ed cohort, find first F1120 event date for each patient
     # For non_opioid_ed cohort, find first non-opioid ED event date
+    # Escape the path for SQL
+    model_data_path_str = str(model_data_path).replace("'", "''")
+    
     if cohort == "opioid_ed":
         # Find first F1120 event date for each target patient
         query = f"""
@@ -163,7 +174,7 @@ def analyze_post_target_leakage_from_events(
         SELECT DISTINCT
             mi_person_key,
             MIN(CAST(event_date AS DATE)) as target_date
-        FROM read_parquet('{model_data_path}')
+        FROM read_parquet('{model_data_path_str}')
         WHERE target = 1
           AND (
             primary_icd_diagnosis_code LIKE '%F1120%'
@@ -191,7 +202,7 @@ def analyze_post_target_leakage_from_events(
                 CAST(first_ed_non_opioid_date AS DATE),
                 MIN(CASE WHEN hcg_line IS NOT NULL THEN CAST(event_date AS DATE) END)
             ) as target_date
-        FROM read_parquet('{model_data_path}')
+        FROM read_parquet('{model_data_path_str}')
         WHERE target = 1
         GROUP BY mi_person_key, first_ed_non_opioid_date
         HAVING target_date IS NOT NULL
@@ -221,7 +232,7 @@ def analyze_post_target_leakage_from_events(
             ) as icd_code,
             e.procedure_code as cpt_code,
             e.drug_name
-        FROM read_parquet('{model_data_path}') e
+        FROM read_parquet('{model_data_path_str}') e
         LEFT JOIN target_patients t ON e.mi_person_key = t.mi_person_key
         WHERE e.target = 1  -- Only analyze target cases
     ),
@@ -284,7 +295,7 @@ def analyze_post_target_leakage_from_events(
         WHERE timing IN ('pre', 'post')
         GROUP BY feature
         HAVING COUNT(*) >= {min_events}  -- Minimum events for statistical significance
-    )
+    ),
     SELECT 
         feature,
         total_count,
