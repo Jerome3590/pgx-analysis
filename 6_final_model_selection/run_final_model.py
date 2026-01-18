@@ -813,6 +813,21 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {csv_path}")
     
+    # Log file info for verification
+    print(f"[INFO] Loaded {len(df)} features from Step 3b refined feature importance")
+    if "importance_scaled" in df.columns:
+        print(f"[INFO] Feature importance range: min={df['importance_scaled'].min():.6f}, max={df['importance_scaled'].max():.6f}, mean={df['importance_scaled'].mean():.6f}")
+    
+    # Check for potential leakage indicators in feature names
+    leakage_indicators = ['post', 'f1120', 'target', 'leakage']
+    potential_leakage = df[df['feature'].str.lower().str.contains('|'.join(leakage_indicators), na=False)]
+    if len(potential_leakage) > 0:
+        print(f"[WARN] Found {len(potential_leakage)} features with potential leakage indicators:")
+        for feat in potential_leakage['feature'].head(10):
+            print(f"[WARN]   - {feat}")
+        if len(potential_leakage) > 10:
+            print(f"[WARN]   ... and {len(potential_leakage) - 10} more")
+    
     # Filter out features with zero or negative importance (no signal)
     importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
     if importance_col:
