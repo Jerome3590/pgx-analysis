@@ -264,6 +264,9 @@ if (file.exists(control_model_data_path)) {
   
 } else {
   warning("Control model_data parquet not found: ", control_model_data_path)
+  warning("To create the control cohort, run:")
+  warning("  python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band)
+  warning("Skipping control cohort analysis - using target-only data.")
   pgx_df_control <- pgx_df[0, ]
 }
 
