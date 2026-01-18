@@ -124,13 +124,29 @@ def run_bupar_analysis(
             env['R_ENCODING'] = 'UTF-8'
         
         # Use Popen with explicit encoding to avoid threading issues
-        import io
+        # On Windows, set startupinfo to use UTF-8 code page
+        startupinfo = None
+        if IS_WINDOWS:
+            import subprocess as sp
+            startupinfo = sp.STARTUPINFO()
+            startupinfo.dwFlags |= sp.STARTF_USESTDHANDLES
+            # Set console code page to UTF-8 (65001)
+            try:
+                import ctypes
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetConsoleOutputCP(65001)  # UTF-8
+                kernel32.SetConsoleCP(65001)  # UTF-8
+            except Exception:
+                pass  # Ignore if we can't set code page
+        
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(project_root),
-            env=env
+            env=env,
+            startupinfo=startupinfo,
+            bufsize=0  # Unbuffered to avoid encoding issues
         )
         
         # Read output with explicit UTF-8 encoding and error handling
@@ -212,12 +228,25 @@ def run_bupar_analysis(
                     "--cohort", cohort,
                     "--age-band", age_band
                 ]
-                result_analysis = subprocess.run(
+                # Use Popen with explicit UTF-8 decoding for analysis script too
+                env_analysis = os.environ.copy()
+                env_analysis['PYTHONIOENCODING'] = 'utf-8'
+                if IS_WINDOWS:
+                    env_analysis['PYTHONUTF8'] = '1'
+                
+                process_analysis = subprocess.Popen(
                     cmd,
-                    capture_output=True,
-                    text=True,
-                    cwd=str(project_root)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=str(project_root),
+                    env=env_analysis
                 )
+                
+                stdout_bytes, stderr_bytes = process_analysis.communicate()
+                stdout_text = stdout_bytes.decode('utf-8', errors='replace')
+                stderr_text = stderr_bytes.decode('utf-8', errors='replace')
+                
+                result_analysis = Result(process_analysis.returncode, stdout_text, stderr_text)
                 if result_analysis.returncode == 0:
                     print(f"[OK] Post-target analysis CSV created successfully")
                     if result_analysis.stdout:
