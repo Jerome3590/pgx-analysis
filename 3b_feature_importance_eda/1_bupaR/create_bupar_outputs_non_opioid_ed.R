@@ -71,9 +71,33 @@ for (candidate in model_data_candidates) {
   }
 }
 
-# If not found, use first candidate (will error if file doesn't exist)
+# If not found, try downloading from S3
 if (is.null(model_data_path)) {
   model_data_path <- model_data_candidates[1]
+  
+  # Try to download from S3 if not found locally
+  s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", cohort_name, "/age_band=", age_band, "/model_events.parquet")
+  cat("Model data not found locally. Checking S3: ", s3_path, "\n", sep = "")
+  
+  # Create directory if it doesn't exist
+  dir.create(dirname(model_data_path), recursive = TRUE, showWarnings = FALSE)
+  
+  # Try AWS CLI sync
+  aws_cli <- Sys.which("aws")
+  if (aws_cli != "") {
+    cat("Downloading from S3 using AWS CLI...\n")
+    sync_cmd <- c("s3", "cp", s3_path, model_data_path)
+    sync_result <- system2(aws_cli, sync_cmd, stdout = TRUE, stderr = TRUE)
+    
+    if (file.exists(model_data_path)) {
+      cat("Successfully downloaded from S3: ", model_data_path, "\n", sep = "")
+    } else {
+      cat("Failed to download from S3. Error output:\n")
+      cat(paste(sync_result, collapse = "\n"), "\n")
+    }
+  } else {
+    cat("AWS CLI not found. Cannot download from S3.\n")
+  }
 }
 
 cat("Project root:         ", project_root, "\n", sep = "")
