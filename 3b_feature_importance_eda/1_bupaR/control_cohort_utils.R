@@ -126,8 +126,8 @@ ensure_control_cohort_with_ratio <- function(
     
     cat("[INFO] Creating control cohort with ", required_controls, " controls (target: ", sprintf("%.2f", expected_ratio), ":1 ratio with ", n_cases, " cases)\n", sep = "")
     
-    # Call Python script to create control cohort
-    python_script <- file.path(project_root, "4a_model_data", "create_control_cohort_model_data.py")
+    # Call Python utility function to ensure control cohort with correct ratio
+    python_script <- file.path(project_root, "4a_model_data", "ensure_control_cohort.py")
     python_cmd <- Sys.which("python3")
     if (python_cmd == "") {
       python_cmd <- Sys.which("python")
@@ -136,25 +136,28 @@ ensure_control_cohort_with_ratio <- function(
     if (python_cmd != "" && file.exists(python_script)) {
       recreate_cmd <- c(
         python_script,
+        "--control-cohort", control_cohort,
         "--age-band", age_band,
-        "--sample-size", as.character(required_controls)
+        "--target-cohort-path", model_data_path,
+        "--expected-ratio", as.character(expected_ratio),
+        "--tolerance", as.character(tolerance)
       )
       
       cat("[INFO] Running: ", python_cmd, " ", paste(recreate_cmd, collapse = " "), "\n", sep = "")
       recreate_result <- system2(python_cmd, recreate_cmd, stdout = TRUE, stderr = TRUE)
       
       if (file.exists(control_model_data_path)) {
-        cat("[OK] Control cohort recreated successfully\n")
+        cat("[OK] Control cohort validated/recreated successfully\n")
         was_recreated <- TRUE
       } else {
-        cat("[WARN] Control cohort recreation may have failed. Check output above.\n")
+        cat("[WARN] Control cohort validation/recreation may have failed. Check output above.\n")
       }
     } else {
-      cat("[ERROR] Cannot recreate control cohort: Python or script not found\n")
+      cat("[ERROR] Cannot validate/recreate control cohort: Python or script not found\n")
       cat("   Python: ", python_cmd, "\n", sep = "")
       cat("   Script: ", python_script, "\n", sep = "")
       cat("   Please run manually:\n")
-      cat("   python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
+      cat("   python 4a_model_data/ensure_control_cohort.py --control-cohort ", control_cohort, " --age-band ", age_band, " --target-cohort-path ", model_data_path, "\n\n", sep = "")
     }
   }
   
