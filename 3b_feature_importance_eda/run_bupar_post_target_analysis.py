@@ -114,13 +114,21 @@ def run_bupar_analysis(
         print(f"[INFO] Running: {' '.join(cmd)}")
         print(f"[INFO] Working directory: {project_root}")
         
+        # Set environment to use UTF-8 encoding
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        if IS_WINDOWS:
+            # On Windows, ensure UTF-8 is used
+            env['PYTHONUTF8'] = '1'
+        
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             encoding='utf-8',
             errors='replace',  # Replace encoding errors instead of failing
-            cwd=str(project_root)
+            cwd=str(project_root),
+            env=env
         )
         
         # Filter out encoding errors from stderr (they're harmless)
