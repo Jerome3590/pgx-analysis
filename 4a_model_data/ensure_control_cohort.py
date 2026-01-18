@@ -101,6 +101,8 @@ def validate_control_cohort_ratio(
     """
     Validate that control cohort has correct ratio with target cohort.
     
+    Uses DuckDB with Parquet for efficient single-query validation.
+    
     Returns:
         (is_valid, actual_ratio, n_controls, n_cases)
     """
@@ -109,21 +111,28 @@ def validate_control_cohort_ratio(
     
     con = duckdb.connect()
     try:
-        # Count distinct control patients
-        query_control = f"""
-            SELECT COUNT(DISTINCT mi_person_key) as n_controls
-            FROM read_parquet('{control_cohort_path}')
-            WHERE event_year IN ({','.join(map(str, train_years))})
+        # Single efficient query to count both control and case patients using DuckDB Parquet
+        years_list = ','.join(map(str, train_years))
+        query = f"""
+            WITH control_counts AS (
+                SELECT COUNT(DISTINCT mi_person_key) as n_controls
+                FROM read_parquet('{control_cohort_path}')
+                WHERE event_year IN ({years_list})
+            ),
+            case_counts AS (
+                SELECT COUNT(DISTINCT mi_person_key) as n_cases
+                FROM read_parquet('{target_cohort_path}')
+                WHERE event_year IN ({years_list}) AND target = 1
+            )
+            SELECT 
+                c.n_controls,
+                ca.n_cases
+            FROM control_counts c
+            CROSS JOIN case_counts ca
         """
-        n_controls = con.execute(query_control).fetchone()[0]
-        
-        # Count distinct case patients from target cohort
-        query_cases = f"""
-            SELECT COUNT(DISTINCT mi_person_key) as n_cases
-            FROM read_parquet('{target_cohort_path}')
-            WHERE event_year IN ({','.join(map(str, train_years))}) AND target = 1
-        """
-        n_cases = con.execute(query_cases).fetchone()[0]
+        result = con.execute(query).fetchone()
+        n_controls = result[0] if result else 0
+        n_cases = result[1] if result else 0
         
         if n_cases == 0:
             return (False, 0.0, n_controls, n_cases)
@@ -194,13 +203,14 @@ def ensure_control_cohort_with_ratio(
     
     # Step 4: Recreate if needed
     if needs_recreation or not control_cohort_path.exists():
-        # Get case count to calculate required controls
+        # Get case count to calculate required controls (using DuckDB Parquet for efficiency)
         con = duckdb.connect()
         try:
+            years_list = ','.join(map(str, train_years))
             query_cases = f"""
                 SELECT COUNT(DISTINCT mi_person_key) as n_cases
                 FROM read_parquet('{target_cohort_path}')
-                WHERE event_year IN ({','.join(map(str, train_years))}) AND target = 1
+                WHERE event_year IN ({years_list}) AND target = 1
             """
             n_cases = con.execute(query_cases).fetchone()[0]
         finally:
