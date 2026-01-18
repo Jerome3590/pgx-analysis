@@ -120,16 +120,43 @@ def run_bupar_analysis(
         if IS_WINDOWS:
             # On Windows, ensure UTF-8 is used
             env['PYTHONUTF8'] = '1'
+            # Also set R's encoding
+            env['R_ENCODING'] = 'UTF-8'
         
-        result = subprocess.run(
+        # Use Popen with explicit encoding to avoid threading issues
+        import io
+        process = subprocess.Popen(
             cmd,
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',  # Replace encoding errors instead of failing
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=str(project_root),
             env=env
         )
+        
+        # Read output with explicit UTF-8 encoding and error handling
+        stdout_text = ""
+        stderr_text = ""
+        
+        try:
+            stdout_bytes, stderr_bytes = process.communicate(timeout=3600)  # 1 hour timeout
+            stdout_text = stdout_bytes.decode('utf-8', errors='replace')
+            stderr_text = stderr_bytes.decode('utf-8', errors='replace')
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout_bytes, stderr_bytes = process.communicate()
+            stdout_text = stdout_bytes.decode('utf-8', errors='replace')
+            stderr_text = stderr_bytes.decode('utf-8', errors='replace')
+            print("[ERROR] R script timed out after 1 hour")
+            return False
+        
+        # Create result-like object
+        class Result:
+            def __init__(self, returncode, stdout, stderr):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+        
+        result = Result(process.returncode, stdout_text, stderr_text)
         
         # Filter out encoding errors from stderr (they're harmless)
         if result.stderr:
