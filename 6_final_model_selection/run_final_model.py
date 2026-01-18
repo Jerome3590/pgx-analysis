@@ -755,7 +755,8 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     """
     age_band_fname = age_band.replace("-", "_")
     
-    # Try Step 3b refined feature importance first (REQUIRED - matches Step 4a)
+    # REQUIRED: Step 3b refined feature importance (removes target leakage)
+    # No fallback - Step 3b must run before Step 6
     refined_csv_path = (
         PROJECT_ROOT
         / "3b_feature_importance_eda"
@@ -765,41 +766,37 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
     )
     
-    # Fallback: try Step 3 aggregated feature importance (for backwards compatibility)
-    agg_csv_path = (
-        PROJECT_ROOT
-        / "3_feature_importance"
-        / "outputs"
-        / cohort
-        / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    
-    # Fallback: try S3 download location for aggregated
-    if not agg_csv_path.exists():
-        agg_csv_path = (
-            PROJECT_ROOT
-            / "3_feature_importance"
-            / "from_s3"
-            / "by_cohort"
-            / cohort
-            / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    # Try S3 download if not found locally
+    if not refined_csv_path.exists():
+        age_band_fname_s3 = age_band.replace("-", "_")
+        s3_key = (
+            f"gold/feature_importance/{cohort}/{age_band}/"
+            f"{cohort}_{age_band_fname_s3}_cohort_feature_importance.csv"
         )
+        try:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            print(f"[INFO] Step 3b refined feature importance not found locally. Downloading from S3...")
+            refined_csv_path.parent.mkdir(parents=True, exist_ok=True)
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            with open(refined_csv_path, 'wb') as f:
+                f.write(obj['Body'].read())
+            print(f"[INFO] Downloaded from S3: {refined_csv_path}")
+        except Exception as e:
+            # File doesn't exist in S3 either
+            pass
     
-    # Use refined if available, otherwise fall back to aggregated
-    if refined_csv_path.exists():
-        csv_path = refined_csv_path
-        print(f"\n[INFO] Using Step 3b refined feature importance: {csv_path}")
-    elif agg_csv_path.exists():
-        csv_path = agg_csv_path
-        print(f"\n[WARN] Step 3b refined feature importance not found. Using Step 3 aggregated: {csv_path}")
-        print(f"[WARN] Step 3b should run before Step 6 to use refined features with leakage filtering")
-        print(f"[WARN] Expected Step 3b file: {refined_csv_path}")
-    else:
+    # REQUIRED: Step 3b refined feature importance must exist (no fallback)
+    if not refined_csv_path.exists():
         raise FileNotFoundError(
-            f"Feature importance CSV not found for {cohort}/{age_band}. "
-            f"Expected Step 3b refined: {refined_csv_path} "
-            f"or Step 3 aggregated: {agg_csv_path}"
+            f"Step 3b refined feature importance CSV is REQUIRED (removes target leakage) but not found for {cohort}/{age_band}.\n"
+            f"Expected location: {refined_csv_path}\n"
+            f"S3 location: s3://{S3_BUCKET}/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band_fname}_cohort_feature_importance.csv\n"
+            f"Step 3b must run before Step 6 to produce refined features with leakage filtering.\n"
+            f"Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {cohort} --age-band {age_band}"
         )
+    
+    csv_path = refined_csv_path
+    print(f"\n[INFO] Using Step 3b refined feature importance (leakage-filtered): {csv_path}")
     
     df = pd.read_csv(csv_path)
     if "feature" not in df.columns:
