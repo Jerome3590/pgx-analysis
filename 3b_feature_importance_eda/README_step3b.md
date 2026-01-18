@@ -42,7 +42,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 
 **BupaR Feature Files:**
 - `outputs/{cohort}/{age_band_fname}/features/*_bupar.csv` - BupaR process mining outputs (traces, patient features, time-to-F1120)
-- See `1_bupaR/README.md` for complete file manifest
+- See `1_bupaR/README_bupaR.md` for complete file manifest
 
 **Visualizations:**
 - `outputs/{cohort}/{age_band_fname}/plots/*.png` - BupaR process mining visualizations
@@ -65,7 +65,7 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Load administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
    - Validate ICD/CPT codes by groups (ICD by chapter, CPT by range)
    - Remove non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
-   - See `0_icd_cpt_check/README.md` for detailed validation process
+   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
 3. **BupaR Post-Target Analysis** (`1_bupaR/`):
    - Build BupaR event logs from `model_events.parquet`
    - Analyze sequences before and after target event (F1120)
@@ -73,7 +73,7 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Identify features that appear primarily post-target (>=80% post-F1120 ratio = potential leakage)
    - Generate comprehensive BupaR features and visualizations
    - Output: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
-   - See `1_bupaR/README.md` for detailed BupaR process mining documentation
+   - See `1_bupaR/README_bupaR.md` for detailed BupaR process mining documentation
 4. **Create Safe Feature Filter**:
    - Exclude features with >=80% post-F1120 ratio (pure post-target leakage)
    - Keep ALL features with ANY pre-F1120 presence (maximize information)
@@ -113,7 +113,7 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 ### R Scripts (BupaR Process Mining)
 - `1_bupaR/create_bupar_outputs_opioid_ed.R` - BupaR analysis for opioid_ed cohort
 - `1_bupaR/create_bupar_outputs_non_opioid_ed.R` - BupaR analysis for non_opioid_ed cohort
-- See `1_bupaR/README.md` for complete BupaR documentation
+- See `1_bupaR/README_bupaR.md` for complete BupaR documentation
 
 ## Usage
 
@@ -144,12 +144,12 @@ See `FEATURE_FILTERING_APPROACH.md` for detailed documentation.
 │   ├── analyze_code_groups.py
 │   ├── validate_icd_cpt_codes.py
 │   ├── administrative_codes_lookup.json
-│   └── README.md                 # Code validation documentation
+│   └── README_icd_cpt_check.md   # Code validation documentation
 ├── 1_bupaR/                      # BupaR process mining analysis
 │   ├── create_bupar_outputs_opioid_ed.R
 │   ├── create_bupar_outputs_non_opioid_ed.R
 │   ├── create_plots.R
-│   └── README.md                 # BupaR process mining documentation
+│   └── README_bupaR.md           # BupaR process mining documentation
 ├── outputs/                      # All outputs organized by cohort/age_band
 │   ├── {cohort}/
 │   │   └── {age_band_fname}/
@@ -160,7 +160,7 @@ See `FEATURE_FILTERING_APPROACH.md` for detailed documentation.
 ├── step3b_interactive_analysis_cohort*.ipynb  # Cohort-specific notebooks
 ├── run_step_3b.py                # Orchestration script
 ├── filter_and_refine_features.py  # Feature filtering and refinement
-└── README.md                     # This file
+└── README_step3b.md              # This file
 ```
 
 ## Integration with Pipeline
@@ -178,5 +178,5 @@ See `FEATURE_FILTERING_APPROACH.md` for detailed documentation.
 - **`FEATURE_FILTERING_APPROACH.md`**: Safe feature filtering strategy
 - **`OUTPUTS_AND_VISUALIZATIONS.md`**: Complete output file manifest and visualization documentation
 - **`LEAKAGE_ANALYSIS_SUMMARY.md`**: Summary of identified leakage features
-- **`0_icd_cpt_check/README.md`**: ICD/CPT code validation process
-- **`1_bupaR/README.md`**: BupaR process mining documentation
+- **`0_icd_cpt_check/README_icd_cpt_check.md`**: ICD/CPT code validation process
+- **`1_bupaR/README_bupaR.md`**: BupaR process mining documentation

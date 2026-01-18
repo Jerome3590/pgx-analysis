@@ -23,7 +23,7 @@ The pipeline now executes in this order:
    - Removes non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
    - This filtering is applied in the `filter_and_refine_features.py` step
    - Note: Feature importances are already calculated in Step 3; we filter them here
-   - See `0_icd_cpt_check/README.md` for detailed validation process
+   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
 
 2. **BupaR Post-Target Analysis** (`1_bupaR/`)
    - Builds BupaR event logs from `model_events.parquet`
@@ -32,7 +32,7 @@ The pipeline now executes in this order:
    - Identifies ICD/CPT codes that appear primarily after F1120 (>=80% post-F1120 ratio = post-target leakage)
    - Generates comprehensive BupaR features and visualizations
    - Outputs: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
-   - See `1_bupaR/README.md` for complete BupaR process mining documentation
+   - See `1_bupaR/README_bupaR.md` for complete BupaR process mining documentation
 
 3. **Create Safe Feature Filter**
    - Excludes features with >=80% post-F1120 ratio (pure post-target leakage)
@@ -71,12 +71,12 @@ The pipeline now executes in this order:
 │   ├── analyze_code_groups.py
 │   ├── validate_icd_cpt_codes.py
 │   ├── administrative_codes_lookup.json
-│   └── README.md
+│   └── README_icd_cpt_check.md
 ├── 1_bupaR/                         # BupaR analysis (Step 2, after admin filtering)
 │   ├── create_bupar_outputs_opioid_ed.R
 │   ├── create_bupar_outputs_non_opioid_ed.R
 │   ├── create_plots.R
-│   └── README.md
+│   └── README_bupaR.md
 ├── run_bupar_post_target_analysis.py # Calls 1_bupaR/ scripts
 ├── create_bupar_post_target_analysis.py # Creates post-target analysis CSV
 └── run_step_3b.py                   # Orchestrates execution order
