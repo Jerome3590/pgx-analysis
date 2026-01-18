@@ -1662,13 +1662,24 @@ def train_and_evaluate(
                 metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
                 metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
 
+        # Print metrics for all models
         print(
             f"[MC {run_idx + 1}/{n_runs}] "
             f"XGB AUC={metrics['xgb']['auc'][-1]:.4f}, PR-AUC={metrics['xgb']['pr_auc'][-1]:.4f}, "
             f"Recall={metrics['xgb']['recall'][-1]:.4f} | "
             f"XGB-RF AUC={metrics['xgb_rf']['auc'][-1]:.4f}, PR-AUC={metrics['xgb_rf']['pr_auc'][-1]:.4f}, "
-            f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}"
+            f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}",
+            end=""
         )
+        
+        # Add CatBoost metrics if available
+        if have_catboost and metrics.get("catboost") and metrics["catboost"].get("auc") and len(metrics["catboost"]["auc"]) > 0:
+            print(
+                f" | CatBoost AUC={metrics['catboost']['auc'][-1]:.4f}, PR-AUC={metrics['catboost']['pr_auc'][-1]:.4f}, "
+                f"Recall={metrics['catboost']['recall'][-1]:.4f}"
+            )
+        else:
+            print()  # Newline if CatBoost not available
 
         # Save artifacts from last run for detailed reporting and importances
         if run_idx == n_runs - 1:
