@@ -388,13 +388,17 @@ ev_all <- target_eventlog %>%
 
 events_pre_target <- ev_all %>%
   filter(!is.na(first_target_index),
-         event_index <= first_target_index)
+         event_index < first_target_index) %>%  # Use < to EXCLUDE HCG itself (for final model)
+  mutate(activity_instance_id = row_number())
 
 pre_target_eventlog <- events_pre_target %>%
   eventlog(
-    case_id     = "case_id",
-    activity_id = "activity",
-    timestamp   = "timestamp"
+    case_id              = "case_id",
+    activity_id          = "activity",
+    activity_instance_id = "activity_instance_id",
+    timestamp            = "timestamp",
+    lifecycle_id         = "lifecycle_id",
+    resource_id          = "resource_id"
   )
 
 cat("Pre-HCG eventlog summary:\n")
