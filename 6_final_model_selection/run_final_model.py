@@ -788,11 +788,12 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     # Use refined if available, otherwise fall back to aggregated
     if refined_csv_path.exists():
         csv_path = refined_csv_path
-        print(f"[INFO] Using Step 3b refined feature importance: {csv_path}")
+        print(f"\n[INFO] Using Step 3b refined feature importance: {csv_path}")
     elif agg_csv_path.exists():
         csv_path = agg_csv_path
-        print(f"[WARN] Step 3b refined feature importance not found. Using Step 3 aggregated: {csv_path}")
+        print(f"\n[WARN] Step 3b refined feature importance not found. Using Step 3 aggregated: {csv_path}")
         print(f"[WARN] Step 3b should run before Step 6 to use refined features with leakage filtering")
+        print(f"[WARN] Expected Step 3b file: {refined_csv_path}")
     else:
         raise FileNotFoundError(
             f"Feature importance CSV not found for {cohort}/{age_band}. "
