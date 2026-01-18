@@ -509,6 +509,11 @@ save_bupar_csv(
 # 3) Process Map visualization
 process_map(target_eventlog, type = "frequency")
 
+# Close PDF device (captures any base graphics from trace_explorer, process_map, etc.)
+# This prevents Rplots.pdf from being created in the project root
+dev.off()
+cat("Closed PDF device. Base graphics saved to: ", rplots_path, "\n", sep = "")
+
 cat("\n=== bupaR analysis for non_opioid_ed ", age_band, " completed. ===\n", sep = "")
 
 
