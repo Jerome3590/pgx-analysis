@@ -123,47 +123,68 @@ def run_bupar_analysis(
             # Also set R's encoding
             env['R_ENCODING'] = 'UTF-8'
         
-        # Use Popen with explicit encoding to avoid threading issues
-        # On Windows, set startupinfo to use UTF-8 code page
-        startupinfo = None
-        if IS_WINDOWS:
-            import subprocess as sp
-            startupinfo = sp.STARTUPINFO()
-            startupinfo.dwFlags |= sp.STARTF_USESTDHANDLES
-            # Set console code page to UTF-8 (65001)
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                kernel32.SetConsoleOutputCP(65001)  # UTF-8
-                kernel32.SetConsoleCP(65001)  # UTF-8
-            except Exception:
-                pass  # Ignore if we can't set code page
-        
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=str(project_root),
-            env=env,
-            startupinfo=startupinfo,
-            bufsize=0  # Unbuffered to avoid encoding issues
-        )
-        
-        # Read output with explicit UTF-8 encoding and error handling
-        stdout_text = ""
-        stderr_text = ""
+        # Use temporary files to avoid encoding issues with subprocess pipes on Windows
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w+b', delete=False, suffix='.txt') as stdout_file, \
+             tempfile.NamedTemporaryFile(mode='w+b', delete=False, suffix='.txt') as stderr_file:
+            
+            stdout_path = stdout_file.name
+            stderr_path = stderr_file.name
         
         try:
-            stdout_bytes, stderr_bytes = process.communicate(timeout=3600)  # 1 hour timeout
+            # On Windows, set startupinfo to use UTF-8 code page
+            startupinfo = None
+            if IS_WINDOWS:
+                import subprocess as sp
+                startupinfo = sp.STARTUPINFO()
+                startupinfo.dwFlags |= sp.STARTF_USESTDHANDLES
+                # Set console code page to UTF-8 (65001)
+                try:
+                    import ctypes
+                    kernel32 = ctypes.windll.kernel32
+                    kernel32.SetConsoleOutputCP(65001)  # UTF-8
+                    kernel32.SetConsoleCP(65001)  # UTF-8
+                except Exception:
+                    pass  # Ignore if we can't set code page
+            
+            # Redirect output to files to avoid encoding issues
+            with open(stdout_path, 'wb') as stdout_f, open(stderr_path, 'wb') as stderr_f:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=stdout_f,
+                    stderr=stderr_f,
+                    cwd=str(project_root),
+                    env=env,
+                    startupinfo=startupinfo
+                )
+                
+                try:
+                    process.wait(timeout=3600)  # 1 hour timeout
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    print("[ERROR] R script timed out after 1 hour")
+                    return False
+            
+            # Read output files with explicit UTF-8 decoding
+            with open(stdout_path, 'rb') as f:
+                stdout_bytes = f.read()
+            with open(stderr_path, 'rb') as f:
+                stderr_bytes = f.read()
+            
             stdout_text = stdout_bytes.decode('utf-8', errors='replace')
             stderr_text = stderr_bytes.decode('utf-8', errors='replace')
-        except subprocess.TimeoutExpired:
-            process.kill()
-            stdout_bytes, stderr_bytes = process.communicate()
-            stdout_text = stdout_bytes.decode('utf-8', errors='replace')
-            stderr_text = stderr_bytes.decode('utf-8', errors='replace')
-            print("[ERROR] R script timed out after 1 hour")
-            return False
+            
+        finally:
+            # Clean up temporary files
+            try:
+                os.unlink(stdout_path)
+            except Exception:
+                pass
+            try:
+                os.unlink(stderr_path)
+            except Exception:
+                pass
         
         # Create result-like object
         class Result:
