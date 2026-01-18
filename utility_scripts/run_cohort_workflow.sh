@@ -14,7 +14,7 @@ set -euo pipefail
 #
 # Steps:
 #   3: Feature Importance (check for completed aggregated feature importances)
-#   3b: Feature Importance EDA and Refinement (BupaR + DTW to refine features)
+#   3b: Feature Importance EDA and Refinement (BupaR post-target analysis to identify leakage)
 #   4a: Model Data Creation (generate model_events.parquet with cases + controls, uses refined features from Step 3b)
 #   4b: DTW Protocol Filtering (administrative/scheduling/non-medical codes, keep all surgeries)
 #   5c: PGx Feature Engineering (only feature engineering step)
@@ -484,11 +484,11 @@ run_step "3" "Feature Importance (Check/Generate Aggregated)" \
     "python 3_feature_importance/run_mc_feature_importance.py --cohort $COHORT_NAME --age_band $AGE_BAND"
 
 # Step 3b: Feature Importance EDA and Refinement
-# Analyzes aggregated feature importances using BupaR (post-target) and DTW (trajectories)
+# Analyzes aggregated feature importances using BupaR (post-target analysis to identify leakage)
 # Filters and refines features to produce cohort_feature_importance files
 # REQUIRED: Step 3b must run before Step 4a (Step 4a requires cohort_feature_importance files)
 # Note: Step 3b can use cohort.parquet files from Step 2 if model_events.parquet doesn't exist yet
-run_step "3b" "Feature Importance EDA and Refinement (BupaR + DTW)" \
+run_step "3b" "Feature Importance EDA and Refinement (BupaR Post-Target Analysis)" \
     "python 3b_feature_importance_eda/run_step_3b.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 4a: Model Data Creation (with controls)
