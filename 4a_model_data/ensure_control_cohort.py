@@ -2,11 +2,17 @@
 """
 Utility function to ensure control cohort exists with correct 5:1 ratio.
 
+**Performance Optimizations:**
+- Uses DuckDB with Parquet for all operations (no pandas memory overhead)
+- Single combined query for validation (counts both control and case patients in one pass)
+- Direct Parquet-to-Parquet operations via DuckDB COPY ... TO ... (FORMAT PARQUET)
+- Efficient columnar reads using read_parquet() with predicate pushdown
+
 This function:
 1. Checks if control cohort model_events.parquet exists locally
 2. Downloads from S3 if not found locally
-3. Validates the control:case ratio (should be ~5:1)
-4. Recreates the control cohort if ratio is invalid or file is missing
+3. Validates the control:case ratio (should be ~5:1) using efficient DuckDB Parquet queries
+4. Recreates the control cohort if ratio is invalid or file is missing (using DuckDB)
 5. Returns the path to the validated control cohort file
 
 Can be called from Python scripts or from R scripts via subprocess.
