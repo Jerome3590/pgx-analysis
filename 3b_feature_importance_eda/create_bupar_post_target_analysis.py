@@ -295,7 +295,7 @@ def analyze_post_target_leakage_from_events(
         WHERE timing IN ('pre', 'post')
         GROUP BY feature
         HAVING COUNT(*) >= {min_events}  -- Minimum events for statistical significance
-    ),
+    )
     SELECT 
         feature,
         total_count,
@@ -314,7 +314,7 @@ def analyze_post_target_leakage_from_events(
         END as is_pre_target_predictive
     FROM feature_stats
     ORDER BY post_f1120_ratio DESC, total_count DESC
-    """
+    """.format(min_events=min_events, post_f1120_threshold=post_f1120_threshold)
     
     try:
         results_df = con.execute(query).df()
