@@ -283,9 +283,33 @@ for (candidate in control_model_data_candidates) {
   }
 }
 
-# If not found, use first candidate
+# If not found, try downloading from S3
 if (is.null(control_model_data_path)) {
   control_model_data_path <- control_model_data_candidates[1]
+  
+  # Try to download from S3 if not found locally
+  control_s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", control_cohort, "/age_band=", age_band, "/model_events.parquet")
+  cat("Control model data not found locally. Checking S3: ", control_s3_path, "\n", sep = "")
+  
+  # Create directory if it doesn't exist
+  dir.create(dirname(control_model_data_path), recursive = TRUE, showWarnings = FALSE)
+  
+  # Try AWS CLI sync
+  aws_cli <- Sys.which("aws")
+  if (aws_cli != "") {
+    cat("Downloading control cohort from S3 using AWS CLI...\n")
+    sync_cmd <- c("s3", "cp", control_s3_path, control_model_data_path)
+    sync_result <- system2(aws_cli, sync_cmd, stdout = TRUE, stderr = TRUE)
+    
+    if (file.exists(control_model_data_path)) {
+      cat("Successfully downloaded control cohort from S3: ", control_model_data_path, "\n", sep = "")
+    } else {
+      cat("Failed to download control cohort from S3. Error output:\n")
+      cat(paste(sync_result, collapse = "\n"), "\n")
+    }
+  } else {
+    cat("AWS CLI not found. Cannot download control cohort from S3.\n")
+  }
 }
 
 if (file.exists(control_model_data_path)) {
