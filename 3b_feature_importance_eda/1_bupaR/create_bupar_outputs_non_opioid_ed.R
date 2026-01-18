@@ -272,15 +272,11 @@ print(target_eventlog)
 # -------------------------------------------------------------------
 
 # Source utility functions for control cohort management
-source(file.path(dirname(sys.frame(1)$ofile), "control_cohort_utils.R"))
-# Alternative: if above doesn't work, use explicit path
-if (!exists("ensure_control_cohort_with_ratio")) {
-  utils_path <- file.path(project_root, "3b_feature_importance_eda", "1_bupaR", "control_cohort_utils.R")
-  if (file.exists(utils_path)) {
-    source(utils_path)
-  } else {
-    stop("Control cohort utility functions not found. Expected at: ", utils_path)
-  }
+utils_path <- file.path(project_root, "3b_feature_importance_eda", "1_bupaR", "control_cohort_utils.R")
+if (file.exists(utils_path)) {
+  source(utils_path)
+} else {
+  stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
 # Control model data path - use same OS-aware resolution
