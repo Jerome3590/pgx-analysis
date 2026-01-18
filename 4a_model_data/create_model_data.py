@@ -935,11 +935,21 @@ def main() -> None:
             aggregated_files.append(refined_file)
             print(f"[INFO] Found Step 3b refined feature importance: {refined_file}")
         else:
-            # Error out - Step 3b must run first
-            print(f"[ERROR] Step 3b refined feature importance not found: {refined_file}")
-            print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
-            print(f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}")
-            sys.exit(1)
+            # Try downloading from S3 if not found locally
+            print(f"[INFO] Step 3b refined feature importance not found locally: {refined_file}")
+            print(f"[INFO] Attempting to download from S3...")
+            downloaded = download_cohort_feature_importance_from_s3(args.cohort, args.age_band)
+            if downloaded and downloaded[0].exists():
+                aggregated_files.append(downloaded[0])
+                print(f"[INFO] Successfully downloaded from S3: {downloaded[0]}")
+            else:
+                # Error out - file not found locally or in S3
+                print(f"[ERROR] Step 3b refined feature importance not found locally or in S3")
+                print(f"[ERROR] Expected: {refined_file}")
+                print(f"[ERROR] S3 path: s3://{S3_BUCKET}/gold/feature_importance/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_cohort_feature_importance.csv")
+                print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
+                print(f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}")
+                sys.exit(1)
     else:
         # Check Step 3b refined files for all cohorts
         if not STEP3B_OUTPUTS_DIR.exists():
