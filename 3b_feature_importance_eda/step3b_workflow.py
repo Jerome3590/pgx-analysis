@@ -780,6 +780,19 @@ bupar_plots = [
     f"{COHORT}_{AGE_BAND_FNAME}_post_f1120_activity_frequency.png",
 ]
 
+# Check if plots directory exists and list available plots
+if PLOTS_DIR.exists():
+    available_plots = list(PLOTS_DIR.glob("*.png"))
+    print(f"📁 Plots directory: {PLOTS_DIR}")
+    print(f"   Found {len(available_plots)} PNG files")
+    if available_plots:
+        print(f"   Available plots:")
+        for p in sorted(available_plots):
+            print(f"     - {p.name}")
+else:
+    print(f"⚠️  Plots directory does not exist: {PLOTS_DIR}")
+
+print(f"\n🔍 Looking for BupaR plots...")
 for plot_name in bupar_plots:
     plot_path = PLOTS_DIR / plot_name
     if plot_path.exists():
@@ -787,6 +800,18 @@ for plot_name in bupar_plots:
         display(Image(str(plot_path)))
     else:
         print(f"⚠️  Plot not found: {plot_path}")
+        # Try alternative path (in case plots are in features/ subdirectory)
+        alt_path = OUTPUT_DIR / "features" / plot_name
+        if alt_path.exists():
+            print(f"   Found in alternative location: {alt_path}")
+            display(Image(str(alt_path)))
+        else:
+            # Try without cohort prefix (in case R script saved without it)
+            simple_name = plot_name.replace(f"{COHORT}_{AGE_BAND_FNAME}_", "")
+            simple_path = PLOTS_DIR / simple_name
+            if simple_path.exists():
+                print(f"   Found with simple name: {simple_path}")
+                display(Image(str(simple_path)))
 
 # %% [markdown]
 # ## D. Interactive Code Review and Filtering
