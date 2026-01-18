@@ -140,4 +140,4 @@ The results from this validation process inform the filtering in Step 3b:
 - `analyze_code_groups.py` - Script to analyze ICD/CPT codes by letter/range groups
 - `validate_icd_cpt_codes.py` - Interactive workflow for code validation
 - `administrative_codes_lookup.json` - Copy of administrative codes filter (for reference)
-- `README.md` - This documentation file
+- `README_icd_cpt_check.md` - This documentation file
