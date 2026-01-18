@@ -1876,6 +1876,72 @@ def train_and_evaluate(
     
     save_model_idempotent(metadata_path, s3_metadata, save_metadata)
     print(f"Saved model selection metadata to {metadata_path}")
+    
+    # Create summary CSV with metrics for all models
+    summary_data = []
+    
+    # XGBoost metrics
+    summary_data.append({
+        "model": "XGBoost",
+        "recall_mean": xgb_recall_mean,
+        "pr_auc_mean": xgb_pr_auc_mean,
+        "auc_mean": float(np.mean(metrics["xgb"]["auc"])) if metrics["xgb"]["auc"] else None,
+        "logloss_mean": float(np.mean(metrics["xgb"]["logloss"])) if metrics["xgb"]["logloss"] else None,
+        "n_runs": len(metrics["xgb"]["recall"]) if metrics["xgb"]["recall"] else 0,
+        "selected": best_xgb_variant == "xgb"
+    })
+    
+    # XGBoost RF metrics
+    summary_data.append({
+        "model": "XGBoost_RF",
+        "recall_mean": xgb_rf_recall_mean,
+        "pr_auc_mean": xgb_rf_pr_auc_mean,
+        "auc_mean": float(np.mean(metrics["xgb_rf"]["auc"])) if metrics["xgb_rf"]["auc"] else None,
+        "logloss_mean": float(np.mean(metrics["xgb_rf"]["logloss"])) if metrics["xgb_rf"]["logloss"] else None,
+        "n_runs": len(metrics["xgb_rf"]["recall"]) if metrics["xgb_rf"]["recall"] else 0,
+        "selected": best_xgb_variant == "xgb_rf"
+    })
+    
+    # CatBoost metrics (if available)
+    if cb_recall_mean is not None:
+        summary_data.append({
+            "model": "CatBoost",
+            "recall_mean": cb_recall_mean,
+            "pr_auc_mean": cb_pr_auc_mean,
+            "auc_mean": cb_auc_mean,
+            "logloss_mean": cb_logloss_mean,
+            "n_runs": len(metrics["catboost"]["recall"]) if metrics.get("catboost") and metrics["catboost"].get("recall") else 0,
+            "selected": False  # CatBoost is not used for model selection
+        })
+    
+    # Ensemble metrics (if available)
+    if metrics.get("ensemble") and metrics["ensemble"].get("recall"):
+        ensemble_recall_mean = float(np.mean(metrics["ensemble"]["recall"]))
+        ensemble_pr_auc_mean = float(np.mean(metrics["ensemble"]["pr_auc"]))
+        ensemble_auc_mean = float(np.mean(metrics["ensemble"]["auc"])) if metrics["ensemble"]["auc"] else None
+        ensemble_logloss_mean = float(np.mean(metrics["ensemble"]["logloss"])) if metrics["ensemble"]["logloss"] else None
+        
+        summary_data.append({
+            "model": "Ensemble",
+            "recall_mean": ensemble_recall_mean,
+            "pr_auc_mean": ensemble_pr_auc_mean,
+            "auc_mean": ensemble_auc_mean,
+            "logloss_mean": ensemble_logloss_mean,
+            "n_runs": len(metrics["ensemble"]["recall"]),
+            "selected": False  # Ensemble is not used for model selection
+        })
+    
+    # Create DataFrame and save to CSV
+    summary_df = pd.DataFrame(summary_data)
+    summary_csv_path = out_base / f"{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    
+    def save_summary_csv():
+        summary_df.to_csv(summary_csv_path, index=False)
+    
+    save_model_idempotent(summary_csv_path, s3_summary_csv, save_summary_csv)
+    print(f"\nSaved model metrics summary CSV to {summary_csv_path}")
+    print(summary_df.to_string(index=False))
 
     # ------------------------------------------------------------------
     # Train final models on full data and export best models
