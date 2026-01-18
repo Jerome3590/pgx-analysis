@@ -1663,6 +1663,69 @@ def train_and_evaluate(
                 "y_proba_cb": y_proba_cb,
             }
 
+    # Create per-run MC CV results CSV
+    mc_cv_results = []
+    for run_idx in range(n_runs):
+        # XGBoost metrics
+        if run_idx < len(metrics["xgb"]["recall"]):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "XGBoost",
+                "recall": metrics["xgb"]["recall"][run_idx],
+                "pr_auc": metrics["xgb"]["pr_auc"][run_idx],
+                "auc": metrics["xgb"]["auc"][run_idx],
+                "logloss": metrics["xgb"]["logloss"][run_idx],
+            })
+        
+        # XGBoost RF metrics
+        if run_idx < len(metrics["xgb_rf"]["recall"]):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "XGBoost_RF",
+                "recall": metrics["xgb_rf"]["recall"][run_idx],
+                "pr_auc": metrics["xgb_rf"]["pr_auc"][run_idx],
+                "auc": metrics["xgb_rf"]["auc"][run_idx],
+                "logloss": metrics["xgb_rf"]["logloss"][run_idx],
+            })
+        
+        # CatBoost metrics (if available)
+        if have_catboost and run_idx < len(metrics.get("catboost", {}).get("recall", [])):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "CatBoost",
+                "recall": metrics["catboost"]["recall"][run_idx],
+                "pr_auc": metrics["catboost"]["pr_auc"][run_idx],
+                "auc": metrics["catboost"]["auc"][run_idx],
+                "logloss": metrics["catboost"]["logloss"][run_idx],
+            })
+        
+        # Ensemble metrics (if available)
+        if run_idx < len(metrics.get("ensemble", {}).get("recall", [])):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "Ensemble",
+                "recall": metrics["ensemble"]["recall"][run_idx],
+                "pr_auc": metrics["ensemble"]["pr_auc"][run_idx],
+                "auc": metrics["ensemble"]["auc"][run_idx],
+                "logloss": metrics["ensemble"]["logloss"][run_idx],
+            })
+    
+    # Save MC CV results CSV
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    out_base.mkdir(parents=True, exist_ok=True)
+    
+    mc_cv_csv_path = out_base / f"{cohort}_{age_band_fname}_mc_cv_results.csv"
+    s3_mc_cv_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_mc_cv_results.csv"
+    
+    def save_mc_cv_csv():
+        mc_cv_df = pd.DataFrame(mc_cv_results)
+        mc_cv_df.to_csv(mc_cv_csv_path, index=False)
+    
+    save_model_idempotent(mc_cv_csv_path, s3_mc_cv_csv, save_mc_cv_csv)
+    print(f"\nSaved MC CV per-run results CSV to {mc_cv_csv_path}")
+    print(f"  Total rows: {len(mc_cv_results)} (across {n_runs} splits and all models)")
+    
     # Aggregate metrics across runs
     print("\n=== Monte-Carlo CV Summary (n_runs={}) ===".format(n_runs))
     for model_key in ["xgb", "xgb_rf", "catboost", "ensemble"]:
