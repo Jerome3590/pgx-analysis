@@ -193,18 +193,15 @@ def analyze_post_target_leakage_from_events(
     ),
     """
     else:
-        # For non_opioid_ed, try to use first_ed_non_opioid_date if available, otherwise find first ED event
+        # For non_opioid_ed, find first ED event (where hcg_line IS NOT NULL) for each patient
         query = f"""
     WITH target_patients AS (
         SELECT DISTINCT
             mi_person_key,
-            COALESCE(
-                CAST(first_ed_non_opioid_date AS DATE),
-                MIN(CASE WHEN hcg_line IS NOT NULL THEN CAST(event_date AS DATE) END)
-            ) as target_date
+            MIN(CASE WHEN hcg_line IS NOT NULL THEN CAST(event_date AS DATE) END) as target_date
         FROM read_parquet('{model_data_path_str}')
         WHERE target = 1
-        GROUP BY mi_person_key, first_ed_non_opioid_date
+        GROUP BY mi_person_key
         HAVING target_date IS NOT NULL
     ),
     """
