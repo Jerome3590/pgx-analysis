@@ -134,10 +134,10 @@ python 4b_event_filter/filter_protocol_events.py \
     --min-interval-days 1
 
 # 2. Review research outputs
-# Open: 4b_dtw_filter/outputs/for_review/opioid_ed/0_12/code_analysis_protocol_vs_clinical_*.csv
+# Open: 4b_event_filter/outputs/for_review/opioid_ed/0_12/code_analysis_protocol_vs_clinical_*.csv
 
 # 3. Update lookup table
-# Edit: 4b_dtw_filter/administrative_codes_lookup.json
+# Edit: 4b_event_filter/administrative_codes_lookup.json
 
 # 4. Re-run with lookup table
 python 4b_event_filter/filter_protocol_events.py \
