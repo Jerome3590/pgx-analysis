@@ -2,20 +2,24 @@
 
 ## Overview
 
-Step 3b performs additional exploratory data analysis on aggregated feature importances from Step 3, using:
-1. **Administrative/Non-informative code filtering** (remove non-informative ICD/CPT codes from lookup table)
-2. **BupaR post-target analysis** to identify pre/post F1120 ICD/CPT events (target leakage detection)
-3. **Interactive code review and filtering** to refine feature selection
+Step 3b performs additional exploratory data analysis on **already processed aggregated feature importances** from Step 3, using:
+1. **BupaR post-target analysis** to identify pre/post F1120 ICD/CPT events (target leakage detection)
+2. **Code research and validation** (identify and validate non-informative ICD/CPT codes from lookup table - actual event-level filtering happens in Step 4b)
+3. **Interactive code review and filtering** to refine feature selection (filters post-target leakage features from feature importance list)
+
+**Note**: This is NOT a DTW filter. Step 3b uses BupaR process mining and code research to filter already-processed aggregated feature importances, not raw event data.
 
 Based on this EDA, we filter and update the aggregated feature importances to produce refined `cohort_feature_importance` files that feed into Step 4a model data creation.
 
 ## Purpose
 
-- **Identify post-target leakage**: Use BupaR to analyze sequences before and after the target event (F1120) to identify features that may leak future information
-- **Filter non-value-added codes**: Remove administrative, scheduling, and non-medical codes that don't add predictive value
-- **Apply safe feature filtering**: Exclude post-target leakage features while keeping all pre-target features to maximize information available to the algorithm
-- **Refine feature importances**: Update aggregated feature importances based on EDA findings
+- **Identify post-target leakage**: Use BupaR process mining to analyze sequences before and after the target event (F1120) to identify features that may leak future information
+- **Research and validate codes**: Identify and validate administrative, scheduling, and non-medical codes through code research (actual event-level filtering happens in Step 4b)
+- **Apply safe feature filtering**: Exclude post-target leakage features from aggregated feature importance list while keeping all pre-target features to maximize information available to the algorithm
+- **Refine feature importances**: Update already-processed aggregated feature importances based on BupaR and code research findings
 - **Output refined features**: Generate `cohort_feature_importance` files for Step 4a
+
+**Key Point**: Step 3b filters **aggregated feature importances** (already processed from Step 3), not raw event data. It uses BupaR process mining and code research, not DTW.
 
 ## Inputs
 
@@ -74,6 +78,12 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Generate comprehensive BupaR features and visualizations
    - Output: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
    - See `1_bupaR/README_bupaR.md` for detailed BupaR process mining documentation
+3. **Code Research and Validation** (`0_icd_cpt_check/`):
+   - Load administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
+   - Research and validate ICD/CPT codes by groups (ICD by chapter, CPT by range)
+   - Identify non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
+   - **Note**: This step only validates and identifies codes - actual event-level filtering happens in Step 4b
+   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
 4. **Create Safe Feature Filter**:
    - Exclude features with >=80% post-F1120 ratio (pure post-target leakage)
    - Keep ALL features with ANY pre-F1120 presence (maximize information)
@@ -81,8 +91,9 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Output: `{cohort}_{age_band}_safe_feature_filter.json`
 5. **Filter and Update Feature Importances**:
    - Apply safe feature filter (whitelist for cases, blacklist for controls)
-   - Remove administrative/non-informative codes
-   - Adjust importance scores based on EDA findings
+   - Filter post-target leakage features from aggregated feature importance list (based on BupaR analysis)
+   - **Note**: Administrative codes are identified through code research but filtered at event level in Step 4b
+   - Adjust importance scores based on BupaR and code research findings
    - Generate refined `cohort_feature_importance` files
 6. **Save outputs locally and upload to S3**:
    - Save all outputs to local filesystem

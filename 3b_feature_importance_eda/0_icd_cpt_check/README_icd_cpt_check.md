@@ -2,15 +2,17 @@
 
 ## Overview
 
-This folder contains tools and processes for validating which ICD and CPT codes in feature importance data are **informative** (should be kept) vs **administrative/non-informative** (should be filtered).
+This folder contains tools and processes for validating which ICD and CPT codes in feature importance data are **informative** (should be kept) vs **administrative/non-informative** (should be filtered in Step 4b).
 
 ## Purpose
 
-Before filtering codes in Step 3b, we need to:
+Before filtering codes in Step 4b, we need to:
 1. **Analyze codes by groups** (ICD by letter/chapter, CPT by range)
 2. **Identify administrative codes** that don't add predictive value
 3. **Document findings** for reference and future filtering decisions
 4. **Validate filtering decisions** against feature importance data
+
+**Note**: This step only validates and identifies administrative codes. The actual filtering happens in Step 4b (`4b_dtw_filter/filter_protocol_events.py`) at the event level.
 
 ## Process
 
@@ -119,13 +121,14 @@ python analyze_code_groups.py opioid_ed 13-24
   - Contains detailed breakdown by ICD chapter and CPT range
   - Includes counts, importance statistics, and classifications
 
-## Integration with Step 3b
+## Integration with Step 3b and Step 4b
 
-The results from this validation process inform the filtering in Step 3b:
+The results from this validation process inform filtering:
 1. **Administrative codes** identified here are added to `administrative_codes_lookup.json`
-2. **Step 3b workflow** loads these codes and filters them out
-3. **BupaR analysis** may identify additional codes to filter
-4. **Final filtering** combines all sources (lookup table + BupaR + manual)
+2. **Step 3b workflow** loads these codes for reference and validation (does not filter them from feature importances)
+3. **BupaR analysis** identifies post-target leakage features to filter from aggregated importances
+4. **Step 4b** uses the administrative codes lookup to filter events at the event level
+5. **Step 3b final filtering** only filters post-target leakage features from aggregated feature importance list (not administrative codes)
 
 ## Related Files
 

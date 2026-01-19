@@ -18,11 +18,13 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **[README_feature_importance.md](Step3_FeatureImportance/README_feature_importance.md)** - Feature importance analysis methodology
 - **[README_feature_importance_visualization.md](Step3_FeatureImportance/README_feature_importance_visualization.md)** - Feature importance visualization guide
 
-### Step 3b: Feature Refinement (BupaR Post-Target Analysis)
+### Step 3b: Feature Refinement (BupaR Process Mining + Code Research)
 **Code**: `3b_feature_importance_eda/`
 
-- **BupaR Post-Target Analysis** – Identifies post-target leakage features
-- **Administrative Code Filtering** – Removes non-value-added administrative/scheduling codes using lookup table
+- **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage features in aggregated importances
+- **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (actual event-level filtering happens in Step 4b)
+- **Filter Post-Target Leakage** – Removes post-target leakage features from already-processed aggregated feature importance list
+- **Note**: This is NOT a DTW filter - it filters aggregated feature importances using BupaR process mining and code research
 - **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4a
 
 ### Step 4: Model Data & Filtering

@@ -46,9 +46,10 @@ strict temporal validation and a small, focused model ensemble.
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
 5. **Feature Refinement (Step 3b - `3b_feature_importance_eda/`)**  
-   - **BupaR Post-Target Analysis**: Analyze sequences before and after target event to identify post-target leakage features
-   - **Administrative Code Filtering**: Remove non-informative administrative/scheduling codes using lookup table
-   - **Filter and Refine**: Remove flagged features and generate refined `cohort_feature_importance` files
+   - **BupaR Post-Target Analysis**: Use process mining to analyze sequences before and after target event to identify post-target leakage features in aggregated importances
+   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (actual event-level filtering happens in Step 4b)
+   - **Filter and Refine**: Remove post-target leakage features from aggregated feature importance list and generate refined `cohort_feature_importance` files
+   - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances
    - Output: `cohort_feature_importance.csv` files that feed into Step 4a
 6. **Model Data Extraction (`4a_model_data/`)**  
    - Use the refined `cohort_feature_importance` files from Step 3b to drive `4a_model_data` extraction

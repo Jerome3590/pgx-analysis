@@ -2,10 +2,12 @@
 
 ## Overview
 
-Step 3b executes analyses in this order to properly filter features before model training:
-1. **Administrative/Non-informative code filtering** (remove non-informative ICD/CPT codes)
-2. **BupaR post-target analysis** (identify pre/post F1120 ICD/CPT events)
-3. **Filter and refine** (combine all filtering results)
+Step 3b executes analyses in this order to properly filter **already-processed aggregated feature importances** from Step 3:
+1. **BupaR post-target analysis** (identify pre/post F1120 ICD/CPT events using process mining)
+2. **Code research and validation** (identify non-informative ICD/CPT codes - actual event-level filtering happens in Step 4b)
+3. **Filter and refine** (filter post-target leakage features from aggregated feature importance list)
+
+**Note**: This is NOT a DTW filter. Step 3b uses BupaR process mining and code research to filter aggregated feature importances, not raw event data.
 
 ## Folder Naming Convention
 
@@ -17,15 +19,7 @@ Folders reflect execution order:
 
 The pipeline now executes in this order:
 
-1. **Administrative/Non-informative Code Filtering** (`0_icd_cpt_check/`)
-   - Validates ICD/CPT codes by groups (ICD by chapter, CPT by range)
-   - Loads administrative codes from `4b_dtw_filter/administrative_codes_lookup.json` (legacy path name, file contains administrative code lookup)
-   - Removes non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
-   - This filtering is applied in the `filter_and_refine_features.py` step
-   - Note: Feature importances are already calculated in Step 3; we filter them here
-   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
-
-2. **BupaR Post-Target Analysis** (`1_bupaR/`)
+1. **BupaR Post-Target Analysis** (`1_bupaR/`)
    - Builds BupaR event logs from `model_events.parquet`
    - Runs pre- and post-F1120 sequence analyses
    - Calculates pre-F1120 and post-F1120 ratios for each feature
@@ -33,6 +27,14 @@ The pipeline now executes in this order:
    - Generates comprehensive BupaR features and visualizations
    - Outputs: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
    - See `1_bupaR/README_bupaR.md` for complete BupaR process mining documentation
+
+2. **Code Research and Validation** (`0_icd_cpt_check/`)
+   - Researches and validates ICD/CPT codes by groups (ICD by chapter, CPT by range)
+   - Loads administrative codes from `4b_dtw_filter/administrative_codes_lookup.json` (legacy path name, file contains administrative code lookup)
+   - Identifies non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
+   - **Note**: This step only validates and identifies codes - actual event-level filtering happens in Step 4b
+   - The `filter_and_refine_features.py` step filters post-target leakage features from aggregated importances, not administrative codes
+   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
 
 3. **Create Safe Feature Filter**
    - Excludes features with >=80% post-F1120 ratio (pure post-target leakage)
@@ -43,14 +45,14 @@ The pipeline now executes in this order:
    - See `FEATURE_FILTERING_APPROACH.md` for detailed strategy
 
 4. **Filter and Refine Features**
-   - Combines outputs from administrative filtering and BupaR analyses
-   - Applies safe feature filter:
+   - Combines outputs from BupaR analysis and code research
+   - Applies safe feature filter to aggregated feature importances:
      - **Cases (target=1)**: Whitelist approach (only features from `all_features_to_keep`)
      - **Controls (target=0)**: Blacklist approach (exclude only post-target leakage features)
-   - Filters features based on:
-     - Administrative/non-informative codes (from lookup table)
+   - Filters features from aggregated importance list based on:
      - Post-target leakage (from BupaR safe feature filter)
-   - Outputs: `cohort_feature_importance.csv`
+     - **Note**: Administrative codes are identified through code research but filtered at event level in Step 4b
+   - Outputs: `cohort_feature_importance.csv` (refined aggregated feature importances)
 
 5. **Create BupaR Visualizations**
    - Generates visualization plots from BupaR analysis
@@ -85,16 +87,16 @@ The pipeline now executes in this order:
 
 ## Rationale
 
-**Administrative code filtering runs first** because:
-- Removes clearly non-informative codes before other analyses
-- Uses pre-identified administrative codes from lookup table
-- Reduces noise in subsequent BupaR analysis
-
-**BupaR analysis runs second** because:
+**BupaR analysis runs first** because:
 - Identifies pre vs post-F1120 events (critical for target leakage prevention)
-- Calculates pre-F1120 and post-F1120 ratios for each feature
+- Calculates pre-F1120 and post-F1120 ratios for each feature in aggregated importances
 - Outputs are used to create safe feature filter (exclude leakage, keep pre-target)
 - Generates comprehensive process mining visualizations
+
+**Code research runs second** because:
+- Validates and identifies administrative codes for reference
+- Informs Step 4b event-level filtering (not used in Step 3b feature filtering)
+- Provides documentation and validation of code classifications
 
 ## Running Step 3b
 
@@ -103,9 +105,9 @@ The pipeline now executes in this order:
 python 3b_feature_importance_eda/run_step_3b.py --cohort opioid_ed --age-band 13-24
 
 # The pipeline will:
-# 1. Filter administrative/non-informative codes (from lookup table)
-# 2. Run BupaR analysis (1_bupaR/) - identify pre/post F1120 events
+# 1. Run BupaR analysis (1_bupaR/) - identify pre/post F1120 events in aggregated importances
+# 2. Research and validate codes (0_icd_cpt_check/) - identify administrative codes (for Step 4b reference)
 # 3. Create safe feature filter - exclude leakage, keep pre-target features
-# 4. Filter and refine features (combine administrative + BupaR filtering)
+# 4. Filter and refine aggregated feature importances (filter post-target leakage from importance list)
 # 5. Create visualizations
 ```

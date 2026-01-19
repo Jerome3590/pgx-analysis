@@ -74,7 +74,7 @@ Runs all cohorts and age bands sequentially.
 ### Workflow Steps (Executed Automatically)
 
 1. **Step 3**: Feature Importance (Monte Carlo CV) - Aggregated feature importances
-2. **Step 3b**: Feature Importance EDA and Refinement - BupaR post-target analysis to refine features
+2. **Step 3b**: Feature Importance EDA and Refinement - BupaR process mining + code research to filter already-processed aggregated feature importances (filters post-target leakage, validates administrative codes for Step 4b)
 3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Step 3b
 4. **Step 4b**: DTW Protocol Filtering
 5. **Step 5**: PGx Feature Engineering
