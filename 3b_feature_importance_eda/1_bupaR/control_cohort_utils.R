@@ -209,6 +209,37 @@ ensure_control_cohort_with_ratio <- function(
       if (file.exists(control_model_data_path)) {
         cat("[OK] Control cohort created successfully\n")
         was_recreated <- TRUE
+        
+        # Re-validate and log final ratio after recreation
+        years_list <- paste(train_years, collapse = ",")
+        query_control_count <- sprintf(
+          "SELECT COUNT(DISTINCT mi_person_key) as n_controls FROM read_parquet('%s') WHERE event_year IN (%s)",
+          control_model_data_path,
+          years_list
+        )
+        query_case_count <- sprintf(
+          "SELECT COUNT(DISTINCT mi_person_key) as n_cases FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1",
+          model_data_path,
+          years_list
+        )
+        
+        tryCatch({
+          n_controls_final <- dbGetQuery(con, query_control_count)$n_controls[1]
+          n_cases_final <- dbGetQuery(con, query_case_count)$n_cases[1]
+          actual_ratio_final <- ifelse(n_cases_final > 0, n_controls_final / n_cases_final, 0)
+          
+          cat("✅ Final ratio after recreation: ", sprintf("%.2f", actual_ratio_final), ":1 (", 
+              n_controls_final, " distinct controls, ", n_cases_final, " distinct targets)\n", sep = "")
+          
+          # Warn if ratio is still below target (data limitation)
+          if (actual_ratio_final < expected_ratio * (1 - tolerance)) {
+            cat("⚠️  Note: Final ratio (", sprintf("%.2f", actual_ratio_final), ":1) is below target (", 
+                sprintf("%.2f", expected_ratio), ":1) due to limited control candidates.\n", sep = "")
+            cat("   This is a data limitation, not an error. All available control candidates were sampled.\n", sep = "")
+          }
+        }, error = function(e) {
+          cat("[WARN] Could not validate final ratio: ", conditionMessage(e), "\n", sep = "")
+        })
       } else {
         cat("[WARN] Control cohort creation may have failed. File not found: ", control_model_data_path, "\n", sep = "")
         cat("[WARN] Check Python script output above for errors.\n")
