@@ -986,10 +986,12 @@ if (nrow(target_events_sample) > 0) {
                shape = event_type)) +
       geom_point(size = 2, alpha = 0.7) +
       scale_x_datetime() +
-      scale_shape_manual(values = c("Drug" = 16, "Diagnosis" = 17, "Procedure" = 18, "Other" = 1)) +
+      # For polypharmacy cohort, event_type is the drug name (each drug is a different type)
+      # Use single shape since all are drugs, but color will differentiate
+      scale_shape_manual(values = 16) +
       labs(title = paste("Activity Sequence with Top Activities:", cohort_name, age_band),
            x = "Event Time", y = "Patient ID",
-           color = "Activity (Top 10)", shape = "Event Type") +
+           color = "Activity (Top 10)", shape = "Drug") +
       theme_bw() +
       theme(legend.position = "right",
             axis.text.y = element_text(size = 6))
