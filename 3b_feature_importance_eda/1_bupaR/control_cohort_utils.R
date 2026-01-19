@@ -69,13 +69,45 @@ ensure_control_cohort_with_ratio <- function(
   n_controls <- 0
   
   if (file.exists(control_model_data_path)) {
-    # Check ratio: should be approximately 5:1 (controls:cases)
-    query_control_count <- sprintf(
-      "SELECT COUNT(DISTINCT mi_person_key) as n_controls FROM read_parquet('%s') WHERE event_year IN (%s)",
-      control_model_data_path,
-      paste(train_years, collapse = ",")
-    )
-    n_controls <- dbGetQuery(con, query_control_count)$n_controls[1]
+    # Check if file is valid parquet (not empty/corrupted)
+    file_size <- file.info(control_model_data_path)$size
+    if (is.na(file_size) || file_size < 1000) {  # Parquet files should be at least 1KB
+      cat("⚠️  Control cohort file exists but is too small/corrupted (", file_size, " bytes). Will recreate.\n", sep = "")
+      unlink(control_model_data_path)  # Delete invalid file
+      needs_recreation <- TRUE
+    } else {
+      # Try to validate parquet file by attempting a simple query
+      tryCatch({
+        test_query <- sprintf("SELECT COUNT(*) as n FROM read_parquet('%s') LIMIT 1", control_model_data_path)
+        test_result <- dbGetQuery(con, test_query)
+        if (is.null(test_result) || nrow(test_result) == 0) {
+          stop("Parquet file appears to be empty or invalid")
+        }
+      }, error = function(e) {
+        cat("⚠️  Control cohort file exists but is invalid/corrupted: ", conditionMessage(e), "\n", sep = "")
+        cat("   File size: ", file_size, " bytes. Will delete and recreate.\n", sep = "")
+        unlink(control_model_data_path)  # Delete invalid file
+        needs_recreation <<- TRUE
+      })
+    }
+    
+    # Check ratio: should be approximately 5:1 (controls:cases) - only if file is valid
+    if (!needs_recreation && file.exists(control_model_data_path)) {
+      query_control_count <- sprintf(
+        "SELECT COUNT(DISTINCT mi_person_key) as n_controls FROM read_parquet('%s') WHERE event_year IN (%s)",
+        control_model_data_path,
+        paste(train_years, collapse = ",")
+      )
+      tryCatch({
+        n_controls <- dbGetQuery(con, query_control_count)$n_controls[1]
+      }, error = function(e) {
+        cat("⚠️  Failed to query control cohort file: ", conditionMessage(e), "\n", sep = "")
+        cat("   File may be corrupted. Will delete and recreate.\n", sep = "")
+        unlink(control_model_data_path)
+        needs_recreation <<- TRUE
+        n_controls <<- 0
+      })
+    }
     
     # Get number of cases from target cohort
     query_case_count <- sprintf(

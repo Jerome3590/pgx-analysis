@@ -293,15 +293,40 @@ def create_control_cohort_model_data(
         
         con.execute(f"COPY ({query}) TO '{out_path}' (FORMAT PARQUET)")
         
-        # Check result
-        result_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{out_path}')").fetchone()[0]
-        print(f"[OK] Created control cohort model_events.parquet: {out_path}")
-        print(f"[OK] Total events: {result_count:,}")
+        # Validate the created file
+        if not out_path.exists():
+            raise FileNotFoundError(f"Parquet file was not created: {out_path}")
+        
+        file_size = out_path.stat().st_size
+        if file_size < 1000:  # Parquet files should be at least 1KB
+            raise ValueError(f"Created parquet file is too small ({file_size} bytes), likely empty or corrupted")
+        
+        # Check result by reading the file
+        try:
+            result_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{out_path}')").fetchone()[0]
+            if result_count == 0:
+                raise ValueError(f"Created parquet file contains 0 rows")
+            print(f"[OK] Created control cohort model_events.parquet: {out_path}")
+            print(f"[OK] File size: {file_size:,} bytes")
+            print(f"[OK] Total events: {result_count:,}")
+        except Exception as validation_error:
+            # If validation fails, remove the corrupted file
+            if out_path.exists():
+                out_path.unlink()
+            raise ValueError(f"Created parquet file is invalid: {validation_error}") from validation_error
         
     except Exception as e:
         print(f"[ERROR] Failed to create control cohort model_events.parquet: {e}")
+        # Remove any partially created file
+        if out_path.exists():
+            try:
+                out_path.unlink()
+                print(f"[INFO] Removed partially created file: {out_path}")
+            except:
+                pass
         import traceback
         traceback.print_exc()
+        raise  # Re-raise to signal failure
     finally:
         con.close()
 
