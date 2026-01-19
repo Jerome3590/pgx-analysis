@@ -523,8 +523,19 @@ if (n_events(pre_target_eventlog) == 0) {
   print(head(pre_drug_sequences))
   
   # 3) Process map for pre-HCG trajectories
+  # Filter eventlog to ensure valid events before calling process_map
   tryCatch({
-    process_map(pre_target_eventlog, type = "frequency")
+    valid_pre_eventlog <- pre_target_eventlog %>%
+      filter(!is.na(activity), 
+             activity != "", 
+             activity != "NA",
+             !is.na(timestamp))
+    
+    if (n_events(valid_pre_eventlog) > 0 && n_cases(valid_pre_eventlog) > 0) {
+      process_map(valid_pre_eventlog, type = "frequency")
+    } else {
+      cat("Warning: Not enough valid events/cases for pre-HCG process_map (events: ", n_events(valid_pre_eventlog), ", cases: ", n_cases(valid_pre_eventlog), ")\n", sep = "")
+    }
   }, error = function(e) {
     cat("Warning: process_map failed:", conditionMessage(e), "\n")
   })
@@ -695,13 +706,32 @@ if (nrow(rare_sequences) > 0) {
 }
 
 # 2) Process Matrix and CSV export
+# Filter eventlog to ensure valid events before calling process_matrix
+# This prevents "missing value where TRUE/FALSE needed" errors
 tryCatch({
-  pm_target <- process_matrix(target_eventlog, type = "frequency")
-  pm_target_df <- as.data.frame(pm_target)
-  save_bupar_csv(
-    pm_target_df,
-    sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-  )
+  # Ensure eventlog has valid structure: filter out empty activities, ensure valid timestamps
+  valid_eventlog <- target_eventlog %>%
+    filter(!is.na(activity), 
+           activity != "", 
+           activity != "NA",
+           !is.na(timestamp))
+  
+  # Check if we have enough events/cases for process_matrix
+  if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
+    pm_target <- process_matrix(valid_eventlog, type = "frequency")
+    pm_target_df <- as.data.frame(pm_target)
+    save_bupar_csv(
+      pm_target_df,
+      sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+    )
+  } else {
+    cat("Warning: Not enough valid events/cases for process_matrix (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+    pm_target_df <- data.frame()
+    save_bupar_csv(
+      pm_target_df,
+      sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+    )
+  }
 }, error = function(e) {
   cat("Warning: process_matrix failed:", conditionMessage(e), "\n")
   # Create empty data frame to avoid downstream errors
@@ -713,8 +743,20 @@ tryCatch({
 })
 
 # 3) Process Map visualization
+# Use the same filtered eventlog for consistency
 tryCatch({
-  process_map(target_eventlog, type = "frequency")
+  # Use the same filtering as process_matrix
+  valid_eventlog <- target_eventlog %>%
+    filter(!is.na(activity), 
+           activity != "", 
+           activity != "NA",
+           !is.na(timestamp))
+  
+  if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
+    process_map(valid_eventlog, type = "frequency")
+  } else {
+    cat("Warning: Not enough valid events/cases for process_map (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+  }
 }, error = function(e) {
   cat("Warning: process_map failed:", conditionMessage(e), "\n")
 })
