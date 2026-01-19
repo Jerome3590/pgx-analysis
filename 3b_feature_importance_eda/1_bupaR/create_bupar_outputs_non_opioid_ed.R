@@ -318,7 +318,7 @@ print(target_eventlog)
 # -------------------------------------------------------------------
 
 # Source utility functions for control cohort management
-utils_path <- file.path(project_root, "3b_feature_importance_eda", "1_bupaR", "control_cohort_utils.R")
+utils_path <- file.path(project_root, "r_helpers", "control_cohort_utils.R")
 if (file.exists(utils_path)) {
   source(utils_path)
 } else {

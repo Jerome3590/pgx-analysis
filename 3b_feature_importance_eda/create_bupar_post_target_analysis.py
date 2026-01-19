@@ -40,63 +40,13 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
+from py_helpers.feature_utils import (
+    extract_features_from_traces,
+    extract_features_from_patient_features
+)
 
 
-def extract_features_from_traces(traces_df: pd.DataFrame) -> Set[str]:
-    """
-    Extract unique feature names from BupaR traces.
-    
-    Traces contain activity sequences like "ICD:F1120", "CPT:80307", "DRUG:SUBOXONE"
-    """
-    features = set()
-    
-    if traces_df.empty or 'trace' not in traces_df.columns:
-        return features
-    
-    for trace in traces_df['trace']:
-        if pd.isna(trace):
-            continue
-        
-        # Split trace by separator (typically ">>" or ",")
-        activities = str(trace).replace('>>', ',').split(',')
-        for activity in activities:
-            activity = activity.strip()
-            if ':' in activity:
-                # Extract code/drug name after prefix (ICD:, CPT:, DRUG:)
-                parts = activity.split(':', 1)
-                if len(parts) == 2:
-                    prefix, code = parts
-                    # Store as feature name (e.g., "item_icd_80307", "item_drug_SUBOXONE")
-                    if prefix.upper() == 'ICD':
-                        features.add(f"item_icd_{code.strip()}")
-                    elif prefix.upper() == 'CPT':
-                        features.add(f"item_cpt_{code.strip()}")
-                    elif prefix.upper() == 'DRUG':
-                        features.add(f"item_drug_{code.strip()}")
-    
-    return features
-
-
-def extract_features_from_patient_features(features_df: pd.DataFrame) -> Set[str]:
-    """
-    Extract feature names from BupaR patient features DataFrame.
-    
-    Looks for columns that represent feature counts or indicators.
-    """
-    features = set()
-    
-    if features_df.empty:
-        return features
-    
-    # Look for columns that might contain feature information
-    # This is a simplified approach - may need adjustment based on actual BupaR output format
-    for col in features_df.columns:
-        if 'feature' in col.lower() or 'item' in col.lower():
-            # If column contains feature names
-            if features_df[col].dtype == 'object':
-                features.update(features_df[col].dropna().unique())
-    
-    return features
+# extract_features_from_traces and extract_features_from_patient_features moved to py_helpers.feature_utils
 
 
 def analyze_post_target_leakage_from_events(

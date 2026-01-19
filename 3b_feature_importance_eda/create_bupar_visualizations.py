@@ -64,7 +64,8 @@ except ImportError:
 
 def find_r_script(cohort: str) -> Optional[Path]:
     """Find the appropriate R script for the cohort."""
-    r_scripts_dir = PROJECT_ROOT / "9_risk_dashboard" / "bupaR_dashboard_visual"
+    # R scripts for Feature Importance EDA are in 3b_feature_importance_eda/1_bupaR/
+    r_scripts_dir = PROJECT_ROOT / "3b_feature_importance_eda" / "1_bupaR"
     
     if cohort == "opioid_ed":
         r_script = r_scripts_dir / "create_bupar_outputs_opioid_ed.R"

@@ -35,6 +35,11 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
+from py_helpers.feature_utils import (
+    normalize_feature_name,
+    normalize_feature_set,
+    sanitize_feature_names
+)
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET
@@ -118,62 +123,7 @@ def sanitize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def sanitize_feature_names(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Replace spaces and special characters in feature names with underscores.
-    
-    Args:
-        df: DataFrame with 'feature' column containing feature names
-    
-    Returns:
-        DataFrame with sanitized feature names
-    """
-    df = df.copy()
-    if 'feature' in df.columns:
-        # Replace spaces and special characters with underscores
-        df['feature'] = df['feature'].astype(str).apply(
-            lambda x: re.sub(r'[^a-zA-Z0-9_]', '_', x)
-        )
-        # Replace multiple consecutive underscores with single underscore
-        df['feature'] = df['feature'].apply(lambda x: re.sub(r'_+', '_', x))
-        # Remove leading/trailing underscores
-        df['feature'] = df['feature'].str.strip('_')
-    return df
-
-
-def normalize_feature_name(feature: str) -> str:
-    """
-    Normalize feature name to match aggregated importance format.
-    
-    Aggregated importance uses: item_80307, item_SUBOXONE, item_F1120
-    Safe filter uses: item_cpt_80307, item_drug_SUBOXONE, item_icd_F1120
-    
-    This function converts from safe filter format to aggregated importance format.
-    """
-    if not feature.startswith('item_'):
-        return feature
-    
-    # Remove item_ prefix
-    code = feature[5:]
-    
-    # Check if it has type prefix (item_cpt_, item_drug_, item_icd_)
-    if code.startswith('cpt_'):
-        # item_cpt_80307 -> item_80307
-        return f"item_{code[4:]}"
-    elif code.startswith('drug_'):
-        # item_drug_SUBOXONE -> item_SUBOXONE
-        return f"item_{code[5:]}"
-    elif code.startswith('icd_'):
-        # item_icd_F1120 -> item_F1120
-        return f"item_{code[4:]}"
-    else:
-        # Already in normalized format (item_80307)
-        return feature
-
-
-def normalize_feature_set(features: Set[str]) -> Set[str]:
-    """Normalize a set of feature names."""
-    return {normalize_feature_name(f) for f in features}
+# sanitize_feature_names, normalize_feature_name, and normalize_feature_set moved to py_helpers.feature_utils
 
 
 def load_safe_feature_filter(cohort: str, age_band: str, output_dir: Path) -> tuple[Optional[Set[str]], Optional[Set[str]]]:

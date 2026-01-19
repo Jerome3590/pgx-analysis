@@ -36,21 +36,10 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
+from py_helpers.feature_utils import categorize_feature
 
 
-def categorize_feature(feature: str) -> tuple:
-    """Categorize a feature by type and extract the code."""
-    if feature.startswith('item_icd_'):
-        code = feature.replace('item_icd_', '')
-        return ('ICD', code)
-    elif feature.startswith('item_cpt_'):
-        code = feature.replace('item_cpt_', '')
-        return ('CPT', code)
-    elif feature.startswith('item_drug_'):
-        drug = feature.replace('item_drug_', '')
-        return ('Drug', drug)
-    else:
-        return ('Unknown', feature)
+# categorize_feature moved to py_helpers.feature_utils
 
 
 def create_safe_feature_filter_json(
