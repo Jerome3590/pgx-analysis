@@ -985,6 +985,13 @@ def main() -> None:
         type=str,
         help="Process specific age band (e.g., 13-24). Requires --cohort to be specified.",
     )
+    parser.add_argument(
+        "--time-window-days",
+        type=int,
+        default=None,
+        choices=[14, 30, 60, 90, 120],
+        help="Time window in days for checking HCG target events near drug events (default: None, uses Step 2 cohort as-is). Choices: 14, 30, 60, 90, 120. Only applies to polypharmacy cohort (non_opioid_ed).",
+    )
     args = parser.parse_args()
     
     # Ensure local directories exist (idempotent: we overwrite per file)
