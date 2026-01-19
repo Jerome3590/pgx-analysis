@@ -318,6 +318,11 @@ control_result <- ensure_control_cohort_with_ratio(
 
 pgx_df_control <- control_result$pgx_df_control
 
+# Assert that controls are not duplicated (ensures controls are not reused across runs)
+if (nrow(pgx_df_control) > 0) {
+  stopifnot(!anyDuplicated(pgx_df_control$mi_person_key))
+}
+
 pgx_df_all <- bind_rows(
   pgx_df_target1 %>% mutate(group = "target"),
   pgx_df_control %>% mutate(group = "control")

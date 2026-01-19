@@ -352,6 +352,11 @@ if (length(common_cols) > 0 && nrow(pgx_df_control) > 0) {
   }
 }
 
+# Assert that controls are not duplicated (ensures controls are not reused across runs)
+if (nrow(pgx_df_control) > 0) {
+  stopifnot(!anyDuplicated(pgx_df_control$mi_person_key))
+}
+
 pgx_df_all <- bind_rows(
   pgx_df_target1 %>% mutate(group = "target"),
   pgx_df_control %>% mutate(group = "control")
