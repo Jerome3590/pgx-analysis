@@ -103,13 +103,14 @@ log_message() {
 }
 
 # Function to check and log S3 path
+# Returns 0 if path exists, 0 if missing (not an error), 0 if skipped
 check_s3_path() {
     local path=$1
     local description=$2
     
     if [ "$SKIP_S3" = true ]; then
         log_message "[SKIP S3] $description"
-        return 1
+        return 0  # Not an error, just skipped
     fi
     
     if aws s3 ls "$path" &>/dev/null; then
@@ -123,18 +124,19 @@ check_s3_path() {
     else
         log_message "[S3 MISSING] $description"
         log_message "            Path: $path"
-        return 1
+        return 0  # Missing path is not an error, just informational
     fi
 }
 
 # Function to check and log local path
+# Returns 0 if path exists, 0 if missing (not an error), 0 if skipped
 check_local_path() {
     local path=$1
     local description=$2
     
     if [ "$SKIP_LOCAL" = true ]; then
         log_message "[SKIP LOCAL] $description"
-        return 1
+        return 0  # Not an error, just skipped
     fi
     
     if [ -d "$path" ] || [ -f "$path" ]; then
@@ -155,7 +157,7 @@ check_local_path() {
     else
         log_message "[LOCAL MISSING] $description"
         log_message "               Path: $path"
-        return 1
+        return 0  # Missing path is not an error, just informational
     fi
 }
 
