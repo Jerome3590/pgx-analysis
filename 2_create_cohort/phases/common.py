@@ -27,6 +27,8 @@ if project_root not in sys.path:
 
 # Import constants (py_helpers)
 from py_helpers.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
+from py_helpers.env_utils import get_data_root, is_linux
+from pathlib import Path
 
 # Provide no-op shims for advanced duckdb utils to match simplified helpers
 def cleanup_duckdb_temp_files(logger):
@@ -133,6 +135,15 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
 
     This allows later phases to run even if Phase 1 was skipped due to checkpoints.
     """
+    # Resolve paths (prefer local /mnt/nvme over S3)
+    medical_path = resolve_gold_data_path("medical", age_band, event_year)
+    pharmacy_path = resolve_gold_data_path("pharmacy", age_band, event_year)
+    
+    if not medical_path.startswith("s3://"):
+        logger.info(f"[ensure_gold_views] Using local medical path: {medical_path}")
+    if not pharmacy_path.startswith("s3://"):
+        logger.info(f"[ensure_gold_views] Using local pharmacy path: {pharmacy_path}")
+    
     # Ensure `medical` view
     try:
         conn.sql("SELECT 1 FROM medical LIMIT 1").fetchone()
@@ -178,7 +189,7 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
             hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('s3://pgxdatalake/gold/medical/age_band={age_band}/event_year={event_year}/medical_data.parquet')
+        FROM read_parquet('{medical_path}')
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND event_date IS NOT NULL;
@@ -215,7 +226,7 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
             NULL::VARCHAR AS therapeutic_class_1,
             TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('s3://pgxdatalake/gold/pharmacy/age_band={age_band}/event_year={event_year}/pharmacy_data.parquet')
+        FROM read_parquet('{pharmacy_path}')
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND incurred_date IS NOT NULL

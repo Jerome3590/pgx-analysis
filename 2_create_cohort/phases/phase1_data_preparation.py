@@ -12,6 +12,7 @@ from .common import (
     disable_query_profiling,
     force_checkpoint,
     execute_sql_with_dev_validation,
+    resolve_gold_data_path,
 )
 
 
@@ -80,7 +81,7 @@ def run_phase1_data_preparation(context):
             hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('s3://pgxdatalake/gold/medical/age_band={age_band}/event_year={event_year}/medical_data.parquet')
+        FROM read_parquet('{medical_path}')
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND event_date IS NOT NULL;
@@ -117,7 +118,7 @@ def run_phase1_data_preparation(context):
             -- Build event_date here from incurred_date for cohort processing
             TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('s3://pgxdatalake/gold/pharmacy/age_band={age_band}/event_year={event_year}/pharmacy_data.parquet')
+        FROM read_parquet('{pharmacy_path}')
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND incurred_date IS NOT NULL
