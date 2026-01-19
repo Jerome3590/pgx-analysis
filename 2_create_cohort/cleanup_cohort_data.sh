@@ -247,10 +247,21 @@ delete_local_path() {
             local size_before=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
             log_message "              Size before: $size_before"
         fi
+        # Temporarily disable set -e for rm command
+        set +e
         rm -rf "$path"
-        echo -e "${GREEN}[LOCAL]${NC} Deleted: $description"
-        log_message "              Status: DELETED"
-        ((DELETED_COUNT++))
+        local rm_status=$?
+        set -e
+        if [ $rm_status -eq 0 ]; then
+            echo -e "${GREEN}[LOCAL]${NC} Deleted: $description"
+            log_message "              Status: DELETED"
+            set +e
+            ((DELETED_COUNT++))
+            set -e
+        else
+            echo -e "${YELLOW}[LOCAL]${NC} Deletion may have failed: $description"
+            log_message "              Status: DELETION ATTEMPTED (exit code: $rm_status)"
+        fi
     else
         echo -e "${YELLOW}[LOCAL]${NC} Path not found (may already be deleted): $description"
         log_message "              Status: NOT FOUND (already deleted or doesn't exist)"
