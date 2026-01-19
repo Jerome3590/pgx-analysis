@@ -262,7 +262,7 @@ def create_control_cohort_model_data(
             ) AS has_opioid_icd,
             MAX(
                 CASE
-                    WHEN hcg_line IS NOT NULL THEN 1
+                    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1
                     ELSE 0
                 END
             ) AS has_ed_visit
