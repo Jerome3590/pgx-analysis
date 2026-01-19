@@ -18,7 +18,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **[README_feature_importance.md](Step3_FeatureImportance/README_feature_importance.md)** - Feature importance analysis methodology
 - **[README_feature_importance_visualization.md](Step3_FeatureImportance/README_feature_importance_visualization.md)** - Feature importance visualization guide
 
-### Step 3b: Feature Refinement (BupaR + DTW)
+### Step 3b: Feature Refinement (BupaR Post-Target Analysis)
 **Code**: `3b_feature_importance_eda/`
 
 - **BupaR Post-Target Analysis** – Identifies post-target leakage features
@@ -167,7 +167,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 docs/
 ├── Step1-2_DataPipeline/      # Data pipeline & cohort creation
 ├── Step3_FeatureImportance/   # Step 3: Feature importance analysis
-├── Step3b_FeatureRefinement/  # Step 3b: Feature refinement (BupaR + DTW) - NEW
+├── Step3b_FeatureRefinement/  # Step 3b: Feature refinement (BupaR post-target analysis) - NEW
 ├── Step4_ModelData/           # Step 4: Model data, DTW protocol filter, and extreme-density split
 ├── Step5_PGxAnalysis/        # Step 5: Pharmacogenomic (PGx) feature engineering
 ├── Step6_FinalModel/          # Step 6: Final model development
