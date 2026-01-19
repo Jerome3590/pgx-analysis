@@ -128,9 +128,28 @@ ensure_control_cohort_with_ratio <- function(
     
     # Call Python utility function to ensure control cohort with correct ratio
     python_script <- file.path(project_root, "4a_model_data", "ensure_control_cohort.py")
-    python_cmd <- Sys.which("python3")
+    
+    # Check for jupyter-env Python first (same logic as workflow script)
+    python_cmd <- ""
+    if (file.exists("/home/pgx3874/jupyter-env/bin/python3.11")) {
+      python_cmd <- "/home/pgx3874/jupyter-env/bin/python3.11"
+    } else if (file.exists(file.path(Sys.getenv("HOME"), "jupyter-env", "bin", "python3"))) {
+      python_cmd <- file.path(Sys.getenv("HOME"), "jupyter-env", "bin", "python3")
+    } else if (file.exists(file.path(project_root, "venv", "bin", "python3"))) {
+      python_cmd <- file.path(project_root, "venv", "bin", "python3")
+    } else if (Sys.getenv("VIRTUAL_ENV") != "") {
+      venv_python <- file.path(Sys.getenv("VIRTUAL_ENV"), "bin", "python3")
+      if (file.exists(venv_python)) {
+        python_cmd <- venv_python
+      }
+    }
+    
+    # Fallback to system Python
     if (python_cmd == "") {
-      python_cmd <- Sys.which("python")
+      python_cmd <- Sys.which("python3")
+      if (python_cmd == "") {
+        python_cmd <- Sys.which("python")
+      }
     }
     
     if (python_cmd != "" && file.exists(python_script)) {
@@ -146,11 +165,24 @@ ensure_control_cohort_with_ratio <- function(
       cat("[INFO] Running: ", python_cmd, " ", paste(recreate_cmd, collapse = " "), "\n", sep = "")
       recreate_result <- system2(python_cmd, recreate_cmd, stdout = TRUE, stderr = TRUE)
       
+      # Print Python script output for debugging
+      if (length(recreate_result) > 0) {
+        cat("Python script output:\n")
+        cat(paste(recreate_result, collapse = "\n"), "\n")
+      }
+      
+      # Check return code (system2 returns exit status as attribute)
+      exit_status <- attr(recreate_result, "status")
+      if (!is.null(exit_status) && exit_status != 0) {
+        cat("[ERROR] Python script exited with code: ", exit_status, "\n", sep = "")
+      }
+      
       if (file.exists(control_model_data_path)) {
         cat("[OK] Control cohort validated/recreated successfully\n")
         was_recreated <- TRUE
       } else {
-        cat("[WARN] Control cohort validation/recreation may have failed. Check output above.\n")
+        cat("[WARN] Control cohort validation/recreation may have failed. File not found: ", control_model_data_path, "\n", sep = "")
+        cat("[WARN] Check Python script output above for errors.\n")
       }
     } else {
       cat("[ERROR] Cannot validate/recreate control cohort: Python or script not found\n")
