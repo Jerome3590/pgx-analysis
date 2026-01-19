@@ -41,18 +41,16 @@ def get_model_data_root() -> Path:
 
 def resolve_local_medical_root() -> Path:
     """Resolve the root directory containing gold medical parquet files."""
-    local_data_path = os.getenv("LOCAL_DATA_PATH", "")
-    if local_data_path:
-        return Path(local_data_path) / "gold_medical"
-    return PROJECT_ROOT / "data" / "gold_medical"
+    # Use get_data_root() which returns /mnt/nvme on EC2, or LOCAL_DATA_PATH if set
+    data_root = get_data_root()
+    return data_root / "gold_medical"
 
 
 def resolve_local_pharmacy_root() -> Path:
     """Resolve the root directory containing gold pharmacy parquet files."""
-    local_data_path = os.getenv("LOCAL_DATA_PATH", "")
-    if local_data_path:
-        return Path(local_data_path) / "gold_pharmacy"
-    return PROJECT_ROOT / "data" / "gold_pharmacy"
+    # Use get_data_root() which returns /mnt/nvme on EC2, or LOCAL_DATA_PATH if set
+    data_root = get_data_root()
+    return data_root / "gold_pharmacy"
 
 
 def create_control_cohort_model_data(
