@@ -195,13 +195,13 @@ def ensure_control_cohort_with_ratio(
         if is_valid:
             print(
                 f"[OK] Control cohort ratio validation passed: {actual_ratio:.2f}:1 "
-                f"({n_controls} controls, {n_cases} cases)"
+                f"({n_controls:,} distinct controls, {n_cases:,} distinct targets)"
             )
             return (control_cohort_path, False)
         else:
             print(
                 f"[WARN] Control cohort ratio validation failed: {actual_ratio:.2f}:1 "
-                f"({n_controls} controls, {n_cases} cases)"
+                f"({n_controls:,} distinct controls, {n_cases:,} distinct targets)"
             )
             print(f"[INFO] Expected ratio: {expected_ratio:.2f}:1 (tolerance: {expected_ratio * (1 - tolerance):.2f}-{expected_ratio * (1 + tolerance):.2f}:1)")
             print(f"[INFO] Will recreate control cohort to achieve {expected_ratio:.2f}:1 ratio...")
