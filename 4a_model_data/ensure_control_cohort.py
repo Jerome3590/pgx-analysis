@@ -29,7 +29,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import DEFAULT_SAMPLE_RATIO
+from py_helpers.constants import DEFAULT_SAMPLE_RATIO, get_cohort_slug
 from py_helpers.env_utils import get_data_root, is_linux
 
 try:
@@ -50,9 +50,23 @@ def get_model_data_root() -> Path:
 
 
 def get_control_cohort_path(control_cohort: str, age_band: str) -> Path:
-    """Get the path to control cohort model_events.parquet (OS-aware)."""
+    """Get the path to control cohort model_events.parquet (OS-aware).
+    
+    New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet
+    where slug is "opioid" or "polypharmacy" based on age band.
+    """
     model_data_root = get_model_data_root()
-    return model_data_root / f"cohort_name={control_cohort}" / f"age_band={age_band}" / "model_events.parquet"
+    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+    cohort_slug = get_cohort_slug(age_band)
+    # New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/
+    return (
+        model_data_root 
+        / "cohorts" 
+        / "input_model_data"
+        / f"cohort_name={cohort_slug}" 
+        / f"age_band={age_band}" 
+        / "model_events.parquet"
+    )
 
 
 def download_control_cohort_from_s3(control_cohort: str, age_band: str, local_path: Path) -> bool:
@@ -60,7 +74,10 @@ def download_control_cohort_from_s3(control_cohort: str, age_band: str, local_pa
     import subprocess
     import shutil
     
-    s3_path = f"s3://pgxdatalake/gold/cohorts_model_data/cohort_name={control_cohort}/age_band={age_band}/model_events.parquet"
+    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+    cohort_slug = get_cohort_slug(age_band)
+    # New format: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/
+    s3_path = f"s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={cohort_slug}/age_band={age_band}/model_events.parquet"
     
     # Check if exists in S3
     if not check_s3_output_exists(s3_path):

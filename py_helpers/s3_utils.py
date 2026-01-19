@@ -1222,7 +1222,8 @@ def get_cohort_parquet_path(
         raise ValueError(
             "Target not configured. Set PGX_TARGET_NAME or one of PGX_TARGET_ICD_CODES/PGX_TARGET_CPT_CODES/PGX_TARGET_ICD_PREFIXES/PGX_TARGET_CPT_PREFIXES"
         )
-    base_dir = f"s3://{bucket_name}/gold/cohorts_{dir_slug}/"
+    # New format: s3://pgxdatalake/gold/cohorts/ (not cohorts_{dir_slug}/)
+    base_dir = f"s3://{bucket_name}/gold/cohorts/"
     return (
         f"{base_dir}"
         f"cohort_name={cohort_slug}/event_year={event_year}/age_band={age_band}/cohort.parquet"

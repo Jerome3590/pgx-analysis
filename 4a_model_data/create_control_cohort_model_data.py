@@ -32,6 +32,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import (
     get_opioid_icd_sql_condition,
+    get_cohort_slug,
 )
 from py_helpers.env_utils import get_data_root, is_linux
 
@@ -163,8 +164,17 @@ def create_control_cohort_model_data(
     
     print(f"[INFO] Found {len(medical_parquet_paths)} medical files and {len(pharmacy_parquet_paths)} pharmacy files")
     
-    # Create output directory
-    out_dir = output_root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
+    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+    cohort_slug = get_cohort_slug(age_band)
+    
+    # New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/
+    out_dir = (
+        output_root 
+        / "cohorts" 
+        / "input_model_data"
+        / f"cohort_name={cohort_slug}" 
+        / f"age_band={age_band}"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
     
@@ -337,7 +347,9 @@ def create_control_cohort_model_data(
     """
     
     try:
-        print(f"[INFO] Creating control cohort model_events.parquet for {cohort_name}/{age_band}...")
+        # Get cohort slug based on age band
+        cohort_slug = get_cohort_slug(age_band)
+        print(f"[INFO] Creating control cohort model_events.parquet for {cohort_slug}/{age_band}...")
         print(f"[INFO] POLYPHARMACY COHORT control definition (time window: {time_window_days} days):")
         print(f"[INFO]   - Patients with drug events (pharmacy events)")
         print(f"[INFO]   - NO time-windowed HCG target events within {time_window_days} days of drug events")

@@ -45,17 +45,21 @@ def check_s3_file_controls(s3_path, profile='mushin'):
 
 
 def main():
-    cohort = 'opioid_ed'
     age_bands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-94']
     
     print('=== Checking model_events.parquet files in S3 for controls ===')
     print('')
     
-    s3_base = f's3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort}/age_band='
+    # Import get_cohort_slug to determine slug based on age band
+    # Age bands < 65 use "opioid" slug, >= 65 use "polypharmacy" slug
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from py_helpers.constants import get_cohort_slug
     
     results = {}
     for age_band in age_bands:
-        s3_path = f'{s3_base}{age_band}/model_events.parquet'
+        # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+        cohort_slug = get_cohort_slug(age_band)
+        s3_path = f's3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={cohort_slug}/age_band={age_band}/model_events.parquet'
         
         # Check if file exists first
         ls_result = subprocess.run(
@@ -65,10 +69,10 @@ def main():
         
         if ls_result.returncode != 0:
             results[age_band] = {'error': 'File not found'}
-            print(f'{cohort}/{age_band}: [NOT FOUND]')
+            print(f'{cohort_slug}/{age_band}: [NOT FOUND]')
             continue
         
-        print(f'Checking {cohort}/{age_band}...', end=' ', flush=True)
+        print(f'Checking {cohort_slug}/{age_band}...', end=' ', flush=True)
         result = check_s3_file_controls(s3_path)
         
         if 'error' in result:
@@ -90,20 +94,23 @@ def main():
     print(f'Valid (with controls): {len(valid)}')
     for ab in valid:
         r = results[ab]
-        print(f'  ✓ {cohort}/{ab}: {r["n_controls"]:,} controls, {r["n_cases"]:,} cases')
+        cohort_slug = get_cohort_slug(ab)
+        print(f'  ✓ {cohort_slug}/{ab}: {r["n_controls"]:,} controls, {r["n_cases"]:,} cases')
     
     if invalid:
         print(f'')
         print(f'Invalid (no controls): {len(invalid)}')
         for ab in invalid:
             r = results[ab]
-            print(f'  ✗ {cohort}/{ab}: {r.get("n_controls", 0):,} controls, {r.get("n_cases", 0):,} cases')
+            cohort_slug = get_cohort_slug(ab)
+            print(f'  ✗ {cohort_slug}/{ab}: {r.get("n_controls", 0):,} controls, {r.get("n_cases", 0):,} cases')
     
     if missing:
         print(f'')
         print(f'Missing: {len(missing)}')
         for ab in missing:
-            print(f'  - {cohort}/{ab}')
+            cohort_slug = get_cohort_slug(ab)
+            print(f'  - {cohort_slug}/{ab}')
 
 
 if __name__ == '__main__':

@@ -221,6 +221,26 @@ def get_target_name(age_band: str) -> str:
         return "ED visit (HCG)"
 
 
+def get_cohort_slug(age_band: str) -> str:
+    """
+    Get the cohort slug for S3 paths based on age band.
+    
+    Rules:
+    - Age bands < 65 (13-24, 25-44, 45-54, 55-64): Use "opioid" slug
+    - Age bands >= 65 (65-74, 75-84, 85-94): Use "polypharmacy" slug
+    
+    Args:
+        age_band: Age band string (e.g., "13-24", "65-74")
+    
+    Returns:
+        "opioid" for age bands < 65, "polypharmacy" for age bands >= 65
+    """
+    if age_band_uses_f1120_target(age_band):
+        return "opioid"
+    else:
+        return "polypharmacy"
+
+
 def age_band_to_fname(age_band: str) -> str:
     """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
     return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
