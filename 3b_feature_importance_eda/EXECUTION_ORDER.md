@@ -98,10 +98,20 @@ The pipeline now executes in this order:
 - Informs Step 4b event-level filtering (not used in Step 3b feature filtering)
 - Provides documentation and validation of code classifications
 
-## Running Step 3b
+## Running Feature Importance EDA
+
+**⚠️ Important: Use Full Path to Python Jupyter Environment**
+
+All scripts require the **full path to the Python jupyter environment** to ensure they use the correct Python interpreter and installed packages.
 
 ```bash
-# Run for a single cohort/age band
+# Find your jupyter environment Python path
+which python  # or: which python3
+
+# Run for a single cohort/age band (using full path)
+/opt/conda/envs/jupyter-env/bin/python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+
+# Or if python is already in PATH and points to jupyter-env:
 python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
 
 # The pipeline will:
