@@ -237,17 +237,12 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     values_to = "code"
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
+  # For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
+  filter(source == "drug_name") %>%
   mutate(
     # Replace spaces and forward slashes with underscores in drug names
-    code_cleaned = ifelse(source == "drug_name", 
-                         gsub("[ /]", "_", code), 
-                         code),
-    activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code_cleaned),
-      grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
-      source == "procedure_code" ~ paste0("CPT:", code),
-      TRUE ~ code
-    ),
+    code_cleaned = gsub("[ /]", "_", code),
+    activity = paste0("DRUG:", code_cleaned),
     timestamp = as.POSIXct(event_date)
   ) %>%
   select(-code_cleaned)  # Remove temporary column
@@ -386,17 +381,12 @@ pgx_df_all_long <- pgx_df_all %>%
     values_to = "code"
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
+  # For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
+  filter(source == "drug_name") %>%
   mutate(
     # Replace spaces and forward slashes with underscores in drug names
-    code_cleaned = ifelse(source == "drug_name", 
-                         gsub("[ /]", "_", code), 
-                         code),
-    activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code_cleaned),
-      grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
-      source == "procedure_code" ~ paste0("CPT:", code),
-      TRUE ~ code
-    ),
+    code_cleaned = gsub("[ /]", "_", code),
+    activity = paste0("DRUG:", code_cleaned),
     timestamp = as.POSIXct(event_date)
   ) %>%
   select(-code_cleaned)  # Remove temporary column
@@ -521,27 +511,27 @@ if (n_events(pre_target_eventlog) == 0) {
   )
   
 } else {
-  # 1) Trace explorer (printed summary; visuals if running interactively)
+# 1) Trace explorer (printed summary; visuals if running interactively)
   tryCatch({
-    trace_explorer(pre_target_eventlog, coverage = 0.8)
+trace_explorer(pre_target_eventlog, coverage = 0.8)
   }, error = function(e) {
     cat("Warning: trace_explorer failed:", conditionMessage(e), "\n")
   })
-  
-  # 2) Drug-only sequences before HCG
+
+# 2) Drug-only sequences before HCG
   pre_drug_sequences <- pre_target_eventlog %>%
-    arrange(case_id, timestamp) %>%
-    filter(grepl("^DRUG:", activity)) %>%
-    group_by(case_id) %>%
-    summarise(
-      drug_sequence = list(activity),
-      .groups = "drop"
-    )
-  
-  cat("Sample pre-HCG drug-only sequences:\n")
-  print(head(pre_drug_sequences))
-  
-  # 3) Process map for pre-HCG trajectories
+  arrange(case_id, timestamp) %>%
+  filter(grepl("^DRUG:", activity)) %>%
+  group_by(case_id) %>%
+  summarise(
+    drug_sequence = list(activity),
+    .groups = "drop"
+  )
+
+cat("Sample pre-HCG drug-only sequences:\n")
+print(head(pre_drug_sequences))
+
+# 3) Process map for pre-HCG trajectories
   # Filter eventlog to ensure valid events before calling process_map
   tryCatch({
     valid_pre_eventlog <- pre_target_eventlog %>%
@@ -558,24 +548,25 @@ if (n_events(pre_target_eventlog) == 0) {
   }, error = function(e) {
     cat("Warning: process_map failed:", conditionMessage(e), "\n")
   })
-  
-  # 4) Per-patient pre-HCG features
+
+# 4) Per-patient pre-HCG features
   pre_patient_features <- pre_target_eventlog %>%
-    arrange(case_id, timestamp) %>%
-    group_by(case_id) %>%
-    summarise(
-      pre_n_events            = n(),
+  arrange(case_id, timestamp) %>%
+  group_by(case_id) %>%
+  summarise(
+    pre_n_events            = n(),
       pre_n_drug_events       = sum(grepl("^DRUG:", activity)),
-      pre_n_icd_events        = sum(grepl("^ICD:", activity)),
-      pre_n_cpt_events        = sum(grepl("^CPT:", activity)),
-      pre_n_unique_activities = n_distinct(activity),
-      .groups = "drop"
-    )
-  
-  save_bupar_csv(
-    pre_patient_features,
-    sprintf("%s_%s_train_target_pre_hcg_patient_features_bupar.csv", cohort_name, age_band_fname)
+      # For polypharmacy cohort, only drug events exist (ICD/CPT filtered out)
+      pre_n_icd_events        = 0L,
+      pre_n_cpt_events        = 0L,
+    pre_n_unique_activities = n_distinct(activity),
+    .groups = "drop"
   )
+
+save_bupar_csv(
+  pre_patient_features,
+  sprintf("%s_%s_train_target_pre_hcg_patient_features_bupar.csv", cohort_name, age_band_fname)
+)
 }
 
 # -------------------------------------------------------------------
@@ -607,9 +598,9 @@ if (!exists("target_date_map")) {
     # Fallback: use first event date for each patient
     target_date_map <- pgx_df_target1 %>%
       group_by(mi_person_key) %>%
-      summarise(
+  summarise(
         target_date = min(event_date, na.rm = TRUE),
-        .groups = "drop"
+    .groups = "drop"
       ) %>%
       rename(case_id = mi_person_key)
   }
@@ -625,10 +616,10 @@ target_times <- target_date_map %>%
 # Only create time-to-HCG features if we have pre-HCG events
 if (n_events(pre_target_eventlog) > 0) {
   pre_events_with_t <- pre_target_eventlog %>%
-    inner_join(target_times, by = "case_id") %>%
-    mutate(
-      dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
-    )
+  inner_join(target_times, by = "case_id") %>%
+  mutate(
+    dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
+  )
 } else {
   # Create empty data frame with same structure
   pre_events_with_t <- data.frame(
@@ -657,12 +648,13 @@ hcg_time_features <- pre_events_with_t %>%
     n_drug_events_30d       = sum(dt_days <= 30 & grepl("^DRUG:", activity)),
     n_drug_events_90d       = sum(dt_days <= 90 & grepl("^DRUG:", activity)),
     n_drug_events_180d      = sum(dt_days <= 180 & grepl("^DRUG:", activity)),
-    n_icd_events_30d        = sum(dt_days <= 30 & grepl("^ICD:", activity)),
-    n_icd_events_90d        = sum(dt_days <= 90 & grepl("^ICD:", activity)),
-    n_icd_events_180d       = sum(dt_days <= 180 & grepl("^ICD:", activity)),
-    n_cpt_events_30d        = sum(dt_days <= 30 & grepl("^CPT:", activity)),
-    n_cpt_events_90d        = sum(dt_days <= 90 & grepl("^CPT:", activity)),
-    n_cpt_events_180d       = sum(dt_days <= 180 & grepl("^CPT:", activity)),
+    # For polypharmacy cohort, only drug events exist (ICD/CPT filtered out)
+    n_icd_events_30d        = 0L,
+    n_icd_events_90d        = 0L,
+    n_icd_events_180d       = 0L,
+    n_cpt_events_30d        = 0L,
+    n_cpt_events_90d        = 0L,
+    n_cpt_events_180d       = 0L,
     .groups = "drop"
   )
 
@@ -756,11 +748,11 @@ tryCatch({
     # Check if we have enough events/cases for process_matrix
     if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
       pm_target <- process_matrix(valid_eventlog, type = "frequency")
-      pm_target_df <- as.data.frame(pm_target)
-      save_bupar_csv(
-        pm_target_df,
-        sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-      )
+pm_target_df <- as.data.frame(pm_target)
+save_bupar_csv(
+  pm_target_df,
+  sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+)
     } else {
       cat("Warning: Not enough valid drug events/cases for process_matrix (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
       pm_target_df <- data.frame()
@@ -825,7 +817,7 @@ tryCatch({
 })
 
 # 4) ggplot2 Visualizations (PNG files)
-# For polypharmacy cohort, create visualizations for all events (not just drugs)
+# For polypharmacy cohort, only drug events exist (ICD/CPT filtered out)
 plots_dir <- file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
 if (!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE)
 
@@ -850,15 +842,11 @@ if (nrow(target_activity_freq) > 0) {
 }
 
 # Gantt-style timeline (patient = job, activity = stage)
+# For polypharmacy cohort, all activities are drugs (ICD/CPT filtered out)
 # Sample up to 30 cases for visualization
 target_events_df <- as.data.frame(target_eventlog) %>%
   arrange(case_id, timestamp) %>%
-  mutate(event_type = case_when(
-    grepl("^DRUG:", activity) ~ "Drug",
-    grepl("^ICD:", activity) ~ "Diagnosis",
-    grepl("^CPT:", activity) ~ "Procedure",
-    TRUE ~ "Other"
-  )) %>%
+  mutate(event_type = "Drug") %>%
   # For point events, add small duration (1 day) to create visible bars
   mutate(start_time = timestamp,
          end_time = timestamp + lubridate::ddays(1))
