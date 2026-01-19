@@ -991,7 +991,7 @@ def main() -> None:
         "--time-window-days",
         type=int,
         default=None,
-        choices=[14, 30, 60, 90, 120],
+        choices=[7, 14, 21, 30, 45],
         help="DEPRECATED: Time window is now handled in Step 2 (2_create_cohort). This argument is ignored.",
     )
     args = parser.parse_args()

@@ -263,8 +263,8 @@ def main():
     parser.add_argument("--target-name", default=None, help="Optional target name to set (overrides PGX_TARGET_NAME env)")
     parser.add_argument("--target-icd-codes", default=None, help="Optional ICD codes string (comma-separated) to set PGX_TARGET_ICD_CODES")
     parser.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
-    parser.add_argument("--time-window-days", type=int, default=14, choices=[14, 30, 60, 90, 120],
-                       help="Time window in days for checking HCG target events near drug events for polypharmacy cohort (default: 14, choices: 14, 30, 60, 90, 120)")
+    parser.add_argument("--time-window-days", type=int, default=None, choices=[7, 14, 21, 30, 45],
+                       help="DEPRECATED: Multi-classification by time windows (7, 14, 21, 30, 45 days) is now automatic. This argument is ignored.")
     
     args = parser.parse_args()
     # If target overrides provided on CLI, set environment variables *before* reloading constants/s3_utils

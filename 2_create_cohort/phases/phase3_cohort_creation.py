@@ -26,7 +26,7 @@ def run_phase3_step3_final_cohort_fact(context):
     age_band = context["age_band"]
     event_year = context["event_year"]
     pipeline_state = context.get("pipeline_state")
-    time_window_days = context.get("time_window_days", 14)  # Default 14 days, supports 14, 30, 60, 90, 120
+    time_window_days = context.get("time_window_days", 14)  # Default 14 days, supports 7, 14, 21, 30, 45
     
     step_name = "phase3_step3_final_cohort_fact"
     
@@ -268,31 +268,69 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM unified_event_fact_table
                 WHERE {opioid_icd_condition}
             ),
-            target_cases AS (
-                SELECT DISTINCT mi_person_key
-                FROM unified_event_fact_table
-                WHERE event_classification = '{label_ed_non_opioid}'
-                  AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
-            ),
-            first_target_dates AS (
-                -- Find first ED_NON_OPIOID target event date per patient
+            hcg_target_events AS (
+                -- Get all HCG target events (ED visits) for patients without opioid codes
                 SELECT 
                     mi_person_key,
-                    MIN(event_date) as first_ed_non_opioid_date
+                    event_date as hcg_event_date
                 FROM unified_event_fact_table
                 WHERE event_classification = '{label_ed_non_opioid}'
                   AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
-                GROUP BY mi_person_key
+            ),
+            drug_events AS (
+                -- Get all drug events (pharmacy events)
+                SELECT 
+                    mi_person_key,
+                    event_date as drug_event_date
+                FROM unified_event_fact_table
+                WHERE event_type = 'pharmacy'
+            ),
+            drug_hcg_pairs AS (
+                -- For each patient, find pairs where HCG target event occurs within time_window_days of drug event
+                -- POLYPHARMACY COHORT: Target cases must have HCG target events within X days of drug events
+                SELECT DISTINCT
+                    de.mi_person_key,
+                    de.drug_event_date,
+                    hte.hcg_event_date
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL {time_window_days} DAY)
+            ),
+            patients_with_hcg_in_window AS (
+                -- Get distinct patients who have HCG target events within time window of drug events
+                SELECT DISTINCT mi_person_key
+                FROM drug_hcg_pairs
+            ),
+            patients_with_drug_events AS (
+                -- POLYPHARMACY COHORT: Controls must have drug events (pharmacy events)
+                SELECT DISTINCT mi_person_key
+                FROM drug_events
+            ),
+            target_cases AS (
+                -- POLYPHARMACY COHORT: Target cases are patients with drug events AND HCG target events within time window
+                SELECT DISTINCT mi_person_key
+                FROM patients_with_hcg_in_window
+            ),
+            first_target_dates AS (
+                -- Find first ED_NON_OPIOID target event date per patient (from time-windowed pairs)
+                SELECT 
+                    dhp.mi_person_key,
+                    MIN(dhp.hcg_event_date) as first_ed_non_opioid_date
+                FROM drug_hcg_pairs dhp
+                GROUP BY dhp.mi_person_key
             ),
             control_candidates AS (
+                -- POLYPHARMACY COHORT: Control candidates must have drug events AND NO HCG target events within time window
                 -- Select control candidates (any event type - medical or pharmacy)
                 -- The final fallback in control_reference_dates ensures ALL sampled controls get a reference date
-                SELECT DISTINCT mi_person_key
-                FROM unified_event_fact_table
-                WHERE event_classification != '{label_ed_non_opioid}'
-                  AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
-                  AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+                SELECT DISTINCT pde.mi_person_key
+                FROM patients_with_drug_events pde
+                WHERE pde.mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM patients_with_hcg_in_window)
                   -- Exclude opioid patients from controls as well - complete separation
+                  -- Exclude patients with HCG target events within time window (these are targets)
             ),
             sampled_controls AS (
                 -- Sample distinct controls only (no reuse WITHIN this cohort to maintain statistical independence)
@@ -421,7 +459,7 @@ def run_phase3_step3_final_cohort_fact(context):
                   OR (sc.mi_person_key IS NOT NULL AND (
                       ewd.event_type = 'medical'
                       OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
-                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= {time_window_days})
                   ))
               );
             """
@@ -475,8 +513,8 @@ def run_phase3_step3_final_cohort_fact(context):
                 SELECT 
                     COUNT(*) as total_drug_events,
                     COUNT(DISTINCT mi_person_key) as patients_with_drugs,
-                    COUNT(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 30 THEN 1 END) as drugs_in_30day_window,
-                    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 30 THEN days_to_target_event END) as avg_days_in_window
+                    COUNT(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= {time_window_days} THEN 1 END) as drugs_in_time_window,
+                    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= {time_window_days} THEN days_to_target_event END) as avg_days_in_window
                 FROM ed_non_opioid_cohort
                 WHERE event_type = 'pharmacy' AND is_target_case = 1
                 """).fetchone()
@@ -484,7 +522,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     logger.info(f"→ [PHASE 3 STEP 3] ED_NON_OPIOID Drug Window Stats (target cases):")
                     logger.info(f"  Total drug events: {drug_window_stats[0]:,}")
                     logger.info(f"  Patients with drugs: {drug_window_stats[1]:,}")
-                    logger.info(f"  Drugs in 30-day window: {drug_window_stats[2]:,}")
+                    logger.info(f"  Drugs in {time_window_days}-day window: {drug_window_stats[2]:,}")
                     if drug_window_stats[3]:
                         logger.info(f"  Avg days in window: {drug_window_stats[3]:.1f}")
             except Exception as e:
@@ -589,5 +627,8 @@ def run_phase3_step3_final_cohort_fact(context):
         if pipeline_state:
             pipeline_state.mark_step_failed(step_name, str(e))
         cleanup_duckdb_temp_files(logger)
+        raise
+
+
         raise
 
