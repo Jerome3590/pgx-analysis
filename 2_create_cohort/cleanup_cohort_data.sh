@@ -174,10 +174,21 @@ delete_s3_path() {
     echo -e "${YELLOW}[S3]${NC} Deleting: $description"
     log_message "[S3 DELETE] $description"
     log_message "           Path: $path"
-    if aws s3 ls "$path" &>/dev/null; then
+    # Temporarily disable set -e to prevent script exit on error
+    set +e
+    aws s3 ls "$path" &>/dev/null
+    local ls_status=$?
+    set -e
+    
+    if [ $ls_status -eq 0 ]; then
+        # Get size before deletion (may fail, but that's OK)
+        set +e
         local size_before=$(aws s3 ls "$path" --recursive --summarize 2>/dev/null | grep "Total Size" | awk '{print $3, $4}')
-        log_message "           Size before: $size_before"
-        # Temporarily disable set -e for this command to prevent script exit on error
+        set -e
+        if [ -n "$size_before" ]; then
+            log_message "           Size before: $size_before"
+        fi
+        # Temporarily disable set -e for deletion command to prevent script exit on error
         set +e
         aws s3 rm "$path" --recursive
         local delete_status=$?
