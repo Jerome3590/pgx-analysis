@@ -66,42 +66,6 @@ from py_helpers.checkpoint_utils import upload_file_to_s3
 
 
 # load_safe_feature_filter moved to py_helpers.feature_importance_eda_utils
-def _load_safe_feature_filter_legacy(cohort: str, age_band: str, output_dir: Path) -> tuple[Optional[Set[str]], Optional[Set[str]]]:
-    """
-    Load safe feature filter JSON and return sets of features to keep (cases) and exclude (controls).
-    
-    Normalizes feature names to match aggregated importance format:
-    - item_cpt_80307 -> item_80307
-    - item_drug_SUBOXONE -> item_SUBOXONE
-    - item_icd_F1120 -> item_F1120
-    
-    Returns:
-        Tuple of (features_to_keep_for_cases, features_to_exclude_for_controls)
-        Both are normalized sets, or (None, None) if file not found
-    """
-    age_band_fname = age_band_to_fname(age_band)
-    filter_path = output_dir / f"{cohort}_{age_band_fname}_safe_feature_filter.json"
-    
-    if filter_path.exists():
-        print(f"Loading safe feature filter from: {filter_path}")
-        with open(filter_path, 'r') as f:
-            filter_data = json.load(f)
-        
-        # Normalize feature names to match aggregated importance format
-        features_to_keep_raw = filter_data.get('all_features_to_keep', [])
-        features_to_exclude_raw = filter_data.get('all_features_to_exclude', [])
-        
-        features_to_keep = normalize_feature_set(set(features_to_keep_raw))
-        features_to_exclude = normalize_feature_set(set(features_to_exclude_raw))
-        
-        print(f"  Found {len(features_to_keep_raw)} features to keep (for cases - whitelist)")
-        print(f"  Found {len(features_to_exclude_raw)} features to exclude (for controls - blacklist)")
-        print(f"  Normalized: {len(features_to_keep)} keep, {len(features_to_exclude)} exclude")
-        return features_to_keep, features_to_exclude
-    
-    print(f"[WARN] Safe feature filter not found: {filter_path}")
-    print(f"       Will fall back to BupaR CSV-based filtering")
-    return None, None
 
 
 def filter_and_refine_features(
