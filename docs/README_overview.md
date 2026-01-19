@@ -103,7 +103,7 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
 - Feature refinement (`3b_feature_importance_eda/`) using BupaR post-target analysis to filter and refine features, producing `cohort_feature_importance` files
-- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Step 3b
+- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Feature Importance EDA
 - DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
@@ -126,7 +126,7 @@ flowchart TD
         B2 --> B3[Top Features Selection]
     end
     
-    subgraph "Step 3b: Feature Refinement"
+    subgraph "Feature Importance EDA: Feature Refinement"
         B3 --> B4[BupaR Post-Target Analysis]
         B4 --> B5[Administrative Code Filtering]
         B5 --> B6[Refined Cohort Feature Importance]

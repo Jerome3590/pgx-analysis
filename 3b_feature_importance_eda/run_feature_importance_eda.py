@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Step 3b: Feature Importance EDA and Refinement - Orchestration Script
+Feature Importance EDA and Refinement - Orchestration Script
 
-Runs all Step 3b analyses in order:
+Runs all Feature Importance EDA analyses in order:
 1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
 2. BupaR post-target analysis (identify pre/post F1120 ICD/CPT events)
 3. Create safe feature filter (exclude leakage, keep pre-target features)
@@ -120,7 +120,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) ->
 
 
 def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool:
-    """Run all Step 3b analyses for a single cohort/age_band."""
+    """Run all Feature Importance EDA analyses for a single cohort/age_band."""
     print(f"\n{'='*80}")
     print(f"Step 3b: Feature Importance EDA and Refinement")
     print(f"Cohort: {cohort} / Age Band: {age_band}")

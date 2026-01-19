@@ -7,8 +7,8 @@ Feature importance, pattern mining, and final model development for the Prescrip
 The analysis workflow implements a multi-stage approach to feature discovery, noise reduction, model development, and interpretation:
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
-2. **Feature Refinement (Step 3b)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
-3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Step 3b  
+2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
+3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
 4. **DTW-Based Protocol Filtering (Step 4b)** in `4b_dtw_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**.  
 5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
 6. **Final Model Development** in `6_final_model_selection/`
@@ -45,15 +45,15 @@ strict temporal validation and a small, focused model ensemble.
    - Aggregate permutation scores per feature across MC‑CV splits.  
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
-5. **Feature Refinement (Step 3b - `3b_feature_importance_eda/`)**  
+5. **Feature Refinement (Feature Importance EDA - `3b_feature_importance_eda/`)**  
    - **BupaR Post-Target Analysis**: Use process mining to analyze sequences before and after target event to identify post-target leakage features in aggregated importances
    - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (actual event-level filtering happens in Step 4b)
    - **Filter and Refine**: Remove post-target leakage features from aggregated feature importance list and generate refined `cohort_feature_importance` files
    - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances
    - Output: `cohort_feature_importance.csv` files that feed into Step 4a
 6. **Model Data Extraction (`4a_model_data/`)**  
-   - Use the refined `cohort_feature_importance` files from Step 3b to drive `4a_model_data` extraction
-   - If Step 3b files are missing, Step 4a will error (no fallback to aggregated importances)
+   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4a_model_data` extraction
+   - If Feature Importance EDA files are missing, Step 4a will error (no fallback to aggregated importances)
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -101,7 +101,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
 **model-ready event dataset** that downstream methods (FP-Growth, BupaR, DTW) consume:
 
 - **Target cohort (opioid_ed)**:
-  - Read `*_cohort_feature_importance.csv` from Step 3b (REQUIRED - no fallback to aggregated importances)
+  - Read `*_cohort_feature_importance.csv` from Feature Importance EDA (REQUIRED - no fallback to aggregated importances)
   - Strip the `item_` prefix to recover raw drug / ICD / procedure codes.
   - For each age band and event year, filter GOLD cohort events to **only those rows where at least one important item appears** in:
     - `drug_name`
@@ -117,7 +117,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
   - Write to:
     - `4a_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
 
-These paired `model_events.parquet` files provide a consistent, size-controlled input for BupaR post-target analysis in Step 3b and downstream feature engineering.
+These paired `model_events.parquet` files provide a consistent, size-controlled input for BupaR post-target analysis in Feature Importance EDA and downstream feature engineering.
 
 ## Phase 2: PGx Feature Engineering (Step 5)
 
@@ -132,7 +132,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 **Output**: PGx features integrated into the model-ready dataset
 
 **Note**: BupaR, FP-Growth, and DTW analyses are now integrated into:
-- **Step 3b**: Feature refinement (BupaR post-target analysis)
+- **Feature Importance EDA**: Feature refinement (BupaR post-target analysis)
 - **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories)
 
 ## Phase 3: Final Model Development (`6_final_model_selection/`)
@@ -240,7 +240,7 @@ flowchart TD
         B --> C[Top Features Selection]
     end
     
-    subgraph "Step 3b: Feature Refinement"
+    subgraph "Feature Importance EDA: Feature Refinement"
         C --> C1[BupaR Post-Target Analysis]
         C --> C2[DTW Trajectory Analysis]
         C1 --> C3[Refined Cohort Feature Importance]
@@ -315,7 +315,7 @@ flowchart TD
 **BupaR**:
 - **Complexity vs. Benefit**: Process mining features add significant complexity without sufficient predictive benefit over aggregated feature importances
 - **Value in Exploration**: BupaR visualizations provide valuable clinical insights into patient pathways
-- **Solution**: Use BupaR in Step 3b for feature refinement (post-target analysis) and in Step 9 for dashboard visualizations, but not as model features
+- **Solution**: Use BupaR in Feature Importance EDA for feature refinement (post-target analysis) and in Step 9 for dashboard visualizations, but not as model features
 
 **DTW**:
 - **Protocol Filtering**: DTW excels at identifying standard care protocols that both targets and controls follow
