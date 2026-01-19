@@ -383,7 +383,7 @@ def main():
             "operation_type": args.operation_type,
             "s3_bucket": constants.S3_BUCKET,
             "pipeline_state": pipeline_state,  # Add checkpoint system to context
-            "time_window_days": args.time_window_days  # Add time window for polypharmacy cohort
+            "time_window_days": args.time_window_days if args.time_window_days is not None else 14  # Default 14 days for polypharmacy cohort
         }
         
         # Execute pipeline (step functions will use pipeline_state from context)

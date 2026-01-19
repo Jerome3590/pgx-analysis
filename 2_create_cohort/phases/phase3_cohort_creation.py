@@ -26,7 +26,9 @@ def run_phase3_step3_final_cohort_fact(context):
     age_band = context["age_band"]
     event_year = context["event_year"]
     pipeline_state = context.get("pipeline_state")
-    time_window_days = context.get("time_window_days", 14)  # Default 14 days, supports 7, 14, 21, 30, 45
+    # Get time_window_days from context, defaulting to 14 if None or missing
+    # Handle case where time_window_days is explicitly None (when not provided for opioid_ed cohort)
+    time_window_days = context.get("time_window_days") or 14  # Default 14 days, supports 7, 14, 21, 30, 45
     
     step_name = "phase3_step3_final_cohort_fact"
     
