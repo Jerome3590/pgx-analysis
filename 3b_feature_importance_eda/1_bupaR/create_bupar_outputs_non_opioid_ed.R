@@ -706,26 +706,49 @@ if (nrow(rare_sequences) > 0) {
 }
 
 # 2) Process Matrix and CSV export
+# For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
 # Filter eventlog to ensure valid events before calling process_matrix
-# This prevents "missing value where TRUE/FALSE needed" errors
 tryCatch({
-  # Ensure eventlog has valid structure: filter out empty activities, ensure valid timestamps
-  valid_eventlog <- target_eventlog %>%
+  # Filter to only drug events (DRUG: activities) for polypharmacy analysis
+  valid_df <- as.data.frame(target_eventlog) %>%
     filter(!is.na(activity), 
            activity != "", 
            activity != "NA",
-           !is.na(timestamp))
+           !is.na(timestamp),
+           !is.na(case_id),
+           grepl("^DRUG:", activity))  # Only drug events for polypharmacy
   
-  # Check if we have enough events/cases for process_matrix
-  if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
-    pm_target <- process_matrix(valid_eventlog, type = "frequency")
-    pm_target_df <- as.data.frame(pm_target)
-    save_bupar_csv(
-      pm_target_df,
-      sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-    )
+  if (nrow(valid_df) > 0) {
+    # Recreate eventlog from filtered data frame
+    valid_eventlog <- valid_df %>%
+      mutate(activity_instance_id = row_number()) %>%  # Recreate activity_instance_id after filtering
+      eventlog(
+        case_id              = "case_id",
+        activity_id          = "activity",
+        activity_instance_id = "activity_instance_id",
+        lifecycle_id         = "lifecycle_id",
+        resource_id          = "resource_id",
+        timestamp            = "timestamp"
+      )
+    
+    # Check if we have enough events/cases for process_matrix
+    if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
+      pm_target <- process_matrix(valid_eventlog, type = "frequency")
+      pm_target_df <- as.data.frame(pm_target)
+      save_bupar_csv(
+        pm_target_df,
+        sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+      )
+    } else {
+      cat("Warning: Not enough valid drug events/cases for process_matrix (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+      pm_target_df <- data.frame()
+      save_bupar_csv(
+        pm_target_df,
+        sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+      )
+    }
   } else {
-    cat("Warning: Not enough valid events/cases for process_matrix (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+    cat("Warning: No valid drug events after filtering for process_matrix\n")
     pm_target_df <- data.frame()
     save_bupar_csv(
       pm_target_df,
@@ -743,19 +766,37 @@ tryCatch({
 })
 
 # 3) Process Map visualization
-# Use the same filtered eventlog for consistency
+# For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
 tryCatch({
-  # Use the same filtering as process_matrix
-  valid_eventlog <- target_eventlog %>%
+  # Filter to only drug events (DRUG: activities) for polypharmacy analysis
+  valid_df <- as.data.frame(target_eventlog) %>%
     filter(!is.na(activity), 
            activity != "", 
            activity != "NA",
-           !is.na(timestamp))
+           !is.na(timestamp),
+           !is.na(case_id),
+           grepl("^DRUG:", activity))  # Only drug events for polypharmacy
   
-  if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
-    process_map(valid_eventlog, type = "frequency")
+  if (nrow(valid_df) > 0) {
+    # Recreate eventlog from filtered data frame
+    valid_eventlog <- valid_df %>%
+      mutate(activity_instance_id = row_number()) %>%  # Recreate activity_instance_id after filtering
+      eventlog(
+        case_id              = "case_id",
+        activity_id          = "activity",
+        activity_instance_id = "activity_instance_id",
+        lifecycle_id         = "lifecycle_id",
+        resource_id          = "resource_id",
+        timestamp            = "timestamp"
+      )
+    
+    if (n_events(valid_eventlog) > 0 && n_cases(valid_eventlog) > 0) {
+      process_map(valid_eventlog, type = "frequency")
+    } else {
+      cat("Warning: Not enough valid drug events/cases for process_map (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+    }
   } else {
-    cat("Warning: Not enough valid events/cases for process_map (events: ", n_events(valid_eventlog), ", cases: ", n_cases(valid_eventlog), ")\n", sep = "")
+    cat("Warning: No valid drug events after filtering for process_map\n")
   }
 }, error = function(e) {
   cat("Warning: process_map failed:", conditionMessage(e), "\n")
