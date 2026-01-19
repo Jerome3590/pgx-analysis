@@ -278,16 +278,25 @@ echo ""
 # Step 4a: Model data
 echo "--- Step 4a: Model Data ---"
 log_message "--- Step 4a: Model Data ---"
-check_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe)"
-check_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe)"
+# Local paths (old format)
+check_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe - old format)"
+check_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe - old format)"
+# Local paths (new format with slugs)
+check_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (NVMe - new format)"
+check_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (NVMe - new format)"
 if [ -d "${PROJECT_ROOT}/4a_model_data" ]; then
-    check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (project)"
-    check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project)"
+    check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (project - old format)"
+    check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project - old format)"
+    check_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (project - new format)"
+    check_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (project - new format)"
 fi
-# New format: s3://pgxdatalake/gold/cohorts/input_model_data
-check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - new format)"
-check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - new format)"
-# Legacy path (old format) - for cleanup
+# S3 paths (old format with cohort names)
+check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - old format)"
+check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - old format)"
+# S3 paths (new format with slugs)
+check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=polypharmacy/" "Step 4a: POLYPHARMACY model data (S3 - new format)"
+check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid/" "Step 4a: OPIOID model data (S3 - new format)"
+# Legacy path (very old format) - for cleanup
 check_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - legacy)"
 check_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - legacy)"
 
