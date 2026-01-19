@@ -285,9 +285,50 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM unified_event_fact_table
                 WHERE event_type = 'pharmacy'
             ),
+            drug_hcg_pairs_7d AS (
+                -- For each patient, find pairs where HCG target event occurs within 7 days of drug event
+                SELECT DISTINCT de.mi_person_key
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 7 DAY)
+            ),
+            drug_hcg_pairs_14d AS (
+                -- For each patient, find pairs where HCG target event occurs within 14 days of drug event
+                SELECT DISTINCT de.mi_person_key
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 14 DAY)
+            ),
+            drug_hcg_pairs_21d AS (
+                -- For each patient, find pairs where HCG target event occurs within 21 days of drug event
+                SELECT DISTINCT de.mi_person_key
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 21 DAY)
+            ),
+            drug_hcg_pairs_30d AS (
+                -- For each patient, find pairs where HCG target event occurs within 30 days of drug event
+                SELECT DISTINCT de.mi_person_key
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 30 DAY)
+            ),
+            drug_hcg_pairs_45d AS (
+                -- For each patient, find pairs where HCG target event occurs within 45 days of drug event
+                SELECT DISTINCT de.mi_person_key
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+            ),
             drug_hcg_pairs AS (
                 -- For each patient, find pairs where HCG target event occurs within time_window_days of drug event
                 -- POLYPHARMACY COHORT: Target cases must have HCG target events within X days of drug events
+                -- This is used for the main is_target_case column (backwards compatibility)
                 SELECT DISTINCT
                     de.mi_person_key,
                     de.drug_event_date,
@@ -299,6 +340,7 @@ def run_phase3_step3_final_cohort_fact(context):
             ),
             patients_with_hcg_in_window AS (
                 -- Get distinct patients who have HCG target events within time window of drug events
+                -- Used for main is_target_case column (backwards compatibility)
                 SELECT DISTINCT mi_person_key
                 FROM drug_hcg_pairs
             ),
