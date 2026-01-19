@@ -43,7 +43,7 @@ python filter_and_refine_features.py --cohort opioid_ed --age-band 13-24
 The script will:
 - Load aggregated feature importance from Step 3
 - Apply safe feature filter (whitelist approach)
-- Filter non-value-added features (if DTW results available)
+- Filter non-value-added features (administrative codes from lookup table)
 - Output refined `cohort_feature_importance.csv` for Step 4a
 
 ### Feature Set Applied

@@ -19,7 +19,7 @@ The pipeline now executes in this order:
 
 1. **Administrative/Non-informative Code Filtering** (`0_icd_cpt_check/`)
    - Validates ICD/CPT codes by groups (ICD by chapter, CPT by range)
-   - Loads administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
+   - Loads administrative codes from `4b_dtw_filter/administrative_codes_lookup.json` (legacy path name, file contains administrative code lookup)
    - Removes non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
    - This filtering is applied in the `filter_and_refine_features.py` step
    - Note: Feature importances are already calculated in Step 3; we filter them here
@@ -36,6 +36,7 @@ The pipeline now executes in this order:
 
 3. **Create Safe Feature Filter**
    - Excludes features with >=80% post-F1120 ratio (pure post-target leakage)
+   - Keeps all features with any pre-target presence
    - Keeps ALL features with ANY pre-F1120 presence (maximize information)
    - Explicitly includes F1120 for target creation
    - Outputs: `{cohort}_{age_band}_safe_feature_filter.json`
@@ -59,7 +60,7 @@ The pipeline now executes in this order:
 ## Updated Files
 
 ### Scripts Updated
-- `run_step_3b.py`: Updated to run BupaR analysis (DTW removed)
+- `run_step_3b.py`: Orchestrates Step 3b workflow (BupaR analysis and feature filtering)
 - `run_bupar_post_target_analysis.py`: Calls `1_bupaR/` scripts
 - `create_bupar_post_target_analysis.py`: Creates post-target analysis CSV from BupaR outputs
 

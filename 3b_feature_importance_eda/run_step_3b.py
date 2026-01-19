@@ -197,11 +197,6 @@ def main():
         action="store_true",
         help="Skip BupaR analysis"
     )
-    parser.add_argument(
-        "--skip-dtw",
-        action="store_true",
-        help="Skip DTW analysis"
-    )
     
     args = parser.parse_args()
     

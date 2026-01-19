@@ -103,12 +103,10 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 
 ### Feature Filtering Scripts
 - `create_safe_feature_filter_json.py` - Creates safe feature filter JSON (exclude leakage, keep pre-target)
-- `analyze_leakage_features.py` - Analyzes and categorizes leakage features
 
 ### Validation Scripts
 - `0_icd_cpt_check/analyze_code_groups.py` - Analyzes ICD/CPT codes by groups
 - `0_icd_cpt_check/validate_icd_cpt_codes.py` - Interactive validation workflow
-- `check_pre_post_f1120_events.py` - Verifies presence of pre/post F1120 events in data
 
 ### R Scripts (BupaR Process Mining)
 - `1_bupaR/create_bupar_outputs_opioid_ed.R` - BupaR analysis for opioid_ed cohort

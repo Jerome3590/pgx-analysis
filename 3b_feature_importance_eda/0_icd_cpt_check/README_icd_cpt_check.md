@@ -124,8 +124,8 @@ python analyze_code_groups.py opioid_ed 13-24
 The results from this validation process inform the filtering in Step 3b:
 1. **Administrative codes** identified here are added to `administrative_codes_lookup.json`
 2. **Step 3b workflow** loads these codes and filters them out
-3. **DTW and BupaR analysis** may identify additional codes to filter
-4. **Final filtering** combines all sources (lookup table + DTW + BupaR + manual)
+3. **BupaR analysis** may identify additional codes to filter
+4. **Final filtering** combines all sources (lookup table + BupaR + manual)
 
 ## Related Files
 
