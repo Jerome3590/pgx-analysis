@@ -154,11 +154,21 @@ if (!file.exists(model_data_path)) {
        "\nRun 3_feature_importance/create_model_data.py for this cohort/age band first.")
 }
 
-# Helper function for timestamped logging
-log_msg <- function(msg, level = "INFO") {
-  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  cat(sprintf("[%s] [%s] %s\n", timestamp, level, msg))
-  flush.console()  # Ensure output appears immediately in Jupyter
+# -------------------------------------------------------------------
+# Load Helper Functions
+# -------------------------------------------------------------------
+
+# Source logging utilities from r_helpers
+logging_utils_path <- file.path(project_root, "r_helpers", "logging_utils.R")
+if (file.exists(logging_utils_path)) {
+  source(logging_utils_path)
+} else {
+  # Fallback: define log_msg locally if r_helpers not found
+  log_msg <- function(msg, level = "INFO") {
+    timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    cat(sprintf("[%s] [%s] %s\n", timestamp, level, msg))
+    flush.console()
+  }
 }
 
 log_msg("Connecting to DuckDB...")
