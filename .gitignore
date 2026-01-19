@@ -55,3 +55,7 @@ tmp/
 # Model inputs (generated data, should not be in repo)
 6_final_model/inputs/
 8_final_model/inputs/
+
+# CatBoost training artifacts
+catboost_info/
+*.cbm
