@@ -257,7 +257,7 @@ def run_phase3_step3_final_cohort_fact(context):
         if ed_non_opioid_case_count > 0:
             # Normal case: has targets
             # Exclude patients who have opioid ICD codes from ED_NON_OPIOID target cases
-            # Apply 30-day lookback window for drug events (per README documentation)
+            # Apply time-windowed lookback for drug events (configurable via time_window_days, default: 14 days)
             # CRITICAL: Check ALL 10 ICD diagnosis columns for opioid codes
             opioid_icd_condition = get_opioid_icd_sql_condition()
             ed_non_opioid_cohort_sql = f"""
