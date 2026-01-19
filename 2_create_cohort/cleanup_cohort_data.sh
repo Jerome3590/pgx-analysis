@@ -24,6 +24,7 @@ NC='\033[0m' # No Color
 SKIP_CHECKPOINTS=false
 SKIP_S3=false
 SKIP_LOCAL=false
+AUTO_CONFIRM=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -39,9 +40,13 @@ while [[ $# -gt 0 ]]; do
             SKIP_LOCAL=true
             shift
             ;;
+        --yes)
+            AUTO_CONFIRM=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--skip-checkpoints] [--skip-s3] [--skip-local]"
+            echo "Usage: $0 [--skip-checkpoints] [--skip-s3] [--skip-local] [--yes]"
             exit 1
             ;;
     esac
@@ -62,11 +67,16 @@ fi
 echo ""
 echo -e "${YELLOW}WARNING: This will delete data!${NC}"
 echo ""
-read -p "Are you sure you want to continue? (yes/no): " confirm
 
-if [ "$confirm" != "yes" ]; then
-    echo "Cleanup cancelled."
-    exit 0
+if [ "$AUTO_CONFIRM" = false ]; then
+    read -p "Are you sure you want to continue? (yes/no): " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        echo "Cleanup cancelled."
+        exit 0
+    fi
+else
+    echo "Auto-confirmation enabled (--yes flag). Proceeding with cleanup..."
 fi
 
 # S3 bucket
