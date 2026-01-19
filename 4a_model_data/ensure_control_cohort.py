@@ -248,6 +248,7 @@ def ensure_control_cohort_with_ratio(
             sample_size=required_controls,
             output_root=model_data_root,  # Explicitly pass to ensure correct path
             target_cohort_path=target_cohort_path,  # Pass target path for ratio logging
+            time_window_days=14,  # Default 14-day window (supports 7, 14, 21, 30, 45)
         )
         
         if control_cohort_path.exists():
