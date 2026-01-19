@@ -209,7 +209,10 @@ delete_s3_path() {
         if [ $delete_status -eq 0 ]; then
             echo -e "${GREEN}[S3]${NC} Deleted: $description"
             log_message "           Status: DELETED"
+            # Use set +e around arithmetic to prevent failure
+            set +e
             ((DELETED_COUNT++))
+            set -e
         else
             echo -e "${YELLOW}[S3]${NC} Deletion may have failed (check logs): $description"
             log_message "           Status: DELETION ATTEMPTED (exit code: $delete_status)"
