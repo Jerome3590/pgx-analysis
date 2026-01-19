@@ -36,6 +36,7 @@ __all__ = [
     "model_utils",
     "visualization_utils",
     "notebook_utils",
+    "rscript_utils",
 ]
 
 

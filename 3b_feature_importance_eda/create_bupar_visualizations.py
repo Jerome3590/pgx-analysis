@@ -117,10 +117,21 @@ def create_bupar_visualizations(cohort: str, age_band: str, r_script_path: Path)
     original_cwd = Path.cwd()
     os.chdir(PROJECT_ROOT)
     
+    # Find Rscript (check for configured path from environment variable if set)
+    configured_rscript = os.environ.get('RSCRIPT_BIN')
+    rscript_path = find_rscript(Path(configured_rscript) if configured_rscript else None)
+    if not rscript_path:
+        print(f"[ERROR] Rscript not found. Please ensure R is installed and in PATH")
+        print("   You can set RSCRIPT_BIN environment variable to specify the path.")
+        return False
+    
+    print(f"[INFO] Using Rscript: {rscript_path}")
+    print_rscript_version(rscript_path)
+    
     try:
         # Call R script with age_band as argument
         cmd = [
-            "Rscript",
+            rscript_path,
             str(r_script_path),
             age_band
         ]
@@ -146,7 +157,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, r_script_path: Path)
         return True
         
     except FileNotFoundError:
-        print(f"[ERROR] Rscript not found. Please ensure R is installed and in PATH")
+        print(f"[ERROR] Rscript not found at: {rscript_path}")
         return False
     except Exception as e:
         print(f"[ERROR] Failed to run R script: {e}")

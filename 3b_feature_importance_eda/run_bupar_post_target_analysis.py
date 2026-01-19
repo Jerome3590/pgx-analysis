@@ -36,28 +36,7 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
-
-
-def find_rscript() -> Optional[str]:
-    """Find Rscript executable."""
-    import shutil
-    rscript = shutil.which("Rscript")
-    if rscript:
-        return rscript
-    
-    # Try common locations
-    common_paths = [
-        "C:/Program Files/R/R-4.5.0/bin/Rscript.exe",
-        "C:/Program Files/R/R-4.4.0/bin/Rscript.exe",
-        "/usr/bin/Rscript",
-        "/usr/local/bin/Rscript"
-    ]
-    
-    for path in common_paths:
-        if Path(path).exists():
-            return path
-    
-    return None
+from py_helpers.rscript_utils import find_rscript, print_rscript_version
 
 
 def run_bupar_analysis(
@@ -80,13 +59,16 @@ def run_bupar_analysis(
     print(f"BupaR Analysis: {cohort} / {age_band}")
     print(f"{'='*80}")
     
-    # Find Rscript
-    rscript = find_rscript()
+    # Find Rscript (check for configured path from environment variable if set)
+    configured_rscript = os.environ.get('RSCRIPT_BIN')
+    rscript = find_rscript(Path(configured_rscript) if configured_rscript else None)
     if not rscript:
         print("[ERROR] Rscript not found. Please ensure R is installed and in PATH.")
+        print("   You can set RSCRIPT_BIN environment variable to specify the path.")
         return False
     
     print(f"[INFO] Using Rscript: {rscript}")
+    print_rscript_version(rscript)
     
     # Determine which R script to use based on cohort
     bupar_dir = project_root / "3b_feature_importance_eda" / "1_bupaR"
