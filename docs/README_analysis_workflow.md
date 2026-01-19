@@ -7,7 +7,7 @@ Feature importance, pattern mining, and final model development for the Prescrip
 The analysis workflow implements a multi-stage approach to feature discovery, noise reduction, model development, and interpretation:
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
-2. **Feature Refinement (Step 3b)** using BupaR post-target analysis and DTW trajectory analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
+2. **Feature Refinement (Step 3b)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
 3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Step 3b  
 4. **DTW-Based Protocol Filtering (Step 4b)** in `4b_dtw_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**.  
 5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
@@ -46,8 +46,8 @@ strict temporal validation and a small, focused model ensemble.
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
 5. **Feature Refinement (Step 3b - `3b_feature_importance_eda/`)**  
-   - **BupaR Post-Target Analysis**: Analyze sequences after target event to identify post-target leakage features
-   - **DTW Trajectory Analysis**: Analyze trajectories to identify non-value-added administrative/scheduling codes
+   - **BupaR Post-Target Analysis**: Analyze sequences before and after target event to identify post-target leakage features
+   - **Administrative Code Filtering**: Remove non-informative administrative/scheduling codes using lookup table
    - **Filter and Refine**: Remove flagged features and generate refined `cohort_feature_importance` files
    - Output: `cohort_feature_importance.csv` files that feed into Step 4a
 6. **Model Data Extraction (`4a_model_data/`)**  
@@ -91,7 +91,7 @@ For the current analysis run, we fit a **separate end‑to‑end model (Steps 3�
 Each of these nine cells in the grid will have its own:
 - `3_feature_importance` run (MC‑CV + aggregation)
 - `4a_model_data` extraction (`model_events.parquet` for target and control)
-- `5_*` feature‑engineering passes (FP‑Growth, BupaR, DTW, PGx as applicable)
+- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth, BupaR, DTW are dashboard-only visualizations)
 - `6_final_model` training + evaluation (one final model per `(cohort, age_band)`).
 
 ### Model Data Extraction (Target vs Control)
@@ -116,8 +116,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
   - Write to:
     - `4a_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
 
-These paired `model_events.parquet` files provide a consistent, size-controlled input for FP-Growth,
-process mining (BupaR), and DTW trajectory analyses in Phase 2.
+These paired `model_events.parquet` files provide a consistent, size-controlled input for BupaR post-target analysis in Step 3b and downstream feature engineering.
 
 ## Phase 2: PGx Feature Engineering (Step 5)
 
@@ -132,7 +131,7 @@ process mining (BupaR), and DTW trajectory analyses in Phase 2.
 **Output**: PGx features integrated into the model-ready dataset
 
 **Note**: BupaR, FP-Growth, and DTW analyses are now integrated into:
-- **Step 3b**: Feature refinement (BupaR post-target analysis + DTW trajectory analysis)
+- **Step 3b**: Feature refinement (BupaR post-target analysis)
 - **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories)
 
 ## Phase 3: Final Model Development (`6_final_model_selection/`)

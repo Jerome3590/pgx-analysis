@@ -4,7 +4,7 @@
 
 Dynamic Time Warping (DTW) trajectory visualizations for the risk dashboard. These visualizations show patient trajectory similarities, clustering patterns, and temporal sequences to complement risk predictions.
 
-**⚠️ Important**: DTW visualizations are for **exploratory analysis only**. DTW is used in Step 4b for protocol filtering (removing administrative codes) and in Step 3b for feature refinement, but DTW features are **NOT** used in the final model.
+**⚠️ Important**: DTW visualizations are for **exploratory analysis only**. DTW is used in Step 4b for protocol filtering (removing administrative codes), but DTW features are **NOT** used in the final model.
 
 ## Purpose
 
@@ -164,4 +164,4 @@ Visualizations can be filtered by user-selected codes:
 - **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
 - **[DTW Protocol Filtering](../../4b_dtw_filter/)** - DTW protocol filtering implementation
-- **[Step 3b Feature Refinement](../../3b_feature_importance_eda/)** - DTW trajectory analysis for feature refinement
+- **[Step 3b Feature Refinement](../../3b_feature_importance_eda/)** - BupaR post-target analysis for feature refinement

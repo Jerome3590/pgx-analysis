@@ -118,7 +118,7 @@ Step 9 runs **after** all model training and analysis steps (Steps 3-8) and prov
 ## 📚 Related Documentation
 
 - **Step 3**: See [`../Step3_FeatureImportance/`](../Step3_FeatureImportance/) for feature importance analysis
-- **Step 3b**: See [`../../3b_feature_importance_eda/`](../../3b_feature_importance_eda/) for BupaR and DTW feature refinement
+- **Step 3b**: See [`../../3b_feature_importance_eda/`](../../3b_feature_importance_eda/) for BupaR post-target analysis feature refinement
 - **Step 6**: See [`../Step6_FinalModel/`](../Step6_FinalModel/) for model training
 - **Step 7**: See [`../../7_shap_analysis/`](../../7_shap_analysis/) for SHAP analysis
 - **Step 8**: See [`../Step8_FFA/`](../Step8_FFA/) for FFA causal analysis (uses SHAP to prioritize rules)
