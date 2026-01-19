@@ -107,6 +107,7 @@ def create_control_cohort_model_data(
     years: List[int] = [2016, 2017, 2018],
     sample_size: int = 10000,
     output_root: Path = None,
+    target_cohort_path: Path = None,
 ) -> None:
     """
     Create model_events.parquet for non_opioid_non_ed control cohort.
@@ -116,6 +117,7 @@ def create_control_cohort_model_data(
         years: List of years to include
         sample_size: Number of control patients to sample
         output_root: Root directory for output (default: get_model_data_root())
+        target_cohort_path: Optional path to target cohort model_events.parquet for ratio logging
     """
     if output_root is None:
         output_root = get_model_data_root()
@@ -392,9 +394,36 @@ def create_control_cohort_model_data(
             result_count = con.execute(f"SELECT COUNT(*) FROM read_parquet('{out_path}')").fetchone()[0]
             if result_count == 0:
                 raise ValueError(f"Created parquet file contains 0 rows")
+            
+            # Count distinct patients to verify no duplicates
+            distinct_controls = con.execute(f"SELECT COUNT(DISTINCT mi_person_key) FROM read_parquet('{out_path}')").fetchone()[0]
             print(f"[OK] Created control cohort model_events.parquet: {out_path}")
             print(f"[OK] File size: {file_size:,} bytes")
             print(f"[OK] Total events: {result_count:,}")
+            print(f"[OK] Distinct controls: {distinct_controls:,}")
+            
+            # Log ratio if target cohort path is provided
+            if target_cohort_path and target_cohort_path.exists():
+                years_list = ','.join(map(str, years))
+                try:
+                    distinct_targets = con.execute(
+                        f"SELECT COUNT(DISTINCT mi_person_key) FROM read_parquet('{target_cohort_path}') "
+                        f"WHERE event_year IN ({years_list}) AND target = 1"
+                    ).fetchone()[0]
+                    if distinct_targets > 0:
+                        actual_ratio = distinct_controls / distinct_targets
+                        print(f"[OK] Distinct targets: {distinct_targets:,}")
+                        print(f"[OK] Actual ratio: {actual_ratio:.2f}:1 (controls:targets)")
+                    else:
+                        print(f"[WARN] No distinct targets found in target cohort")
+                except Exception as e:
+                    print(f"[WARN] Could not calculate ratio: {e}")
+            
+            # Warn if we got fewer patients than requested (due to limited candidates)
+            if diag_candidates is not None and distinct_controls < sample_size:
+                print(f"[WARN] Sampled {distinct_controls:,} patients (requested {sample_size:,})")
+                print(f"[WARN] Limited by available control candidates ({diag_candidates:,})")
+                print(f"[WARN] This is expected when target cohort is large relative to available controls")
         except Exception as validation_error:
             # If validation fails, remove the corrupted file
             if out_path.exists():

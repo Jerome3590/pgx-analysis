@@ -247,10 +247,19 @@ def ensure_control_cohort_with_ratio(
             years=train_years,
             sample_size=required_controls,
             output_root=model_data_root,  # Explicitly pass to ensure correct path
+            target_cohort_path=target_cohort_path,  # Pass target path for ratio logging
         )
         
         if control_cohort_path.exists():
+            # Validate and log the actual ratio after recreation
+            is_valid, actual_ratio, n_controls, n_cases = validate_control_cohort_ratio(
+                control_cohort_path, target_cohort_path, expected_ratio, tolerance, train_years
+            )
             print(f"[OK] Control cohort recreated successfully: {control_cohort_path}")
+            print(
+                f"[OK] Final ratio: {actual_ratio:.2f}:1 "
+                f"({n_controls:,} distinct controls, {n_cases:,} distinct targets)"
+            )
             return (control_cohort_path, True)
         else:
             print(f"[ERROR] Control cohort recreation failed. File not found: {control_cohort_path}")

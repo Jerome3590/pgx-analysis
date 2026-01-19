@@ -124,12 +124,12 @@ ensure_control_cohort_with_ratio <- function(
     
     if (actual_ratio < min_ratio || actual_ratio > max_ratio) {
       cat("\n⚠️  Control cohort ratio validation failed:\n", sep = "")
-      cat("   Actual ratio: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " controls, ", n_cases, " cases)\n", sep = "")
+      cat("   Actual ratio: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " distinct controls, ", n_cases, " distinct targets)\n", sep = "")
       cat("   Expected ratio: ", sprintf("%.2f", expected_ratio), ":1 (tolerance: ", sprintf("%.2f", min_ratio), "-", sprintf("%.2f", max_ratio), ":1)\n", sep = "")
       cat("   Will recreate control cohort to achieve ", sprintf("%.2f", expected_ratio), ":1 ratio...\n\n", sep = "")
       needs_recreation <- TRUE
     } else {
-      cat("✅ Control cohort ratio validation passed: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " controls, ", n_cases, " cases)\n", sep = "")
+      cat("✅ Control cohort ratio validation passed: ", sprintf("%.2f", actual_ratio), ":1 (", n_controls, " distinct controls, ", n_cases, " distinct targets)\n", sep = "")
       validation_passed <- TRUE
     }
   }
