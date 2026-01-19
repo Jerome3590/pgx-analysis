@@ -127,7 +127,7 @@ Visualizations can be filtered by user-selected codes:
 
 ## DTW Usage in Pipeline
 
-### Step 3b: Feature Refinement
+### Feature Importance EDA: Feature Refinement
 - DTW trajectory analysis identifies non-value-added administrative/scheduling codes
 - Used to filter features before model data extraction
 - **Not** used as model features
@@ -164,4 +164,4 @@ Visualizations can be filtered by user-selected codes:
 - **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
 - **[DTW Protocol Filtering](../../4b_dtw_filter/)** - DTW protocol filtering implementation
-- **[Step 3b Feature Refinement](../../3b_feature_importance_eda/)** - BupaR post-target analysis for feature refinement
+- **[Feature Importance EDA](../../3b_feature_importance_eda/)** - BupaR post-target analysis for feature refinement

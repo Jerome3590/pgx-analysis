@@ -4,7 +4,7 @@
 
 BupaR process mining visualizations for the risk dashboard. These visualizations show patient pathways, activity sequences, and temporal patterns to complement risk predictions.
 
-**⚠️ Important**: BupaR visualizations are for **exploratory analysis only**. BupaR is also used in Step 3b for feature refinement (post-target analysis), but BupaR features are **NOT** used in the final model.
+**⚠️ Important**: BupaR visualizations are for **exploratory analysis only**. BupaR is also used in Feature Importance EDA for feature refinement (post-target analysis), but BupaR features are **NOT** used in the final model.
 
 ## Purpose
 
@@ -162,7 +162,7 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 1. **Feature Engineering**: BupaR features are generated but **NOT** used in the final model. They are for visualization only.
 
-2. **Step 3b Usage**: BupaR is also used in Step 3b (`3b_feature_importance_eda/`) for post-target analysis to identify leakage features. This is separate from dashboard visualizations.
+2. **Feature Importance EDA Usage**: BupaR is also used in Feature Importance EDA (`3b_feature_importance_eda/`) for post-target analysis to identify leakage features. This is separate from dashboard visualizations.
 
 3. **Protocol Filtering**: Visualizations use `model_events_no_protocols.parquet` when available (from Step 4b DTW filtering) to remove administrative codes.
 
@@ -172,4 +172,4 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 - **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
-- **[Step 3b Feature Refinement](../../3b_feature_importance_eda/)** - BupaR post-target analysis
+- **[Feature Importance EDA](../../3b_feature_importance_eda/)** - BupaR post-target analysis

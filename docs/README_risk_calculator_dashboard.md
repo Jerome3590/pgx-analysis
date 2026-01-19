@@ -154,9 +154,9 @@ This organization provides:
 - `prepare_models.py` - Package models from `6_final_model/outputs/{cohort}/{age_band}/` for Lambda deployment
   - Output directory: `9_risk_dashboard/outputs/models`
   - Configured for PGx cohorts (`opioid_ed`, `non_opioid_ed`) with correct age bands
-- `generate_metadata.py` - Extract valid codes from Step 3b `cohort_feature_importance` files
-  - Prioritizes Step 3b refined features from `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
-  - Falls back to Step 3 aggregated features if Step 3b files not available
+- `generate_metadata.py` - Extract valid codes from Feature Importance EDA `cohort_feature_importance` files
+  - Prioritizes Feature Importance EDA refined features from `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
+  - Falls back to Step 3 aggregated features if Feature Importance EDA files not available
   - Output directory: `9_risk_dashboard/outputs/metadata`
 - `prepare_cpic_data.py` - Prepare CPIC data for PGx cards
 - `combine_shap_ffa_results.py` - Combine SHAP and FFA analysis for consensus features
@@ -201,8 +201,8 @@ The dashboard includes the following visualization tabs:
 - Loads models from `6_final_model/outputs/{cohort}/{age_band}/`
 
 **Metadata Generation (`generate_metadata.py`)**:
-- Prioritizes Step 3b `cohort_feature_importance` files (refined features)
-- Falls back to Step 3 `aggregated_feature_importance` files if Step 3b files not available
+- Prioritizes Feature Importance EDA `cohort_feature_importance` files (refined features)
+- Falls back to Step 3 `aggregated_feature_importance` files if Feature Importance EDA files not available
 - Output directory: `9_risk_dashboard/outputs/metadata`
 - Uses directory structure: `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
 
@@ -260,7 +260,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 
 - **Ensemble Models**: CatBoost + XGBoost + XGBoost RF with performance-based weighting
 - **Age-Based Selection**: Automatically selects appropriate model based on age
-- **Feature-Driven Inputs**: Dropdowns populated from Step 3b refined feature importances
+- **Feature-Driven Inputs**: Dropdowns populated from Feature Importance EDA refined feature importances
 - **Privacy-First PGx Cards**: Anonymous, generic cards with optional patient ID
 - **SHAP + FFA Combination**: Comprehensive patient-level explanations combining quantitative (SHAP) and logical (FFA) methods
 - **Consensus Features**: High-confidence features identified by both SHAP and FFA analysis

@@ -109,5 +109,5 @@ User Selects Codes → Risk Score Calculated → Visualizations Load
 - **[README_fpgrowth_dashboard_visualizations.md](README_fpgrowth_dashboard_visualizations.md)** - FP-Growth pattern mining dashboard visualizations
 - **[README_dtw_dashboard_visualizations.md](README_dtw_dashboard_visualizations.md)** - DTW trajectory dashboard visualizations
 - **Visualization Implementation**: See `9_risk_dashboard/visualizations/` for BupaR, FP-Growth, and DTW visualization generation scripts
-- **Feature Refinement**: See `3b_feature_importance_eda/` for BupaR post-target analysis used in Step 3b
+- **Feature Refinement**: See `3b_feature_importance_eda/` for BupaR post-target analysis used in Feature Importance EDA
 
