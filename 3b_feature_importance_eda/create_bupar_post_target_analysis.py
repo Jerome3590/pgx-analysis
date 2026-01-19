@@ -2,12 +2,15 @@
 """
 Create BupaR Post-Target Analysis CSV
 
-Analyzes BupaR post-F1120 outputs to identify which features (ICD/CPT codes, drugs)
-appear primarily after the target event (F1120), indicating post-target leakage.
+Analyzes BupaR post-target outputs to identify which features (ICD/CPT codes, drugs)
+appear primarily after the target event, indicating post-target leakage.
+
+For opioid_ed cohort: Target is F1120 (opioid dependence ICD code)
+For non_opioid_ed cohort: Target is ED visit (HCG line with drug window)
 
 This script:
-1. Loads post-F1120 traces/features from BupaR outputs
-2. Compares with pre-F1120 features to identify post-target leakage
+1. Loads post-target traces/features from BupaR outputs
+2. Compares with pre-target features to identify post-target leakage
 3. Creates a summary CSV with feature names and is_post_target_leakage flag
 """
 
@@ -100,7 +103,7 @@ def analyze_post_target_leakage_from_events(
     cohort: str,
     age_band: str,
     project_root: Path,
-    post_f1120_threshold: float = 0.8,
+    post_target_threshold: float = 0.8,
     min_events: int = 5
 ) -> pd.DataFrame:
     """
@@ -108,24 +111,24 @@ def analyze_post_target_leakage_from_events(
     
     For each feature (ICD/CPT code, drug), calculates:
     - Total occurrences in target cases
-    - Occurrences BEFORE F1120
-    - Occurrences AFTER F1120
-    - Post-F1120 ratio (post / total)
+    - Occurrences BEFORE target event (F1120 for opioid_ed, ED visit for non_opioid_ed)
+    - Occurrences AFTER target event
+    - Post-target ratio (post / total)
     
     A feature is flagged as leakage if:
-    - post_f1120_ratio > threshold (default 0.8 = 80% of occurrences are post-F1120)
+    - post_target_ratio > threshold (default 0.8 = 80% of occurrences are post-target)
     - AND has minimum number of events (default 5) for statistical significance
     
     Args:
-        cohort: Cohort name
+        cohort: Cohort name (opioid_ed or non_opioid_ed)
         age_band: Age band
         project_root: Project root directory
-        post_f1120_threshold: Threshold for post-F1120 ratio (0.0-1.0)
+        post_target_threshold: Threshold for post-target ratio (0.0-1.0)
         min_events: Minimum number of events required for analysis
     
     Returns:
         DataFrame with columns: feature, is_post_target_leakage, is_pre_target_predictive,
-        pre_f1120_ratio, post_f1120_ratio, pre_count, post_count, total_count, unique_patients
+        pre_target_ratio, post_target_ratio, pre_count, post_count, total_count, unique_patients
     """
     import duckdb
     
@@ -161,9 +164,9 @@ def analyze_post_target_leakage_from_events(
     
     con = duckdb.connect()
     
-    # Query to analyze each feature's pre/post F1120 distribution
+    # Query to analyze each feature's pre/post target distribution
     # For opioid_ed cohort, find first F1120 event date for each patient
-    # For non_opioid_ed cohort, find first non-opioid ED event date
+    # For non_opioid_ed cohort, find first ED visit (HCG) event date for each patient
     # Escape the path for SQL
     model_data_path_str = str(model_data_path).replace("'", "''")
     
@@ -286,8 +289,8 @@ def analyze_post_target_leakage_from_events(
             SUM(CASE WHEN timing = 'pre' THEN 1 ELSE 0 END) as pre_count,
             SUM(CASE WHEN timing = 'post' THEN 1 ELSE 0 END) as post_count,
             COUNT(DISTINCT mi_person_key) as unique_patients,
-            CAST(SUM(CASE WHEN timing = 'pre' THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) as pre_f1120_ratio,
-            CAST(SUM(CASE WHEN timing = 'post' THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) as post_f1120_ratio
+            CAST(SUM(CASE WHEN timing = 'pre' THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) as pre_target_ratio,
+            CAST(SUM(CASE WHEN timing = 'post' THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) as post_target_ratio
         FROM feature_events
         WHERE timing IN ('pre', 'post')
         GROUP BY feature
@@ -299,19 +302,19 @@ def analyze_post_target_leakage_from_events(
         pre_count,
         post_count,
         unique_patients,
-        pre_f1120_ratio,
-        post_f1120_ratio,
+        pre_target_ratio,
+        post_target_ratio,
         CASE 
-            WHEN post_f1120_ratio >= {post_f1120_threshold} THEN 1
+            WHEN post_target_ratio >= {post_target_threshold} THEN 1
             ELSE 0
         END as is_post_target_leakage,
         CASE 
-            WHEN pre_f1120_ratio >= 0.8 THEN 1  -- Primarily pre-F1120 (predictive)
+            WHEN pre_target_ratio >= 0.8 THEN 1  -- Primarily pre-target (predictive)
             ELSE 0
         END as is_pre_target_predictive
     FROM feature_stats
-    ORDER BY post_f1120_ratio DESC, total_count DESC
-    """.format(min_events=min_events, post_f1120_threshold=post_f1120_threshold)
+    ORDER BY post_target_ratio DESC, total_count DESC
+    """.format(min_events=min_events, post_target_threshold=post_target_threshold)
     
     try:
         results_df = con.execute(query).df()
@@ -354,29 +357,32 @@ def analyze_post_target_leakage(
     age_band: str,
     project_root: Path,
     use_event_data: bool = True,
-    post_f1120_threshold: float = 0.8
+    post_target_threshold: float = 0.8
 ) -> pd.DataFrame:
     """
     Analyze post-target leakage features using event-level data (preferred) or BupaR outputs.
     
     Args:
-        cohort: Cohort name
+        cohort: Cohort name (opioid_ed or non_opioid_ed)
         age_band: Age band
         project_root: Project root directory
         use_event_data: If True, use event-level data for accurate analysis (default: True)
-        post_f1120_threshold: Threshold for post-F1120 ratio (0.0-1.0, default: 0.8)
+        post_target_threshold: Threshold for post-target ratio (0.0-1.0, default: 0.8)
     
     Returns:
         DataFrame with leakage analysis results
     """
+    # Cohort-specific target terminology
+    target_name = "F1120" if cohort == "opioid_ed" else "ED visit (HCG)"
+    
     if use_event_data:
         print(f"\n[INFO] Using event-level data for post-target leakage analysis")
-        print(f"       This provides accurate pre/post F1120 ratios for each feature")
+        print(f"       This provides accurate pre/post {target_name} ratios for each feature")
         return analyze_post_target_leakage_from_events(
             cohort=cohort,
             age_band=age_band,
             project_root=project_root,
-            post_f1120_threshold=post_f1120_threshold
+            post_target_threshold=post_target_threshold
         )
     
     # Fallback to BupaR outputs (less accurate, but available if event data missing)
@@ -441,7 +447,7 @@ def analyze_post_target_leakage(
         results.append({
             'feature': feature,
             'is_post_target_leakage': is_leakage,
-            'post_f1120_ratio': 1.0 if is_leakage else 0.0,
+            'post_target_ratio': 1.0 if is_leakage else 0.0,
             'pre_count': 0,
             'post_count': 0,
             'total_count': 0
@@ -463,10 +469,10 @@ def main():
         help="Project root directory (default: auto-detect)"
     )
     parser.add_argument(
-        "--post-f1120-threshold",
+        "--post-target-threshold",
         type=float,
         default=0.8,
-        help="Threshold for post-F1120 ratio to flag as leakage (0.0-1.0, default: 0.8 = 80%%)"
+        help="Threshold for post-target ratio to flag as leakage (0.0-1.0, default: 0.8 = 80%%)"
     )
     parser.add_argument(
         "--min-events",
@@ -498,7 +504,7 @@ def main():
         age_band=args.age_band,
         project_root=project_root,
         use_event_data=not args.use_bupar_outputs,
-        post_f1120_threshold=args.post_f1120_threshold
+        post_target_threshold=args.post_target_threshold
     )
     
     if results_df.empty:
@@ -535,11 +541,11 @@ def main():
         predictive_features = results_df[results_df.get('is_pre_target_predictive', pd.Series([0]*len(results_df))) == 1]
         
         if len(leakage_features) > 0:
-            print(f"\n   [WARN] Post-target leakage features (post-F1120 ratio >= {args.post_f1120_threshold:.0%}):")
+            print(f"\n   [WARN] Post-target leakage features (post-{target_name} ratio >= {args.post_target_threshold:.0%}):")
             print(f"   {'='*80}")
             for idx, row in leakage_features.head(20).iterrows():
-                post_ratio_pct = row['post_f1120_ratio'] * 100
-                pre_ratio_pct = row.get('pre_f1120_ratio', 0) * 100
+                post_ratio_pct = row[ratio_col] * 100
+                pre_ratio_pct = row.get(pre_ratio_col, 0) * 100
                 # Handle NaN/None values safely
                 pre_val = row.get('pre_count', 0)
                 post_val = row.get('post_count', 0)
@@ -553,11 +559,11 @@ def main():
             print(f"   {'='*80}")
         
         if len(predictive_features) > 0:
-            print(f"\n   [OK] Pre-target predictive features (pre-F1120 ratio >= 80%):")
+            print(f"\n   [OK] Pre-target predictive features (pre-{target_name} ratio >= 80%):")
             print(f"   {'='*80}")
             for idx, row in predictive_features.head(20).iterrows():
-                post_ratio_pct = row.get('post_f1120_ratio', 0) * 100
-                pre_ratio_pct = row.get('pre_f1120_ratio', 0) * 100
+                post_ratio_pct = row.get(ratio_col, 0) * 100
+                pre_ratio_pct = row.get(pre_ratio_col, 0) * 100
                 pre_val = row.get('pre_count', 0)
                 post_val = row.get('post_count', 0)
                 total_val = row.get('total_count', 0)
@@ -571,16 +577,16 @@ def main():
         
         # Show summary statistics
         print(f"\n   Summary Statistics:")
-        if 'pre_f1120_ratio' in results_df.columns:
-            print(f"     Mean pre-F1120 ratio: {results_df['pre_f1120_ratio'].mean():.2%}")
-            print(f"     Median pre-F1120 ratio: {results_df['pre_f1120_ratio'].median():.2%}")
-        print(f"     Mean post-F1120 ratio: {results_df['post_f1120_ratio'].mean():.2%}")
-        print(f"     Median post-F1120 ratio: {results_df['post_f1120_ratio'].median():.2%}")
-        print(f"     Features with post-ratio > 50%: {(results_df['post_f1120_ratio'] > 0.5).sum()}")
-        print(f"     Features with post-ratio > 80%: {(results_df['post_f1120_ratio'] > 0.8).sum()}")
-        print(f"     Features with post-ratio > 90%: {(results_df['post_f1120_ratio'] > 0.9).sum()}")
-        if 'pre_f1120_ratio' in results_df.columns:
-            print(f"     Features with pre-ratio > 80%: {(results_df['pre_f1120_ratio'] > 0.8).sum()}")
+        if pre_ratio_col in results_df.columns:
+            print(f"     Mean pre-{target_name} ratio: {results_df[pre_ratio_col].mean():.2%}")
+            print(f"     Median pre-{target_name} ratio: {results_df[pre_ratio_col].median():.2%}")
+        print(f"     Mean post-{target_name} ratio: {results_df[ratio_col].mean():.2%}")
+        print(f"     Median post-{target_name} ratio: {results_df[ratio_col].median():.2%}")
+        print(f"     Features with post-ratio > 50%: {(results_df[ratio_col] > 0.5).sum()}")
+        print(f"     Features with post-ratio > 80%: {(results_df[ratio_col] > 0.8).sum()}")
+        print(f"     Features with post-ratio > 90%: {(results_df[ratio_col] > 0.9).sum()}")
+        if pre_ratio_col in results_df.columns:
+            print(f"     Features with pre-ratio > 80%: {(results_df[pre_ratio_col] > 0.8).sum()}")
     else:
         # Fallback display for BupaR-based analysis
         leakage_features = results_df[results_df['is_post_target_leakage'] == 1]
