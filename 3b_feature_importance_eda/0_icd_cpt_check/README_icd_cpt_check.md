@@ -125,7 +125,7 @@ python analyze_code_groups.py opioid_ed 13-24
 
 The results from this validation process inform filtering:
 1. **Administrative codes** identified here are added to `administrative_codes_lookup.json`
-2. **Step 3b workflow** loads these codes for reference and validation (does not filter them from feature importances)
+2. **Feature Importance EDA workflow** loads these codes for reference and validation (does not filter them from feature importances)
 3. **BupaR analysis** identifies post-target leakage features to filter from aggregated importances
 4. **Step 4b** uses the administrative codes lookup to filter events at the event level
 5. **Feature Importance EDA final filtering** only filters post-target leakage features from aggregated feature importance list (not administrative codes)
