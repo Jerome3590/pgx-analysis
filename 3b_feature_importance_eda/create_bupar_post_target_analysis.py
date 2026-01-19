@@ -6,7 +6,7 @@ Analyzes BupaR post-target outputs to identify which features (ICD/CPT codes, dr
 appear primarily after the target event, indicating post-target leakage.
 
 For opioid_ed cohort: Target is F1120 (opioid dependence ICD code)
-For non_opioid_ed cohort: Target is ED visit (HCG line with drug window)
+For POLYPHARMACY COHORT (cohort_name="non_opioid_ed"): Target is time-windowed HCG events (ED visits)
 
 This script:
 1. Loads post-target traces/features from BupaR outputs
@@ -110,7 +110,7 @@ def analyze_post_target_leakage_from_events(
     Analyze event-level data to identify post-target leakage features.
     
     For opioid_ed cohort: Analyzes all features (ICD codes, CPT codes, drugs)
-    For non_opioid_ed cohort: Analyzes only drugs (polypharmacy focus)
+    For POLYPHARMACY COHORT: Analyzes only drugs (polypharmacy focus)
     
     For each feature, calculates:
     - Total occurrences in target cases
@@ -166,8 +166,8 @@ def analyze_post_target_leakage_from_events(
     print(f"Loading event data from: {model_data_path}")
     
     # Cohort-specific analysis scope
-    if cohort == "non_opioid_ed":
-        print(f"[INFO] Polypharmacy cohort: Analyzing DRUGS only (excluding ICD/CPT codes)")
+    if cohort == "non_opioid_ed":  # POLYPHARMACY COHORT
+        print(f"[INFO] POLYPHARMACY COHORT: Analyzing DRUGS only (excluding ICD/CPT codes)")
     else:
         print(f"[INFO] Analyzing all features: ICD codes, CPT codes, and drugs")
     
@@ -175,7 +175,7 @@ def analyze_post_target_leakage_from_events(
     
     # Query to analyze each feature's pre/post target distribution
     # For opioid_ed cohort, find first F1120 event date for each patient
-    # For non_opioid_ed cohort, find first ED visit (HCG) event date for each patient
+    # For POLYPHARMACY COHORT, find first time-windowed HCG event date for each patient
     # Escape the path for SQL
     model_data_path_str = str(model_data_path).replace("'", "''")
     
@@ -205,7 +205,7 @@ def analyze_post_target_leakage_from_events(
     ),
     """
     else:
-        # For non_opioid_ed, find first ED event (where hcg_line IS NOT NULL) for each patient
+        # POLYPHARMACY COHORT: Find first time-windowed HCG event (specific hcg_line values) for each patient
         query = f"""
     WITH target_patients AS (
         SELECT DISTINCT
@@ -219,10 +219,10 @@ def analyze_post_target_leakage_from_events(
     """
     
     # Continue with the rest of the query
-    # For non_opioid_ed (polypharmacy), only analyze drugs (not ICD/CPT codes)
-    # For opioid_ed, analyze all features (ICD, CPT, drugs)
-    if cohort == "non_opioid_ed":
-        # Polypharmacy cohort: only drugs
+    # POLYPHARMACY COHORT: only analyze drugs (not ICD/CPT codes)
+    # opioid_ed cohort: analyze all features (ICD, CPT, drugs)
+    if cohort == "non_opioid_ed":  # POLYPHARMACY COHORT
+        # POLYPHARMACY COHORT: only drugs
         query += f"""
     events_with_target_dates AS (
         SELECT 
@@ -235,7 +235,7 @@ def analyze_post_target_leakage_from_events(
         LEFT JOIN target_patients t ON e.mi_person_key = t.mi_person_key
         WHERE e.target = 1  -- Only analyze target cases
     ),
-    -- Flatten to individual drug events (drugs only for polypharmacy cohort)
+    -- Flatten to individual drug events (POLYPHARMACY COHORT: drugs only)
     feature_events AS (
         SELECT 
             mi_person_key,

@@ -37,7 +37,7 @@ print(f"OS detection and path setup complete\n")
 from py_helpers.constants import age_band_to_fname
 
 # Configuration
-COHORT = "opioid_ed"  # Change as needed: "opioid_ed" or "non_opioid_ed"
+COHORT = "opioid_ed"  # Change as needed: "opioid_ed" or "non_opioid_ed" (polypharmacy cohort)
 AGE_BAND = "13-24"    # Change as needed
 AGE_BAND_FNAME = age_band_to_fname(AGE_BAND)
 

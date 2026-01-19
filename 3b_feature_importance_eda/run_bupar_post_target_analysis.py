@@ -76,9 +76,11 @@ def run_bupar_analysis(
     if cohort == "opioid_ed":
         r_script = bupar_dir / "create_bupar_outputs_opioid_ed.R"
     elif cohort == "non_opioid_ed":
+        # POLYPHARMACY COHORT: cohort_name in data is "non_opioid_ed" but referred to as "polypharmacy cohort"
         r_script = bupar_dir / "create_bupar_outputs_non_opioid_ed.R"
     else:
         print(f"[ERROR] Unknown cohort: {cohort}")
+        print(f"   Valid cohorts: 'opioid_ed', 'non_opioid_ed' (polypharmacy cohort)")
         return False
     
     if not r_script.exists():
@@ -95,6 +97,8 @@ def run_bupar_analysis(
         
         print(f"[INFO] Running: {' '.join(cmd)}")
         print(f"[INFO] Working directory: {project_root}")
+        print(f"[INFO] This may take several minutes. Progress will be shown below...")
+        print("=" * 80)
         
         # Set environment to use UTF-8 encoding
         env = os.environ.copy()
@@ -196,17 +200,19 @@ def run_bupar_analysis(
             print(f"STDERR:\n{result.stderr}")
             return False
         
+        print("=" * 80)
         print(f"[OK] R script completed successfully")
         if result.stdout:
-            print(f"R Output:\n{result.stdout}")
+            print(f"\nR Script Output:\n")
+            print(result.stdout)
         
         # Verify outputs were created
         age_band_fname = age_band_to_fname(age_band)
         output_dir = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname
         
         # Check for key output files
-        # Note: R scripts for non_opioid_ed use "hcg" suffix, opioid_ed uses "f1120" suffix
-        if cohort == "non_opioid_ed":
+        # Note: POLYPHARMACY COHORT (non_opioid_ed) uses "hcg" suffix, opioid_ed uses "f1120" suffix
+        if cohort == "non_opioid_ed":  # Polypharmacy cohort
             expected_files = [
                 output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_hcg_patient_features_bupar.csv",
                 output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_hcg_patient_features_bupar.csv",

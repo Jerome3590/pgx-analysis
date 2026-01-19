@@ -154,35 +154,23 @@ if (!file.exists(model_data_path)) {
        "\nRun 3_feature_importance/create_model_data.py for this cohort/age band first.")
 }
 
+# Helper function for timestamped logging
+log_msg <- function(msg, level = "INFO") {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  cat(sprintf("[%s] [%s] %s\n", timestamp, level, msg))
+  flush.console()  # Ensure output appears immediately in Jupyter
+}
+
+log_msg("Connecting to DuckDB...")
 con <- dbConnect(duckdb::duckdb())
 
-query <- sprintf(
-  "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-  model_data_path,
-  paste(train_years, collapse = ",")
-)
+log_msg(sprintf("Loading target cohort data from: %s", model_data_path))
+log_msg(sprintf("Filtering for target=1 and years: %s", paste(train_years, collapse=",")))
 
-pgx_df <- dbGetQuery(con, query)
-
-cat("Loaded ", nrow(pgx_df), " events for ", cohort_name, " age_band=", age_band,
-    " across years ", paste(train_years, collapse=","), "\n", sep = "")
-
-pgx_df_target1 <- pgx_df %>%
-  filter(target == 1L)
-
-cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
-
-# -------------------------------------------------------------------
-# Using all codes from model_events.parquet
-# This ensures we capture all pre- and post-F1120 events for leakage analysis
-# -------------------------------------------------------------------
-
-# -------------------------------------------------------------------
-# Build DRUG/ICD/CPT activities and target_eventlog
-# -------------------------------------------------------------------
-
-pgx_df_target1_long <- pgx_df_target1 %>%
-  transmute(
+# Optimized query: Filter target=1 in DuckDB and only select needed columns
+# This avoids loading unnecessary data into R memory
+query_target <- sprintf(
+  "SELECT 
     mi_person_key,
     event_date,
     drug_name,
@@ -197,9 +185,63 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     nine_icd_diagnosis_code,
     ten_icd_diagnosis_code,
     procedure_code
-  ) %>%
-  mutate(across(
-    c(
+  FROM read_parquet('%s') 
+  WHERE event_year IN (%s) AND target = 1",
+  model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+log_msg("Executing DuckDB query for target cohort...")
+pgx_df_target1 <- dbGetQuery(con, query_target)
+
+log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %s", 
+                nrow(pgx_df_target1), cohort_name, age_band, paste(train_years, collapse=",")))
+
+# -------------------------------------------------------------------
+# Using all codes from model_events.parquet
+# This ensures we capture all pre- and post-F1120 events for leakage analysis
+# -------------------------------------------------------------------
+
+# -------------------------------------------------------------------
+# Build DRUG/ICD/CPT activities and target_eventlog
+# -------------------------------------------------------------------
+
+log_msg("Transforming target data from wide to long format using DuckDB UNPIVOT...")
+# Optimized: Use DuckDB UNPIVOT to do wide-to-long transformation efficiently
+# This processes the data in DuckDB's columnar format before loading into R
+query_long <- sprintf(
+  "SELECT 
+    mi_person_key,
+    event_date,
+    source,
+    CAST(code AS VARCHAR) as code,
+    CASE 
+      WHEN source = 'drug_name' THEN 'DRUG:' || code
+      WHEN source LIKE '%%icd_diagnosis_code%%' THEN 'ICD:' || code
+      WHEN source = 'procedure_code' THEN 'CPT:' || code
+      ELSE code
+    END as activity
+  FROM (
+    SELECT 
+      mi_person_key,
+      event_date,
+      CAST(drug_name AS VARCHAR) as drug_name,
+      CAST(primary_icd_diagnosis_code AS VARCHAR) as primary_icd_diagnosis_code,
+      CAST(two_icd_diagnosis_code AS VARCHAR) as two_icd_diagnosis_code,
+      CAST(three_icd_diagnosis_code AS VARCHAR) as three_icd_diagnosis_code,
+      CAST(four_icd_diagnosis_code AS VARCHAR) as four_icd_diagnosis_code,
+      CAST(five_icd_diagnosis_code AS VARCHAR) as five_icd_diagnosis_code,
+      CAST(six_icd_diagnosis_code AS VARCHAR) as six_icd_diagnosis_code,
+      CAST(seven_icd_diagnosis_code AS VARCHAR) as seven_icd_diagnosis_code,
+      CAST(eight_icd_diagnosis_code AS VARCHAR) as eight_icd_diagnosis_code,
+      CAST(nine_icd_diagnosis_code AS VARCHAR) as nine_icd_diagnosis_code,
+      CAST(ten_icd_diagnosis_code AS VARCHAR) as ten_icd_diagnosis_code,
+      CAST(procedure_code AS VARCHAR) as procedure_code
+    FROM read_parquet('%s') 
+    WHERE event_year IN (%s) AND target = 1
+  ) 
+  UNPIVOT (
+    code FOR source IN (
       drug_name,
       primary_icd_diagnosis_code,
       two_icd_diagnosis_code,
@@ -212,38 +254,22 @@ pgx_df_target1_long <- pgx_df_target1 %>%
       nine_icd_diagnosis_code,
       ten_icd_diagnosis_code,
       procedure_code
-    ),
-    as.character
-  )) %>%
-  pivot_longer(
-    cols = c(
-      drug_name,
-      primary_icd_diagnosis_code,
-      two_icd_diagnosis_code,
-      three_icd_diagnosis_code,
-      four_icd_diagnosis_code,
-      five_icd_diagnosis_code,
-      six_icd_diagnosis_code,
-      seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code,
-      nine_icd_diagnosis_code,
-      ten_icd_diagnosis_code,
-      procedure_code
-    ),
-    names_to = "source",
-    values_to = "code"
-  ) %>%
-  filter(!is.na(code), code != "", code != "NA") %>%
+    )
+  )
+  WHERE code IS NOT NULL AND code != '' AND code != 'NA'",
+  model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+log_msg("Executing UNPIVOT query...")
+pgx_df_target1_long <- dbGetQuery(con, query_long) %>%
   mutate(
-    activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code),
-      grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
-      source == "procedure_code" ~ paste0("CPT:", code),
-      TRUE ~ code
-    ),
     timestamp = as.POSIXct(event_date)
   )
 
+log_msg(sprintf("✓ Transformed to long format: %d events", nrow(pgx_df_target1_long)))
+
+log_msg("Creating BupaR eventlog object for target cohort...")
 target_eventlog <- pgx_df_target1_long %>%
   transmute(
     case_id              = mi_person_key,
@@ -262,7 +288,8 @@ target_eventlog <- pgx_df_target1_long %>%
     timestamp            = "timestamp"
   )
 
-cat("Target eventlog created.\n")
+log_msg("✓ Target eventlog created")
+cat("Target eventlog summary:\n")
 print(target_eventlog)
 
 # -------------------------------------------------------------------
@@ -296,6 +323,7 @@ if (is.null(control_model_data_path)) {
   control_model_data_path <- control_model_data_candidates[1]
 }
 
+log_msg("Validating and ensuring control cohort with 5:1 ratio...")
 # Use utility function to validate and ensure control cohort with 5:1 ratio
 control_result <- ensure_control_cohort_with_ratio(
   con = con,
@@ -310,81 +338,58 @@ control_result <- ensure_control_cohort_with_ratio(
 )
 
 pgx_df_control <- control_result$pgx_df_control
-
-# Ensure consistent data types before binding rows
-# Find common columns and convert to same types
-common_cols <- intersect(names(pgx_df_target1), names(pgx_df_control))
-
-if (length(common_cols) > 0 && nrow(pgx_df_control) > 0) {
-  # For each common column, check types and harmonize
-  for (col in common_cols) {
-    target_type <- class(pgx_df_target1[[col]])[1]
-    control_type <- class(pgx_df_control[[col]])[1]
-    
-    # Skip if types already match
-    if (target_type == control_type) next
-    
-    # Handle date/datetime columns - convert to POSIXct if one is date
-    if (grepl("date|time", col, ignore.case = TRUE)) {
-      if (inherits(pgx_df_target1[[col]], "POSIXct") || inherits(pgx_df_target1[[col]], "Date")) {
-        pgx_df_control[[col]] <- as.POSIXct(pgx_df_control[[col]], origin = "1970-01-01", tz = "UTC")
-      } else if (inherits(pgx_df_control[[col]], "POSIXct") || inherits(pgx_df_control[[col]], "Date")) {
-        pgx_df_target1[[col]] <- as.POSIXct(pgx_df_target1[[col]], origin = "1970-01-01", tz = "UTC")
-      } else {
-        # Both are numeric/integer - convert to POSIXct
-        pgx_df_target1[[col]] <- as.POSIXct(as.numeric(pgx_df_target1[[col]]), origin = "1970-01-01", tz = "UTC")
-        pgx_df_control[[col]] <- as.POSIXct(as.numeric(pgx_df_control[[col]]), origin = "1970-01-01", tz = "UTC")
-      }
-    } else if (target_type == "character" || control_type == "character") {
-      # If one is character, convert both to character
-      pgx_df_target1[[col]] <- as.character(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.character(pgx_df_control[[col]])
-    } else if ((target_type == "integer" && control_type == "numeric") ||
-               (target_type == "numeric" && control_type == "integer")) {
-      # Convert both to numeric
-      pgx_df_target1[[col]] <- as.numeric(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.numeric(pgx_df_control[[col]])
-    } else {
-      # Fallback: convert both to character for safety
-      pgx_df_target1[[col]] <- as.character(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.character(pgx_df_control[[col]])
-    }
-  }
+if (control_result$was_recreated) {
+  log_msg("⚠ Control cohort was recreated to achieve 5:1 ratio", level = "WARN")
+} else if (control_result$validation_passed) {
+  log_msg("✓ Control cohort validation passed")
 }
 
 # Assert that control PATIENTS are not duplicated (check distinct patients, not event-level data)
 # Event-level data will have duplicate mi_person_key values (one row per event per patient)
+# Note: We only need mi_person_key for verification, so we can query just that column
 if (nrow(pgx_df_control) > 0) {
   distinct_control_patients <- unique(pgx_df_control$mi_person_key)
   stopifnot(!anyDuplicated(distinct_control_patients))
   cat("Verified ", length(distinct_control_patients), " distinct control patients (", nrow(pgx_df_control), " total events)\n", sep = "")
 }
 
-pgx_df_all <- bind_rows(
-  pgx_df_target1 %>% mutate(group = "target"),
-  pgx_df_control %>% mutate(group = "control")
-)
-
-pgx_df_all_long <- pgx_df_all %>%
-  transmute(
+log_msg("Creating combined target+control query with DuckDB UNION ALL and UNPIVOT...")
+# Optimized: Use DuckDB UNION ALL and UNPIVOT for combined target+control transformation
+# This processes both datasets in DuckDB before loading into R
+query_combined_long <- sprintf(
+  "SELECT 
     mi_person_key,
     event_date,
-    group,
-    drug_name,
-    primary_icd_diagnosis_code,
-    two_icd_diagnosis_code,
-    three_icd_diagnosis_code,
-    four_icd_diagnosis_code,
-    five_icd_diagnosis_code,
-    six_icd_diagnosis_code,
-    seven_icd_diagnosis_code,
-    eight_icd_diagnosis_code,
-    nine_icd_diagnosis_code,
-    ten_icd_diagnosis_code,
-    procedure_code
-  ) %>%
-  mutate(across(
-    c(
+    'target' as group,
+    source,
+    CAST(code AS VARCHAR) as code,
+    CASE 
+      WHEN source = 'drug_name' THEN 'DRUG:' || code
+      WHEN source LIKE '%%icd_diagnosis_code%%' THEN 'ICD:' || code
+      WHEN source = 'procedure_code' THEN 'CPT:' || code
+      ELSE code
+    END as activity
+  FROM (
+    SELECT 
+      mi_person_key,
+      event_date,
+      CAST(drug_name AS VARCHAR) as drug_name,
+      CAST(primary_icd_diagnosis_code AS VARCHAR) as primary_icd_diagnosis_code,
+      CAST(two_icd_diagnosis_code AS VARCHAR) as two_icd_diagnosis_code,
+      CAST(three_icd_diagnosis_code AS VARCHAR) as three_icd_diagnosis_code,
+      CAST(four_icd_diagnosis_code AS VARCHAR) as four_icd_diagnosis_code,
+      CAST(five_icd_diagnosis_code AS VARCHAR) as five_icd_diagnosis_code,
+      CAST(six_icd_diagnosis_code AS VARCHAR) as six_icd_diagnosis_code,
+      CAST(seven_icd_diagnosis_code AS VARCHAR) as seven_icd_diagnosis_code,
+      CAST(eight_icd_diagnosis_code AS VARCHAR) as eight_icd_diagnosis_code,
+      CAST(nine_icd_diagnosis_code AS VARCHAR) as nine_icd_diagnosis_code,
+      CAST(ten_icd_diagnosis_code AS VARCHAR) as ten_icd_diagnosis_code,
+      CAST(procedure_code AS VARCHAR) as procedure_code
+    FROM read_parquet('%s') 
+    WHERE event_year IN (%s) AND target = 1
+  ) 
+  UNPIVOT (
+    code FOR source IN (
       drug_name,
       primary_icd_diagnosis_code,
       two_icd_diagnosis_code,
@@ -397,11 +402,45 @@ pgx_df_all_long <- pgx_df_all %>%
       nine_icd_diagnosis_code,
       ten_icd_diagnosis_code,
       procedure_code
-    ),
-    as.character
-  )) %>%
-  pivot_longer(
-    cols = c(
+    )
+  )
+  WHERE code IS NOT NULL AND code != '' AND code != 'NA'
+  
+  UNION ALL
+  
+  SELECT 
+    mi_person_key,
+    event_date,
+    'control' as group,
+    source,
+    CAST(code AS VARCHAR) as code,
+    CASE 
+      WHEN source = 'drug_name' THEN 'DRUG:' || code
+      WHEN source LIKE '%%icd_diagnosis_code%%' THEN 'ICD:' || code
+      WHEN source = 'procedure_code' THEN 'CPT:' || code
+      ELSE code
+    END as activity
+  FROM (
+    SELECT 
+      mi_person_key,
+      event_date,
+      CAST(drug_name AS VARCHAR) as drug_name,
+      CAST(primary_icd_diagnosis_code AS VARCHAR) as primary_icd_diagnosis_code,
+      CAST(two_icd_diagnosis_code AS VARCHAR) as two_icd_diagnosis_code,
+      CAST(three_icd_diagnosis_code AS VARCHAR) as three_icd_diagnosis_code,
+      CAST(four_icd_diagnosis_code AS VARCHAR) as four_icd_diagnosis_code,
+      CAST(five_icd_diagnosis_code AS VARCHAR) as five_icd_diagnosis_code,
+      CAST(six_icd_diagnosis_code AS VARCHAR) as six_icd_diagnosis_code,
+      CAST(seven_icd_diagnosis_code AS VARCHAR) as seven_icd_diagnosis_code,
+      CAST(eight_icd_diagnosis_code AS VARCHAR) as eight_icd_diagnosis_code,
+      CAST(nine_icd_diagnosis_code AS VARCHAR) as nine_icd_diagnosis_code,
+      CAST(ten_icd_diagnosis_code AS VARCHAR) as ten_icd_diagnosis_code,
+      CAST(procedure_code AS VARCHAR) as procedure_code
+    FROM read_parquet('%s') 
+    WHERE event_year IN (%s)
+  ) 
+  UNPIVOT (
+    code FOR source IN (
       drug_name,
       primary_icd_diagnosis_code,
       two_icd_diagnosis_code,
@@ -414,21 +453,23 @@ pgx_df_all_long <- pgx_df_all %>%
       nine_icd_diagnosis_code,
       ten_icd_diagnosis_code,
       procedure_code
-    ),
-    names_to = "source",
-    values_to = "code"
-  ) %>%
-  filter(!is.na(code), code != "", code != "NA") %>%
+    )
+  )
+  WHERE code IS NOT NULL AND code != '' AND code != 'NA'",
+  model_data_path,
+  paste(train_years, collapse = ","),
+  control_model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+log_msg("Executing combined query for target+control data...")
+pgx_df_all_long <- dbGetQuery(con, query_combined_long) %>%
   mutate(
-    activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code),
-      grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
-      source == "procedure_code" ~ paste0("CPT:", code),
-      TRUE ~ code
-    ),
     timestamp = as.POSIXct(event_date)
   )
 
+log_msg(sprintf("✓ Loaded %d combined events (target + control)", nrow(pgx_df_all_long)))
+log_msg("Creating combined BupaR eventlog for Sankey visualization...")
 sankey_eventlog <- pgx_df_all_long %>%
   transmute(
     case_id              = mi_person_key,
@@ -448,15 +489,19 @@ sankey_eventlog <- pgx_df_all_long %>%
     timestamp            = "timestamp"
   )
 
-cat("Combined TARGET + CONTROL sankey_eventlog created.\n")
+log_msg("✓ Combined TARGET + CONTROL sankey_eventlog created")
+cat("Combined eventlog summary:\n")
 print(sankey_eventlog)
 
 # -------------------------------------------------------------------
 # Pre-F1120 (before first ICD:F1120) sequences
 # -------------------------------------------------------------------
 
-cat("\n--- Pre-F1120 (before first ICD:F1120) analysis ---\n")
+log_msg("=", level = "INFO")
+log_msg("Starting Pre-F1120 (before first ICD:F1120) analysis", level = "INFO")
+log_msg("=", level = "INFO")
 
+log_msg("Identifying target events and calculating event indices...")
 ev_all <- target_eventlog %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
@@ -485,12 +530,12 @@ pre_target_eventlog <- events_pre_target %>%
     resource_id          = "resource_id"
   )
 
-cat("Pre-F1120 eventlog summary:\n")
+log_msg("Pre-F1120 eventlog summary:")
 print(pre_target_eventlog)
 
 # Check if pre-F1120 eventlog is empty
 if (n_events(pre_target_eventlog) == 0) {
-  cat("No pre-F1120 events found; skipping pre-F1120 trace and feature analysis for this cohort/age band.\n")
+  log_msg("⚠ No pre-F1120 events found; skipping pre-F1120 trace and feature analysis", level = "WARN")
   
   # Create empty data frames for consistency
   traces_pre_df <- data.frame(

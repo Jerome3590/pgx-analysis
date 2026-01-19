@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 #
-# End-to-end bupaR analysis for Cohort 2 (POLYPHARMACY_ED, non_opioid_ed),
-# configurable age band (65–74, 75–84, 85–94).
+# End-to-end bupaR analysis for POLYPHARMACY COHORT
+# (cohort_name="non_opioid_ed" in data partitions, but referred to as "polypharmacy cohort")
+# Configurable age band (65–74, 75–84, 85–94) - cohorts 5, 6, 7
 #
 # - Builds target-only and combined event logs from model_data
 # - Runs pre-HCG sequence analyses (no post-target to avoid leakage)
@@ -29,8 +30,11 @@ suppressPackageStartupMessages({
 
 project_root <- getwd()  # assume you launched from project root
 
-cohort_name    <- "non_opioid_ed"
-control_cohort <- "non_opioid_non_ed"
+# POLYPHARMACY COHORT: cohort_name in data partitions is "non_opioid_ed"
+# but we refer to this as "polypharmacy cohort" throughout
+cohort_name    <- "non_opioid_ed"  # Data partition name (must match S3/parquet partitions)
+polypharmacy_cohort_name <- "polypharmacy"  # Human-readable name for logging
+control_cohort <- "non_opioid_non_ed"  # Control cohort name in data partitions
 
 # Optional command line argument to set age band; default is 65-74
 args <- commandArgs(trailingOnly = TRUE)
@@ -39,13 +43,20 @@ age_band <- if (length(args) >= 1) args[[1]] else "65-74"
 age_band_fname <- gsub("-", "_", age_band)
 train_years    <- c(2016L, 2017L, 2018L)
 
-cat("=== bupaR Analysis: Cohort 2 (POLYPHARMACY_ED, non_opioid_ed) ===\n")
-cat("  Age band:       ", age_band, "\n", sep = "")
-cat("  Control cohort: ", control_cohort, "\n\n", sep = "")
+log_msg("=", level = "INFO")
+log_msg("bupaR Analysis: POLYPHARMACY COHORT", level = "INFO")
+log_msg(sprintf("  Data partition:  cohort_name=%s (non_opioid_ed)", cohort_name), level = "INFO")
+log_msg(sprintf("  Age band:       %s", age_band), level = "INFO")
+log_msg(sprintf("  Control cohort: %s (non_opioid_non_ed)", control_cohort), level = "INFO")
+log_msg("  Target: Time-windowed HCG events (ED visits)", level = "INFO")
+log_msg("  Note: Polypharmacy cohort (cohorts 5, 6, 7 with age > 64)", level = "INFO")
+log_msg("=", level = "INFO")
 
-# Cohort-specific target definition: ED visits (hcg_line IS NOT NULL)
-# For non_opioid_ed, the target is the first ED visit, not an ICD code
-# We'll identify target events by checking if hcg_line is not null in the original data
+# POLYPHARMACY COHORT: Target definition
+# - Target: Time-windowed HCG events (ED visits), NOT F1120
+# - This applies to cohorts 5, 6, 7 with age band > 64
+# - HCG target events identified by specific hcg_line values (matching control exclusion)
+# - We'll identify target events by checking hcg_line values in the original data
 
 # OS-aware model data path resolution
 # Try data root first (for EC2/Linux: /mnt/nvme/4a_model_data), then project root
@@ -159,33 +170,12 @@ schema_info <- dbGetQuery(con, schema_query)
 has_hcg_line <- "hcg_line" %in% schema_info$column_name
 has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
 
-query <- sprintf(
-  "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-  model_data_path,
-  paste(train_years, collapse = ",")
-)
-
-pgx_df <- dbGetQuery(con, query)
-
-cat("Loaded ", nrow(pgx_df), " events for ", cohort_name, " age_band=", age_band,
-    " across years ", paste(train_years, collapse=","), "\n", sep = "")
-
-pgx_df_target1 <- pgx_df %>%
-  filter(target == 1L)
-
-cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
-
-# -------------------------------------------------------------------
-# Using all codes from model_events.parquet
-# This ensures we capture all pre-HCG events for analysis
-# -------------------------------------------------------------------
-
-# -------------------------------------------------------------------
-# Build DRUG/ICD/CPT activities and target_eventlog
-# -------------------------------------------------------------------
-
-pgx_df_target1_long <- pgx_df_target1 %>%
-  transmute(
+log_msg(sprintf("Loading target cohort data from: %s", model_data_path))
+log_msg(sprintf("Filtering for target=1 and years: %s", paste(train_years, collapse=",")))
+# Optimized query: Filter target=1 in DuckDB and only select needed columns
+# This avoids loading unnecessary data into R memory
+query_target <- sprintf(
+  "SELECT 
     mi_person_key,
     event_date,
     drug_name,
@@ -200,9 +190,64 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     nine_icd_diagnosis_code,
     ten_icd_diagnosis_code,
     procedure_code
-  ) %>%
-  mutate(across(
-    c(
+  FROM read_parquet('%s') 
+  WHERE event_year IN (%s) AND target = 1",
+  model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+pgx_df_target1 <- dbGetQuery(con, query_target)
+
+log_msg("Executing DuckDB query for target cohort...")
+pgx_df_target1 <- dbGetQuery(con, query_target)
+log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %s", 
+                nrow(pgx_df_target1), cohort_name, age_band, paste(train_years, collapse=",")))
+
+# -------------------------------------------------------------------
+# Using all codes from model_events.parquet
+# This ensures we capture all pre-HCG events for analysis
+# -------------------------------------------------------------------
+
+# -------------------------------------------------------------------
+# Build DRUG/ICD/CPT activities and target_eventlog
+# -------------------------------------------------------------------
+
+log_msg("Transforming target data from wide to long format using DuckDB UNPIVOT...")
+log_msg("  Note: For polypharmacy cohort, only analyzing drug_name events (DRUG: activities)")
+# Optimized: Use DuckDB UNPIVOT to do wide-to-long transformation efficiently
+# For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
+# This processes the data in DuckDB's columnar format before loading into R
+query_long <- sprintf(
+  "SELECT 
+    mi_person_key,
+    event_date,
+    source,
+    CAST(code AS VARCHAR) as code,
+    CASE 
+      WHEN source = 'drug_name' THEN 'DRUG:' || REPLACE(REPLACE(code, ' ', '_'), '/', '_')
+      ELSE NULL
+    END as activity
+  FROM (
+    SELECT 
+      mi_person_key,
+      event_date,
+      CAST(drug_name AS VARCHAR) as drug_name,
+      CAST(primary_icd_diagnosis_code AS VARCHAR) as primary_icd_diagnosis_code,
+      CAST(two_icd_diagnosis_code AS VARCHAR) as two_icd_diagnosis_code,
+      CAST(three_icd_diagnosis_code AS VARCHAR) as three_icd_diagnosis_code,
+      CAST(four_icd_diagnosis_code AS VARCHAR) as four_icd_diagnosis_code,
+      CAST(five_icd_diagnosis_code AS VARCHAR) as five_icd_diagnosis_code,
+      CAST(six_icd_diagnosis_code AS VARCHAR) as six_icd_diagnosis_code,
+      CAST(seven_icd_diagnosis_code AS VARCHAR) as seven_icd_diagnosis_code,
+      CAST(eight_icd_diagnosis_code AS VARCHAR) as eight_icd_diagnosis_code,
+      CAST(nine_icd_diagnosis_code AS VARCHAR) as nine_icd_diagnosis_code,
+      CAST(ten_icd_diagnosis_code AS VARCHAR) as ten_icd_diagnosis_code,
+      CAST(procedure_code AS VARCHAR) as procedure_code
+    FROM read_parquet('%s') 
+    WHERE event_year IN (%s) AND target = 1
+  ) 
+  UNPIVOT (
+    code FOR source IN (
       drug_name,
       primary_icd_diagnosis_code,
       two_icd_diagnosis_code,
@@ -215,37 +260,21 @@ pgx_df_target1_long <- pgx_df_target1 %>%
       nine_icd_diagnosis_code,
       ten_icd_diagnosis_code,
       procedure_code
-    ),
-    as.character
-  )) %>%
-  pivot_longer(
-    cols = c(
-      drug_name,
-      primary_icd_diagnosis_code,
-      two_icd_diagnosis_code,
-      three_icd_diagnosis_code,
-      four_icd_diagnosis_code,
-      five_icd_diagnosis_code,
-      six_icd_diagnosis_code,
-      seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code,
-      nine_icd_diagnosis_code,
-      ten_icd_diagnosis_code,
-      procedure_code
-    ),
-    names_to = "source",
-    values_to = "code"
-  ) %>%
-  filter(!is.na(code), code != "", code != "NA") %>%
-  # For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
-  filter(source == "drug_name") %>%
+    )
+  )
+  WHERE code IS NOT NULL AND code != '' AND code != 'NA' AND source = 'drug_name'",
+  model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+log_msg("Executing UNPIVOT query...")
+pgx_df_target1_long <- dbGetQuery(con, query_long) %>%
+  filter(!is.na(activity)) %>%  # Filter out NULL activities (non-drug events)
   mutate(
-    # Replace spaces and forward slashes with underscores in drug names
-    code_cleaned = gsub("[ /]", "_", code),
-    activity = paste0("DRUG:", code_cleaned),
     timestamp = as.POSIXct(event_date)
-  ) %>%
-  select(-code_cleaned)  # Remove temporary column
+  )
+
+log_msg(sprintf("✓ Transformed to long format: %d drug events", nrow(pgx_df_target1_long)))
 
 target_eventlog <- pgx_df_target1_long %>%
   transmute(
@@ -410,21 +439,32 @@ sankey_eventlog <- pgx_df_all_long %>%
     timestamp            = "timestamp"
   )
 
-cat("Combined TARGET + CONTROL sankey_eventlog created.\n")
+log_msg("✓ Combined TARGET + CONTROL sankey_eventlog created")
+cat("Combined eventlog summary:\n")
 print(sankey_eventlog)
 
 # -------------------------------------------------------------------
 # Pre-HCG (before first HCG ICD) sequences
 # -------------------------------------------------------------------
 
-cat("\n--- Pre-HCG (before first HCG ICD) analysis ---\n")
+log_msg("=", level = "INFO")
+log_msg("Starting Pre-HCG (before first time-windowed HCG event) analysis", level = "INFO")
+log_msg("  Target: Time-windowed HCG events (ED visits), not F1120", level = "INFO")
+log_msg("=", level = "INFO")
 
-# For non_opioid_ed, target is ED visit (hcg_line IS NOT NULL)
+# For non_opioid_ed (polypharmacy cohort), target is time-windowed HCG events
+# HCG ED visits are identified by specific hcg_line values (matching control exclusion logic):
+#   - 'P51 - ER Visits and Observation Care'
+#   - 'O11 - Emergency Room'
+#   - 'P33 - Urgent Care Visits'
+# This applies to cohorts 5, 6, 7 with age band > 64
 # We need to join back to pgx_df to get hcg_line information
 # First, create a mapping from (case_id, timestamp) to hcg_line
+ed_hcg_lines <- c('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+
 if (has_hcg_line) {
   target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(hcg_line)) %>%
+    filter(!is.na(hcg_line) & hcg_line %in% ed_hcg_lines) %>%
     group_by(mi_person_key) %>%
     summarise(
       target_date = min(event_date, na.rm = TRUE),
@@ -442,8 +482,8 @@ if (has_hcg_line) {
     rename(case_id = mi_person_key)
 } else {
   # Fallback: use first event date for each patient (shouldn't happen, but handle gracefully)
-  cat("WARNING: Neither hcg_line nor first_ed_non_opioid_date found in model_events.parquet\n")
-  cat("Using first event date as target date (this may not be correct)\n")
+  log_msg("⚠ WARNING: Neither hcg_line nor first_ed_non_opioid_date found in model_events.parquet", level = "WARN")
+  log_msg("  Using first event date as target date (this may not be correct)", level = "WARN")
   target_date_map <- pgx_df_target1 %>%
     group_by(mi_person_key) %>%
     summarise(
@@ -482,12 +522,12 @@ pre_target_eventlog <- events_pre_target %>%
     resource_id          = "resource_id"
   )
 
-cat("Pre-HCG eventlog summary:\n")
+log_msg("Pre-HCG eventlog summary:")
 print(pre_target_eventlog)
 
 # Check if pre-HCG eventlog is empty
 if (n_events(pre_target_eventlog) == 0) {
-  cat("No pre-HCG events found; skipping pre-HCG trace and feature analysis for this cohort/age band.\n")
+  log_msg("⚠ No pre-HCG events found; skipping pre-HCG trace and feature analysis", level = "WARN")
   
   # Create empty data frames for consistency
   pre_drug_sequences <- data.frame(
@@ -528,7 +568,7 @@ trace_explorer(pre_target_eventlog, coverage = 0.8)
     .groups = "drop"
   )
 
-cat("Sample pre-HCG drug-only sequences:\n")
+log_msg("Sample pre-HCG drug-only sequences:")
 print(head(pre_drug_sequences))
 
 # 3) Process map for pre-HCG trajectories
@@ -571,14 +611,20 @@ save_bupar_csv(
 
 # -------------------------------------------------------------------
 # Time-to-HCG and time-window features (per patient)
+# For polypharmacy cohort: time-windowed HCG events (cohorts 5, 6, 7, age > 64)
 # -------------------------------------------------------------------
+log_msg("Calculating time-to-HCG and time-window features (per patient)...")
 
 # Use the target_date_map we created earlier (in the pre-HCG section)
 # If target_date_map doesn't exist yet, create it here
+# Use same ED HCG line values as control exclusion logic for consistency
 if (!exists("target_date_map")) {
+  if (!exists("ed_hcg_lines")) {
+    ed_hcg_lines <- c('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+  }
   if (has_hcg_line) {
     target_date_map <- pgx_df_target1 %>%
-      filter(!is.na(hcg_line)) %>%
+      filter(!is.na(hcg_line) & hcg_line %in% ed_hcg_lines) %>%
       group_by(mi_person_key) %>%
       summarise(
         target_date = min(event_date, na.rm = TRUE),
@@ -1000,7 +1046,7 @@ if (nrow(target_events_sample) > 0) {
            plot = p5, width = 16, height = 12, dpi = 300)
   }
   
-  cat("Created overall activity frequency, Gantt timeline (overall + by code type), and activity sequence plots.\n")
+  log_msg("✓ Created overall activity frequency, Gantt timeline (overall + by code type), and activity sequence plots")
 }
 
 # Close PDF device (captures any base graphics from trace_explorer, process_map, etc.)
@@ -1008,7 +1054,10 @@ if (nrow(target_events_sample) > 0) {
 dev.off()
 cat("Closed PDF device. Base graphics saved to: ", rplots_path, "\n", sep = "")
 
-cat("\n=== bupaR analysis for non_opioid_ed ", age_band, " completed. ===\n", sep = "")
+log_msg("=", level = "INFO")
+log_msg(sprintf("✓ bupaR analysis for POLYPHARMACY COHORT (HCG target) %s completed successfully", age_band), level = "INFO")
+log_msg(sprintf("  Data partition: cohort_name=%s", cohort_name), level = "INFO")
+log_msg("=", level = "INFO")
 
 
 

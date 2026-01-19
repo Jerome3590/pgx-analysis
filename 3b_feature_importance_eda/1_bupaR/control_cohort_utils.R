@@ -254,9 +254,26 @@ ensure_control_cohort_with_ratio <- function(
   }
   
   # Step 4: Load control cohort (after recreation if needed)
+  # Optimized: Only select columns needed for verification and type checking
+  # The actual data transformation will be done in the combined query
   if (file.exists(control_model_data_path)) {
     query_control <- sprintf(
-      "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
+      "SELECT 
+        mi_person_key,
+        event_date,
+        drug_name,
+        primary_icd_diagnosis_code,
+        two_icd_diagnosis_code,
+        three_icd_diagnosis_code,
+        four_icd_diagnosis_code,
+        five_icd_diagnosis_code,
+        six_icd_diagnosis_code,
+        seven_icd_diagnosis_code,
+        eight_icd_diagnosis_code,
+        nine_icd_diagnosis_code,
+        ten_icd_diagnosis_code,
+        procedure_code
+      FROM read_parquet('%s') WHERE event_year IN (%s)",
       control_model_data_path,
       paste(train_years, collapse = ",")
     )

@@ -68,7 +68,7 @@ def find_r_script(cohort: str) -> Optional[Path]:
     
     if cohort == "opioid_ed":
         r_script = r_scripts_dir / "create_bupar_outputs_opioid_ed.R"
-    elif cohort == "non_opioid_ed":
+    elif cohort == "non_opioid_ed":  # POLYPHARMACY COHORT
         r_script = r_scripts_dir / "create_bupar_outputs_non_opioid_ed.R"
     else:
         # Try opioid_ed script as fallback

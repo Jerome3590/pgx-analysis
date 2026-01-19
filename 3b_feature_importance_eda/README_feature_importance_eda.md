@@ -159,7 +159,7 @@ jupyter notebook --no-browser --port=8888
 
 ### R Scripts (BupaR Process Mining)
 - `1_bupaR/create_bupar_outputs_opioid_ed.R` - BupaR analysis for opioid_ed cohort
-- `1_bupaR/create_bupar_outputs_non_opioid_ed.R` - BupaR analysis for non_opioid_ed cohort
+- `1_bupaR/create_bupar_outputs_non_opioid_ed.R` - BupaR analysis for POLYPHARMACY COHORT (cohort_name="non_opioid_ed" in data partitions)
 - See `1_bupaR/README_bupaR.md` for complete BupaR documentation
 
 ## Usage
@@ -221,9 +221,10 @@ You can run multiple Jupyter notebooks interactively at the same time! Each note
 
 **Control Cohort Creation:**
 - ✅ **No conflicts**: Control cohorts are age-band specific
-  - Cohort 5 (65-74) uses: `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
-  - Cohort 6 (75-84) uses: `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
-  - Cohort 7 (85-94) uses: `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
+  - POLYPHARMACY COHORT (Cohort 5, 6, 7):
+    - Cohort 5 (65-74) uses: `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
+    - Cohort 6 (75-84) uses: `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
+    - Cohort 7 (85-94) uses: `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
 - Each notebook creates/uses its own age-band-specific control cohort file
 - **Safe to run in parallel**: No file conflicts between different age bands
 
@@ -231,9 +232,10 @@ You can run multiple Jupyter notebooks interactively at the same time! Each note
 
 **Option 1: Parallel Execution (Recommended)**
 ✅ **Safe to run all 3 notebooks in parallel immediately** - Each uses its own age-band-specific control cohort:
-- Cohort 5 (65-74) → `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
-- Cohort 6 (75-84) → `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
-- Cohort 7 (85-94) → `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
+- POLYPHARMACY COHORT:
+  - Cohort 5 (65-74) → `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
+  - Cohort 6 (75-84) → `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
+  - Cohort 7 (85-94) → `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
 
 **No conflicts**: Each notebook creates/uses a separate control cohort file.
 

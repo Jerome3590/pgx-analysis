@@ -3,10 +3,17 @@
 Create model_events.parquet for control cohort (non_opioid_non_ed).
 
 This script creates model_events.parquet for the control cohort used in BupaR analysis.
-The control cohort consists of patients who:
+For POLYPHARMACY COHORT (cohort_name="non_opioid_ed" in data partitions), 
+the control cohort consists of patients who:
+- Have drug events (pharmacy events)
+- Have NO time-windowed HCG target events (no ED visits with specific HCG line values)
 - Have no opioid ICD codes (non-opioid)
-- Have no ED visits (non-ED)
 - Are in the same age band as the target cohort
+
+HCG target events are identified by hcg_line IN:
+  - 'P51 - ER Visits and Observation Care'
+  - 'O11 - Emergency Room'
+  - 'P33 - Urgent Care Visits'
 
 This is a simplified version that only creates control events (target=0).
 """
@@ -235,22 +242,22 @@ def create_control_cohort_model_data(
             age_band
         FROM read_parquet([{pharmacy_paths_literal}])
     ),
-    patients_with_both AS (
-        -- Only include patients who have events in BOTH medical AND pharmacy
-        SELECT DISTINCT me.mi_person_key
-        FROM medical_events me
-        INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+    patients_with_drug_events AS (
+        -- POLYPHARMACY COHORT: Controls must have drug events (pharmacy events)
+        -- This ensures controls have drug events, matching the polypharmacy cohort's focus on drug sequences
+        SELECT DISTINCT mi_person_key
+        FROM pharmacy_events
     ),
     unified_events AS (
         SELECT
             me.*
         FROM medical_events me
-        INNER JOIN patients_with_both pwb ON me.mi_person_key = pwb.mi_person_key
+        INNER JOIN patients_with_drug_events pde ON me.mi_person_key = pde.mi_person_key
         UNION ALL
         SELECT
             pe.*
         FROM pharmacy_events pe
-        INNER JOIN patients_with_both pwb ON pe.mi_person_key = pwb.mi_person_key
+        INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
     ),
     per_patient_flags AS (
         SELECT
@@ -266,14 +273,16 @@ def create_control_cohort_model_data(
                     WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1
                     ELSE 0
                 END
-            ) AS has_ed_visit
+            ) AS has_hcg_target_event
         FROM unified_events ue
         GROUP BY mi_person_key
     ),
     control_candidates AS (
+        -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
+        -- Drug event requirement already enforced by patients_with_drug_events filter above
         SELECT mi_person_key
         FROM per_patient_flags
-        WHERE has_opioid_icd = 0 AND has_ed_visit = 0
+        WHERE has_opioid_icd = 0 AND has_hcg_target_event = 0
     ),
     sampled_controls AS (
         SELECT mi_person_key
@@ -290,7 +299,11 @@ def create_control_cohort_model_data(
     
     try:
         print(f"[INFO] Creating control cohort model_events.parquet for {cohort_name}/{age_band}...")
-        print(f"[INFO] Sampling {sample_size} control patients (non-opioid, non-ED)")
+        print(f"[INFO] POLYPHARMACY COHORT control definition:")
+        print(f"[INFO]   - Patients with drug events (pharmacy events)")
+        print(f"[INFO]   - NO time-windowed HCG target events (no ED visits)")
+        print(f"[INFO]   - NO opioid ICD codes")
+        print(f"[INFO] Sampling {sample_size} control patients")
         
         # Diagnostic queries to understand where data is being filtered
         print(f"\n[DEBUG] Running diagnostic queries...")
@@ -303,22 +316,13 @@ def create_control_cohort_model_data(
         diag_pharmacy = con.execute(f"SELECT COUNT(*) as n FROM read_parquet([{pharmacy_paths_literal}])").fetchone()[0]
         print(f"[DEBUG] Pharmacy events: {diag_pharmacy:,}")
         
-        # Check patients with both
-        diag_both_query = f"""
-        WITH medical_events AS (
-            SELECT DISTINCT mi_person_key
-            FROM read_parquet([{medical_paths_literal}])
-        ),
-        pharmacy_events AS (
-            SELECT DISTINCT mi_person_key
-            FROM read_parquet([{pharmacy_paths_literal}])
-        )
-        SELECT COUNT(DISTINCT me.mi_person_key) as n
-        FROM medical_events me
-        INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+        # Check patients with drug events (pharmacy events)
+        diag_drug_query = f"""
+        SELECT COUNT(DISTINCT mi_person_key) as n
+        FROM read_parquet([{pharmacy_paths_literal}])
         """
-        diag_both = con.execute(diag_both_query).fetchone()[0]
-        print(f"[DEBUG] Patients with both medical AND pharmacy events: {diag_both:,}")
+        diag_drug = con.execute(diag_drug_query).fetchone()[0]
+        print(f"[DEBUG] Patients with drug events (pharmacy): {diag_drug:,}")
         
         # Check control candidates count
         diag_candidates_query = f"""
@@ -337,10 +341,10 @@ def create_control_cohort_model_data(
             SELECT mi_person_key, incurred_date, event_year
             FROM read_parquet([{pharmacy_paths_literal}])
         ),
-        patients_with_both AS (
-            SELECT DISTINCT me.mi_person_key
-            FROM medical_events me
-            INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+        patients_with_drug_events AS (
+            -- POLYPHARMACY COHORT: Controls must have drug events (pharmacy events)
+            SELECT DISTINCT mi_person_key
+            FROM pharmacy_events
         ),
         unified_events AS (
             SELECT me.mi_person_key, me.primary_icd_diagnosis_code, me.two_icd_diagnosis_code,
@@ -348,26 +352,31 @@ def create_control_cohort_model_data(
                    me.six_icd_diagnosis_code, me.seven_icd_diagnosis_code, me.eight_icd_diagnosis_code,
                    me.nine_icd_diagnosis_code, me.ten_icd_diagnosis_code, me.hcg_line
             FROM medical_events me
-            INNER JOIN patients_with_both pwb ON me.mi_person_key = pwb.mi_person_key
+            INNER JOIN patients_with_drug_events pde ON me.mi_person_key = pde.mi_person_key
+            UNION ALL
+            SELECT pe.mi_person_key, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+            FROM pharmacy_events pe
+            INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
         ),
         per_patient_flags AS (
             SELECT
                 mi_person_key,
                 MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END) AS has_opioid_icd,
-                MAX(CASE WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END) AS has_ed_visit
+                MAX(CASE WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END) AS has_hcg_target_event
             FROM unified_events ue
             GROUP BY mi_person_key
         ),
         control_candidates AS (
+            -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
             SELECT mi_person_key
             FROM per_patient_flags
-            WHERE has_opioid_icd = 0 AND has_ed_visit = 0
+            WHERE has_opioid_icd = 0 AND has_hcg_target_event = 0
         )
         SELECT COUNT(*) as n FROM control_candidates
         """
         try:
             diag_candidates = con.execute(diag_candidates_simple).fetchone()[0]
-            print(f"[DEBUG] Control candidates (no opioid ICD, no ED visit): {diag_candidates:,}")
+            print(f"[DEBUG] Control candidates (have drug events, no opioid ICD, no HCG target events): {diag_candidates:,}")
             
             # Check if we're trying to sample more than available
             if sample_size > diag_candidates:

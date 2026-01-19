@@ -191,7 +191,9 @@ except ModuleNotFoundError as e:
 # 3. Manual override: Change values below
 
 # Check for command-line arguments
-COHORT = "non_opioid_ed"
+# POLYPHARMACY COHORT: cohort_name in data partitions is "non_opioid_ed"
+# but we refer to this as "polypharmacy cohort" throughout
+COHORT = "non_opioid_ed"  # Data partition name (must match S3/parquet partitions)
 AGE_BAND = "85-94"
 
 # First, try command-line arguments
@@ -226,7 +228,7 @@ if not AGE_BAND:
 
 # Third, use defaults or manual override
 if not COHORT:
-    COHORT = "opioid_ed"  # Change as needed: "opioid_ed" or "non_opioid_ed"
+    COHORT = "opioid_ed"  # Change as needed: "opioid_ed" or "non_opioid_ed" (polypharmacy cohort)
 if not AGE_BAND:
     AGE_BAND = "13-24"    # Change as needed
 

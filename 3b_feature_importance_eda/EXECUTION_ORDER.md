@@ -77,7 +77,7 @@ The pipeline now executes in this order:
 │   └── README_icd_cpt_check.md
 ├── 1_bupaR/                         # BupaR analysis (Step 2, after admin filtering)
 │   ├── create_bupar_outputs_opioid_ed.R
-│   ├── create_bupar_outputs_non_opioid_ed.R
+│   ├── create_bupar_outputs_non_opioid_ed.R  (POLYPHARMACY COHORT)
 │   ├── create_plots.R
 │   └── README_bupaR.md
 ├── run_bupar_post_target_analysis.py # Calls 1_bupaR/ scripts
