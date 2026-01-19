@@ -107,7 +107,8 @@ def create_simple_duckdb_connection(logger, tmp_dir: Optional[str] = None, s3_re
         
         # Set threads to 1 for multiprocessing environments (multiple workers)
         # Each worker process gets 1 thread to avoid over-subscription
-        conn.sql("SET threads = 1")
+        # NOTE: Use PRAGMA, not SET (SET threads is invalid syntax)
+        conn.sql("PRAGMA threads=1")
         
         # Let DuckDB auto-detect memory limit
         logger.info("✅ Simple DuckDB connection created - 1 thread per worker (for multiprocessing)")
