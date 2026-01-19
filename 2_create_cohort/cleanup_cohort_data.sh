@@ -177,10 +177,19 @@ delete_s3_path() {
     if aws s3 ls "$path" &>/dev/null; then
         local size_before=$(aws s3 ls "$path" --recursive --summarize 2>/dev/null | grep "Total Size" | awk '{print $3, $4}')
         log_message "           Size before: $size_before"
+        # Temporarily disable set -e for this command to prevent script exit on error
+        set +e
         aws s3 rm "$path" --recursive
-        echo -e "${GREEN}[S3]${NC} Deleted: $description"
-        log_message "           Status: DELETED"
-        ((DELETED_COUNT++))
+        local delete_status=$?
+        set -e
+        if [ $delete_status -eq 0 ]; then
+            echo -e "${GREEN}[S3]${NC} Deleted: $description"
+            log_message "           Status: DELETED"
+            ((DELETED_COUNT++))
+        else
+            echo -e "${YELLOW}[S3]${NC} Deletion may have failed (check logs): $description"
+            log_message "           Status: DELETION ATTEMPTED (exit code: $delete_status)"
+        fi
     else
         echo -e "${YELLOW}[S3]${NC} Path not found (may already be deleted): $description"
         log_message "           Status: NOT FOUND (already deleted or doesn't exist)"
@@ -348,16 +357,25 @@ echo ""
 
 # Step 4a: Model data
 echo "--- Step 4a: Model Data ---"
-delete_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe)"
-delete_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe)"
+# Local paths (old format)
+delete_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe - old format)"
+delete_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe - old format)"
+# Local paths (new format with slugs)
+delete_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (NVMe - new format)"
+delete_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (NVMe - new format)"
 if [ -d "${PROJECT_ROOT}/4a_model_data" ]; then
-    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (project)"
-    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project)"
+    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (project - old format)"
+    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project - old format)"
+    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (project - new format)"
+    delete_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (project - new format)"
 fi
-# New format: s3://pgxdatalake/gold/cohorts/input_model_data
-delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - new format)"
-delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - new format)"
-# Legacy path (old format) - for cleanup
+# S3 paths (old format with cohort names)
+delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - old format)"
+delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - old format)"
+# S3 paths (new format with slugs)
+delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=polypharmacy/" "Step 4a: POLYPHARMACY model data (S3 - new format)"
+delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioid/" "Step 4a: OPIOID model data (S3 - new format)"
+# Legacy path (very old format) - for cleanup
 delete_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - legacy)"
 delete_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - legacy)"
 
