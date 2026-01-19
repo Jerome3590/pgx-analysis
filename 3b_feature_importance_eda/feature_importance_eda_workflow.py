@@ -218,11 +218,11 @@ if not IN_JUPYTER and len(sys.argv) > 1:
     if args.age_band:
         AGE_BAND = args.age_band
 
-# Second, try environment variables
+# Second, try environment variables (with backward compatibility)
 if not COHORT:
-    COHORT = os.environ.get("STEP3B_COHORT")
+    COHORT = os.environ.get("FEATURE_IMPORTANCE_EDA_COHORT") or os.environ.get("STEP3B_COHORT")
 if not AGE_BAND:
-    AGE_BAND = os.environ.get("STEP3B_AGE_BAND")
+    AGE_BAND = os.environ.get("FEATURE_IMPORTANCE_EDA_AGE_BAND") or os.environ.get("STEP3B_AGE_BAND")
 
 # Third, use defaults or manual override
 if not COHORT:
