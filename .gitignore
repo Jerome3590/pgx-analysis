@@ -51,3 +51,7 @@ archived/
 
 # Local cache/temporary files
 tmp/
+
+# Model inputs (generated data, should not be in repo)
+6_final_model/inputs/
+8_final_model/inputs/
