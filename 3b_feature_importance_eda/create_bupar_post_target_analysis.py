@@ -376,17 +376,20 @@ def analyze_post_target_leakage_from_events(
             total_pre_events = results_df.get('pre_count', pd.Series([0]*len(results_df))).sum()
             total_post_events = results_df.get('post_count', pd.Series([0]*len(results_df))).sum()
             
+            # Cohort-specific target terminology
+            target_name = "F1120" if cohort == "opioid_ed" else "ED visit (HCG)"
+            
             if total_pre_events == 0 and total_post_events > 0:
-                print(f"\n   [WARN] CRITICAL FINDING: No pre-F1120 events found!")
-                print(f"   All {total_post_events:,} events occur AFTER the target event (F1120).")
+                print(f"\n   [WARN] CRITICAL FINDING: No pre-target events found!")
+                print(f"   All {total_post_events:,} events occur AFTER the target event ({target_name}).")
                 print(f"   This means ALL features are post-target leakage and should be filtered.")
                 print(f"   Consider checking the data filtering or cohort definition.")
             else:
-                print(f"   Features with post-F1120 ratio >= {post_f1120_threshold:.0%} (leakage): {leakage_count}")
-                print(f"   Features with pre-F1120 ratio >= 80% (predictive): {predictive_count}")
+                print(f"   Features with post-{target_name} ratio >= {post_target_threshold:.0%} (leakage): {leakage_count}")
+                print(f"   Features with pre-{target_name} ratio >= 80% (predictive): {predictive_count}")
                 print(f"   Features with mixed timing: {len(results_df) - leakage_count - predictive_count}")
-                print(f"   Total pre-F1120 events: {total_pre_events:,}")
-                print(f"   Total post-F1120 events: {total_post_events:,}")
+                print(f"   Total pre-{target_name} events: {total_pre_events:,}")
+                print(f"   Total post-{target_name} events: {total_post_events:,}")
         
         return results_df
         

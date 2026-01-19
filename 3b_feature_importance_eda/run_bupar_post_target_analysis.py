@@ -223,11 +223,28 @@ def run_bupar_analysis(
         output_dir = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname
         
         # Check for key output files
-        expected_files = [
-            output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv",
-            output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv",
-            output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_time_to_f1120_features_bupar.csv"
-        ]
+        # Note: R scripts for non_opioid_ed use "hcg" suffix, opioid_ed uses "f1120" suffix
+        if cohort == "non_opioid_ed":
+            expected_files = [
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_hcg_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_hcg_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_time_to_hcg_features_bupar.csv"
+            ]
+            # Also check for legacy f1120 filenames (for backwards compatibility)
+            legacy_files = [
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_time_to_f1120_features_bupar.csv"
+            ]
+            # If legacy files exist but expected files don't, use legacy
+            if not any(f.exists() for f in expected_files) and any(f.exists() for f in legacy_files):
+                expected_files = legacy_files
+        else:
+            expected_files = [
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv",
+                output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_time_to_f1120_features_bupar.csv"
+            ]
         
         missing_files = [f for f in expected_files if not f.exists()]
         if missing_files:
