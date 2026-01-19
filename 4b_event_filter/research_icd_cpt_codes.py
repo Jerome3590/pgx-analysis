@@ -30,10 +30,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import COHORT_NAMES, AGE_BANDS
 
-OUTPUT_DIR = PROJECT_ROOT / "4b_dtw_filter" / "outputs" / "code_research"
+OUTPUT_DIR = PROJECT_ROOT / "4b_event_filter" / "outputs" / "code_research"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-CODE_LOOKUP_DIR = PROJECT_ROOT / "4b_dtw_filter" / "code_lookup"
+CODE_LOOKUP_DIR = PROJECT_ROOT / "4b_event_filter" / "code_lookup"
 
 # Cache for ICD lookup files
 _icd10_lookup_cache = None

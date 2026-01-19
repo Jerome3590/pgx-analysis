@@ -65,7 +65,7 @@ def create_predictive_features(
 ) -> None:
     """
     Step 0 (DTW filter + features): Create predictive time-window features
-    for drugs/ICD/CPT prior to both protocol filtering (4b_dtw_filter) and
+    for drugs/ICD/CPT prior to both event filtering (4b_event_filter) and
     downstream DTW feature-add (5d_dtw_analysis).
     """
     with step_block("6_dtw", "create_predictive_time_features", logger=logger):

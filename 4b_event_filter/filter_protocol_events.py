@@ -1542,15 +1542,15 @@ if __name__ == "__main__":
                 from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
                 
                 s3_outputs = []
-                s3_output_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+                s3_output_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
                 if upload_file_to_s3(output_path, s3_output_path, logger):
                     s3_outputs.append(s3_output_path)
                 
-                s3_summary_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+                s3_summary_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
                 if upload_file_to_s3(summary_path, s3_summary_path, logger):
                     s3_outputs.append(s3_summary_path)
                 
-                s3_intervals_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+                s3_intervals_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
                 if upload_file_to_s3(intervals_path, s3_intervals_path, logger):
                     s3_outputs.append(s3_intervals_path)
                 
@@ -1683,17 +1683,17 @@ if __name__ == "__main__":
         # Upload main outputs
         s3_outputs = []
         if output_path.exists():
-            s3_output_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+            s3_output_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
             if upload_file_to_s3(output_path, s3_output_path, logger):
                 s3_outputs.append(s3_output_path)
 
         if summary_path.exists():
-            s3_summary_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+            s3_summary_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
             if upload_file_to_s3(summary_path, s3_summary_path, logger):
                 s3_outputs.append(s3_summary_path)
 
         if intervals_path.exists():
-            s3_intervals_path = f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+            s3_intervals_path = f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
             if upload_file_to_s3(intervals_path, s3_intervals_path, logger):
                 s3_outputs.append(s3_intervals_path)
 
