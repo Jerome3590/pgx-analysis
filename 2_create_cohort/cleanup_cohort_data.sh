@@ -113,13 +113,26 @@ check_s3_path() {
         return 0  # Not an error, just skipped
     fi
     
-    if aws s3 ls "$path" &>/dev/null; then
+    # Temporarily disable set -e to prevent script exit on error
+    set +e
+    aws s3 ls "$path" &>/dev/null
+    local ls_status=$?
+    set -e
+    
+    if [ $ls_status -eq 0 ]; then
+        # Get size and count (may fail, but that's OK)
+        set +e
         local size=$(aws s3 ls "$path" --recursive --summarize 2>/dev/null | grep "Total Size" | awk '{print $3, $4}')
         local count=$(aws s3 ls "$path" --recursive 2>/dev/null | wc -l)
+        set -e
         log_message "[S3 EXISTS] $description"
         log_message "           Path: $path"
-        log_message "           Files: $count"
-        log_message "           Size: $size"
+        if [ -n "$count" ]; then
+            log_message "           Files: $count"
+        fi
+        if [ -n "$size" ]; then
+            log_message "           Size: $size"
+        fi
         return 0
     else
         log_message "[S3 MISSING] $description"
