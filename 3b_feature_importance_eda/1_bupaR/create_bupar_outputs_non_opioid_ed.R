@@ -695,15 +695,29 @@ if (nrow(rare_sequences) > 0) {
 }
 
 # 2) Process Matrix and CSV export
-pm_target <- process_matrix(target_eventlog, type = "frequency")
-pm_target_df <- as.data.frame(pm_target)
-save_bupar_csv(
-  pm_target_df,
-  sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-)
+tryCatch({
+  pm_target <- process_matrix(target_eventlog, type = "frequency")
+  pm_target_df <- as.data.frame(pm_target)
+  save_bupar_csv(
+    pm_target_df,
+    sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+  )
+}, error = function(e) {
+  cat("Warning: process_matrix failed:", conditionMessage(e), "\n")
+  # Create empty data frame to avoid downstream errors
+  pm_target_df <- data.frame()
+  save_bupar_csv(
+    pm_target_df,
+    sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+  )
+})
 
 # 3) Process Map visualization
-process_map(target_eventlog, type = "frequency")
+tryCatch({
+  process_map(target_eventlog, type = "frequency")
+}, error = function(e) {
+  cat("Warning: process_map failed:", conditionMessage(e), "\n")
+})
 
 # Close PDF device (captures any base graphics from trace_explorer, process_map, etc.)
 # This prevents Rplots.pdf from being created in the project root

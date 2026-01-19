@@ -40,17 +40,67 @@ def get_model_data_root() -> Path:
 
 
 def resolve_local_medical_root() -> Path:
-    """Resolve the root directory containing gold medical parquet files."""
-    # Use get_data_root() which returns /mnt/nvme on EC2, or LOCAL_DATA_PATH if set
+    """
+    Resolve the root directory containing gold medical parquet files.
+    
+    Priority:
+      1. LOCAL_MEDICAL_PATH environment variable
+      2. get_data_root()/gold/medical (Linux/EC2: /mnt/nvme/gold/medical)
+      3. get_data_root()/data/gold_medical (Alternative Linux path)
+      4. PROJECT_ROOT/data/gold_medical (Windows/local dev)
+    """
+    env_path = os.getenv("LOCAL_MEDICAL_PATH")
+    if env_path:
+        root = Path(env_path)
+        if root.exists():
+            return root
+    
+    # OS-aware path resolution
     data_root = get_data_root()
-    return data_root / "gold_medical"
+    candidates = [
+        data_root / "gold" / "medical",  # Linux/EC2: /mnt/nvme/gold/medical
+        data_root / "data" / "gold_medical",  # Alternative Linux path
+        PROJECT_ROOT / "data" / "gold_medical",  # Windows/local dev
+    ]
+    
+    # Return first existing path, or default to project root if none exists
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return candidates[2]  # Default to project root
 
 
 def resolve_local_pharmacy_root() -> Path:
-    """Resolve the root directory containing gold pharmacy parquet files."""
-    # Use get_data_root() which returns /mnt/nvme on EC2, or LOCAL_DATA_PATH if set
+    """
+    Resolve the root directory containing gold pharmacy parquet files.
+    
+    Priority:
+      1. LOCAL_PHARMACY_PATH environment variable
+      2. get_data_root()/gold/pharmacy (Linux/EC2: /mnt/nvme/gold/pharmacy)
+      3. get_data_root()/data/gold_pharmacy (Alternative Linux path)
+      4. PROJECT_ROOT/data/gold_pharmacy (Windows/local dev)
+    """
+    env_path = os.getenv("LOCAL_PHARMACY_PATH")
+    if env_path:
+        root = Path(env_path)
+        if root.exists():
+            return root
+    
+    # OS-aware path resolution
     data_root = get_data_root()
-    return data_root / "gold_pharmacy"
+    candidates = [
+        data_root / "gold" / "pharmacy",  # Linux/EC2: /mnt/nvme/gold/pharmacy
+        data_root / "data" / "gold_pharmacy",  # Alternative Linux path
+        PROJECT_ROOT / "data" / "gold_pharmacy",  # Windows/local dev
+    ]
+    
+    # Return first existing path, or default to project root if none exists
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return candidates[2]  # Default to project root
 
 
 def create_control_cohort_model_data(
