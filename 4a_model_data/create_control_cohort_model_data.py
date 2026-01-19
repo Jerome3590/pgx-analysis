@@ -172,8 +172,14 @@ def create_control_cohort_model_data(
     # 5. Sample control patients
     # 6. Extract all events for sampled controls
     
-    medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
-    pharmacy_paths_literal = ", ".join(f"'{p}'" for p in pharmacy_parquet_paths) if pharmacy_parquet_paths else ""
+    # Use union_by_name=True to handle different schemas between medical and pharmacy files
+    # This automatically handles missing columns (e.g., drug_name in medical, ICD codes in pharmacy)
+    all_paths = medical_parquet_paths + pharmacy_parquet_paths
+    all_paths_literal = ", ".join(f"'{p}'" for p in all_paths) if all_paths else ""
+    
+    if not all_paths_literal:
+        print(f"[ERROR] No medical or pharmacy files found")
+        return
     
     query = f"""
     WITH unified_events AS (
@@ -181,7 +187,7 @@ def create_control_cohort_model_data(
             mi_person_key,
             event_date,
             event_year,
-            drug_name,
+            drug_name,  -- Will be NULL for medical files, present in pharmacy files
             primary_icd_diagnosis_code,
             two_icd_diagnosis_code,
             three_icd_diagnosis_code,
@@ -195,27 +201,7 @@ def create_control_cohort_model_data(
             procedure_code,
             hcg_line,
             age_band
-        FROM read_parquet([{medical_paths_literal}])
-        UNION ALL
-        SELECT
-            mi_person_key,
-            event_date,
-            event_year,
-            drug_name,
-            NULL AS primary_icd_diagnosis_code,
-            NULL AS two_icd_diagnosis_code,
-            NULL AS three_icd_diagnosis_code,
-            NULL AS four_icd_diagnosis_code,
-            NULL AS five_icd_diagnosis_code,
-            NULL AS six_icd_diagnosis_code,
-            NULL AS seven_icd_diagnosis_code,
-            NULL AS eight_icd_diagnosis_code,
-            NULL AS nine_icd_diagnosis_code,
-            NULL AS ten_icd_diagnosis_code,
-            NULL AS procedure_code,
-            NULL AS hcg_line,
-            age_band
-        FROM read_parquet([{pharmacy_paths_literal}])
+        FROM read_parquet([{all_paths_literal}], union_by_name=True)
     ),
     per_patient_flags AS (
         SELECT
