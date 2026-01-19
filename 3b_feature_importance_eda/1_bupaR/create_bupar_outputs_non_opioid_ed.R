@@ -824,6 +824,191 @@ tryCatch({
   cat("Warning: process_map failed:", conditionMessage(e), "\n")
 })
 
+# 4) ggplot2 Visualizations (PNG files)
+# For polypharmacy cohort, create visualizations for all events (not just drugs)
+plots_dir <- file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
+if (!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE)
+
+# Activity frequency plot (overall)
+target_activity_freq <- target_eventlog %>%
+  group_by(activity) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(desc(count)) %>%
+  head(30)
+
+if (nrow(target_activity_freq) > 0) {
+  p3 <- ggplot(target_activity_freq, aes(x = reorder(activity, count), y = count)) +
+    geom_bar(stat = "identity", fill = "darkgreen") +
+    coord_flip() +
+    labs(title = paste("Overall Activity Frequency:", cohort_name, age_band),
+         x = "Activity", y = "Frequency") +
+    theme_bw()
+  
+  ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name, age_band_fname)),
+         plot = p3, width = 12, height = 10, dpi = 300)
+  cat("Created overall activity frequency plot.\n")
+}
+
+# Gantt-style timeline (patient = job, activity = stage)
+# Sample up to 30 cases for visualization
+target_events_df <- as.data.frame(target_eventlog) %>%
+  arrange(case_id, timestamp) %>%
+  mutate(event_type = case_when(
+    grepl("^DRUG:", activity) ~ "Drug",
+    grepl("^ICD:", activity) ~ "Diagnosis",
+    grepl("^CPT:", activity) ~ "Procedure",
+    TRUE ~ "Other"
+  )) %>%
+  # For point events, add small duration (1 day) to create visible bars
+  mutate(start_time = timestamp,
+         end_time = timestamp + lubridate::ddays(1))
+
+sample_cases <- unique(target_events_df$case_id)[1:min(30, length(unique(target_events_df$case_id)))]
+target_events_sample <- target_events_df %>%
+  filter(case_id %in% sample_cases) %>%
+  mutate(case_id_factor = factor(case_id, levels = rev(sample_cases)),
+         entity_num = as.numeric(case_id_factor))
+
+if (nrow(target_events_sample) > 0) {
+  # Overall Gantt chart
+  p4 <- ggplot(target_events_sample,
+         aes(ymin = entity_num - 0.4,
+             ymax = entity_num + 0.4,
+             xmin = start_time,
+             xmax = end_time,
+             fill = event_type)) +
+    geom_rect(alpha = 0.8) +
+    scale_y_continuous(breaks = unique(target_events_sample$entity_num),
+                       labels = levels(target_events_sample$case_id_factor)) +
+    scale_x_datetime() +
+    labs(title = paste("Activity Timeline (Gantt):", cohort_name, age_band),
+         subtitle = "Each patient (row) shows activity codes as horizontal bars",
+         x = "Event Time", y = "Patient ID", fill = "Event Type") +
+    theme_bw() +
+    theme(legend.position = "right",
+          axis.text.y = element_text(size = 6))
+  
+  ggsave(file.path(plots_dir, sprintf("%s_%s_activity_milestones_gantt.png", cohort_name, age_band_fname)),
+         plot = p4, width = 16, height = 12, dpi = 300)
+  
+  # Drug codes Gantt
+  target_drug_events <- target_events_sample %>%
+    filter(grepl("^DRUG:", activity)) %>%
+    mutate(code_name = gsub("^DRUG:", "", activity))
+  
+  if (nrow(target_drug_events) > 0) {
+    target_drug_entity_breaks <- sort(unique(target_drug_events$entity_num))
+    target_drug_case_labels <- as.character(target_drug_events$case_id_factor[match(target_drug_entity_breaks, target_drug_events$entity_num)])
+    
+    p4_drug <- ggplot(target_drug_events,
+         aes(ymin = entity_num - 0.4,
+             ymax = entity_num + 0.4,
+             xmin = start_time,
+             xmax = end_time,
+             fill = code_name)) +
+      geom_rect(alpha = 0.8) +
+      scale_y_continuous(breaks = target_drug_entity_breaks,
+                       labels = target_drug_case_labels) +
+      scale_x_datetime() +
+      labs(title = paste("Drug Codes Timeline (Gantt):", cohort_name, age_band),
+           subtitle = "Each patient (row) shows drug codes as horizontal bars",
+           x = "Event Time", y = "Patient ID", fill = "Drug Code") +
+      theme_bw() +
+      theme(legend.position = "right",
+            axis.text.y = element_text(size = 6))
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_gantt_drugs.png", cohort_name, age_band_fname)),
+           plot = p4_drug, width = 18, height = 12, dpi = 300)
+  }
+  
+  # ICD codes Gantt
+  target_icd_events <- target_events_sample %>%
+    filter(grepl("^ICD:", activity)) %>%
+    mutate(code_name = gsub("^ICD:", "", activity))
+  
+  if (nrow(target_icd_events) > 0) {
+    target_icd_entity_breaks <- sort(unique(target_icd_events$entity_num))
+    target_icd_case_labels <- as.character(target_icd_events$case_id_factor[match(target_icd_entity_breaks, target_icd_events$entity_num)])
+    
+    p4_icd <- ggplot(target_icd_events,
+         aes(ymin = entity_num - 0.4,
+             ymax = entity_num + 0.4,
+             xmin = start_time,
+             xmax = end_time,
+             fill = code_name)) +
+      geom_rect(alpha = 0.8) +
+      scale_y_continuous(breaks = target_icd_entity_breaks,
+                       labels = target_icd_case_labels) +
+      scale_x_datetime() +
+      labs(title = paste("ICD Codes Timeline (Gantt):", cohort_name, age_band),
+           subtitle = "Each patient (row) shows ICD codes as horizontal bars",
+           x = "Event Time", y = "Patient ID", fill = "ICD Code") +
+      theme_bw() +
+      theme(legend.position = "right",
+            axis.text.y = element_text(size = 6))
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_gantt_icd.png", cohort_name, age_band_fname)),
+           plot = p4_icd, width = 18, height = 12, dpi = 300)
+  }
+  
+  # CPT codes Gantt
+  target_cpt_events <- target_events_sample %>%
+    filter(grepl("^CPT:", activity)) %>%
+    mutate(code_name = gsub("^CPT:", "", activity))
+  
+  if (nrow(target_cpt_events) > 0) {
+    target_cpt_entity_breaks <- sort(unique(target_cpt_events$entity_num))
+    target_cpt_case_labels <- as.character(target_cpt_events$case_id_factor[match(target_cpt_entity_breaks, target_cpt_events$entity_num)])
+    
+    p4_cpt <- ggplot(target_cpt_events,
+         aes(ymin = entity_num - 0.4,
+             ymax = entity_num + 0.4,
+             xmin = start_time,
+             xmax = end_time,
+             fill = code_name)) +
+      geom_rect(alpha = 0.8) +
+      scale_y_continuous(breaks = target_cpt_entity_breaks,
+                       labels = target_cpt_case_labels) +
+      scale_x_datetime() +
+      labs(title = paste("CPT Codes Timeline (Gantt):", cohort_name, age_band),
+           subtitle = "Each patient (row) shows CPT codes as horizontal bars",
+           x = "Event Time", y = "Patient ID", fill = "CPT Code") +
+      theme_bw() +
+      theme(legend.position = "right",
+          axis.text.y = element_text(size = 6))
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_gantt_cpt.png", cohort_name, age_band_fname)),
+           plot = p4_cpt, width = 18, height = 12, dpi = 300)
+  }
+  
+  # Activity sequence with top activities highlighted
+  if (nrow(target_activity_freq) > 0) {
+    top_activities <- target_activity_freq$activity[1:min(10, nrow(target_activity_freq))]
+    target_events_top <- target_events_sample %>%
+      mutate(activity_highlight = ifelse(activity %in% top_activities, activity, "Other"))
+    
+    p5 <- ggplot(target_events_top,
+           aes(x = timestamp,
+               y = case_id_factor,
+               color = activity_highlight,
+               shape = event_type)) +
+      geom_point(size = 2, alpha = 0.7) +
+      scale_x_datetime() +
+      scale_shape_manual(values = c("Drug" = 16, "Diagnosis" = 17, "Procedure" = 18, "Other" = 1)) +
+      labs(title = paste("Activity Sequence with Top Activities:", cohort_name, age_band),
+           x = "Event Time", y = "Patient ID",
+           color = "Activity (Top 10)", shape = "Event Type") +
+      theme_bw() +
+      theme(legend.position = "right",
+            axis.text.y = element_text(size = 6))
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_activity_sequence_top.png", cohort_name, age_band_fname)),
+           plot = p5, width = 16, height = 12, dpi = 300)
+  }
+  
+  cat("Created overall activity frequency, Gantt timeline (overall + by code type), and activity sequence plots.\n")
+}
+
 # Close PDF device (captures any base graphics from trace_explorer, process_map, etc.)
 # This prevents Rplots.pdf from being created in the project root
 dev.off()
