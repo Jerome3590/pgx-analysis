@@ -109,7 +109,10 @@ def analyze_post_target_leakage_from_events(
     """
     Analyze event-level data to identify post-target leakage features.
     
-    For each feature (ICD/CPT code, drug), calculates:
+    For opioid_ed cohort: Analyzes all features (ICD codes, CPT codes, drugs)
+    For non_opioid_ed cohort: Analyzes only drugs (polypharmacy focus)
+    
+    For each feature, calculates:
     - Total occurrences in target cases
     - Occurrences BEFORE target event (F1120 for opioid_ed, ED visit for non_opioid_ed)
     - Occurrences AFTER target event
@@ -162,6 +165,12 @@ def analyze_post_target_leakage_from_events(
     
     print(f"Loading event data from: {model_data_path}")
     
+    # Cohort-specific analysis scope
+    if cohort == "non_opioid_ed":
+        print(f"[INFO] Polypharmacy cohort: Analyzing DRUGS only (excluding ICD/CPT codes)")
+    else:
+        print(f"[INFO] Analyzing all features: ICD codes, CPT codes, and drugs")
+    
     con = duckdb.connect()
     
     # Query to analyze each feature's pre/post target distribution
@@ -209,8 +218,42 @@ def analyze_post_target_leakage_from_events(
     ),
     """
     
-    # Continue with the rest of the query (same for both cohorts)
-    query += f"""
+    # Continue with the rest of the query
+    # For non_opioid_ed (polypharmacy), only analyze drugs (not ICD/CPT codes)
+    # For opioid_ed, analyze all features (ICD, CPT, drugs)
+    if cohort == "non_opioid_ed":
+        # Polypharmacy cohort: only drugs
+        query += f"""
+    events_with_target_dates AS (
+        SELECT 
+            e.mi_person_key,
+            e.event_date,
+            e.target,
+            t.target_date,
+            e.drug_name
+        FROM read_parquet('{model_data_path_str}') e
+        LEFT JOIN target_patients t ON e.mi_person_key = t.mi_person_key
+        WHERE e.target = 1  -- Only analyze target cases
+    ),
+    -- Flatten to individual drug events (drugs only for polypharmacy cohort)
+    feature_events AS (
+        SELECT 
+            mi_person_key,
+            event_date,
+            target_date,
+            CASE 
+                WHEN event_date < target_date THEN 'pre'
+                WHEN event_date >= target_date THEN 'post'
+                ELSE 'unknown'
+            END as timing,
+            'item_drug_' || UPPER(REPLACE(REPLACE(drug_name, ' ', '_'), '-', '_')) as feature
+        FROM events_with_target_dates
+        WHERE drug_name IS NOT NULL AND target_date IS NOT NULL
+    ),
+        """
+    else:
+        # Opioid_ed cohort: analyze all features (ICD, CPT, drugs)
+        query += f"""
     events_with_target_dates AS (
         SELECT 
             e.mi_person_key,
@@ -281,6 +324,9 @@ def analyze_post_target_leakage_from_events(
         FROM events_with_target_dates
         WHERE drug_name IS NOT NULL AND target_date IS NOT NULL
     ),
+        """
+    
+    query += """
     -- Calculate statistics per feature
     feature_stats AS (
         SELECT 
