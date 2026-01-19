@@ -64,13 +64,8 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 
 ## Workflow
 
-1. **Load aggregated feature importances** from Step 3
-2. **Administrative/Non-informative Code Filtering** (`0_icd_cpt_check/`):
-   - Load administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
-   - Validate ICD/CPT codes by groups (ICD by chapter, CPT by range)
-   - Remove non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
-   - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
-3. **BupaR Post-Target Analysis** (`1_bupaR/`):
+1. **Load aggregated feature importances** from Step 3 (already processed feature importance scores)
+2. **BupaR Post-Target Analysis** (`1_bupaR/`):
    - Build BupaR event logs from `model_events.parquet`
    - Analyze sequences before and after target event (F1120)
    - Calculate pre-F1120 and post-F1120 ratios for each feature
