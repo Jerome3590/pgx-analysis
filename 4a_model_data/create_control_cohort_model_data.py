@@ -254,7 +254,7 @@ def create_control_cohort_model_data(
                     ELSE 0
                 END
             ) AS has_ed_visit
-        FROM unified_events
+        FROM unified_events ue
         GROUP BY mi_person_key
     ),
     control_candidates AS (
