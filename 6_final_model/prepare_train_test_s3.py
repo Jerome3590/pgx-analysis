@@ -241,9 +241,9 @@ def prepare_train_test_s3(
         print("[WARNING] Target column missing in test features, adding default target=1")
         test_features['target'] = 1
     
-    # Create local input directories in BOTH locations for compatibility
-    # Primary location: 6_final_model/outputs (for Step 8 FFA analysis)
-    primary_input_dir = (
+    # Create local input directories
+    # Location: 6_final_model/outputs (for Step 8 FFA analysis)
+    input_dir = (
         project_root
         / "6_final_model"
         / "outputs"
@@ -251,54 +251,27 @@ def prepare_train_test_s3(
         / age_band_fname
         / "inputs"
     )
-    primary_input_dir.mkdir(parents=True, exist_ok=True)
+    input_dir.mkdir(parents=True, exist_ok=True)
     
-    primary_train_dir = primary_input_dir / "model_train"
-    primary_test_dir = primary_input_dir / "model_test"
-    primary_train_dir.mkdir(exist_ok=True)
-    primary_test_dir.mkdir(exist_ok=True)
+    train_dir = input_dir / "model_train"
+    test_dir = input_dir / "model_test"
+    train_dir.mkdir(exist_ok=True)
+    test_dir.mkdir(exist_ok=True)
     
-    # Legacy location: 8_final_model/inputs (for backward compatibility)
-    legacy_input_dir = (
-        project_root
-        / "8_final_model"
-        / "inputs"
-        / cohort_name
-        / age_band_fname
-    )
-    legacy_input_dir.mkdir(parents=True, exist_ok=True)
+    # Save locally as Parquet (more efficient than CSV)
+    train_path = train_dir / "final_features.parquet"
+    test_path = test_dir / "final_features.parquet"
     
-    legacy_train_dir = legacy_input_dir / "model_train"
-    legacy_test_dir = legacy_input_dir / "model_test"
-    legacy_train_dir.mkdir(exist_ok=True)
-    legacy_test_dir.mkdir(exist_ok=True)
-    
-    # Save locally as Parquet (more efficient than CSV) in BOTH locations
-    primary_train_path = primary_train_dir / "final_features.parquet"
-    primary_test_path = primary_test_dir / "final_features.parquet"
-    legacy_train_path = legacy_train_dir / "final_features.parquet"
-    legacy_test_path = legacy_test_dir / "final_features.parquet"
-    
-    print(f"\n[INFO] Saving train dataset to primary location: {primary_train_path}")
-    train_features.to_parquet(primary_train_path, index=False, engine='pyarrow')
+    print(f"\n[INFO] Saving train dataset to: {train_path}")
+    train_features.to_parquet(train_path, index=False, engine='pyarrow')
     print(f"[INFO] Train dataset: {len(train_features)} rows, {len(train_features.columns)} columns")
     
-    # Also save to legacy location
-    print(f"[INFO] Also saving to legacy location: {legacy_train_path}")
-    train_features.to_parquet(legacy_train_path, index=False, engine='pyarrow')
-    
     if len(test_features) > 0:
-        print(f"[INFO] Saving test dataset to primary location: {primary_test_path}")
-        test_features.to_parquet(primary_test_path, index=False, engine='pyarrow')
+        print(f"[INFO] Saving test dataset to: {test_path}")
+        test_features.to_parquet(test_path, index=False, engine='pyarrow')
         print(f"[INFO] Test dataset: {len(test_features)} rows, {len(test_features.columns)} columns")
-        
-        # Also save to legacy location
-        print(f"[INFO] Also saving to legacy location: {legacy_test_path}")
-        test_features.to_parquet(legacy_test_path, index=False, engine='pyarrow')
     
-    # Use primary path for S3 upload
-    train_path = primary_train_path
-    test_path = primary_test_path
+    # train_path and test_path are already set above
     
     # Upload to S3 (CRITICAL: Training data must be in S3 for FFA analysis)
     # S3 structure: inputs folder (replicating local structure)

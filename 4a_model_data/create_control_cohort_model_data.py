@@ -180,10 +180,16 @@ def create_control_cohort_model_data(
         return
     
     query = f"""
-    WITH medical_events AS (
+    WITH     medical_events AS (
         SELECT
             mi_person_key,
-            CAST(incurred_date AS DATE) AS event_date,  -- Medical files use incurred_date, cast to DATE
+            CASE 
+                WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                    CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                         SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                         SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                ELSE CAST(incurred_date AS DATE)
+            END AS event_date,  -- Parse YYYYMMDD format to YYYY-MM-DD
             event_year,
             NULL AS drug_name,  -- Medical files don't have drug_name
             primary_icd_diagnosis_code,
@@ -204,7 +210,13 @@ def create_control_cohort_model_data(
     pharmacy_events AS (
         SELECT
             mi_person_key,
-            CAST(incurred_date AS DATE) AS event_date,  -- Pharmacy files use incurred_date, cast to DATE
+            CASE 
+                WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                    CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                         SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                         SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                ELSE CAST(incurred_date AS DATE)
+            END AS event_date,  -- Parse YYYYMMDD format to YYYY-MM-DD
             event_year,
             drug_name,  -- Pharmacy files have drug_name
             NULL AS primary_icd_diagnosis_code,
