@@ -843,10 +843,14 @@ if (nrow(target_activity_freq) > 0) {
 
 # Gantt-style timeline (patient = job, activity = stage)
 # For polypharmacy cohort, all activities are drugs (ICD/CPT filtered out)
+# Each drug is a different event type for visualization
 # Sample up to 30 cases for visualization
 target_events_df <- as.data.frame(target_eventlog) %>%
   arrange(case_id, timestamp) %>%
-  mutate(event_type = "Drug") %>%
+  mutate(
+    # Extract drug name from activity (format: "DRUG:drug_name")
+    event_type = gsub("^DRUG:", "", activity)
+  ) %>%
   # For point events, add small duration (1 day) to create visible bars
   mutate(start_time = timestamp,
          end_time = timestamp + lubridate::ddays(1))
