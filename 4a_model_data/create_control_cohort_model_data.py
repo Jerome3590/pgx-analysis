@@ -24,7 +24,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import (
-    OPIOID_ICD_CODES,
     get_opioid_icd_sql_condition,
 )
 from py_helpers.env_utils import get_data_root, is_linux
@@ -353,7 +352,7 @@ def create_control_cohort_model_data(
             SELECT
                 mi_person_key,
                 MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END) AS has_opioid_icd,
-                MAX(CASE WHEN hcg_line IS NOT NULL THEN 1 ELSE 0 END) AS has_ed_visit
+                MAX(CASE WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END) AS has_ed_visit
             FROM unified_events ue
             GROUP BY mi_person_key
         ),
