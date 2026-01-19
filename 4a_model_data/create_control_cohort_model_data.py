@@ -331,21 +331,17 @@ def create_control_cohort_model_data(
         diag_drug = con.execute(diag_drug_query).fetchone()[0]
         print(f"[DEBUG] Patients with drug events (pharmacy): {diag_drug:,}")
         
-        # Check control candidates count
-        diag_candidates_query = f"""
-        {query.replace('LIMIT ' + str(sample_size), '')}
-        """
-        # Extract just the control_candidates CTE
+        # Check control candidates count - use same structure as main query
         diag_candidates_simple = f"""
         WITH medical_events AS (
-            SELECT mi_person_key, incurred_date, event_year, primary_icd_diagnosis_code, two_icd_diagnosis_code,
+            SELECT mi_person_key, primary_icd_diagnosis_code, two_icd_diagnosis_code,
                    three_icd_diagnosis_code, four_icd_diagnosis_code, five_icd_diagnosis_code,
                    six_icd_diagnosis_code, seven_icd_diagnosis_code, eight_icd_diagnosis_code,
                    nine_icd_diagnosis_code, ten_icd_diagnosis_code, hcg_line
             FROM read_parquet([{medical_paths_literal}])
         ),
         pharmacy_events AS (
-            SELECT mi_person_key, incurred_date, event_year
+            SELECT mi_person_key
             FROM read_parquet([{pharmacy_paths_literal}])
         ),
         patients_with_drug_events AS (
@@ -353,25 +349,15 @@ def create_control_cohort_model_data(
             SELECT DISTINCT mi_person_key
             FROM pharmacy_events
         ),
-        unified_events AS (
-            SELECT me.mi_person_key, me.primary_icd_diagnosis_code, me.two_icd_diagnosis_code,
-                   me.three_icd_diagnosis_code, me.four_icd_diagnosis_code, me.five_icd_diagnosis_code,
-                   me.six_icd_diagnosis_code, me.seven_icd_diagnosis_code, me.eight_icd_diagnosis_code,
-                   me.nine_icd_diagnosis_code, me.ten_icd_diagnosis_code, me.hcg_line
-            FROM medical_events me
-            INNER JOIN patients_with_drug_events pde ON me.mi_person_key = pde.mi_person_key
-            UNION ALL
-            SELECT pe.mi_person_key, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-            FROM pharmacy_events pe
-            INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
-        ),
         per_patient_flags AS (
+            -- Check ALL patients with drug events for opioid ICD codes and HCG target events
             SELECT
-                mi_person_key,
-                MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END) AS has_opioid_icd,
-                MAX(CASE WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END) AS has_hcg_target_event
-            FROM unified_events ue
-            GROUP BY mi_person_key
+                pde.mi_person_key,
+                COALESCE(MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END), 0) AS has_opioid_icd,
+                COALESCE(MAX(CASE WHEN me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END), 0) AS has_hcg_target_event
+            FROM patients_with_drug_events pde
+            LEFT JOIN medical_events me ON pde.mi_person_key = me.mi_person_key
+            GROUP BY pde.mi_person_key
         ),
         control_candidates AS (
             -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
