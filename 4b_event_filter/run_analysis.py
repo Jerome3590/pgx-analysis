@@ -8,7 +8,7 @@ This script runs the DTW workflow:
 3. Merge DTW features into a final feature file (via add_dtw_features_to_model_data.py)
 
 Usage:
-    python 4b_dtw_filter/run_analysis.py --cohort-name opioid_ed --age-band 0-12
+    python 4b_event_filter/run_analysis.py --cohort-name opioid_ed --age-band 0-12
 """
 
 import argparse

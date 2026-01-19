@@ -45,7 +45,7 @@ done
 echo ""
 echo "[3/6] Clearing Step 4b (DTW Filter outputs)..."
 # Clear local outputs
-rm -rf 4b_dtw_filter/outputs/*
+rm -rf 4b_event_filter/outputs/*
 rm -rf 4a_model_data/cohort_name=*/age_band=*/model_events_no_protocols.parquet 2>/dev/null || true
 
 # Clear S3 outputs

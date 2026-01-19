@@ -17,7 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import COHORT_NAMES, AGE_BANDS
 
-SCRIPT_PATH = PROJECT_ROOT / "4b_dtw_filter" / "analyze_z_codes_in_cohorts.py"
+SCRIPT_PATH = PROJECT_ROOT / "4b_event_filter" / "analyze_z_codes_in_cohorts.py"
 
 def main():
     """Run Z code analysis for all cohorts and age bands."""
@@ -73,7 +73,7 @@ def main():
     print("All analyses complete!")
     print("=" * 80)
     print()
-    print(f"Results saved to: {PROJECT_ROOT / '4b_dtw_filter' / 'outputs' / 'z_code_analysis'}")
+    print(f"Results saved to: {PROJECT_ROOT / '4b_event_filter' / 'outputs' / 'z_code_analysis'}")
 
 if __name__ == "__main__":
     main()

@@ -570,7 +570,7 @@ fi
 # Step 4b: DTW Protocol Filtering
 # Filter administrative/scheduling/non-medical codes, keep all surgeries
 run_step "4b" "DTW Protocol Filtering (Admin/Scheduling Filter, Keep Surgeries)" \
-    "python 4b_dtw_filter/filter_protocol_events.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
+    "python 4b_event_filter/filter_protocol_events.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 5: PGx Feature Engineering (ONLY feature engineering step)
 # Note: BupaR, FP-Growth, and DTW are now used only for dashboard visualizations

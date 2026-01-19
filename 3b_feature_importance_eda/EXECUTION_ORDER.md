@@ -30,7 +30,7 @@ The pipeline now executes in this order:
 
 2. **Code Research and Validation** (`0_icd_cpt_check/`)
    - Researches and validates ICD/CPT codes by groups (ICD by chapter, CPT by range)
-   - Loads administrative codes from `4b_dtw_filter/administrative_codes_lookup.json` (legacy path name, file contains administrative code lookup)
+   - Loads administrative codes from `4b_event_filter/administrative_codes_lookup.json` (codes identified in 0_icd_cpt_check)
    - Identifies non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
    - **Note**: This step only validates and identifies codes - actual event-level filtering happens in Step 4b
    - The `filter_and_refine_features.py` step filters post-target leakage features from aggregated importances, not administrative codes

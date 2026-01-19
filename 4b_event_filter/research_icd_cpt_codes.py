@@ -1065,7 +1065,7 @@ def create_lookup_table(df: pd.DataFrame) -> Dict:
                 admin_codes['hcpcs'].append(row['code'])
     
     return {
-        'description': 'Lookup table for classifying codes as administrative vs. medical/pharmacy. Codes listed here will be filtered out during DTW protocol filtering.',
+        'description': 'Lookup table for classifying codes as administrative vs. medical/pharmacy. Codes listed here will be filtered out during event filtering (Step 4b).',
         'version': '1.0',
         'last_updated': pd.Timestamp.now().strftime('%Y-%m-%d'),
         'administrative_codes': admin_codes,
@@ -1203,7 +1203,7 @@ def main():
     print(f"     - CPT codes: https://www.ama-assn.org/topics/cpt-codes")
     print(f"     - HCPCS codes: https://www.cms.gov/medicare/physician-fee-schedule/search")
     print(f"  4. Update classifications in {output_csv} if needed")
-    print(f"  5. Copy {lookup_json} to 4b_dtw_filter/administrative_codes_lookup.json when ready")
+    print(f"  5. Copy {lookup_json} to 4b_event_filter/administrative_codes_lookup.json when ready")
     print("=" * 80)
     lookup_json = OUTPUT_DIR / "administrative_codes_lookup.json"
     with open(lookup_json, 'w') as f:
@@ -1246,7 +1246,7 @@ def main():
     print(f"     - CPT codes: https://www.cms.gov/medicare/physician-fee-schedule/search")
     print(f"     - HCPCS codes: https://www.cms.gov/medicare/physician-fee-schedule/search")
     print(f"  4. Update classifications in {output_csv} if needed")
-    print(f"  5. Copy {lookup_json} to 4b_dtw_filter/administrative_codes_lookup.json when ready")
+    print(f"  5. Copy {lookup_json} to 4b_event_filter/administrative_codes_lookup.json when ready")
     
     return codes, df, lookup_table
 

@@ -10,7 +10,7 @@ graph TD
     A --> C[2_create_cohort]
     A --> D[3_feature_importance]
     A --> E[4a_model_data]
-    A --> E2[4b_dtw_filter]
+    A --> E2[4b_event_filter]
     A --> H[5_pgx_analysis]
     A --> J[6_final_model_selection]
     A --> K[7_shap_analysis]
@@ -104,7 +104,7 @@ For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
 - Feature refinement (`3b_feature_importance_eda/`) using BupaR post-target analysis to filter and refine features, producing `cohort_feature_importance` files
 - model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Feature Importance EDA
-- DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
+- Event filtering (`4b_event_filter/`) to create `model_events_no_protocols.parquet` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR)
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
 - post-model analysis: SHAP (`7_shap_analysis/`) followed by FFA (`8_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
@@ -134,7 +134,7 @@ flowchart TD
     
     subgraph "Step 4: Model Data & Filtering"
         B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
+        C1 --> C2[4b: Protocol Filtering<br/>Remove Administrative Codes]
     end
     
     subgraph "Step 5: PGx Feature Engineering"
@@ -188,7 +188,7 @@ pgx-analysis/
 ├── 2_create_cohort/            # Cohort creation and QA
 ├── 3_feature_importance/       # MC-CV feature importance screening
 ├── 4a_model_data/              # Model-ready event datasets (target vs control)
-├── 4b_dtw_filter/              # DTW-based protocol filtering (creates model_events_no_protocols.parquet used by downstream feature engineering)
+├── 4b_event_filter/            # Event filtering (creates model_events_no_protocols.parquet - filters administrative codes and post-event leakage)
 ├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
 ├── 6_final_model_selection/    # Final model development and evaluation
 ├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
@@ -223,10 +223,10 @@ pgx-analysis/
 - `create_visualizations.R` - Visualization utilities
 - Uses three core models for robust feature ranking: **CatBoost**, **XGBoost (boosted trees)**, and **XGBoost RF mode**
 
-**📊 4b_dtw_filter: DTW Protocol Filtering**
-- `filter_protocol_events.py` - DTW-derived protocol filtering to create `model_events_no_protocols.parquet`
-- `dtw_cohort_analysis.py` / `dtw_trajectory_analysis.py` - Optional sequence similarity and trajectory development
-- Patient clustering, similarity scoring, and time-window audit artifacts
+**📊 4b_event_filter: Event Filtering**
+- `filter_protocol_events.py` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR) to create `model_events_no_protocols.parquet`
+- Uses `administrative_codes_lookup.json` for code-based filtering
+- Filters events occurring after target event date (post-event leakage)
 
 **🤖 6_final_model_selection: Final Model Development**
 - `run_final_model.py` - Model training, selection, and export (CatBoost / XGBoost)

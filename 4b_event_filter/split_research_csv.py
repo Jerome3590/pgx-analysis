@@ -46,7 +46,7 @@ def split_csv(input_path: Path, output_dir: Path, rows_per_file: int = 100):
     print(f"[OK] Split complete. Created {num_files} files in: {output_dir}")
 
 if __name__ == "__main__":
-    input_path = Path("4b_dtw_filter/outputs/code_research/icd_cpt_hcpcs_codes_research.csv")
-    output_dir = Path("4b_dtw_filter/outputs/code_research/split_files")
+    input_path = Path("4b_event_filter/outputs/code_research/icd_cpt_hcpcs_codes_research.csv")
+    output_dir = Path("4b_event_filter/outputs/code_research/split_files")
     
     split_csv(input_path, output_dir, rows_per_file=100)

@@ -46,7 +46,7 @@ COMMON_STEPS = [
     "3_feature_importance",
     "3b_feature_importance_eda",
     "4a_model_data",
-    "4b_dtw_filter",
+    "4b_event_filter",
     "5_pgx_analysis",
     "6_final_model_selection",
     "7_shap_analysis",

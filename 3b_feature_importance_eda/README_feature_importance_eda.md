@@ -74,7 +74,7 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Output: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
    - See `1_bupaR/README_bupaR.md` for detailed BupaR process mining documentation
 3. **Code Research and Validation** (`0_icd_cpt_check/`):
-   - Load administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
+   - Load administrative codes from `4b_event_filter/administrative_codes_lookup.json` (codes identified in 0_icd_cpt_check)
    - Research and validate ICD/CPT codes by groups (ICD by chapter, CPT by range)
    - Identify non-informative ICD/CPT codes (administrative, scheduling, protocol codes)
    - **Note**: This step only validates and identifies codes - actual event-level filtering happens in Step 4b

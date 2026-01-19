@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the methodology for classifying ICD-10-CM, CPT, and HCPCS codes as **administrative** vs. **medical** for use in DTW protocol filtering. This classification is critical for filtering out administrative events (billing, scheduling, documentation) while preserving all medical/pharmacy events.
+This document describes the methodology for classifying ICD-10-CM, CPT, and HCPCS codes as **administrative** vs. **medical** for use in event filtering (Step 4b). This classification is critical for filtering out administrative events (billing, scheduling, documentation) while preserving all medical/pharmacy events. Codes are identified in Step 3b (`0_icd_cpt_check`).
 
 ## Background: Why Code Classification Matters
 
@@ -154,7 +154,7 @@ The lookup table (`administrative_codes_lookup.json`) contains:
 3. **Classify codes** as administrative or medical
 4. **Review classifications** using reference URLs
 5. **Update lookup table** with confirmed administrative codes
-6. **Use lookup table** in DTW filter to remove administrative events
+6. **Use lookup table** in event filter (Step 4b) to remove administrative events
 
 ## References
 
@@ -185,26 +185,26 @@ The lookup table (`administrative_codes_lookup.json`) contains:
 
 ```bash
 # Extract codes and create lookup table
-python 4b_dtw_filter/research_icd_cpt_codes.py
+python 4b_event_filter/research_icd_cpt_codes.py
 
 # Skip web search (faster, uses heuristics only)
-python 4b_dtw_filter/research_icd_cpt_codes.py --skip-web-search
+python 4b_event_filter/research_icd_cpt_codes.py --skip-web-search
 ```
 
 ### Output Files
 
-- `4b_dtw_filter/outputs/code_research/icd_cpt_hcpcs_codes_research.csv` - Research CSV with all codes, descriptions, and classifications
-- `4b_dtw_filter/outputs/code_research/administrative_codes_lookup.json` - Lookup table for filtering
-- `4b_dtw_filter/outputs/code_research/icd_codes_list.txt` - List of ICD codes
-- `4b_dtw_filter/outputs/code_research/cpt_codes_list.txt` - List of CPT codes
-- `4b_dtw_filter/outputs/code_research/hcpcs_codes_list.txt` - List of HCPCS codes
+- `4b_event_filter/outputs/code_research/icd_cpt_hcpcs_codes_research.csv` - Research CSV with all codes, descriptions, and classifications
+- `4b_event_filter/outputs/code_research/administrative_codes_lookup.json` - Lookup table for filtering
+- `4b_event_filter/outputs/code_research/icd_codes_list.txt` - List of ICD codes
+- `4b_event_filter/outputs/code_research/cpt_codes_list.txt` - List of CPT codes
+- `4b_event_filter/outputs/code_research/hcpcs_codes_list.txt` - List of HCPCS codes
 
 ### Validating Classifications
 
 1. Review the research CSV for codes classified as "administrative"
 2. Use reference URLs to verify code meanings
 3. Update classifications if needed
-4. Copy `administrative_codes_lookup.json` to `4b_dtw_filter/administrative_codes_lookup.json` when ready
+4. Copy `administrative_codes_lookup.json` to `4b_event_filter/administrative_codes_lookup.json` when ready
 
 ## Notes
 

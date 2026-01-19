@@ -24,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from py_helpers.constants import COHORT_NAMES, AGE_BANDS, ALL_ICD_DIAGNOSIS_COLUMNS
 
 MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
-OUTPUT_DIR = PROJECT_ROOT / "4b_dtw_filter" / "outputs" / "z_code_analysis"
+OUTPUT_DIR = PROJECT_ROOT / "4b_event_filter" / "outputs" / "z_code_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

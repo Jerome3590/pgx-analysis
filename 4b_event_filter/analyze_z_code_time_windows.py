@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import COHORT_NAMES, AGE_BANDS
 
-OUTPUT_DIR = PROJECT_ROOT / "4b_dtw_filter" / "outputs" / "z_code_analysis"
+OUTPUT_DIR = PROJECT_ROOT / "4b_event_filter" / "outputs" / "z_code_analysis"
 RESULTS_DIR = OUTPUT_DIR
 
 

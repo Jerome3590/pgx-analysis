@@ -10,7 +10,7 @@ from pathlib import Path
 from collections import defaultdict
 
 PROJECT_ROOT = Path(__file__).parent.parent
-CODE_LOOKUP_DIR = PROJECT_ROOT / "4b_dtw_filter" / "code_lookup"
+CODE_LOOKUP_DIR = PROJECT_ROOT / "4b_event_filter" / "code_lookup"
 
 # Keywords that suggest administrative/non-medical encounters
 ADMIN_KEYWORDS = [

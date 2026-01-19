@@ -9,7 +9,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
 2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
 3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
-4. **DTW-Based Protocol Filtering (Step 4b)** in `4b_dtw_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**.  
+4. **Event Filtering (Step 4b)** in `4b_event_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**. Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR).  
 5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
 6. **Final Model Development** in `6_final_model_selection/`
    - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
@@ -92,7 +92,7 @@ For the current analysis run, we fit a **separate end‑to‑end model (Steps 3�
 Each of these nine cells in the grid will have its own:
 - `3_feature_importance` run (MC‑CV + aggregation)
 - `4a_model_data` extraction (`model_events.parquet` for target and control)
-- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 4b for protocol filtering and Step 9 for dashboard visualizations)
+- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 9 for dashboard visualizations only)
 - `6_final_model` training + evaluation (one final model per `(cohort, age_band)`).
 
 ### Model Data Extraction (Target vs Control)
@@ -133,7 +133,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **Note**: 
 - **Feature Importance EDA**: Uses BupaR post-target analysis for feature refinement (not DTW)
-- **Step 4b**: Uses DTW for protocol filtering (administrative codes) - creates `model_events_no_protocols.parquet`
+- **Step 4b**: Uses code-based filtering (administrative codes from 0_icd_cpt_check + post-event leakage from 1_bupaR) - creates `model_events_no_protocols.parquet`
 - **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories - visualization only)
 
 ## Phase 3: Final Model Development (`6_final_model_selection/`)
@@ -200,7 +200,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **Purpose**: Identify and filter administrative/protocol codes from event data
 
-**Location**: `4b_dtw_filter/`
+**Location**: `4b_event_filter/`
 
 **Output**: `model_events_no_protocols.parquet` - Event data with administrative/protocol codes removed
 
@@ -253,7 +253,7 @@ flowchart TD
     
     subgraph "Step 4: Model Data & Filtering"
         C3 --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        D --> E[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
+        D --> E[4b: Protocol Filtering<br/>Remove Administrative Codes]
     end
     
     subgraph "Step 5: PGx Feature Engineering"

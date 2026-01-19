@@ -2,17 +2,16 @@
 """
 Filter out administrative events from model_data before feature engineering.
 
-This script classifies events as administrative vs. medical/pharmacy related and filters
-out administrative events (billing, scheduling, post-event documentation) regardless
-of time intervals. Medical and pharmacy events are kept even if they occur close together.
+This script filters events at the event level to remove:
+1. Administrative codes (from administrative_codes_lookup.json, identified in Step 3b 0_icd_cpt_check)
+2. Post-event leakage (events occurring after target event date, identified in Step 3b 1_bupaR)
 
-The classification is based on:
-1. Code patterns (ICD, CPT, drug codes) that indicate administrative vs. clinical events
-2. Research outputs that identify which codes are administrative
-3. Post-event events (events occurring after target event date - these are leakage)
+The filtering is based on:
+1. Administrative codes lookup table (from 0_icd_cpt_check)
+2. Post-event leakage filtering (from BupaR post-target analysis in 1_bupaR)
+3. Code classification (administrative vs. medical/pharmacy)
 
-Time window analysis is still performed for research purposes, but filtering is based
-on code classification, not time intervals.
+Output: model_events_no_protocols.parquet - Event data with administrative codes and post-event leakage removed
 """
 
 import os
@@ -37,7 +36,7 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
-OUTPUT_ROOT = PROJECT_ROOT / "4b_dtw_filter" / "outputs"
+OUTPUT_ROOT = PROJECT_ROOT / "4b_event_filter" / "outputs"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1440,7 +1439,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Filter protocol-like events using DTW time windows"
+        description="Filter administrative events using code classification and post-event leakage filtering"
     )
     parser.add_argument(
         "--cohort-name",
@@ -1558,7 +1557,7 @@ if __name__ == "__main__":
                 # Save checkpoint if outputs uploaded
                 if s3_outputs:
                     save_step_checkpoint(
-                        step_name="4b_dtw_filter",
+                        step_name="4b_event_filter",
                         cohort=args.cohort_name,
                         age_band=args.age_band,
                         metadata={
@@ -1583,12 +1582,12 @@ if __name__ == "__main__":
 
         # Define expected S3 output paths
         s3_output_paths = [
-            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet",
-            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv",
-            f"s3://pgxdatalake/gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet",
+            f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet",
+            f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv",
+            f"s3://pgxdatalake/gold/event_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet",
         ]
 
-        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("4b_dtw_filter", args.cohort_name, args.age_band, logger):
+        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("4b_event_filter", args.cohort_name, args.age_band, logger):
             logger.info(f"Step 4b outputs already exist in S3 for {args.cohort_name}/{args.age_band}; downloading to local.")
             
             # Download from S3 to local
@@ -1598,19 +1597,19 @@ if __name__ == "__main__":
                 S3_BUCKET = "pgxdatalake"
                 
                 # Download main output
-                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
+                s3_key = f"gold/event_filter/{args.cohort_name}/{args.age_band}/model_events_no_protocols.parquet"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 s3_client.download_file(S3_BUCKET, s3_key, str(output_path))
                 logger.info(f"Downloaded {output_path} from S3")
                 
                 # Download summary
-                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
+                s3_key = f"gold/event_filter/{args.cohort_name}/{args.age_band}/protocol_summary_{args.cohort_name}_{age_band_fname}.csv"
                 audit_dir.mkdir(parents=True, exist_ok=True)
                 s3_client.download_file(S3_BUCKET, s3_key, str(summary_path))
                 logger.info(f"Downloaded {summary_path} from S3")
                 
                 # Download intervals
-                s3_key = f"gold/dtw_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
+                s3_key = f"gold/event_filter/{args.cohort_name}/{args.age_band}/event_intervals_{args.cohort_name}_{age_band_fname}.parquet"
                 s3_client.download_file(S3_BUCKET, s3_key, str(intervals_path))
                 logger.info(f"Downloaded {intervals_path} from S3")
                 
@@ -1700,7 +1699,7 @@ if __name__ == "__main__":
 
         # Save checkpoint
         save_step_checkpoint(
-            step_name="4b_dtw_filter",
+            step_name="4b_event_filter",
             cohort=args.cohort_name,
             age_band=args.age_band,
             metadata={

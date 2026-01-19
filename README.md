@@ -94,7 +94,7 @@ pgx-analysis/
 ├── 3_feature_importance/       # Step 3: MC-CV feature importance (aggregated importances)
 ├── 3b_feature_importance_eda/  # Feature Importance EDA: Feature refinement (BupaR post-target analysis)
 ├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
-├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
+├── 4b_event_filter/            # Step 4b: Event filtering (administrative codes + post-event leakage)
 ├── 5_pgx_analysis/             # Step 5: PGx feature engineering
 ├── 6_final_model_selection/    # Step 6: Final model selection and evaluation
 ├── 7_shap_analysis/            # Step 7: SHAP-based post-model analysis (CatBoost + XGBoost)
@@ -130,7 +130,7 @@ flowchart TD
     
     subgraph "Step 4: Model Data & Filtering"
         B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
+        C1 --> C2[4b: Protocol Filtering<br/>Remove Administrative Codes]
     end
     
     subgraph "Step 5: PGx Feature Engineering"
@@ -219,7 +219,7 @@ publication-grade, health outcomes–oriented modeling is anchored on these two 
 
 - `3_feature_importance/README.md` – Feature importance methodology and cohort configuration
 - `4a_model_data/README_model_data.md` – Model-ready events and target vs control extraction (if present)
-- DTW protocol filtering: `4b_dtw_filter/filter_protocol_events.py` and related scripts  
+- Event filtering: `4b_event_filter/filter_protocol_events.py` - Filters administrative codes and post-event leakage  
 - `5_pgx_analysis/README.md` – Pharmacogenomics (PGx) feature engineering
 - `status/WORKFLOW_STATUS.md` – Per-cohort workflow execution status and checkpoints
 - `status/WORKFLOW_COMPLETE_SUMMARY.md` – High-level summary of workflow completion across cohorts and age bands

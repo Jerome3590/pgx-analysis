@@ -76,7 +76,7 @@ import json
 
 # Load administrative codes lookup (check local copy first, then original location)
 local_lookup_path = Path(__file__).parent / "administrative_codes_lookup.json"
-admin_lookup_path = PROJECT_ROOT / "4b_dtw_filter" / "administrative_codes_lookup.json"
+admin_lookup_path = PROJECT_ROOT / "4b_event_filter" / "administrative_codes_lookup.json"
 
 # Use local copy if available, otherwise use original
 lookup_path = local_lookup_path if local_lookup_path.exists() else admin_lookup_path

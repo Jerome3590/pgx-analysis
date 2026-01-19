@@ -361,7 +361,7 @@ else:
 
 # %%
 # Load administrative codes lookup table
-administrative_lookup_path = PROJECT_ROOT / "4b_dtw_filter" / "administrative_codes_lookup.json"
+administrative_lookup_path = PROJECT_ROOT / "4b_event_filter" / "administrative_codes_lookup.json"
 
 if administrative_lookup_path.exists():
     try:

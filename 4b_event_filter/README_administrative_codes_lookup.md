@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `administrative_codes_lookup.json` file is a manually maintained lookup table that classifies codes (ICD, CPT, drug) as **administrative** vs. **medical/pharmacy**. Codes listed in this lookup table will be filtered out during DTW protocol filtering.
+The `administrative_codes_lookup.json` file is a manually maintained lookup table that classifies codes (ICD, CPT, drug) as **administrative** vs. **medical/pharmacy**. Codes listed in this lookup table will be filtered out during event filtering (Step 4b). Codes are identified in Step 3b (`0_icd_cpt_check`).
 
 ## Purpose
 
@@ -31,16 +31,16 @@ The DTW filter now uses **code-based classification** instead of time intervals 
 
 ### Step 1: Run Research Analysis
 
-First, run the DTW filter with research outputs enabled:
+First, run the event filter with research outputs enabled:
 
 ```bash
-python 4b_dtw_filter/filter_protocol_events.py \
+python 4b_event_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --min-interval-days 1
 ```
 
-This generates research outputs in `4b_dtw_filter/outputs/for_review/{cohort}/{age_band}/`:
+This generates research outputs in `4b_event_filter/outputs/for_review/{cohort}/{age_band}/`:
 - `code_analysis_protocol_vs_clinical_{cohort}_{age_band}.csv` - Code-level analysis
 
 ### Step 2: Review Code Analysis
@@ -88,7 +88,7 @@ Add confirmed administrative codes to `administrative_codes_lookup.json`:
 After updating the lookup table, re-run the filter:
 
 ```bash
-python 4b_dtw_filter/filter_protocol_events.py \
+python 4b_event_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --use-lookup-table
@@ -107,7 +107,7 @@ The filter automatically classifies the following as administrative (no lookup t
 If you prefer to use research outputs instead of a manual lookup table:
 
 ```bash
-python 4b_dtw_filter/filter_protocol_events.py \
+python 4b_event_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --use-lookup-table false \
@@ -128,7 +128,7 @@ This will automatically classify codes with `protocol_pct >= 80.0` as administra
 
 ```bash
 # 1. Run research analysis
-python 4b_dtw_filter/filter_protocol_events.py \
+python 4b_event_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --min-interval-days 1
@@ -140,7 +140,7 @@ python 4b_dtw_filter/filter_protocol_events.py \
 # Edit: 4b_dtw_filter/administrative_codes_lookup.json
 
 # 4. Re-run with lookup table
-python 4b_dtw_filter/filter_protocol_events.py \
+python 4b_event_filter/filter_protocol_events.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --use-lookup-table
