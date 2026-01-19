@@ -134,7 +134,7 @@ flowchart TD
     end
     
     subgraph "Step 5: PGx Feature Engineering"
-        C2 --> D1[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
+        C2 --> D1[PGx Feature Engineering<br/>PGx Drug Counts<br/>Drug Counts]
     end
     
     subgraph "Step 6: Final Model Training"
