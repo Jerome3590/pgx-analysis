@@ -237,14 +237,19 @@ pgx_df_target1_long <- pgx_df_target1 %>%
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
   mutate(
+    # Replace spaces and forward slashes with underscores in drug names
+    code_cleaned = ifelse(source == "drug_name", 
+                         gsub("[ /]", "_", code), 
+                         code),
     activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code),
+      source == "drug_name" ~ paste0("DRUG:", code_cleaned),
       grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
       source == "procedure_code" ~ paste0("CPT:", code),
       TRUE ~ code
     ),
     timestamp = as.POSIXct(event_date)
-  )
+  ) %>%
+  select(-code_cleaned)  # Remove temporary column
 
 target_eventlog <- pgx_df_target1_long %>%
   transmute(
@@ -373,14 +378,19 @@ pgx_df_all_long <- pgx_df_all %>%
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
   mutate(
+    # Replace spaces and forward slashes with underscores in drug names
+    code_cleaned = ifelse(source == "drug_name", 
+                         gsub("[ /]", "_", code), 
+                         code),
     activity = dplyr::case_when(
-      source == "drug_name" ~ paste0("DRUG:", code),
+      source == "drug_name" ~ paste0("DRUG:", code_cleaned),
       grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
       source == "procedure_code" ~ paste0("CPT:", code),
       TRUE ~ code
     ),
     timestamp = as.POSIXct(event_date)
-  )
+  ) %>%
+  select(-code_cleaned)  # Remove temporary column
 
 sankey_eventlog <- pgx_df_all_long %>%
   transmute(
