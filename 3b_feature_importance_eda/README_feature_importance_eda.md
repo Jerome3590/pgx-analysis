@@ -301,10 +301,10 @@ ls -lh /home/pgx3874/pgx-analysis/3b_feature_importance_eda/outputs/non_opioid_e
 **Issue: "Control cohort not found" errors**
 **Solution**: Each notebook will automatically create its age-band-specific control cohort if it doesn't exist. If you want to pre-create them:
 ```bash
-# Create control cohorts for all three age bands
-python 4a_model_data/create_control_cohort_model_data.py --age-band 65-74 --sample-size 100000
-python 4a_model_data/create_control_cohort_model_data.py --age-band 75-84 --sample-size 100000
-python 4a_model_data/create_control_cohort_model_data.py --age-band 85-94 --sample-size 100000
+# Create control cohorts for all three age bands (use full path to Python jupyter environment - EC2)
+/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 65-74 --sample-size 100000
+/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 75-84 --sample-size 100000
+/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 85-94 --sample-size 100000
 ```
 
 **Note**: Each age band creates its own separate control cohort file, so you can run these in parallel too!
