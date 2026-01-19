@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
   library(processmapR)
   library(edeaR)
   library(lubridate)
+  library(ggplot2)
 })
 
 # -------------------------------------------------------------------
