@@ -564,12 +564,83 @@ def filter_cohort_events_for_items(
     common_cols_sql_control = ", ".join(f"c.{c}" for c in common_cols)
 
     # 1. Case patients from gold cohorts
-    case_patients_query = f"""
-        CREATE TEMP TABLE case_patients AS
-        SELECT DISTINCT mi_person_key
-        FROM read_parquet([{cohort_paths_literal}])
-        WHERE is_target_case = 1
-    """
+    # For polypharmacy cohort (non_opioid_ed), apply time window filtering if specified
+    if cohort_name == "non_opioid_ed" and time_window_days is not None:
+        # Filter target cases to only include those with HCG target events within time_window_days of drug events
+        # Need to get gold medical/pharmacy paths for time window checking
+        gold_medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
+        gold_pharmacy_paths_literal = ", ".join(f"'{p}'" for p in pharmacy_parquet_paths) if pharmacy_parquet_paths else ""
+        
+        if not gold_medical_paths_literal or not gold_pharmacy_paths_literal:
+            print(f"[WARN] Cannot apply time window filtering: missing medical or pharmacy files")
+            case_patients_query = f"""
+                CREATE TEMP TABLE case_patients AS
+                SELECT DISTINCT mi_person_key
+                FROM read_parquet([{cohort_paths_literal}])
+                WHERE is_target_case = 1
+            """
+        else:
+            case_patients_query = f"""
+                CREATE TEMP TABLE case_patients AS
+                WITH cohort_cases AS (
+                    SELECT DISTINCT mi_person_key
+                    FROM read_parquet([{cohort_paths_literal}])
+                    WHERE is_target_case = 1
+                ),
+                pharmacy_events AS (
+                    SELECT
+                        mi_person_key,
+                        CASE 
+                            WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                                CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                            ELSE CAST(incurred_date AS DATE)
+                        END AS event_date
+                    FROM read_parquet([{gold_pharmacy_paths_literal}])
+                ),
+                medical_events AS (
+                    SELECT
+                        mi_person_key,
+                        CASE 
+                            WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                                CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                            ELSE CAST(incurred_date AS DATE)
+                        END AS event_date,
+                        hcg_line
+                    FROM read_parquet([{gold_medical_paths_literal}])
+                ),
+                patient_hcg_dates AS (
+                    SELECT
+                        me.mi_person_key,
+                        me.event_date AS hcg_event_date
+                    FROM medical_events me
+                    WHERE me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+                ),
+                drug_hcg_pairs AS (
+                    -- Check if ANY HCG target event occurs within time_window_days days of ANY drug event
+                    SELECT DISTINCT
+                        pe.mi_person_key
+                    FROM pharmacy_events pe
+                    INNER JOIN cohort_cases cc ON pe.mi_person_key = cc.mi_person_key
+                    INNER JOIN patient_hcg_dates phd ON pe.mi_person_key = phd.mi_person_key
+                        AND phd.hcg_event_date >= pe.event_date
+                        AND phd.hcg_event_date <= DATE_ADD(pe.event_date, INTERVAL {time_window_days} DAY)
+                )
+                SELECT DISTINCT mi_person_key
+                FROM drug_hcg_pairs
+            """
+            print(f"[INFO] Filtering target cases for polypharmacy cohort with {time_window_days}-day time window")
+    else:
+        # Standard case: use all target cases from cohort
+        case_patients_query = f"""
+            CREATE TEMP TABLE case_patients AS
+            SELECT DISTINCT mi_person_key
+            FROM read_parquet([{cohort_paths_literal}])
+            WHERE is_target_case = 1
+        """
     con.execute(case_patients_query)
 
     # Check number of cases; if zero, skip
