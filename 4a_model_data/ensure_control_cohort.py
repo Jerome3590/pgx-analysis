@@ -239,10 +239,14 @@ def ensure_control_cohort_with_ratio(
         # Import and call the creation function
         from create_control_cohort_model_data import create_control_cohort_model_data
         
+        # Use the same model_data_root to ensure consistency
+        model_data_root = get_model_data_root()
+        
         create_control_cohort_model_data(
             age_band=age_band,
             years=train_years,
             sample_size=required_controls,
+            output_root=model_data_root,  # Explicitly pass to ensure correct path
         )
         
         if control_cohort_path.exists():
