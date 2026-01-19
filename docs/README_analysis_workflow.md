@@ -92,13 +92,13 @@ For the current analysis run, we fit a **separate end‑to‑end model (Steps 3�
 Each of these nine cells in the grid will have its own:
 - `3_feature_importance` run (MC‑CV + aggregation)
 - `4a_model_data` extraction (`model_events.parquet` for target and control)
-- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth, BupaR, DTW are dashboard-only visualizations)
+- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 4b for protocol filtering and Step 9 for dashboard visualizations)
 - `6_final_model` training + evaluation (one final model per `(cohort, age_band)`).
 
 ### Model Data Extraction (Target vs Control)
 
 After feature importance is computed for each `(cohort, age_band)` pair, we create a compact
-**model-ready event dataset** that downstream methods (FP-Growth, BupaR, DTW) consume:
+**model-ready event dataset** that downstream methods consume:
 
 - **Target cohort (opioid_ed)**:
   - Read `*_cohort_feature_importance.csv` from Feature Importance EDA (REQUIRED - no fallback to aggregated importances)
@@ -131,9 +131,10 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **Output**: PGx features integrated into the model-ready dataset
 
-**Note**: BupaR, FP-Growth, and DTW analyses are now integrated into:
-- **Feature Importance EDA**: Feature refinement (BupaR post-target analysis)
-- **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories)
+**Note**: 
+- **Feature Importance EDA**: Uses BupaR post-target analysis for feature refinement (not DTW)
+- **Step 4b**: Uses DTW for protocol filtering (administrative codes) - creates `model_events_no_protocols.parquet`
+- **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories - visualization only)
 
 ## Phase 3: Final Model Development (`6_final_model_selection/`)
 
@@ -195,41 +196,45 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **DTW (Dynamic Time Warping)** is used in two distinct contexts:
 
-| Aspect | DTW | BupaR |
-|--------|-----|-------|
-| **Scope** | Pairwise sequence comparison | Process discovery across many cases |
-| **Output** | Distance metric | Process maps, flow diagrams |
-| **Abstraction** | Low-level (raw sequences) | High-level (process patterns) |
-| **Scalability** | O(n²) for each pair | Handles thousands of cases |
-| **Interpretability** | "These sequences are X% similar" | "80% of patients follow path A→B→C" |
+### 1. DTW Protocol Filtering (Step 4b)
 
-### DTW: Sequence Similarity Analysis
+**Purpose**: Identify and filter administrative/protocol codes from event data
 
-**Purpose:** Measure similarity between individual patient drug sequences that may vary in timing and length.
+**Location**: `4b_dtw_filter/`
+
+**Output**: `model_events_no_protocols.parquet` - Event data with administrative/protocol codes removed
+
+**Use Cases:**
+1. **Protocol Identification**: Identify standard care protocols that both targets and controls follow
+2. **Administrative Code Filtering**: Remove non-predictive administrative/scheduling codes
+3. **Data Cleaning**: Create clean event dataset for downstream feature engineering (PGx)
+
+**Note**: This filtering happens at the event level, creating `model_events_no_protocols.parquet` that is used as the preferred input for all downstream feature engineering steps.
+
+### 2. DTW Dashboard Visualizations (Step 9)
+
+**Purpose**: Trajectory analysis and visualization for dashboard exploration
+
+**Location**: `9_risk_dashboard/visualizations/dtw/`
 
 **Use Cases:**
 1. **Patient Clustering**: Group patients with similar drug exposure histories
-2. **Outlier Detection**: Identify patients with unusual drug sequences
-3. **Similarity-Based Features**: Calculate distance to known high-risk patterns
-4. **Sequence Validation**: Compare drug sequences across different time periods
+2. **Trajectory Visualization**: Interactive dashboard visualization of patient trajectories
+3. **Outlier Detection**: Identify patients with unusual drug sequences
+4. **Exploratory Analysis**: Visual exploration of sequence patterns (visualization only, not used as model features)
+
+**Note**: DTW trajectory analysis in Step 9 is for dashboard visualizations only - these are not used as model features.
 
 ### BupaR: Process Discovery and Pathway Analysis
 
 **Purpose:** Discover common process flows and temporal patterns across patient populations.
 
 **Use Cases:**
-1. **Process Flow Discovery**: Identify common pathways from drug exposure to outcomes
-2. **Temporal Pattern Analysis**: Understand timing relationships between events
-3. **Pathway Comparison**: Compare process flows between target and control groups
-4. **Performance Analysis**: Measure throughput times and bottlenecks
-
-### Integrated Workflow: DTW + BupaR
-
-1. **Cluster patients by drug sequence similarity** (DTW)
-2. **Add cluster labels to patient data**
-3. **Analyze process patterns within each DTW cluster** (BupaR)
-4. **Compare process flows across clusters**
-5. **Identify high-risk trajectory patterns**
+1. **Feature Importance EDA**: Post-target analysis to identify leakage features (Feature Importance EDA)
+2. **Process Flow Discovery**: Identify common pathways from drug exposure to outcomes (Step 9 dashboard)
+3. **Temporal Pattern Analysis**: Understand timing relationships between events
+4. **Pathway Comparison**: Compare process flows between target and control groups
+5. **Dashboard Visualizations**: Process mining visualizations for interactive exploration (Step 9)
 
 ## Analysis Pipeline Overview
 
@@ -242,9 +247,7 @@ flowchart TD
     
     subgraph "Feature Importance EDA: Feature Refinement"
         C --> C1[BupaR Post-Target Analysis]
-        C --> C2[DTW Trajectory Analysis]
         C1 --> C3[Refined Cohort Feature Importance]
-        C2 --> C3
     end
     
     subgraph "Step 4: Model Data & Filtering"
