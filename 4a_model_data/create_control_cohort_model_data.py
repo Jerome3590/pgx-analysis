@@ -248,38 +248,32 @@ def create_control_cohort_model_data(
         SELECT DISTINCT mi_person_key
         FROM pharmacy_events
     ),
-    unified_events AS (
-        SELECT
-            me.*
-        FROM medical_events me
-        INNER JOIN patients_with_drug_events pde ON me.mi_person_key = pde.mi_person_key
-        UNION ALL
-        SELECT
-            pe.*
-        FROM pharmacy_events pe
-        INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
-    ),
     per_patient_flags AS (
+        -- Check ALL patients with drug events for opioid ICD codes and HCG target events
+        -- Use LEFT JOIN to medical_events to check even if patient only has pharmacy events
+        -- This ensures we check for target events (HCG ED visits) in medical events for ALL patients with drug events
         SELECT
-            mi_person_key,
-            MAX(
+            pde.mi_person_key,
+            COALESCE(MAX(
                 CASE
                     WHEN {opioid_condition} THEN 1
                     ELSE 0
                 END
-            ) AS has_opioid_icd,
-            MAX(
+            ), 0) AS has_opioid_icd,  -- Default to 0 if no medical events
+            COALESCE(MAX(
                 CASE
-                    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1
+                    WHEN me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1
                     ELSE 0
                 END
-            ) AS has_hcg_target_event
-        FROM unified_events ue
-        GROUP BY mi_person_key
+            ), 0) AS has_hcg_target_event  -- Default to 0 if no medical events (no HCG target event)
+        FROM patients_with_drug_events pde
+        LEFT JOIN medical_events me ON pde.mi_person_key = me.mi_person_key
+        GROUP BY pde.mi_person_key
     ),
     control_candidates AS (
         -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
         -- Drug event requirement already enforced by patients_with_drug_events filter above
+        -- has_hcg_target_event = 0 means patient has NO HCG target events (ED visits)
         SELECT mi_person_key
         FROM per_patient_flags
         WHERE has_opioid_icd = 0 AND has_hcg_target_event = 0
@@ -289,12 +283,25 @@ def create_control_cohort_model_data(
         FROM control_candidates
         ORDER BY random()
         LIMIT {sample_size}
+    ),
+    final_unified_events AS (
+        -- Get ALL events (medical + pharmacy) for sampled controls
+        -- Medical events: Include all medical events for sampled controls (if they have any)
+        SELECT
+            me.*
+        FROM sampled_controls sc
+        INNER JOIN medical_events me ON sc.mi_person_key = me.mi_person_key
+        UNION ALL
+        -- Pharmacy events: Include all pharmacy events for sampled controls
+        SELECT
+            pe.*
+        FROM sampled_controls sc
+        INNER JOIN pharmacy_events pe ON sc.mi_person_key = pe.mi_person_key
     )
     SELECT
-        ue.*,
+        fue.*,
         0 AS target
-    FROM unified_events ue
-    INNER JOIN sampled_controls sc ON ue.mi_person_key = sc.mi_person_key
+    FROM final_unified_events fue
     """
     
     try:
