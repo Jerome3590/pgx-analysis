@@ -168,7 +168,7 @@ def copy_visualizations_to_feature_importance_eda(cohort: str, age_band: str) ->
         PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "5_bupar" / cohort / age_band / "plots",
     ]
     
-    # Destination: Step 3b outputs
+    # Destination: Feature Importance EDA outputs
     dest_plots_dir = (
         PROJECT_ROOT / "3b_feature_importance_eda" / "outputs" / 
         cohort / age_band_fname / "plots"
