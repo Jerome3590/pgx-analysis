@@ -127,9 +127,9 @@ flowchart TD
     end
     
     subgraph "Feature Importance EDA: Feature Refinement"
-        B3 --> B4[BupaR Post-Target Analysis]
-        B4 --> B5[Administrative Code Filtering]
-        B5 --> B6[Refined Cohort Feature Importance]
+        B3 --> B4[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
+        B4 --> B5[Code Research & Validation<br/>Administrative Codes]
+        B5 --> B6[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
     end
     
     subgraph "Step 4: Model Data & Filtering"
@@ -142,16 +142,18 @@ flowchart TD
     end
     
     subgraph "Step 6: Final Model Training"
-        D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
+        D1 --> E1[Feature Integration<br/>Refined Features + PGx]
         E1 --> E2[CatBoost Training]
         E1 --> E3[XGBoost Training]
-        E2 --> E4[Model Selection & Evaluation]
+        E1 --> E3a[XGBoost RF Training]
+        E2 --> E4[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
         E3 --> E4
+        E3a --> E4
     end
     
     subgraph "Step 7-8: Post-Model Analysis"
-        E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
-        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Rule selection: first 100 + random 100 + all SHAP > 0]
+        E4 --> F1[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
+        E4 --> F2[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
         F1 --> F2
     end
     

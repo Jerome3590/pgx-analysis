@@ -73,14 +73,14 @@ Runs all cohorts and age bands sequentially.
 
 ### Workflow Steps (Executed Automatically)
 
-1. **Step 3**: Feature Importance (Monte Carlo CV) - Aggregated feature importances
-2. **Feature Importance EDA**: Feature Importance EDA and Refinement - BupaR process mining + code research to filter already-processed aggregated feature importances (filters post-target leakage, validates administrative codes for Step 4b)
-3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Feature Importance EDA
-4. **Step 4b**: DTW Protocol Filtering
-5. **Step 5**: PGx Feature Engineering
-6. **Step 6**: Final Model Training
-7. **Step 7**: SHAP Analysis (CatBoost + XGBoost)
-8. **Step 8**: FFA Analysis (XGBoost, uses SHAP from Step 7)
+1. **Step 3**: Feature Importance (Monte Carlo CV) - Aggregated feature importances using CatBoost, XGBoost, and XGBoost RF
+2. **Feature Importance EDA (3b)**: Feature refinement using BupaR post-target analysis to filter post-target leakage features from aggregated importances. Outputs refined `cohort_feature_importance.csv` files.
+3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Feature Importance EDA (REQUIRED - no fallback to aggregated importances)
+4. **Step 4b**: DTW Protocol Filtering - Removes administrative/protocol codes, creates `model_events_no_protocols.parquet`
+5. **Step 5**: PGx Feature Engineering - Adds pharmacogenomics features
+6. **Step 6**: Final Model Training - CatBoost, XGBoost, and XGBoost RF with model selection based on Recall (primary) and AUC-PR (secondary)
+7. **Step 7**: SHAP Analysis - SHAP values for CatBoost and XGBoost
+8. **Step 8**: FFA Analysis - Formal Feature Attribution for XGBoost only (uses SHAP from Step 7 to prioritize rules)
 9. **Step 9**: Risk Dashboard - Production deployment with frontend dashboard, backend API (Lambda), and visualization tabs (Causal Analysis, DTW Trajectories, FP-Growth Patterns, BupaR Process Mining)
 
 The scripts are idempotent and will skip completed steps automatically.
@@ -123,8 +123,9 @@ flowchart TD
     end
     
     subgraph "Feature Importance EDA: Feature Refinement"
-        B3 --> B4[BupaR Post-Target Analysis]
-        B4 --> B6[Refined Cohort Feature Importance]
+        B3 --> B4[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
+        B4 --> B5[Code Research & Validation<br/>Administrative Codes]
+        B5 --> B6[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
     end
     
     subgraph "Step 4: Model Data & Filtering"
@@ -137,18 +138,18 @@ flowchart TD
     end
     
     subgraph "Step 6: Final Model Training"
-        D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
+        D1 --> E1[Feature Integration<br/>Refined Features + PGx]
         E1 --> E2[CatBoost Training]
         E1 --> E3[XGBoost Training]
         E1 --> E3a[XGBoost RF Training]
-        E2 --> E4[Model Selection & Evaluation<br/>Best XGBoost Variant<br/>Recall + AUC-PR]
+        E2 --> E4[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
         E3 --> E4
         E3a --> E4
     end
     
     subgraph "Step 7-8: Post-Model Analysis"
-        E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
-        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        E4 --> F1[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
+        E4 --> F2[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
         F1 --> F2
     end
     
@@ -185,11 +186,11 @@ flowchart TD
 ## Key Features
 
 - **Feature Screening** with a focused model ensemble (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
-- **Feature Refinement** using BupaR post-target analysis to filter and refine features (Feature Importance EDA)
-- **Protocol Filtering** using DTW to identify and filter administrative/protocol codes (Step 4b)
+- **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter post-target leakage features from aggregated importances, producing refined `cohort_feature_importance.csv` files
+- **Protocol Filtering** using DTW to identify and filter administrative/protocol codes (Step 4b), creating `model_events_no_protocols.parquet`
 - **Structure Discovery** via FP-Growth, process mining (BupaR), and dynamic time warping (DTW) for dashboard visualizations only (Step 9 - not used as model features)
-- **Final Model Development** combining aggregated feature importances with PGx features for prediction and causal inference
-- **Model Selection** based on Recall (primary) and AUC-PR (secondary) metrics, selecting best XGBoost variant
+- **Final Model Development** combining refined feature importances (from Feature Importance EDA) with PGx features for prediction and causal inference
+- **Model Selection** based on Recall (primary) and AUC-PR (secondary) metrics, selecting best model from CatBoost, XGBoost, or XGBoost RF
 
 ## Developer Conventions
 
