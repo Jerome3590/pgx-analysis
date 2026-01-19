@@ -242,7 +242,7 @@ log_message "--- Step 2: Cohort Data ---"
 # New format: s3://pgxdatalake/gold/cohorts/
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=ed_non_opioid/" "Step 2: ED_NON_OPIOID cohorts (S3 - new format)"
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=opioid_ed/" "Step 2: OPIOID_ED cohorts (S3 - new format)"
-# Legacy paths (old format)
+# Legacy paths (old format) - for cleanup
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts_F1120/" "Step 2: Legacy cohorts_F1120 (S3 - old format)"
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts_model_data/" "Step 2: Legacy cohorts_model_data (S3 - old format)"
 check_local_path "${LOCAL_COHORT_ROOT}/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (local)"
