@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sync Step 3b files from S3 to local storage.
+Sync Feature Importance EDA files from S3 to local storage.
 
 Checks S3 for:
 - cohort_feature_importance.csv files

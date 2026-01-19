@@ -1,8 +1,8 @@
-# Step 3b: Outputs and Visualizations
+# Feature Importance EDA: Outputs and Visualizations
 
 ## Overview
 
-Step 3b creates comprehensive outputs including data files, feature engineering files, and visualizations from BupaR process mining analysis.
+Feature Importance EDA creates comprehensive outputs including data files, feature engineering files, and visualizations from BupaR process mining analysis.
 
 ## Output Directory Structure
 

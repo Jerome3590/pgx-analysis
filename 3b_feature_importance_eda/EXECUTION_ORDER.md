@@ -1,13 +1,13 @@
-# Step 3b Execution Order
+# Feature Importance EDA Execution Order
 
 ## Overview
 
-Step 3b executes analyses in this order to properly filter **already-processed aggregated feature importances** from Step 3:
+Feature Importance EDA executes analyses in this order to properly filter **already-processed aggregated feature importances** from Step 3:
 1. **BupaR post-target analysis** (identify pre/post F1120 ICD/CPT events using process mining)
 2. **Code research and validation** (identify non-informative ICD/CPT codes - actual event-level filtering happens in Step 4b)
 3. **Filter and refine** (filter post-target leakage features from aggregated feature importance list)
 
-**Note**: This is NOT a DTW filter. Step 3b uses BupaR process mining and code research to filter aggregated feature importances, not raw event data.
+**Note**: This is NOT a DTW filter. Feature Importance EDA uses BupaR process mining and code research to filter aggregated feature importances, not raw event data.
 
 ## Folder Naming Convention
 

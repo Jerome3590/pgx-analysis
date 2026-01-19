@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create BupaR visualizations for Step 3b.
+Create BupaR visualizations for Feature Importance EDA.
 
 This script generates BupaR process mining visualizations including:
 - Activity frequency plots
@@ -155,8 +155,8 @@ def create_bupar_visualizations(cohort: str, age_band: str, r_script_path: Path)
         os.chdir(original_cwd)
 
 
-def copy_visualizations_to_step3b(cohort: str, age_band: str) -> list[Path]:
-    """Copy visualizations from BupaR output directory to Step 3b outputs."""
+def copy_visualizations_to_feature_importance_eda(cohort: str, age_band: str) -> list[Path]:
+    """Copy visualizations from BupaR output directory to Feature Importance EDA outputs."""
     age_band_fname = age_band_to_fname(age_band)
     
     # Try multiple possible source locations (R script saves to different places)
@@ -219,7 +219,7 @@ def main():
     import os
     
     parser = argparse.ArgumentParser(
-        description="Create BupaR visualizations for Step 3b"
+        description="Create BupaR visualizations for Feature Importance EDA"
     )
     parser.add_argument("--cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
@@ -249,14 +249,14 @@ def main():
         if not success:
             print(f"[WARN] R script execution had issues, but continuing...")
     
-    # Copy visualizations to Step 3b outputs
-    plot_files = copy_visualizations_to_step3b(args.cohort, args.age_band)
+    # Copy visualizations to Feature Importance EDA outputs
+    plot_files = copy_visualizations_to_feature_importance_eda(args.cohort, args.age_band)
     
     if not plot_files:
         print(f"[WARN] No visualization files found to copy")
         sys.exit(1)
     
-    print(f"\n[OK] Copied {len(plot_files)} visualization files to Step 3b outputs")
+    print(f"\n[OK] Copied {len(plot_files)} visualization files to Feature Importance EDA outputs")
     
     # Upload to S3
     print(f"\nUploading visualizations to S3...")

@@ -187,7 +187,7 @@ except ModuleNotFoundError as e:
 # Configuration: Cohort and Age Band
 # Can be set via:
 # 1. Command-line arguments: --cohort and --age-band
-# 2. Environment variables: STEP3B_COHORT and STEP3B_AGE_BAND
+# 2. Environment variables: FEATURE_IMPORTANCE_EDA_COHORT and FEATURE_IMPORTANCE_EDA_AGE_BAND
 # 3. Manual override: Change values below
 
 # Check for command-line arguments
@@ -206,7 +206,7 @@ except (NameError, ImportError):
     
 if not IN_JUPYTER and len(sys.argv) > 1:
     import argparse
-    parser = argparse.ArgumentParser(description="Step 3b Feature Importance EDA Workflow")
+    parser = argparse.ArgumentParser(description="Feature Importance EDA Workflow")
     parser.add_argument("--cohort", type=str, default=None,
                        help="Cohort name (e.g., 'opioid_ed' or 'non_opioid_ed')")
     parser.add_argument("--age-band", type=str, default=None,
@@ -238,11 +238,11 @@ print(f"   Age Band: {AGE_BAND} ({AGE_BAND_FNAME})")
 print(f"   Output Directory: {PROJECT_ROOT / '3b_feature_importance_eda' / 'outputs' / COHORT / AGE_BAND_FNAME}")
 print(f"\n💡 Tip: Set cohort/age_band via:")
 print(f"   - Command-line: python feature_importance_eda_workflow.py --cohort opioid_ed --age-band 13-24")
-print(f"   - Environment: export STEP3B_COHORT=opioid_ed && export STEP3B_AGE_BAND=13-24")
+print(f"   - Environment: export FEATURE_IMPORTANCE_EDA_COHORT=opioid_ed && export FEATURE_IMPORTANCE_EDA_AGE_BAND=13-24")
 print(f"   - Manual: Edit COHORT and AGE_BAND variables above\n")
 
 # %% [markdown]
-# Step 3b: Interactive Feature Importance EDA and Refinement
+# Feature Importance EDA: Interactive Feature Importance EDA and Refinement
 
 # %% [markdown]
 # ## Overview
@@ -1108,7 +1108,7 @@ except s3_client.exceptions.ClientError as e:
 # %% [markdown]
 # ## Summary
 # 
-# ✅ **Step 3b Interactive Analysis Complete**
+# ✅ **Feature Importance EDA Interactive Analysis Complete**
 # 
 # **Outputs Generated:**
 # - ✅ Administrative code filtering (from lookup table)

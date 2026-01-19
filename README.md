@@ -74,8 +74,8 @@ Runs all cohorts and age bands sequentially.
 ### Workflow Steps (Executed Automatically)
 
 1. **Step 3**: Feature Importance (Monte Carlo CV) - Aggregated feature importances
-2. **Step 3b**: Feature Importance EDA and Refinement - BupaR process mining + code research to filter already-processed aggregated feature importances (filters post-target leakage, validates administrative codes for Step 4b)
-3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Step 3b
+2. **Feature Importance EDA**: Feature Importance EDA and Refinement - BupaR process mining + code research to filter already-processed aggregated feature importances (filters post-target leakage, validates administrative codes for Step 4b)
+3. **Step 4a**: Model Data Creation (`model_events.parquet`) - Uses refined features from Feature Importance EDA
 4. **Step 4b**: DTW Protocol Filtering
 5. **Step 5**: PGx Feature Engineering
 6. **Step 6**: Final Model Training
@@ -92,7 +92,7 @@ pgx-analysis/
 ├── 1_apcd_input_data/          # Step 1: APCD data preprocessing (bronze → silver → gold)
 ├── 2_create_cohort/            # Step 2: Cohort creation and QA
 ├── 3_feature_importance/       # Step 3: MC-CV feature importance (aggregated importances)
-├── 3b_feature_importance_eda/  # Step 3b: Feature refinement (BupaR post-target analysis)
+├── 3b_feature_importance_eda/  # Feature Importance EDA: Feature refinement (BupaR post-target analysis)
 ├── 4a_model_data/              # Step 4a: Model-ready event datasets (cases + controls)
 ├── 4b_dtw_filter/              # Step 4b: DTW protocol filtering (administrative codes)
 ├── 5_pgx_analysis/             # Step 5: PGx feature engineering

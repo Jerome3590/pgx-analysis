@@ -122,7 +122,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) ->
 def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool:
     """Run all Feature Importance EDA analyses for a single cohort/age_band."""
     print(f"\n{'='*80}")
-    print(f"Step 3b: Feature Importance EDA and Refinement")
+    print(f"Feature Importance EDA and Refinement")
     print(f"Cohort: {cohort} / Age Band: {age_band}")
     print(f"{'='*80}")
     
@@ -168,13 +168,13 @@ def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir
     ):
         print(f"[OK] Checkpoint saved to S3")
     
-    print(f"\n[OK] Step 3b completed for {cohort} / {age_band}")
+    print(f"\n[OK] Feature Importance EDA completed for {cohort} / {age_band}")
     return True
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Step 3b: Feature Importance EDA and Refinement"
+        description="Feature Importance EDA and Refinement"
     )
     parser.add_argument(
         "--cohort",
@@ -220,7 +220,7 @@ def main():
         sys.exit(1)
     
     print("=" * 80)
-    print("Step 3b: Feature Importance EDA and Refinement")
+    print("Feature Importance EDA and Refinement")
     print("=" * 80)
     print(f"Processing {len(cohorts_to_process)} cohort/age_band combinations")
     print()
@@ -246,7 +246,7 @@ def main():
     print()
     
     if fail_count == 0:
-        print("[OK] All Step 3b analyses completed successfully!")
+        print("[OK] All Feature Importance EDA analyses completed successfully!")
         sys.exit(0)
     else:
         print("[ERROR] Some analyses failed. Check the output above.")

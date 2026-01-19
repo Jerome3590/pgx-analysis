@@ -121,14 +121,14 @@ python analyze_code_groups.py opioid_ed 13-24
   - Contains detailed breakdown by ICD chapter and CPT range
   - Includes counts, importance statistics, and classifications
 
-## Integration with Step 3b and Step 4b
+## Integration with Feature Importance EDA and Step 4b
 
 The results from this validation process inform filtering:
 1. **Administrative codes** identified here are added to `administrative_codes_lookup.json`
 2. **Step 3b workflow** loads these codes for reference and validation (does not filter them from feature importances)
 3. **BupaR analysis** identifies post-target leakage features to filter from aggregated importances
 4. **Step 4b** uses the administrative codes lookup to filter events at the event level
-5. **Step 3b final filtering** only filters post-target leakage features from aggregated feature importance list (not administrative codes)
+5. **Feature Importance EDA final filtering** only filters post-target leakage features from aggregated feature importance list (not administrative codes)
 
 ## Related Files
 
