@@ -35,7 +35,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_target_name
 from py_helpers.feature_utils import categorize_feature
 
 
@@ -78,7 +78,17 @@ def create_safe_feature_filter_json(
     print(f"          Keep ALL features with ANY pre-F1120 presence")
     print(f"{'='*80}\n")
     
-    df = pd.read_csv(analysis_path)
+    # Following cursor dev rules: Use DuckDB to read CSV/Parquet files instead of pandas
+    import duckdb
+    con = duckdb.connect()
+    path_str = str(analysis_path).replace("'", "''")
+    # Check for Parquet first (preferred), then CSV
+    parquet_path = analysis_path.with_suffix('.parquet')
+    if parquet_path.exists():
+        df = con.execute(f"SELECT * FROM read_parquet('{str(parquet_path).replace(\"'\", \"''\")}')").df()
+    else:
+        df = con.execute(f"SELECT * FROM read_csv_auto('{path_str}')").df()
+    con.close()
     
     # Filter: Exclude pure post-target leakage (>=80% post-F1120)
     # Keep everything else (including mixed-timing features with any pre-F1120 presence)
@@ -128,15 +138,16 @@ def create_safe_feature_filter_json(
         "created_date": datetime.now().strftime("%Y-%m-%d"),
         "cohort": cohort,
         "age_band": age_band,
-        "post_f1120_threshold": post_f1120_threshold,
+        "post_target_threshold": post_target_threshold,
+        "target_name": target_name,
         "min_events": min_events,
         "approach": "exclude_post_target_keep_all_pre",
         "total_features_to_keep": len(features_to_keep),
         "total_features_to_exclude": len(post_leakage),
         "total_features_analyzed": len(df),
         "strategy": {
-            "exclude": "Features with >= 80% post-F1120 ratio (pure post-target leakage)",
-            "keep": "All features with < 80% post-F1120 ratio (includes pure pre-target, mixed-timing, and low-pre features)",
+            "exclude": f"Features with >= 80% post-{target_name} ratio (pure post-target leakage)",
+            "keep": f"All features with < 80% post-{target_name} ratio (includes pure pre-target, mixed-timing, and low-pre features)",
             "rationale": "Maximize information for training while preventing target leakage. Keeping mixed-timing features ensures algorithm has access to all potentially predictive signals."
         },
         "usage": {
@@ -203,7 +214,7 @@ if __name__ == "__main__":
         "--post-f1120-threshold",
         type=float,
         default=0.8,
-        help="Threshold for post-F1120 ratio to flag as leakage (default: 0.8 = 80%%)"
+        help="Threshold for post-target ratio to flag as leakage (default: 0.8 = 80%%)"
     )
     parser.add_argument(
         "--min-events",
@@ -216,6 +227,6 @@ if __name__ == "__main__":
     create_safe_feature_filter_json(
         args.cohort,
         args.age_band,
-        args.post_f1120_threshold,
+        args.post_target_threshold,
         args.min_events
     )

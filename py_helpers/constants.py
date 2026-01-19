@@ -176,6 +176,51 @@ COHORT_NAMES = [
 ]
 
 # Helper function: convert age-band to filename-safe format
+def age_band_uses_f1120_target(age_band: str) -> bool:
+    """
+    Determine if age band uses F11.20 target (opioid dependence) or HCG target (polypharmacy/ED visits).
+    
+    Rules:
+    - Age bands < 64 (13-24, 25-44, 45-54, 55-64): Use F11.20 target
+    - Age bands >= 65 (65-74, 75-84, 85-94): Use time-windowed HCG target (polypharmacy)
+    
+    Args:
+        age_band: Age band string (e.g., "13-24", "65-74")
+    
+    Returns:
+        True if age band uses F11.20 target, False if uses HCG target
+    """
+    # Parse age band to get lower bound
+    try:
+        parts = age_band.split('-')
+        if len(parts) == 2:
+            lower_bound = int(parts[0])
+            # Age bands < 64 use F11.20, >= 65 use HCG
+            return lower_bound < 65
+        else:
+            # Fallback: assume F11.20 if can't parse
+            return True
+    except (ValueError, AttributeError):
+        # Fallback: assume F11.20 if can't parse
+        return True
+
+
+def get_target_name(age_band: str) -> str:
+    """
+    Get the target name for an age band.
+    
+    Args:
+        age_band: Age band string (e.g., "13-24", "65-74")
+    
+    Returns:
+        "F1120" for age bands < 65, "ED visit (HCG)" for age bands >= 65
+    """
+    if age_band_uses_f1120_target(age_band):
+        return "F1120"
+    else:
+        return "ED visit (HCG)"
+
+
 def age_band_to_fname(age_band: str) -> str:
     """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
     return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)

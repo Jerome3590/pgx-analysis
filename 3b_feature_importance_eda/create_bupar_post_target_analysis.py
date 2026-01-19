@@ -5,8 +5,9 @@ Create BupaR Post-Target Analysis CSV
 Analyzes BupaR post-target outputs to identify which features (ICD/CPT codes, drugs)
 appear primarily after the target event, indicating post-target leakage.
 
-For opioid_ed cohort: Target is F1120 (opioid dependence ICD code)
-For POLYPHARMACY COHORT (cohort_name="non_opioid_ed"): Target is time-windowed HCG events (ED visits)
+Target is determined by age band:
+- Age bands < 65 (13-24, 25-44, 45-54, 55-64): F1120 (opioid dependence ICD code)
+- Age bands >= 65 (65-74, 75-84, 85-94): Time-windowed HCG events (ED visits, polypharmacy)
 
 This script:
 1. Loads post-target traces/features from BupaR outputs
@@ -39,7 +40,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_target_name
 from py_helpers.feature_utils import (
     extract_features_from_traces,
     extract_features_from_patient_features
@@ -129,8 +130,8 @@ def analyze_post_target_leakage_from_events(
     # Escape the path for SQL
     model_data_path_str = str(model_data_path).replace("'", "''")
     
-    if cohort == "opioid_ed":
-        # Find first F1120 event date for each target patient
+    if uses_f1120:
+        # Find first F1120 event date for each target patient (age bands < 65)
         query = f"""
     WITH target_patients AS (
         SELECT DISTINCT
@@ -327,7 +328,7 @@ def analyze_post_target_leakage_from_events(
             total_post_events = results_df.get('post_count', pd.Series([0]*len(results_df))).sum()
             
             # Cohort-specific target terminology
-            target_name = "F1120" if cohort == "opioid_ed" else "ED visit (HCG)"
+            target_name = get_target_name(age_band)
             
             if total_pre_events == 0 and total_post_events > 0:
                 print(f"\n   [WARN] CRITICAL FINDING: No pre-target events found!")
@@ -372,7 +373,7 @@ def analyze_post_target_leakage(
         DataFrame with leakage analysis results
     """
     # Cohort-specific target terminology
-    target_name = "F1120" if cohort == "opioid_ed" else "ED visit (HCG)"
+            target_name = get_target_name(age_band)
     
     if use_event_data:
         print(f"\n[INFO] Using event-level data for post-target leakage analysis")
@@ -395,49 +396,47 @@ def analyze_post_target_leakage(
     post_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv"
     pre_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv"
     
-    # Extract features from post-F1120 outputs
+    # Extract features from post-target outputs
+    target_name = get_target_name(age_band)
     post_features = set()
     
+    # Following cursor dev rules: Use DuckDB to read CSV files instead of pandas
     if post_traces_path.exists():
-        print(f"Loading post-F1120 traces from: {post_traces_path}")
-        post_traces = pd.read_csv(post_traces_path)
-        post_features.update(extract_features_from_traces(post_traces))
-        print(f"  Found {len(post_features)} features in post-F1120 traces")
+        print(f"Loading post-{target_name} traces from: {post_traces_path}")
+        post_features.update(extract_features_from_traces(post_traces_path))
+        print(f"  Found {len(post_features)} features in post-{target_name} traces")
     
     if post_features_path.exists():
-        print(f"Loading post-F1120 patient features from: {post_features_path}")
-        post_patient_features = pd.read_csv(post_features_path)
-        post_features.update(extract_features_from_patient_features(post_patient_features))
-        print(f"  Total unique post-F1120 features: {len(post_features)}")
+        print(f"Loading post-{target_name} patient features from: {post_features_path}")
+        post_features.update(extract_features_from_patient_features(post_features_path))
+        print(f"  Total unique post-{target_name} features: {len(post_features)}")
     
-    # Extract features from pre-F1120 outputs (for comparison)
+    # Extract features from pre-target outputs (for comparison)
     pre_features = set()
     
     if pre_traces_path.exists():
-        print(f"Loading pre-F1120 traces from: {pre_traces_path}")
-        pre_traces = pd.read_csv(pre_traces_path)
-        pre_features.update(extract_features_from_traces(pre_traces))
-        print(f"  Found {len(pre_features)} features in pre-F1120 traces")
+        print(f"Loading pre-{target_name} traces from: {pre_traces_path}")
+        pre_features.update(extract_features_from_traces(pre_traces_path))
+        print(f"  Found {len(pre_features)} features in pre-{target_name} traces")
     
     if pre_features_path.exists():
-        print(f"Loading pre-F1120 patient features from: {pre_features_path}")
-        pre_patient_features = pd.read_csv(pre_features_path)
-        pre_features.update(extract_features_from_patient_features(pre_patient_features))
-        print(f"  Total unique pre-F1120 features: {len(pre_features)}")
+        print(f"Loading pre-{target_name} patient features from: {pre_features_path}")
+        pre_features.update(extract_features_from_patient_features(pre_features_path))
+        print(f"  Total unique pre-{target_name} features: {len(pre_features)}")
     
     # Identify post-target leakage features
-    # A feature is post-target leakage if it appears in post-F1120 but not (or rarely) in pre-F1120
-    # For now, we'll mark features that appear in post-F1120 as potential leakage
+    # A feature is post-target leakage if it appears in post-target but not (or rarely) in pre-target
+    # For now, we'll mark features that appear in post-target as potential leakage
     # A more sophisticated approach would compare frequencies
     
     all_features = post_features | pre_features
-    post_target_leakage_features = post_features - pre_features  # Features only in post-F1120
+    post_target_leakage_features = post_features - pre_features  # Features only in post-target
     
     print(f"\nPost-target leakage analysis:")
     print(f"  Total unique features: {len(all_features)}")
-    print(f"  Features only in post-F1120 (likely leakage): {len(post_target_leakage_features)}")
+    print(f"  Features only in post-{target_name} (likely leakage): {len(post_target_leakage_features)}")
     print(f"  Features in both pre and post: {len(post_features & pre_features)}")
-    print(f"  Features only in pre-F1120: {len(pre_features - post_features)}")
+    print(f"  Features only in pre-{target_name}: {len(pre_features - post_features)}")
     
     # Simple binary classification
     results = []
@@ -536,7 +535,7 @@ def main():
     
     # Show statistics
     # Cohort-specific target terminology for output
-    target_name = "F1120" if args.cohort == "opioid_ed" else "ED visit (HCG)"
+    target_name = get_target_name(args.age_band)
     ratio_col = 'post_target_ratio' if 'post_target_ratio' in results_df.columns else 'post_f1120_ratio'
     pre_ratio_col = 'pre_target_ratio' if 'pre_target_ratio' in results_df.columns else 'pre_f1120_ratio'
     

@@ -86,19 +86,38 @@ except ImportError:
 
 
 def load_aggregated_feature_importance(cohort: str, age_band: str) -> pd.DataFrame:
-    """Load aggregated feature importance from Step 3."""
+    """
+    Load aggregated feature importance from Step 3.
+    
+    Following cursor dev rules: Use DuckDB to read CSV files instead of pandas.
+    """
+    import duckdb
     age_band_fname = age_band_to_fname(age_band)
     
-    # Try multiple locations
-    possible_paths = [
+    # Try multiple locations (check for Parquet first, then CSV)
+    possible_paths = []
+    # Check for Parquet files first (preferred format)
+    possible_paths.extend([
+        PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
+        PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
+    ])
+    # Fallback to CSV files
+    possible_paths.extend([
         PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
         PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-    ]
+    ])
     
     for path in possible_paths:
         if path.exists():
             print(f"Loading aggregated feature importance from: {path}")
-            return pd.read_csv(path)
+            con = duckdb.connect()
+            path_str = str(path).replace("'", "''")
+            if path.suffix.lower() == '.parquet':
+                result = con.execute(f"SELECT * FROM read_parquet('{path_str}')").df()
+            else:
+                result = con.execute(f"SELECT * FROM read_csv_auto('{path_str}')").df()
+            con.close()
+            return result
     
     raise FileNotFoundError(f"Could not find aggregated feature importance file for {cohort}/{age_band}")
 
