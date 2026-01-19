@@ -38,6 +38,12 @@ def run_phase1_data_preparation(context):
         # Enable query profiling for this phase
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase1_data_preparation.json")
         
+        # Resolve paths to gold medical/pharmacy data (prefers local /mnt/nvme, falls back to S3)
+        medical_path = resolve_gold_data_path("medical", age_band, event_year)
+        pharmacy_path = resolve_gold_data_path("pharmacy", age_band, event_year)
+        logger.info(f"→ [PHASE 1] Medical data path: {medical_path}")
+        logger.info(f"→ [PHASE 1] Pharmacy data path: {pharmacy_path}")
+        
         # Use GOLD final tables to create cohort inputs (preferred source)
         # Map gold medical columns to expected normalized names
         medical_sql = f"""
