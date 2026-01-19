@@ -186,7 +186,7 @@ You can run multiple Jupyter notebooks interactively at the same time! Each note
 1. **Start Jupyter** (if not already running):
    ```bash
    cd /home/pgx3874/pgx-analysis
-   /opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+   /home/pgx3874/jupyter-env/bin/jupyter notebook --no-browser --port=8888
    
    # Or if jupyter is in PATH:
    jupyter notebook --no-browser --port=8888
