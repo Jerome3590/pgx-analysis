@@ -185,8 +185,9 @@ flowchart TD
 ## Key Features
 
 - **Feature Screening** with a focused model ensemble (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
-- **Feature Refinement** using BupaR post-target analysis and DTW trajectory analysis to filter and refine features
-- **Structure Discovery** via FP-Growth, process mining (BupaR), and dynamic time warping (DTW) for visualization and exploratory analysis (not used as model features)
+- **Feature Refinement** using BupaR post-target analysis to filter and refine features (Feature Importance EDA)
+- **Protocol Filtering** using DTW to identify and filter administrative/protocol codes (Step 4b)
+- **Structure Discovery** via FP-Growth, process mining (BupaR), and dynamic time warping (DTW) for dashboard visualizations only (Step 9 - not used as model features)
 - **Final Model Development** combining aggregated feature importances with PGx features for prediction and causal inference
 - **Model Selection** based on Recall (primary) and AUC-PR (secondary) metrics, selecting best XGBoost variant
 

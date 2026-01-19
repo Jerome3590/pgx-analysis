@@ -7,7 +7,7 @@ Feature Importance EDA performs additional exploratory data analysis on **alread
 2. **Code research and validation** (identify and validate non-informative ICD/CPT codes from lookup table - actual event-level filtering happens in Step 4b)
 3. **Interactive code review and filtering** to refine feature selection (filters post-target leakage features from feature importance list)
 
-**Note**: This is NOT a DTW filter. Feature Importance EDA uses BupaR process mining and code research to filter already-processed aggregated feature importances, not raw event data.
+**Note**: This is NOT a DTW filter. Feature Importance EDA uses BupaR process mining and code research to filter already-processed aggregated feature importances, not raw event data. DTW is used separately in Step 4b (protocol filtering) and Step 9 (dashboard visualizations).
 
 Based on this EDA, we filter and update the aggregated feature importances to produce refined `cohort_feature_importance` files that feed into Step 4a model data creation.
 

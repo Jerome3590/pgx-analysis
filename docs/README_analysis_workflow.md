@@ -191,9 +191,9 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
   - Class-specific importance rankings
   - Cross-validation stability
 
-## DTW and BupaR Integration
+## DTW Usage: Protocol Filtering and Dashboard Visualizations
 
-**DTW (Dynamic Time Warping)** and **BupaR (Process Mining)** serve different but complementary purposes:
+**DTW (Dynamic Time Warping)** is used in two distinct contexts:
 
 | Aspect | DTW | BupaR |
 |--------|-----|-------|
