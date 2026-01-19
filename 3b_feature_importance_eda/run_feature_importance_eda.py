@@ -119,7 +119,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) ->
         return False
 
 
-def run_step_3b_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool:
+def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir: Path) -> bool:
     """Run all Step 3b analyses for a single cohort/age_band."""
     print(f"\n{'='*80}")
     print(f"Step 3b: Feature Importance EDA and Refinement")
@@ -230,7 +230,7 @@ def main():
     fail_count = 0
     
     for cohort, age_band in cohorts_to_process:
-        if run_step_3b_for_cohort(cohort, age_band, script_dir):
+        if run_feature_importance_eda_for_cohort(cohort, age_band, script_dir):
             success_count += 1
         else:
             fail_count += 1

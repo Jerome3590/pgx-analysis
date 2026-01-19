@@ -948,7 +948,7 @@ def main() -> None:
                 print(f"[ERROR] Expected: {refined_file}")
                 print(f"[ERROR] S3 path: s3://{S3_BUCKET}/gold/feature_importance/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_cohort_feature_importance.csv")
                 print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
-                print(f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}")
+                print(f"[ERROR] Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort {args.cohort} --age-band {args.age_band}")
                 sys.exit(1)
     else:
         # Check Step 3b refined files for all cohorts

@@ -803,7 +803,7 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             f"Expected location: {refined_csv_path}\n"
             f"S3 location: s3://{S3_BUCKET}/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band_fname}_cohort_feature_importance.csv\n"
             f"Step 3b must run before Step 6 to produce refined features with leakage filtering.\n"
-            f"Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {cohort} --age-band {age_band}"
+            f"Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort {cohort} --age-band {age_band}"
         )
     
     csv_path = refined_csv_path

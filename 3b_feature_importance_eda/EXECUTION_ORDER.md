@@ -62,7 +62,7 @@ The pipeline now executes in this order:
 ## Updated Files
 
 ### Scripts Updated
-- `run_step_3b.py`: Orchestrates Step 3b workflow (BupaR analysis and feature filtering)
+- `run_feature_importance_eda.py`: Orchestrates Feature Importance EDA workflow (BupaR analysis and feature filtering)
 - `run_bupar_post_target_analysis.py`: Calls `1_bupaR/` scripts
 - `create_bupar_post_target_analysis.py`: Creates post-target analysis CSV from BupaR outputs
 
@@ -82,7 +82,7 @@ The pipeline now executes in this order:
 │   └── README_bupaR.md
 ├── run_bupar_post_target_analysis.py # Calls 1_bupaR/ scripts
 ├── create_bupar_post_target_analysis.py # Creates post-target analysis CSV
-└── run_step_3b.py                   # Orchestrates execution order
+└── run_feature_importance_eda.py                   # Orchestrates execution order
 ```
 
 ## Rationale
@@ -102,7 +102,7 @@ The pipeline now executes in this order:
 
 ```bash
 # Run for a single cohort/age band
-python 3b_feature_importance_eda/run_step_3b.py --cohort opioid_ed --age-band 13-24
+python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
 
 # The pipeline will:
 # 1. Run BupaR analysis (1_bupaR/) - identify pre/post F1120 events in aggregated importances

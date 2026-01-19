@@ -33,7 +33,7 @@ run_cohort() {
     
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting $cohort / $age_band" | tee -a "$log_file"
     
-    python3 "$PROJECT_ROOT/3b_feature_importance_eda/run_step_3b.py" \
+    python3 "$PROJECT_ROOT/3b_feature_importance_eda/run_feature_importance_eda.py" \
         --cohort "$cohort" \
         --age-band "$age_band" \
         2>&1 | tee -a "$log_file"

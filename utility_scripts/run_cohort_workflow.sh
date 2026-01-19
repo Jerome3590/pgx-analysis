@@ -489,7 +489,7 @@ run_step "3" "Feature Importance (Check/Generate Aggregated)" \
 # REQUIRED: Step 3b must run before Step 4a (Step 4a requires cohort_feature_importance files)
 # Note: Step 3b can use cohort.parquet files from Step 2 if model_events.parquet doesn't exist yet
 run_step "3b" "Feature Importance EDA and Refinement (BupaR Post-Target Analysis)" \
-    "python 3b_feature_importance_eda/run_step_3b.py --cohort $COHORT_NAME --age-band $AGE_BAND"
+    "python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 4a: Model Data Creation (with controls)
 # Generate model_events.parquet with cases AND controls from gold medical/pharmacy data

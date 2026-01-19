@@ -237,7 +237,7 @@ print(f"   Cohort: {COHORT}")
 print(f"   Age Band: {AGE_BAND} ({AGE_BAND_FNAME})")
 print(f"   Output Directory: {PROJECT_ROOT / '3b_feature_importance_eda' / 'outputs' / COHORT / AGE_BAND_FNAME}")
 print(f"\n💡 Tip: Set cohort/age_band via:")
-print(f"   - Command-line: python step3b_workflow.py --cohort opioid_ed --age-band 13-24")
+print(f"   - Command-line: python feature_importance_eda_workflow.py --cohort opioid_ed --age-band 13-24")
 print(f"   - Environment: export STEP3B_COHORT=opioid_ed && export STEP3B_AGE_BAND=13-24")
 print(f"   - Manual: Edit COHORT and AGE_BAND variables above\n")
 

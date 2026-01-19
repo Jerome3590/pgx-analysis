@@ -749,7 +749,7 @@ Administrative codes are maintained in:
 - **Cohort-Specific Config:** `3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_manual_filtering_config.json`
 - **Code Group Analysis:** `3b_feature_importance_eda/outputs/{cohort}/{age_band}/code_group_analysis.json`
 
-**See:** `3b_feature_importance_eda/README_step3b.md` for details on the filtering workflow.
+**See:** `3b_feature_importance_eda/README_feature_importance_eda.md` for details on the filtering workflow.
 
 ---
 

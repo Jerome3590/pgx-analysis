@@ -1,13 +1,13 @@
-# Step 3b: Feature Importance EDA and Refinement
+# Feature Importance EDA and Refinement
 
 ## Overview
 
-Step 3b performs additional exploratory data analysis on **already processed aggregated feature importances** from Step 3, using:
+Feature Importance EDA performs additional exploratory data analysis on **already processed aggregated feature importances** from Step 3, using:
 1. **BupaR post-target analysis** to identify pre/post F1120 ICD/CPT events (target leakage detection)
 2. **Code research and validation** (identify and validate non-informative ICD/CPT codes from lookup table - actual event-level filtering happens in Step 4b)
 3. **Interactive code review and filtering** to refine feature selection (filters post-target leakage features from feature importance list)
 
-**Note**: This is NOT a DTW filter. Step 3b uses BupaR process mining and code research to filter already-processed aggregated feature importances, not raw event data.
+**Note**: This is NOT a DTW filter. Feature Importance EDA uses BupaR process mining and code research to filter already-processed aggregated feature importances, not raw event data.
 
 Based on this EDA, we filter and update the aggregated feature importances to produce refined `cohort_feature_importance` files that feed into Step 4a model data creation.
 
@@ -19,7 +19,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 - **Refine feature importances**: Update already-processed aggregated feature importances based on BupaR and code research findings
 - **Output refined features**: Generate `cohort_feature_importance` files for Step 4a
 
-**Key Point**: Step 3b filters **aggregated feature importances** (already processed from Step 3), not raw event data. It uses BupaR process mining and code research, not DTW.
+**Key Point**: Feature Importance EDA filters **aggregated feature importances** (already processed from Step 3), not raw event data. It uses BupaR process mining and code research, not DTW.
 
 ## Inputs
 
@@ -98,9 +98,9 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 ## Scripts
 
 ### Main Orchestration
-- `run_step_3b.py` - Orchestration script to run all analyses in order
-- `step3b_workflow.py` - Interactive workflow script (can be run as notebook or script)
-- `step3b_interactive_analysis_cohort*.ipynb` - Cohort-specific interactive notebooks
+- `run_feature_importance_eda.py` - Orchestration script to run all analyses in order
+- `feature_importance_eda_workflow.py` - Interactive workflow script (can be run as notebook or script)
+- `feature_importance_eda_interactive_analysis_cohort*.ipynb` - Cohort-specific interactive notebooks
 
 ### Analysis Scripts
 - `run_bupar_post_target_analysis.py` - BupaR analysis for post-target leakage detection
@@ -125,10 +125,10 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 
 ```bash
 # Run for a single cohort/age_band
-python 3b_feature_importance_eda/run_step_3b.py --cohort opioid_ed --age-band 13-24
+python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
 
 # Run for all cohorts
-python 3b_feature_importance_eda/run_step_3b.py --all-cohorts
+python 3b_feature_importance_eda/run_feature_importance_eda.py --all-cohorts
 
 # Run multiple cohorts sequentially using shell script
 bash 3b_feature_importance_eda/run_multiple_cohorts.sh
@@ -147,9 +147,9 @@ You can run multiple Jupyter notebooks interactively at the same time! Each note
    ```
 
 2. **Open multiple notebooks** in separate browser tabs:
-   - `step3b_interactive_analysis_cohort5.ipynb` (non_opioid_ed / 65-74)
-   - `step3b_interactive_analysis_cohort6.ipynb` (non_opioid_ed / 75-84)
-   - `step3b_interactive_analysis_cohort7.ipynb` (non_opioid_ed / 85-94)
+   - `feature_importance_eda_interactive_analysis_cohort5.ipynb` (non_opioid_ed / 65-74)
+   - `feature_importance_eda_interactive_analysis_cohort6.ipynb` (non_opioid_ed / 75-84)
+   - `feature_importance_eda_interactive_analysis_cohort7.ipynb` (non_opioid_ed / 85-94)
 
 3. **Run cells independently** - Each notebook has its own kernel and can run cells independently.
 
@@ -263,7 +263,7 @@ python 4a_model_data/create_control_cohort_model_data.py --age-band 85-94 --samp
 **Solution**: 
 - Run notebooks sequentially instead of parallel
 - Close other applications
-- Consider using the script-based approach (`run_step_3b.py`) which is more memory-efficient
+- Consider using the script-based approach (`run_feature_importance_eda.py`) which is more memory-efficient
 
 **Issue: R script conflicts**
 **Solution**: R scripts write to cohort-specific directories, so no conflicts. If you see errors, check:
@@ -301,11 +301,11 @@ See `FEATURE_FILTERING_APPROACH.md` for detailed documentation.
 │   │       ├── features/         # BupaR feature files
 │   │       ├── plots/            # Visualization PNG files
 │   │       └── *.csv, *.json     # Analysis results
-├── step3b_workflow.py            # Main interactive workflow
-├── step3b_interactive_analysis_cohort*.ipynb  # Cohort-specific notebooks
-├── run_step_3b.py                # Orchestration script
+├── feature_importance_eda_workflow.py            # Main interactive workflow
+├── feature_importance_eda_interactive_analysis_cohort*.ipynb  # Cohort-specific notebooks
+├── run_feature_importance_eda.py                # Orchestration script
 ├── filter_and_refine_features.py  # Feature filtering and refinement
-└── README_step3b.md              # This file
+└── README_feature_importance_eda.md              # This file
 ```
 
 ## Integration with Pipeline

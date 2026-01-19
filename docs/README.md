@@ -18,7 +18,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **[README_feature_importance.md](Step3_FeatureImportance/README_feature_importance.md)** - Feature importance analysis methodology
 - **[README_feature_importance_visualization.md](Step3_FeatureImportance/README_feature_importance_visualization.md)** - Feature importance visualization guide
 
-### Step 3b: Feature Refinement (BupaR Process Mining + Code Research)
+### Feature Importance EDA: Feature Refinement (BupaR Process Mining + Code Research)
 **Code**: `3b_feature_importance_eda/`
 
 - **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage features in aggregated importances
