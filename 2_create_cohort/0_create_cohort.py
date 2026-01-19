@@ -343,12 +343,24 @@ def main():
 
         # Setup optimized DuckDB connection with parallelization
         # Since we're processing a single partition, use multiple threads for better performance
-        cohort_conn_duckdb = get_duckdb_connection(logger=logger)
+        # Use worker-specific temp directory (with process PID) to avoid conflicts when running multiple cohorts in parallel
+        from py_helpers.duckdb_utils import get_worker_temp_dir
+        worker_temp_dir = get_worker_temp_dir()
+        logger.info(f"→ [CONFIG] Using worker-specific temp directory: {worker_temp_dir}")
+        
+        cohort_conn_duckdb = get_duckdb_connection(tmp_dir=worker_temp_dir, logger=logger)
 
         # Configure DuckDB for optimal parallelization based on operation type
-        threads = int(os.getenv('PGX_THREADS_PER_WORKER', '8'))  # Default 8 threads for single partition processing
+        # For single partition processing, we can use more threads (up to CPU cores - 2)
+        # Default to 8 threads, but allow override via PGX_THREADS_PER_WORKER
+        # On EC2 with 32 cores, we can safely use up to 30 threads for single partition processing
+        import multiprocessing
+        max_threads = max(1, multiprocessing.cpu_count() - 2)  # Reserve 2 cores for OS/other processes
+        default_threads = min(8, max_threads)  # Default to 8, but cap at available cores
+        threads = int(os.getenv('PGX_THREADS_PER_WORKER', str(default_threads)))
+        threads = min(threads, max_threads)  # Cap at available cores
         cohort_conn_duckdb.sql(f"PRAGMA threads={threads}")
-        logger.info(f"→ [CONFIG] DuckDB threads: {threads}")
+        logger.info(f"→ [CONFIG] DuckDB threads: {threads} (max available: {max_threads}, CPU cores: {multiprocessing.cpu_count()})")
 
         # Configure S3 uploader settings for optimal parallel uploads
         # These settings optimize multi-part uploads when saving large cohort files to S3
