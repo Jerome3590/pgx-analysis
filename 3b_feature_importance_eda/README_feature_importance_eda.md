@@ -95,6 +95,43 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - Upload to S3 for checkpointing and Step 4a consumption
    - Save checkpoint metadata to S3
 
+## Prerequisites
+
+**⚠️ Important: Python/Jupyter Environment Path**
+
+All scripts require the **full path to the Python jupyter environment** to ensure they use the correct Python interpreter and installed packages. This is especially important when:
+- Running scripts from different directories
+- Using cron jobs or automated workflows
+- Running on EC2 instances with multiple Python environments
+
+**Example:**
+```bash
+# Find your jupyter environment Python path
+which python  # or: which python3
+
+# Use full path when running scripts
+/opt/conda/envs/jupyter-env/bin/python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+
+# Or set as environment variable
+export PYTHON_ENV="/opt/conda/envs/jupyter-env/bin/python"
+$PYTHON_ENV 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+```
+
+**For R scripts:**
+```bash
+# Find Rscript path
+which Rscript
+
+# Use full path
+/usr/local/bin/Rscript 3b_feature_importance_eda/1_bupaR/create_bupar_outputs_opioid_ed.R 13-24
+```
+
+**For Jupyter notebooks:**
+```bash
+# Use full path to jupyter
+/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+```
+
 ## Scripts
 
 ### Main Orchestration
@@ -143,6 +180,9 @@ You can run multiple Jupyter notebooks interactively at the same time! Each note
 1. **Start Jupyter** (if not already running):
    ```bash
    cd /home/pgx3874/pgx-analysis
+   /opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+   
+   # Or if jupyter is in PATH:
    jupyter notebook --no-browser --port=8888
    ```
 
@@ -206,16 +246,16 @@ This ensures:
 ```bash
 # Start tmux session
 tmux new -s cohort5
-# In tmux, start Jupyter
-jupyter notebook --no-browser --port=8888
+# In tmux, start Jupyter (use full path to jupyter environment)
+/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
 
 # Create new tmux window for cohort 6
 tmux new-window -t cohort5:1
-jupyter notebook --no-browser --port=8889
+/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8889
 
 # Create new tmux window for cohort 7
 tmux new-window -t cohort5:2
-jupyter notebook --no-browser --port=8890
+/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8890
 ```
 
 Then access:
@@ -229,6 +269,10 @@ Then access:
 ```bash
 # List all Jupyter processes
 ps aux | grep jupyter
+
+# Check which Python environment is being used
+which python
+which jupyter
 
 # Check notebook kernels
 jupyter kernelspec list
