@@ -16,8 +16,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Add project root to path (go up 2 levels: 1_bupaR -> 3b_feature_importance_eda -> project root)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname

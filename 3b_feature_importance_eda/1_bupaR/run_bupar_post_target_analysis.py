@@ -24,14 +24,14 @@ IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
 
 if IS_WINDOWS:
-    # Windows: Use current workspace directory
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    # Windows: Use current workspace directory (go up 2 levels: 1_bupaR -> 3b_feature_importance_eda -> project root)
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 elif IS_LINUX:
     # Linux/EC2: Use EC2 path
     PROJECT_ROOT = Path('/home/pgx3874/pgx-analysis')
 else:
-    # Fallback: Use current file's parent directory
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    # Fallback: Use current file's parent directory (go up 2 levels)
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -245,7 +245,7 @@ def run_bupar_analysis(
         # Create post-target analysis CSV
         print(f"\n[INFO] Creating post-target analysis CSV...")
         try:
-            create_analysis_script = project_root / "3b_feature_importance_eda" / "create_bupar_post_target_analysis.py"
+            create_analysis_script = project_root / "3b_feature_importance_eda" / "1_bupaR" / "create_bupar_post_target_analysis.py"
             if create_analysis_script.exists():
                 # Note: subprocess already imported at top of file
                 cmd = [

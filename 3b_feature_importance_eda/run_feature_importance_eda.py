@@ -57,7 +57,7 @@ def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
     print(f"Running BupaR Post-Target Analysis: {cohort} / {age_band}")
     print(f"{'='*80}")
     
-    script_path = script_dir / "run_bupar_post_target_analysis.py"
+    script_path = script_dir / "1_bupaR" / "run_bupar_post_target_analysis.py"
     cmd = [
         sys.executable,
         str(script_path),
@@ -81,7 +81,7 @@ def run_filter_and_refine(cohort: str, age_band: str, script_dir: Path) -> bool:
     print(f"Filtering and Refining Features: {cohort} / {age_band}")
     print(f"{'='*80}")
     
-    script_path = script_dir / "filter_and_refine_features.py"
+    script_path = script_dir / "2_filtering" / "filter_and_refine_features.py"
     cmd = [
         sys.executable,
         str(script_path),
@@ -103,7 +103,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) ->
     print(f"Creating BupaR Visualizations: {cohort} / {age_band}")
     print(f"{'='*80}")
     
-    script_path = script_dir / "create_bupar_visualizations.py"
+    script_path = script_dir / "1_bupaR" / "create_bupar_visualizations.py"
     cmd = [
         sys.executable,
         str(script_path),

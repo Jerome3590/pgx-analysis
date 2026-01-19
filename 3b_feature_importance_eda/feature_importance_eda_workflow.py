@@ -495,7 +495,7 @@ print(f"Note: This will call R scripts using Rscript")
 
 cmd = [
     str(PYTHON_BIN),
-    str(PROJECT_ROOT / "3b_feature_importance_eda" / "run_bupar_post_target_analysis.py"),
+    str(PROJECT_ROOT / "3b_feature_importance_eda" / "1_bupaR" / "run_bupar_post_target_analysis.py"),
     "--cohort", COHORT,
     "--age-band", AGE_BAND
 ]
@@ -1032,7 +1032,7 @@ print(f"Started at: {datetime.now()}")
 
 cmd = [
     str(PYTHON_BIN),
-    str(PROJECT_ROOT / "3b_feature_importance_eda" / "filter_and_refine_features.py"),
+    str(PROJECT_ROOT / "3b_feature_importance_eda" / "2_filtering" / "filter_and_refine_features.py"),
     "--cohort", COHORT,
     "--age-band", AGE_BAND
 ]
