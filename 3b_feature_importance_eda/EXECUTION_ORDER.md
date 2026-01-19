@@ -105,14 +105,18 @@ The pipeline now executes in this order:
 All scripts require the **full path to the Python jupyter environment** to ensure they use the correct Python interpreter and installed packages.
 
 ```bash
-# Find your jupyter environment Python path
-which python  # or: which python3
+# EC2 Python jupyter environment path
+/home/pgx3874/jupyter-env/bin/python3.11
 
-# Run for a single cohort/age band (using full path)
-/opt/conda/envs/jupyter-env/bin/python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+# Run for a single cohort/age band (using full path - EC2)
+/home/pgx3874/jupyter-env/bin/python3.11 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
 
 # Or if python is already in PATH and points to jupyter-env:
 python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+
+# To find your Python path (if different):
+which python  # or: which python3
+```
 
 # The pipeline will:
 # 1. Run BupaR analysis (1_bupaR/) - identify pre/post F1120 events in aggregated importances

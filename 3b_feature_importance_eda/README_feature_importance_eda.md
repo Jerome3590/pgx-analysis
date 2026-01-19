@@ -104,17 +104,20 @@ All scripts require the **full path to the Python jupyter environment** to ensur
 - Using cron jobs or automated workflows
 - Running on EC2 instances with multiple Python environments
 
-**Example:**
+**Example (EC2 Environment):**
 ```bash
-# Find your jupyter environment Python path
-which python  # or: which python3
+# EC2 Python jupyter environment path
+/home/pgx3874/jupyter-env/bin/python3.11
 
 # Use full path when running scripts
-/opt/conda/envs/jupyter-env/bin/python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+/home/pgx3874/jupyter-env/bin/python3.11 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
 
 # Or set as environment variable
-export PYTHON_ENV="/opt/conda/envs/jupyter-env/bin/python"
+export PYTHON_ENV="/home/pgx3874/jupyter-env/bin/python3.11"
 $PYTHON_ENV 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 13-24
+
+# To find your Python path (if different):
+which python  # or: which python3
 ```
 
 **For R scripts:**
@@ -126,10 +129,13 @@ which Rscript
 /usr/local/bin/Rscript 3b_feature_importance_eda/1_bupaR/create_bupar_outputs_opioid_ed.R 13-24
 ```
 
-**For Jupyter notebooks:**
+**For Jupyter notebooks (EC2 Environment):**
 ```bash
-# Use full path to jupyter
-/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+# Use full path to jupyter (EC2)
+/home/pgx3874/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+
+# Or if jupyter is in PATH:
+jupyter notebook --no-browser --port=8888
 ```
 
 ## Scripts
@@ -246,16 +252,16 @@ This ensures:
 ```bash
 # Start tmux session
 tmux new -s cohort5
-# In tmux, start Jupyter (use full path to jupyter environment)
-/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8888
+# In tmux, start Jupyter (use full path to jupyter environment - EC2)
+/home/pgx3874/jupyter-env/bin/jupyter notebook --no-browser --port=8888
 
 # Create new tmux window for cohort 6
 tmux new-window -t cohort5:1
-/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8889
+/home/pgx3874/jupyter-env/bin/jupyter notebook --no-browser --port=8889
 
 # Create new tmux window for cohort 7
 tmux new-window -t cohort5:2
-/opt/conda/envs/jupyter-env/bin/jupyter notebook --no-browser --port=8890
+/home/pgx3874/jupyter-env/bin/jupyter notebook --no-browser --port=8890
 ```
 
 Then access:
