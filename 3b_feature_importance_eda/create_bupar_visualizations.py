@@ -29,37 +29,7 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
-try:
-    from py_helpers.checkpoint_utils import upload_file_to_s3
-except ImportError:
-    def upload_file_to_s3(local_path: Path, s3_path: str, logger=None, check_exists: bool = True) -> bool:
-        """Upload file to S3 using boto3."""
-        if not local_path.exists():
-            print(f"[ERROR] Local file does not exist: {local_path}")
-            return False
-        
-        try:
-            if s3_path.startswith("s3://"):
-                s3_path = s3_path[5:]
-            parts = s3_path.split("/", 1)
-            bucket = parts[0]
-            key = parts[1] if len(parts) > 1 else ""
-            
-            if check_exists:
-                try:
-                    s3_client.head_object(Bucket=bucket, Key=key)
-                    print(f"[OK] File already exists in S3: s3://{bucket}/{key} (skipping upload)")
-                    return True
-                except s3_client.exceptions.ClientError as e:
-                    if e.response["Error"]["Code"] not in ["404", "NoSuchKey"]:
-                        raise
-            
-            s3_client.upload_file(str(local_path), bucket, key)
-            print(f"[OK] Uploaded to S3: s3://{bucket}/{key}")
-            return True
-        except Exception as e:
-            print(f"[ERROR] Failed to upload {local_path} to s3://{bucket}/{key}: {e}")
-            return False
+from py_helpers.checkpoint_utils import upload_file_to_s3
 
 
 def find_r_script(cohort: str) -> Optional[Path]:

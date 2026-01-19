@@ -38,7 +38,12 @@ from py_helpers.constants import age_band_to_fname
 from py_helpers.feature_utils import (
     normalize_feature_name,
     normalize_feature_set,
-    sanitize_feature_names
+    sanitize_feature_names,
+    sanitize_column_names
+)
+from py_helpers.feature_importance_eda_utils import (
+    load_aggregated_feature_importance,
+    load_safe_feature_filter
 )
 
 try:
@@ -48,104 +53,20 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
-try:
-    from py_helpers.checkpoint_utils import upload_file_to_s3
-except ImportError:
-    # Fallback upload function if checkpoint_utils not available
-    def upload_file_to_s3(local_path: Path, s3_path: str, logger=None, check_exists: bool = True) -> bool:
-        """Upload file to S3 using boto3."""
-        if not local_path.exists():
-            print(f"[ERROR] Local file does not exist: {local_path}")
-            return False
-        
-        try:
-            # Parse s3://bucket/key format
-            if s3_path.startswith("s3://"):
-                s3_path = s3_path[5:]
-            parts = s3_path.split("/", 1)
-            bucket = parts[0]
-            key = parts[1] if len(parts) > 1 else ""
-            
-            # Check if file already exists (idempotent)
-            if check_exists:
-                try:
-                    s3_client.head_object(Bucket=bucket, Key=key)
-                    print(f"[OK] File already exists in S3: s3://{bucket}/{key} (skipping upload)")
-                    return True
-                except s3_client.exceptions.ClientError as e:
-                    if e.response["Error"]["Code"] not in ["404", "NoSuchKey"]:
-                        raise
-            
-            # Upload file
-            s3_client.upload_file(str(local_path), bucket, key)
-            print(f"[OK] Uploaded to S3: s3://{bucket}/{key}")
-            return True
-        except Exception as e:
-            print(f"[ERROR] Failed to upload {local_path} to s3://{bucket}/{key}: {e}")
-            return False
+from py_helpers.checkpoint_utils import upload_file_to_s3
 
 
-def load_aggregated_feature_importance(cohort: str, age_band: str) -> pd.DataFrame:
-    """
-    Load aggregated feature importance from Step 3.
-    
-    Following cursor dev rules: Use DuckDB to read CSV files instead of pandas.
-    """
-    import duckdb
-    age_band_fname = age_band_to_fname(age_band)
-    
-    # Try multiple locations (check for Parquet first, then CSV)
-    possible_paths = []
-    # Check for Parquet files first (preferred format)
-    possible_paths.extend([
-        PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
-        PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
-    ])
-    # Fallback to CSV files
-    possible_paths.extend([
-        PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-        PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-    ])
-    
-    for path in possible_paths:
-        if path.exists():
-            print(f"Loading aggregated feature importance from: {path}")
-            con = duckdb.connect()
-            path_str = str(path).replace("'", "''")
-            if path.suffix.lower() == '.parquet':
-                result = con.execute(f"SELECT * FROM read_parquet('{path_str}')").df()
-            else:
-                result = con.execute(f"SELECT * FROM read_csv_auto('{path_str}')").df()
-            con.close()
-            return result
-    
-    raise FileNotFoundError(f"Could not find aggregated feature importance file for {cohort}/{age_band}")
+# load_aggregated_feature_importance moved to py_helpers.feature_importance_eda_utils
 
 
-def sanitize_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Replace spaces and special characters in column names with underscores.
-    
-    Args:
-        df: DataFrame with potentially problematic column names
-    
-    Returns:
-        DataFrame with sanitized column names
-    """
-    df = df.copy()
-    # Replace spaces and special characters with underscores
-    df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', col) for col in df.columns]
-    # Replace multiple consecutive underscores with single underscore
-    df.columns = [re.sub(r'_+', '_', col) for col in df.columns]
-    # Remove leading/trailing underscores
-    df.columns = [col.strip('_') for col in df.columns]
-    return df
+# sanitize_column_names moved to py_helpers.feature_utils
 
 
 # sanitize_feature_names, normalize_feature_name, and normalize_feature_set moved to py_helpers.feature_utils
 
 
-def load_safe_feature_filter(cohort: str, age_band: str, output_dir: Path) -> tuple[Optional[Set[str]], Optional[Set[str]]]:
+# load_safe_feature_filter moved to py_helpers.feature_importance_eda_utils
+def _load_safe_feature_filter_legacy(cohort: str, age_band: str, output_dir: Path) -> tuple[Optional[Set[str]], Optional[Set[str]]]:
     """
     Load safe feature filter JSON and return sets of features to keep (cases) and exclude (controls).
     

@@ -31,6 +31,7 @@ __all__ = [
     "drug_utils",
     "feature_importance_model_utils",
     "feature_importance_utils",
+    "feature_importance_eda_utils",
     "feature_utils",
     "fpgrowth_utils",
     "mc_cv_utils",

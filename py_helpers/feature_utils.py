@@ -245,3 +245,23 @@ def sanitize_feature_names(df: 'pd.DataFrame') -> 'pd.DataFrame':
             df[col] = df[col].apply(lambda x: str(x).strip('_') if pd.notna(x) else x)
     
     return df
+
+
+def sanitize_column_names(df: 'pd.DataFrame') -> 'pd.DataFrame':
+    """
+    Replace spaces and special characters in column names with underscores.
+    
+    Args:
+        df: DataFrame with potentially problematic column names
+    
+    Returns:
+        DataFrame with sanitized column names
+    """
+    df = df.copy()
+    # Replace spaces and special characters with underscores
+    df.columns = [re.sub(r'[^a-zA-Z0-9_]', '_', col) for col in df.columns]
+    # Replace multiple consecutive underscores with single underscore
+    df.columns = [re.sub(r'_+', '_', col) for col in df.columns]
+    # Remove leading/trailing underscores
+    df.columns = [col.strip('_') for col in df.columns]
+    return df
