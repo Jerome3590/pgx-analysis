@@ -783,7 +783,10 @@ if (n_events(pre_target_eventlog) == 0) {
   time_to_event_features <- pre_events_with_t %>%
     group_by(case_id, target_time, first_time) %>%
     summarise(
-      time_to_F1120_days        = as.numeric(max(dt_days, na.rm = TRUE)),
+      time_to_F1120_days        = ifelse(
+        all(is.na(dt_days)), NA_real_,
+        as.numeric(max(dt_days, na.rm = TRUE))
+      ),
       n_events_30d              = sum(dt_days <= 30),
       n_events_90d              = sum(dt_days <= 90),
       n_events_180d             = sum(dt_days <= 180),
