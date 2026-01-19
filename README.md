@@ -122,11 +122,9 @@ flowchart TD
         B2 --> B3[Top Features Selection]
     end
     
-    subgraph "Step 3b: Feature Refinement"
+    subgraph "Feature Importance EDA: Feature Refinement"
         B3 --> B4[BupaR Post-Target Analysis]
-        B3 --> B5[DTW Trajectory Analysis]
         B4 --> B6[Refined Cohort Feature Importance]
-        B5 --> B6
     end
     
     subgraph "Step 4: Model Data & Filtering"
