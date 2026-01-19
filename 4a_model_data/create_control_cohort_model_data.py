@@ -115,9 +115,13 @@ def create_control_cohort_model_data(
     sample_size: int = 10000,
     output_root: Path = None,
     target_cohort_path: Path = None,
+        time_window_days: int = 14,
 ) -> None:
     """
     Create model_events.parquet for non_opioid_non_ed control cohort.
+    
+    For POLYPHARMACY COHORT, controls must have drug events but NO HCG target events
+    within the specified time window of their drug events.
     
     Args:
         age_band: Age band (e.g., "13-24")
@@ -125,6 +129,8 @@ def create_control_cohort_model_data(
         sample_size: Number of control patients to sample
         output_root: Root directory for output (default: get_model_data_root())
         target_cohort_path: Optional path to target cohort model_events.parquet for ratio logging
+        time_window_days: Time window in days for checking HCG target events near drug events (default: 30)
+                          Common values: 30, 60, 90, 120
     """
     if output_root is None:
         output_root = get_model_data_root()
@@ -248,10 +254,37 @@ def create_control_cohort_model_data(
         SELECT DISTINCT mi_person_key
         FROM pharmacy_events
     ),
+    patient_hcg_dates AS (
+        -- Get HCG target event dates for each patient
+        SELECT
+            me.mi_person_key,
+            me.event_date AS hcg_event_date
+        FROM medical_events me
+        WHERE me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+    ),
+    drug_hcg_pairs AS (
+        -- For each patient, check if ANY HCG target event occurs within {time_window_days} days of ANY drug event
+        -- This creates pairs of (drug_event_date, hcg_event_date) where they're within the time window
+        SELECT DISTINCT
+            pe.mi_person_key,
+            pe.event_date AS drug_event_date,
+            phd.hcg_event_date
+        FROM pharmacy_events pe
+        INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
+        LEFT JOIN patient_hcg_dates phd ON pe.mi_person_key = phd.mi_person_key
+            AND phd.hcg_event_date >= pe.event_date
+            AND phd.hcg_event_date <= DATE_ADD(pe.event_date, INTERVAL {time_window_days} DAY)
+        WHERE phd.hcg_event_date IS NOT NULL  -- Only keep pairs where HCG event is within window
+    ),
+    patients_with_hcg_in_window AS (
+        -- Get distinct patients who have HCG target events within time window of drug events
+        SELECT DISTINCT mi_person_key
+        FROM drug_hcg_pairs
+    ),
     per_patient_flags AS (
-        -- Check ALL patients with drug events for opioid ICD codes and HCG target events
-        -- Use LEFT JOIN to medical_events to check even if patient only has pharmacy events
-        -- This ensures we check for target events (HCG ED visits) in medical events for ALL patients with drug events
+        -- Check ALL patients with drug events for opioid ICD codes and time-windowed HCG target events
+        -- Use LEFT JOIN to check even if patient only has pharmacy events
+        -- Time window: Check if HCG target event occurs within {time_window_days} days of ANY drug event
         SELECT
             pde.mi_person_key,
             COALESCE(MAX(
@@ -260,23 +293,22 @@ def create_control_cohort_model_data(
                     ELSE 0
                 END
             ), 0) AS has_opioid_icd,  -- Default to 0 if no medical events
-            COALESCE(MAX(
-                CASE
-                    WHEN me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1
-                    ELSE 0
-                END
-            ), 0) AS has_hcg_target_event  -- Default to 0 if no medical events (no HCG target event)
+            CASE
+                WHEN phw.mi_person_key IS NOT NULL THEN 1
+                ELSE 0
+            END AS has_hcg_target_event_in_window  -- 1 if patient has HCG target event within window of any drug event
         FROM patients_with_drug_events pde
         LEFT JOIN medical_events me ON pde.mi_person_key = me.mi_person_key
-        GROUP BY pde.mi_person_key
+        LEFT JOIN patients_with_hcg_in_window phw ON pde.mi_person_key = phw.mi_person_key
+        GROUP BY pde.mi_person_key, phw.mi_person_key
     ),
     control_candidates AS (
         -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
         -- Drug event requirement already enforced by patients_with_drug_events filter above
-        -- has_hcg_target_event = 0 means patient has NO HCG target events (ED visits)
+        -- has_hcg_target_event_in_window = 0 means patient has NO HCG target events within {time_window_days} days of drug events
         SELECT mi_person_key
         FROM per_patient_flags
-        WHERE has_opioid_icd = 0 AND has_hcg_target_event = 0
+        WHERE has_opioid_icd = 0 AND has_hcg_target_event_in_window = 0
     ),
     sampled_controls AS (
         SELECT mi_person_key
@@ -306,9 +338,9 @@ def create_control_cohort_model_data(
     
     try:
         print(f"[INFO] Creating control cohort model_events.parquet for {cohort_name}/{age_band}...")
-        print(f"[INFO] POLYPHARMACY COHORT control definition:")
+        print(f"[INFO] POLYPHARMACY COHORT control definition (time window: {time_window_days} days):")
         print(f"[INFO]   - Patients with drug events (pharmacy events)")
-        print(f"[INFO]   - NO time-windowed HCG target events (no ED visits)")
+        print(f"[INFO]   - NO time-windowed HCG target events within {time_window_days} days of drug events")
         print(f"[INFO]   - NO opioid ICD codes")
         print(f"[INFO] Sampling {sample_size} control patients")
         
@@ -334,14 +366,14 @@ def create_control_cohort_model_data(
         # Check control candidates count - use same structure as main query
         diag_candidates_simple = f"""
         WITH medical_events AS (
-            SELECT mi_person_key, primary_icd_diagnosis_code, two_icd_diagnosis_code,
+            SELECT mi_person_key, event_date, primary_icd_diagnosis_code, two_icd_diagnosis_code,
                    three_icd_diagnosis_code, four_icd_diagnosis_code, five_icd_diagnosis_code,
                    six_icd_diagnosis_code, seven_icd_diagnosis_code, eight_icd_diagnosis_code,
                    nine_icd_diagnosis_code, ten_icd_diagnosis_code, hcg_line
             FROM read_parquet([{medical_paths_literal}])
         ),
         pharmacy_events AS (
-            SELECT mi_person_key
+            SELECT mi_person_key, event_date
             FROM read_parquet([{pharmacy_paths_literal}])
         ),
         patients_with_drug_events AS (
@@ -349,12 +381,38 @@ def create_control_cohort_model_data(
             SELECT DISTINCT mi_person_key
             FROM pharmacy_events
         ),
+        patient_hcg_dates AS (
+            SELECT
+                me.mi_person_key,
+                me.event_date AS hcg_event_date
+            FROM medical_events me
+            WHERE me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+        ),
+        drug_hcg_pairs AS (
+            -- For each patient, check if ANY HCG target event occurs within {time_window_days} days of ANY drug event
+            SELECT DISTINCT
+                pe.mi_person_key,
+                pe.event_date AS drug_event_date,
+                phd.hcg_event_date
+            FROM pharmacy_events pe
+            INNER JOIN patients_with_drug_events pde ON pe.mi_person_key = pde.mi_person_key
+            LEFT JOIN patient_hcg_dates phd ON pe.mi_person_key = phd.mi_person_key
+                AND phd.hcg_event_date >= pe.event_date
+                AND phd.hcg_event_date <= DATE_ADD(pe.event_date, INTERVAL {time_window_days} DAY)
+            WHERE phd.hcg_event_date IS NOT NULL
+        ),
         per_patient_flags AS (
-            -- Check ALL patients with drug events for opioid ICD codes and HCG target events
+            -- Check ALL patients with drug events for opioid ICD codes and time-windowed HCG target events
             SELECT
                 pde.mi_person_key,
                 COALESCE(MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END), 0) AS has_opioid_icd,
-                COALESCE(MAX(CASE WHEN me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') THEN 1 ELSE 0 END), 0) AS has_hcg_target_event
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM drug_hcg_pairs dhp 
+                        WHERE dhp.mi_person_key = pde.mi_person_key
+                    ) THEN 1
+                    ELSE 0
+                END AS has_hcg_target_event_in_window
             FROM patients_with_drug_events pde
             LEFT JOIN medical_events me ON pde.mi_person_key = me.mi_person_key
             GROUP BY pde.mi_person_key
@@ -363,7 +421,7 @@ def create_control_cohort_model_data(
             -- POLYPHARMACY COHORT: Controls must have drug events AND no time-windowed HCG target events
             SELECT mi_person_key
             FROM per_patient_flags
-            WHERE has_opioid_icd = 0 AND has_hcg_target_event = 0
+            WHERE has_opioid_icd = 0 AND has_hcg_target_event_in_window = 0
         )
         SELECT COUNT(*) as n FROM control_candidates
         """

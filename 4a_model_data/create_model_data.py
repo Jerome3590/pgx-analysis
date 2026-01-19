@@ -311,6 +311,7 @@ def filter_cohort_events_for_items(
     local_pharmacy_root: Path,
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
     control_exclusions: Optional[List[str]] = None,
+    time_window_days: Optional[int] = None,
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4a_model_data/.
