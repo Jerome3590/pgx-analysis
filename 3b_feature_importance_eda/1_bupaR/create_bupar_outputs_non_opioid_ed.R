@@ -189,30 +189,41 @@ has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
 log_msg(sprintf("Loading target cohort data from: %s", model_data_path))
 log_msg(sprintf("Filtering for target=1 and years: %s", paste(train_years, collapse=",")))
 # Optimized query: Filter target=1 in DuckDB and only select needed columns
+# Include hcg_line and first_ed_non_opioid_date if they exist (needed for target identification)
 # This avoids loading unnecessary data into R memory
+base_columns <- c(
+  "mi_person_key",
+  "event_date",
+  "drug_name",
+  "primary_icd_diagnosis_code",
+  "two_icd_diagnosis_code",
+  "three_icd_diagnosis_code",
+  "four_icd_diagnosis_code",
+  "five_icd_diagnosis_code",
+  "six_icd_diagnosis_code",
+  "seven_icd_diagnosis_code",
+  "eight_icd_diagnosis_code",
+  "nine_icd_diagnosis_code",
+  "ten_icd_diagnosis_code",
+  "procedure_code"
+)
+
+# Add hcg_line and first_ed_non_opioid_date if they exist in the schema
+if (has_hcg_line) {
+  base_columns <- c(base_columns, "hcg_line")
+}
+if (has_first_ed_date) {
+  base_columns <- c(base_columns, "first_ed_non_opioid_date")
+}
+
 query_target <- sprintf(
-  "SELECT 
-    mi_person_key,
-    event_date,
-    drug_name,
-    primary_icd_diagnosis_code,
-    two_icd_diagnosis_code,
-    three_icd_diagnosis_code,
-    four_icd_diagnosis_code,
-    five_icd_diagnosis_code,
-    six_icd_diagnosis_code,
-    seven_icd_diagnosis_code,
-    eight_icd_diagnosis_code,
-    nine_icd_diagnosis_code,
-    ten_icd_diagnosis_code,
-    procedure_code
+  "SELECT %s
   FROM read_parquet('%s') 
   WHERE event_year IN (%s) AND target = 1",
+  paste(base_columns, collapse = ", "),
   model_data_path,
   paste(train_years, collapse = ",")
 )
-
-pgx_df_target1 <- dbGetQuery(con, query_target)
 
 log_msg("Executing DuckDB query for target cohort...")
 pgx_df_target1 <- dbGetQuery(con, query_target)
