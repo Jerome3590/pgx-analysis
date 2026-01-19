@@ -183,10 +183,7 @@ def create_control_cohort_model_data(
     WITH medical_events AS (
         SELECT
             mi_person_key,
-            COALESCE(
-                CAST(incurred_date AS DATE),
-                CAST(event_date AS DATE)
-            ) AS event_date,  -- Medical files use incurred_date, cast to DATE for consistency
+            CAST(incurred_date AS DATE) AS event_date,  -- Medical files use incurred_date, cast to DATE
             event_year,
             NULL AS drug_name,  -- Medical files don't have drug_name
             primary_icd_diagnosis_code,
@@ -207,10 +204,7 @@ def create_control_cohort_model_data(
     pharmacy_events AS (
         SELECT
             mi_person_key,
-            COALESCE(
-                CAST(incurred_date AS DATE),
-                CAST(event_date AS DATE)
-            ) AS event_date,  -- Pharmacy files may use incurred_date, cast to DATE for consistency
+            CAST(incurred_date AS DATE) AS event_date,  -- Pharmacy files use incurred_date, cast to DATE
             event_year,
             drug_name,  -- Pharmacy files have drug_name
             NULL AS primary_icd_diagnosis_code,
