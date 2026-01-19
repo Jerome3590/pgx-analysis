@@ -80,7 +80,8 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
         if time_window_days:
-            logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for HCG target events")
+            logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for main is_target_case column")
+            logger.info(f"  POLYPHARMACY COHORT: Also creating multiclass target columns (7d, 14d, 21d, 30d, 45d) for analysis")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -363,16 +364,22 @@ def run_phase3_step3_final_cohort_fact(context):
                 GROUP BY dhp.mi_person_key
             ),
             control_candidates AS (
-                -- POLYPHARMACY COHORT: Control candidates must have drug events AND NO HCG target events within time window
+                -- POLYPHARMACY COHORT: Control candidates must have drug events AND NO HCG target events within ANY time window
                 -- Select control candidates (any event type - medical or pharmacy)
                 -- The final fallback in control_reference_dates ensures ALL sampled controls get a reference date
+                -- Controls should not have HCG target events within any of the time windows (7, 14, 21, 30, 45 days)
                 SELECT DISTINCT pde.mi_person_key
                 FROM patients_with_drug_events pde
                 WHERE pde.mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
                   AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
                   AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM patients_with_hcg_in_window)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM drug_hcg_pairs_7d)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM drug_hcg_pairs_14d)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM drug_hcg_pairs_21d)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM drug_hcg_pairs_30d)
+                  AND pde.mi_person_key NOT IN (SELECT mi_person_key FROM drug_hcg_pairs_45d)
                   -- Exclude opioid patients from controls as well - complete separation
-                  -- Exclude patients with HCG target events within time window (these are targets)
+                  -- Exclude patients with HCG target events within any time window (these are targets)
             ),
             sampled_controls AS (
                 -- Sample distinct controls only (no reuse WITHIN this cohort to maintain statistical independence)
@@ -477,6 +484,13 @@ def run_phase3_step3_final_cohort_fact(context):
                     ELSE 'NON_ED'
                 END as cohort,
                 CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+                -- MULTICLASS TARGET COLUMNS: One for each time window (7, 14, 21, 30, 45 days)
+                -- Allows analysis as multiclass problem to see which time window has most predictive power
+                CASE WHEN p7d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_7d,
+                CASE WHEN p14d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_14d,
+                CASE WHEN p21d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_21d,
+                CASE WHEN p30d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_30d,
+                CASE WHEN p45d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_45d,
                 -- Ensure all columns match: controls get NULL for target-specific fields
                 NULL as first_opioid_ed_date,
                 CASE 
@@ -486,6 +500,11 @@ def run_phase3_step3_final_cohort_fact(context):
             FROM events_with_dates ewd
             LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
             LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
+            LEFT JOIN drug_hcg_pairs_7d p7d ON ewd.mi_person_key = p7d.mi_person_key
+            LEFT JOIN drug_hcg_pairs_14d p14d ON ewd.mi_person_key = p14d.mi_person_key
+            LEFT JOIN drug_hcg_pairs_21d p21d ON ewd.mi_person_key = p21d.mi_person_key
+            LEFT JOIN drug_hcg_pairs_30d p30d ON ewd.mi_person_key = p30d.mi_person_key
+            LEFT JOIN drug_hcg_pairs_45d p45d ON ewd.mi_person_key = p45d.mi_person_key
             WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
               -- Apply balanced {time_window_days}-day lookback window to both targets and controls
               -- For target cases: medical events OR drug events within time_window_days days before target
