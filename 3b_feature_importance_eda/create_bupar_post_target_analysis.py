@@ -536,7 +536,12 @@ def main():
     print(f"   Post-target leakage features: {results_df['is_post_target_leakage'].sum()}")
     
     # Show statistics
-    if 'post_f1120_ratio' in results_df.columns:
+    # Cohort-specific target terminology for output
+    target_name = "F1120" if args.cohort == "opioid_ed" else "ED visit (HCG)"
+    ratio_col = 'post_target_ratio' if 'post_target_ratio' in results_df.columns else 'post_f1120_ratio'
+    pre_ratio_col = 'pre_target_ratio' if 'pre_target_ratio' in results_df.columns else 'pre_f1120_ratio'
+    
+    if ratio_col in results_df.columns:
         leakage_features = results_df[results_df['is_post_target_leakage'] == 1]
         predictive_features = results_df[results_df.get('is_pre_target_predictive', pd.Series([0]*len(results_df))) == 1]
         
