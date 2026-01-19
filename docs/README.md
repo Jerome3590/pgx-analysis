@@ -22,7 +22,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 **Code**: `3b_feature_importance_eda/`
 
 - **BupaR Post-Target Analysis** – Identifies post-target leakage features
-- **DTW Trajectory Analysis** – Identifies non-value-added administrative/scheduling codes
+- **Administrative Code Filtering** – Removes non-value-added administrative/scheduling codes using lookup table
 - **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4a
 
 ### Step 4: Model Data & Filtering
