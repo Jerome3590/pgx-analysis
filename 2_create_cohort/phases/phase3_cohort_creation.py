@@ -26,6 +26,7 @@ def run_phase3_step3_final_cohort_fact(context):
     age_band = context["age_band"]
     event_year = context["event_year"]
     pipeline_state = context.get("pipeline_state")
+    time_window_days = context.get("time_window_days", 14)  # Default 14 days, supports 14, 30, 60, 90, 120
     
     step_name = "phase3_step3_final_cohort_fact"
     
@@ -78,6 +79,8 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"→ [PHASE 3 STEP 3] Target case counts:")
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
+        if time_window_days:
+            logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for HCG target events")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -404,15 +407,15 @@ def run_phase3_step3_final_cohort_fact(context):
             LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
             LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
             WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
-              -- Apply balanced 30-day lookback window to both targets and controls
-              -- For target cases: medical events OR drug events within 30 days before target
-              -- For controls: medical events OR drug events within 30 days before reference date
+              -- Apply balanced {time_window_days}-day lookback window to both targets and controls
+              -- For target cases: medical events OR drug events within time_window_days days before target
+              -- For controls: medical events OR drug events within time_window_days days before reference date
               AND (
-                  -- Target cases: include medical events OR drug events within 30 days before target
+                  -- Target cases: include medical events OR drug events within time_window_days days before target
                   (tc.mi_person_key IS NOT NULL AND (
                       ewd.event_type = 'medical' 
                       OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
-                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 30)
+                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= {time_window_days})
                   ))
                   -- Controls: apply same temporal logic for balanced comparison
                   OR (sc.mi_person_key IS NOT NULL AND (

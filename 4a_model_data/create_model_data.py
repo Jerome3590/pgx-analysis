@@ -311,7 +311,7 @@ def filter_cohort_events_for_items(
     local_pharmacy_root: Path,
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
     control_exclusions: Optional[List[str]] = None,
-    time_window_days: Optional[int] = None,
+    time_window_days: Optional[int] = None,  # Deprecated - time window now handled in Step 2
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4a_model_data/.
@@ -564,8 +564,10 @@ def filter_cohort_events_for_items(
     common_cols_sql_control = ", ".join(f"c.{c}" for c in common_cols)
 
     # 1. Case patients from gold cohorts
-    # For polypharmacy cohort (non_opioid_ed), apply time window filtering if specified
-    if cohort_name == "non_opioid_ed" and time_window_days is not None:
+    # NOTE: Time window filtering is now handled in Step 2 (2_create_cohort)
+    # Step 2 creates cohorts with time-windowed HCG events, so we just use all target cases from the cohort
+    # No need to re-filter here - the cohort definition in Step 2 is the source of truth
+    if False:  # Disabled - time window filtering moved to Step 2
         # Filter target cases to only include those with HCG target events within time_window_days of drug events
         # Need to get gold medical/pharmacy paths for time window checking
         gold_medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
@@ -990,7 +992,7 @@ def main() -> None:
         type=int,
         default=None,
         choices=[14, 30, 60, 90, 120],
-        help="Time window in days for checking HCG target events near drug events (default: None, uses Step 2 cohort as-is). Choices: 14, 30, 60, 90, 120. Only applies to polypharmacy cohort (non_opioid_ed).",
+        help="DEPRECATED: Time window is now handled in Step 2 (2_create_cohort). This argument is ignored.",
     )
     args = parser.parse_args()
     
