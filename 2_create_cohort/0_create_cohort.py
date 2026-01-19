@@ -202,12 +202,20 @@ def step_execution_dispatcher(starting_step, context):
 def execute_pipeline(context):
     """Execute the complete pipeline by running all phases in order with DuckDB optimizations."""
     logger = context["logger"]
+    age_band = context["age_band"]
+    event_year = context["event_year"]
     
     logger.info("→ [PIPELINE] Starting optimized 4-phase pipeline execution...")
     logger.info("→ [PIPELINE] Applied DUCKDB optimizations from APCD development")
     logger.info("→ [PIPELINE] Using new consolidated 4-phase workflow (5 steps total)")
     
     try:
+        # Pre-phase: Sync gold data from S3 to local /mnt/nvme if needed
+        from phases.common import sync_gold_data_to_local
+        logger.info("→ [PIPELINE] Pre-phase: Ensuring gold medical/pharmacy data is available locally...")
+        sync_gold_data_to_local("medical", age_band, event_year, logger)
+        sync_gold_data_to_local("pharmacy", age_band, event_year, logger)
+        
         # Phase 1: Data Preparation (APCD Integration)
         logger.info("→ [PIPELINE] Executing Phase 1: Data Preparation (APCD Integration)")
         run_phase1_data_preparation(context)

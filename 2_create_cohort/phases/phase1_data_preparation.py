@@ -13,6 +13,7 @@ from .common import (
     force_checkpoint,
     execute_sql_with_dev_validation,
     resolve_gold_data_path,
+    sync_gold_data_to_local,
 )
 
 

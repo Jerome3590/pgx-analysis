@@ -29,6 +29,8 @@ if project_root not in sys.path:
 from py_helpers.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
 from py_helpers.env_utils import get_data_root, is_linux
 from pathlib import Path
+import subprocess
+import shutil
 
 # Provide no-op shims for advanced duckdb utils to match simplified helpers
 def cleanup_duckdb_temp_files(logger):
@@ -246,6 +248,111 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
         """
         execute_sql_with_dev_validation(conn, logger, pharmacy_filtered)
         logger.info("[ensure_gold_views] Created views: pharmacy_base, pharmacy")
+
+
+def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger) -> bool:
+    """
+    Sync gold medical/pharmacy data from S3 to local /mnt/nvme if not already present.
+    
+    IMPORTANT: Only syncs medical and pharmacy data, NOT cohort datasets (cohorts are recreated).
+    
+    Args:
+        dataset: 'medical' or 'pharmacy' (only these two are supported)
+        age_band: Age band string (e.g., '13-24')
+        event_year: Event year (e.g., 2016)
+        logger: Logger instance
+    
+    Returns:
+        True if sync succeeded or data already exists, False otherwise
+    """
+    # Only allow medical and pharmacy datasets
+    if dataset not in ['medical', 'pharmacy']:
+        logger.error(f"[SYNC] Invalid dataset '{dataset}'. Only 'medical' and 'pharmacy' are supported.")
+        return False
+    
+    if not is_linux():
+        # Only sync on Linux/EC2
+        return True
+    
+    data_root = get_data_root()
+    local_path = data_root / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    
+    # Check if file already exists locally
+    if local_path.exists():
+        logger.info(f"[SYNC] Local {dataset} data already exists: {local_path}")
+        return True
+    
+    # Check if AWS CLI is available
+    aws_cli = shutil.which("aws")
+    if not aws_cli:
+        logger.warning(f"[SYNC] AWS CLI not found, skipping sync for {dataset}")
+        return False
+    
+    # S3 source path (only medical/pharmacy, NOT cohorts)
+    s3_path = f"s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/"
+    local_dir = local_path.parent
+    
+    # Create local directory if it doesn't exist
+    local_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"[SYNC] Syncing {dataset} data from S3 to local...")
+    logger.info(f"  Source: {s3_path}")
+    logger.info(f"  Dest: {local_dir}")
+    logger.info(f"  Note: Only syncing {dataset} data (cohorts are recreated, not synced)")
+    
+    try:
+        # Use aws s3 sync to sync the directory (will only download missing files)
+        result = subprocess.run(
+            [aws_cli, "s3", "sync", s3_path, str(local_dir), "--no-progress"],
+            capture_output=True,
+            text=True,
+            timeout=3600,  # 1 hour timeout
+            check=False
+        )
+        
+        if result.returncode == 0:
+            if local_path.exists():
+                logger.info(f"[SYNC] ✓ Successfully synced {dataset} data to: {local_path}")
+                return True
+            else:
+                logger.warning(f"[SYNC] Sync completed but file not found: {local_path}")
+                return False
+        else:
+            logger.warning(f"[SYNC] Sync failed for {dataset}: {result.stderr}")
+            return False
+    except subprocess.TimeoutExpired:
+        logger.error(f"[SYNC] Sync timeout for {dataset} (exceeded 1 hour)")
+        return False
+    except Exception as e:
+        logger.error(f"[SYNC] Error syncing {dataset}: {e}")
+        return False
+
+
+def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
+    """
+    Resolve path to gold medical/pharmacy data, preferring local /mnt/nvme paths over S3.
+    
+    Priority:
+    1. Local path: /mnt/nvme/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
+    2. S3 path: s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
+    
+    Args:
+        dataset: 'medical' or 'pharmacy'
+        age_band: Age band string (e.g., '13-24')
+        event_year: Event year (e.g., 2016)
+    
+    Returns:
+        Path string (local if exists, otherwise S3)
+    """
+    # Check local path first (Linux/EC2: /mnt/nvme/gold/{dataset}/)
+    if is_linux():
+        data_root = get_data_root()
+        local_path = data_root / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if local_path.exists():
+            return str(local_path)
+    
+    # Fall back to S3
+    return f"s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
 
 
 def ensure_unified_views(conn, logger):
