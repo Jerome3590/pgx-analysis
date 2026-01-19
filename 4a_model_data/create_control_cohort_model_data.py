@@ -172,22 +172,20 @@ def create_control_cohort_model_data(
     # 5. Sample control patients
     # 6. Extract all events for sampled controls
     
-    # Use union_by_name=True to handle different schemas between medical and pharmacy files
-    # This automatically handles missing columns (e.g., drug_name in medical, ICD codes in pharmacy)
-    all_paths = medical_parquet_paths + pharmacy_parquet_paths
-    all_paths_literal = ", ".join(f"'{p}'" for p in all_paths) if all_paths else ""
+    medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
+    pharmacy_paths_literal = ", ".join(f"'{p}'" for p in pharmacy_parquet_paths) if pharmacy_parquet_paths else ""
     
-    if not all_paths_literal:
-        print(f"[ERROR] No medical or pharmacy files found")
+    if not medical_paths_literal or not pharmacy_paths_literal:
+        print(f"[ERROR] Both medical and pharmacy files are required")
         return
     
     query = f"""
-    WITH unified_events AS (
+    WITH medical_events AS (
         SELECT
             mi_person_key,
             event_date,
             event_year,
-            drug_name,  -- Will be NULL for medical files, present in pharmacy files
+            NULL AS drug_name,  -- Medical files don't have drug_name
             primary_icd_diagnosis_code,
             two_icd_diagnosis_code,
             three_icd_diagnosis_code,
@@ -201,7 +199,45 @@ def create_control_cohort_model_data(
             procedure_code,
             hcg_line,
             age_band
-        FROM read_parquet([{all_paths_literal}], union_by_name=True)
+        FROM read_parquet([{medical_paths_literal}])
+    ),
+    pharmacy_events AS (
+        SELECT
+            mi_person_key,
+            event_date,
+            event_year,
+            drug_name,  -- Pharmacy files have drug_name
+            NULL AS primary_icd_diagnosis_code,
+            NULL AS two_icd_diagnosis_code,
+            NULL AS three_icd_diagnosis_code,
+            NULL AS four_icd_diagnosis_code,
+            NULL AS five_icd_diagnosis_code,
+            NULL AS six_icd_diagnosis_code,
+            NULL AS seven_icd_diagnosis_code,
+            NULL AS eight_icd_diagnosis_code,
+            NULL AS nine_icd_diagnosis_code,
+            NULL AS ten_icd_diagnosis_code,
+            NULL AS procedure_code,
+            NULL AS hcg_line,
+            age_band
+        FROM read_parquet([{pharmacy_paths_literal}])
+    ),
+    patients_with_both AS (
+        -- Only include patients who have events in BOTH medical AND pharmacy
+        SELECT DISTINCT me.mi_person_key
+        FROM medical_events me
+        INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+    ),
+    unified_events AS (
+        SELECT
+            me.*
+        FROM medical_events me
+        INNER JOIN patients_with_both pwb ON me.mi_person_key = pwb.mi_person_key
+        UNION ALL
+        SELECT
+            pe.*
+        FROM pharmacy_events pe
+        INNER JOIN patients_with_both pwb ON pe.mi_person_key = pwb.mi_person_key
     ),
     per_patient_flags AS (
         SELECT
