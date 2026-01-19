@@ -291,6 +291,87 @@ def create_control_cohort_model_data(
         print(f"[INFO] Creating control cohort model_events.parquet for {cohort_name}/{age_band}...")
         print(f"[INFO] Sampling {sample_size} control patients (non-opioid, non-ED)")
         
+        # Diagnostic queries to understand where data is being filtered
+        print(f"\n[DEBUG] Running diagnostic queries...")
+        
+        # Check medical events count
+        diag_medical = con.execute(f"SELECT COUNT(*) as n FROM read_parquet([{medical_paths_literal}])").fetchone()[0]
+        print(f"[DEBUG] Medical events: {diag_medical:,}")
+        
+        # Check pharmacy events count
+        diag_pharmacy = con.execute(f"SELECT COUNT(*) as n FROM read_parquet([{pharmacy_paths_literal}])").fetchone()[0]
+        print(f"[DEBUG] Pharmacy events: {diag_pharmacy:,}")
+        
+        # Check patients with both
+        diag_both_query = f"""
+        WITH medical_events AS (
+            SELECT DISTINCT mi_person_key
+            FROM read_parquet([{medical_paths_literal}])
+        ),
+        pharmacy_events AS (
+            SELECT DISTINCT mi_person_key
+            FROM read_parquet([{pharmacy_paths_literal}])
+        )
+        SELECT COUNT(DISTINCT me.mi_person_key) as n
+        FROM medical_events me
+        INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+        """
+        diag_both = con.execute(diag_both_query).fetchone()[0]
+        print(f"[DEBUG] Patients with both medical AND pharmacy events: {diag_both:,}")
+        
+        # Check control candidates count
+        diag_candidates_query = f"""
+        {query.replace('LIMIT ' + str(sample_size), '')}
+        """
+        # Extract just the control_candidates CTE
+        diag_candidates_simple = f"""
+        WITH medical_events AS (
+            SELECT mi_person_key, incurred_date, event_year, primary_icd_diagnosis_code, two_icd_diagnosis_code,
+                   three_icd_diagnosis_code, four_icd_diagnosis_code, five_icd_diagnosis_code,
+                   six_icd_diagnosis_code, seven_icd_diagnosis_code, eight_icd_diagnosis_code,
+                   nine_icd_diagnosis_code, ten_icd_diagnosis_code, hcg_line
+            FROM read_parquet([{medical_paths_literal}])
+        ),
+        pharmacy_events AS (
+            SELECT mi_person_key, incurred_date, event_year
+            FROM read_parquet([{pharmacy_paths_literal}])
+        ),
+        patients_with_both AS (
+            SELECT DISTINCT me.mi_person_key
+            FROM medical_events me
+            INNER JOIN pharmacy_events pe ON me.mi_person_key = pe.mi_person_key
+        ),
+        unified_events AS (
+            SELECT me.mi_person_key, me.primary_icd_diagnosis_code, me.two_icd_diagnosis_code,
+                   me.three_icd_diagnosis_code, me.four_icd_diagnosis_code, me.five_icd_diagnosis_code,
+                   me.six_icd_diagnosis_code, me.seven_icd_diagnosis_code, me.eight_icd_diagnosis_code,
+                   me.nine_icd_diagnosis_code, me.ten_icd_diagnosis_code, me.hcg_line
+            FROM medical_events me
+            INNER JOIN patients_with_both pwb ON me.mi_person_key = pwb.mi_person_key
+        ),
+        per_patient_flags AS (
+            SELECT
+                mi_person_key,
+                MAX(CASE WHEN {opioid_condition} THEN 1 ELSE 0 END) AS has_opioid_icd,
+                MAX(CASE WHEN hcg_line IS NOT NULL THEN 1 ELSE 0 END) AS has_ed_visit
+            FROM unified_events ue
+            GROUP BY mi_person_key
+        ),
+        control_candidates AS (
+            SELECT mi_person_key
+            FROM per_patient_flags
+            WHERE has_opioid_icd = 0 AND has_ed_visit = 0
+        )
+        SELECT COUNT(*) as n FROM control_candidates
+        """
+        try:
+            diag_candidates = con.execute(diag_candidates_simple).fetchone()[0]
+            print(f"[DEBUG] Control candidates (no opioid ICD, no ED visit): {diag_candidates:,}")
+        except Exception as e:
+            print(f"[DEBUG] Could not count control candidates: {e}")
+        
+        print(f"[DEBUG] Diagnostic queries complete.\n")
+        
         con.execute(f"COPY ({query}) TO '{out_path}' (FORMAT PARQUET)")
         
         # Validate the created file
