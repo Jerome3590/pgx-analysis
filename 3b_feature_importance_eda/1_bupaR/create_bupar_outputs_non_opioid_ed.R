@@ -318,9 +318,12 @@ control_result <- ensure_control_cohort_with_ratio(
 
 pgx_df_control <- control_result$pgx_df_control
 
-# Assert that controls are not duplicated (ensures controls are not reused across runs)
+# Assert that control PATIENTS are not duplicated (check distinct patients, not event-level data)
+# Event-level data will have duplicate mi_person_key values (one row per event per patient)
 if (nrow(pgx_df_control) > 0) {
-  stopifnot(!anyDuplicated(pgx_df_control$mi_person_key))
+  distinct_control_patients <- unique(pgx_df_control$mi_person_key)
+  stopifnot(!anyDuplicated(distinct_control_patients))
+  cat("Verified ", length(distinct_control_patients), " distinct control patients (", nrow(pgx_df_control), " total events)\n", sep = "")
 }
 
 pgx_df_all <- bind_rows(

@@ -366,6 +366,12 @@ def create_control_cohort_model_data(
         try:
             diag_candidates = con.execute(diag_candidates_simple).fetchone()[0]
             print(f"[DEBUG] Control candidates (no opioid ICD, no ED visit): {diag_candidates:,}")
+            
+            # Check if we're trying to sample more than available
+            if sample_size > diag_candidates:
+                print(f"[WARN] Requested sample size ({sample_size:,}) exceeds available candidates ({diag_candidates:,})")
+                print(f"[WARN] Will sample all available candidates ({diag_candidates:,})")
+                # Note: SQL LIMIT will automatically cap at available rows, but we log this for visibility
         except Exception as e:
             print(f"[DEBUG] Could not count control candidates: {e}")
         
