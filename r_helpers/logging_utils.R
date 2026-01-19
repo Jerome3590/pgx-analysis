@@ -12,7 +12,10 @@
 log_msg <- function(msg, level = "INFO") {
   timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   cat(sprintf("[%s] [%s] %s\n", timestamp, level, msg))
-  flush.console()  # Ensure output appears immediately in Jupyter
+  # Flush output streams to ensure immediate output in both interactive and Rscript modes
+  flush.console()  # For interactive R sessions (Jupyter, RStudio)
+  flush(stdout())  # For Rscript execution (non-interactive)
+  flush(stderr())  # For Rscript execution (non-interactive)
 }
 
 # Setup R logging similar to Python logging_utils.setup_logging()
