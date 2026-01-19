@@ -38,32 +38,33 @@ Yes, you can run multiple Jupyter notebooks interactively at the same time! Each
 - R scripts write to cohort-specific output directories (no conflicts)
 
 ### 4. **Control Cohort Creation**
-- If multiple notebooks need to create the same control cohort (`non_opioid_non_ed`), they may conflict
-- **Solution**: Run one notebook first to create the control cohort, or use the script-based approach for control cohort creation
+- ✅ **No conflicts**: Control cohorts are age-band specific
+  - Cohort 5 (65-74) uses: `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
+  - Cohort 6 (75-84) uses: `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
+  - Cohort 7 (85-94) uses: `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
+- Each notebook creates/uses its own age-band-specific control cohort file
+- **Safe to run in parallel**: No file conflicts between different age bands
 
 ## Best Practices
 
-### Option 1: Sequential Execution (Recommended for First Run)
-1. Run cohort 5 first (creates control cohort if needed)
+### Option 1: Parallel Execution (Recommended)
+✅ **Safe to run all 3 notebooks in parallel immediately** - Each uses its own age-band-specific control cohort:
+- Cohort 5 (65-74) → `cohort_name=non_opioid_non_ed/age_band=65-74/model_events.parquet`
+- Cohort 6 (75-84) → `cohort_name=non_opioid_non_ed/age_band=75-84/model_events.parquet`
+- Cohort 7 (85-94) → `cohort_name=non_opioid_non_ed/age_band=85-94/model_events.parquet`
+
+**No conflicts**: Each notebook creates/uses a separate control cohort file.
+
+### Option 2: Sequential Execution (If Resource Constrained)
+If you have limited resources (memory/CPU), run sequentially:
+1. Run cohort 5 first
 2. Once complete, run cohort 6
 3. Then run cohort 7
 
 This ensures:
-- Control cohort is created before other notebooks need it
 - Easier to monitor progress
 - Less resource contention
-
-### Option 2: Parallel Execution (After Control Cohort Exists)
-1. First, ensure control cohort exists:
-   ```bash
-   python 4a_model_data/ensure_control_cohort.py \
-     --cohort non_opioid_non_ed \
-     --age-band 65-74 \
-     --target-cohort-path /mnt/nvme/4a_model_data/cohort_name=non_opioid_ed/age_band=65-74/model_events.parquet
-   ```
-   (Repeat for 75-84 and 85-94)
-
-2. Then open all 3 notebooks and run them in parallel
+- But not required for avoiding conflicts (each age band has its own control cohort)
 
 ### Option 3: Use tmux/screen for Multiple Sessions
 ```bash
@@ -112,12 +113,15 @@ ls -lh /home/pgx3874/pgx-analysis/3b_feature_importance_eda/outputs/non_opioid_e
 ## Troubleshooting
 
 ### Issue: "Control cohort not found" errors
-**Solution**: Run one notebook first to create the control cohort, or create it manually:
+**Solution**: Each notebook will automatically create its age-band-specific control cohort if it doesn't exist. If you want to pre-create them:
 ```bash
-python 4a_model_data/create_control_cohort_model_data.py \
-  --age-band 65-74 \
-  --sample-size 100000
+# Create control cohorts for all three age bands
+python 4a_model_data/create_control_cohort_model_data.py --age-band 65-74 --sample-size 100000
+python 4a_model_data/create_control_cohort_model_data.py --age-band 75-84 --sample-size 100000
+python 4a_model_data/create_control_cohort_model_data.py --age-band 85-94 --sample-size 100000
 ```
+
+**Note**: Each age band creates its own separate control cohort file, so you can run these in parallel too!
 
 ### Issue: Out of memory
 **Solution**: 
