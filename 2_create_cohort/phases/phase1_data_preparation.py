@@ -193,10 +193,9 @@ def run_phase1_data_preparation(context):
         ]
         hcg_medical = cohort_conn_duckdb.sql(f"""
         SELECT 
-            COUNT(*) as total_hcg_records,
-            COUNT(DISTINCT mi_person_key) as distinct_hcg_patients,
             hcg_line,
-            COUNT(*) as count_by_code
+            COUNT(*) as count_by_code,
+            COUNT(DISTINCT mi_person_key) as distinct_hcg_patients
         FROM medical
         WHERE hcg_line IN {tuple(hcg_codes)}
         GROUP BY hcg_line
@@ -204,7 +203,9 @@ def run_phase1_data_preparation(context):
         """).fetchall()
         
         if hcg_medical:
-            total_hcg = sum(row[2] for row in hcg_medical)
+            # Row structure: (hcg_line, count_by_code, distinct_hcg_patients)
+            # Sum the count_by_code (row[1]) for total HCG records
+            total_hcg = sum(int(row[1]) for row in hcg_medical)
             distinct_hcg = cohort_conn_duckdb.sql(f"""
             SELECT COUNT(DISTINCT mi_person_key)
             FROM medical
@@ -215,7 +216,8 @@ def run_phase1_data_preparation(context):
             logger.info(f"  Distinct HCG patients: {distinct_hcg:,}")
             logger.info(f"  HCG codes breakdown:")
             for row in hcg_medical:
-                logger.info(f"    '{row[1]}': {row[2]:,} records")
+                # Row: (hcg_line, count_by_code, distinct_hcg_patients)
+                logger.info(f"    '{row[0]}': {row[1]:,} records")
         else:
             logger.warning(f"→ [PHASE 1] HCG CODES CHECK: No ED visit HCG codes found in medical data")
         
