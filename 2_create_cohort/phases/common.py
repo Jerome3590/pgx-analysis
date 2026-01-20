@@ -32,12 +32,24 @@ from pathlib import Path
 import subprocess
 import shutil
 
-# Provide no-op shims for advanced duckdb utils to match simplified helpers
+# DuckDB temp file cleanup
 def cleanup_duckdb_temp_files(logger):
+    """
+    Clean up DuckDB temporary files and old worker temp directories.
+    Called at startup and after successful cohort completion.
+    """
     try:
-        logger.debug("[shim] cleanup_duckdb_temp_files: no-op in simplified helpers")
-    except Exception:
-        pass
+        from py_helpers.duckdb_utils import cleanup_old_duckdb_temp_dirs
+        
+        # Clean up old temp directories (older than 1 hour)
+        # This handles leftover directories from previous runs or crashes
+        cleaned_count = cleanup_old_duckdb_temp_dirs(max_age_hours=1)
+        if cleaned_count > 0:
+            logger.info(f"→ [CLEANUP] Cleaned up {cleaned_count} old DuckDB temp directories")
+        else:
+            logger.debug("→ [CLEANUP] No old DuckDB temp directories to clean")
+    except Exception as e:
+        logger.warning(f"→ [CLEANUP] Could not clean DuckDB temp files: {e}")
 
 def enable_query_profiling(conn, logger, profile_format="json", output_path="/tmp/duckdb_profiling.json"):
     try:
