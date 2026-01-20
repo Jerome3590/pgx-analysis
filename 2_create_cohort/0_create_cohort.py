@@ -307,6 +307,29 @@ def main():
     logger.info(f"{SYMBOLS['info']} Starting Step: {args.starting_step}")
     logger.info(f"{SYMBOLS['info']} Operation Type: {args.operation_type}")
     logger.info(f"{SYMBOLS['info']} Profiling: {'Enabled' if args.enable_profiling else 'Disabled'}")
+    
+    # Log process information
+    import os
+    import multiprocessing
+    current_pid = os.getpid()
+    cpu_count = multiprocessing.cpu_count()
+    logger.info(f"{SYMBOLS['info']} Process ID: {current_pid}")
+    logger.info(f"{SYMBOLS['info']} CPU Cores Available: {cpu_count}")
+    
+    # Check for concurrent workers setting (will be logged later in config section)
+    detected_workers = None
+    if args.concurrent_workers is not None:
+        detected_workers = args.concurrent_workers
+    elif os.getenv('PGX_COHORT_WORKERS'):
+        detected_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+    elif os.getenv('MAX_WORKERS'):
+        detected_workers = int(os.getenv('MAX_WORKERS'))
+    
+    if detected_workers:
+        logger.info(f"{SYMBOLS['info']} Concurrent Workers Detected: {detected_workers} (for memory limit calculation)")
+    else:
+        logger.info(f"{SYMBOLS['info']} Concurrent Workers: Not set (will use default: 3)")
+    
     logger.info("=" * 80)
     logger.info(f"{SYMBOLS['config']} DUCKDB OPTIMIZATIONS APPLIED:")
     logger.info("   - EC2-optimized connections (32-core 1TB RAM)")
@@ -370,6 +393,8 @@ def main():
         
         # Detect concurrent workers (for memory limit calculation)
         # Priority: CLI argument > PGX_COHORT_WORKERS env > MAX_WORKERS env > default
+        # IMPORTANT: This is the TOTAL number of concurrent workers running in parallel (e.g., from ThreadPoolExecutor)
+        # Each worker process should receive this value via --concurrent-workers CLI argument
         concurrent_workers = None
         if args.concurrent_workers is not None:
             concurrent_workers = args.concurrent_workers
@@ -385,6 +410,12 @@ def main():
             concurrent_workers = 3
             logger.info(f"→ [CONFIG] Using default worker count: {concurrent_workers} (set --concurrent-workers or env var to override)")
         
+        # Log current process information for debugging
+        logger.info(f"→ [CONFIG] Current Process ID: {os.getpid()}")
+        logger.info(f"→ [CONFIG] Parent Process ID: {os.getppid() if hasattr(os, 'getppid') else 'N/A'}")
+        logger.info(f"→ [CONFIG] Total Concurrent Workers (for memory calculation): {concurrent_workers}")
+        logger.info(f"→ [CONFIG] NOTE: This process is 1 of {concurrent_workers} concurrent workers")
+        
         # Reserve 40% for OS, buffers, and other processes (600GB for 1TB system)
         # Divide remaining 60% among workers
         available_for_duckdb = total_memory_gb * 0.6
@@ -399,6 +430,24 @@ def main():
         memory_limit = f"{int(per_worker_memory_gb)}GB"
         cohort_conn_duckdb.sql(f"SET memory_limit='{memory_limit}'")
         logger.info(f"→ [CONFIG] DuckDB memory limit: {memory_limit} (for {concurrent_workers} workers, {total_memory_gb:.0f}GB total system memory, {available_for_duckdb:.0f}GB available for DuckDB)")
+        
+        # Log active process count for debugging
+        try:
+            import psutil
+            current_process = psutil.Process()
+            # Count Python processes running 0_create_cohort.py
+            python_processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and any('0_create_cohort.py' in str(arg) for arg in cmdline):
+                        python_processes.append(proc.info['pid'])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            logger.info(f"→ [CONFIG] Active cohort creation processes: {len(python_processes)} (PIDs: {python_processes[:10]}{'...' if len(python_processes) > 10 else ''})")
+            logger.info(f"→ [CONFIG] Current process memory: {current_process.memory_info().rss / (1024**3):.2f}GB RSS")
+        except (ImportError, Exception) as e:
+            logger.debug(f"→ [CONFIG] Could not query process information: {e}")
 
         # Configure DuckDB for optimal parallelization based on operation type
         # For single partition processing, we can use more threads (up to CPU cores - 2)
