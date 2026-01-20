@@ -26,7 +26,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Import constants (py_helpers)
-from py_helpers.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS
+from py_helpers.constants import OPIOID_ICD_CODES, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS, S3_BUCKET
 from py_helpers.env_utils import get_data_root, is_linux
 from pathlib import Path
 import subprocess
@@ -52,7 +52,14 @@ def cleanup_duckdb_temp_files(logger):
         logger.warning(f"→ [CLEANUP] Could not clean DuckDB temp files: {e}")
 
 def enable_query_profiling(conn, logger, profile_format="json", output_path="/tmp/duckdb_profiling.json"):
+    """
+    Enable query profiling (currently a no-op shim).
+    
+    WARNING: Profiling is currently disabled. If you need query profiling,
+    implement DuckDB profiling hooks or use EXPLAIN ANALYZE directly.
+    """
     try:
+        logger.warning(f"[PROFILING] enable_query_profiling() is currently a no-op. Profiling is disabled.")
         logger.debug(f"[shim] enable_query_profiling({profile_format}, {output_path}): no-op in simplified helpers")
     except Exception:
         pass
@@ -122,25 +129,30 @@ def execute_sql_with_dev_validation(conn, logger, sql):
     except Exception as e:
         import os
         if os.getenv("PGX_DEV_VALIDATION", "0") == "1":
-            schemas = _load_schemas()
-            tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", sql))
-            sql_keywords = {
-                "select","from","where","and","or","case","when","then","else","end","as","create","replace","view","union","all","left","join","on","order","by","limit","group","distinct","over","partition","null","not","is","between","count","row_number","coalesce","random"
-            }
-            allowed_extra = {
-                "age_imputed","gender_imputed","race_imputed","zip_imputed","county_imputed","payer_imputed",
-                "drug_name","therapeutic_class_1","primary_icd_diagnosis_code","event_date","mi_person_key",
-                "cohort_name","is_target_case","event_type","data_source","event_classification","event_sequence",
-                # Common table functions / tokens that are not schema fields
-                "read_parquet","read_json","httpfs","aws","s3","gold","silver","parquet","pgxdatalake"
-            }
-            medical_cols = schemas.get("medical", set())
-            pharmacy_cols = schemas.get("pharmacy", set())
-            allowed = {t.lower() for t in (medical_cols | pharmacy_cols | allowed_extra)}
-            unknown = sorted({t for t in tokens if t.lower() not in sql_keywords and t.lower() not in allowed})
-            if unknown:
-                logger.warning(f"[DEV VALIDATION] Unrecognized identifiers possibly not in schemas: {unknown[:20]}")
-            logger.warning(f"[DEV VALIDATION] Refer to schemas for expected fields: medical={schemas['paths']['medical']}, pharmacy={schemas['paths']['pharmacy']}")
+            # Gate token scanning for large SQL strings (performance optimization)
+            # Only scan if SQL is reasonably sized (< 50KB)
+            if len(sql) < 50_000:
+                schemas = _load_schemas()
+                tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", sql))
+                sql_keywords = {
+                    "select","from","where","and","or","case","when","then","else","end","as","create","replace","view","union","all","left","join","on","order","by","limit","group","distinct","over","partition","null","not","is","between","count","row_number","coalesce","random"
+                }
+                allowed_extra = {
+                    "age_imputed","gender_imputed","race_imputed","zip_imputed","county_imputed","payer_imputed",
+                    "drug_name","therapeutic_class_1","primary_icd_diagnosis_code","event_date","mi_person_key",
+                    "cohort_name","is_target_case","event_type","data_source","event_classification","event_sequence",
+                    # Common table functions / tokens that are not schema fields
+                    "read_parquet","read_json","httpfs","aws","s3","gold","silver","parquet","pgxdatalake"
+                }
+                medical_cols = schemas.get("medical", set())
+                pharmacy_cols = schemas.get("pharmacy", set())
+                allowed = {t.lower() for t in (medical_cols | pharmacy_cols | allowed_extra)}
+                unknown = sorted({t for t in tokens if t.lower() not in sql_keywords and t.lower() not in allowed})
+                if unknown:
+                    logger.warning(f"[DEV VALIDATION] Unrecognized identifiers possibly not in schemas: {unknown[:20]}")
+                logger.warning(f"[DEV VALIDATION] Refer to schemas for expected fields: medical={schemas['paths']['medical']}, pharmacy={schemas['paths']['pharmacy']}")
+            else:
+                logger.debug(f"[DEV VALIDATION] SQL string too large ({len(sql):,} chars), skipping token scan")
         raise
 
 
@@ -289,10 +301,19 @@ def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger
     data_root = get_data_root()
     local_path = data_root / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
     
-    # Check if file already exists locally
+    # Check if file already exists locally and is not corrupted (size > 0)
     if local_path.exists():
-        logger.info(f"[SYNC] Local {dataset} data already exists: {local_path}")
-        return True
+        file_size = local_path.stat().st_size
+        if file_size > 0:
+            logger.info(f"[SYNC] Local {dataset} data already exists: {local_path} ({file_size:,} bytes)")
+            return True
+        else:
+            logger.warning(f"[SYNC] Local {dataset} file exists but is empty (0 bytes), will re-sync: {local_path}")
+            # Remove corrupted file
+            try:
+                local_path.unlink()
+            except Exception as e:
+                logger.warning(f"[SYNC] Could not remove corrupted file: {e}")
     
     # Check if AWS CLI is available
     aws_cli = shutil.which("aws")
@@ -301,7 +322,7 @@ def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger
         return False
     
     # S3 source path (only medical/pharmacy, NOT cohorts)
-    s3_path = f"s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/"
+    s3_path = f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/"
     local_dir = local_path.parent
     
     # Create local directory if it doesn't exist
@@ -324,8 +345,13 @@ def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger
         
         if result.returncode == 0:
             if local_path.exists():
-                logger.info(f"[SYNC] ✓ Successfully synced {dataset} data to: {local_path}")
-                return True
+                file_size = local_path.stat().st_size
+                if file_size > 0:
+                    logger.info(f"[SYNC] ✓ Successfully synced {dataset} data to: {local_path} ({file_size:,} bytes)")
+                    return True
+                else:
+                    logger.warning(f"[SYNC] Synced file exists but is empty (0 bytes), may be corrupted: {local_path}")
+                    return False
             else:
                 logger.warning(f"[SYNC] Sync completed but file not found: {local_path}")
                 return False
@@ -346,7 +372,7 @@ def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
     
     Priority:
     1. Local path: /mnt/nvme/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
-    2. S3 path: s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
+    2. S3 path: s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
     
     Args:
         dataset: 'medical' or 'pharmacy'
@@ -364,7 +390,22 @@ def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
             return str(local_path)
     
     # Fall back to S3
-    return f"s3://pgxdatalake/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
+    return f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
+
+
+def get_dynamic_targeting_config():
+    """
+    Centralize environment variable parsing for dynamic targeting configuration.
+    
+    Returns:
+        dict with keys: target_icd_codes, target_cpt_codes, target_icd_prefixes, target_cpt_prefixes
+    """
+    return {
+        "target_icd_codes": [c.strip() for c in os.getenv("PGX_TARGET_ICD_CODES", "").split(',') if c.strip()],
+        "target_cpt_codes": [c.strip() for c in os.getenv("PGX_TARGET_CPT_CODES", "").split(',') if c.strip()],
+        "target_icd_prefixes": [p.strip() for p in os.getenv("PGX_TARGET_ICD_PREFIXES", "").split(',') if p.strip()],
+        "target_cpt_prefixes": [p.strip() for p in os.getenv("PGX_TARGET_CPT_PREFIXES", "").split(',') if p.strip()]
+    }
 
 
 def ensure_unified_views(conn, logger):
@@ -374,10 +415,12 @@ def ensure_unified_views(conn, logger):
         conn.sql("SELECT 1 FROM unified_event_fact_table LIMIT 1").fetchone()
     except Exception:
         # Build dynamic classification from env (mirror Phase 2)
-        target_icd_codes = [c.strip() for c in os.getenv("PGX_TARGET_ICD_CODES", "").split(',') if c.strip()]
-        target_cpt_codes = [c.strip() for c in os.getenv("PGX_TARGET_CPT_CODES", "").split(',') if c.strip()]
-        target_icd_prefixes = [p.strip() for p in os.getenv("PGX_TARGET_ICD_PREFIXES", "").split(',') if p.strip()]
-        target_cpt_prefixes = [p.strip() for p in os.getenv("PGX_TARGET_CPT_PREFIXES", "").split(',') if p.strip()]
+        # Use centralized config helper to reduce drift across phases
+        config = get_dynamic_targeting_config()
+        target_icd_codes = config["target_icd_codes"]
+        target_cpt_codes = config["target_cpt_codes"]
+        target_icd_prefixes = config["target_icd_prefixes"]
+        target_cpt_prefixes = config["target_cpt_prefixes"]
 
         icd_conditions = []
         if target_icd_codes:
@@ -385,6 +428,10 @@ def ensure_unified_views(conn, logger):
             icd_conditions.append(f"primary_icd_diagnosis_code IN {tuple(target_icd_codes)}")
         for pref in target_icd_prefixes:
             # Normalize prefix and use LIKE with ESCAPE for wildcard safe match
+            # CRITICAL: This normalization must match get_opioid_icd_sql_condition() logic
+            # Both use: UPPER, remove '.', remove ' ' (spaces)
+            # get_opioid_icd_sql_condition() checks codes already normalized in gold tier (F1120 format)
+            # This prefix matching also normalizes to match gold tier format
             norm_pref = pref.upper().replace('.', '').replace(' ', '')
             like = norm_pref if ('%' in norm_pref or '_' in norm_pref) else (norm_pref + '%')
             icd_conditions.append(
@@ -436,103 +483,109 @@ def ensure_unified_views(conn, logger):
         else:
             classification_sql = default_case
 
+        # CRITICAL FIX: Compute ROW_NUMBER() after UNION ALL to ensure global chronological ordering
+        # Previously, ROW_NUMBER() was computed separately for medical and pharmacy, breaking global sequence
         event_fact_sql = f"""
         CREATE OR REPLACE VIEW unified_event_fact_table AS
+        WITH unified_events AS (
+            SELECT 
+                mi_person_key,
+                event_date,
+                'medical' as event_type,
+                'medical' as data_source,
+                age_imputed,
+                gender_imputed as member_gender,
+                race_imputed as member_race,
+                zip_imputed,
+                county_imputed,
+                payer_imputed,
+                -- ALL ICD diagnosis codes (for ML feature discovery)
+                primary_icd_diagnosis_code,
+                two_icd_diagnosis_code,
+                three_icd_diagnosis_code,
+                four_icd_diagnosis_code,
+                five_icd_diagnosis_code,
+                six_icd_diagnosis_code,
+                seven_icd_diagnosis_code,
+                eight_icd_diagnosis_code,
+                nine_icd_diagnosis_code,
+                ten_icd_diagnosis_code,
+                -- ALL ICD procedure codes (for ML feature discovery)
+                two_icd_procedure_code,
+                three_icd_procedure_code,
+                four_icd_procedure_code,
+                five_icd_procedure_code,
+                six_icd_procedure_code,
+                seven_icd_procedure_code,
+                eight_icd_procedure_code,
+                nine_icd_procedure_code,
+                ten_icd_procedure_code,
+                NULL as drug_name,
+                NULL as therapeutic_class_1,
+                -- CPT/procedure codes (medical)
+                procedure_code,
+                cpt_mod_1_code,
+                cpt_mod_2_code,
+                -- HCG fields for ED visit identification
+                hcg_setting,
+                hcg_line,
+                hcg_detail,
+                {classification_sql} as event_classification
+            FROM medical
+            WHERE primary_icd_diagnosis_code IS NOT NULL
+            
+            UNION ALL
+            
+            SELECT 
+                mi_person_key,
+                event_date,
+                'pharmacy' as event_type,
+                'pharmacy' as data_source,
+                age_imputed,
+                gender_imputed as member_gender,
+                race_imputed as member_race,
+                zip_imputed,
+                county_imputed,
+                payer_imputed,
+                -- ICD diagnosis codes not present in pharmacy (set NULLs)
+                NULL as primary_icd_diagnosis_code,
+                NULL as two_icd_diagnosis_code,
+                NULL as three_icd_diagnosis_code,
+                NULL as four_icd_diagnosis_code,
+                NULL as five_icd_diagnosis_code,
+                NULL as six_icd_diagnosis_code,
+                NULL as seven_icd_diagnosis_code,
+                NULL as eight_icd_diagnosis_code,
+                NULL as nine_icd_diagnosis_code,
+                NULL as ten_icd_diagnosis_code,
+                -- ICD procedure codes not present in pharmacy (set NULLs)
+                NULL as two_icd_procedure_code,
+                NULL as three_icd_procedure_code,
+                NULL as four_icd_procedure_code,
+                NULL as five_icd_procedure_code,
+                NULL as six_icd_procedure_code,
+                NULL as seven_icd_procedure_code,
+                NULL as eight_icd_procedure_code,
+                NULL as nine_icd_procedure_code,
+                NULL as ten_icd_procedure_code,
+                drug_name,
+                therapeutic_class_1,
+                -- CPT/procedure codes not present in pharmacy (set NULLs)
+                NULL as procedure_code,
+                NULL as cpt_mod_1_code,
+                NULL as cpt_mod_2_code,
+                -- HCG fields not present in pharmacy (set NULLs)
+                NULL as hcg_setting,
+                NULL as hcg_line,
+                NULL as hcg_detail,
+                {classification_sql} as event_classification
+            FROM pharmacy
+            WHERE drug_name IS NOT NULL
+        )
         SELECT 
-            mi_person_key,
-            event_date,
-            'medical' as event_type,
-            'medical' as data_source,
-            age_imputed,
-            gender_imputed as member_gender,
-            race_imputed as member_race,
-            zip_imputed,
-            county_imputed,
-            payer_imputed,
-            -- ALL ICD diagnosis codes (for ML feature discovery)
-            primary_icd_diagnosis_code,
-            two_icd_diagnosis_code,
-            three_icd_diagnosis_code,
-            four_icd_diagnosis_code,
-            five_icd_diagnosis_code,
-            six_icd_diagnosis_code,
-            seven_icd_diagnosis_code,
-            eight_icd_diagnosis_code,
-            nine_icd_diagnosis_code,
-            ten_icd_diagnosis_code,
-            -- ALL ICD procedure codes (for ML feature discovery)
-            two_icd_procedure_code,
-            three_icd_procedure_code,
-            four_icd_procedure_code,
-            five_icd_procedure_code,
-            six_icd_procedure_code,
-            seven_icd_procedure_code,
-            eight_icd_procedure_code,
-            nine_icd_procedure_code,
-            ten_icd_procedure_code,
-            NULL as drug_name,
-            NULL as therapeutic_class_1,
-            -- CPT/procedure codes (medical)
-            procedure_code,
-            cpt_mod_1_code,
-            cpt_mod_2_code,
-            -- HCG fields for ED visit identification
-            hcg_setting,
-            hcg_line,
-            hcg_detail,
-            {classification_sql} as event_classification,
+            *,
             ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
-        FROM medical
-        WHERE primary_icd_diagnosis_code IS NOT NULL
-        
-        UNION ALL
-        
-        SELECT 
-            mi_person_key,
-            event_date,
-            'pharmacy' as event_type,
-            'pharmacy' as data_source,
-            age_imputed,
-            gender_imputed as member_gender,
-            race_imputed as member_race,
-            zip_imputed,
-            county_imputed,
-            payer_imputed,
-            -- ICD diagnosis codes not present in pharmacy (set NULLs)
-            NULL as primary_icd_diagnosis_code,
-            NULL as two_icd_diagnosis_code,
-            NULL as three_icd_diagnosis_code,
-            NULL as four_icd_diagnosis_code,
-            NULL as five_icd_diagnosis_code,
-            NULL as six_icd_diagnosis_code,
-            NULL as seven_icd_diagnosis_code,
-            NULL as eight_icd_diagnosis_code,
-            NULL as nine_icd_diagnosis_code,
-            NULL as ten_icd_diagnosis_code,
-            -- ICD procedure codes not present in pharmacy (set NULLs)
-            NULL as two_icd_procedure_code,
-            NULL as three_icd_procedure_code,
-            NULL as four_icd_procedure_code,
-            NULL as five_icd_procedure_code,
-            NULL as six_icd_procedure_code,
-            NULL as seven_icd_procedure_code,
-            NULL as eight_icd_procedure_code,
-            NULL as nine_icd_procedure_code,
-            NULL as ten_icd_procedure_code,
-            drug_name,
-            therapeutic_class_1,
-            -- CPT/procedure codes not present in pharmacy (set NULLs)
-            NULL as procedure_code,
-            NULL as cpt_mod_1_code,
-            NULL as cpt_mod_2_code,
-            -- HCG fields not present in pharmacy (set NULLs)
-            NULL as hcg_setting,
-            NULL as hcg_line,
-            NULL as hcg_detail,
-            {classification_sql} as event_classification,
-            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
-        FROM pharmacy
-        WHERE drug_name IS NOT NULL;
+        FROM unified_events;
         """
         execute_sql_with_dev_validation(conn, logger, event_fact_sql)
         logger.info("[ensure_unified_views] Created view: unified_event_fact_table")
@@ -566,8 +619,22 @@ def ensure_cohort_views(conn, logger):
     """Ensure Phase 3 cohort views exist: opioid_ed_cohort and ed_non_opioid_cohort.
     
     Uses dynamic classification labels matching Phase 3 logic (target/non_target vs opioid_ed/ed_non_opioid).
+    
+    WARNING: This is a FALLBACK implementation. If Phase 3 was skipped, these simplified cohorts
+    do NOT match Phase 3 semantics:
+    - No time windows for polypharmacy cohort
+    - No drug lookbacks
+    - No multi-window targets (7d, 14d, 21d, 30d, 45d)
+    - No proper control ratio validation
+    
+    For production use, always run Phase 3 to get full cohort semantics.
     """
     import os
+    logger.warning(
+        "[ensure_cohort_views] Using fallback cohort logic (Phase 3 skipped). "
+        "Cohort semantics differ from full pipeline. "
+        "Missing: time windows, drug lookbacks, multi-window targets, proper control ratios."
+    )
     # Determine classification labels based on dynamic targeting env (same logic as Phase 3)
     target_icd = os.getenv("PGX_TARGET_ICD_CODES", "").strip() or os.getenv("PGX_TARGET_ICD_PREFIXES", "").strip()
     target_cpt = os.getenv("PGX_TARGET_CPT_CODES", "").strip() or os.getenv("PGX_TARGET_CPT_PREFIXES", "").strip()
@@ -592,17 +659,41 @@ def ensure_cohort_views(conn, logger):
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
             WHERE event_classification != '{label_target}'
-              AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM target_cases tc
+                  WHERE tc.mi_person_key = unified_event_fact_table.mi_person_key
+              )
         ),
         sampled_controls AS (
-            SELECT mi_person_key
+            -- Hash-based deterministic sampling (replaces ORDER BY RANDOM() for performance)
+            WITH target_count AS (
+                SELECT COUNT(*) as target_cnt FROM target_cases
+            ),
+            needed_count AS (
+                SELECT tc.target_cnt * 5 as needed FROM target_count tc
+            ),
+            available_controls AS (
+                SELECT COUNT(*) as available FROM control_candidates
+            ),
+            sample_threshold AS (
+                SELECT 
+                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+            )
+            SELECT 
+                mi_person_key
             FROM control_candidates
-            ORDER BY RANDOM()
-            LIMIT (SELECT COUNT(*) * 5 FROM target_cases)
+            WHERE ABS(hash(mi_person_key)) % 10000 < (SELECT threshold FROM sample_threshold)
+            LIMIT (
+                SELECT LEAST(
+                    (SELECT needed FROM needed_count),
+                    (SELECT available FROM available_controls)
+                )
+            )
         )
         SELECT 
             uef.*,
-            1 as target,
+            CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as target,
             'OPIOID_ED' as cohort_name,
             CASE 
                 WHEN tc.mi_person_key IS NOT NULL THEN 'OPIOID_ED'
@@ -636,25 +727,57 @@ def ensure_cohort_views(conn, logger):
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
             WHERE event_classification = '{label_ed_non_opioid}'
-              AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM opioid_patients op
+                  WHERE op.mi_person_key = unified_event_fact_table.mi_person_key
+              )
         ),
         control_candidates AS (
             SELECT DISTINCT mi_person_key
             FROM unified_event_fact_table
             WHERE event_classification != '{label_ed_non_opioid}'
-              AND mi_person_key NOT IN (SELECT mi_person_key FROM target_cases)
-              AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM target_cases tc
+                  WHERE tc.mi_person_key = unified_event_fact_table.mi_person_key
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM opioid_patients op
+                  WHERE op.mi_person_key = unified_event_fact_table.mi_person_key
+              )
               -- Exclude opioid patients from controls as well - complete separation
         ),
         sampled_controls AS (
-            SELECT mi_person_key
+            -- Hash-based deterministic sampling (replaces ORDER BY RANDOM() for performance)
+            WITH target_count AS (
+                SELECT COUNT(*) as target_cnt FROM target_cases
+            ),
+            needed_count AS (
+                SELECT tc.target_cnt * 5 as needed FROM target_count tc
+            ),
+            available_controls AS (
+                SELECT COUNT(*) as available FROM control_candidates
+            ),
+            sample_threshold AS (
+                SELECT 
+                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+            )
+            SELECT 
+                mi_person_key
             FROM control_candidates
-            ORDER BY RANDOM()
-            LIMIT (SELECT COUNT(*) * 5 FROM target_cases)
+            WHERE ABS(hash(mi_person_key)) % 10000 < (SELECT threshold FROM sample_threshold)
+            LIMIT (
+                SELECT LEAST(
+                    (SELECT needed FROM needed_count),
+                    (SELECT available FROM available_controls)
+                )
+            )
         )
         SELECT 
             uef.*,
-            1 as target,
+            CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as target,
             'ED_NON_OPIOID' as cohort_name,
             CASE 
                 WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
