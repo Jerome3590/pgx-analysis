@@ -160,8 +160,12 @@ def run_phase1_data_preparation(context):
         
         # QA checks
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        medical_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM medical").fetchone()[0]
-        pharmacy_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM pharmacy").fetchone()[0]
+        # Use ::BIGINT syntax and convert to int in Python to handle large values
+        medical_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM medical").fetchone()[0]
+        medical_count = int(medical_count_result) if medical_count_result is not None else 0
+        
+        pharmacy_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM pharmacy").fetchone()[0]
+        pharmacy_count = int(pharmacy_count_result) if pharmacy_count_result is not None else 0
         
         logger.info(f"→ [PHASE 1] QA: Medical records: {medical_count:,}")
         logger.info(f"→ [PHASE 1] QA: Pharmacy records: {pharmacy_count:,}")

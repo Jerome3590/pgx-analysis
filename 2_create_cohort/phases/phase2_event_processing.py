@@ -238,7 +238,9 @@ def run_phase2_step1_event_fact_table(context):
         
         # QA checks
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        total_events = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM unified_event_fact_table").fetchone()[0]
+        # Use ::BIGINT syntax and convert to int in Python to handle large values
+        total_events_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM unified_event_fact_table").fetchone()[0]
+        total_events = int(total_events_result) if total_events_result is not None else 0
         event_type_dist = cohort_conn_duckdb.sql("""
         SELECT event_type, COUNT(*) as count
         FROM unified_event_fact_table
@@ -374,7 +376,9 @@ def run_phase2_step2_drug_exposure(context):
         
         # QA checks
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        total_drug_events = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM unified_drug_exposure").fetchone()[0]
+        # Use ::BIGINT syntax and convert to int in Python to handle large values
+        total_drug_events_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM unified_drug_exposure").fetchone()[0]
+        total_drug_events = int(total_drug_events_result) if total_drug_events_result is not None else 0
         
         logger.info(f"→ [PHASE 2 STEP 2] QA: Total drug exposure events: {total_drug_events:,}")
         

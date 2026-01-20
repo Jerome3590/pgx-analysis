@@ -90,8 +90,12 @@ def run_phase4_complete_pipeline(context):
         
         # Check both cohorts exist and get row counts
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        opioid_ed_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_ed_cohort").fetchone()[0]
-        ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM ed_non_opioid_cohort").fetchone()[0]
+        # Use ::BIGINT syntax and convert to int in Python to handle large values
+        opioid_ed_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM opioid_ed_cohort").fetchone()[0]
+        opioid_ed_count = int(opioid_ed_count_result) if opioid_ed_count_result is not None else 0
+        
+        ed_non_opioid_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM ed_non_opioid_cohort").fetchone()[0]
+        ed_non_opioid_count = int(ed_non_opioid_count_result) if ed_non_opioid_count_result is not None else 0
         
         logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
@@ -102,13 +106,18 @@ def run_phase4_complete_pipeline(context):
         opioid_icd_condition = get_opioid_icd_sql_condition()
         
         # OPIOID_ED: F1120 check (all 10 ICD diagnosis columns)
-        f1120_opioid_final = cohort_conn_duckdb.sql(f"""
+        # Cast to BIGINT to avoid INT32 overflow
+        f1120_opioid_final_result = cohort_conn_duckdb.sql(f"""
         SELECT 
-            COUNT(*) as total_f1120_records,
-            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+            COUNT(*)::BIGINT as total_f1120_records,
+            COUNT(DISTINCT mi_person_key)::BIGINT as distinct_f1120_patients
         FROM opioid_ed_cohort
         WHERE {opioid_icd_condition}
         """).fetchone()
+        f1120_opioid_final = (
+            int(f1120_opioid_final_result[0]) if f1120_opioid_final_result[0] is not None else 0,
+            int(f1120_opioid_final_result[1]) if f1120_opioid_final_result[1] is not None else 0
+        )
         
         # ED_NON_OPIOID: HCG target events check (polypharmacy cohort)
         # Check for HCG line codes used to identify ED visits
@@ -120,15 +129,22 @@ def run_phase4_complete_pipeline(context):
         ]
         hcg_condition = f"hcg_line IN {tuple(hcg_target_codes)}"
         
-        hcg_ed_non_opioid_final = cohort_conn_duckdb.sql(f"""
+        # Cast to BIGINT to avoid INT32 overflow
+        hcg_ed_non_opioid_final_result = cohort_conn_duckdb.sql(f"""
         SELECT 
-            COUNT(*) as total_hcg_records,
-            COUNT(DISTINCT mi_person_key) as distinct_hcg_patients,
-            COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as hcg_target_patients,
-            COUNT(DISTINCT CASE WHEN event_type = 'pharmacy' AND is_target_case = 1 THEN mi_person_key END) as hcg_target_patients_with_drugs
+            COUNT(*)::BIGINT as total_hcg_records,
+            COUNT(DISTINCT mi_person_key)::BIGINT as distinct_hcg_patients,
+            COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END)::BIGINT as hcg_target_patients,
+            COUNT(DISTINCT CASE WHEN event_type = 'pharmacy' AND is_target_case = 1 THEN mi_person_key END)::BIGINT as hcg_target_patients_with_drugs
         FROM ed_non_opioid_cohort
         WHERE {hcg_condition}
         """).fetchone()
+        hcg_ed_non_opioid_final = (
+            int(hcg_ed_non_opioid_final_result[0]) if hcg_ed_non_opioid_final_result[0] is not None else 0,
+            int(hcg_ed_non_opioid_final_result[1]) if hcg_ed_non_opioid_final_result[1] is not None else 0,
+            int(hcg_ed_non_opioid_final_result[2]) if hcg_ed_non_opioid_final_result[2] is not None else 0,
+            int(hcg_ed_non_opioid_final_result[3]) if hcg_ed_non_opioid_final_result[3] is not None else 0
+        )
         
         logger.info(f"→ [PHASE 4] OPIOID_ED COHORT QA (F1120 - all ICD columns):")
         logger.info(f"  Total F1120 records: {f1120_opioid_final[0]:,}")
@@ -213,7 +229,9 @@ def run_phase4_complete_pipeline(context):
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
             # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-            target_count_check = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
+            # Use ::BIGINT syntax and convert to int in Python to handle large values
+            target_count_check_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
+            target_count_check = int(target_count_check_result) if target_count_check_result is not None else 0
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_s3_path}")
             else:
@@ -291,7 +309,9 @@ def run_phase4_complete_pipeline(context):
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
             # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-            target_count_check = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
+            # Use ::BIGINT syntax and convert to int in Python to handle large values
+            target_count_check_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
+            target_count_check = int(target_count_check_result) if target_count_check_result is not None else 0
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_s3_path}")
             else:
