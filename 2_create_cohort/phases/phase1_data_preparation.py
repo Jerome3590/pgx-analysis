@@ -2,6 +2,11 @@
 Phase 1: Data Preparation with DuckDB optimizations.
 
 Loads and filters medical and pharmacy data from APCD gold tier.
+
+IMPORTANT: Phase 1 is the CANONICAL source for medical/pharmacy view definitions.
+The `ensure_gold_views()` function in common.py is a FALLBACK used when Phase 1 is skipped.
+If Phase 1 is skipped, ensure_gold_views() should match Phase 1 logic exactly to prevent
+silent cohort semantic drift. For production runs, always run Phase 1.
 """
 
 from .common import (
