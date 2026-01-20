@@ -176,7 +176,7 @@ def run_phase3_step3_final_cohort_fact(context):
             # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
             # HIGH-IMPACT FIX #2: Replace ORDER BY RANDOM() with hash-based sampling (deterministic, fast, parallelizable)
             opioid_ed_cohort_sql = f"""
-            CREATE OR REPLACE VIEW opioid_ed_cohort AS
+            CREATE OR REPLACE TABLE opioid_ed_cohort AS
             WITH target_cases AS (
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
@@ -258,7 +258,7 @@ def run_phase3_step3_final_cohort_fact(context):
             control_limit = avg_target_count * 5 if avg_target_count else 5000
             # HIGH-IMPACT FIX #2: Hash-based sampling
             opioid_ed_cohort_sql = f"""
-            CREATE OR REPLACE VIEW opioid_ed_cohort AS
+            CREATE OR REPLACE TABLE opioid_ed_cohort AS
             WITH control_candidates AS (
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table
@@ -290,7 +290,7 @@ def run_phase3_step3_final_cohort_fact(context):
             # HIGH-IMPACT FIX #4: Union HCG exclusion windows into single exclusion set
             # This reduces planner load, temp tables, and memory pressure
             ed_non_opioid_cohort_sql = f"""
-            CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
+            CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH hcg_target_events AS (
                 -- Get all HCG target events (ED visits) for patients without opioid codes
                 SELECT 
@@ -511,6 +511,13 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM unified_event_fact_table uef
                 LEFT JOIN first_target_dates ftd ON uef.mi_person_key = ftd.mi_person_key
                 LEFT JOIN control_reference_dates crd ON uef.mi_person_key = crd.mi_person_key
+                -- CRITICAL: Prevent row explosion from multiple time windows
+                -- QUALIFY ensures exactly one row per (mi_person_key, event_date, event_type) combination
+                -- This prevents multi-window duplication that causes INT32 overflow
+                QUALIFY ROW_NUMBER() OVER (
+                    PARTITION BY mi_person_key, event_date, event_type
+                    ORDER BY days_to_target_event NULLS LAST
+                ) = 1
             )
             SELECT 
                 ewd.*,
@@ -563,7 +570,7 @@ def run_phase3_step3_final_cohort_fact(context):
             # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
             # HIGH-IMPACT FIX #2: Hash-based sampling
             ed_non_opioid_cohort_sql = f"""
-            CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
+            CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH control_candidates AS (
                 SELECT DISTINCT mi_person_key
                 FROM unified_event_fact_table uef
@@ -620,14 +627,14 @@ def run_phase3_step3_final_cohort_fact(context):
                 logger.debug(f"Could not calculate drug window stats: {e}")
         
         # QA checks
-        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        # Use fetchdf() instead of fetchone() to avoid Python connector's INT32 casting issue
-        # When COUNT returns very large values, DuckDB may return DOUBLE, and Python connector tries to cast to INT32
-        # fetchdf() returns a DataFrame which handles BIGINT/DOUBLE conversion more gracefully
-        opioid_ed_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM opioid_ed_cohort").fetchdf()
+        # CRITICAL: Use COUNT(DISTINCT mi_person_key) instead of COUNT(*) to avoid row explosion issues
+        # Event-level COUNT(*) can explode to billions of rows due to multiple time windows
+        # Patient-level counts are stable and prevent INT32 overflow
+        # Use fetchdf() to avoid Python connector's INT32 casting issue
+        opioid_ed_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM opioid_ed_cohort").fetchdf()
         opioid_ed_count = int(opioid_ed_count_df.iloc[0]['count']) if not opioid_ed_count_df.empty else 0
         
-        ed_non_opioid_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM ed_non_opioid_cohort").fetchdf()
+        ed_non_opioid_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM ed_non_opioid_cohort").fetchdf()
         ed_non_opioid_count = int(ed_non_opioid_count_df.iloc[0]['count']) if not ed_non_opioid_count_df.empty else 0
         
         # Cast to BIGINT to avoid INT32 overflow
@@ -659,8 +666,8 @@ def run_phase3_step3_final_cohort_fact(context):
         opioid_ed_control_ratio = opioid_ed_ratio[1] / opioid_ed_ratio[0] if opioid_ed_ratio[0] > 0 else 0
         ed_non_opioid_control_ratio = ed_non_opioid_ratio[1] / ed_non_opioid_ratio[0] if ed_non_opioid_ratio[0] > 0 else 0
         
-        logger.info(f"→ [PHASE 3 STEP 3] QA: OPIOID_ED records: {opioid_ed_count:,}")
-        logger.info(f"→ [PHASE 3 STEP 3] QA: ED_NON_OPIOID records: {ed_non_opioid_count:,}")
+        logger.info(f"→ [PHASE 3 STEP 3] QA: OPIOID_ED patients: {opioid_ed_count:,}")
+        logger.info(f"→ [PHASE 3 STEP 3] QA: ED_NON_OPIOID patients: {ed_non_opioid_count:,}")
         logger.info(f"→ [PHASE 3 STEP 3] QA: OPIOID_ED control ratio: {opioid_ed_control_ratio:.2f}:1")
         logger.info(f"→ [PHASE 3 STEP 3] QA: ED_NON_OPIOID control ratio: {ed_non_opioid_control_ratio:.2f}:1")
         

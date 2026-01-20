@@ -92,19 +92,19 @@ def run_phase4_complete_pipeline(context):
             logger.error(f"❌ [PHASE 4] Missing cohort views: {missing_views}")
             raise Exception(f"Cohort views missing: {missing_views}. Phase 3 may have failed silently.")
         
-        # Check both cohorts exist and get row counts
-        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
-        # Use ::BIGINT syntax and convert to int in Python to handle large values
-        # Use fetchdf() instead of fetchone() to avoid Python connector's INT32 casting issue
-        # When COUNT returns very large values, DuckDB may return DOUBLE, and Python connector tries to cast to INT32
-        opioid_ed_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM opioid_ed_cohort").fetchdf()
+        # Check both cohorts exist and get patient counts
+        # CRITICAL: Use COUNT(DISTINCT mi_person_key) instead of COUNT(*) to avoid row explosion issues
+        # Event-level COUNT(*) can explode to billions of rows due to multiple time windows
+        # Patient-level counts are stable and prevent INT32 overflow
+        # Use fetchdf() to avoid Python connector's INT32 casting issue
+        opioid_ed_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM opioid_ed_cohort").fetchdf()
         opioid_ed_count = int(opioid_ed_count_df.iloc[0]['count']) if not opioid_ed_count_df.empty else 0
         
-        ed_non_opioid_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM ed_non_opioid_cohort").fetchdf()
+        ed_non_opioid_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM ed_non_opioid_cohort").fetchdf()
         ed_non_opioid_count = int(ed_non_opioid_count_df.iloc[0]['count']) if not ed_non_opioid_count_df.empty else 0
         
-        logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
-        logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
+        logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort patients: {opioid_ed_count:,}")
+        logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort patients: {ed_non_opioid_count:,}")
         
         # Cohort-specific QA checks
         # OPIOID_ED cohort: Check F1120 (opioid ICD codes) - all 10 ICD columns
@@ -186,7 +186,7 @@ def run_phase4_complete_pipeline(context):
         if opioid_ed_count > 0:
             # Write to local NVMe first (much faster)
             opioid_ed_local = local_staging / f"opioid_ed_{age_band}_{event_year}.parquet"
-            logger.info(f"→ [PHASE 4] Writing OPIOID_ED cohort ({opioid_ed_count:,} records) to local: {opioid_ed_local}")
+            logger.info(f"→ [PHASE 4] Writing OPIOID_ED cohort ({opioid_ed_count:,} patients) to local: {opioid_ed_local}")
             cohort_conn_duckdb.sql(f"""
             COPY opioid_ed_cohort TO '{opioid_ed_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
@@ -234,8 +234,8 @@ def run_phase4_complete_pipeline(context):
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
-            # Use fetchdf() to avoid INT32 overflow in COUNT queries
-            target_count_check_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM opioid_ed_cohort WHERE is_target_case = 1").fetchdf()
+            # Use patient-level count to avoid row explosion issues
+            target_count_check_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM opioid_ed_cohort WHERE is_target_case = 1").fetchdf()
             target_count_check = int(target_count_check_df.iloc[0]['count']) if not target_count_check_df.empty else 0
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_s3_path}")
@@ -268,7 +268,7 @@ def run_phase4_complete_pipeline(context):
         if ed_non_opioid_count > 0:
             # Write to local NVMe first (much faster, especially for large cohorts)
             ed_non_opioid_local = local_staging / f"ed_non_opioid_{age_band}_{event_year}.parquet"
-            logger.info(f"→ [PHASE 4] Writing ED_NON_OPIOID cohort ({ed_non_opioid_count:,} records) to local: {ed_non_opioid_local}")
+            logger.info(f"→ [PHASE 4] Writing ED_NON_OPIOID cohort ({ed_non_opioid_count:,} patients) to local: {ed_non_opioid_local}")
             cohort_conn_duckdb.sql(f"""
             COPY ed_non_opioid_cohort TO '{ed_non_opioid_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
@@ -313,8 +313,8 @@ def run_phase4_complete_pipeline(context):
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
-            # Use fetchdf() to avoid INT32 overflow in COUNT queries
-            target_count_check_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchdf()
+            # Use patient-level count to avoid row explosion issues
+            target_count_check_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchdf()
             target_count_check = int(target_count_check_df.iloc[0]['count']) if not target_count_check_df.empty else 0
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_s3_path}")
