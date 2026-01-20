@@ -476,12 +476,23 @@ def run_phase3_step3_final_cohort_fact(context):
                           WHERE fmr.mi_person_key = uef.mi_person_key
                       )
                     GROUP BY uef.mi_person_key
+                ),
+                all_reference_dates AS (
+                    SELECT * FROM non_ed_reference
+                    UNION ALL
+                    SELECT * FROM fallback_medical_reference
+                    UNION ALL
+                    SELECT * FROM final_fallback_reference
                 )
-                SELECT * FROM non_ed_reference
-                UNION ALL
-                SELECT * FROM fallback_medical_reference
-                UNION ALL
-                SELECT * FROM final_fallback_reference
+                -- CRITICAL FIX: Ensure exactly one row per patient to prevent cartesian product in LEFT JOIN
+                -- UNION ALL can theoretically create duplicates if NOT EXISTS logic fails, or if there are edge cases
+                -- This GROUP BY ensures one row per patient, preventing row multiplication in events_with_dates CTE
+                -- Use MIN() to pick earliest reference date if somehow multiple exist (defensive programming)
+                SELECT 
+                    mi_person_key,
+                    MIN(reference_date) as reference_date
+                FROM all_reference_dates
+                GROUP BY mi_person_key
             ),
             events_with_dates AS (
                 SELECT 
