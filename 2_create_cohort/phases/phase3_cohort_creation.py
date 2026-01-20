@@ -726,6 +726,41 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"  F1120 target patients: {f1120_ed_non_opioid_check[2]:,}")
         logger.info(f"  F1120 control patients: {f1120_ed_non_opioid_check[3]:,}")
         
+        # Polypharmacy/HCG check for ED_NON_OPIOID cohort (similar to F1120 check)
+        # Validates that HCG target events (ED visits) are present for target cases
+        hcg_target_codes = [
+            "P51 - ER Visits and Observation Care",
+            "O11 - Emergency Room",
+            "P33 - Urgent Care Visits"
+        ]
+        hcg_condition = f"hcg_line IN {tuple(hcg_target_codes)}"
+        
+        # Use fetchdf() to avoid INT32 overflow in COUNT queries
+        polypharmacy_check_df = cohort_conn_duckdb.sql(f"""
+        SELECT 
+            CAST(COUNT(*) AS BIGINT) as total_hcg_records,
+            CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as distinct_hcg_patients,
+            CAST(COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) AS BIGINT) as hcg_target_patients,
+            CAST(COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) AS BIGINT) as hcg_control_patients,
+            CAST(COUNT(DISTINCT CASE WHEN event_type = 'pharmacy' AND is_target_case = 1 THEN mi_person_key END) AS BIGINT) as hcg_target_patients_with_drugs
+        FROM ed_non_opioid_cohort
+        WHERE {hcg_condition}
+        """).fetchdf()
+        polypharmacy_check = (
+            int(polypharmacy_check_df.iloc[0]['total_hcg_records']) if not polypharmacy_check_df.empty and polypharmacy_check_df.iloc[0]['total_hcg_records'] is not None else 0,
+            int(polypharmacy_check_df.iloc[0]['distinct_hcg_patients']) if not polypharmacy_check_df.empty and polypharmacy_check_df.iloc[0]['distinct_hcg_patients'] is not None else 0,
+            int(polypharmacy_check_df.iloc[0]['hcg_target_patients']) if not polypharmacy_check_df.empty and polypharmacy_check_df.iloc[0]['hcg_target_patients'] is not None else 0,
+            int(polypharmacy_check_df.iloc[0]['hcg_control_patients']) if not polypharmacy_check_df.empty and polypharmacy_check_df.iloc[0]['hcg_control_patients'] is not None else 0,
+            int(polypharmacy_check_df.iloc[0]['hcg_target_patients_with_drugs']) if not polypharmacy_check_df.empty and polypharmacy_check_df.iloc[0]['hcg_target_patients_with_drugs'] is not None else 0
+        )
+        
+        logger.info(f"→ [PHASE 3 STEP 3] POLYPHARMACY/HCG IN ED_NON_OPIOID COHORT:")
+        logger.info(f"  Total HCG records: {polypharmacy_check[0]:,}")
+        logger.info(f"  Distinct HCG patients: {polypharmacy_check[1]:,}")
+        logger.info(f"  HCG target patients: {polypharmacy_check[2]:,}")
+        logger.info(f"  HCG control patients: {polypharmacy_check[3]:,}")
+        logger.info(f"  HCG target patients with drug events: {polypharmacy_check[4]:,}")
+        
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)
         
