@@ -91,11 +91,13 @@ def run_phase4_complete_pipeline(context):
         # Check both cohorts exist and get row counts
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
         # Use ::BIGINT syntax and convert to int in Python to handle large values
-        opioid_ed_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM opioid_ed_cohort").fetchone()[0]
-        opioid_ed_count = int(opioid_ed_count_result) if opioid_ed_count_result is not None else 0
+        # Use fetchdf() instead of fetchone() to avoid Python connector's INT32 casting issue
+        # When COUNT returns very large values, DuckDB may return DOUBLE, and Python connector tries to cast to INT32
+        opioid_ed_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM opioid_ed_cohort").fetchdf()
+        opioid_ed_count = int(opioid_ed_count_df.iloc[0]['count']) if not opioid_ed_count_df.empty else 0
         
-        ed_non_opioid_count_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM ed_non_opioid_cohort").fetchone()[0]
-        ed_non_opioid_count = int(ed_non_opioid_count_result) if ed_non_opioid_count_result is not None else 0
+        ed_non_opioid_count_df = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) AS count FROM ed_non_opioid_cohort").fetchdf()
+        ed_non_opioid_count = int(ed_non_opioid_count_df.iloc[0]['count']) if not ed_non_opioid_count_df.empty else 0
         
         logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
