@@ -273,6 +273,8 @@ def main():
     parser.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
     parser.add_argument("--time-window-days", type=int, default=None, choices=[7, 14, 21, 30, 45],
                        help="DEPRECATED: Multi-classification by time windows (7, 14, 21, 30, 45 days) is now automatic. This argument is ignored.")
+    parser.add_argument("--concurrent-workers", type=int, default=None,
+                       help="Number of concurrent workers (for memory limit calculation). If not set, detects from MAX_WORKERS or PGX_COHORT_WORKERS env vars, or defaults to 3.")
     
     args = parser.parse_args()
     # If target overrides provided on CLI, set environment variables *before* reloading constants/s3_utils
@@ -361,11 +363,13 @@ def main():
             # Fallback: assume 1TB EC2 instance
             total_memory_gb = 1000.0
         
-        # Detect concurrent workers from environment (set by orchestrator/notebook)
-        # Priority: PGX_COHORT_WORKERS > MAX_WORKERS > default
-        # NOTE: Notebook can set either: os.environ['MAX_WORKERS'] or os.environ['PGX_COHORT_WORKERS']
+        # Detect concurrent workers (for memory limit calculation)
+        # Priority: CLI argument > PGX_COHORT_WORKERS env > MAX_WORKERS env > default
         concurrent_workers = None
-        if os.getenv('PGX_COHORT_WORKERS'):
+        if args.concurrent_workers is not None:
+            concurrent_workers = args.concurrent_workers
+            logger.info(f"→ [CONFIG] Using --concurrent-workers={concurrent_workers} from CLI argument")
+        elif os.getenv('PGX_COHORT_WORKERS'):
             concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))
             logger.info(f"→ [CONFIG] Detected PGX_COHORT_WORKERS={concurrent_workers} from environment")
         elif os.getenv('MAX_WORKERS'):
@@ -374,7 +378,7 @@ def main():
         else:
             # Default: assume 3 workers (common for cohort creation)
             concurrent_workers = 3
-            logger.info(f"→ [CONFIG] Using default worker count: {concurrent_workers} (set PGX_COHORT_WORKERS env var to override)")
+            logger.info(f"→ [CONFIG] Using default worker count: {concurrent_workers} (set --concurrent-workers or env var to override)")
         
         # Reserve 40% for OS, buffers, and other processes (600GB for 1TB system)
         # Divide remaining 60% among workers

@@ -601,21 +601,45 @@ When running multiple cohort creation jobs in parallel (e.g., via `ThreadPoolExe
 
 **Setting Worker Count in Notebook:**
 
+You have two options:
+
+**Option 1: Pass as CLI argument (cleanest):**
+
 ```python
-import os
+MAX_WORKERS = 3  # Your notebook variable
 
-# Set MAX_WORKERS (your notebook variable)
-MAX_WORKERS = 3  # or min(3, len(jobs_to_process))
+def run_cohort(job):
+    cmd = [
+        python_bin, script_path,
+        "--age-band", job["age_band"],
+        "--event-year", str(job["event_year"]),
+        "--concurrent-workers", str(MAX_WORKERS),  # Pass directly!
+        # ... other args
+    ]
+    # ... launch subprocess
 
-# Pass MAX_WORKERS to subprocess environment (code already checks for this!)
-# This allows each worker process to calculate its memory limit dynamically
-os.environ['MAX_WORKERS'] = str(MAX_WORKERS)
-# OR use PGX_COHORT_WORKERS for more explicit naming (both work)
-
-# Now launch workers - each will use ~(60% of total memory / MAX_WORKERS)
+# Now launch workers
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     # ... submit jobs
 ```
+
+**Option 2: Set environment variable (if you prefer):**
+
+```python
+import os
+
+MAX_WORKERS = 3  # Your notebook variable
+
+# Set as environment variable (code checks for this too)
+os.environ['MAX_WORKERS'] = str(MAX_WORKERS)
+# OR use PGX_COHORT_WORKERS for more explicit naming
+
+# Now launch workers
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    # ... submit jobs
+```
+
+**Recommendation:** Use Option 1 (CLI argument) - it's cleaner and doesn't require environment variable management.
 
 **How It Works:**
 
