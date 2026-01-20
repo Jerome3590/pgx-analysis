@@ -6,7 +6,9 @@ This document captures critical lessons learned from production issues, debuggin
 
 1. [INT32 Overflow in COUNT Queries (January 2026)](#int32-overflow-in-count-queries-january-2026)
 2. [Cartesian Product in CTEs with UNION ALL (January 2026)](#cartesian-product-in-ctes-with-union-all-january-2026)
-3. [QA Check Methodology](#qa-check-methodology)
+3. [Row Explosion from Multiple Time Windows (January 2026)](#row-explosion-from-multiple-time-windows-january-2026)
+4. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
+5. [QA Check Methodology](#qa-check-methodology)
 
 ---
 
@@ -155,6 +157,178 @@ control_reference_dates AS (
 
 ---
 
+## Row Explosion from Multiple Time Windows (January 2026)
+
+### Problem Discovery
+
+**Symptom:**
+```
+Conversion Error: Type DOUBLE with value 30149350000.0 can't be cast to INT32
+```
+
+**Location:** `2_create_cohort/phases/phase3_cohort_creation.py` - QA validation step
+
+**Context:**
+- Pipeline successfully created cohorts but failed during QA validation
+- Error occurred when counting `ed_non_opioid_cohort`
+- This was NOT just a COUNT issue - it was caused by row explosion
+
+### Root Cause Analysis
+
+**The Real Problem:**
+Row explosion in `ed_non_opioid_cohort` from:
+- `events_with_dates` LEFT JOINs with multiple time windows
+- Multiple drug windows (7d, 14d, 21d, 30d, 45d) creating duplicates
+- Joins against `sampled_controls` and reference dates
+- A single patient could explode into millions of rows
+
+**Why It Happened:**
+1. Multiple time windows created duplicate event rows per patient
+2. LEFT JOINs multiplied rows when multiple reference dates existed
+3. DuckDB represented intermediate counts as DOUBLE (>2.1B)
+4. Python connector attempted INT32 coercion
+5. Pipeline crashed during QA COUNT, not during creation
+
+### Solution
+
+**Three Critical Fixes:**
+
+1. **Replace COUNT(*) with COUNT(DISTINCT mi_person_key) for QA:**
+   ```sql
+   -- ❌ WRONG - Can explode to billions of rows
+   SELECT COUNT(*) FROM ed_non_opioid_cohort;
+   
+   -- ✅ CORRECT - Patient-level count is stable
+   SELECT COUNT(DISTINCT mi_person_key) FROM ed_non_opioid_cohort;
+   ```
+
+2. **Convert VIEW to TABLE:**
+   ```sql
+   -- ❌ WRONG - Re-executes during QA, unstable counts
+   CREATE OR REPLACE VIEW ed_non_opioid_cohort AS ...
+   
+   -- ✅ CORRECT - Materializes once, stable counts
+   CREATE OR REPLACE TABLE ed_non_opioid_cohort AS ...
+   ```
+
+3. **Add QUALIFY to prevent row explosion:**
+   ```sql
+   events_with_dates AS (
+       SELECT ...
+       FROM unified_event_fact_table uef
+       LEFT JOIN ...
+       -- CRITICAL: Prevent multi-window duplication
+       QUALIFY ROW_NUMBER() OVER (
+           PARTITION BY uef.mi_person_key, uef.event_date, uef.event_type
+           ORDER BY days_to_target_event NULLS LAST
+       ) = 1
+   )
+   ```
+
+**Files Fixed:**
+- `phase3_cohort_creation.py` - Changed VIEW to TABLE, added QUALIFY, patient-level counts
+- `phase4_finalization.py` - Changed to patient-level counts
+
+### Prevention
+
+**Required Patterns:**
+1. **Always use patient-level counts** for cohort QA: `COUNT(DISTINCT mi_person_key)`
+2. **Always create TABLES, not VIEWS** for cohorts that will be counted
+3. **Always add QUALIFY** when multiple time windows could create duplicates
+4. **Always validate row counts** before QA operations
+
+**Code Review Checklist:**
+- [ ] Cohort QA uses `COUNT(DISTINCT mi_person_key)`, not `COUNT(*)`
+- [ ] Cohorts are created as TABLES, not VIEWS
+- [ ] QUALIFY clauses prevent row explosion from multiple windows
+- [ ] Expected vs actual patient counts are validated
+
+**Red Flags:**
+- Event-level COUNT(*) on cohorts with time windows
+- VIEWs that are repeatedly queried during QA
+- Multiple time windows without QUALIFY deduplication
+- Row counts that are 100x+ larger than patient counts
+
+---
+
+## Cohort Pipeline Execution Strategy
+
+### Recommended Execution Model
+
+**Two top-level jobs, one per cohort, sequential within cohort:**
+
+- **Job A:** `opioid_ed` - Run all age bands + years sequentially
+- **Job B:** `ed_non_opioid` - Run all age bands + years sequentially
+
+**Why Sequential:**
+- Avoids DuckDB memory fragmentation
+- Prevents INT32/DOUBLE overflow amplification
+- Reduces NVMe temp contention
+- Prevents accidental fan-out of 30M–40M row joins
+
+> **Critical:** Do **not** parallelize by age band for heavy cohorts (25–44, 65–74).
+
+### CPU / Memory Mapping (32 cores, 1TB RAM)
+
+| Level | Parallelism | Notes |
+|-------|-------------|-------|
+| Cohort | 2 max | opioid_ed + ed_non_opioid |
+| Age band | sequential | esp. 25–44, 65–74 |
+| DuckDB threads | 8–12 | beyond this gives no gain |
+| concurrent_workers | **1** | always |
+
+**Environment Variables:**
+```bash
+export PGX_THREADS_PER_WORKER=8
+export DUCKDB_MEMORY_LIMIT=300GB
+```
+
+### Canonical Execution Commands
+
+**Opioid ED (run first):**
+```bash
+python 2_create_cohort/0_create_cohort.py \
+  --cohort opioid_ed \
+  --concurrent-workers 1
+```
+
+**ED Non-Opioid (run second):**
+```bash
+python 2_create_cohort/0_create_cohort.py \
+  --cohort ed_non_opioid \
+  --time-window-days 14 \
+  --concurrent-workers 1
+```
+
+> **Important:** Do **not** run these in the same shell concurrently for heavy bands.
+
+### Debugging Queries
+
+**Patient-level sanity checks:**
+```sql
+-- Check patient counts
+SELECT COUNT(DISTINCT mi_person_key) FROM ed_non_opioid_cohort;
+
+-- Check target/control distribution
+SELECT is_target_case, COUNT(DISTINCT mi_person_key)
+FROM ed_non_opioid_cohort
+GROUP BY 1;
+```
+
+**Row explosion detector:**
+```sql
+-- Find patients with excessive rows (indicates fan-out bug)
+SELECT mi_person_key, COUNT(*) AS rows
+FROM ed_non_opioid_cohort
+GROUP BY 1
+ORDER BY rows DESC
+LIMIT 20;
+```
+
+If any patient has > 500k rows → fan-out bug detected.
+
+---
+
 ## QA Check Methodology
 
 ### Systematic Approach to Debugging Row Count Issues
@@ -265,11 +439,14 @@ When investigating row count issues:
 ## Summary
 
 **Critical Rules:**
-1. **Always use `COUNT(*)::BIGINT`** for large counts
-2. **Always GROUP BY** on CTEs that will be JOINed
-3. **Always validate row counts** before and after operations
-4. **Always log counts** with context and thousands separator
-5. **Always compare expected vs actual** and warn on suspicious values
+1. **Always use `COUNT(*)::BIGINT`** for large counts (or `COUNT(DISTINCT key)` for patient-level)
+2. **Always use `fetchdf()`** instead of `fetchone()` for COUNT queries that might overflow
+3. **Always GROUP BY** on CTEs that will be JOINed
+4. **Always create TABLES, not VIEWS** for cohorts that will be counted
+5. **Always add QUALIFY** when multiple time windows could create duplicates
+6. **Always validate row counts** before and after operations
+7. **Always log counts** with context and thousands separator
+8. **Always compare expected vs actual** and warn on suspicious values
 
 **Prevention is Better Than Debugging:**
 - Follow patterns from the start
@@ -277,6 +454,6 @@ When investigating row count issues:
 - Log extensively for debugging
 - Review queries for cartesian product risks
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Last Updated:** January 20, 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team
