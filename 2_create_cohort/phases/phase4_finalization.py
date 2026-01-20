@@ -95,10 +95,12 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
         
-        # F1120-specific checks in final cohorts
-        # CONSISTENCY: Use same logic as Phase 3 - check ALL 10 ICD diagnosis columns
-        # This ensures QA validation matches the actual cohort creation logic
+        # Cohort-specific QA checks
+        # OPIOID_ED cohort: Check F1120 (opioid ICD codes) - all 10 ICD columns
+        # ED_NON_OPIOID cohort: Check HCG target events (polypharmacy cohort target)
         opioid_icd_condition = get_opioid_icd_sql_condition()
+        
+        # OPIOID_ED: F1120 check (all 10 ICD diagnosis columns)
         f1120_opioid_final = cohort_conn_duckdb.sql(f"""
         SELECT 
             COUNT(*) as total_f1120_records,
@@ -107,17 +109,35 @@ def run_phase4_complete_pipeline(context):
         WHERE {opioid_icd_condition}
         """).fetchone()
         
-        f1120_ed_non_opioid_final = cohort_conn_duckdb.sql(f"""
+        # ED_NON_OPIOID: HCG target events check (polypharmacy cohort)
+        # Check for HCG line codes used to identify ED visits
+        # Also check that target cases have drug events (pharmacy events) - matches Phase 3 logic
+        hcg_target_codes = [
+            "P51 - ER Visits and Observation Care",
+            "O11 - Emergency Room",
+            "P33 - Urgent Care Visits"
+        ]
+        hcg_condition = f"hcg_line IN {tuple(hcg_target_codes)}"
+        
+        hcg_ed_non_opioid_final = cohort_conn_duckdb.sql(f"""
         SELECT 
-            COUNT(*) as total_f1120_records,
-            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
+            COUNT(*) as total_hcg_records,
+            COUNT(DISTINCT mi_person_key) as distinct_hcg_patients,
+            COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) as hcg_target_patients,
+            COUNT(DISTINCT CASE WHEN event_type = 'pharmacy' AND is_target_case = 1 THEN mi_person_key END) as hcg_target_patients_with_drugs
         FROM ed_non_opioid_cohort
-        WHERE {opioid_icd_condition}
+        WHERE {hcg_condition}
         """).fetchone()
         
-        logger.info(f"→ [PHASE 4] F1120 (all ICD columns) IN FINAL COHORTS:")
-        logger.info(f"  OPIOID_ED: {f1120_opioid_final[0]:,} records, {f1120_opioid_final[1]:,} patients")
-        logger.info(f"  ED_NON_OPIOID: {f1120_ed_non_opioid_final[0]:,} records, {f1120_ed_non_opioid_final[1]:,} patients")
+        logger.info(f"→ [PHASE 4] OPIOID_ED COHORT QA (F1120 - all ICD columns):")
+        logger.info(f"  Total F1120 records: {f1120_opioid_final[0]:,}")
+        logger.info(f"  Distinct F1120 patients: {f1120_opioid_final[1]:,}")
+        
+        logger.info(f"→ [PHASE 4] ED_NON_OPIOID COHORT QA (HCG target events - polypharmacy cohort):")
+        logger.info(f"  Total HCG records: {hcg_ed_non_opioid_final[0]:,}")
+        logger.info(f"  Distinct HCG patients: {hcg_ed_non_opioid_final[1]:,}")
+        logger.info(f"  HCG target patients: {hcg_ed_non_opioid_final[2]:,}")
+        logger.info(f"  HCG target patients with drug events: {hcg_ed_non_opioid_final[3]:,}")
         
         # Warn if cohorts are empty
         if opioid_ed_count == 0:
