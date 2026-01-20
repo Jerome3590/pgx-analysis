@@ -51,13 +51,43 @@ def run_phase4_complete_pipeline(context):
         # This is faster and more reliable than DuckDB's direct S3 COPY
         logger.info("→ [PHASE 4] Using local staging + aws s3 sync for cohort uploads (faster and more reliable)")
         
-        # Enable query profiling for this phase
-        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase4_complete_pipeline.json")
+        # Enable query profiling with partition-safe filename (prevents overwrite in parallel runs)
+        import time
+        profile_filename = f"/tmp/duckdb_profiling_phase4_{age_band.replace('-', '_')}_{event_year}_{int(time.time())}.json"
+        enable_query_profiling(cohort_conn_duckdb, logger, "json", profile_filename)
+        
+        # Cache AWS CLI discovery once (micro-optimization: avoid repeated PATH lookups)
+        aws_cli = shutil.which("aws")
+        if not aws_cli:
+            logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
+            raise Exception("AWS CLI not available")
+        
+        # Monitor disk space BEFORE writing Parquet (early warning for NVMe exhaustion)
+        monitor_disk_space(logger)
         
         # Final QA validation
         logger.info("→ [PHASE 4] Performing final QA validation...")
         
-        # Check both cohorts exist
+        # HIGH-IMPACT FIX #1: Check cohort views exist (not just row counts)
+        # This prevents silent partial pipeline success if views are missing
+        cohort_exists_check = cohort_conn_duckdb.sql("""
+        SELECT 
+            COUNT(*) as view_count
+        FROM information_schema.tables
+        WHERE table_schema = 'main'
+          AND (table_name = 'opioid_ed_cohort' OR table_name = 'ed_non_opioid_cohort')
+        """).fetchone()[0]
+        
+        if cohort_exists_check < 2:
+            missing_views = []
+            if cohort_conn_duckdb.sql("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'main' AND table_name = 'opioid_ed_cohort'").fetchone()[0] == 0:
+                missing_views.append("opioid_ed_cohort")
+            if cohort_conn_duckdb.sql("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'main' AND table_name = 'ed_non_opioid_cohort'").fetchone()[0] == 0:
+                missing_views.append("ed_non_opioid_cohort")
+            logger.error(f"❌ [PHASE 4] Missing cohort views: {missing_views}")
+            raise Exception(f"Cohort views missing: {missing_views}. Phase 3 may have failed silently.")
+        
+        # Check both cohorts exist and get row counts
         opioid_ed_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort").fetchone()[0]
         ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort").fetchone()[0]
         
@@ -65,6 +95,9 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
         
         # F1120-specific checks in final cohorts
+        # NOTE: Phase 4 QA checks only PRIMARY diagnosis column for F1120
+        # Phase 3 logic considers ALL 10 ICD diagnosis columns - this is intentional
+        # Primary-diagnosis-only check is sufficient for QA validation
         f1120_opioid_final = cohort_conn_duckdb.sql("""
         SELECT 
             COUNT(*) as total_f1120_records,
@@ -114,14 +147,16 @@ def run_phase4_complete_pipeline(context):
             COPY opioid_ed_cohort TO '{opioid_ed_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
-            logger.info(f"→ [PHASE 4] OPIOID_ED cohort written to local")
+            
+            # Log file size before upload (helps diagnose timeouts vs IAM/network failures)
+            file_size_gb = opioid_ed_local.stat().st_size / 1e9
+            logger.info(f"→ [PHASE 4] OPIOID_ED cohort written to local ({file_size_gb:.2f} GB)")
             
             # Sync to S3 using aws s3 cp (more reliable for large files)
             logger.info(f"→ [PHASE 4] Syncing OPIOID_ED cohort to S3: {opioid_ed_s3_path}")
             local_file = str(opioid_ed_local)
             
-            # Use aws s3 cp for single file (more efficient than sync for one file)
-            aws_cli = shutil.which("aws")
+            # Use cached AWS CLI (resolved once at top of phase)
             if aws_cli:
                 try:
                     result = subprocess.run(
@@ -154,6 +189,8 @@ def run_phase4_complete_pipeline(context):
                 raise Exception("AWS CLI not available")
             
             # Check if it's control-only
+            # NOTE: 'target' column is legacy and not used in Phase 4 logic
+            # Use 'is_target_case' for actual target/control distinction
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_s3_path}")
@@ -191,14 +228,16 @@ def run_phase4_complete_pipeline(context):
             COPY ed_non_opioid_cohort TO '{ed_non_opioid_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
-            logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort written to local")
+            
+            # Log file size before upload (helps diagnose timeouts vs IAM/network failures)
+            file_size_gb = ed_non_opioid_local.stat().st_size / 1e9
+            logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort written to local ({file_size_gb:.2f} GB)")
             
             # Sync to S3 using aws s3 cp (more reliable for large files, can resume on failure)
             logger.info(f"→ [PHASE 4] Syncing ED_NON_OPIOID cohort to S3: {ed_non_opioid_s3_path}")
             local_file = str(ed_non_opioid_local)
             
-            # Use aws s3 cp for single file
-            aws_cli = shutil.which("aws")
+            # Use cached AWS CLI (resolved once at top of phase)
             if aws_cli:
                 try:
                     result = subprocess.run(
@@ -226,11 +265,10 @@ def run_phase4_complete_pipeline(context):
                     # Keep local file for retry
                     logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
                     raise
-            else:
-                logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
-                raise Exception("AWS CLI not available")
             
             # Check if it's control-only
+            # NOTE: 'target' column is legacy and not used in Phase 4 logic
+            # Use 'is_target_case' for actual target/control distinction
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_s3_path}")
@@ -273,6 +311,7 @@ def run_phase4_complete_pipeline(context):
         except Exception as e:
             logger.warning(f"⚠️ [PHASE 4] Could not check staging directory: {e}")
         
+        # Monitor disk space at end (already monitored before writes)
         monitor_disk_space(logger)
         
         # Force checkpoint
