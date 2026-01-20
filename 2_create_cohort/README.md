@@ -595,6 +595,48 @@ The pipeline supports parallelization via environment variables:
 
 **Important:** `s3_max_connections` is **not** a valid DuckDB configuration parameter and will cause errors. S3 parallelization is handled automatically by DuckDB. Use `s3_uploader_thread_limit` if you need to tune upload performance.
 
+### Memory Management for Parallel Workers
+
+When running multiple cohort creation jobs in parallel (e.g., via `ThreadPoolExecutor` in a notebook), each worker needs to know the total number of concurrent workers to properly allocate memory. **This prevents memory oversubscription and OOM kills.**
+
+**Setting Worker Count in Notebook:**
+
+```python
+import os
+
+# Set MAX_WORKERS (your notebook variable)
+MAX_WORKERS = 3  # or min(3, len(jobs_to_process))
+
+# CRITICAL: Pass MAX_WORKERS to subprocess environment
+# This allows each worker process to calculate its memory limit dynamically
+os.environ['PGX_COHORT_WORKERS'] = str(MAX_WORKERS)
+
+# Now launch workers - each will use ~(60% of total memory / MAX_WORKERS)
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    # ... submit jobs
+```
+
+**How It Works:**
+
+- Each worker process detects `PGX_COHORT_WORKERS` from the environment
+- Calculates per-worker memory limit: `(60% of total system memory) / number of workers`
+- Sets DuckDB memory limit to prevent oversubscription
+- Example: 3 workers on 1TB system = ~200GB per worker (600GB total + 400GB buffer)
+
+**Environment Variable Priority:**
+
+1. `PGX_COHORT_WORKERS` (preferred - explicitly set by orchestrator)
+2. `MAX_WORKERS` (fallback - if set in environment)
+3. Default: `3` workers (if neither is set)
+
+**Logging:**
+
+The pipeline logs the detected worker count and calculated memory limit:
+```
+→ [CONFIG] Detected PGX_COHORT_WORKERS=3 from environment
+→ [CONFIG] DuckDB memory limit: 200GB (for 3 workers, 1000GB total system memory, 600GB available for DuckDB)
+```
+
 **Example:**
 ```bash
 export PGX_THREADS_PER_WORKER=16

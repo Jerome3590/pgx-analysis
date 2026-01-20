@@ -361,16 +361,20 @@ def main():
             # Fallback: assume 1TB EC2 instance
             total_memory_gb = 1000.0
         
-        # Detect concurrent workers from environment (set by orchestrator)
-        # Check multiple env vars that might indicate worker count
+        # Detect concurrent workers from environment (set by orchestrator/notebook)
+        # Priority: PGX_COHORT_WORKERS > MAX_WORKERS > default
+        # NOTE: Notebook should set: os.environ['PGX_COHORT_WORKERS'] = str(MAX_WORKERS)
         concurrent_workers = None
         if os.getenv('PGX_COHORT_WORKERS'):
             concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+            logger.info(f"→ [CONFIG] Detected PGX_COHORT_WORKERS={concurrent_workers} from environment")
         elif os.getenv('MAX_WORKERS'):
             concurrent_workers = int(os.getenv('MAX_WORKERS'))
+            logger.info(f"→ [CONFIG] Detected MAX_WORKERS={concurrent_workers} from environment")
         else:
             # Default: assume 3 workers (common for cohort creation)
             concurrent_workers = 3
+            logger.info(f"→ [CONFIG] Using default worker count: {concurrent_workers} (set PGX_COHORT_WORKERS env var to override)")
         
         # Reserve 40% for OS, buffers, and other processes (600GB for 1TB system)
         # Divide remaining 60% among workers
