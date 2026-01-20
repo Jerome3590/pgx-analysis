@@ -124,7 +124,7 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path("/home/pgx3874/pgx-analysis")  # adjust to your path
-PYTHON_BIN = str(Path(os.sys.executable))
+PYTHON_BIN = "/home/pgx3874/jupyter-env/bin/python3.11"  # adjust to your Python path
 
 # Always use NVMe spill directory for DuckDB
 os.environ["DUCKDB_TMP_DIRECTORY"] = "/mnt/nvme/duckdb_tmp"
@@ -152,9 +152,11 @@ export PGX_TOTAL_WORKERS=2
 
 cd /home/pgx3874/pgx-analysis
 
-nohup python 2_create_cohort/run_series_ed_non_opioid.py \
+# Launch ed_non_opioid
+nohup /home/pgx3874/jupyter-env/bin/python3.11 2_create_cohort/run_series_ed_non_opioid.py \
   --skip-existing \
   --concurrent-workers 1 \
+  --python-bin /home/pgx3874/jupyter-env/bin/python3.11 \
   > logs/ed_non_opioid_run.log 2>&1 &
 echo "ed_non_opioid PID: $!"
 ```
@@ -175,9 +177,11 @@ export PGX_TOTAL_WORKERS=2
 
 cd /home/pgx3874/pgx-analysis
 
-nohup python 2_create_cohort/run_series_opioid_ed.py \
+# Launch opioid_ed
+nohup /home/pgx3874/jupyter-env/bin/python3.11 2_create_cohort/run_series_opioid_ed.py \
   --skip-existing \
   --concurrent-workers 1 \
+  --python-bin /home/pgx3874/jupyter-env/bin/python3.11 \
   > logs/opioid_ed_run.log 2>&1 &
 echo "opioid_ed PID: $!"
 ```
