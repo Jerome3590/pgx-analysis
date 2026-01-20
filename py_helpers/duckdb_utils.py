@@ -105,13 +105,19 @@ def create_simple_duckdb_connection(logger, tmp_dir: Optional[str] = None, s3_re
             os.makedirs(tmp_dir, exist_ok=True)
             conn.sql(f"SET temp_directory = '{tmp_dir}'")
         
-        # Set threads to 1 for multiprocessing environments (multiple workers)
-        # Each worker process gets 1 thread to avoid over-subscription
+        # Set threads - configurable via PGX_DUCKDB_THREADS env var (default: 1 for multiprocessing safety)
+        # For single-process runs on large instances, can be increased (e.g., 16-30 threads)
         # NOTE: Use PRAGMA, not SET (SET threads is invalid syntax)
-        conn.sql("PRAGMA threads=1")
+        threads = int(os.getenv("PGX_DUCKDB_THREADS", "1"))
+        conn.sql(f"PRAGMA threads={threads}")
         
-        # Let DuckDB auto-detect memory limit
-        logger.info("✅ Simple DuckDB connection created - 1 thread per worker (for multiprocessing)")
+        # Let DuckDB auto-detect memory limit (or set explicitly via PGX_DUCKDB_MEMORY_LIMIT)
+        memory_limit = os.getenv("PGX_DUCKDB_MEMORY_LIMIT")
+        if memory_limit:
+            conn.sql(f"SET memory_limit='{memory_limit}'")
+            logger.info(f"✅ Simple DuckDB connection created - {threads} threads, memory_limit={memory_limit}")
+        else:
+            logger.info(f"✅ Simple DuckDB connection created - {threads} threads (auto memory limit)")
         return conn
         
     except Exception as e:
@@ -380,16 +386,21 @@ def calculate_memory_limit_per_worker(total_workers: Optional[int] = None, total
     
     # Try to detect worker count
     if total_workers is None:
-        # Try to get from environment (medical or pharmacy workers)
-        medical_workers = os.getenv('PGX_WORKERS_MEDICAL')
-        pharmacy_workers = os.getenv('PGX_WORKERS_PHARMACY')
-        if medical_workers and medical_workers.isdigit():
-            total_workers = int(medical_workers)
-        elif pharmacy_workers and pharmacy_workers.isdigit():
-            total_workers = int(pharmacy_workers)
+        # Priority: PGX_TOTAL_WORKERS (explicit) > PGX_WORKERS_MEDICAL > PGX_WORKERS_PHARMACY > default
+        total_workers_env = os.getenv('PGX_TOTAL_WORKERS')
+        if total_workers_env and total_workers_env.isdigit():
+            total_workers = int(total_workers_env)
         else:
-            # Conservative default: assume 24 workers
-            total_workers = 24
+            # Try to get from environment (medical or pharmacy workers)
+            medical_workers = os.getenv('PGX_WORKERS_MEDICAL')
+            pharmacy_workers = os.getenv('PGX_WORKERS_PHARMACY')
+            if medical_workers and medical_workers.isdigit():
+                total_workers = int(medical_workers)
+            elif pharmacy_workers and pharmacy_workers.isdigit():
+                total_workers = int(pharmacy_workers)
+            else:
+                # Conservative default: assume 1 worker (single-process mode)
+                total_workers = 1
     
     # Try to detect total available memory (container-aware)
     if total_memory_gb is None:
@@ -427,12 +438,15 @@ def calculate_memory_limit_per_worker(total_workers: Optional[int] = None, total
             total_memory_gb = 64.0
     
     # Calculate per-worker limit: reserve 20% for OS/system, divide rest by workers
-    # Use 80% of total memory, divided by workers, with a minimum of 512MB and maximum of 4GB
+    # Use 80% of total memory, divided by workers
     available_memory_gb = total_memory_gb * 0.8
     per_worker_gb = available_memory_gb / max(1, total_workers)
     
-    # Clamp between 512MB and 4GB (respects container limits via total_memory_gb)
-    per_worker_gb = max(0.5, min(4.0, per_worker_gb))
+    # Clamp to reasonable bounds
+    # Minimum: 4GB (needed for large joins on heavy partitions like 25-44 and 65-74)
+    # Maximum: 256GB (allows large instances like 1TB EC2 to use more memory per worker)
+    # Old clamp (max 4GB) was too restrictive for heavy workloads on large instances
+    per_worker_gb = max(4.0, min(256.0, per_worker_gb))
     
     # Round to nearest 0.5GB for cleaner values
     per_worker_gb = round(per_worker_gb * 2) / 2
