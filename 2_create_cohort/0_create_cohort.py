@@ -350,11 +350,47 @@ def main():
         
         cohort_conn_duckdb = get_duckdb_connection(tmp_dir=worker_temp_dir, logger=logger)
 
+        # CRITICAL: Set explicit memory limit to prevent oversubscription with multiple workers
+        # DuckDB auto-detects and uses ~900GB per connection, which causes OOM with multiple workers
+        # Calculate dynamic limit based on actual system memory and concurrent workers
+        import multiprocessing
+        try:
+            import psutil
+            total_memory_gb = psutil.virtual_memory().total / (1024**3)
+        except (ImportError, Exception):
+            # Fallback: assume 1TB EC2 instance
+            total_memory_gb = 1000.0
+        
+        # Detect concurrent workers from environment (set by orchestrator)
+        # Check multiple env vars that might indicate worker count
+        concurrent_workers = None
+        if os.getenv('PGX_COHORT_WORKERS'):
+            concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+        elif os.getenv('MAX_WORKERS'):
+            concurrent_workers = int(os.getenv('MAX_WORKERS'))
+        else:
+            # Default: assume 3 workers (common for cohort creation)
+            concurrent_workers = 3
+        
+        # Reserve 40% for OS, buffers, and other processes (600GB for 1TB system)
+        # Divide remaining 60% among workers
+        available_for_duckdb = total_memory_gb * 0.6
+        per_worker_memory_gb = available_for_duckdb / max(1, concurrent_workers)
+        
+        # Clamp between 50GB (minimum for large cohorts) and 300GB (maximum per worker)
+        per_worker_memory_gb = max(50.0, min(300.0, per_worker_memory_gb))
+        
+        # Round to nearest 10GB for cleaner values
+        per_worker_memory_gb = round(per_worker_memory_gb / 10) * 10
+        
+        memory_limit = f"{int(per_worker_memory_gb)}GB"
+        cohort_conn_duckdb.sql(f"SET memory_limit='{memory_limit}'")
+        logger.info(f"→ [CONFIG] DuckDB memory limit: {memory_limit} (for {concurrent_workers} workers, {total_memory_gb:.0f}GB total system memory, {available_for_duckdb:.0f}GB available for DuckDB)")
+
         # Configure DuckDB for optimal parallelization based on operation type
         # For single partition processing, we can use more threads (up to CPU cores - 2)
         # Default to 8 threads, but allow override via PGX_THREADS_PER_WORKER
         # On EC2 with 32 cores, we can safely use up to 30 threads for single partition processing
-        import multiprocessing
         max_threads = max(1, multiprocessing.cpu_count() - 2)  # Reserve 2 cores for OS/other processes
         default_threads = min(8, max_threads)  # Default to 8, but cap at available cores
         threads = int(os.getenv('PGX_THREADS_PER_WORKER', str(default_threads)))
