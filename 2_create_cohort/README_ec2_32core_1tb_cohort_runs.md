@@ -138,7 +138,9 @@ os.environ["PGX_TOTAL_WORKERS"] = "2"
 
 ### Cell 2 — Launch `ed_non_opioid` (shell via notebook)
 
-Run as a long-running process (logs to file):
+**IMPORTANT**: `0_create_cohort.py` processes **one partition at a time** (one age_band + one event_year). 
+
+Use the wrapper script `run_series_ed_non_opioid.py` which processes all partitions **sequentially in heavy-first order**:
 
 ```bash
 %%bash
@@ -150,17 +152,18 @@ export PGX_TOTAL_WORKERS=2
 
 cd /home/pgx3874/pgx-analysis
 
-nohup python 2_create_cohort/0_create_cohort.py \
-  --cohort ed_non_opioid \
-  --starting-step phase1_data_preparation \
-  --operation-type concurrent_processing \
-  --log-level INFO \
+nohup python 2_create_cohort/run_series_ed_non_opioid.py \
+  --skip-existing \
   --concurrent-workers 1 \
   > logs/ed_non_opioid_run.log 2>&1 &
 echo "ed_non_opioid PID: $!"
 ```
 
+**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-94` → `13-24` → `0-12` → `95-114`
+
 ### Cell 3 — Launch `opioid_ed` (shell via notebook)
+
+Use the wrapper script `run_series_opioid_ed.py` which processes all partitions **sequentially in heavy-first order**:
 
 ```bash
 %%bash
@@ -172,15 +175,14 @@ export PGX_TOTAL_WORKERS=2
 
 cd /home/pgx3874/pgx-analysis
 
-nohup python 2_create_cohort/0_create_cohort.py \
-  --cohort opioid_ed \
-  --starting-step phase1_data_preparation \
-  --operation-type concurrent_processing \
-  --log-level INFO \
+nohup python 2_create_cohort/run_series_opioid_ed.py \
+  --skip-existing \
   --concurrent-workers 1 \
   > logs/opioid_ed_run.log 2>&1 &
 echo "opioid_ed PID: $!"
 ```
+
+**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-94` → `13-24` → `0-12` → `95-114`
 
 ### Cell 4 — Monitor logs
 
@@ -205,24 +207,41 @@ Stop with Ctrl+C in notebook output.
 
 ---
 
-## 5) If your entrypoint only runs a single age/year (per invocation)
+## 5) Wrapper scripts for sequential processing
 
-If `0_create_cohort.py` only processes one partition at a time, then implement two wrappers:
+**IMPORTANT**: `0_create_cohort.py` processes **one partition at a time** (one age_band + one event_year). 
 
-* `run_series_ed_non_opioid.py`
-* `run_series_opioid_ed.py`
+Two wrapper scripts are provided to process all partitions sequentially in heavy-first order:
 
-Each wrapper loops through the schedule (heavy first) and calls the entrypoint. Keep them sequential internally.
+* `run_series_ed_non_opioid.py` - Processes all ed_non_opioid partitions
+* `run_series_opioid_ed.py` - Processes all opioid_ed partitions
 
-### Example wrapper schedule (conceptual)
+### Wrapper script features
 
-* for year in EVENT_YEARS:
+* **Heavy-first ordering**: Processes `25-44` and `65-74` first
+* **Sequential processing**: One partition at a time (no parallelization within job)
+* **Skip existing**: Use `--skip-existing` to skip partitions already in S3
+* **Progress tracking**: Shows progress and summary at end
 
-  * for band in ["25-44", "65-74", ...rest]:
+### Usage
 
-    * call `0_create_cohort.py --cohort <type> --age-band <band> --event-year <year> ...`
+```bash
+# Process all ed_non_opioid partitions (heavy first)
+python 2_create_cohort/run_series_ed_non_opioid.py --skip-existing
 
-This matches your "one job per cohort sequentially" requirement.
+# Process all opioid_ed partitions (heavy first)
+python 2_create_cohort/run_series_opioid_ed.py --skip-existing
+```
+
+### Processing order
+
+Both wrappers process partitions in this order:
+
+1. **Heavy partitions first**: `25-44`, `65-74`
+2. **Medium partitions**: `45-54`, `55-64`, `75-84`, `85-94`
+3. **Light partitions**: `13-24`, `0-12`, `95-114`
+
+Within each age band, processes years: `2016` → `2017` → `2018` → `2019`
 
 ---
 
