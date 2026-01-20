@@ -9,6 +9,10 @@
 # - Step 6: Trained models
 # - Checkpoints (optional)
 #
+# IMPORTANT: This script does NOT delete gold medical/pharmacy tables
+# (/mnt/nvme/gold/medical/ and /mnt/nvme/gold/pharmacy/) as these are
+# shared across multiple workers and should be preserved for reuse.
+#
 # Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local]
 #
 
@@ -64,6 +68,9 @@ echo "  - Step 6: Trained models"
 if [ "$SKIP_CHECKPOINTS" = false ]; then
     echo "  - Checkpoints (optional)"
 fi
+echo ""
+echo -e "${GREEN}NOTE: Gold medical/pharmacy tables are preserved${NC}"
+echo "  (These are shared across workers and should not be deleted)"
 echo ""
 echo -e "${YELLOW}WARNING: This will delete data!${NC}"
 echo ""
