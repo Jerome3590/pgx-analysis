@@ -1209,20 +1209,15 @@ def get_cohort_parquet_path(
 ) -> str:
     """Build S3 path to GOLD cohorts parquet for a cohort partition.
     
-    Structure: cohorts_{target}/cohort_name={cohort}/event_year={year}/age_band={age_band}/cohort.parquet
+    Structure: cohorts/cohort_name={cohort}/event_year={year}/age_band={age_band}/cohort.parquet
     
     Organized by cohort name first, then by year and age-band partitions.
 
-    If a target slug is available (either passed or from environment), put it into the directory name
-    as cohorts_{slug} and write standard filename cohort.parquet. Otherwise, use default cohorts_clean directory.
+    The target_slug parameter is optional and not used in the path structure.
+    The function uses the standard cohorts directory regardless of target configuration.
     """
     cohort_slug = normalize_cohort_name(cohort_name)
-    dir_slug = target_slug or _derive_target_slug_from_env()
-    if not dir_slug:
-        raise ValueError(
-            "Target not configured. Set PGX_TARGET_NAME or one of PGX_TARGET_ICD_CODES/PGX_TARGET_CPT_CODES/PGX_TARGET_ICD_PREFIXES/PGX_TARGET_CPT_PREFIXES"
-        )
-    # New format: s3://pgxdatalake/gold/cohorts/ (not cohorts_{dir_slug}/)
+    # New format: s3://pgxdatalake/gold/cohorts/ (target slug no longer needed in path)
     base_dir = f"s3://{bucket_name}/gold/cohorts/"
     return (
         f"{base_dir}"
