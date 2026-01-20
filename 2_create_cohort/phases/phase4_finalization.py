@@ -157,33 +157,32 @@ def run_phase4_complete_pipeline(context):
             local_file = str(opioid_ed_local)
             
             # Use cached AWS CLI (resolved once at top of phase)
-            if aws_cli:
-                try:
-                    result = subprocess.run(
-                        [aws_cli, "s3", "cp", local_file, opioid_ed_s3_path, "--no-progress"],
-                        capture_output=True,
-                        text=True,
-                        timeout=3600  # 1 hour timeout
-                    )
-                    if result.returncode == 0:
-                        logger.info(f"→ [PHASE 4] OPIOID_ED cohort synced to S3 successfully")
-                        # Clean up local file after successful sync
-                        try:
-                            opioid_ed_local.unlink()
-                            logger.info(f"→ [PHASE 4] Cleaned up local OPIOID_ED cohort file")
-                            opioid_ed_local = None  # Mark as cleaned
-                        except Exception as e:
-                            logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
-                    else:
-                        logger.error(f"❌ [PHASE 4] Failed to sync OPIOID_ED cohort to S3: {result.stderr}")
-                        # Keep local file for retry/debugging
-                        logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
-                        raise Exception(f"S3 sync failed: {result.stderr}")
-                except subprocess.TimeoutExpired:
-                    logger.error(f"❌ [PHASE 4] S3 sync timeout for OPIOID_ED cohort (exceeded 1 hour)")
-                    # Keep local file for retry
+            try:
+                result = subprocess.run(
+                    [aws_cli, "s3", "cp", local_file, opioid_ed_s3_path, "--no-progress"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3600  # 1 hour timeout
+                )
+                if result.returncode == 0:
+                    logger.info(f"→ [PHASE 4] OPIOID_ED cohort synced to S3 successfully")
+                    # Clean up local file after successful sync
+                    try:
+                        opioid_ed_local.unlink()
+                        logger.info(f"→ [PHASE 4] Cleaned up local OPIOID_ED cohort file")
+                        opioid_ed_local = None  # Mark as cleaned
+                    except Exception as e:
+                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                else:
+                    logger.error(f"❌ [PHASE 4] Failed to sync OPIOID_ED cohort to S3: {result.stderr}")
+                    # Keep local file for retry/debugging
                     logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
-                    raise
+                    raise Exception(f"S3 sync failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                logger.error(f"❌ [PHASE 4] S3 sync timeout for OPIOID_ED cohort (exceeded 1 hour)")
+                # Keep local file for retry
+                logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
+                raise
             else:
                 logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
                 raise Exception("AWS CLI not available")
@@ -238,33 +237,32 @@ def run_phase4_complete_pipeline(context):
             local_file = str(ed_non_opioid_local)
             
             # Use cached AWS CLI (resolved once at top of phase)
-            if aws_cli:
-                try:
-                    result = subprocess.run(
-                        [aws_cli, "s3", "cp", local_file, ed_non_opioid_s3_path, "--no-progress"],
-                        capture_output=True,
-                        text=True,
-                        timeout=7200  # 2 hour timeout for very large cohorts
-                    )
-                    if result.returncode == 0:
-                        logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort synced to S3 successfully")
-                        # Clean up local file after successful sync
-                        try:
-                            ed_non_opioid_local.unlink()
-                            logger.info(f"→ [PHASE 4] Cleaned up local ED_NON_OPIOID cohort file")
-                            ed_non_opioid_local = None  # Mark as cleaned
-                        except Exception as e:
-                            logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
-                    else:
-                        logger.error(f"❌ [PHASE 4] Failed to sync ED_NON_OPIOID cohort to S3: {result.stderr}")
-                        # Keep local file for retry/debugging
-                        logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
-                        raise Exception(f"S3 sync failed: {result.stderr}")
-                except subprocess.TimeoutExpired:
-                    logger.error(f"❌ [PHASE 4] S3 sync timeout for ED_NON_OPIOID cohort (exceeded 2 hours)")
-                    # Keep local file for retry
+            try:
+                result = subprocess.run(
+                    [aws_cli, "s3", "cp", local_file, ed_non_opioid_s3_path, "--no-progress"],
+                    capture_output=True,
+                    text=True,
+                    timeout=7200  # 2 hour timeout for very large cohorts
+                )
+                if result.returncode == 0:
+                    logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort synced to S3 successfully")
+                    # Clean up local file after successful sync
+                    try:
+                        ed_non_opioid_local.unlink()
+                        logger.info(f"→ [PHASE 4] Cleaned up local ED_NON_OPIOID cohort file")
+                        ed_non_opioid_local = None  # Mark as cleaned
+                    except Exception as e:
+                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                else:
+                    logger.error(f"❌ [PHASE 4] Failed to sync ED_NON_OPIOID cohort to S3: {result.stderr}")
+                    # Keep local file for retry/debugging
                     logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
-                    raise
+                    raise Exception(f"S3 sync failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                logger.error(f"❌ [PHASE 4] S3 sync timeout for ED_NON_OPIOID cohort (exceeded 2 hours)")
+                # Keep local file for retry
+                logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
+                raise
             
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
