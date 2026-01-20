@@ -514,8 +514,9 @@ def run_phase3_step3_final_cohort_fact(context):
                 -- CRITICAL: Prevent row explosion from multiple time windows
                 -- QUALIFY ensures exactly one row per (mi_person_key, event_date, event_type) combination
                 -- This prevents multi-window duplication that causes INT32 overflow
+                -- Must use uef. prefix to avoid ambiguous column reference
                 QUALIFY ROW_NUMBER() OVER (
-                    PARTITION BY mi_person_key, event_date, event_type
+                    PARTITION BY uef.mi_person_key, uef.event_date, uef.event_type
                     ORDER BY days_to_target_event NULLS LAST
                 ) = 1
             )
