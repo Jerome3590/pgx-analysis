@@ -315,11 +315,14 @@ def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger
             except Exception as e:
                 logger.warning(f"[SYNC] Could not remove corrupted file: {e}")
     
-    # Check if AWS CLI is available
-    aws_cli = shutil.which("aws")
-    if not aws_cli:
-        logger.warning(f"[SYNC] AWS CLI not found, skipping sync for {dataset}")
-        return False
+    # Check if AWS CLI is available (use full path on EC2)
+    aws_cli = "/usr/local/bin/aws"
+    if not Path(aws_cli).exists():
+        # Fallback to PATH lookup if full path doesn't exist
+        aws_cli = shutil.which("aws")
+        if not aws_cli:
+            logger.warning(f"[SYNC] AWS CLI not found, skipping sync for {dataset}")
+            return False
     
     # S3 source path (only medical/pharmacy, NOT cohorts)
     s3_path = f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/"

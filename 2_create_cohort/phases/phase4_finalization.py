@@ -58,10 +58,14 @@ def run_phase4_complete_pipeline(context):
         enable_query_profiling(cohort_conn_duckdb, logger, "json", profile_filename)
         
         # Cache AWS CLI discovery once (micro-optimization: avoid repeated PATH lookups)
-        aws_cli = shutil.which("aws")
-        if not aws_cli:
-            logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
-            raise Exception("AWS CLI not available")
+        # Use full path to AWS CLI on EC2
+        aws_cli = "/usr/local/bin/aws"
+        if not Path(aws_cli).exists():
+            # Fallback to PATH lookup if full path doesn't exist
+            aws_cli = shutil.which("aws")
+            if not aws_cli:
+                logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
+                raise Exception("AWS CLI not available")
         
         # Monitor disk space BEFORE writing Parquet (early warning for NVMe exhaustion)
         monitor_disk_space(logger)
@@ -227,8 +231,8 @@ def run_phase4_complete_pipeline(context):
                 # Keep local file for retry
                 logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
                 raise
-            else:
-                logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
+            except FileNotFoundError:
+                logger.error(f"❌ [PHASE 4] AWS CLI not found at {aws_cli}, cannot sync to S3")
                 raise Exception("AWS CLI not available")
             
             # Check if it's control-only
@@ -309,6 +313,9 @@ def run_phase4_complete_pipeline(context):
                 # Keep local file for retry
                 logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
                 raise
+            except FileNotFoundError:
+                logger.error(f"❌ [PHASE 4] AWS CLI not found at {aws_cli}, cannot sync to S3")
+                raise Exception("AWS CLI not available")
             
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
