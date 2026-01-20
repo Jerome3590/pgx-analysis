@@ -13,7 +13,6 @@ from .common import (
     force_checkpoint,
     execute_sql_with_dev_validation,
     resolve_gold_data_path,
-    sync_gold_data_to_local,
 )
 
 
@@ -35,8 +34,8 @@ def run_phase1_data_preparation(context):
     logger.info(f"{SYMBOLS['arrow']} [PHASE 1] Starting optimized data preparation (APCD Integration)...")
     
     try:
-        # Enable query profiling for this phase
-        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase1_data_preparation.json")
+        # Enable query profiling for this phase (partition-safe filename)
+        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profile_p1_{age_band}_{event_year}.json")
         
         # Resolve paths to gold medical/pharmacy data (prefers local /mnt/nvme, falls back to S3)
         medical_path = resolve_gold_data_path("medical", age_band, event_year)
@@ -97,6 +96,9 @@ def run_phase1_data_preparation(context):
         logger.info("→ [PHASE 1] Medical data loaded from GOLD final table")
         
         # Apply additional medical filters into final view 'medical'
+        # IMPORTANT: Calendar-year filtering enforces strict partitioning
+        # Events outside the calendar year are intentionally excluded even if exposure windows cross year boundaries
+        # This is consistent with Phase 2 event ordering, Phase 3 time windows, and Phase 4 Parquet partitioning
         medical_filtered_sql = f"""
         CREATE OR REPLACE VIEW medical AS
         SELECT *
@@ -135,6 +137,9 @@ def run_phase1_data_preparation(context):
         logger.info("→ [PHASE 1] Pharmacy data loaded from GOLD final table")
         
         # Apply additional pharmacy filters into final view 'pharmacy'
+        # IMPORTANT: Calendar-year filtering enforces strict partitioning
+        # Events outside the calendar year are intentionally excluded even if exposure windows cross year boundaries
+        # This is consistent with Phase 2 event ordering, Phase 3 time windows, and Phase 4 Parquet partitioning
         pharmacy_filtered_sql = f"""
         CREATE OR REPLACE VIEW pharmacy AS
         SELECT *
@@ -156,6 +161,9 @@ def run_phase1_data_preparation(context):
         logger.info(f"→ [PHASE 1] QA: Pharmacy records: {pharmacy_count:,}")
         
         # F1120-specific check in raw medical data
+        # NOTE: This is a PRIMARY-ONLY sanity check (not full opioid detection)
+        # The actual opioid detection logic (get_opioid_icd_sql_condition()) checks ALL 10 ICD diagnosis columns
+        # This Phase 1 check is for data quality validation only
         f1120_medical = cohort_conn_duckdb.sql("""
         SELECT 
             COUNT(*) as total_f1120_records,
@@ -165,11 +173,46 @@ def run_phase1_data_preparation(context):
         """).fetchone()
         
         if f1120_medical and f1120_medical[0] > 0:
-            logger.info(f"→ [PHASE 1] F1120 CHECK in medical data:")
+            logger.info(f"→ [PHASE 1] F1120 CHECK (primary column only - sanity check):")
             logger.info(f"  Total F1120 records: {f1120_medical[0]:,}")
             logger.info(f"  Distinct F1120 patients: {f1120_medical[1]:,}")
         else:
-            logger.warning(f"→ [PHASE 1] F1120 CHECK: No F1120 records found in medical data")
+            logger.warning(f"→ [PHASE 1] F1120 CHECK: No F1120 records found in medical data (primary column)")
+        
+        # HCG codes of interest check (for polypharmacy cohort target identification)
+        # Check for ED visit HCG line codes: P51, O11, P33
+        hcg_codes = [
+            "P51 - ER Visits and Observation Care",
+            "O11 - Emergency Room",
+            "P33 - Urgent Care Visits"
+        ]
+        hcg_medical = cohort_conn_duckdb.sql(f"""
+        SELECT 
+            COUNT(*) as total_hcg_records,
+            COUNT(DISTINCT mi_person_key) as distinct_hcg_patients,
+            hcg_line,
+            COUNT(*) as count_by_code
+        FROM medical
+        WHERE hcg_line IN {tuple(hcg_codes)}
+        GROUP BY hcg_line
+        ORDER BY count_by_code DESC
+        """).fetchall()
+        
+        if hcg_medical:
+            total_hcg = sum(row[2] for row in hcg_medical)
+            distinct_hcg = cohort_conn_duckdb.sql(f"""
+            SELECT COUNT(DISTINCT mi_person_key)
+            FROM medical
+            WHERE hcg_line IN {tuple(hcg_codes)}
+            """).fetchone()[0]
+            logger.info(f"→ [PHASE 1] HCG CODES CHECK (ED visit codes for polypharmacy cohort):")
+            logger.info(f"  Total HCG records: {total_hcg:,}")
+            logger.info(f"  Distinct HCG patients: {distinct_hcg:,}")
+            logger.info(f"  HCG codes breakdown:")
+            for row in hcg_medical:
+                logger.info(f"    '{row[1]}': {row[2]:,} records")
+        else:
+            logger.warning(f"→ [PHASE 1] HCG CODES CHECK: No ED visit HCG codes found in medical data")
         
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)
