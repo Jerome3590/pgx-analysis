@@ -105,6 +105,7 @@ def run_phase4_complete_pipeline(context):
         
         # Save OPIOID_ED cohort (always save, even if control-only)
         opioid_ed_s3_path = get_cohort_parquet_path("opioid_ed", age_band, event_year)
+        opioid_ed_local = None
         if opioid_ed_count > 0:
             # Write to local NVMe first (much faster)
             opioid_ed_local = local_staging / f"opioid_ed_{age_band}_{event_year}.parquet"
@@ -115,31 +116,39 @@ def run_phase4_complete_pipeline(context):
             """)
             logger.info(f"→ [PHASE 4] OPIOID_ED cohort written to local")
             
-            # Sync to S3 using aws s3 sync (more reliable for large files)
+            # Sync to S3 using aws s3 cp (more reliable for large files)
             logger.info(f"→ [PHASE 4] Syncing OPIOID_ED cohort to S3: {opioid_ed_s3_path}")
-            s3_dir = str(opioid_ed_s3_path).rsplit('/', 1)[0]  # Get directory path
             local_file = str(opioid_ed_local)
             
             # Use aws s3 cp for single file (more efficient than sync for one file)
             aws_cli = shutil.which("aws")
             if aws_cli:
-                result = subprocess.run(
-                    [aws_cli, "s3", "cp", local_file, opioid_ed_s3_path, "--no-progress"],
-                    capture_output=True,
-                    text=True,
-                    timeout=3600  # 1 hour timeout
-                )
-                if result.returncode == 0:
-                    logger.info(f"→ [PHASE 4] OPIOID_ED cohort synced to S3 successfully")
-                    # Clean up local file after successful sync
-                    try:
-                        opioid_ed_local.unlink()
-                        logger.info(f"→ [PHASE 4] Cleaned up local OPIOID_ED cohort file")
-                    except Exception as e:
-                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
-                else:
-                    logger.error(f"❌ [PHASE 4] Failed to sync OPIOID_ED cohort to S3: {result.stderr}")
-                    raise Exception(f"S3 sync failed: {result.stderr}")
+                try:
+                    result = subprocess.run(
+                        [aws_cli, "s3", "cp", local_file, opioid_ed_s3_path, "--no-progress"],
+                        capture_output=True,
+                        text=True,
+                        timeout=3600  # 1 hour timeout
+                    )
+                    if result.returncode == 0:
+                        logger.info(f"→ [PHASE 4] OPIOID_ED cohort synced to S3 successfully")
+                        # Clean up local file after successful sync
+                        try:
+                            opioid_ed_local.unlink()
+                            logger.info(f"→ [PHASE 4] Cleaned up local OPIOID_ED cohort file")
+                            opioid_ed_local = None  # Mark as cleaned
+                        except Exception as e:
+                            logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                    else:
+                        logger.error(f"❌ [PHASE 4] Failed to sync OPIOID_ED cohort to S3: {result.stderr}")
+                        # Keep local file for retry/debugging
+                        logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
+                        raise Exception(f"S3 sync failed: {result.stderr}")
+                except subprocess.TimeoutExpired:
+                    logger.error(f"❌ [PHASE 4] S3 sync timeout for OPIOID_ED cohort (exceeded 1 hour)")
+                    # Keep local file for retry
+                    logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {opioid_ed_local}")
+                    raise
             else:
                 logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
                 raise Exception("AWS CLI not available")
@@ -173,6 +182,7 @@ def run_phase4_complete_pipeline(context):
         
         # Save ED_NON_OPIOID cohort (always save, even if control-only)
         ed_non_opioid_s3_path = get_cohort_parquet_path("ed_non_opioid", age_band, event_year)
+        ed_non_opioid_local = None
         if ed_non_opioid_count > 0:
             # Write to local NVMe first (much faster, especially for large cohorts)
             ed_non_opioid_local = local_staging / f"ed_non_opioid_{age_band}_{event_year}.parquet"
@@ -190,23 +200,32 @@ def run_phase4_complete_pipeline(context):
             # Use aws s3 cp for single file
             aws_cli = shutil.which("aws")
             if aws_cli:
-                result = subprocess.run(
-                    [aws_cli, "s3", "cp", local_file, ed_non_opioid_s3_path, "--no-progress"],
-                    capture_output=True,
-                    text=True,
-                    timeout=7200  # 2 hour timeout for very large cohorts
-                )
-                if result.returncode == 0:
-                    logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort synced to S3 successfully")
-                    # Clean up local file after successful sync
-                    try:
-                        ed_non_opioid_local.unlink()
-                        logger.info(f"→ [PHASE 4] Cleaned up local ED_NON_OPIOID cohort file")
-                    except Exception as e:
-                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
-                else:
-                    logger.error(f"❌ [PHASE 4] Failed to sync ED_NON_OPIOID cohort to S3: {result.stderr}")
-                    raise Exception(f"S3 sync failed: {result.stderr}")
+                try:
+                    result = subprocess.run(
+                        [aws_cli, "s3", "cp", local_file, ed_non_opioid_s3_path, "--no-progress"],
+                        capture_output=True,
+                        text=True,
+                        timeout=7200  # 2 hour timeout for very large cohorts
+                    )
+                    if result.returncode == 0:
+                        logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort synced to S3 successfully")
+                        # Clean up local file after successful sync
+                        try:
+                            ed_non_opioid_local.unlink()
+                            logger.info(f"→ [PHASE 4] Cleaned up local ED_NON_OPIOID cohort file")
+                            ed_non_opioid_local = None  # Mark as cleaned
+                        except Exception as e:
+                            logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                    else:
+                        logger.error(f"❌ [PHASE 4] Failed to sync ED_NON_OPIOID cohort to S3: {result.stderr}")
+                        # Keep local file for retry/debugging
+                        logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
+                        raise Exception(f"S3 sync failed: {result.stderr}")
+                except subprocess.TimeoutExpired:
+                    logger.error(f"❌ [PHASE 4] S3 sync timeout for ED_NON_OPIOID cohort (exceeded 2 hours)")
+                    # Keep local file for retry
+                    logger.warning(f"⚠️ [PHASE 4] Keeping local file for retry: {ed_non_opioid_local}")
+                    raise
             else:
                 logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
                 raise Exception("AWS CLI not available")
@@ -240,6 +259,20 @@ def run_phase4_complete_pipeline(context):
         
         # Final cleanup
         cleanup_duckdb_temp_files(logger)
+        
+        # Clean up staging directory if empty (all files successfully uploaded and removed)
+        try:
+            if local_staging.exists():
+                # Check if staging directory is empty
+                remaining_files = list(local_staging.glob("*.parquet"))
+                if not remaining_files:
+                    # Directory is empty, but keep it for future use (no need to remove)
+                    logger.debug(f"→ [PHASE 4] Staging directory is empty: {local_staging}")
+                else:
+                    logger.warning(f"⚠️ [PHASE 4] Staging directory still contains {len(remaining_files)} file(s): {[f.name for f in remaining_files]}")
+        except Exception as e:
+            logger.warning(f"⚠️ [PHASE 4] Could not check staging directory: {e}")
+        
         monitor_disk_space(logger)
         
         # Force checkpoint
@@ -260,6 +293,17 @@ def run_phase4_complete_pipeline(context):
         
     except Exception as e:
         logger.error(f"{SYMBOLS['fail']} [PHASE 4] Complete pipeline execution failed: {str(e)}")
+        
+        # Clean up any remaining local files on error (optional - comment out to keep for debugging)
+        # Note: Files are kept by default for retry/debugging, but can be cleaned up if desired
+        try:
+            if 'opioid_ed_local' in locals() and opioid_ed_local and opioid_ed_local.exists():
+                logger.warning(f"⚠️ [PHASE 4] Local OPIOID_ED file remains: {opioid_ed_local} (kept for retry/debugging)")
+            if 'ed_non_opioid_local' in locals() and ed_non_opioid_local and ed_non_opioid_local.exists():
+                logger.warning(f"⚠️ [PHASE 4] Local ED_NON_OPIOID file remains: {ed_non_opioid_local} (kept for retry/debugging)")
+        except Exception:
+            pass
+        
         if pipeline_state:
             pipeline_state.mark_step_failed(step_name, str(e))
         cleanup_duckdb_temp_files(logger)
