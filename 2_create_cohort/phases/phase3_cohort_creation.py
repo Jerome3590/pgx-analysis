@@ -97,9 +97,9 @@ def run_phase3_step3_final_cohort_fact(context):
         
         # Count ED_NON_OPIOID targets AFTER excluding opioid patients
         # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
-        # Cast to BIGINT to avoid INT32 overflow
+        # Use fetchdf() to avoid INT32 overflow
         ed_non_opioid_case_count_query = f"""
-        SELECT COUNT(DISTINCT mi_person_key)::BIGINT
+        SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count
         FROM unified_event_fact_table uef
         WHERE event_classification = '{label_ed_non_opioid}'
           AND NOT EXISTS (
@@ -108,7 +108,6 @@ def run_phase3_step3_final_cohort_fact(context):
               WHERE op.mi_person_key = uef.mi_person_key
           )
         """
-        # Use fetchdf() to avoid INT32 overflow
         ed_non_opioid_case_count_df = cohort_conn_duckdb.sql(ed_non_opioid_case_count_query).fetchdf()
         ed_non_opioid_case_count = int(ed_non_opioid_case_count_df.iloc[0]['count']) if not ed_non_opioid_case_count_df.empty else 0
         
