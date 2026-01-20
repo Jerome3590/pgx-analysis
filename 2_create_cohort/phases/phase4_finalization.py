@@ -43,6 +43,16 @@ def run_phase4_complete_pipeline(context):
         ensure_gold_views(cohort_conn_duckdb, logger, age_band, event_year)
         ensure_unified_views(cohort_conn_duckdb, logger)
         ensure_cohort_views(cohort_conn_duckdb, logger)
+        
+        # Optimize S3 settings for large file uploads in Phase 4
+        # Increase HTTP timeout and retries for large cohort uploads
+        cohort_conn_duckdb.sql("SET http_timeout=600000")  # 10 minutes (up from 5 minutes default)
+        cohort_conn_duckdb.sql("SET http_retries=10")  # More retries for large uploads
+        cohort_conn_duckdb.sql("SET http_retry_wait_ms=2000")  # 2s between retries
+        # Increase S3 uploader threads for parallel uploads (helps with large files)
+        cohort_conn_duckdb.sql("SET s3_uploader_thread_limit=16")
+        logger.info("→ [PHASE 4] S3 upload settings optimized for large cohort files")
+        
         # Enable query profiling for this phase
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase4_complete_pipeline.json")
         
@@ -89,10 +99,12 @@ def run_phase4_complete_pipeline(context):
         # Save OPIOID_ED cohort (always save, even if control-only)
         opioid_ed_out = get_cohort_parquet_path("opioid_ed", age_band, event_year)
         if opioid_ed_count > 0:
+            logger.info(f"→ [PHASE 4] Saving OPIOID_ED cohort ({opioid_ed_count:,} records) to S3...")
             cohort_conn_duckdb.sql(f"""
             COPY opioid_ed_cohort TO '{opioid_ed_out}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
+            logger.info(f"→ [PHASE 4] OPIOID_ED cohort save completed")
             # Check if it's control-only
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
@@ -123,10 +135,15 @@ def run_phase4_complete_pipeline(context):
         # Save ED_NON_OPIOID cohort (always save, even if control-only)
         ed_non_opioid_out = get_cohort_parquet_path("ed_non_opioid", age_band, event_year)
         if ed_non_opioid_count > 0:
+            logger.info(f"→ [PHASE 4] Saving ED_NON_OPIOID cohort ({ed_non_opioid_count:,} records) to S3...")
+            # For large cohorts, this S3 upload can take significant time
+            # Increase S3 uploader threads for better performance
+            cohort_conn_duckdb.sql("SET s3_uploader_thread_limit=16")
             cohort_conn_duckdb.sql(f"""
             COPY ed_non_opioid_cohort TO '{ed_non_opioid_out}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
+            logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort save completed")
             # Check if it's control-only
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
