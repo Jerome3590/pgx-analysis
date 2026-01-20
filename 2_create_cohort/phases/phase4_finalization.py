@@ -17,6 +17,7 @@ from .common import (
     ensure_unified_views,
     ensure_cohort_views,
 )
+from py_helpers.constants import get_opioid_icd_sql_condition
 import os
 import subprocess
 import shutil
@@ -95,26 +96,26 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
         
         # F1120-specific checks in final cohorts
-        # NOTE: Phase 4 QA checks only PRIMARY diagnosis column for F1120
-        # Phase 3 logic considers ALL 10 ICD diagnosis columns - this is intentional
-        # Primary-diagnosis-only check is sufficient for QA validation
-        f1120_opioid_final = cohort_conn_duckdb.sql("""
+        # CONSISTENCY: Use same logic as Phase 3 - check ALL 10 ICD diagnosis columns
+        # This ensures QA validation matches the actual cohort creation logic
+        opioid_icd_condition = get_opioid_icd_sql_condition()
+        f1120_opioid_final = cohort_conn_duckdb.sql(f"""
         SELECT 
             COUNT(*) as total_f1120_records,
             COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
         FROM opioid_ed_cohort
-        WHERE primary_icd_diagnosis_code = 'F1120'
+        WHERE {opioid_icd_condition}
         """).fetchone()
         
-        f1120_ed_non_opioid_final = cohort_conn_duckdb.sql("""
+        f1120_ed_non_opioid_final = cohort_conn_duckdb.sql(f"""
         SELECT 
             COUNT(*) as total_f1120_records,
             COUNT(DISTINCT mi_person_key) as distinct_f1120_patients
         FROM ed_non_opioid_cohort
-        WHERE primary_icd_diagnosis_code = 'F1120'
+        WHERE {opioid_icd_condition}
         """).fetchone()
         
-        logger.info(f"→ [PHASE 4] F1120 IN FINAL COHORTS:")
+        logger.info(f"→ [PHASE 4] F1120 (all ICD columns) IN FINAL COHORTS:")
         logger.info(f"  OPIOID_ED: {f1120_opioid_final[0]:,} records, {f1120_opioid_final[1]:,} patients")
         logger.info(f"  ED_NON_OPIOID: {f1120_ed_non_opioid_final[0]:,} records, {f1120_ed_non_opioid_final[1]:,} patients")
         
