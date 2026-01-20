@@ -39,15 +39,17 @@ def run_phase2_step1_event_fact_table(context):
     try:
         # Ensure gold-backed views exist if Phase 1 was skipped
         ensure_gold_views(cohort_conn_duckdb, logger, age_band, event_year)
-        # Enable query profiling for this step
-        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase2_step1_event_fact_table.json")
+        # Enable query profiling for this step (partition-safe filename)
+        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profile_p2_step1_{age_band}_{event_year}.json")
 
         # Build dynamic target classification from environment variables
-        import os
-        target_icd_codes = [c.strip() for c in os.getenv("PGX_TARGET_ICD_CODES", "").split(',') if c.strip()]
-        target_cpt_codes = [c.strip() for c in os.getenv("PGX_TARGET_CPT_CODES", "").split(',') if c.strip()]
-        target_icd_prefixes = [p.strip() for p in os.getenv("PGX_TARGET_ICD_PREFIXES", "").split(',') if p.strip()]
-        target_cpt_prefixes = [p.strip() for p in os.getenv("PGX_TARGET_CPT_PREFIXES", "").split(',') if p.strip()]
+        # Use centralized config helper to reduce drift across phases
+        from .common import get_dynamic_targeting_config
+        config = get_dynamic_targeting_config()
+        target_icd_codes = config["target_icd_codes"]
+        target_cpt_codes = config["target_cpt_codes"]
+        target_icd_prefixes = config["target_icd_prefixes"]
+        target_cpt_prefixes = config["target_cpt_prefixes"]
 
         # Compose SQL condition for ICD-based targeting
         # Codes are normalized to F1120 format (no dots, no prefixes) via 7_update_codes.py
@@ -58,6 +60,11 @@ def run_phase2_step1_event_fact_table(context):
             icd_conditions.append(f"primary_icd_diagnosis_code IN {tuple(target_icd_codes)}")
         for pref in target_icd_prefixes:
             # Normalize prefix and use LIKE with ESCAPE for wildcard safe match
+            # CRITICAL: This normalization must match get_opioid_icd_sql_condition() logic
+            # Both use: UPPER, remove '.', remove ' ' (spaces)
+            # get_opioid_icd_sql_condition() checks codes already normalized in gold tier (F1120 format)
+            # This prefix matching also normalizes to match gold tier format
+            # NOTE: This normalization is duplicated in common.py ensure_unified_views() - consider centralizing
             norm_pref = pref.upper().replace('.', '').replace(' ', '')
             like = norm_pref if ('%' in norm_pref or '_' in norm_pref) else (norm_pref + '%')
             icd_conditions.append(
@@ -98,6 +105,8 @@ def run_phase2_step1_event_fact_table(context):
 
         # If any env targets are provided, build a generic target/non_target classification
         # Priority: 1) Target ICD/CPT codes → target, 2) HCG ED visits → ed_non_opioid, 3) Other → non_target
+        # IMPORTANT: 'non_target' is intentionally excluded from ED-based cohorts in later phases
+        # This classification is used for dynamic targeting scenarios, not for standard opioid/polypharmacy cohorts
         if icd_conditions or cpt_conditions:
             where_clause = " OR ".join(filter(None, icd_conditions + cpt_conditions)) or "1=0"
             classification_sql = f"""
@@ -110,107 +119,119 @@ def run_phase2_step1_event_fact_table(context):
         else:
             classification_sql = default_case
         
-        # Create unified event fact table
+        # CRITICAL FIX: Compute event_sequence AFTER UNION ALL to ensure global chronological ordering
+        # Previously, ROW_NUMBER() was computed separately for medical and pharmacy, breaking global sequence
+        # Example: Medical event Jan 10 → seq 1, Pharmacy event Jan 05 → seq 1 (both seq 1, but Jan 05 should come first)
+        # This fix ensures event_sequence reflects true chronological order across all event types
+        # This is essential for Phase 3 time windows, first events, and temporal analysis
         event_fact_table_sql = f"""
         CREATE OR REPLACE VIEW unified_event_fact_table AS
+        WITH unified_events AS (
+            SELECT 
+                mi_person_key,
+                event_date,
+                'medical' as event_type,
+                'medical' as data_source,
+                age_imputed,
+                gender_imputed as member_gender,
+                race_imputed as member_race,
+                zip_imputed,
+                county_imputed,
+                payer_imputed,
+                -- ALL ICD diagnosis codes (for ML feature discovery)
+                primary_icd_diagnosis_code,
+                two_icd_diagnosis_code,
+                three_icd_diagnosis_code,
+                four_icd_diagnosis_code,
+                five_icd_diagnosis_code,
+                six_icd_diagnosis_code,
+                seven_icd_diagnosis_code,
+                eight_icd_diagnosis_code,
+                nine_icd_diagnosis_code,
+                ten_icd_diagnosis_code,
+                -- ALL ICD procedure codes (for ML feature discovery)
+                two_icd_procedure_code,
+                three_icd_procedure_code,
+                four_icd_procedure_code,
+                five_icd_procedure_code,
+                six_icd_procedure_code,
+                seven_icd_procedure_code,
+                eight_icd_procedure_code,
+                nine_icd_procedure_code,
+                ten_icd_procedure_code,
+                NULL as drug_name,
+                NULL as therapeutic_class_1,
+                -- CPT/procedure codes (medical)
+                procedure_code,
+                cpt_mod_1_code,
+                cpt_mod_2_code,
+                -- HCG fields for ED visit identification
+                hcg_setting,
+                hcg_line,
+                hcg_detail,
+                -- Event classification (dynamic via env or default)
+                {classification_sql} as event_classification
+            FROM medical
+            -- INTENTIONAL: Medical events without primary ICD codes are excluded
+            -- Rationale: Medical events without ICD codes are not analytically meaningful for this study
+            -- This creates asymmetric exposure histories (medical requires ICD, pharmacy does not)
+            -- This is a design decision: we prioritize events with diagnostic information
+            WHERE primary_icd_diagnosis_code IS NOT NULL
+            
+            UNION ALL
+            
+            SELECT 
+                mi_person_key,
+                event_date,
+                'pharmacy' as event_type,
+                'pharmacy' as data_source,
+                age_imputed,
+                gender_imputed as member_gender,
+                race_imputed as member_race,
+                zip_imputed,
+                county_imputed,
+                payer_imputed,
+                -- ICD diagnosis codes not present in pharmacy (set NULLs)
+                NULL as primary_icd_diagnosis_code,
+                NULL as two_icd_diagnosis_code,
+                NULL as three_icd_diagnosis_code,
+                NULL as four_icd_diagnosis_code,
+                NULL as five_icd_diagnosis_code,
+                NULL as six_icd_diagnosis_code,
+                NULL as seven_icd_diagnosis_code,
+                NULL as eight_icd_diagnosis_code,
+                NULL as nine_icd_diagnosis_code,
+                NULL as ten_icd_diagnosis_code,
+                -- ICD procedure codes not present in pharmacy (set NULLs)
+                NULL as two_icd_procedure_code,
+                NULL as three_icd_procedure_code,
+                NULL as four_icd_procedure_code,
+                NULL as five_icd_procedure_code,
+                NULL as six_icd_procedure_code,
+                NULL as seven_icd_procedure_code,
+                NULL as eight_icd_procedure_code,
+                NULL as nine_icd_procedure_code,
+                NULL as ten_icd_procedure_code,
+                drug_name,
+                therapeutic_class_1,
+                -- CPT/procedure codes not present in pharmacy (set NULLs)
+                NULL as procedure_code,
+                NULL as cpt_mod_1_code,
+                NULL as cpt_mod_2_code,
+                -- HCG fields not present in pharmacy (set NULLs)
+                NULL as hcg_setting,
+                NULL as hcg_line,
+                NULL as hcg_detail,
+                -- Use same classification expression to preserve target logic across union
+                {classification_sql} as event_classification
+            FROM pharmacy
+            WHERE drug_name IS NOT NULL
+        )
         SELECT 
-            mi_person_key,
-            event_date,
-            'medical' as event_type,
-            'medical' as data_source,
-            age_imputed,
-            gender_imputed as member_gender,
-            race_imputed as member_race,
-            zip_imputed,
-            county_imputed,
-            payer_imputed,
-            -- ALL ICD diagnosis codes (for ML feature discovery)
-            primary_icd_diagnosis_code,
-            two_icd_diagnosis_code,
-            three_icd_diagnosis_code,
-            four_icd_diagnosis_code,
-            five_icd_diagnosis_code,
-            six_icd_diagnosis_code,
-            seven_icd_diagnosis_code,
-            eight_icd_diagnosis_code,
-            nine_icd_diagnosis_code,
-            ten_icd_diagnosis_code,
-            -- ALL ICD procedure codes (for ML feature discovery)
-            two_icd_procedure_code,
-            three_icd_procedure_code,
-            four_icd_procedure_code,
-            five_icd_procedure_code,
-            six_icd_procedure_code,
-            seven_icd_procedure_code,
-            eight_icd_procedure_code,
-            nine_icd_procedure_code,
-            ten_icd_procedure_code,
-            NULL as drug_name,
-            NULL as therapeutic_class_1,
-            -- CPT/procedure codes (medical)
-            procedure_code,
-            cpt_mod_1_code,
-            cpt_mod_2_code,
-            -- HCG fields for ED visit identification
-            hcg_setting,
-            hcg_line,
-            hcg_detail,
-            -- Event classification (dynamic via env or default)
-            {classification_sql} as event_classification,
-            -- First event flags
+            *,
+            -- CRITICAL: Compute event_sequence AFTER union to ensure global chronological ordering
             ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
-        FROM medical
-        WHERE primary_icd_diagnosis_code IS NOT NULL
-        
-        UNION ALL
-        
-        SELECT 
-            mi_person_key,
-            event_date,
-            'pharmacy' as event_type,
-            'pharmacy' as data_source,
-            age_imputed,
-            gender_imputed as member_gender,
-            race_imputed as member_race,
-            zip_imputed,
-            county_imputed,
-            payer_imputed,
-            -- ICD diagnosis codes not present in pharmacy (set NULLs)
-            NULL as primary_icd_diagnosis_code,
-            NULL as two_icd_diagnosis_code,
-            NULL as three_icd_diagnosis_code,
-            NULL as four_icd_diagnosis_code,
-            NULL as five_icd_diagnosis_code,
-            NULL as six_icd_diagnosis_code,
-            NULL as seven_icd_diagnosis_code,
-            NULL as eight_icd_diagnosis_code,
-            NULL as nine_icd_diagnosis_code,
-            NULL as ten_icd_diagnosis_code,
-            -- ICD procedure codes not present in pharmacy (set NULLs)
-            NULL as two_icd_procedure_code,
-            NULL as three_icd_procedure_code,
-            NULL as four_icd_procedure_code,
-            NULL as five_icd_procedure_code,
-            NULL as six_icd_procedure_code,
-            NULL as seven_icd_procedure_code,
-            NULL as eight_icd_procedure_code,
-            NULL as nine_icd_procedure_code,
-            NULL as ten_icd_procedure_code,
-            drug_name,
-            therapeutic_class_1,
-            -- CPT/procedure codes not present in pharmacy (set NULLs)
-            NULL as procedure_code,
-            NULL as cpt_mod_1_code,
-            NULL as cpt_mod_2_code,
-            -- HCG fields not present in pharmacy (set NULLs)
-            NULL as hcg_setting,
-            NULL as hcg_line,
-            NULL as hcg_detail,
-            -- Use same classification expression to preserve target logic across union
-            {classification_sql} as event_classification,
-            ROW_NUMBER() OVER (PARTITION BY mi_person_key ORDER BY event_date) as event_sequence
-        FROM pharmacy
-        WHERE drug_name IS NOT NULL;
+        FROM unified_events;
         """
         execute_sql_with_dev_validation(cohort_conn_duckdb, logger, event_fact_table_sql)
         logger.info("→ [PHASE 2 STEP 1] Unified event fact table created")
@@ -228,6 +249,9 @@ def run_phase2_step1_event_fact_table(context):
         logger.info(f"→ [PHASE 2 STEP 1] QA: Event type distribution: {dict(event_type_dist)}")
         
         # F1120-specific checks
+        # NOTE: This QA check only inspects primary_icd_diagnosis_code for F1120
+        # The actual opioid detection logic (get_opioid_icd_sql_condition()) checks ALL 10 ICD diagnosis columns
+        # This is a simplified QA check - for full validation, see Phase 4 QA which checks all columns
         f1120_total = cohort_conn_duckdb.sql("""
         SELECT 
             COUNT(*) as total_f1120_records,
@@ -246,16 +270,36 @@ def run_phase2_step1_event_fact_table(context):
         ORDER BY count_by_classification DESC
         """).fetchall()
         
+        # Expanded QA: Check all 10 ICD columns for F1120 (matches Phase 3/4 logic)
+        opioid_icd_condition = get_opioid_icd_sql_condition()
+        f1120_all_columns = cohort_conn_duckdb.sql(f"""
+        SELECT 
+            COUNT(*) as total_f1120_records_all_columns,
+            COUNT(DISTINCT mi_person_key) as distinct_f1120_patients_all_columns
+        FROM unified_event_fact_table
+        WHERE {opioid_icd_condition}
+        """).fetchone()
+        
         if f1120_total and f1120_total[0] > 0:
-            logger.info(f"→ [PHASE 2 STEP 1] F1120 CHECK:")
-            logger.info(f"  Total F1120 records: {f1120_total[0]:,}")
-            logger.info(f"  Distinct F1120 patients: {f1120_total[1]:,}")
+            logger.info(f"→ [PHASE 2 STEP 1] F1120 CHECK (primary column only - simplified QA):")
+            logger.info(f"  Total F1120 records (primary): {f1120_total[0]:,}")
+            logger.info(f"  Distinct F1120 patients (primary): {f1120_total[1]:,}")
             if f1120_by_class:
                 logger.info(f"  F1120 by classification:")
                 for row in f1120_by_class:
                     logger.info(f"    '{row[0]}': {row[1]:,} records")
+            
+            # Log expanded check for comparison
+            if f1120_all_columns and f1120_all_columns[0] > 0:
+                logger.info(f"→ [PHASE 2 STEP 1] F1120 CHECK (all 10 ICD columns - matches Phase 3/4 logic):")
+                logger.info(f"  Total opioid records (all columns): {f1120_all_columns[0]:,}")
+                logger.info(f"  Distinct opioid patients (all columns): {f1120_all_columns[1]:,}")
+                if f1120_all_columns[0] > f1120_total[0]:
+                    logger.info(f"  → Note: {f1120_all_columns[0] - f1120_total[0]:,} additional records found in non-primary ICD columns")
         else:
-            logger.warning(f"→ [PHASE 2 STEP 1] F1120 CHECK: No F1120 records found in unified_event_fact_table")
+            logger.warning(f"→ [PHASE 2 STEP 1] F1120 CHECK: No F1120 records found in unified_event_fact_table (primary column)")
+            if f1120_all_columns and f1120_all_columns[0] > 0:
+                logger.info(f"→ [PHASE 2 STEP 1] F1120 CHECK (all columns): Found {f1120_all_columns[0]:,} opioid records in non-primary columns")
         
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)
@@ -301,8 +345,8 @@ def run_phase2_step2_drug_exposure(context):
     try:
         # Ensure gold-backed views exist if Phase 1 was skipped
         ensure_gold_views(cohort_conn_duckdb, logger, age_band, event_year)
-        # Enable query profiling for this step
-        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase2_step2_drug_exposure.json")
+        # Enable query profiling for this step (partition-safe filename)
+        enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profile_p2_step2_{age_band}_{event_year}.json")
         
         # Create unified drug exposure view
         drug_exposure_sql = f"""
