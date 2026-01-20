@@ -159,8 +159,9 @@ def run_phase1_data_preparation(context):
         logger.info("→ [PHASE 1] Pharmacy data filtered and cleaned")
         
         # QA checks
-        medical_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM medical").fetchone()[0]
-        pharmacy_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM pharmacy").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        medical_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM medical").fetchone()[0]
+        pharmacy_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM pharmacy").fetchone()[0]
         
         logger.info(f"→ [PHASE 1] QA: Medical records: {medical_count:,}")
         logger.info(f"→ [PHASE 1] QA: Pharmacy records: {pharmacy_count:,}")

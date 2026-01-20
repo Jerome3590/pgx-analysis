@@ -237,7 +237,8 @@ def run_phase2_step1_event_fact_table(context):
         logger.info("→ [PHASE 2 STEP 1] Unified event fact table created")
         
         # QA checks
-        total_events = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM unified_event_fact_table").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        total_events = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM unified_event_fact_table").fetchone()[0]
         event_type_dist = cohort_conn_duckdb.sql("""
         SELECT event_type, COUNT(*) as count
         FROM unified_event_fact_table
@@ -372,7 +373,8 @@ def run_phase2_step2_drug_exposure(context):
         logger.info("→ [PHASE 2 STEP 2] Unified drug exposure view created")
         
         # QA checks
-        total_drug_events = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM unified_drug_exposure").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        total_drug_events = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM unified_drug_exposure").fetchone()[0]
         
         logger.info(f"→ [PHASE 2 STEP 2] QA: Total drug exposure events: {total_drug_events:,}")
         

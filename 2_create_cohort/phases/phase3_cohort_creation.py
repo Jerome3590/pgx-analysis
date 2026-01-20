@@ -80,7 +80,8 @@ def run_phase3_step3_final_cohort_fact(context):
         WHERE {opioid_icd_condition}
         """
         execute_sql_with_dev_validation(cohort_conn_duckdb, logger, materialize_opioid_patients_sql)
-        opioid_patient_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_patients_materialized").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        opioid_patient_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_patients_materialized").fetchone()[0]
         logger.info(f"→ [PHASE 3 STEP 3] Materialized {opioid_patient_count:,} opioid patients")
         
         # Check target case counts BEFORE creating cohorts
@@ -599,8 +600,9 @@ def run_phase3_step3_final_cohort_fact(context):
                 logger.debug(f"Could not calculate drug window stats: {e}")
         
         # QA checks
-        opioid_ed_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort").fetchone()[0]
-        ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        opioid_ed_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_ed_cohort").fetchone()[0]
+        ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM ed_non_opioid_cohort").fetchone()[0]
         
         opioid_ed_ratio = cohort_conn_duckdb.sql("""
         SELECT 

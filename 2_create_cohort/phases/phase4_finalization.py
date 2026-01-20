@@ -89,8 +89,9 @@ def run_phase4_complete_pipeline(context):
             raise Exception(f"Cohort views missing: {missing_views}. Phase 3 may have failed silently.")
         
         # Check both cohorts exist and get row counts
-        opioid_ed_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort").fetchone()[0]
-        ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort").fetchone()[0]
+        # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+        opioid_ed_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_ed_cohort").fetchone()[0]
+        ed_non_opioid_count = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM ed_non_opioid_cohort").fetchone()[0]
         
         logger.info(f"→ [PHASE 4] QA: OPIOID_ED cohort records: {opioid_ed_count:,}")
         logger.info(f"→ [PHASE 4] QA: ED_NON_OPIOID cohort records: {ed_non_opioid_count:,}")
@@ -211,7 +212,8 @@ def run_phase4_complete_pipeline(context):
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
-            target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
+            # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+            target_count_check = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_s3_path}")
             else:
@@ -288,7 +290,8 @@ def run_phase4_complete_pipeline(context):
             # Check if it's control-only
             # NOTE: 'target' column is legacy and not used in Phase 4 logic
             # Use 'is_target_case' for actual target/control distinction
-            target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
+            # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
+            target_count_check = cohort_conn_duckdb.sql("SELECT CAST(COUNT(*) AS BIGINT) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
                 logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_s3_path}")
             else:
