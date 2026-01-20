@@ -363,7 +363,7 @@ def main():
         
         # Detect concurrent workers from environment (set by orchestrator/notebook)
         # Priority: PGX_COHORT_WORKERS > MAX_WORKERS > default
-        # NOTE: Notebook should set: os.environ['PGX_COHORT_WORKERS'] = str(MAX_WORKERS)
+        # NOTE: Notebook can set either: os.environ['MAX_WORKERS'] or os.environ['PGX_COHORT_WORKERS']
         concurrent_workers = None
         if os.getenv('PGX_COHORT_WORKERS'):
             concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))

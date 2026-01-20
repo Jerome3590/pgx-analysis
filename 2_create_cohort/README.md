@@ -607,9 +607,10 @@ import os
 # Set MAX_WORKERS (your notebook variable)
 MAX_WORKERS = 3  # or min(3, len(jobs_to_process))
 
-# CRITICAL: Pass MAX_WORKERS to subprocess environment
+# Pass MAX_WORKERS to subprocess environment (code already checks for this!)
 # This allows each worker process to calculate its memory limit dynamically
-os.environ['PGX_COHORT_WORKERS'] = str(MAX_WORKERS)
+os.environ['MAX_WORKERS'] = str(MAX_WORKERS)
+# OR use PGX_COHORT_WORKERS for more explicit naming (both work)
 
 # Now launch workers - each will use ~(60% of total memory / MAX_WORKERS)
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -625,9 +626,11 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
 **Environment Variable Priority:**
 
-1. `PGX_COHORT_WORKERS` (preferred - explicitly set by orchestrator)
-2. `MAX_WORKERS` (fallback - if set in environment)
+1. `PGX_COHORT_WORKERS` (explicit name, preferred for clarity)
+2. `MAX_WORKERS` (works too - code checks for this automatically)
 3. Default: `3` workers (if neither is set)
+
+**Note:** Just set `os.environ['MAX_WORKERS'] = str(MAX_WORKERS)` in your notebook - no need for the extra `PGX_COHORT_WORKERS` step unless you prefer explicit naming.
 
 **Logging:**
 
