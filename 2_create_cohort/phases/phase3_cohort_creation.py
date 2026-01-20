@@ -692,6 +692,3 @@ def run_phase3_step3_final_cohort_fact(context):
         cleanup_duckdb_temp_files(logger)
         raise
 
-
-        raise
-
