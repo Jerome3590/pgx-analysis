@@ -670,6 +670,148 @@ for col in columns:
 conn.sql("SELECT COUNT(*) FROM 's3://bucket/partition/**/*.parquet'")
 ```
 
+## SQL Query Best Practices and Critical Lessons Learned
+
+### INT32 Overflow in COUNT(*) Queries
+
+**Problem (January 2026):**
+When `COUNT(*)` returns values exceeding 2,147,483,647 (INT32 maximum), DuckDB returns a DOUBLE, and the Python connector attempts to cast it to INT32, causing:
+```
+Conversion Error: Type DOUBLE with value 22438400000.0 can't be cast because the value is out of range for the destination type INT32
+```
+
+**Root Cause:**
+- DuckDB's `COUNT(*)` can return DOUBLE for very large counts
+- Python DuckDB connector tries to cast to INT32 by default
+- Values > 2.1 billion cause overflow
+
+**Solution:**
+```python
+# ❌ WRONG - Can cause INT32 overflow
+count = conn.sql("SELECT COUNT(*) FROM large_table").fetchone()[0]
+
+# ✅ CORRECT - Use ::BIGINT and Python conversion
+count_result = conn.sql("SELECT COUNT(*)::BIGINT FROM large_table").fetchone()[0]
+count = int(count_result) if count_result is not None else 0
+```
+
+**Best Practice:**
+- **Always use `COUNT(*)::BIGINT`** for any COUNT query that might return large values
+- **Convert to int in Python** after fetching to handle edge cases
+- **Apply to all COUNT queries**: `COUNT(*)`, `COUNT(DISTINCT ...)`, `COUNT(CASE WHEN ...)`
+
+**Affected Queries:**
+- All COUNT(*) operations in QA checks
+- COUNT(DISTINCT ...) for patient counts
+- COUNT(CASE WHEN ...) in ratio calculations
+- Any aggregation that might exceed INT32 range
+
+### Cartesian Product Prevention in CTEs with UNION ALL
+
+**Problem (January 2026):**
+CTEs using `UNION ALL` that are later LEFT JOINed can create cartesian products, multiplying row counts exponentially. Example: 57M events became 22.4B rows (392x multiplication).
+
+**Root Cause:**
+```sql
+-- ❌ PROBLEMATIC: UNION ALL can create multiple rows per patient
+control_reference_dates AS (
+    SELECT * FROM non_ed_reference
+    UNION ALL
+    SELECT * FROM fallback_medical_reference
+    UNION ALL
+    SELECT * FROM final_fallback_reference
+)
+-- Later LEFT JOINed to events_with_dates → cartesian product!
+```
+
+**Solution:**
+```sql
+-- ✅ CORRECT: Ensure exactly one row per patient
+control_reference_dates AS (
+    WITH all_reference_dates AS (
+        SELECT * FROM non_ed_reference
+        UNION ALL
+        SELECT * FROM fallback_medical_reference
+        UNION ALL
+        SELECT * FROM final_fallback_reference
+    )
+    -- CRITICAL: GROUP BY to prevent cartesian product
+    SELECT 
+        mi_person_key,
+        MIN(reference_date) as reference_date
+    FROM all_reference_dates
+    GROUP BY mi_person_key
+)
+```
+
+**Best Practices:**
+1. **Always GROUP BY** on CTEs that will be LEFT JOINed, even if NOT EXISTS clauses should prevent duplicates
+2. **Use MIN() or MAX()** to pick a single value if multiple rows could exist (defensive programming)
+3. **Validate row counts** in QA checks - if count is unexpectedly high, check for cartesian products
+4. **Prefer UNION over UNION ALL** when you need distinct values, or add GROUP BY after UNION ALL
+
+**Red Flags to Watch For:**
+- CTEs with UNION ALL that are later JOINed
+- Row counts that are 100x+ larger than expected
+- Multiple LEFT JOINs to CTEs that might have duplicates
+
+### Logging Requirements for SQL Operations
+
+**Critical QA Checks to Log:**
+
+1. **Row Count Validation:**
+```python
+# Always log expected vs actual row counts
+expected_max = total_events_in_source_table
+actual_count = conn.sql("SELECT COUNT(*)::BIGINT FROM result_table").fetchone()[0]
+if actual_count > expected_max * 2:
+    logger.error(f"⚠️ Row count suspiciously high: {actual_count:,} (expected max: {expected_max:,})")
+    logger.error("   Possible cartesian product or row multiplication issue!")
+```
+
+2. **Count Query Results:**
+```python
+# Log all COUNT results with formatting
+count = int(conn.sql("SELECT COUNT(*)::BIGINT FROM table").fetchone()[0])
+logger.info(f"→ QA: Total records: {count:,}")  # Use :, for thousands separator
+```
+
+3. **Before/After Comparison:**
+```python
+# Log counts before and after operations
+before_count = int(conn.sql("SELECT COUNT(*)::BIGINT FROM source").fetchone()[0])
+# ... perform operation ...
+after_count = int(conn.sql("SELECT COUNT(*)::BIGINT FROM result").fetchone()[0])
+logger.info(f"→ Operation: {before_count:,} → {after_count:,} rows")
+if after_count > before_count * 10:
+    logger.warning(f"⚠️ Significant row increase - possible multiplication issue")
+```
+
+4. **CTE Validation:**
+```python
+# Validate CTE row counts before using in JOINs
+cte_count = int(conn.sql("SELECT COUNT(*)::BIGINT FROM cte_name").fetchone()[0])
+distinct_count = int(conn.sql("SELECT COUNT(DISTINCT mi_person_key)::BIGINT FROM cte_name").fetchone()[0])
+if cte_count != distinct_count:
+    logger.warning(f"⚠️ CTE has duplicates: {cte_count:,} rows, {distinct_count:,} distinct patients")
+    logger.warning("   This will cause cartesian product in JOINs!")
+```
+
+**Required Logging Pattern:**
+```python
+# Standard pattern for all COUNT operations
+def safe_count_query(conn, query, logger, context=""):
+    """Safely execute COUNT query with BIGINT casting and logging."""
+    try:
+        result = conn.sql(f"SELECT COUNT(*)::BIGINT FROM ({query})").fetchone()[0]
+        count = int(result) if result is not None else 0
+        logger.info(f"→ {context} Count: {count:,}")
+        return count
+    except Exception as e:
+        logger.error(f"❌ Count query failed: {e}")
+        raise
+```
+
 ## Best Practices Summary
 
 1. **Keep it Simple**: Use direct, simple DuckDB connection setup
@@ -689,6 +831,9 @@ conn.sql("SELECT COUNT(*) FROM 's3://bucket/partition/**/*.parquet'")
 9. **Monitor Memory**: Log at key stages, stay below 80% system memory
 10. **Use Unique Identifiers**: Prevent conflicts between workers
 11. **Clean Up Resources**: Drop temporary objects when done
+12. **Always Use BIGINT for COUNT**: Use `COUNT(*)::BIGINT` and convert to int in Python
+13. **Prevent Cartesian Products**: Always GROUP BY on CTEs that will be JOINed, even with UNION ALL
+14. **Validate Row Counts**: Log and compare expected vs actual counts to catch multiplication issues early
 
 ## Migration Guide
 
