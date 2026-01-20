@@ -122,7 +122,7 @@ DuckDB handling has been fully aligned with the standardized system from the pha
 - **Demographics:** imputed age, race, gender, payer type, and location
 - **Medical Events:** ICD codes, CCS classification, provider and service metadata, **HCG fields** (hcg_setting, hcg_line, hcg_detail)
 - **Pharmacy Events:** drug name, therapeutic class, and exposure timing
-- **Cohort Metadata:** target/control indicator, cohort label, **cohort type** (OPIOID_ED, NON_OPIOID_ED, NON_ED), creation timestamp
+- **Cohort Metadata:** target/control indicator (`is_target_case`), legacy `target` column, cohort label, **cohort type** (OPIOID_ED, NON_OPIOID_ED, NON_ED), time window target columns (polypharmacy only), creation timestamp
 
 ### Cohort Classification Column
 
@@ -143,9 +143,27 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 | `first_ed_non_opioid_date` | STRING | Date of first non-opioid ED event (if any) | ❌ NULL | ✅ Populated |
 | `days_to_target_event` | INTEGER | Days from event to first target event | ❌ NULL* | ✅ Calculated |
 | `event_date` | STRING | Date of the event | ✅ All events | ✅ All events |
-| `event_sequence` | INTEGER | Sequential order of events per patient | ✅ All events | ✅ All events |
+| `event_sequence` | INTEGER | Sequential order of events per patient (globally ordered across medical and pharmacy) | ✅ All events | ✅ All events |
 
 \* For OPIOID_ED cohort, `days_to_target_event` is NULL. Users can calculate it from `event_date` and `first_opioid_ed_date` if needed.
+
+#### Target Case Indicators
+
+| Field | Type | Description | OPIOID_ED | ED_NON_OPIOID |
+| :-- | :-- | :-- | :-- | :-- |
+| `target` | INTEGER | **Legacy column** - Always 1 for OPIOID_ED/ED_NON_OPIOID cohorts (use `is_target_case` instead) | ✅ Always 1 | ✅ Always 1 |
+| `is_target_case` | INTEGER | Main target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (uses default time window) |
+| `is_target_case_7d` | INTEGER | Target case indicator for 7-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
+| `is_target_case_14d` | INTEGER | Target case indicator for 14-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
+| `is_target_case_21d` | INTEGER | Target case indicator for 21-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
+| `is_target_case_30d` | INTEGER | Target case indicator for 30-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
+| `is_target_case_45d` | INTEGER | Target case indicator for 45-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
+
+**Important Notes:**
+- **`target` column is legacy** - Always set to 1 for both cohorts. Use `is_target_case` for actual target/control distinction.
+- **Time window columns** (`is_target_case_7d` through `is_target_case_45d`) are only populated for the **ED_NON_OPIOID (polypharmacy) cohort**.
+- These multiclass target columns enable analysis of which time window (7, 14, 21, 30, or 45 days) has the most predictive power for drug events.
+- The main `is_target_case` column uses the default time window (configurable via `--time-window-days`, default: 14 days).
 
 #### Cohort-Specific Temporal Behavior
 
@@ -164,20 +182,24 @@ The pipeline includes temporal analysis fields that differ between cohorts:
   WHERE first_opioid_ed_date IS NOT NULL
   ```
 
-**ED_NON_OPIOID Cohort:**
-- **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
+**ED_NON_OPIOID Cohort (Polypharmacy):**
+- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a configurable time window (default: 14 days) of drug events
+- **Multiple Time Windows:** Creates multiclass target columns for 7, 14, 21, 30, and 45-day windows to enable analysis of predictive power
+- **Time Window Lookback:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:** 
-  - Reference date: First ED_NON_OPIOID event
-  - Includes: Medical events OR drug events within 30 days before target
+  - Reference date: First ED_NON_OPIOID event within time window of drug event
+  - Includes: Medical events OR drug events within time window before target
+  - Multiple target indicators: `is_target_case` (main, uses default window), plus `is_target_case_7d`, `is_target_case_14d`, `is_target_case_21d`, `is_target_case_30d`, `is_target_case_45d`
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event if none)
-  - Includes: Medical events OR drug events within 30 days before reference date
+  - Includes: Medical events OR drug events within time window before reference date
+  - Excluded if they have HCG target events in ANY of the defined time windows
   - **Balanced temporal windows** ensure fair comparison between targets and controls
 - **First Target Date:** `first_ed_non_opioid_date` is populated for target cases only (NULL for controls)
 - **Days Calculation:** `days_to_target_event` is pre-calculated for all events
-  - For targets: Days to first ED_NON_OPIOID event
+  - For targets: Days to first ED_NON_OPIOID event within time window
   - For controls: Days to reference date (first non-ED medical event)
-  - Positive values: Event occurred before reference date (included in 30-day window)
+  - Positive values: Event occurred before reference date (included in time window)
   - Zero: Event occurred on reference date
   - Negative values: Event occurred after reference date (filtered out for drug events)
 
@@ -239,7 +261,8 @@ Control selection ensures matched demographics:
 When a partition has **zero target cases** (no F1120 codes or HCG ED visits), the pipeline creates a **control-only cohort**:
 - Uses pre-computed average target count from all partitions
 - Samples `avg_targets * 5` controls (maintains 5:1 structure)
-- All records marked as `is_target_case = 0` and `target = 0`
+- All records marked as `is_target_case = 0` and `target = 0` (legacy)
+- Time window columns (`is_target_case_7d` through `is_target_case_45d`) are all set to 0 for polypharmacy cohort
 - Ensures every partition has a cohort file for complete model training coverage
 - Logs clearly indicate "CONTROL-ONLY" status
 
@@ -280,6 +303,13 @@ This creates `cohort_target_averages.json` in the project root, which Phase 3 us
 ```bash
 # Run with pre-computed averages (recommended)
 python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
+
+# Run with custom time window for polypharmacy cohort (default: 14 days)
+python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both --time-window-days 30
+
+# Available time windows: 7, 14, 21, 30, 45 days
+# Note: Time window only applies to ED_NON_OPIOID (polypharmacy) cohort
+# OPIOID_ED cohort uses target event itself (no time window)
 ```
 
 
@@ -294,10 +324,19 @@ python 0_create_cohort.py \
   --age-band "65-74" \
   --event-year 2019 \
   --cohort both \
+  --time-window-days 30 \
+  --concurrent-workers 3 \
   --threads 8 \
   --mem-gb 16 \
   --tmp-dir /tmp/duckdb_cohort
 ```
+
+**Time Window Configuration:**
+- `--time-window-days`: Time window for polypharmacy cohort HCG target events (default: 14 days)
+- Options: `7`, `14`, `21`, `30`, `45`
+- Only applies to ED_NON_OPIOID (polypharmacy) cohort
+- OPIOID_ED cohort always uses target event itself (no time window)
+- All time window columns (7d, 14d, 21d, 30d, 45d) are created regardless of default window setting
 
 
 ***
@@ -374,6 +413,28 @@ Example QA log:
 | Duplication | High | Low | 80% reduced |
 
 Runs efficiently on 8–16 GB memory and supports 10M+ events per cohort.
+
+### Recent Technical Optimizations
+
+The pipeline has been optimized based on deep technical reviews to ensure correctness, performance, and reproducibility:
+
+**SQL Query Optimizations:**
+- **NOT EXISTS instead of NOT IN:** All subqueries use `NOT EXISTS` for safer NULL handling and better DuckDB performance
+- **Hash-based deterministic sampling:** Replaced `ORDER BY RANDOM()` with hash-based sampling (`ABS(hash(mi_person_key)) % 10000`) for faster, deterministic control selection
+- **Global event ordering:** `event_sequence` is now computed AFTER `UNION ALL` to ensure true chronological ordering across medical and pharmacy events
+- **Materialized CTEs:** Frequently used subqueries (e.g., `opioid_patients`) are materialized once to avoid repeated computation
+
+**Code Quality Improvements:**
+- **ICD normalization consistency:** Centralized normalization logic to prevent silent cohort drift across phases
+- **Target column fix:** `target` column now correctly reflects `is_target_case` instead of hardcoded values
+- **Partition-safe profiling:** Profiling filenames include `{age_band}_{event_year}` to prevent overwrites in parallel runs
+- **Corrupted file detection:** Local sync checks file size > 0 to detect and handle corrupted files
+
+**Pipeline Safety:**
+- **Fallback warnings:** Clear warnings when fallback cohort logic is used (Phase 3 skipped)
+- **Schema validation:** Comprehensive schema checks with dev validation mode for debugging
+- **Memory management:** Dynamic memory limits based on concurrent workers to prevent OOM
+- **DuckDB temp cleanup:** Automatic cleanup of DuckDB temporary files at startup and completion
 
 ### Opioid_ed Age-Band Cohort Sizes (F1120, 2016–2019)
 
@@ -508,6 +569,12 @@ print(state.get_progress())
 - Model training code should filter by `is_target_case = 1` if only targets are needed
 - Control-only cohorts can be used as negative-only examples
 - Consider excluding from training or weighting differently in loss function
+
+**Target Column Usage:**
+
+- **Use `is_target_case`** for target/control distinction (not the legacy `target` column)
+- **Time window columns** (`is_target_case_7d` through `is_target_case_45d`) are available for multiclass analysis in polypharmacy cohort
+- The main `is_target_case` uses the default time window (configurable via `--time-window-days`)
 
 ***
 
