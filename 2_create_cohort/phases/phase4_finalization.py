@@ -19,6 +19,9 @@ from .common import (
 )
 import os
 import subprocess
+import shutil
+from pathlib import Path
+from py_helpers.env_utils import is_linux
 
 
 def run_phase4_complete_pipeline(context):
@@ -44,14 +47,9 @@ def run_phase4_complete_pipeline(context):
         ensure_unified_views(cohort_conn_duckdb, logger)
         ensure_cohort_views(cohort_conn_duckdb, logger)
         
-        # Optimize S3 settings for large file uploads in Phase 4
-        # Increase HTTP timeout and retries for large cohort uploads
-        cohort_conn_duckdb.sql("SET http_timeout=600000")  # 10 minutes (up from 5 minutes default)
-        cohort_conn_duckdb.sql("SET http_retries=10")  # More retries for large uploads
-        cohort_conn_duckdb.sql("SET http_retry_wait_ms=2000")  # 2s between retries
-        # Increase S3 uploader threads for parallel uploads (helps with large files)
-        cohort_conn_duckdb.sql("SET s3_uploader_thread_limit=16")
-        logger.info("→ [PHASE 4] S3 upload settings optimized for large cohort files")
+        # Note: We now write to local NVMe first, then use aws s3 sync
+        # This is faster and more reliable than DuckDB's direct S3 COPY
+        logger.info("→ [PHASE 4] Using local staging + aws s3 sync for cohort uploads (faster and more reliable)")
         
         # Enable query profiling for this phase
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase4_complete_pipeline.json")
@@ -93,26 +91,67 @@ def run_phase4_complete_pipeline(context):
         if ed_non_opioid_count == 0:
             logger.warning(f"⚠️ [PHASE 4] WARNING: ED_NON_OPIOID cohort is empty for {age_band}/{event_year}")
         
-        # Save to S3
+        # Save cohorts: Write to local NVMe first, then sync to S3
         from py_helpers.s3_utils import get_output_paths, get_cohort_parquet_path
+        from py_helpers.env_utils import get_data_root
+        
+        # Determine local staging directory (prefer NVMe on Linux)
+        if is_linux():
+            local_staging = Path("/mnt/nvme/cohorts_staging")
+        else:
+            # Windows fallback
+            local_staging = Path(os.path.join(os.path.expanduser("~"), "cohorts_staging"))
+        local_staging.mkdir(parents=True, exist_ok=True)
         
         # Save OPIOID_ED cohort (always save, even if control-only)
-        opioid_ed_out = get_cohort_parquet_path("opioid_ed", age_band, event_year)
+        opioid_ed_s3_path = get_cohort_parquet_path("opioid_ed", age_band, event_year)
         if opioid_ed_count > 0:
-            logger.info(f"→ [PHASE 4] Saving OPIOID_ED cohort ({opioid_ed_count:,} records) to S3...")
+            # Write to local NVMe first (much faster)
+            opioid_ed_local = local_staging / f"opioid_ed_{age_band}_{event_year}.parquet"
+            logger.info(f"→ [PHASE 4] Writing OPIOID_ED cohort ({opioid_ed_count:,} records) to local: {opioid_ed_local}")
             cohort_conn_duckdb.sql(f"""
-            COPY opioid_ed_cohort TO '{opioid_ed_out}' 
+            COPY opioid_ed_cohort TO '{opioid_ed_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
-            logger.info(f"→ [PHASE 4] OPIOID_ED cohort save completed")
+            logger.info(f"→ [PHASE 4] OPIOID_ED cohort written to local")
+            
+            # Sync to S3 using aws s3 sync (more reliable for large files)
+            logger.info(f"→ [PHASE 4] Syncing OPIOID_ED cohort to S3: {opioid_ed_s3_path}")
+            s3_dir = str(opioid_ed_s3_path).rsplit('/', 1)[0]  # Get directory path
+            local_file = str(opioid_ed_local)
+            
+            # Use aws s3 cp for single file (more efficient than sync for one file)
+            aws_cli = shutil.which("aws")
+            if aws_cli:
+                result = subprocess.run(
+                    [aws_cli, "s3", "cp", local_file, opioid_ed_s3_path, "--no-progress"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3600  # 1 hour timeout
+                )
+                if result.returncode == 0:
+                    logger.info(f"→ [PHASE 4] OPIOID_ED cohort synced to S3 successfully")
+                    # Clean up local file after successful sync
+                    try:
+                        opioid_ed_local.unlink()
+                        logger.info(f"→ [PHASE 4] Cleaned up local OPIOID_ED cohort file")
+                    except Exception as e:
+                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                else:
+                    logger.error(f"❌ [PHASE 4] Failed to sync OPIOID_ED cohort to S3: {result.stderr}")
+                    raise Exception(f"S3 sync failed: {result.stderr}")
+            else:
+                logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
+                raise Exception("AWS CLI not available")
+            
             # Check if it's control-only
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM opioid_ed_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
-                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_out}")
+                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved (CONTROL-ONLY) to S3: {opioid_ed_s3_path}")
             else:
-                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved to S3: {opioid_ed_out}")
+                logger.info(f"→ [PHASE 4] OPIOID_ED cohort saved to S3: {opioid_ed_s3_path}")
         else:
-            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty OPIOID_ED cohort to {opioid_ed_out}")
+            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty OPIOID_ED cohort to {opioid_ed_s3_path}")
 
         # Optional: run QA notebook for opioid_ed cohort if configured
         qa_nb = os.environ.get("PGX_QA_NOTEBOOK")
@@ -122,7 +161,7 @@ def run_phase4_complete_pipeline(context):
                 cmd = [
                     "papermill", qa_nb, out_nb,
                     "-p", "cohort_name", "opioid_ed",
-                    "-p", "cohort_parquet_path", opioid_ed_out,
+                    "-p", "cohort_parquet_path", opioid_ed_s3_path,
                     "-p", "age_band", str(age_band),
                     "-p", "event_year", str(event_year),
                 ]
@@ -133,25 +172,53 @@ def run_phase4_complete_pipeline(context):
                 logger.warning(f"⚠ QA notebook failed for opioid_ed: {nb_e}")
         
         # Save ED_NON_OPIOID cohort (always save, even if control-only)
-        ed_non_opioid_out = get_cohort_parquet_path("ed_non_opioid", age_band, event_year)
+        ed_non_opioid_s3_path = get_cohort_parquet_path("ed_non_opioid", age_band, event_year)
         if ed_non_opioid_count > 0:
-            logger.info(f"→ [PHASE 4] Saving ED_NON_OPIOID cohort ({ed_non_opioid_count:,} records) to S3...")
-            # For large cohorts, this S3 upload can take significant time
-            # Increase S3 uploader threads for better performance
-            cohort_conn_duckdb.sql("SET s3_uploader_thread_limit=16")
+            # Write to local NVMe first (much faster, especially for large cohorts)
+            ed_non_opioid_local = local_staging / f"ed_non_opioid_{age_band}_{event_year}.parquet"
+            logger.info(f"→ [PHASE 4] Writing ED_NON_OPIOID cohort ({ed_non_opioid_count:,} records) to local: {ed_non_opioid_local}")
             cohort_conn_duckdb.sql(f"""
-            COPY ed_non_opioid_cohort TO '{ed_non_opioid_out}' 
+            COPY ed_non_opioid_cohort TO '{ed_non_opioid_local}' 
             (FORMAT PARQUET, COMPRESSION SNAPPY)
             """)
-            logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort save completed")
+            logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort written to local")
+            
+            # Sync to S3 using aws s3 cp (more reliable for large files, can resume on failure)
+            logger.info(f"→ [PHASE 4] Syncing ED_NON_OPIOID cohort to S3: {ed_non_opioid_s3_path}")
+            local_file = str(ed_non_opioid_local)
+            
+            # Use aws s3 cp for single file
+            aws_cli = shutil.which("aws")
+            if aws_cli:
+                result = subprocess.run(
+                    [aws_cli, "s3", "cp", local_file, ed_non_opioid_s3_path, "--no-progress"],
+                    capture_output=True,
+                    text=True,
+                    timeout=7200  # 2 hour timeout for very large cohorts
+                )
+                if result.returncode == 0:
+                    logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort synced to S3 successfully")
+                    # Clean up local file after successful sync
+                    try:
+                        ed_non_opioid_local.unlink()
+                        logger.info(f"→ [PHASE 4] Cleaned up local ED_NON_OPIOID cohort file")
+                    except Exception as e:
+                        logger.warning(f"⚠️ [PHASE 4] Could not clean up local file: {e}")
+                else:
+                    logger.error(f"❌ [PHASE 4] Failed to sync ED_NON_OPIOID cohort to S3: {result.stderr}")
+                    raise Exception(f"S3 sync failed: {result.stderr}")
+            else:
+                logger.error("❌ [PHASE 4] AWS CLI not found, cannot sync to S3")
+                raise Exception("AWS CLI not available")
+            
             # Check if it's control-only
             target_count_check = cohort_conn_duckdb.sql("SELECT COUNT(*) FROM ed_non_opioid_cohort WHERE is_target_case = 1").fetchone()[0]
             if target_count_check == 0:
-                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_out}")
+                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved (CONTROL-ONLY) to S3: {ed_non_opioid_s3_path}")
             else:
-                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved to S3: {ed_non_opioid_out}")
+                logger.info(f"→ [PHASE 4] ED_NON_OPIOID cohort saved to S3: {ed_non_opioid_s3_path}")
         else:
-            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty ED_NON_OPIOID cohort to {ed_non_opioid_out}")
+            logger.warning(f"⚠️ [PHASE 4] Skipping save of empty ED_NON_OPIOID cohort to {ed_non_opioid_s3_path}")
 
         # Optional: run QA notebook for ed_non_opioid cohort if configured
         qa_nb = os.environ.get("PGX_QA_NOTEBOOK")
@@ -161,7 +228,7 @@ def run_phase4_complete_pipeline(context):
                 cmd = [
                     "papermill", qa_nb, out_nb,
                     "-p", "cohort_name", "ed_non_opioid",
-                    "-p", "cohort_parquet_path", ed_non_opioid_out,
+                    "-p", "cohort_parquet_path", ed_non_opioid_s3_path,
                     "-p", "age_band", str(age_band),
                     "-p", "event_year", str(event_year),
                 ]
