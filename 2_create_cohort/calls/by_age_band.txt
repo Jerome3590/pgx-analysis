@@ -21,9 +21,10 @@ def check_existing_cohorts(age_band):
 
 
 def run_cohort(job):
-    """Wrap the centralized runner and bind script_path/python_bin/target_icd."""
+    """Wrap the centralized runner and bind script_path/python_bin/target_icd/concurrent_workers."""
     target_icd = os.environ.get('PGX_TARGET_ICD_CODES', 'F1120')
-    cb = functools.partial(cu_run_cohort, script_path=script_path, python_bin=python_bin, target_icd=target_icd)
+    # CRITICAL: Pass MAX_WORKERS so each subprocess knows total concurrent workers for memory limit calculation
+    cb = functools.partial(cu_run_cohort, script_path=script_path, python_bin=python_bin, target_icd=target_icd, concurrent_workers=MAX_WORKERS)
     return cb(job)
 
 # Check S3 for cohorts and locks

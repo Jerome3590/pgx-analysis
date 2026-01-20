@@ -53,8 +53,9 @@ def process_job_batch(job_batch, batch_num, total_batches):
     print(f"\nProcessing batch {batch_num}/{total_batches} with {len(job_batch)} jobs...", flush=True)
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # pass script_path, python_bin and TARGET_ICD to the shared run_cohort helper
-        future_to_job = {executor.submit(run_cohort, job, script_path, python_bin, TARGET_ICD): job for job in job_batch}
+        # pass script_path, python_bin, TARGET_ICD, and MAX_WORKERS to the shared run_cohort helper
+        # CRITICAL: Pass MAX_WORKERS so each subprocess knows total concurrent workers for memory limit calculation
+        future_to_job = {executor.submit(run_cohort, job, script_path, python_bin, TARGET_ICD, MAX_WORKERS): job for job in job_batch}
         total_jobs = len(future_to_job)
         completed = 0
         
