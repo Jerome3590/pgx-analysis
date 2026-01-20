@@ -678,7 +678,7 @@ def ensure_cohort_views(conn, logger):
             ),
             sample_threshold AS (
                 SELECT 
-                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS BIGINT) as threshold
             )
             SELECT 
                 mi_person_key
@@ -762,7 +762,7 @@ def ensure_cohort_views(conn, logger):
             ),
             sample_threshold AS (
                 SELECT 
-                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+                    CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS BIGINT) as threshold
             )
             SELECT 
                 mi_person_key

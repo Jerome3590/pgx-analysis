@@ -216,7 +216,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     -- Calculate hash threshold to get approximately needed_count controls
                     -- Use modulo 10000 for fine-grained control (adjust if needed)
                     SELECT 
-                        CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+                        CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS BIGINT) as threshold
                 )
                 SELECT 
                     mi_person_key
@@ -267,7 +267,7 @@ def run_phase3_step3_final_cohort_fact(context):
             sampled_controls AS (
                 SELECT mi_person_key
                 FROM control_candidates
-                WHERE ABS(hash(mi_person_key)) % 10000 < CAST(ROUND({control_limit}::DOUBLE / GREATEST((SELECT COUNT(*) FROM control_candidates), 1) * 10000) AS INTEGER)
+                WHERE ABS(hash(mi_person_key)) % 10000 < CAST(ROUND({control_limit}::DOUBLE / GREATEST((SELECT COUNT(*) FROM control_candidates), 1) * 10000) AS BIGINT)
                 LIMIT {control_limit}
             )
             SELECT 
@@ -421,7 +421,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 ),
                 sample_threshold AS (
                     SELECT 
-                        CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS INTEGER) as threshold
+                        CAST(ROUND((SELECT needed FROM needed_count)::DOUBLE / GREATEST((SELECT available FROM available_controls), 1) * 10000) AS BIGINT) as threshold
                 )
                 SELECT 
                     mi_person_key
@@ -585,7 +585,7 @@ def run_phase3_step3_final_cohort_fact(context):
             sampled_controls AS (
                 SELECT mi_person_key
                 FROM control_candidates
-                WHERE ABS(hash(mi_person_key)) % 10000 < CAST(ROUND({control_limit}::DOUBLE / GREATEST((SELECT COUNT(*) FROM control_candidates), 1) * 10000) AS INTEGER)
+                WHERE ABS(hash(mi_person_key)) % 10000 < CAST(ROUND({control_limit}::DOUBLE / GREATEST((SELECT COUNT(*) FROM control_candidates), 1) * 10000) AS BIGINT)
                 LIMIT {control_limit}
             )
              SELECT 
