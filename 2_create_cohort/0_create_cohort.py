@@ -348,11 +348,6 @@ def main():
         logger.info("→ [STARTUP] Cleaning up old DuckDB temp files...")
         cleanup_duckdb_temp_files(logger)
         
-        # Cleanup old DuckDB temp files at startup (from previous runs/crashes)
-        from phases.common import cleanup_duckdb_temp_files
-        logger.info("→ [STARTUP] Cleaning up old DuckDB temp files...")
-        cleanup_duckdb_temp_files(logger)
-        
         # Setup optimized DuckDB connection with parallelization
         # Since we're processing a single partition, use multiple threads for better performance
         # Use worker-specific temp directory (with process PID) to avoid conflicts when running multiple cohorts in parallel
@@ -469,6 +464,8 @@ def main():
         # Cleanup
         try:
             cleanup_persistent_tables(context)
+            # Clean up DuckDB temp files after successful completion
+            cleanup_duckdb_temp_files(logger)
         except Exception as e:
             logger.warning(f"Cleanup encountered an issue: {e}")
         
