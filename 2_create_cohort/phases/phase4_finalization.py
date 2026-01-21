@@ -166,6 +166,46 @@ def run_phase4_complete_pipeline(context):
         logger.info(f"  HCG target patients: {hcg_ed_non_opioid_final[2]:,}")
         logger.info(f"  HCG target patients with drug events: {hcg_ed_non_opioid_final[3]:,}")
         
+        # Verify multiclass target columns exist in ED_NON_OPIOID cohort
+        logger.info("→ [PHASE 4] ED_NON_OPIOID COHORT QA (Schema validation - multiclass columns):")
+        schema_check_df = cohort_conn_duckdb.sql("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'ed_non_opioid_cohort'
+        ORDER BY column_name
+        """).fetchdf()
+        schema_columns = schema_check_df['column_name'].tolist() if not schema_check_df.empty else []
+        
+        required_multiclass_columns = ['is_target_case_7d', 'is_target_case_14d', 'is_target_case_21d', 'is_target_case_30d', 'is_target_case_45d']
+        missing_columns = [col for col in required_multiclass_columns if col not in schema_columns]
+        found_columns = [col for col in required_multiclass_columns if col in schema_columns]
+        
+        if missing_columns:
+            logger.error(f"❌ [PHASE 4] ED_NON_OPIOID cohort missing multiclass columns: {missing_columns}")
+            logger.error(f"   Found columns: {found_columns}")
+            logger.error(f"   All available columns: {schema_columns}")
+            raise Exception(f"ED_NON_OPIOID cohort table missing required multiclass target columns: {missing_columns}. Phase 3 may have failed to create these columns.")
+        else:
+            logger.info(f"✓ All required multiclass columns present: {found_columns}")
+            
+            # Log counts for each multiclass column to verify they're populated
+            try:
+                multiclass_counts_df = cohort_conn_duckdb.sql("""
+                SELECT 
+                    CAST(COUNT(CASE WHEN is_target_case_7d = 1 THEN 1 END) AS BIGINT) as count_7d,
+                    CAST(COUNT(CASE WHEN is_target_case_14d = 1 THEN 1 END) AS BIGINT) as count_14d,
+                    CAST(COUNT(CASE WHEN is_target_case_21d = 1 THEN 1 END) AS BIGINT) as count_21d,
+                    CAST(COUNT(CASE WHEN is_target_case_30d = 1 THEN 1 END) AS BIGINT) as count_30d,
+                    CAST(COUNT(CASE WHEN is_target_case_45d = 1 THEN 1 END) AS BIGINT) as count_45d
+                FROM ed_non_opioid_cohort
+                """).fetchdf()
+                if not multiclass_counts_df.empty:
+                    counts = multiclass_counts_df.iloc[0]
+                    logger.info(f"  Multiclass column target counts:")
+                    logger.info(f"    7d: {int(counts['count_7d']):,} | 14d: {int(counts['count_14d']):,} | 21d: {int(counts['count_21d']):,} | 30d: {int(counts['count_30d']):,} | 45d: {int(counts['count_45d']):,}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not calculate multiclass column counts: {e}")
+        
         # Warn if cohorts are empty
         if opioid_ed_count == 0:
             logger.warning(f"⚠️ [PHASE 4] WARNING: OPIOID_ED cohort is empty for {age_band}/{event_year}")

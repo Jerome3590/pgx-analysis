@@ -594,6 +594,13 @@ def run_phase3_step3_final_cohort_fact(context):
                  'ED_NON_OPIOID' as cohort_name,
                  'NON_ED' as cohort,
                  0 as is_target_case,
+                 -- Multiclass target columns (all 0 for control-only cohort)
+                 -- Included for schema consistency when joining cohorts
+                 0 as is_target_case_7d,
+                 0 as is_target_case_14d,
+                 0 as is_target_case_21d,
+                 0 as is_target_case_30d,
+                 0 as is_target_case_45d,
                  NULL as first_opioid_ed_date,
                  NULL as first_ed_non_opioid_date,
                  NULL as days_to_target_event
