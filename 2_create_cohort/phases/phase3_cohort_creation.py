@@ -289,6 +289,12 @@ def run_phase3_step3_final_cohort_fact(context):
         if ed_non_opioid_case_count > 0:
             # HIGH-IMPACT FIX #4: Union HCG exclusion windows into single exclusion set
             # This reduces planner load, temp tables, and memory pressure
+            # FIX: Multiclass target windows (7d, 14d, 21d, 30d, 45d) are now computed independently
+            # - target_cases_any: cohort membership based on max window (45d) - includes ALL qualifying patients
+            # - target_cases_main: main label (is_target_case) based on time_window_days (e.g., 14d)
+            # - Multiclass flags (is_target_case_7d, etc.) are set independently for each window
+            # - This allows patients who qualify only at longer windows (e.g., 14d but not 7d) to be included
+            # - Pharmacy events are included up to 45 days to support all multiclass windows
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH hcg_target_events AS (
@@ -311,7 +317,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM unified_event_fact_table
                 WHERE event_type = 'pharmacy'
             ),
-            -- Create all time window pairs
+            -- Create all time window pairs (for multiclass flags)
             drug_hcg_pairs_7d AS (
                 SELECT DISTINCT de.mi_person_key
                 FROM drug_events de
@@ -347,6 +353,27 @@ def run_phase3_step3_final_cohort_fact(context):
                     AND hte.hcg_event_date >= de.drug_event_date
                     AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
             ),
+            -- FIX: Create dated pairs for main window and max window (needed for first_target_dates)
+            drug_hcg_pairs_main AS (
+                SELECT DISTINCT
+                    de.mi_person_key,
+                    de.drug_event_date,
+                    hte.hcg_event_date
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL {time_window_days} DAY)
+            ),
+            drug_hcg_pairs_45d_dates AS (
+                SELECT DISTINCT
+                    de.mi_person_key,
+                    de.drug_event_date,
+                    hte.hcg_event_date
+                FROM drug_events de
+                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                    AND hte.hcg_event_date >= de.drug_event_date
+                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+            ),
             -- HIGH-IMPACT FIX #4: Union all HCG exclusion windows into single set
             all_hcg_exclusions AS (
                 SELECT mi_person_key FROM drug_hcg_pairs_7d
@@ -359,43 +386,36 @@ def run_phase3_step3_final_cohort_fact(context):
                 UNION
                 SELECT mi_person_key FROM drug_hcg_pairs_45d
             ),
-            drug_hcg_pairs AS (
-                SELECT DISTINCT
-                    de.mi_person_key,
-                    de.drug_event_date,
-                    hte.hcg_event_date
-                FROM drug_events de
-                INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
-                    AND hte.hcg_event_date >= de.drug_event_date
-                    AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL {time_window_days} DAY)
-            ),
-            patients_with_hcg_in_window AS (
-                SELECT DISTINCT mi_person_key
-                FROM drug_hcg_pairs
-            ),
             patients_with_drug_events AS (
                 SELECT DISTINCT mi_person_key
                 FROM drug_events
             ),
-            target_cases AS (
+            -- FIX: Define target_cases_main (for is_target_case label) and target_cases_any (for cohort membership)
+            target_cases_main AS (
                 SELECT DISTINCT mi_person_key
-                FROM patients_with_hcg_in_window
+                FROM drug_hcg_pairs_main
             ),
+            target_cases_any AS (
+                SELECT DISTINCT mi_person_key
+                FROM drug_hcg_pairs_45d_dates
+            ),
+            -- FIX: first_target_dates should use max window (45d) so all qualifying patients have a target date
             first_target_dates AS (
                 SELECT 
                     dhp.mi_person_key,
                     MIN(dhp.hcg_event_date) as first_ed_non_opioid_date
-                FROM drug_hcg_pairs dhp
+                FROM drug_hcg_pairs_45d_dates dhp
                 GROUP BY dhp.mi_person_key
             ),
             control_candidates AS (
                 -- HIGH-IMPACT FIX #1: Replace multiple NOT IN with single NOT EXISTS on unioned exclusion set
+                -- FIX: Exclude target_cases_any (not just main) so controls don't overlap with any-window targets
                 SELECT DISTINCT pde.mi_person_key
                 FROM patients_with_drug_events pde
                 WHERE NOT EXISTS (
                     SELECT 1
-                    FROM target_cases tc
-                    WHERE tc.mi_person_key = pde.mi_person_key
+                    FROM target_cases_any tca
+                    WHERE tca.mi_person_key = pde.mi_person_key
                 )
                   AND NOT EXISTS (
                       SELECT 1
@@ -410,8 +430,9 @@ def run_phase3_step3_final_cohort_fact(context):
             ),
             sampled_controls AS (
                 -- HIGH-IMPACT FIX #2: Hash-based sampling
+                -- FIX: Count target_cases_any (not just main) for 5:1 ratio calculation
                 WITH target_count AS (
-                    SELECT COUNT(*) as target_cnt FROM target_cases
+                    SELECT COUNT(*) as target_cnt FROM target_cases_any
                 ),
                 needed_count AS (
                     SELECT tc.target_cnt * 5 as needed FROM target_count tc
@@ -527,11 +548,12 @@ def run_phase3_step3_final_cohort_fact(context):
                 1 as target,
                 'ED_NON_OPIOID' as cohort_name,
                 CASE 
-                    WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
+                    WHEN tca.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
                     WHEN ewd.event_type = 'medical' AND ewd.hcg_line IS NULL THEN 'NON_ED'
                     ELSE 'NON_ED'
                 END as cohort,
-                CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
+                -- FIX: is_target_case uses main window (for training label), multiclass flags are independent
+                CASE WHEN tcm.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
                 CASE WHEN p7d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_7d,
                 CASE WHEN p14d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_14d,
                 CASE WHEN p21d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_21d,
@@ -539,29 +561,25 @@ def run_phase3_step3_final_cohort_fact(context):
                 CASE WHEN p45d.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case_45d,
                 NULL as first_opioid_ed_date,
                 CASE 
-                    WHEN tc.mi_person_key IS NOT NULL THEN ewd.first_ed_non_opioid_date
+                    WHEN tca.mi_person_key IS NOT NULL THEN ewd.first_ed_non_opioid_date
                     ELSE NULL
                 END as first_ed_non_opioid_date
             FROM events_with_dates ewd
-            LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
+            -- FIX: Join both target_cases_any (cohort membership) and target_cases_main (main label)
+            LEFT JOIN target_cases_any tca ON ewd.mi_person_key = tca.mi_person_key
+            LEFT JOIN target_cases_main tcm ON ewd.mi_person_key = tcm.mi_person_key
             LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
             LEFT JOIN drug_hcg_pairs_7d p7d ON ewd.mi_person_key = p7d.mi_person_key
             LEFT JOIN drug_hcg_pairs_14d p14d ON ewd.mi_person_key = p14d.mi_person_key
             LEFT JOIN drug_hcg_pairs_21d p21d ON ewd.mi_person_key = p21d.mi_person_key
             LEFT JOIN drug_hcg_pairs_30d p30d ON ewd.mi_person_key = p30d.mi_person_key
             LEFT JOIN drug_hcg_pairs_45d p45d ON ewd.mi_person_key = p45d.mi_person_key
-            WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
+            -- FIX: Use target_cases_any for cohort membership, allow pharmacy events up to 45 days (max window)
+            WHERE (tca.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
               AND (
-                  (tc.mi_person_key IS NOT NULL AND (
-                      ewd.event_type = 'medical' 
-                      OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
-                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= {time_window_days})
-                  ))
-                  OR (sc.mi_person_key IS NOT NULL AND (
-                      ewd.event_type = 'medical'
-                      OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
-                          AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= {time_window_days})
-                  ))
+                  ewd.event_type = 'medical' 
+                  OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
+                      AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 45)
               );
             """
         else:
@@ -607,6 +625,77 @@ def run_phase3_step3_final_cohort_fact(context):
              FROM unified_event_fact_table uef
             INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
             """
+        # Log CTE counts BEFORE creating cohort to diagnose multiclass window calculation
+        if ed_non_opioid_case_count > 0:
+            try:
+                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs...")
+                cte_counts_df = cohort_conn_duckdb.sql(f"""
+                WITH hcg_target_events AS (
+                    SELECT mi_person_key, event_date as hcg_event_date
+                    FROM unified_event_fact_table uef
+                    WHERE event_classification = '{label_ed_non_opioid}'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                ),
+                drug_events AS (
+                    SELECT mi_person_key, event_date as drug_event_date
+                    FROM unified_event_fact_table
+                    WHERE event_type = 'pharmacy'
+                ),
+                pairs_7d AS (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM drug_events de
+                    INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                        AND hte.hcg_event_date >= de.drug_event_date
+                        AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 7 DAY)
+                ),
+                pairs_14d AS (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM drug_events de
+                    INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                        AND hte.hcg_event_date >= de.drug_event_date
+                        AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 14 DAY)
+                ),
+                pairs_21d AS (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM drug_events de
+                    INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                        AND hte.hcg_event_date >= de.drug_event_date
+                        AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 21 DAY)
+                ),
+                pairs_30d AS (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM drug_events de
+                    INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                        AND hte.hcg_event_date >= de.drug_event_date
+                        AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 30 DAY)
+                ),
+                pairs_45d AS (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM drug_events de
+                    INNER JOIN hcg_target_events hte ON de.mi_person_key = hte.mi_person_key
+                        AND hte.hcg_event_date >= de.drug_event_date
+                        AND hte.hcg_event_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+                )
+                SELECT 
+                    CAST((SELECT COUNT(*) FROM pairs_7d) AS BIGINT) as patients_7d,
+                    CAST((SELECT COUNT(*) FROM pairs_14d) AS BIGINT) as patients_14d,
+                    CAST((SELECT COUNT(*) FROM pairs_21d) AS BIGINT) as patients_21d,
+                    CAST((SELECT COUNT(*) FROM pairs_30d) AS BIGINT) as patients_30d,
+                    CAST((SELECT COUNT(*) FROM pairs_45d) AS BIGINT) as patients_45d,
+                    CAST((SELECT COUNT(*) FROM pairs_14d p14 WHERE NOT EXISTS (SELECT 1 FROM pairs_7d p7 WHERE p7.mi_person_key = p14.mi_person_key)) AS BIGINT) as patients_only_14d,
+                    CAST((SELECT COUNT(*) FROM pairs_21d p21 WHERE NOT EXISTS (SELECT 1 FROM pairs_14d p14 WHERE p14.mi_person_key = p21.mi_person_key)) AS BIGINT) as patients_only_21d
+                """).fetchdf()
+                if not cte_counts_df.empty:
+                    counts = cte_counts_df.iloc[0]
+                    logger.info(f"  CTE Patient Counts: 7d={int(counts['patients_7d']):,} | 14d={int(counts['patients_14d']):,} | 21d={int(counts['patients_21d']):,} | 30d={int(counts['patients_30d']):,} | 45d={int(counts['patients_45d']):,}")
+                    logger.info(f"  Patients ONLY in 14d (not 7d): {int(counts['patients_only_14d']):,}")
+                    logger.info(f"  Patients ONLY in 21d (not 7d/14d): {int(counts['patients_only_21d']):,}")
+            except Exception as e:
+                logger.warning(f"Could not calculate CTE diagnostic counts: {e}")
+        
         execute_sql_with_dev_validation(cohort_conn_duckdb, logger, ed_non_opioid_cohort_sql)
         logger.info("→ [PHASE 3 STEP 3] ED_NON_OPIOID cohort created")
         
@@ -631,6 +720,41 @@ def run_phase3_step3_final_cohort_fact(context):
                     logger.info(f"  Drugs in {time_window_days}-day window: {int(drug_window_stats['drugs_in_time_window']):,}")
                     if drug_window_stats['avg_days_in_window'] is not None:
                         logger.info(f"  Avg days in window: {float(drug_window_stats['avg_days_in_window']):.1f}")
+                
+                # Log multiclass window patient counts BEFORE cohort creation to diagnose CTE calculation
+                # Check the CTEs directly to see if they're being calculated correctly
+                cte_diagnostic_df = cohort_conn_duckdb.sql("""
+                SELECT 
+                    CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as patients_7d
+                FROM (
+                    SELECT DISTINCT de.mi_person_key
+                    FROM unified_event_fact_table de
+                    INNER JOIN (
+                        SELECT mi_person_key, event_date as hcg_event_date
+                        FROM unified_event_fact_table
+                        WHERE event_classification = 'ed_non_opioid'
+                    ) hte ON de.mi_person_key = hte.mi_person_key
+                    WHERE de.event_type = 'pharmacy'
+                      AND hte.hcg_event_date >= de.event_date
+                      AND hte.hcg_event_date <= DATE_ADD(de.event_date, INTERVAL 7 DAY)
+                )
+                """).fetchdf()
+                logger.info(f"→ [PHASE 3 STEP 3] Diagnostic: Patients with drug-HCG pairs within 7d: {int(cte_diagnostic_df.iloc[0]['patients_7d']) if not cte_diagnostic_df.empty else 0:,}")
+                
+                # Log multiclass window patient counts from final cohort
+                multiclass_patient_counts_df = cohort_conn_duckdb.sql("""
+                SELECT 
+                    CAST(COUNT(DISTINCT CASE WHEN is_target_case_7d = 1 THEN mi_person_key END) AS BIGINT) as patients_7d,
+                    CAST(COUNT(DISTINCT CASE WHEN is_target_case_14d = 1 THEN mi_person_key END) AS BIGINT) as patients_14d,
+                    CAST(COUNT(DISTINCT CASE WHEN is_target_case_21d = 1 THEN mi_person_key END) AS BIGINT) as patients_21d,
+                    CAST(COUNT(DISTINCT CASE WHEN is_target_case_30d = 1 THEN mi_person_key END) AS BIGINT) as patients_30d,
+                    CAST(COUNT(DISTINCT CASE WHEN is_target_case_45d = 1 THEN mi_person_key END) AS BIGINT) as patients_45d
+                FROM ed_non_opioid_cohort
+                """).fetchdf()
+                if not multiclass_patient_counts_df.empty:
+                    patient_counts = multiclass_patient_counts_df.iloc[0]
+                    logger.info(f"→ [PHASE 3 STEP 3] ED_NON_OPIOID Multiclass Window Patient Counts (from cohort):")
+                    logger.info(f"  7d: {int(patient_counts['patients_7d']):,} | 14d: {int(patient_counts['patients_14d']):,} | 21d: {int(patient_counts['patients_21d']):,} | 30d: {int(patient_counts['patients_30d']):,} | 45d: {int(patient_counts['patients_45d']):,}")
             except Exception as e:
                 logger.debug(f"Could not calculate drug window stats: {e}")
         
