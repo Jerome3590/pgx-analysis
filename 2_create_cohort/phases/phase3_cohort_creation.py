@@ -95,10 +95,12 @@ def run_phase3_step3_final_cohort_fact(context):
         """).fetchdf()
         target_case_count = int(target_case_count_df.iloc[0]['count']) if not target_case_count_df.empty else 0
         
-        # Count ED_NON_OPIOID targets AFTER excluding opioid patients
+        # Count ED_NON_OPIOID targets AFTER excluding opioid patients AND patients with 5+ ED visits per year
+        # FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
         # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
         # Use fetchdf() to avoid INT32 overflow
-        ed_non_opioid_case_count_query = f"""
+        # First, count total before filter
+        ed_non_opioid_total_before_filter_query = f"""
         SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count
         FROM unified_event_fact_table uef
         WHERE event_classification = '{label_ed_non_opioid}'
@@ -108,15 +110,51 @@ def run_phase3_step3_final_cohort_fact(context):
               WHERE op.mi_person_key = uef.mi_person_key
           )
         """
+        ed_non_opioid_total_before_filter_df = cohort_conn_duckdb.sql(ed_non_opioid_total_before_filter_query).fetchdf()
+        ed_non_opioid_total_before_filter = int(ed_non_opioid_total_before_filter_df.iloc[0]['count']) if not ed_non_opioid_total_before_filter_df.empty else 0
+        
+        # Now count with <5 visits filter
+        ed_non_opioid_case_count_query = f"""
+        WITH hcg_patients_with_visit_counts AS (
+            SELECT
+                uef.mi_person_key,
+                uef.event_year,
+                CAST(COUNT(*) AS BIGINT) as ed_visit_count
+            FROM unified_event_fact_table uef
+            WHERE uef.event_classification = '{label_ed_non_opioid}'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM opioid_patients_materialized op
+                  WHERE op.mi_person_key = uef.mi_person_key
+              )
+            GROUP BY uef.mi_person_key, uef.event_year
+        )
+        SELECT CAST(COUNT(DISTINCT uef.mi_person_key) AS BIGINT) AS count
+        FROM unified_event_fact_table uef
+        INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
+            AND uef.event_year = vc.event_year
+        WHERE uef.event_classification = '{label_ed_non_opioid}'
+          AND vc.ed_visit_count < 5
+          AND NOT EXISTS (
+              SELECT 1
+              FROM opioid_patients_materialized op
+              WHERE op.mi_person_key = uef.mi_person_key
+          )
+        """
         ed_non_opioid_case_count_df = cohort_conn_duckdb.sql(ed_non_opioid_case_count_query).fetchdf()
         ed_non_opioid_case_count = int(ed_non_opioid_case_count_df.iloc[0]['count']) if not ed_non_opioid_case_count_df.empty else 0
-        
+        excluded_5plus_visits = ed_non_opioid_total_before_filter - ed_non_opioid_case_count
+
         logger.info(f"→ [PHASE 3 STEP 3] Target case counts:")
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
+        if excluded_5plus_visits > 0:
+            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_5plus_visits:,} patients with 5+ ED visits per year (not true adverse drug events)")
+            logger.info(f"  ED_NON_OPIOID: Total before filter: {ed_non_opioid_total_before_filter:,}, After filter (<5 visits): {ed_non_opioid_case_count:,}")
         if time_window_days:
             logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for main is_target_case column")
             logger.info(f"  POLYPHARMACY COHORT: Also creating multiclass target columns (7d, 14d, 21d, 30d, 45d) for analysis")
+            logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <5 ED visits per year (true adverse drug events)")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -299,14 +337,33 @@ def run_phase3_step3_final_cohort_fact(context):
             # - Pharmacy events are included up to 45 days to support all multiclass windows
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
-            WITH hcg_index AS (
+            WITH hcg_patients_with_visit_counts AS (
+                -- Count ED visits per patient per year (for filtering)
+                SELECT
+                    uef.mi_person_key,
+                    uef.event_year,
+                    CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                FROM unified_event_fact_table uef
+                WHERE uef.event_classification = '{label_ed_non_opioid}'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM opioid_patients_materialized op
+                      WHERE op.mi_person_key = uef.mi_person_key
+                  )
+                GROUP BY uef.mi_person_key, uef.event_year
+            ),
+            hcg_index AS (
                 -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
+                -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
                 -- This anchors all time windows to a single index event per patient
                 SELECT
                     uef.mi_person_key,
                     MIN(uef.event_date) AS index_hcg_date
                 FROM unified_event_fact_table uef
+                INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
+                    AND uef.event_year = vc.event_year
                 WHERE uef.event_classification = '{label_ed_non_opioid}'
+                  AND vc.ed_visit_count < 5
                   AND NOT EXISTS (
                       SELECT 1
                       FROM opioid_patients_materialized op
@@ -632,15 +689,32 @@ def run_phase3_step3_final_cohort_fact(context):
         # Log CTE counts BEFORE creating cohort to diagnose multiclass window calculation
         if ed_non_opioid_case_count > 0:
             try:
-                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date)...")
+                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date, <5 visits filter)...")
                 cte_counts_df = cohort_conn_duckdb.sql(f"""
-                WITH hcg_index AS (
+                WITH hcg_patients_with_visit_counts AS (
+                    SELECT
+                        uef.mi_person_key,
+                        uef.event_year,
+                        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                    FROM unified_event_fact_table uef
+                    WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                    GROUP BY uef.mi_person_key, uef.event_year
+                ),
+                hcg_index AS (
                     -- First ED_NON_OPIOID (index) date per patient (matches main query logic)
+                    -- FILTER: Only include patients with <5 ED visits per year
                     SELECT
                         uef.mi_person_key,
                         MIN(uef.event_date) AS index_hcg_date
                     FROM unified_event_fact_table uef
+                    INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
+                        AND uef.event_year = vc.event_year
                     WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND vc.ed_visit_count < 5
                       AND NOT EXISTS (
                           SELECT 1 FROM opioid_patients_materialized op
                           WHERE op.mi_person_key = uef.mi_person_key
@@ -729,6 +803,51 @@ def run_phase3_step3_final_cohort_fact(context):
                     if drug_window_stats['avg_days_in_window'] is not None:
                         logger.info(f"  Avg days in window: {float(drug_window_stats['avg_days_in_window']):.1f}")
                 
+                # Log ED visit counts per patient (QA check: all should have <5 visits per year after filter)
+                logger.info("→ [PHASE 3 STEP 3] ED_NON_OPIOID ED Visit Counts per Patient (QA check - all should be <5):")
+                ed_visit_counts_df = cohort_conn_duckdb.sql(f"""
+                WITH target_patients AS (
+                    SELECT DISTINCT mi_person_key
+                    FROM ed_non_opioid_cohort
+                    WHERE is_target_case = 1
+                ),
+                ed_visits_per_patient AS (
+                    SELECT
+                        uef.mi_person_key,
+                        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                    FROM unified_event_fact_table uef
+                    INNER JOIN target_patients tp ON uef.mi_person_key = tp.mi_person_key
+                    WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND uef.event_year = {event_year}
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                    GROUP BY uef.mi_person_key
+                )
+                SELECT
+                    CAST(COUNT(CASE WHEN ed_visit_count = 1 THEN 1 END) AS BIGINT) as patients_1_visit,
+                    CAST(COUNT(CASE WHEN ed_visit_count >= 2 AND ed_visit_count <= 4 THEN 1 END) AS BIGINT) as patients_2_to_4_visits,
+                    CAST(COUNT(CASE WHEN ed_visit_count >= 5 THEN 1 END) AS BIGINT) as patients_5plus_visits,
+                    CAST(COUNT(*) AS BIGINT) as total_target_patients,
+                    CAST(AVG(ed_visit_count) AS DOUBLE) as avg_visits_per_patient,
+                    CAST(MAX(ed_visit_count) AS BIGINT) as max_visits_per_patient
+                FROM ed_visits_per_patient
+                """).fetchdf()
+                if not ed_visit_counts_df.empty:
+                    visit_counts = ed_visit_counts_df.iloc[0]
+                    logger.info(f"  Patients with 1 ED visit: {int(visit_counts['patients_1_visit']):,}")
+                    logger.info(f"  Patients with 2-4 ED visits: {int(visit_counts['patients_2_to_4_visits']):,}")
+                    logger.info(f"  Total target patients: {int(visit_counts['total_target_patients']):,}")
+                    logger.info(f"  Avg visits per patient: {float(visit_counts['avg_visits_per_patient']):.2f}")
+                    logger.info(f"  Max visits per patient: {int(visit_counts['max_visits_per_patient']):,}")
+
+                    # Verify filter worked (should be 0 patients with 5+ visits)
+                    if visit_counts['patients_5plus_visits'] and int(visit_counts['patients_5plus_visits']) > 0:
+                        logger.error(f"  [ERROR] {int(visit_counts['patients_5plus_visits']):,} patients still have 5+ ED visits - filter may not be working correctly!")
+                    else:
+                        logger.info(f"  [OK] All target patients have <5 ED visits per year (filter working correctly)")
+
                 # Log multiclass window patient counts BEFORE cohort creation to diagnose CTE calculation
                 # Check the CTEs directly to see if they're being calculated correctly
                 cte_diagnostic_df = cohort_conn_duckdb.sql("""
