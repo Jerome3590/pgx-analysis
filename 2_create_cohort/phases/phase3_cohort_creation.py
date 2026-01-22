@@ -448,88 +448,101 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM ed_drug_pairs
                 WHERE most_recent_drug_date IS NOT NULL
             ),
-            patients_with_temporal_relationship AS (
+            qualifying_ed AS (
                 -- FILTER 2: Only include patients where drug event is within 45 days of ED event (true adverse drug events)
-                SELECT DISTINCT mi_person_key
+                SELECT
+                    mi_person_key,
+                    ed_event_date,
+                    most_recent_drug_date,
+                    days_from_drug_to_ed
                 FROM ed_drug_days
                 WHERE days_from_drug_to_ed >= 0
                   AND days_from_drug_to_ed <= 45
             ),
-            hcg_index AS (
-                -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
-                -- FILTER: Only include patients with <5 ED visits per year AND drug event within 45 days of ED event
-                -- This anchors all time windows to a single index event per patient
+            index_qualifying_ed AS (
+                -- Pick the earliest qualifying ED per patient (index event for cohort logic)
+                -- This ensures one row per patient with: index_ed_date, most_recent_drug_date, days_from_drug_to_ed
+                -- FIX: Use this to define multiclass windows based on the gap, not "any drug within window"
                 SELECT
-                    uef.mi_person_key,
-                    MIN(uef.event_date) AS index_hcg_date
-                FROM unified_event_fact_table uef
-                INNER JOIN patients_with_temporal_relationship ptr ON uef.mi_person_key = ptr.mi_person_key
-                WHERE uef.event_classification = '{label_ed_non_opioid}'
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM opioid_patients_materialized op
-                      WHERE op.mi_person_key = uef.mi_person_key
-                  )
-                GROUP BY uef.mi_person_key
+                    mi_person_key,
+                    ed_event_date as index_hcg_date,
+                    most_recent_drug_date,
+                    days_from_drug_to_ed
+                FROM (
+                    SELECT
+                        *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY mi_person_key
+                            ORDER BY ed_event_date ASC
+                        ) AS rn
+                    FROM qualifying_ed
+                )
+                WHERE rn = 1
             ),
-            -- Create all time window pairs (for multiclass flags) - anchored to index ED date
-            -- Note: drug_events CTE is already defined above in the filter pipeline (line 423)
+            patients_with_temporal_relationship AS (
+                -- Patients who have qualifying ED events (for cohort membership)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+            ),
+            hcg_index AS (
+                -- Alias for index_qualifying_ed to maintain compatibility with existing code
+                SELECT
+                    mi_person_key,
+                    index_hcg_date
+                FROM index_qualifying_ed
+            ),
+            -- Create all time window pairs (for multiclass flags) - based on days_from_drug_to_ed gap
+            -- FIX: Use the gap between most recent drug and index ED, not "any drug within window"
+            -- This ensures windows are monotonic and non-identical
             drug_hcg_pairs_7d AS (
-                SELECT DISTINCT de.mi_person_key
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 7 DAY)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 7
             ),
             drug_hcg_pairs_14d AS (
-                SELECT DISTINCT de.mi_person_key
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 14 DAY)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 14
             ),
             drug_hcg_pairs_21d AS (
-                SELECT DISTINCT de.mi_person_key
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 21 DAY)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 21
             ),
             drug_hcg_pairs_30d AS (
-                SELECT DISTINCT de.mi_person_key
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 30 DAY)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 30
             ),
             drug_hcg_pairs_45d AS (
-                SELECT DISTINCT de.mi_person_key
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+                SELECT DISTINCT mi_person_key
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 45
             ),
             -- FIX: Create dated pairs for main window and max window (needed for first_target_dates)
-            -- These use the index date for consistency
+            -- These use the index_qualifying_ed which already has the drug-ED relationship
             drug_hcg_pairs_main AS (
                 SELECT DISTINCT
-                    de.mi_person_key,
-                    de.drug_event_date,
-                    h.index_hcg_date as hcg_event_date
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL {time_window_days} DAY)
+                    mi_person_key,
+                    most_recent_drug_date as drug_event_date,
+                    index_hcg_date as hcg_event_date
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= {time_window_days}
             ),
             drug_hcg_pairs_45d_dates AS (
                 SELECT DISTINCT
-                    de.mi_person_key,
-                    de.drug_event_date,
-                    h.index_hcg_date as hcg_event_date
-                FROM drug_events de
-                INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                    AND h.index_hcg_date >= de.drug_event_date
-                    AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+                    mi_person_key,
+                    most_recent_drug_date as drug_event_date,
+                    index_hcg_date as hcg_event_date
+                FROM index_qualifying_ed
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 45
             ),
             -- HIGH-IMPACT FIX #4: Union all HCG exclusion windows into single set
             all_hcg_exclusions AS (
@@ -556,12 +569,12 @@ def run_phase3_step3_final_cohort_fact(context):
                 SELECT DISTINCT mi_person_key
                 FROM drug_hcg_pairs_45d_dates
             ),
-            -- FIX: first_target_dates uses the index ED date (simplified, one row per patient)
+            -- FIX: first_target_dates uses the index qualifying ED date (from index_qualifying_ed)
             first_target_dates AS (
                 SELECT
                     mi_person_key,
                     index_hcg_date AS first_ed_non_opioid_date
-                FROM hcg_index
+                FROM index_qualifying_ed
             ),
             control_candidates AS (
                 -- HIGH-IMPACT FIX #1: Replace multiple NOT IN with single NOT EXISTS on unioned exclusion set
@@ -844,63 +857,76 @@ def run_phase3_step3_final_cohort_fact(context):
                     FROM ed_drug_pairs
                     WHERE most_recent_drug_date IS NOT NULL
                 ),
-                patients_with_temporal_relationship AS (
+                qualifying_ed AS (
                     -- FILTER 2: Only include patients where drug event is within 45 days of ED event
-                    SELECT DISTINCT mi_person_key
+                    SELECT
+                        mi_person_key,
+                        ed_event_date,
+                        most_recent_drug_date,
+                        days_from_drug_to_ed
                     FROM ed_drug_days
                     WHERE days_from_drug_to_ed >= 0
                       AND days_from_drug_to_ed <= 45
                 ),
-                hcg_index AS (
-                    -- First ED_NON_OPIOID (index) date per patient (matches main query logic)
-                    -- FILTER: Only include patients with <5 ED visits per year AND drug event within 45 days of ED event
+                index_qualifying_ed AS (
+                    -- Pick the earliest qualifying ED per patient (index event for cohort logic)
+                    -- FIX: Use this to define multiclass windows based on the gap, not "any drug within window"
                     SELECT
-                        uef.mi_person_key,
-                        MIN(uef.event_date) AS index_hcg_date
-                    FROM unified_event_fact_table uef
-                    INNER JOIN patients_with_temporal_relationship ptr ON uef.mi_person_key = ptr.mi_person_key
-                    WHERE uef.event_classification = '{label_ed_non_opioid}'
-                      AND NOT EXISTS (
-                          SELECT 1 FROM opioid_patients_materialized op
-                          WHERE op.mi_person_key = uef.mi_person_key
-                      )
-                    GROUP BY uef.mi_person_key
+                        mi_person_key,
+                        ed_event_date as index_hcg_date,
+                        most_recent_drug_date,
+                        days_from_drug_to_ed
+                    FROM (
+                        SELECT
+                            *,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY mi_person_key
+                                ORDER BY ed_event_date ASC
+                            ) AS rn
+                        FROM qualifying_ed
+                    )
+                    WHERE rn = 1
                 ),
-                -- Note: drug_events CTE is already defined above in the filter pipeline
+                patients_with_temporal_relationship AS (
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                ),
+                hcg_index AS (
+                    SELECT
+                        mi_person_key,
+                        index_hcg_date
+                    FROM index_qualifying_ed
+                ),
+                -- FIX: Define window pairs based on days_from_drug_to_ed gap, not "any drug within window"
                 pairs_7d AS (
-                    SELECT DISTINCT de.mi_person_key
-                    FROM drug_events de
-                    INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                        AND h.index_hcg_date >= de.drug_event_date
-                        AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 7 DAY)
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 7
                 ),
                 pairs_14d AS (
-                    SELECT DISTINCT de.mi_person_key
-                    FROM drug_events de
-                    INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                        AND h.index_hcg_date >= de.drug_event_date
-                        AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 14 DAY)
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 14
                 ),
                 pairs_21d AS (
-                    SELECT DISTINCT de.mi_person_key
-                    FROM drug_events de
-                    INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                        AND h.index_hcg_date >= de.drug_event_date
-                        AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 21 DAY)
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 21
                 ),
                 pairs_30d AS (
-                    SELECT DISTINCT de.mi_person_key
-                    FROM drug_events de
-                    INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                        AND h.index_hcg_date >= de.drug_event_date
-                        AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 30 DAY)
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 30
                 ),
                 pairs_45d AS (
-                    SELECT DISTINCT de.mi_person_key
-                    FROM drug_events de
-                    INNER JOIN hcg_index h ON de.mi_person_key = h.mi_person_key
-                        AND h.index_hcg_date >= de.drug_event_date
-                        AND h.index_hcg_date <= DATE_ADD(de.drug_event_date, INTERVAL 45 DAY)
+                    SELECT DISTINCT mi_person_key
+                    FROM index_qualifying_ed
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 45
                 )
                 SELECT 
                     CAST((SELECT COUNT(*) FROM pairs_7d) AS BIGINT) as patients_7d,
