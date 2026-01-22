@@ -37,13 +37,12 @@ logger = logging.getLogger(__name__)
 def download_sample_from_s3(age_band: str, event_year: int, local_path: Path):
     """Download a sample of unified_event_fact_table from S3."""
     import boto3
-    from py_helpers.s3_utils import get_unified_event_fact_table_path
     
     logger.info(f"Downloading sample from S3...")
     s3_client = boto3.client('s3')
     
-    # Get S3 path for unified_event_fact_table
-    s3_path = get_unified_event_fact_table_path(age_band, event_year)
+    # Construct S3 path for unified_event_fact_table
+    s3_path = f"s3://{S3_BUCKET}/gold/unified_event_fact_table/age_band={age_band}/event_year={event_year}/unified_event_fact_table.parquet"
     bucket, key = s3_path.replace("s3://", "").split("/", 1)
     
     logger.info(f"S3 path: {s3_path}")

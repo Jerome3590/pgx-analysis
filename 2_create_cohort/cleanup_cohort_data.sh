@@ -294,7 +294,8 @@ echo ""
 echo "--- Step 2: Cohort Data ---"
 log_message "--- Step 2: Cohort Data ---"
 # New format: s3://pgxdatalake/gold/cohorts/
-check_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=ed_non_opioid/" "Step 2: ED_NON_OPIOID cohorts (S3 - new format)"
+# NOTE: S3 uses normalized cohort names: ed_non_opioid -> non_opioid_ed (see COHORT_ALIASES in s3_utils.py)
+check_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=non_opioid_ed/" "Step 2: ED_NON_OPIOID cohorts (S3 - new format)"
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=opioid_ed/" "Step 2: OPIOID_ED cohorts (S3 - new format)"
 # Legacy paths (old format) - for cleanup
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts_F1120/" "Step 2: Legacy cohorts_F1120 (S3 - old format)"
@@ -382,7 +383,8 @@ echo ""
 # Step 2: Cohort parquet files
 echo "--- Step 2: Cohort Data ---"
 # New format: s3://pgxdatalake/gold/cohorts/
-delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=ed_non_opioid/" "Step 2: ED_NON_OPIOID cohorts (S3 - new format)"
+# NOTE: S3 uses normalized cohort names: ed_non_opioid -> non_opioid_ed (see COHORT_ALIASES in s3_utils.py)
+delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=non_opioid_ed/" "Step 2: ED_NON_OPIOID cohorts (S3 - new format)"
 delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/cohort_name=opioid_ed/" "Step 2: OPIOID_ED cohorts (S3 - new format)"
 # Legacy paths (old format) - for cleanup
 delete_s3_path "s3://${S3_BUCKET}/gold/cohorts_F1120/" "Step 2: Legacy cohorts_F1120 (S3 - old format)"
