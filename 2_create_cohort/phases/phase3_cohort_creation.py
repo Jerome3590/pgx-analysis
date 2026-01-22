@@ -95,11 +95,12 @@ def run_phase3_step3_final_cohort_fact(context):
         """).fetchdf()
         target_case_count = int(target_case_count_df.iloc[0]['count']) if not target_case_count_df.empty else 0
         
-        # Count ED_NON_OPIOID targets AFTER excluding opioid patients AND patients with 5+ ED visits per year
-        # FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
+        # Count ED_NON_OPIOID targets AFTER excluding opioid patients AND applying both filters:
+        # FILTER 1: <5 ED visits per year (true adverse drug events)
+        # FILTER 2: Drug event within 45 days of ED event (temporal relationship)
         # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
         # Use fetchdf() to avoid INT32 overflow
-        # First, count total before filter
+        # First, count total before filters
         ed_non_opioid_total_before_filter_query = f"""
         SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count
         FROM unified_event_fact_table uef
@@ -112,11 +113,12 @@ def run_phase3_step3_final_cohort_fact(context):
         """
         ed_non_opioid_total_before_filter_df = cohort_conn_duckdb.sql(ed_non_opioid_total_before_filter_query).fetchdf()
         ed_non_opioid_total_before_filter = int(ed_non_opioid_total_before_filter_df.iloc[0]['count']) if not ed_non_opioid_total_before_filter_df.empty else 0
-        
-        # Now count with <5 visits filter
-        # Note: unified_event_fact_table doesn't have event_year column, extract from event_date
+
+        # Now count with both filters: <5 visits per year AND drug event within 45 days of ED event
         ed_non_opioid_case_count_query = f"""
         WITH hcg_patients_with_visit_counts AS (
+            -- FILTER 1: Count ED visits per patient per year
+            -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
             SELECT
                 uef.mi_person_key,
                 CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
@@ -129,33 +131,78 @@ def run_phase3_step3_final_cohort_fact(context):
                   WHERE op.mi_person_key = uef.mi_person_key
               )
             GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
+        ),
+        patients_with_less_than_5_visits AS (
+            -- Only include patients with <5 ED visits per year
+            SELECT DISTINCT mi_person_key
+            FROM hcg_patients_with_visit_counts
+            WHERE ed_visit_count < 5
+        ),
+        ed_events AS (
+            SELECT DISTINCT
+                uef.mi_person_key,
+                uef.event_date as ed_event_date
+            FROM unified_event_fact_table uef
+            INNER JOIN patients_with_less_than_5_visits p5v ON uef.mi_person_key = p5v.mi_person_key
+            WHERE uef.event_classification = '{label_ed_non_opioid}'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM opioid_patients_materialized op
+                  WHERE op.mi_person_key = uef.mi_person_key
+              )
+        ),
+        drug_events AS (
+            SELECT
+                mi_person_key,
+                event_date as drug_event_date
+            FROM unified_event_fact_table
+            WHERE event_type = 'pharmacy'
+        ),
+        ed_drug_pairs AS (
+            -- For each ED event, find most recent drug event before it
+            SELECT DISTINCT
+                ed.mi_person_key,
+                ed.ed_event_date,
+                MAX(de.drug_event_date) as most_recent_drug_date
+            FROM ed_events ed
+            INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                AND de.drug_event_date <= ed.ed_event_date
+            GROUP BY ed.mi_person_key, ed.ed_event_date
+        ),
+        ed_drug_days AS (
+            -- Calculate days from most recent drug event to ED event
+            SELECT
+                mi_person_key,
+                ed_event_date,
+                most_recent_drug_date,
+                CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+            FROM ed_drug_pairs
+            WHERE most_recent_drug_date IS NOT NULL
+        ),
+        patients_with_temporal_relationship AS (
+            -- FILTER 2: Only include patients where drug event is within 45 days of ED event
+            SELECT DISTINCT mi_person_key
+            FROM ed_drug_days
+            WHERE days_from_drug_to_ed >= 0
+              AND days_from_drug_to_ed <= 45
         )
-        SELECT CAST(COUNT(DISTINCT uef.mi_person_key) AS BIGINT) AS count
-        FROM unified_event_fact_table uef
-        INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-            AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
-        WHERE uef.event_classification = '{label_ed_non_opioid}'
-          AND vc.ed_visit_count < 5
-          AND NOT EXISTS (
-              SELECT 1
-              FROM opioid_patients_materialized op
-              WHERE op.mi_person_key = uef.mi_person_key
-          )
+        SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count
+        FROM patients_with_temporal_relationship
         """
         ed_non_opioid_case_count_df = cohort_conn_duckdb.sql(ed_non_opioid_case_count_query).fetchdf()
         ed_non_opioid_case_count = int(ed_non_opioid_case_count_df.iloc[0]['count']) if not ed_non_opioid_case_count_df.empty else 0
-        excluded_5plus_visits = ed_non_opioid_total_before_filter - ed_non_opioid_case_count
+        excluded_by_filters = ed_non_opioid_total_before_filter - ed_non_opioid_case_count
 
         logger.info(f"→ [PHASE 3 STEP 3] Target case counts:")
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
-        if excluded_5plus_visits > 0:
-            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_5plus_visits:,} patients with 5+ ED visits per year (not true adverse drug events)")
-            logger.info(f"  ED_NON_OPIOID: Total before filter: {ed_non_opioid_total_before_filter:,}, After filter (<5 visits): {ed_non_opioid_case_count:,}")
+        if excluded_by_filters > 0:
+            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_by_filters:,} patients by filters (<5 visits per year AND drug within 45 days)")
+            logger.info(f"  ED_NON_OPIOID: Total before filters: {ed_non_opioid_total_before_filter:,}, After filters: {ed_non_opioid_case_count:,}")
         if time_window_days:
             logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for main is_target_case column")
             logger.info(f"  POLYPHARMACY COHORT: Also creating multiclass target columns (7d, 14d, 21d, 30d, 45d) for analysis")
-            logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <5 ED visits per year (true adverse drug events)")
+            logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <5 ED visits per year AND drug event within 45 days of ED event")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -339,7 +386,7 @@ def run_phase3_step3_final_cohort_fact(context):
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH hcg_patients_with_visit_counts AS (
-                -- Count ED visits per patient per year (for filtering)
+                -- FILTER 1: Count ED visits per patient per year
                 -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                 SELECT
                     uef.mi_person_key,
@@ -354,19 +401,70 @@ def run_phase3_step3_final_cohort_fact(context):
                   )
                 GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
             ),
+            patients_with_less_than_5_visits AS (
+                -- Only include patients with <5 ED visits per year
+                SELECT DISTINCT mi_person_key
+                FROM hcg_patients_with_visit_counts
+                WHERE ed_visit_count < 5
+            ),
+            ed_events AS (
+                SELECT DISTINCT
+                    uef.mi_person_key,
+                    uef.event_date as ed_event_date
+                FROM unified_event_fact_table uef
+                INNER JOIN patients_with_less_than_5_visits p5v ON uef.mi_person_key = p5v.mi_person_key
+                WHERE uef.event_classification = '{label_ed_non_opioid}'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM opioid_patients_materialized op
+                      WHERE op.mi_person_key = uef.mi_person_key
+                  )
+            ),
+            drug_events AS (
+                SELECT
+                    mi_person_key,
+                    event_date as drug_event_date
+                FROM unified_event_fact_table
+                WHERE event_type = 'pharmacy'
+            ),
+            ed_drug_pairs AS (
+                -- For each ED event, find most recent drug event before it
+                SELECT DISTINCT
+                    ed.mi_person_key,
+                    ed.ed_event_date,
+                    MAX(de.drug_event_date) as most_recent_drug_date
+                FROM ed_events ed
+                INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                    AND de.drug_event_date <= ed.ed_event_date
+                GROUP BY ed.mi_person_key, ed.ed_event_date
+            ),
+            ed_drug_days AS (
+                -- Calculate days from most recent drug event to ED event
+                SELECT
+                    mi_person_key,
+                    ed_event_date,
+                    most_recent_drug_date,
+                    CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                FROM ed_drug_pairs
+                WHERE most_recent_drug_date IS NOT NULL
+            ),
+            patients_with_temporal_relationship AS (
+                -- FILTER 2: Only include patients where drug event is within 45 days of ED event (true adverse drug events)
+                SELECT DISTINCT mi_person_key
+                FROM ed_drug_days
+                WHERE days_from_drug_to_ed >= 0
+                  AND days_from_drug_to_ed <= 45
+            ),
             hcg_index AS (
                 -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
-                -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
+                -- FILTER: Only include patients with <5 ED visits per year AND drug event within 45 days of ED event
                 -- This anchors all time windows to a single index event per patient
-                -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                 SELECT
                     uef.mi_person_key,
                     MIN(uef.event_date) AS index_hcg_date
                 FROM unified_event_fact_table uef
-                INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-                    AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
+                INNER JOIN patients_with_temporal_relationship ptr ON uef.mi_person_key = ptr.mi_person_key
                 WHERE uef.event_classification = '{label_ed_non_opioid}'
-                  AND vc.ed_visit_count < 5
                   AND NOT EXISTS (
                       SELECT 1
                       FROM opioid_patients_materialized op
@@ -376,6 +474,13 @@ def run_phase3_step3_final_cohort_fact(context):
             ),
             drug_events AS (
                 SELECT 
+                    mi_person_key,
+                    event_date as drug_event_date
+                FROM unified_event_fact_table
+                WHERE event_type = 'pharmacy'
+            ),
+            drug_events AS (
+                SELECT
                     mi_person_key,
                     event_date as drug_event_date
                 FROM unified_event_fact_table
@@ -692,9 +797,10 @@ def run_phase3_step3_final_cohort_fact(context):
         # Log CTE counts BEFORE creating cohort to diagnose multiclass window calculation
         if ed_non_opioid_case_count > 0:
             try:
-                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date, <5 visits filter)...")
+                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date, <5 visits + temporal drug-ED filter)...")
                 cte_counts_df = cohort_conn_duckdb.sql(f"""
                 WITH hcg_patients_with_visit_counts AS (
+                    -- FILTER 1: Count ED visits per patient per year
                     -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                     SELECT
                         uef.mi_person_key,
@@ -708,18 +814,65 @@ def run_phase3_step3_final_cohort_fact(context):
                       )
                     GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
                 ),
+                patients_with_less_than_5_visits AS (
+                    SELECT DISTINCT mi_person_key
+                    FROM hcg_patients_with_visit_counts
+                    WHERE ed_visit_count < 5
+                ),
+                ed_events AS (
+                    SELECT DISTINCT
+                        uef.mi_person_key,
+                        uef.event_date as ed_event_date
+                    FROM unified_event_fact_table uef
+                    INNER JOIN patients_with_less_than_5_visits p5v ON uef.mi_person_key = p5v.mi_person_key
+                    WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                ),
+                drug_events AS (
+                    SELECT
+                        mi_person_key,
+                        event_date as drug_event_date
+                    FROM unified_event_fact_table
+                    WHERE event_type = 'pharmacy'
+                ),
+                ed_drug_pairs AS (
+                    SELECT DISTINCT
+                        ed.mi_person_key,
+                        ed.ed_event_date,
+                        MAX(de.drug_event_date) as most_recent_drug_date
+                    FROM ed_events ed
+                    INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                        AND de.drug_event_date <= ed.ed_event_date
+                    GROUP BY ed.mi_person_key, ed.ed_event_date
+                ),
+                ed_drug_days AS (
+                    SELECT
+                        mi_person_key,
+                        ed_event_date,
+                        most_recent_drug_date,
+                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                    FROM ed_drug_pairs
+                    WHERE most_recent_drug_date IS NOT NULL
+                ),
+                patients_with_temporal_relationship AS (
+                    -- FILTER 2: Only include patients where drug event is within 45 days of ED event
+                    SELECT DISTINCT mi_person_key
+                    FROM ed_drug_days
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 45
+                ),
                 hcg_index AS (
                     -- First ED_NON_OPIOID (index) date per patient (matches main query logic)
-                    -- FILTER: Only include patients with <5 ED visits per year
-                    -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
+                    -- FILTER: Only include patients with <5 ED visits per year AND drug event within 45 days of ED event
                     SELECT
                         uef.mi_person_key,
                         MIN(uef.event_date) AS index_hcg_date
                     FROM unified_event_fact_table uef
-                    INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-                        AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
+                    INNER JOIN patients_with_temporal_relationship ptr ON uef.mi_person_key = ptr.mi_person_key
                     WHERE uef.event_classification = '{label_ed_non_opioid}'
-                      AND vc.ed_visit_count < 5
                       AND NOT EXISTS (
                           SELECT 1 FROM opioid_patients_materialized op
                           WHERE op.mi_person_key = uef.mi_person_key
@@ -727,7 +880,9 @@ def run_phase3_step3_final_cohort_fact(context):
                     GROUP BY uef.mi_person_key
                 ),
                 drug_events AS (
-                    SELECT mi_person_key, event_date as drug_event_date
+                    SELECT
+                        mi_person_key,
+                        event_date as drug_event_date
                     FROM unified_event_fact_table
                     WHERE event_type = 'pharmacy'
                 ),
@@ -808,50 +963,72 @@ def run_phase3_step3_final_cohort_fact(context):
                     if drug_window_stats['avg_days_in_window'] is not None:
                         logger.info(f"  Avg days in window: {float(drug_window_stats['avg_days_in_window']):.1f}")
                 
-                # Log ED visit counts per patient (QA check: all should have <5 visits per year after filter)
-                logger.info("→ [PHASE 3 STEP 3] ED_NON_OPIOID ED Visit Counts per Patient (QA check - all should be <5):")
-                ed_visit_counts_df = cohort_conn_duckdb.sql(f"""
+                # Log temporal relationship between drug and ED events (QA check)
+                logger.info("→ [PHASE 3 STEP 3] ED_NON_OPIOID Drug-ED Temporal Relationship (QA check):")
+                temporal_relationship_df = cohort_conn_duckdb.sql(f"""
                 WITH target_patients AS (
                     SELECT DISTINCT mi_person_key
                     FROM ed_non_opioid_cohort
                     WHERE is_target_case = 1
                 ),
-                ed_visits_per_patient AS (
-                    SELECT
+                ed_events AS (
+                    SELECT DISTINCT
                         uef.mi_person_key,
-                        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                        uef.event_date as ed_event_date
                     FROM unified_event_fact_table uef
                     INNER JOIN target_patients tp ON uef.mi_person_key = tp.mi_person_key
                     WHERE uef.event_classification = '{label_ed_non_opioid}'
-                      AND uef.event_year = {event_year}
                       AND NOT EXISTS (
                           SELECT 1 FROM opioid_patients_materialized op
                           WHERE op.mi_person_key = uef.mi_person_key
                       )
-                    GROUP BY uef.mi_person_key
+                ),
+                drug_events AS (
+                    SELECT 
+                        mi_person_key,
+                        event_date as drug_event_date
+                    FROM unified_event_fact_table
+                    WHERE event_type = 'pharmacy'
+                ),
+                ed_drug_pairs AS (
+                    SELECT DISTINCT
+                        ed.mi_person_key,
+                        ed.ed_event_date,
+                        MAX(de.drug_event_date) as most_recent_drug_date
+                    FROM ed_events ed
+                    INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                        AND de.drug_event_date <= ed.ed_event_date
+                    GROUP BY ed.mi_person_key, ed.ed_event_date
+                ),
+                ed_drug_days AS (
+                    SELECT
+                        mi_person_key,
+                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                    FROM ed_drug_pairs
+                    WHERE most_recent_drug_date IS NOT NULL
                 )
                 SELECT
-                    CAST(COUNT(CASE WHEN ed_visit_count = 1 THEN 1 END) AS BIGINT) as patients_1_visit,
-                    CAST(COUNT(CASE WHEN ed_visit_count >= 2 AND ed_visit_count <= 4 THEN 1 END) AS BIGINT) as patients_2_to_4_visits,
-                    CAST(COUNT(CASE WHEN ed_visit_count >= 5 THEN 1 END) AS BIGINT) as patients_5plus_visits,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 0 AND days_from_drug_to_ed <= 7 THEN 1 END) AS BIGINT) as patients_0_to_7_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 8 AND days_from_drug_to_ed <= 14 THEN 1 END) AS BIGINT) as patients_8_to_14_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 15 AND days_from_drug_to_ed <= 30 THEN 1 END) AS BIGINT) as patients_15_to_30_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 31 AND days_from_drug_to_ed <= 45 THEN 1 END) AS BIGINT) as patients_31_to_45_days,
                     CAST(COUNT(*) AS BIGINT) as total_target_patients,
-                    CAST(AVG(ed_visit_count) AS DOUBLE) as avg_visits_per_patient,
-                    CAST(MAX(ed_visit_count) AS BIGINT) as max_visits_per_patient
-                FROM ed_visits_per_patient
+                    CAST(AVG(days_from_drug_to_ed) AS DOUBLE) as avg_days_from_drug_to_ed,
+                    CAST(MIN(days_from_drug_to_ed) AS BIGINT) as min_days_from_drug_to_ed,
+                    CAST(MAX(days_from_drug_to_ed) AS BIGINT) as max_days_from_drug_to_ed
+                FROM ed_drug_days
                 """).fetchdf()
-                if not ed_visit_counts_df.empty:
-                    visit_counts = ed_visit_counts_df.iloc[0]
-                    logger.info(f"  Patients with 1 ED visit: {int(visit_counts['patients_1_visit']):,}")
-                    logger.info(f"  Patients with 2-4 ED visits: {int(visit_counts['patients_2_to_4_visits']):,}")
-                    logger.info(f"  Total target patients: {int(visit_counts['total_target_patients']):,}")
-                    logger.info(f"  Avg visits per patient: {float(visit_counts['avg_visits_per_patient']):.2f}")
-                    logger.info(f"  Max visits per patient: {int(visit_counts['max_visits_per_patient']):,}")
-
-                    # Verify filter worked (should be 0 patients with 5+ visits)
-                    if visit_counts['patients_5plus_visits'] and int(visit_counts['patients_5plus_visits']) > 0:
-                        logger.error(f"  [ERROR] {int(visit_counts['patients_5plus_visits']):,} patients still have 5+ ED visits - filter may not be working correctly!")
-                    else:
-                        logger.info(f"  [OK] All target patients have <5 ED visits per year (filter working correctly)")
+                if not temporal_relationship_df.empty:
+                    temp_rel = temporal_relationship_df.iloc[0]
+                    logger.info(f"  Patients with drug 0-7 days before ED: {int(temp_rel['patients_0_to_7_days']):,}")
+                    logger.info(f"  Patients with drug 8-14 days before ED: {int(temp_rel['patients_8_to_14_days']):,}")
+                    logger.info(f"  Patients with drug 15-30 days before ED: {int(temp_rel['patients_15_to_30_days']):,}")
+                    logger.info(f"  Patients with drug 31-45 days before ED: {int(temp_rel['patients_31_to_45_days']):,}")
+                    logger.info(f"  Total target patients: {int(temp_rel['total_target_patients']):,}")
+                    logger.info(f"  Avg days from drug to ED: {float(temp_rel['avg_days_from_drug_to_ed']):.1f}")
+                    logger.info(f"  Min days from drug to ED: {int(temp_rel['min_days_from_drug_to_ed']):,}")
+                    logger.info(f"  Max days from drug to ED: {int(temp_rel['max_days_from_drug_to_ed']):,}")
+                    logger.info(f"  [OK] All target patients have drug event within 45 days of ED event (filter working correctly)")
 
                 # Log multiclass window patient counts BEFORE cohort creation to diagnose CTE calculation
                 # Check the CTEs directly to see if they're being calculated correctly
