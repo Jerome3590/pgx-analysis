@@ -866,13 +866,7 @@ def run_phase3_step3_final_cohort_fact(context):
                       )
                     GROUP BY uef.mi_person_key
                 ),
-                drug_events AS (
-                    SELECT
-                        mi_person_key,
-                        event_date as drug_event_date
-                    FROM unified_event_fact_table
-                    WHERE event_type = 'pharmacy'
-                ),
+                -- Note: drug_events CTE is already defined above in the filter pipeline
                 pairs_7d AS (
                     SELECT DISTINCT de.mi_person_key
                     FROM drug_events de
