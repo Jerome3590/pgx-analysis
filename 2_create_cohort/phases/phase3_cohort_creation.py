@@ -114,11 +114,12 @@ def run_phase3_step3_final_cohort_fact(context):
         ed_non_opioid_total_before_filter = int(ed_non_opioid_total_before_filter_df.iloc[0]['count']) if not ed_non_opioid_total_before_filter_df.empty else 0
         
         # Now count with <5 visits filter
+        # Note: unified_event_fact_table doesn't have event_year column, extract from event_date
         ed_non_opioid_case_count_query = f"""
         WITH hcg_patients_with_visit_counts AS (
             SELECT
                 uef.mi_person_key,
-                uef.event_year,
+                CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
                 CAST(COUNT(*) AS BIGINT) as ed_visit_count
             FROM unified_event_fact_table uef
             WHERE uef.event_classification = '{label_ed_non_opioid}'
@@ -127,12 +128,12 @@ def run_phase3_step3_final_cohort_fact(context):
                   FROM opioid_patients_materialized op
                   WHERE op.mi_person_key = uef.mi_person_key
               )
-            GROUP BY uef.mi_person_key, uef.event_year
+            GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
         )
         SELECT CAST(COUNT(DISTINCT uef.mi_person_key) AS BIGINT) AS count
         FROM unified_event_fact_table uef
         INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-            AND uef.event_year = vc.event_year
+            AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
         WHERE uef.event_classification = '{label_ed_non_opioid}'
           AND vc.ed_visit_count < 5
           AND NOT EXISTS (
@@ -339,9 +340,10 @@ def run_phase3_step3_final_cohort_fact(context):
             CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH hcg_patients_with_visit_counts AS (
                 -- Count ED visits per patient per year (for filtering)
+                -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                 SELECT
                     uef.mi_person_key,
-                    uef.event_year,
+                    CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
                     CAST(COUNT(*) AS BIGINT) as ed_visit_count
                 FROM unified_event_fact_table uef
                 WHERE uef.event_classification = '{label_ed_non_opioid}'
@@ -350,18 +352,19 @@ def run_phase3_step3_final_cohort_fact(context):
                       FROM opioid_patients_materialized op
                       WHERE op.mi_person_key = uef.mi_person_key
                   )
-                GROUP BY uef.mi_person_key, uef.event_year
+                GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
             ),
             hcg_index AS (
                 -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
                 -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
                 -- This anchors all time windows to a single index event per patient
+                -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                 SELECT
                     uef.mi_person_key,
                     MIN(uef.event_date) AS index_hcg_date
                 FROM unified_event_fact_table uef
                 INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-                    AND uef.event_year = vc.event_year
+                    AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
                 WHERE uef.event_classification = '{label_ed_non_opioid}'
                   AND vc.ed_visit_count < 5
                   AND NOT EXISTS (
@@ -692,9 +695,10 @@ def run_phase3_step3_final_cohort_fact(context):
                 logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date, <5 visits filter)...")
                 cte_counts_df = cohort_conn_duckdb.sql(f"""
                 WITH hcg_patients_with_visit_counts AS (
+                    -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                     SELECT
                         uef.mi_person_key,
-                        uef.event_year,
+                        CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
                         CAST(COUNT(*) AS BIGINT) as ed_visit_count
                     FROM unified_event_fact_table uef
                     WHERE uef.event_classification = '{label_ed_non_opioid}'
@@ -702,17 +706,18 @@ def run_phase3_step3_final_cohort_fact(context):
                           SELECT 1 FROM opioid_patients_materialized op
                           WHERE op.mi_person_key = uef.mi_person_key
                       )
-                    GROUP BY uef.mi_person_key, uef.event_year
+                    GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
                 ),
                 hcg_index AS (
                     -- First ED_NON_OPIOID (index) date per patient (matches main query logic)
                     -- FILTER: Only include patients with <5 ED visits per year
+                    -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                     SELECT
                         uef.mi_person_key,
                         MIN(uef.event_date) AS index_hcg_date
                     FROM unified_event_fact_table uef
                     INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
-                        AND uef.event_year = vc.event_year
+                        AND CAST(YEAR(uef.event_date) AS INTEGER) = vc.event_year
                     WHERE uef.event_classification = '{label_ed_non_opioid}'
                       AND vc.ed_visit_count < 5
                       AND NOT EXISTS (
