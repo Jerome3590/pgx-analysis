@@ -797,11 +797,10 @@ def run_phase3_step3_final_cohort_fact(context):
         # Log CTE counts BEFORE creating cohort to diagnose multiclass window calculation
         if ed_non_opioid_case_count > 0:
             try:
-                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using index ED date, <5 visits + temporal drug-ED filter)...")
-                cte_counts_df = cohort_conn_duckdb.sql(f"""
+                logger.info("→ [PHASE 3 STEP 3] Diagnosing multiclass window CTEs (using drug-ED gap from index_qualifying_ed)...")
+                # First, log the distribution of days_from_drug_to_ed
+                gap_distribution_df = cohort_conn_duckdb.sql(f"""
                 WITH hcg_patients_with_visit_counts AS (
-                    -- FILTER 1: Count ED visits per patient per year
-                    -- Note: unified_event_fact_table doesn't have event_year column, extract from event_date
                     SELECT
                         uef.mi_person_key,
                         CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
@@ -858,7 +857,6 @@ def run_phase3_step3_final_cohort_fact(context):
                     WHERE most_recent_drug_date IS NOT NULL
                 ),
                 qualifying_ed AS (
-                    -- FILTER 2: Only include patients where drug event is within 45 days of ED event
                     SELECT
                         mi_person_key,
                         ed_event_date,
@@ -869,8 +867,6 @@ def run_phase3_step3_final_cohort_fact(context):
                       AND days_from_drug_to_ed <= 45
                 ),
                 index_qualifying_ed AS (
-                    -- Pick the earliest qualifying ED per patient (index event for cohort logic)
-                    -- FIX: Use this to define multiclass windows based on the gap, not "any drug within window"
                     SELECT
                         mi_person_key,
                         ed_event_date as index_hcg_date,
@@ -886,16 +882,116 @@ def run_phase3_step3_final_cohort_fact(context):
                         FROM qualifying_ed
                     )
                     WHERE rn = 1
+                )
+                SELECT
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 0 AND days_from_drug_to_ed <= 7 THEN 1 END) AS BIGINT) as patients_0_to_7_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 8 AND days_from_drug_to_ed <= 14 THEN 1 END) AS BIGINT) as patients_8_to_14_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 15 AND days_from_drug_to_ed <= 21 THEN 1 END) AS BIGINT) as patients_15_to_21_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 22 AND days_from_drug_to_ed <= 30 THEN 1 END) AS BIGINT) as patients_22_to_30_days,
+                    CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 31 AND days_from_drug_to_ed <= 45 THEN 1 END) AS BIGINT) as patients_31_to_45_days,
+                    CAST(COUNT(*) AS BIGINT) as total_patients,
+                    CAST(MIN(days_from_drug_to_ed) AS BIGINT) as min_days,
+                    CAST(MAX(days_from_drug_to_ed) AS BIGINT) as max_days,
+                    CAST(AVG(days_from_drug_to_ed) AS DOUBLE) as avg_days,
+                    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_from_drug_to_ed) AS DOUBLE) as median_days
+                FROM index_qualifying_ed
+                """).fetchdf()
+                if not gap_distribution_df.empty:
+                    gap_dist = gap_distribution_df.iloc[0]
+                    logger.info(f"  Drug-to-ED Gap Distribution (days_from_drug_to_ed):")
+                    logger.info(f"    0-7 days: {int(gap_dist['patients_0_to_7_days']):,}")
+                    logger.info(f"    8-14 days: {int(gap_dist['patients_8_to_14_days']):,}")
+                    logger.info(f"    15-21 days: {int(gap_dist['patients_15_to_21_days']):,}")
+                    logger.info(f"    22-30 days: {int(gap_dist['patients_22_to_30_days']):,}")
+                    logger.info(f"    31-45 days: {int(gap_dist['patients_31_to_45_days']):,}")
+                    logger.info(f"    Total: {int(gap_dist['total_patients']):,}")
+                    logger.info(f"    Min: {int(gap_dist['min_days']):,} days | Max: {int(gap_dist['max_days']):,} days")
+                    logger.info(f"    Avg: {float(gap_dist['avg_days']):.1f} days | Median: {float(gap_dist['median_days']):.1f} days")
+
+                # Now calculate window counts using the gap-based logic
+                cte_counts_df = cohort_conn_duckdb.sql(f"""
+                WITH hcg_patients_with_visit_counts AS (
+                    SELECT
+                        uef.mi_person_key,
+                        CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
+                        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                    FROM unified_event_fact_table uef
+                    WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                    GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
                 ),
-                patients_with_temporal_relationship AS (
+                patients_with_less_than_5_visits AS (
                     SELECT DISTINCT mi_person_key
-                    FROM index_qualifying_ed
+                    FROM hcg_patients_with_visit_counts
+                    WHERE ed_visit_count < 5
                 ),
-                hcg_index AS (
+                ed_events AS (
+                    SELECT DISTINCT
+                        uef.mi_person_key,
+                        uef.event_date as ed_event_date
+                    FROM unified_event_fact_table uef
+                    INNER JOIN patients_with_less_than_5_visits p5v ON uef.mi_person_key = p5v.mi_person_key
+                    WHERE uef.event_classification = '{label_ed_non_opioid}'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM opioid_patients_materialized op
+                          WHERE op.mi_person_key = uef.mi_person_key
+                      )
+                ),
+                drug_events AS (
                     SELECT
                         mi_person_key,
-                        index_hcg_date
-                    FROM index_qualifying_ed
+                        event_date as drug_event_date
+                    FROM unified_event_fact_table
+                    WHERE event_type = 'pharmacy'
+                ),
+                ed_drug_pairs AS (
+                    SELECT DISTINCT
+                        ed.mi_person_key,
+                        ed.ed_event_date,
+                        MAX(de.drug_event_date) as most_recent_drug_date
+                    FROM ed_events ed
+                    INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                        AND de.drug_event_date <= ed.ed_event_date
+                    GROUP BY ed.mi_person_key, ed.ed_event_date
+                ),
+                ed_drug_days AS (
+                    SELECT
+                        mi_person_key,
+                        ed_event_date,
+                        most_recent_drug_date,
+                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                    FROM ed_drug_pairs
+                    WHERE most_recent_drug_date IS NOT NULL
+                ),
+                qualifying_ed AS (
+                    SELECT
+                        mi_person_key,
+                        ed_event_date,
+                        most_recent_drug_date,
+                        days_from_drug_to_ed
+                    FROM ed_drug_days
+                    WHERE days_from_drug_to_ed >= 0
+                      AND days_from_drug_to_ed <= 45
+                ),
+                index_qualifying_ed AS (
+                    SELECT
+                        mi_person_key,
+                        ed_event_date as index_hcg_date,
+                        most_recent_drug_date,
+                        days_from_drug_to_ed
+                    FROM (
+                        SELECT
+                            *,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY mi_person_key
+                                ORDER BY ed_event_date ASC
+                            ) AS rn
+                        FROM qualifying_ed
+                    )
+                    WHERE rn = 1
                 ),
                 -- FIX: Define window pairs based on days_from_drug_to_ed gap, not "any drug within window"
                 pairs_7d AS (
