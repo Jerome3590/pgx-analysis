@@ -184,12 +184,18 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 
 **ED_NON_OPIOID Cohort (Polypharmacy):**
 - **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a configurable time window (default: 14 days) of drug events
+- **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year** to ensure true adverse drug events
+  - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+  - Filter applied before cohort creation: Patients with 5+ ED visits per year are excluded from target case identification
+  - Logging shows how many patients were excluded (e.g., "Excluded X patients with 5+ ED visits per year")
+  - QA check verifies all target patients have <5 visits (should be 0 with 5+ visits after filter)
 - **Multiple Time Windows:** Creates multiclass target columns for 7, 14, 21, 30, and 45-day windows to enable analysis of predictive power
 - **Time Window Lookback:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:** 
-  - Reference date: First ED_NON_OPIOID event within time window of drug event
+  - Reference date: First ED_NON_OPIOID event within time window of drug event (index event per patient)
   - Includes: Medical events OR drug events within time window before target
   - Multiple target indicators: `is_target_case` (main, uses default window), plus `is_target_case_7d`, `is_target_case_14d`, `is_target_case_21d`, `is_target_case_30d`, `is_target_case_45d`
+  - **Filtered to patients with <5 ED visits per year** (true adverse drug events only)
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event if none)
   - Includes: Medical events OR drug events within time window before reference date
@@ -1187,6 +1193,11 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 
 **View:** `ed_non_opioid_cohort`
 
+**Key Feature: ED Visit Frequency Filter**
+- Only includes patients with **<5 ED visits per year** to ensure true adverse drug events
+- Patients with 5+ ED visits per year are excluded from target case identification
+- Filter is applied via `hcg_patients_with_visit_counts` CTE that counts ED visits per patient per year
+
 ```sql
 CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
 WITH opioid_patients AS (
@@ -1199,11 +1210,43 @@ WITH opioid_patients AS (
        OR three_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)
        -- ... through ten_icd_diagnosis_code IN (...)
 ),
+hcg_patients_with_visit_counts AS (
+    -- Count ED visits per patient per year (for filtering)
+    SELECT
+        uef.mi_person_key,
+        uef.event_year,
+        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+    FROM unified_event_fact_table uef
+    WHERE uef.event_classification = 'ed_non_opioid'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM opioid_patients_materialized op
+          WHERE op.mi_person_key = uef.mi_person_key
+      )
+    GROUP BY uef.mi_person_key, uef.event_year
+),
+hcg_index AS (
+    -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
+    -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
+    -- This anchors all time windows to a single index event per patient
+    SELECT
+        uef.mi_person_key,
+        MIN(uef.event_date) AS index_hcg_date
+    FROM unified_event_fact_table uef
+    INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
+        AND uef.event_year = vc.event_year
+    WHERE uef.event_classification = 'ed_non_opioid'
+      AND vc.ed_visit_count < 5
+      AND NOT EXISTS (
+          SELECT 1
+          FROM opioid_patients_materialized op
+          WHERE op.mi_person_key = uef.mi_person_key
+      )
+    GROUP BY uef.mi_person_key
+),
 target_cases AS (
     SELECT DISTINCT mi_person_key
-    FROM unified_event_fact_table
-    WHERE event_classification = 'ed_non_opioid'
-      AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)  -- Exclude opioid patients
+    FROM hcg_index  -- Uses filtered index (only <5 visits per year)
 ),
 first_target_dates AS (
     -- Find first ED_NON_OPIOID target event date per patient
@@ -1613,9 +1656,15 @@ The pipeline calculates temporal relationships between events and target events,
 
 #### ED_NON_OPIOID Cohort Temporal Behavior
 
+- **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year** to ensure true adverse drug events
+  - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+  - Filter applied via `hcg_patients_with_visit_counts` CTE that counts ED visits per patient per year
+  - Patients with 5+ visits are excluded from `hcg_index` CTE (which anchors all time window calculations)
+  - Logging shows total patients before filter, after filter, and how many were excluded
+  - QA check verifies all target patients have <5 visits (should be 0 with 5+ visits after filter)
 - **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:**
-  - Reference date: First ED_NON_OPIOID event
+  - Reference date: First ED_NON_OPIOID event (index event per patient, filtered to <5 visits per year)
   - Includes: Medical events OR drug events within 30 days before target
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event)
