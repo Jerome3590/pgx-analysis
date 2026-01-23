@@ -636,7 +636,11 @@ def run_phase3_step3_final_cohort_fact(context):
                     FROM unified_event_fact_table uef
                     INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
                     WHERE uef.event_type = 'medical'
-                      AND (uef.hcg_line IS NULL OR uef.hcg_line NOT IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits'))
+                      AND NOT (
+                          (uef.hcg_line = 'P51 - ER Visits and Observation Care' AND uef.hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+                          OR uef.hcg_line = 'O11 - Emergency Room'
+                          OR uef.hcg_line = 'P33 - Urgent Care Visits'
+                      )
                     GROUP BY uef.mi_person_key
                 ),
                 fallback_medical_reference AS (
@@ -1385,12 +1389,12 @@ def run_phase3_step3_final_cohort_fact(context):
         
         # Polypharmacy/HCG check for ED_NON_OPIOID cohort (similar to F1120 check)
         # Validates that HCG target events (ED visits) are present for target cases
-        hcg_target_codes = [
-            "P51 - ER Visits and Observation Care",
-            "O11 - Emergency Room",
-            "P33 - Urgent Care Visits"
-        ]
-        hcg_condition = f"hcg_line IN {tuple(hcg_target_codes)}"
+        # Use hcg_detail for precision: P51b = ED Visits (exclude P51a = Observation Care)
+        hcg_condition = """
+            (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+            OR hcg_line = 'O11 - Emergency Room'
+            OR hcg_line = 'P33 - Urgent Care Visits'
+        """
         
         # Use fetchdf() to avoid INT32 overflow in COUNT queries
         polypharmacy_check_df = cohort_conn_duckdb.sql(f"""

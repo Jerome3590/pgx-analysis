@@ -130,14 +130,14 @@ def run_phase4_complete_pipeline(context):
         )
         
         # ED_NON_OPIOID: HCG target events check (polypharmacy cohort)
-        # Check for HCG line codes used to identify ED visits
+        # Check for HCG line codes and details used to identify ED visits
+        # Use hcg_detail for precision: P51b = ED Visits (exclude P51a = Observation Care)
         # Also check that target cases have drug events (pharmacy events) - matches Phase 3 logic
-        hcg_target_codes = [
-            "P51 - ER Visits and Observation Care",
-            "O11 - Emergency Room",
-            "P33 - Urgent Care Visits"
-        ]
-        hcg_condition = f"hcg_line IN {tuple(hcg_target_codes)}"
+        hcg_condition = """
+            (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+            OR hcg_line = 'O11 - Emergency Room'
+            OR hcg_line = 'P33 - Urgent Care Visits'
+        """
         
         # Use fetchdf() to avoid INT32 overflow in COUNT queries
         hcg_ed_non_opioid_final_df = cohort_conn_duckdb.sql(f"""

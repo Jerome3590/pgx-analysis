@@ -452,13 +452,16 @@ def ensure_unified_views(conn, logger):
             )
 
         # HCG-based ED visit identification (for ED_NON_OPIOID cohort)
-        # ED visits are identified by HCG line codes per README documentation
-        ed_hcg_lines = [
-            "P51 - ER Visits and Observation Care",
-            "O11 - Emergency Room",
-            "P33 - Urgent Care Visits"
-        ]
-        ed_hcg_condition = f"hcg_line IN {tuple(ed_hcg_lines)}"
+        # ED visits are identified by HCG line codes and details for precision
+        # Use hcg_detail to distinguish actual ED visits from observation care
+        # P51a = Observation Care (exclude), P51b = ED Visits (include)
+        # O11 = Emergency Department (include)
+        # P33 = Urgent Care Visits (include)
+        ed_hcg_condition = """
+            (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+            OR hcg_line = 'O11 - Emergency Room'
+            OR hcg_line = 'P33 - Urgent Care Visits'
+        """
         
         # Default classification falls back to opioid_ed vs ed_non_opioid
         # Priority: 1) Opioid ICD codes (ANY position) → opioid_ed, 2) HCG ED visits → ed_non_opioid, 3) Other → ed_non_opioid

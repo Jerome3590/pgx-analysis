@@ -20,9 +20,17 @@ from py_helpers.duckdb_utils import create_duckdb_conn
 age_band = "65-74"
 event_year = 2019
 
-# HCG codes currently used in codebase
+# HCG codes currently used in codebase (using hcg_detail for precision)
+# P51: Only P51b (ED Visits), exclude P51a (Observation Care)
+# O11: Emergency Room (all details)
+# P33: Urgent Care Visits (all details)
+current_hcg_condition = """
+    (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+    OR hcg_line = 'O11 - Emergency Room'
+    OR hcg_line = 'P33 - Urgent Care Visits'
+"""
 current_hcg_codes = [
-    "P51 - ER Visits and Observation Care",
+    "P51 - ER Visits and Observation Care (P51b only)",
     "O11 - Emergency Room",
     "P33 - Urgent Care Visits"
 ]
@@ -105,7 +113,7 @@ try:
         primary_icd_diagnosis_code,
         event_date
     FROM read_parquet('{medical_path}')
-    WHERE hcg_line IN {codes_tuple}
+    WHERE {current_hcg_condition}
     LIMIT 10
     """
     
@@ -126,12 +134,13 @@ try:
     query3 = f"""
     SELECT 
         hcg_line,
+        hcg_detail,
         CAST(COUNT(*) AS BIGINT) as count,
         CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as patients
     FROM read_parquet('{medical_path}')
     WHERE hcg_line IS NOT NULL
       AND hcg_line <> ''
-    GROUP BY hcg_line
+    GROUP BY hcg_line, hcg_detail
     ORDER BY count DESC
     LIMIT 30
     """
@@ -141,13 +150,21 @@ try:
     if result3.empty:
         print("\n⚠ No HCG line codes found")
     else:
-        print(f"\nTop {len(result3)} HCG line codes:\n")
+        print(f"\nTop {len(result3)} HCG line codes (with detail):\n")
         for idx, row in result3.iterrows():
             code = row['hcg_line']
+            detail = row.get('hcg_detail', '')
             count = row['count']
             patients = row['patients']
-            marker = "✓" if code in current_hcg_codes else " "
-            print(f"{marker} {code:60s} | {count:>10,} records | {patients:>10,} patients")
+            # Check if this matches our condition
+            is_match = (
+                (code == 'P51 - ER Visits and Observation Care' and detail == 'P51b - PHY ED Visits and Observation Care - ED Visits')
+                or code == 'O11 - Emergency Room'
+                or code == 'P33 - Urgent Care Visits'
+            )
+            marker = "✓" if is_match else " "
+            detail_str = f" / {detail}" if detail else ""
+            print(f"{marker} {code:60s}{detail_str:50s} | {count:>10,} records | {patients:>10,} patients")
     
     # Query 4: Check for ED-related codes
     print("\n" + "=" * 100)
@@ -185,7 +202,13 @@ try:
             setting = row['hcg_setting'] or '(NULL)'
             line = row['hcg_line']
             detail = row['hcg_detail'] or '(NULL)'
-            marker = "✓" if line in current_hcg_codes else " "
+            # Check if this matches our condition
+            is_match = (
+                (line == 'P51 - ER Visits and Observation Care' and detail == 'P51b - PHY ED Visits and Observation Care - ED Visits')
+                or line == 'O11 - Emergency Room'
+                or line == 'P33 - Urgent Care Visits'
+            )
+            marker = "✓" if is_match else " "
             print(f"{marker} Setting: {setting:30s} | Line: {line:50s} | Detail: {detail}")
     
 except Exception as e:

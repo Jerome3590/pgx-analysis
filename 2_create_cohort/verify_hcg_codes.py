@@ -3,8 +3,15 @@ Quick script to verify HCG target codes in gold medical data.
 Queries a sample of the gold medical table to check what HCG line codes actually exist.
 """
 
-import duckdb
+import sys
 import os
+# Add project root to path so we can import py_helpers
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+import duckdb
 from py_helpers.constants import S3_BUCKET
 from py_helpers.duckdb_utils import create_duckdb_conn
 
@@ -69,7 +76,7 @@ try:
         hcg_line,
         CAST(COUNT(*) AS BIGINT) as record_count,
         CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as distinct_patients
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IN {codes_tuple}
     GROUP BY hcg_line
     ORDER BY record_count DESC
@@ -92,7 +99,7 @@ try:
     
     query2 = f"""
     SELECT DISTINCT hcg_line
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IS NOT NULL
       AND hcg_line <> ''
     ORDER BY hcg_line
@@ -147,7 +154,7 @@ try:
         hcg_detail,
         primary_icd_diagnosis_code,
         event_date
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IN {codes_tuple}
     LIMIT 5
     """

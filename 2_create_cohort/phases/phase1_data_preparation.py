@@ -190,20 +190,22 @@ def run_phase1_data_preparation(context):
             logger.warning(f"→ [PHASE 1] F1120 CHECK: No F1120 records found in medical data (primary column)")
         
         # HCG codes of interest check (for polypharmacy cohort target identification)
-        # Check for ED visit HCG line codes: P51, O11, P33
-        hcg_codes = [
-            "P51 - ER Visits and Observation Care",
-            "O11 - Emergency Room",
-            "P33 - Urgent Care Visits"
-        ]
+        # Check for ED visit HCG line codes and details: P51b (ED Visits only), O11, P33
+        # Use hcg_detail to distinguish actual ED visits from observation care
+        hcg_condition = """
+            (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+            OR hcg_line = 'O11 - Emergency Room'
+            OR hcg_line = 'P33 - Urgent Care Visits'
+        """
         hcg_medical = cohort_conn_duckdb.sql(f"""
         SELECT 
             hcg_line,
+            hcg_detail,
             COUNT(*) as count_by_code,
             COUNT(DISTINCT mi_person_key) as distinct_hcg_patients
         FROM medical
-        WHERE hcg_line IN {tuple(hcg_codes)}
-        GROUP BY hcg_line
+        WHERE {hcg_condition}
+        GROUP BY hcg_line, hcg_detail
         ORDER BY count_by_code DESC
         """).fetchall()
         
@@ -214,15 +216,15 @@ def run_phase1_data_preparation(context):
             distinct_hcg = cohort_conn_duckdb.sql(f"""
             SELECT COUNT(DISTINCT mi_person_key)
             FROM medical
-            WHERE hcg_line IN {tuple(hcg_codes)}
+            WHERE {hcg_condition}
             """).fetchone()[0]
-            logger.info(f"→ [PHASE 1] HCG CODES CHECK (ED visit codes for polypharmacy cohort):")
+            logger.info(f"→ [PHASE 1] HCG CODES CHECK (ED visit codes for polypharmacy cohort - using hcg_detail for precision):")
             logger.info(f"  Total HCG records: {total_hcg:,}")
             logger.info(f"  Distinct HCG patients: {distinct_hcg:,}")
-            logger.info(f"  HCG codes breakdown:")
+            logger.info(f"  HCG codes breakdown (line + detail):")
             for row in hcg_medical:
-                # Row: (hcg_line, count_by_code, distinct_hcg_patients)
-                logger.info(f"    '{row[0]}': {row[1]:,} records")
+                # Row: (hcg_line, hcg_detail, count_by_code, distinct_hcg_patients)
+                logger.info(f"    '{row[0]}' / '{row[1]}': {row[2]:,} records, {row[3]:,} patients")
         else:
             logger.warning(f"→ [PHASE 1] HCG CODES CHECK: No ED visit HCG codes found in medical data")
         
