@@ -78,6 +78,39 @@ else:
     print(f"→ Using S3 pharmacy path: {pharmacy_path}")
 
 try:
+    # First, check the schema and sample a row to see actual column names
+    print("\n" + "=" * 100)
+    print("Schema Check: Medical parquet columns")
+    print("=" * 100)
+    try:
+        medical_sample = conn.sql(f"SELECT * FROM read_parquet('{medical_path}') LIMIT 1").fetchdf()
+        print("\nMedical parquet columns (from sample row):")
+        print(list(medical_sample.columns))
+        # Check if incurred_date exists (the actual column in gold parquet files)
+        if 'incurred_date' not in medical_sample.columns:
+            print("\n⚠ 'incurred_date' not found. Looking for date columns...")
+            date_cols = [col for col in medical_sample.columns if 'date' in col.lower()]
+            print(f"  Found date-related columns: {date_cols}")
+        else:
+            print("✓ Found 'incurred_date' column in medical parquet")
+    except Exception as e:
+        print(f"Could not get medical sample: {e}")
+    
+    print("\n" + "=" * 100)
+    print("Schema Check: Pharmacy parquet columns")
+    print("=" * 100)
+    try:
+        pharmacy_sample = conn.sql(f"SELECT * FROM read_parquet('{pharmacy_path}') LIMIT 1").fetchdf()
+        print("\nPharmacy parquet columns (from sample row):")
+        print(list(pharmacy_sample.columns))
+        # Check if incurred_date exists
+        if 'incurred_date' not in pharmacy_sample.columns:
+            print("\n⚠ 'incurred_date' not found. Looking for date columns...")
+            date_cols = [col for col in pharmacy_sample.columns if 'date' in col.lower()]
+            print(f"  Found date-related columns: {date_cols}")
+    except Exception as e:
+        print(f"Could not get pharmacy sample: {e}")
+    
     # Query 1: Get patients with HCG ED visits and their drug events
     print("\n" + "=" * 100)
     print("Query 1: Patients with HCG ED visits and their drug events (sample)")
@@ -87,21 +120,25 @@ try:
     WITH hcg_ed_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as ed_date,
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as ed_date,
             hcg_line,
             hcg_detail,
             primary_icd_diagnosis_code
         FROM read_parquet('{medical_path}')
         WHERE {hcg_condition}
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     drug_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as drug_date,
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as drug_date,
             drug_name
         FROM read_parquet('{pharmacy_path}')
         WHERE drug_name IS NOT NULL
           AND drug_name <> ''
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     patient_ed_drugs AS (
         SELECT
@@ -166,22 +203,26 @@ try:
         WITH hcg_ed_events AS (
             SELECT DISTINCT
                 mi_person_key,
-                event_date as ed_date,
+                TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as ed_date,
                 hcg_line,
                 hcg_detail,
                 primary_icd_diagnosis_code
             FROM read_parquet('{medical_path}')
             WHERE {hcg_condition}
+              AND incurred_date IS NOT NULL
+              AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
               AND mi_person_key IN {patients_tuple}
         ),
         drug_events AS (
             SELECT DISTINCT
                 mi_person_key,
-                event_date as drug_date,
+                TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as drug_date,
                 drug_name
             FROM read_parquet('{pharmacy_path}')
             WHERE drug_name IS NOT NULL
               AND drug_name <> ''
+              AND incurred_date IS NOT NULL
+              AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
               AND mi_person_key IN {patients_tuple}
         ),
         patient_ed_drugs AS (
@@ -232,19 +273,23 @@ try:
     WITH hcg_ed_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as ed_date,
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as ed_date,
             hcg_line,
             hcg_detail
         FROM read_parquet('{medical_path}')
         WHERE {hcg_condition}
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     drug_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as drug_date
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as drug_date
         FROM read_parquet('{pharmacy_path}')
         WHERE drug_name IS NOT NULL
           AND drug_name <> ''
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     patient_ed_drugs AS (
         SELECT
@@ -313,21 +358,25 @@ try:
     WITH hcg_ed_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as ed_date,
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as ed_date,
             hcg_line,
             hcg_detail,
             primary_icd_diagnosis_code
         FROM read_parquet('{medical_path}')
         WHERE {hcg_condition}
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     drug_events AS (
         SELECT DISTINCT
             mi_person_key,
-            event_date as drug_date,
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') as drug_date,
             drug_name
         FROM read_parquet('{pharmacy_path}')
         WHERE drug_name IS NOT NULL
           AND drug_name <> ''
+          AND incurred_date IS NOT NULL
+          AND TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') IS NOT NULL
     ),
     patient_ed_drugs AS (
         SELECT
