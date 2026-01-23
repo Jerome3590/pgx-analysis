@@ -15,7 +15,7 @@ The Cohort Pipeline builds **event-based fact tables** for analytical cohorts us
 
 Each cohort includes **target cases** and **5 matching controls** per case to ensure statistical robustness. The pipeline uses a **dual-target system**:
 - **Target 1:** ICD/CPT codes (e.g., F1120 for opioid use disorder)
-- **Target 2:** HCG-based ED visit identification (P51, O11, P33 line codes)
+- **Target 2:** HCG-based ED visit identification (P51b, O11, P33 - using hcg_detail for precision)
 
 When partitions have zero targets, the pipeline creates **control-only cohorts** using pre-computed average target counts to ensure complete coverage for model training.
 
@@ -688,10 +688,13 @@ The pipeline uses two independent target identification methods:
    - **Comprehensive checking:** All 10 ICD diagnosis columns are checked (primary through ten), not just `primary_icd_diagnosis_code`
 
 2. **HCG-Based ED Visit Targets** (ED_NON_OPIOID cohort):
-   - Uses Healthcare Cost Group (HCG) line codes:
-     - `P51 - ER Visits and Observation Care`
-     - `O11 - Emergency Room`
-     - `P33 - Urgent Care Visits`
+   - Uses Healthcare Cost Group (HCG) line codes and **details** for precise identification:
+     - `P51 - ER Visits and Observation Care` with detail `P51b - PHY ED Visits and Observation Care - ED Visits`
+       - **Includes:** Only actual ED visits (P51b)
+       - **Excludes:** Observation care visits (P51a) - these are not true ED visits for adverse drug event identification
+     - `O11 - Emergency Room` (all details)
+     - `P33 - Urgent Care Visits` (all details)
+   - **Precision:** Uses `hcg_detail` field to distinguish actual ED visits from observation care
    - Identifies ED visits regardless of diagnosis codes
    - Always classified as `'ed_non_opioid'` in event classification
    - **Opioid exclusion:** All opioid patients are excluded by checking ALL 10 ICD diagnosis columns
@@ -828,6 +831,7 @@ python 0_create_cohort.py --age-band "65-74" --event-year 2019 --operation-type 
 The **Cohort Creation Pipeline v4.3+** now features:
 - **Modular, checkpoint-enabled architecture** with 4 clean phases
 - **Dual-target system** (ICD codes + HCG ED visits) for comprehensive cohort identification
+- **Precise HCG identification:** Uses `hcg_detail` to distinguish actual ED visits (P51b) from observation care (P51a)
 - **Comprehensive ICD diagnosis checking** across all 10 ICD diagnosis columns (primary through ten) to ensure no opioid patients are missed or misclassified
 - **Control-only cohort logic** ensuring complete partition coverage for model training
 - **Pre-computed averages** for efficient control-only cohort sizing
@@ -837,8 +841,8 @@ The **Cohort Creation Pipeline v4.3+** now features:
 
 The pipeline achieves improved testability, maintainability, and resilience—while reducing runtime and resource usage by over 50%.
 
-**Last Updated:** 2025-11-15
-**Version:** 4.3 (Dual-Target + Control-Only Cohorts + HCG Integration + Comprehensive ICD Diagnosis Checking)
+**Last Updated:** 2026-01-23
+**Version:** 4.4 (Dual-Target + Control-Only Cohorts + HCG Integration + Comprehensive ICD Diagnosis Checking + Precise HCG Detail Matching)
 **Status:** Production-Ready
 **Authors:** PGx Analytics Engineering Team
 
@@ -866,8 +870,8 @@ For detailed SQL queries used in each phase of the pipeline, see the [SQL Refere
 
 This section provides a comprehensive reference for all SQL queries used in the Cohort Creation Pipeline. Each phase is documented with explanations, parameters, and example queries.
 
-**Last Updated:** 2025-11-15  
-**Version:** 4.4 (Statistical Independence + Balanced Temporal Windows + Column Matching + Comprehensive ICD Diagnosis Checking)
+**Last Updated:** 2026-01-23  
+**Version:** 4.4 (Statistical Independence + Balanced Temporal Windows + Column Matching + Comprehensive ICD Diagnosis Checking + Precise HCG Detail Matching)
 
 ---
 
@@ -1008,9 +1012,9 @@ CASE
           OR three_icd_diagnosis_code IN ('F1120', ...)
           -- ... through ten_icd_diagnosis_code
           OR procedure_code IN (...)) THEN 'target'
-    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
-                      'O11 - Emergency Room', 
-                      'P33 - Urgent Care Visits') THEN 'ed_non_opioid'
+    WHEN (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+         OR hcg_line = 'O11 - Emergency Room'
+         OR hcg_line = 'P33 - Urgent Care Visits' THEN 'ed_non_opioid'
     ELSE 'non_target'
 END
 ```
@@ -1024,9 +1028,9 @@ CASE
          OR three_icd_diagnosis_code IN ('F1120', 'F1121', ...)
          -- ... through ten_icd_diagnosis_code
          THEN 'opioid_ed'
-    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
-                      'O11 - Emergency Room', 
-                      'P33 - Urgent Care Visits') THEN 'ed_non_opioid'
+    WHEN (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+         OR hcg_line = 'O11 - Emergency Room'
+         OR hcg_line = 'P33 - Urgent Care Visits' THEN 'ed_non_opioid'
     ELSE 'ed_non_opioid'
 END
 ```
@@ -1349,7 +1353,11 @@ control_reference_dates AS (
         FROM unified_event_fact_table uef
         INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
         WHERE uef.event_type = 'medical'
-          AND (uef.hcg_line IS NULL OR uef.hcg_line NOT IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits'))
+          AND NOT (
+              (uef.hcg_line = 'P51 - ER Visits and Observation Care' AND uef.hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+              OR uef.hcg_line = 'O11 - Emergency Room'
+              OR uef.hcg_line = 'P33 - Urgent Care Visits'
+          )
         GROUP BY uef.mi_person_key
     ),
     fallback_reference AS (
@@ -1639,13 +1647,37 @@ WHERE mi_person_key IN (
 ### Event Classification Priority
 
 1. **Target ICD/CPT codes** → `'target'` (or `'opioid_ed'` if default mode)
-2. **HCG ED visits** → `'ed_non_opioid'`
+2. **HCG ED visits** → `'ed_non_opioid'` (using `hcg_detail` for precision - see HCG Detail Matching below)
 3. **Other events** → `'non_target'` (or `'ed_non_opioid'` if default mode)
+
+### HCG Detail Matching for Precise ED Visit Identification
+
+The pipeline uses **both `hcg_line` and `hcg_detail`** to precisely identify ED visits for adverse drug event analysis:
+
+- **P51 - ER Visits and Observation Care:**
+  - ✅ **Includes:** `P51b - PHY ED Visits and Observation Care - ED Visits` (actual ED visits)
+  - ❌ **Excludes:** `P51a - PHY ED Visits and Observation Care - Observation Care` (observation care, not true ED visits)
+  - **Rationale:** Observation care visits are not true emergency department visits and should not be included in adverse drug event identification
+
+- **O11 - Emergency Room:**
+  - ✅ **Includes:** All details (all are ED visits)
+
+- **P33 - Urgent Care Visits:**
+  - ✅ **Includes:** All details (urgent care is relevant for adverse drug events)
+
+**SQL Condition:**
+```sql
+(hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+OR hcg_line = 'O11 - Emergency Room'
+OR hcg_line = 'P33 - Urgent Care Visits'
+```
+
+This precision ensures that only actual ED visits (not observation care) are used for adverse drug event identification, improving the signal-to-noise ratio in the polypharmacy cohort.
 
 ### Cohort Separation
 
 - **OPIOID_ED cohort:** Patients with opioid ICD codes (F1120, etc.) in **ANY of the 10 ICD diagnosis columns**
-- **ED_NON_OPIOID cohort:** Patients with HCG ED visits, **excluding** all opioid patients (checked across all 10 ICD diagnosis columns)
+- **ED_NON_OPIOID cohort:** Patients with HCG ED visits (using `hcg_detail` for precision: P51b only, excludes P51a observation care), **excluding** all opioid patients (checked across all 10 ICD diagnosis columns)
 - **Complete separation:** Opioid patients cannot appear in ED_NON_OPIOID as targets or controls
 - **Comprehensive checking:** All 10 ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) are checked to ensure no opioid patients are missed or misclassified
 
