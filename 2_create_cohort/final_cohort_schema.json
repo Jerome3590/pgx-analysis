@@ -42,11 +42,6 @@
   "cohort_name",
   "cohort",
   "is_target_case",
-  "is_target_case_7d",
-  "is_target_case_14d",
-  "is_target_case_21d",
-  "is_target_case_30d",
-  "is_target_case_45d",
   "first_opioid_ed_date",
   "first_ed_non_opioid_date",
   "days_to_target_event"

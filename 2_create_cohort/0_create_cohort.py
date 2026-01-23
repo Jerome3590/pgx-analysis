@@ -272,7 +272,7 @@ def main():
     parser.add_argument("--target-icd-codes", default=None, help="Optional ICD codes string (comma-separated) to set PGX_TARGET_ICD_CODES")
     parser.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
     parser.add_argument("--time-window-days", type=int, default=None, choices=[7, 14, 21, 30, 45],
-                       help="DEPRECATED: Multi-classification by time windows (7, 14, 21, 30, 45 days) is now automatic. This argument is ignored.")
+                       help="DEPRECATED: Time window is fixed at 21 days. This argument is ignored.")
     parser.add_argument("--concurrent-workers", type=int, default=None,
                        help="Number of concurrent workers (for memory limit calculation). If not set, detects from MAX_WORKERS or PGX_COHORT_WORKERS env vars, or defaults to 3.")
     
@@ -501,7 +501,7 @@ def main():
             "operation_type": args.operation_type,
             "s3_bucket": constants.S3_BUCKET,
             "pipeline_state": pipeline_state,  # Add checkpoint system to context
-            "time_window_days": args.time_window_days if args.time_window_days is not None else 14  # Default 14 days for polypharmacy cohort
+            "time_window_days": 21  # Fixed 21-day window (command-line argument is deprecated and ignored)
         }
         
         # Execute pipeline (step functions will use pipeline_state from context)

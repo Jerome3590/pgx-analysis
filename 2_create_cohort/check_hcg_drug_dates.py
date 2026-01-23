@@ -111,10 +111,11 @@ try:
     except Exception as e:
         print(f"Could not get pharmacy sample: {e}")
     
-    # Query 1: Get patients with HCG ED visits and their drug events
+    # Query 1: Get patients with HCG ED visits and their drug events (excluding 0-day gaps - discharge prescriptions)
     print("\n" + "=" * 100)
     print("Query 1: Patients with HCG ED visits and their drug events (sample)")
     print("=" * 100)
+    print("Note: Excluding 0-day gaps (likely discharge prescriptions) to focus on adverse drug event patterns")
     
     query1 = f"""
     WITH hcg_ed_events AS (
@@ -152,8 +153,9 @@ try:
             CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
         FROM hcg_ed_events hcg
         INNER JOIN drug_events de ON hcg.mi_person_key = de.mi_person_key
-        WHERE de.drug_date <= hcg.ed_date
+        WHERE de.drug_date < hcg.ed_date
           AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) <= 45
+          AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) > 0
     ),
     patient_summary AS (
         SELECT
@@ -237,8 +239,9 @@ try:
                 CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
             FROM hcg_ed_events hcg
             INNER JOIN drug_events de ON hcg.mi_person_key = de.mi_person_key
-            WHERE de.drug_date <= hcg.ed_date
+            WHERE de.drug_date < hcg.ed_date
               AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) <= 45
+              AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) > 0
         )
         SELECT
             mi_person_key,
@@ -264,10 +267,11 @@ try:
             print(f"\nDetailed date pairs for {len(sample_patients)} sample patients:\n")
             print(result2.to_string(index=False))
     
-    # Query 3: Distribution of days from drug to ED
+    # Query 3: Distribution of days from drug to ED (excluding 0-day gaps)
     print("\n" + "=" * 100)
     print("Query 3: Distribution of days from drug event to ED visit")
     print("=" * 100)
+    print("Note: Excluding 0-day gaps (likely discharge prescriptions) to focus on adverse drug event patterns")
     
     query3 = f"""
     WITH hcg_ed_events AS (
@@ -299,7 +303,8 @@ try:
             CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
         FROM hcg_ed_events hcg
         INNER JOIN drug_events de ON hcg.mi_person_key = de.mi_person_key
-        WHERE de.drug_date <= hcg.ed_date
+        WHERE de.drug_date < hcg.ed_date
+          AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) > 0
     ),
     most_recent_drug_per_ed AS (
         SELECT
@@ -311,7 +316,6 @@ try:
         GROUP BY mi_person_key, ed_date
     )
     SELECT
-        CAST(COUNT(CASE WHEN days_from_drug_to_ed = 0 THEN 1 END) AS BIGINT) as patients_0_days,
         CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 1 AND days_from_drug_to_ed <= 7 THEN 1 END) AS BIGINT) as patients_1_to_7_days,
         CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 8 AND days_from_drug_to_ed <= 14 THEN 1 END) AS BIGINT) as patients_8_to_14_days,
         CAST(COUNT(CASE WHEN days_from_drug_to_ed >= 15 AND days_from_drug_to_ed <= 21 THEN 1 END) AS BIGINT) as patients_15_to_21_days,
@@ -323,7 +327,7 @@ try:
         CAST(AVG(days_from_drug_to_ed) AS DOUBLE) as avg_days,
         CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_from_drug_to_ed) AS DOUBLE) as median_days
     FROM most_recent_drug_per_ed
-    WHERE days_from_drug_to_ed >= 0
+    WHERE days_from_drug_to_ed > 0
       AND days_from_drug_to_ed <= 45
     """
     
@@ -333,8 +337,7 @@ try:
         print("\n⚠ No date gaps found")
     else:
         dist = result3.iloc[0]
-        print(f"\nDistribution of days from drug event to ED visit:")
-        print(f"  0 days: {int(dist['patients_0_days']):,} ED events")
+        print(f"\nDistribution of days from drug event to ED visit (excluding 0-day discharge prescriptions):")
         print(f"  1-7 days: {int(dist['patients_1_to_7_days']):,} ED events")
         print(f"  8-14 days: {int(dist['patients_8_to_14_days']):,} ED events")
         print(f"  15-21 days: {int(dist['patients_15_to_21_days']):,} ED events")
@@ -343,15 +346,11 @@ try:
         print(f"  Total ED events with drugs within 45 days: {int(dist['total_ed_events']):,}")
         print(f"  Min: {int(dist['min_days']):,} days | Max: {int(dist['max_days']):,} days")
         print(f"  Avg: {float(dist['avg_days']):.1f} days | Median: {float(dist['median_days']):.1f} days")
-        
-        if int(dist['patients_0_days']) == int(dist['total_ed_events']):
-            print(f"\n⚠ WARNING: All {int(dist['total_ed_events']):,} ED events have 0-day gaps!")
-            print("  This suggests drugs are being filled on the same day as ED visits.")
-            print("  This could be discharge prescriptions or data quality issue.")
+        print(f"\nNote: 0-day gaps (likely discharge prescriptions) have been excluded to focus on adverse drug event patterns.")
     
-    # Query 4: Sample of 0-day gap cases to investigate
+    # Query 4: Sample of 1-7 day gap cases (likely adverse drug events)
     print("\n" + "=" * 100)
-    print("Query 4: Sample of 0-day gap cases (drug and ED on same day)")
+    print("Query 4: Sample of 1-7 day gap cases (likely adverse drug events)")
     print("=" * 100)
     
     query4 = f"""
@@ -390,7 +389,8 @@ try:
             CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
         FROM hcg_ed_events hcg
         INNER JOIN drug_events de ON hcg.mi_person_key = de.mi_person_key
-        WHERE de.drug_date <= hcg.ed_date
+        WHERE de.drug_date < hcg.ed_date
+          AND CAST(datediff('day', CAST(de.drug_date AS DATE), CAST(hcg.ed_date AS DATE)) AS BIGINT) > 0
     ),
     most_recent_drug_per_ed AS (
         SELECT
@@ -414,18 +414,20 @@ try:
     INNER JOIN patient_ed_drugs med ON mrd.mi_person_key = med.mi_person_key
         AND mrd.ed_date = med.ed_date
         AND mrd.most_recent_drug_date = med.drug_date
-    WHERE mrd.days_from_drug_to_ed = 0
+    WHERE mrd.days_from_drug_to_ed >= 1
+      AND mrd.days_from_drug_to_ed <= 7
     LIMIT 20
     """
     
     result4 = conn.sql(query4).fetchdf()
     
     if result4.empty:
-        print("\n✓ No 0-day gap cases found (or all have been filtered)")
+        print("\n⚠ No 1-7 day gap cases found")
     else:
-        print(f"\nSample of {len(result4)} cases with 0-day gaps:\n")
+        print(f"\nSample of {len(result4)} cases with 1-7 day gaps (likely adverse drug events):\n")
         print(result4.to_string(index=False))
-        print("\nNote: 0-day gaps may indicate discharge prescriptions filled on ED visit day.")
+        print("\nNote: These represent drugs taken 1-7 days before ED visit, suggesting potential adverse drug events.")
+        print("0-day gaps (likely discharge prescriptions) have been excluded.")
 
 except Exception as e:
     print(f"\n✗ Error: {e}")

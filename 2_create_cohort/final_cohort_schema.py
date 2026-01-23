@@ -3,7 +3,7 @@
 Schema for the final cohort output of create_cohort.py
 - Order matches final_cohort_schema.json
 - Includes descriptions and key comments for each field
-- Updated to reflect Phase 3 output including time window target columns
+- Updated to reflect Phase 3 output with fixed 21-day window (multiclass targets removed)
 """
 
 final_cohort_schema = [
@@ -71,15 +71,9 @@ final_cohort_schema = [
     ("cohort", "str", "Cohort classification: 'OPIOID_ED', 'NON_OPIOID_ED', or 'NON_ED'"),
     
     # Target case indicators
-    # NOTE: is_target_case uses the main time window (default 14 days for polypharmacy cohort)
-    # NOTE: is_target_case_7d through is_target_case_45d are multiclass target columns for polypharmacy cohort only
-    # NOTE: For OPIOID_ED cohort, only is_target_case is populated (time window columns are NULL)
-    ("is_target_case", "int", "Main target case indicator: 1=target case, 0=control (uses default time window for polypharmacy)"),
-    ("is_target_case_7d", "int", "Target case indicator for 7-day time window (polypharmacy cohort only, NULL for OPIOID_ED)"),
-    ("is_target_case_14d", "int", "Target case indicator for 14-day time window (polypharmacy cohort only, NULL for OPIOID_ED)"),
-    ("is_target_case_21d", "int", "Target case indicator for 21-day time window (polypharmacy cohort only, NULL for OPIOID_ED)"),
-    ("is_target_case_30d", "int", "Target case indicator for 30-day time window (polypharmacy cohort only, NULL for OPIOID_ED)"),
-    ("is_target_case_45d", "int", "Target case indicator for 45-day time window (polypharmacy cohort only, NULL for OPIOID_ED)"),
+    # NOTE: is_target_case uses a fixed 21-day window for adverse drug event identification (excluding 0-day discharge prescriptions)
+    # NOTE: Multiclass targets (7d, 14d, 30d, 45d) have been removed - simplified to single 21-day window
+    ("is_target_case", "int", "Target case indicator: 1=target case (drug event 1-21 days before ED), 0=control (ED without qualifying drug event)"),
     
     # Cohort-specific event dates
     # NOTE: first_opioid_ed_date is populated for OPIOID_ED cohort only (NULL for ED_NON_OPIOID)
@@ -89,6 +83,6 @@ final_cohort_schema = [
     
     # Temporal analysis
     # NOTE: days_to_target_event is NULL for OPIOID_ED cohort (can be calculated from event_date and first_opioid_ed_date)
-    # NOTE: days_to_target_event is calculated for ED_NON_OPIOID cohort (used for time window filtering)
+    # NOTE: days_to_target_event is calculated for ED_NON_OPIOID cohort (used for 21-day window filtering)
     ("days_to_target_event", "int", "Days from event to target event - NULL for OPIOID_ED, calculated for ED_NON_OPIOID")
 ]

@@ -152,18 +152,11 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 | Field | Type | Description | OPIOID_ED | ED_NON_OPIOID |
 | :-- | :-- | :-- | :-- | :-- |
 | `target` | INTEGER | **Legacy column** - Always 1 for OPIOID_ED/ED_NON_OPIOID cohorts (use `is_target_case` instead) | ✅ Always 1 | ✅ Always 1 |
-| `is_target_case` | INTEGER | Main target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (uses default time window) |
-| `is_target_case_7d` | INTEGER | Target case indicator for 7-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
-| `is_target_case_14d` | INTEGER | Target case indicator for 14-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
-| `is_target_case_21d` | INTEGER | Target case indicator for 21-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
-| `is_target_case_30d` | INTEGER | Target case indicator for 30-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
-| `is_target_case_45d` | INTEGER | Target case indicator for 45-day time window | ❌ NULL | ✅ Populated (polypharmacy only) |
-
+| `is_target_case` | INTEGER | Target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (uses 21-day window) |
 **Important Notes:**
 - **`target` column is legacy** - Always set to 1 for both cohorts. Use `is_target_case` for actual target/control distinction.
-- **Time window columns** (`is_target_case_7d` through `is_target_case_45d`) are only populated for the **ED_NON_OPIOID (polypharmacy) cohort**.
-- These multiclass target columns enable analysis of which time window (7, 14, 21, 30, or 45 days) has the most predictive power for drug events.
-- The main `is_target_case` column uses the default time window (configurable via `--time-window-days`, default: 14 days).
+- **`is_target_case` column** uses a fixed 21-day window for adverse drug event identification (excluding 0-day discharge prescriptions).
+- The 21-day window captures ~90.5% of adverse drug events based on distribution analysis.
 
 #### Cohort-Specific Temporal Behavior
 
@@ -183,36 +176,37 @@ The pipeline includes temporal analysis fields that differ between cohorts:
   ```
 
 **ED_NON_OPIOID Cohort (Polypharmacy):**
-- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a configurable time window (default: 14 days) of drug events
+- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a 21-day window of drug events
 - **Dual Filter System for True Adverse Drug Events:** The cohort applies two sequential filters to ensure only true adverse drug events are included:
   1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
      - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
      - Filter applied first: Counts ED visits per patient per year, excludes patients with 5+ visits
-  2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 45 days of ED event**
+  2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
      - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
-     - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 0-45 days
+     - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 1-21 days (0-day gaps excluded as likely discharge prescriptions)
 - **Filter Pipeline:** The filtering logic uses a linear, sequential CTE approach for clarity and maintainability:
   - Each filter step is a separate CTE that builds on the previous step
   - This makes the logic easy to follow, debug, and modify
   - See [Filter Pipeline Diagram](#ed-non-opioid-filter-pipeline) below for visual representation
-- **Multiple Time Windows:** Creates multiclass target columns for 7, 14, 21, 30, and 45-day windows to enable analysis of predictive power
+- **21-Day Time Window:** Single window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions) based on distribution analysis
 - **Time Window Lookback:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:** 
-  - Reference date: First ED_NON_OPIOID event within time window of drug event (index event per patient)
-  - Includes: Medical events OR drug events within time window before target
-  - Multiple target indicators: `is_target_case` (main, uses default window), plus `is_target_case_7d`, `is_target_case_14d`, `is_target_case_21d`, `is_target_case_30d`, `is_target_case_45d`
+  - Reference date: First ED_NON_OPIOID event within 21-day window of drug event (index event per patient)
+  - Includes: Medical events OR drug events within 21-day window before target
+  - Target indicator: `is_target_case` (1 if drug event within 1-21 days before ED, excluding 0-day discharge prescriptions)
   - **Filtered to patients with <5 ED visits per year** (true adverse drug events only)
+  - **21-day window captures ~90.5% of adverse drug events** (excluding 0-day discharge prescriptions) based on distribution analysis
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event if none)
-  - Includes: Medical events OR drug events within time window before reference date
-  - Excluded if they have HCG target events in ANY of the defined time windows
+  - Includes: Medical events OR drug events within 21-day window before reference date
+  - Excluded if they have HCG target events within the 21-day window
   - **Balanced temporal windows** ensure fair comparison between targets and controls
 - **First Target Date:** `first_ed_non_opioid_date` is populated for target cases only (NULL for controls)
 - **Days Calculation:** `days_to_target_event` is pre-calculated for all events
   - For targets: Days to first ED_NON_OPIOID event within time window
   - For controls: Days to reference date (first non-ED medical event)
-  - Positive values: Event occurred before reference date (included in time window)
-  - Zero: Event occurred on reference date
+  - Positive values (1-21): Event occurred before reference date (included in 21-day window for adverse drug event patterns)
+  - Zero: Event occurred on reference date (excluded for adverse drug event identification - likely discharge prescriptions)
   - Negative values: Event occurred after reference date (filtered out for drug events)
 
 #### ED_NON_OPIOID Filter Pipeline {#ed-non-opioid-filter-pipeline}
@@ -229,11 +223,11 @@ flowchart TD
     F --> G[Get All Drug Events<br/>drug_events]
     G --> H[Match ED-Drug Pairs<br/>Find Most Recent Drug<br/>Before Each ED Event<br/>ed_drug_pairs]
     H --> I[Calculate Days<br/>From Drug to ED<br/>ed_drug_days]
-    I --> J{Filter 2:<br/>Temporal Relationship<br/>0-45 days?}
-    J -->|Yes| K[Patients with<br/>Drug within 45 days<br/>N = Filtered Count 2<br/>Final Target Patients]
-    J -->|No| L[Excluded:<br/>No Drug or >45 days<br/>N = Excluded Count 2]
+    I --> J{Filter 2:<br/>Temporal Relationship<br/>1-21 days?<br/>Exclude 0-day gaps}
+    J -->|Yes| K[Patients with<br/>Drug 1-21 days before ED<br/>N = Filtered Count 2<br/>Final Target Patients]
+    J -->|No| L[Excluded:<br/>0-day gaps or >21 days<br/>N = Excluded Count 2]
     K --> M[Create Index ED Date<br/>First ED Event per Patient<br/>hcg_index]
-    M --> N[Build Cohort<br/>with Time Windows<br/>7d, 14d, 21d, 30d, 45d]
+    M --> N[Build Cohort<br/>with 21-Day Window<br/>for Adverse Drug Events]
 
     style A fill:#e1f5ff
     style D fill:#c8e6c9
@@ -247,37 +241,72 @@ flowchart TD
 - Total patients before filters: `N_total`
 - Excluded by Filter 1 (5+ visits): `N_excluded_1`
 - Remaining after Filter 1: `N_filtered_1`
-- Excluded by Filter 2 (no temporal relationship): `N_excluded_2`
+- Excluded by Filter 2 (0-day gaps or no temporal relationship): `N_excluded_2`
 - Final target patients: `N_final = N_filtered_1 - N_excluded_2`
+
+**Note on 0-Day Gap Exclusion:**
+- 0-day gaps (drug filled on same day as ED visit) are excluded as they likely represent discharge prescriptions rather than adverse drug events
+- Only drug events occurring 1-21 days before ED visit are considered for adverse drug event identification
+
+#### 21-Day Window Justification
+
+The 21-day window for adverse drug event identification is based on empirical distribution analysis of drug-to-ED event gaps (excluding 0-day discharge prescriptions). Analysis of a sample cohort (age_band=65-74, event_year=2019) showed the following distribution:
+
+| Days from Drug to ED | ED Events | Percentage* | Cumulative |
+|---------------------|-----------|-------------|------------|
+| 1-7 days | 2,259 | 64.6% | 64.6% |
+| 8-14 days | 616 | 17.6% | 82.2% |
+| 15-21 days | 293 | 8.4% | **90.5%** |
+| **Total 1-21 days** | **3,168** | **90.5%** | - |
+| **Total excluding 0-day** | **3,497** | **100.0%** | - |
+
+\* Percentages calculated excluding 0-day discharge prescriptions (3,054 events excluded from denominator)
+
+**Key Findings:**
+- The 21-day window captures **~90.5% of adverse drug events** (excluding 0-day discharge prescriptions)
+- The majority of events (64.6%) occur within 7 days, consistent with acute adverse drug reactions
+- Events beyond 21 days represent a smaller proportion and are less likely to be causally related to the ED visit
+- The 21-day window balances **clinical relevance** (captures majority of events) with **causal plausibility** (events beyond 21 days have weaker temporal association)
+
+**Clinical Rationale:**
+- Most adverse drug events manifest within 1-2 weeks of drug initiation or dose changes
+- A 21-day window aligns with typical drug half-lives and clinical monitoring periods
+- Events beyond 21 days are more likely to be coincidental rather than causally related
 
 **Example Log Output:**
 ```
 → [PHASE 3 STEP 3] Target case counts:
   ED_NON_OPIOID target patients (ed_non_opioid): 62,313
-  ED_NON_OPIOID: Excluded 15,000 patients by filters (<5 visits per year AND drug within 45 days)
+  ED_NON_OPIOID: Excluded 15,000 patients by filters (<5 visits per year AND drug 1-21 days before ED, excluding 0-day discharge prescriptions)
   ED_NON_OPIOID: Total before filters: 77,313, After filters: 62,313
+  Drug-to-ED Gap Distribution (days_from_drug_to_ed, excluding 0-day discharge prescriptions):
+    1-7 days: 2,259 ED events (64.6% of adverse drug events)
+    8-14 days: 616 ED events (17.6% of adverse drug events)
+    15-21 days: 293 ED events (8.4% of adverse drug events)
+    Total 1-21 days: 3,168 ED events (90.5% of adverse drug events, excluding 0-day)
+    Note: 3,054 0-day events (discharge prescriptions) excluded from calculation
 ```
 
 #### Drug Window Filtering Logic
 
-For ED_NON_OPIOID cohort, the pipeline applies balanced temporal filtering to BOTH targets and controls:
+For ED_NON_OPIOID cohort, the pipeline applies balanced temporal filtering to BOTH targets and controls using a **21-day window**. **0-day gaps are excluded** to focus on adverse drug event patterns (discharge prescriptions filled on ED visit day are filtered out):
 ```sql
--- Target cases: include medical events OR drug events within 30 days before target
--- Controls: include medical events OR drug events within 30 days before reference date
+-- Target cases: include medical events OR drug events within 21 days before target
+-- Controls: include medical events OR drug events within 21 days before reference date
 WHERE (
   (is_target_case = 1 AND (
     event_type = 'medical' 
-    OR (event_type = 'pharmacy' 
-        AND days_to_target_event IS NOT NULL 
-        AND days_to_target_event >= 0 
-        AND days_to_target_event <= 30)
+                  OR (event_type = 'pharmacy' 
+                      AND days_to_target_event IS NOT NULL 
+                      AND days_to_target_event >= 0 
+                      AND days_to_target_event <= 21)
   ))
   OR (is_target_case = 0 AND (
     event_type = 'medical'
-    OR (event_type = 'pharmacy' 
-        AND days_to_target_event IS NOT NULL 
-        AND days_to_target_event >= 0 
-        AND days_to_target_event <= 30)
+                  OR (event_type = 'pharmacy' 
+                      AND days_to_target_event IS NOT NULL 
+                      AND days_to_target_event >= 0 
+                      AND days_to_target_event <= 21)
   ))
 )
 ```
@@ -317,7 +346,7 @@ When a partition has **zero target cases** (no F1120 codes or HCG ED visits), th
 - Uses pre-computed average target count from all partitions
 - Samples `avg_targets * 5` controls (maintains 5:1 structure)
 - All records marked as `is_target_case = 0` and `target = 0` (legacy)
-- Time window columns (`is_target_case_7d` through `is_target_case_45d`) are all set to 0 for polypharmacy cohort
+- All records marked as `is_target_case = 0` (no multiclass targets - simplified to single 21-day window)
 - Ensures every partition has a cohort file for complete model training coverage
 - Logs clearly indicate "CONTROL-ONLY" status
 
@@ -359,12 +388,11 @@ This creates `cohort_target_averages.json` in the project root, which Phase 3 us
 # Run with pre-computed averages (recommended)
 python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
 
-# Run with custom time window for polypharmacy cohort (default: 14 days)
-python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both --time-window-days 30
-
-# Available time windows: 7, 14, 21, 30, 45 days
+# Fixed 21-day window for adverse drug event identification
 # Note: Time window only applies to ED_NON_OPIOID (polypharmacy) cohort
 # OPIOID_ED cohort uses target event itself (no time window)
+# 0-day gaps are excluded (likely discharge prescriptions)
+# The --time-window-days argument is deprecated (window is fixed at 21 days)
 ```
 
 ### Batch Processing Scripts
@@ -409,7 +437,7 @@ python 0_create_cohort.py \
   --age-band "65-74" \
   --event-year 2019 \
   --cohort both \
-  --time-window-days 30 \
+  # --time-window-days is deprecated (window is fixed at 21 days) \
   --concurrent-workers 3 \
   --threads 8 \
   --mem-gb 16 \
@@ -417,11 +445,10 @@ python 0_create_cohort.py \
 ```
 
 **Time Window Configuration:**
-- `--time-window-days`: Time window for polypharmacy cohort HCG target events (default: 14 days)
-- Options: `7`, `14`, `21`, `30`, `45`
+- `--time-window-days`: **DEPRECATED** - Time window is now fixed at 21 days (this argument is ignored)
 - Only applies to ED_NON_OPIOID (polypharmacy) cohort
 - OPIOID_ED cohort always uses target event itself (no time window)
-- All time window columns (7d, 14d, 21d, 30d, 45d) are created regardless of default window setting
+- Fixed 21-day window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions)
 
 
 ***
@@ -658,8 +685,8 @@ print(state.get_progress())
 **Target Column Usage:**
 
 - **Use `is_target_case`** for target/control distinction (not the legacy `target` column)
-- **Time window columns** (`is_target_case_7d` through `is_target_case_45d`) are available for multiclass analysis in polypharmacy cohort
-- The main `is_target_case` uses the default time window (configurable via `--time-window-days`)
+- **`is_target_case`** uses a fixed 21-day window for adverse drug event identification
+- 0-day gaps are excluded (likely discharge prescriptions filled on ED visit day)
 
 ***
 
@@ -871,7 +898,7 @@ For detailed SQL queries used in each phase of the pipeline, see the [SQL Refere
 This section provides a comprehensive reference for all SQL queries used in the Cohort Creation Pipeline. Each phase is documented with explanations, parameters, and example queries.
 
 **Last Updated:** 2026-01-23  
-**Version:** 4.4 (Statistical Independence + Balanced Temporal Windows + Column Matching + Comprehensive ICD Diagnosis Checking + Precise HCG Detail Matching)
+**Version:** 5.0 (Simplified 21-Day Window - Removed Multiclass Targets)
 
 ---
 
@@ -1248,7 +1275,7 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 
 **Key Features: Dual Filter System**
 1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
-2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 45 days of ED event**
+2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
 
 The filtering uses a sequential CTE approach for clarity and maintainability. Each step builds on the previous one:
 
@@ -1744,13 +1771,13 @@ The pipeline calculates temporal relationships between events and target events,
      - Applied via `hcg_patients_with_visit_counts` CTE that counts ED visits per patient per year
      - Patients with 5+ visits are excluded before temporal relationship analysis
      - Logging shows total patients before filter, after filter, and how many were excluded
-  2. **Temporal Drug-ED Relationship Filter (0-45 days):**
+  2. **Temporal Drug-ED Relationship Filter (1-21 days, excluding 0-day):**
      - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
-     - Applied via sequential CTEs: `ed_events` → `drug_events` → `ed_drug_pairs` → `ed_drug_days` → `patients_with_temporal_relationship`
+     - Applied via sequential CTEs: `ed_events` → `drug_events` → `ed_drug_pairs` → `ed_drug_days` → `qualifying_ed` (filters to 1-21 days, excludes 0-day) → `index_qualifying_ed` → `target_cases`
      - For each ED event, finds most recent drug event before it
      - Calculates days from drug event to ED event
-     - Only includes patients where drug event is within 0-45 days of ED event
-     - QA check shows distribution of days (0-7, 8-14, 15-30, 31-45 days)
+     - Only includes patients where drug event is within 1-21 days of ED event (excluding 0-day discharge prescriptions)
+     - QA check shows distribution of days (1-7, 8-14, 15-21 days, excluding 0-day discharge prescriptions)
 - **Sequential CTE Approach:** The filtering uses a linear, step-by-step CTE structure for clarity:
   - Each filter step is a separate CTE that builds on the previous step
   - Makes the logic easy to follow, debug, and modify
