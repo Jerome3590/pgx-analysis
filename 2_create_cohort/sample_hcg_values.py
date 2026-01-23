@@ -73,7 +73,7 @@ try:
         hcg_detail,
         primary_icd_diagnosis_code,
         event_date
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IS NOT NULL
       AND hcg_line <> ''
     LIMIT 20
@@ -104,7 +104,7 @@ try:
         hcg_detail,
         primary_icd_diagnosis_code,
         event_date
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IN {codes_tuple}
     LIMIT 10
     """
@@ -128,7 +128,7 @@ try:
         hcg_line,
         CAST(COUNT(*) AS BIGINT) as count,
         CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as patients
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IS NOT NULL
       AND hcg_line <> ''
     GROUP BY hcg_line
@@ -159,7 +159,7 @@ try:
         hcg_setting,
         hcg_line,
         hcg_detail
-    FROM read_parquet_auto('{medical_path}')
+    FROM read_parquet('{medical_path}')
     WHERE hcg_line IS NOT NULL
       AND hcg_line <> ''
       AND (
