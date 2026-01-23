@@ -3,8 +3,15 @@ Quick script to sample HCG field values from gold medical data.
 Shows actual values for hcg_setting, hcg_line, and hcg_detail.
 """
 
-import duckdb
+import sys
 import os
+# Add project root to path so we can import py_helpers
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+import duckdb
 import pandas as pd
 from py_helpers.constants import S3_BUCKET
 from py_helpers.duckdb_utils import create_duckdb_conn
