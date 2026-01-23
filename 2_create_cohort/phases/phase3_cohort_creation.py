@@ -528,7 +528,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 FROM patients_with_drug_events pde
                 WHERE NOT EXISTS (
                     SELECT 1
-                    FROM target_cases_any tca
+                    FROM target_cases tca
                     WHERE tca.mi_person_key = pde.mi_person_key
                 )
                   AND NOT EXISTS (
@@ -544,9 +544,9 @@ def run_phase3_step3_final_cohort_fact(context):
             ),
             sampled_controls AS (
                 -- HIGH-IMPACT FIX #2: Hash-based sampling
-                -- FIX: Count target_cases_any (not just main) for 5:1 ratio calculation
+                -- Count target_cases for 5:1 ratio calculation
                 WITH target_count AS (
-                    SELECT COUNT(*) as target_cnt FROM target_cases_any
+                    SELECT COUNT(*) as target_cnt FROM target_cases
                 ),
                 needed_count AS (
                     SELECT tc.target_cnt * 5 as needed FROM target_count tc
