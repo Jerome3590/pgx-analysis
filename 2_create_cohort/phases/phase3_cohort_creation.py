@@ -175,7 +175,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 mi_person_key,
                 ed_event_date,
                 most_recent_drug_date,
-                CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
             FROM ed_drug_pairs
             WHERE most_recent_drug_date IS NOT NULL
         ),
@@ -440,11 +440,15 @@ def run_phase3_step3_final_cohort_fact(context):
             ),
             ed_drug_days AS (
                 -- Calculate days from most recent drug event to ED event
+                -- CRITICAL: datediff('day', start, end) returns days from start to end
+                -- If drug_date = 2020-01-01 and ed_date = 2020-01-01, result is 0 (same day)
+                -- If drug_date = 2020-01-01 and ed_date = 2020-01-02, result is 1 (1 day later)
                 SELECT
                     mi_person_key,
                     ed_event_date,
                     most_recent_drug_date,
-                    CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                    -- Ensure both dates are DATE type (no time component)
+                    CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
                 FROM ed_drug_pairs
                 WHERE most_recent_drug_date IS NOT NULL
             ),
@@ -693,9 +697,9 @@ def run_phase3_step3_final_cohort_fact(context):
                     -- This prevents INT32 overflow when materializing views with large date differences
                     CASE 
                         WHEN ftd.first_ed_non_opioid_date IS NOT NULL AND uef.event_date IS NOT NULL
-                        THEN CAST(datediff('day', uef.event_date::DATE, ftd.first_ed_non_opioid_date::DATE) AS BIGINT)
+                        THEN CAST(datediff('day', CAST(uef.event_date AS DATE), CAST(ftd.first_ed_non_opioid_date AS DATE)) AS BIGINT)
                         WHEN crd.reference_date IS NOT NULL AND uef.event_date IS NOT NULL
-                        THEN CAST(datediff('day', uef.event_date::DATE, crd.reference_date::DATE) AS BIGINT)
+                        THEN CAST(datediff('day', CAST(uef.event_date AS DATE), CAST(crd.reference_date AS DATE)) AS BIGINT)
                         ELSE NULL
                     END as days_to_target_event
                 FROM unified_event_fact_table uef
@@ -852,7 +856,7 @@ def run_phase3_step3_final_cohort_fact(context):
                         mi_person_key,
                         ed_event_date,
                         most_recent_drug_date,
-                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                        CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
                     FROM ed_drug_pairs
                     WHERE most_recent_drug_date IS NOT NULL
                 ),
@@ -907,6 +911,109 @@ def run_phase3_step3_final_cohort_fact(context):
                     logger.info(f"    Total: {int(gap_dist['total_patients']):,}")
                     logger.info(f"    Min: {int(gap_dist['min_days']):,} days | Max: {int(gap_dist['max_days']):,} days")
                     logger.info(f"    Avg: {float(gap_dist['avg_days']):.1f} days | Median: {float(gap_dist['median_days']):.1f} days")
+                    
+                    # Additional diagnostic: Show sample dates to understand why all gaps are 0
+                    if int(gap_dist['min_days']) == 0 and int(gap_dist['max_days']) == 0:
+                        logger.warning("⚠️ All drug-to-ED gaps are 0 days - investigating date matching...")
+                        sample_dates_df = cohort_conn_duckdb.sql(f"""
+                        WITH hcg_patients_with_visit_counts AS (
+                            SELECT
+                                uef.mi_person_key,
+                                CAST(YEAR(uef.event_date) AS INTEGER) as event_year,
+                                CAST(COUNT(*) AS BIGINT) as ed_visit_count
+                            FROM unified_event_fact_table uef
+                            WHERE uef.event_classification = '{label_ed_non_opioid}'
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM opioid_patients_materialized op
+                                  WHERE op.mi_person_key = uef.mi_person_key
+                              )
+                            GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
+                        ),
+                        patients_with_less_than_5_visits AS (
+                            SELECT DISTINCT mi_person_key
+                            FROM hcg_patients_with_visit_counts
+                            WHERE ed_visit_count < 5
+                        ),
+                        ed_events AS (
+                            SELECT DISTINCT
+                                uef.mi_person_key,
+                                uef.event_date as ed_event_date
+                            FROM unified_event_fact_table uef
+                            INNER JOIN patients_with_less_than_5_visits p5v ON uef.mi_person_key = p5v.mi_person_key
+                            WHERE uef.event_classification = '{label_ed_non_opioid}'
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM opioid_patients_materialized op
+                                  WHERE op.mi_person_key = uef.mi_person_key
+                              )
+                        ),
+                        drug_events AS (
+                            SELECT
+                                mi_person_key,
+                                event_date as drug_event_date
+                            FROM unified_event_fact_table
+                            WHERE event_type = 'pharmacy'
+                        ),
+                        ed_drug_pairs AS (
+                            SELECT DISTINCT
+                                ed.mi_person_key,
+                                ed.ed_event_date,
+                                MAX(de.drug_event_date) as most_recent_drug_date
+                            FROM ed_events ed
+                            INNER JOIN drug_events de ON ed.mi_person_key = de.mi_person_key
+                                AND de.drug_event_date <= ed.ed_event_date
+                            GROUP BY ed.mi_person_key, ed.ed_event_date
+                        ),
+                        ed_drug_days AS (
+                            SELECT
+                                mi_person_key,
+                                ed_event_date,
+                                most_recent_drug_date,
+                                -- Ensure both dates are DATE type (no time component)
+                                CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
+                            FROM ed_drug_pairs
+                            WHERE most_recent_drug_date IS NOT NULL
+                        ),
+                        qualifying_ed AS (
+                            SELECT
+                                mi_person_key,
+                                ed_event_date,
+                                most_recent_drug_date,
+                                days_from_drug_to_ed
+                            FROM ed_drug_days
+                            WHERE days_from_drug_to_ed >= 0
+                              AND days_from_drug_to_ed <= 45
+                        ),
+                        index_qualifying_ed AS (
+                            SELECT
+                                mi_person_key,
+                                ed_event_date as index_hcg_date,
+                                most_recent_drug_date,
+                                days_from_drug_to_ed
+                            FROM (
+                                SELECT
+                                    *,
+                                    ROW_NUMBER() OVER (
+                                        PARTITION BY mi_person_key
+                                        ORDER BY ed_event_date ASC
+                                    ) AS rn
+                                FROM qualifying_ed
+                            )
+                            WHERE rn = 1
+                        )
+                        SELECT
+                            mi_person_key,
+                            index_hcg_date,
+                            most_recent_drug_date,
+                            days_from_drug_to_ed,
+                            CAST(index_hcg_date AS VARCHAR) as ed_date_str,
+                            CAST(most_recent_drug_date AS VARCHAR) as drug_date_str
+                        FROM index_qualifying_ed
+                        LIMIT 10
+                        """).fetchdf()
+                        if not sample_dates_df.empty:
+                            logger.warning("  Sample date pairs (showing first 10):")
+                            for idx, row in sample_dates_df.iterrows():
+                                logger.warning(f"    Patient {row['mi_person_key']}: ED={row['ed_date_str']} ({row['ed_date_type']}), Drug={row['drug_date_str']} ({row['drug_date_type']}), Gap={int(row['days_from_drug_to_ed'])} days, Equal={int(row['dates_equal'])}")
 
                 # Now calculate window counts using the gap-based logic
                 cte_counts_df = cohort_conn_duckdb.sql(f"""
@@ -962,7 +1069,7 @@ def run_phase3_step3_final_cohort_fact(context):
                         mi_person_key,
                         ed_event_date,
                         most_recent_drug_date,
-                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                        CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
                     FROM ed_drug_pairs
                     WHERE most_recent_drug_date IS NOT NULL
                 ),
@@ -1106,7 +1213,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 ed_drug_days AS (
                     SELECT
                         mi_person_key,
-                        CAST(datediff('day', most_recent_drug_date::DATE, ed_event_date::DATE) AS BIGINT) as days_from_drug_to_ed
+                        CAST(datediff('day', CAST(most_recent_drug_date AS DATE), CAST(ed_event_date AS DATE)) AS BIGINT) as days_from_drug_to_ed
                     FROM ed_drug_pairs
                     WHERE most_recent_drug_date IS NOT NULL
                 )
