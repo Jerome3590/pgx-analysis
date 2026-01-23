@@ -210,9 +210,9 @@ def run_phase1_data_preparation(context):
         """).fetchall()
         
         if hcg_medical:
-            # Row structure: (hcg_line, count_by_code, distinct_hcg_patients)
-            # Sum the count_by_code (row[1]) for total HCG records
-            total_hcg = sum(int(row[1]) for row in hcg_medical)
+            # Row structure: (hcg_line, hcg_detail, count_by_code, distinct_hcg_patients)
+            # Sum the count_by_code (row[2]) for total HCG records
+            total_hcg = sum(int(row[2]) for row in hcg_medical)
             distinct_hcg = cohort_conn_duckdb.sql(f"""
             SELECT COUNT(DISTINCT mi_person_key)
             FROM medical
