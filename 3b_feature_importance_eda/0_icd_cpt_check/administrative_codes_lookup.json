@@ -1,0 +1,36 @@
+{
+  "description": "Lookup table for classifying codes as administrative vs. medical/pharmacy. Codes listed here will be filtered out during Feature Importance EDA feature filtering.",
+  "version": "1.0",
+  "last_updated": "2024-01-01",
+  "documentation": "See 3_feature_importance/README.md for details on Z code filtering. These 4 Z codes (Z00.00, Z00.01, Z00.121, Z00.129) were identified as administrative based on feature importance analysis showing they represent routine administrative examinations rather than clinical risk factors.",
+  "administrative_codes": {
+    "icd": [
+      "Z00.00",
+      "Z00.01",
+      "Z00.121",
+      "Z00.129"
+    ],
+    "cpt": [
+      "99024",
+      "99025",
+      "99026",
+      "99027"
+    ],
+    "drug": []
+  },
+  "notes": {
+    "icd": "ICD codes for administrative/billing purposes (e.g., routine health checks, administrative visits)",
+    "cpt": "CPT codes for administrative procedures (e.g., post-operative follow-up, administrative services)",
+    "drug": "Drug codes that are administrative (e.g., placebo, administrative medications). Usually empty - most drugs are clinical."
+  },
+  "research_guidelines": {
+    "how_to_identify_administrative_codes": [
+      "1. Review code_analysis_protocol_vs_clinical CSV from research outputs",
+      "2. Identify codes with high protocol_pct (>80%) that appear in protocol-like sequences",
+      "3. Manually review codes to determine if they are administrative vs. clinical",
+      "4. Add confirmed administrative codes to this lookup table",
+      "5. Codes should be administrative/billing/scheduling, not clinical diagnoses or treatments"
+    ],
+    "post_event_leakage": "Events occurring on or after target event date are automatically classified as administrative (leakage) and do not need to be in this lookup table."
+  }
+}

@@ -20,7 +20,7 @@
 4. [Aggregation Method](#aggregation-method)
 5. [Output Files](#output-files)
 6. [Visualization](#visualization)
-7. [Cross-Age-Band Analysis](#cross-age-band-analysis)
+7. [Filtering Administrative and Non-Informative Codes](#filtering-administrative-and-non-informative-codes)
 8. [Usage Examples](#usage-examples)
 9. [Best Practices](#best-practices)
 10. [EC2 Configuration and Optimizations](#ec2-configuration-and-optimizations)
@@ -126,7 +126,6 @@ The notebook (Cell 5) runs all combinations defined in `COHORT_NAMES` × `AGE_BA
 - Automatically handles multiple cohorts and age-bands
 - Idempotent: Skips already-processed combinations (checks local files and S3)
 - Nested parallelism: Optimizes worker allocation between task-level and MC-CV level
-- Cross-age-band aggregation: Only runs when all combinations are complete
 
 ### Single Cohort Execution (Optional)
 
@@ -619,32 +618,138 @@ Four publication-ready plots are automatically generated:
 
 ---
 
-## Cross-Age-Band Analysis
+## Filtering Administrative and Non-Informative Codes
 
-After running feature importance for multiple age bands, create comparison heatmaps:
+After generating aggregated feature importance, administrative and non-informative codes should be filtered out before proceeding to model data creation (Step 4a). This filtering is performed in **Step 3b: Feature Importance EDA**.
 
-```r
-source("create_cross_ageband_heatmap.R")
+### Administrative ICD Z Codes
 
-create_ageband_heatmap(
-  cohort_name = "opioid_ed",
-  event_year = 2016,
-  age_bands = c("13-24", "25-44", "45-54", "55-64", "65-74"),
-  top_n = 50
-)
-```
+**Not all Z codes are administrative.** ICD-10 Chapter 21 (Z00-Z99) contains both administrative codes and clinically important codes:
 
-**Outputs:**
-- Heatmap: Features × Age bands (color = importance)
-- Summary CSV: Variability metrics (CV, consistency)
-- Insights: Universal vs age-specific features
+#### Administrative Z Codes (Filtered)
 
-**Use Cases:**
-- Identify universal risk factors (low CV)
-- Find age-specific features (high CV)
-- Decide between age-agnostic vs age-stratified models
+The following Z codes are classified as administrative and are filtered out:
 
-**See:** `README_CROSS_AGEBAND_ANALYSIS.md` for details
+- **Z00.00** - Encounter for general adult medical examination without abnormal findings
+- **Z00.01** - Encounter for general adult medical examination with abnormal findings  
+- **Z00.121** - Encounter for routine child health examination with abnormal findings
+- **Z00.129** - Encounter for routine child health examination without abnormal findings
+
+**Note:** These codes represent routine administrative examinations rather than clinical diagnoses and do not add predictive value for the target outcome.
+
+#### Medical Z Codes (Kept)
+
+Most Z codes are **medical** and should be kept as features, including:
+
+- **Z11-Z13** - Screening codes (preventive care)
+- **Z55-Z65, Z59** - Social determinants of health (clinical context)
+- **Z34-Z39** - Encounter for maternal care
+- **Z40-Z53** - Encounter for other specific health care
+- **Z80-Z99** - Family history, personal history, etc.
+- **All other Z codes** - Classified as medical by default
+
+### Filtering Process
+
+The filtering process in Step 3b includes:
+
+1. **DTW Analysis** - Identifies administrative/non-informative ICD/CPT codes based on trajectory patterns
+2. **BupaR Analysis** - Identifies post-target leakage features (codes appearing after target event)
+3. **Administrative Codes Lookup** - Uses pre-identified administrative codes from `4b_dtw_filter/administrative_codes_lookup.json`
+4. **Manual Review** - Allows manual addition/removal of codes based on domain expertise
+
+### Example: Z Codes in Feature Importance
+
+For the `opioid_ed` cohort, age band `13-24`:
+- **Total Z codes:** 386
+- **Administrative Z codes (filtered):** 4 (Z00.00, Z00.01, Z00.121, Z00.129)
+- **Medical Z codes (kept):** 382
+
+**Important:** Even though administrative Z codes may have high feature importance scores (e.g., Z00.129 with importance 0.265), they should still be filtered as they represent administrative encounters rather than clinical risk factors.
+
+### Code Group Analysis: ICD and CPT Codes by Letter/Range
+
+Analysis of feature importance data shows the distribution of administrative vs informative codes across ICD-10 chapters and CPT code ranges.
+
+#### ICD Codes by Chapter (ICD-10)
+
+**Analysis Results for `opioid_ed` cohort, age band `13-24`:**
+
+| Chapter | Letter | Description | Total Codes | Administrative | Informative | Classification |
+|---------|--------|-------------|-------------|----------------|-------------|----------------|
+| 1 | A | Certain infectious and parasitic diseases | 114 | 0 | 114 | Informative |
+| 1 (cont.) | B | Certain infectious and parasitic diseases (continued) | 77 | 0 | 77 | Informative |
+| 2 | C | Neoplasms | 53 | 0 | 53 | Informative |
+| 3 | D | Diseases of blood and immune mechanism | 124 | 0 | 124 | Informative |
+| 4 | E | Endocrine, nutritional and metabolic diseases | 122 | 0 | 122 | Informative |
+| 5 | F | Mental, behavioral and neurodevelopmental disorders | 292 | 0 | 292 | Informative |
+| 6 | G | Diseases of the nervous system | 241 | 0 | 241 | Informative |
+| 7 | H | Diseases of the eye and adnexa | 424 | 0 | 424 | Informative |
+| 9 | I | Diseases of the circulatory system | 138 | 0 | 138 | Informative |
+| 10 | J | Diseases of the respiratory system | 317 | 0 | 317 | Informative |
+| 11 | K | Diseases of the digestive system | 221 | 0 | 221 | Informative |
+| 12 | L | Diseases of the skin and subcutaneous tissue | 240 | 0 | 240 | Informative |
+| 13 | M | Diseases of the musculoskeletal system and connective tissue | 453 | 0 | 453 | Informative |
+| 14 | N | Diseases of the genitourinary system | 180 | 0 | 180 | Informative |
+| 15 | O | Pregnancy, childbirth and the puerperium | 400 | 0 | 400 | Informative |
+| 16 | P | Certain conditions originating in the perinatal period | 17 | 0 | 17 | Informative |
+| 17 | Q | Congenital malformations, deformations and chromosomal abnormalities | 122 | 0 | 122 | Informative |
+| 18 | R | Symptoms, signs and abnormal clinical and laboratory findings | 293 | 0 | 293 | Informative |
+| 19 | S | Injury, poisoning and certain other consequences of external causes | 163 | 0 | 163 | Informative |
+| 19 (cont.) | T | Injury, poisoning and certain other consequences of external causes (continued) | 34 | 0 | 34 | Informative |
+| 22 | U | Codes for special purposes | 1 | 0 | 1 | Informative |
+| 20 | V | External causes of morbidity | 108 | 0 | 108 | Informative |
+| 21 | **Z** | **Factors influencing health status and contact with health services** | **353** | **4** | **349** | **Mixed** |
+
+**Key Findings:**
+- **All ICD chapters A-Y are 100% informative** - No administrative codes identified
+- **Only Z chapter contains administrative codes** - 4 out of 353 codes (1.1%) are administrative
+- **The 4 administrative Z codes** are routine examination codes (Z00.00, Z00.01, Z00.121, Z00.129)
+- **349 Z codes are informative** and should be kept as features
+
+#### CPT Codes by Range
+
+**Analysis Results for `opioid_ed` cohort, age band `13-24`:**
+
+| Range | Description | Total Codes | Administrative | Informative | Classification |
+|-------|-------------|-------------|----------------|-------------|----------------|
+| 00000-00999 | Anesthesia | 47 | 0 | 47 | Informative |
+| 01000-01999 | Anesthesia (continued) | 39 | 0 | 39 | Informative |
+| 10000-19999 | Surgery - Integumentary System | 122 | 0 | 122 | Informative |
+| 20000-29999 | Surgery - Musculoskeletal System | 276 | 0 | 276 | Informative |
+| 30000-39999 | Surgery - Respiratory, Cardiovascular, Hemic/Lymphatic | 184 | 0 | 184 | Informative |
+| 40000-49999 | Surgery - Digestive System | 118 | 0 | 118 | Informative |
+| 50000-59999 | Surgery - Urinary, Male Genital, Female Genital, Maternity | 119 | 0 | 119 | Informative |
+| 60000-69999 | Surgery - Endocrine, Nervous System | 171 | 0 | 171 | Informative |
+| 70000-79999 | Radiology | 361 | 0 | 361 | Informative |
+| 80000-89999 | Pathology and Laboratory | 754 | 0 | 754 | Informative |
+| **90000-99999** | **Medicine, Evaluation and Management, Miscellaneous** | **561** | **1** | **560** | **Mixed** |
+
+**Key Findings:**
+- **All CPT ranges 00000-89999 are 100% informative** - No administrative codes identified
+- **Only 90000-99999 range contains administrative codes** - 1 out of 561 codes (0.2%) is administrative
+- **The administrative CPT codes** are post-operative follow-up codes (99024, 99025, 99026, 99027)
+- **560 codes in 90000-99999 range are informative** and should be kept as features
+
+### Summary
+
+**Overall Code Classification:**
+- **ICD Codes:** 6,249 total codes, 4 administrative (0.06%), 6,245 informative (99.94%)
+- **CPT Codes:** 2,773 total codes, 1 administrative (0.04%), 2,772 informative (99.96%)
+
+**Administrative Codes Identified:**
+- **ICD:** Z00.00, Z00.01, Z00.121, Z00.129 (routine examination codes)
+- **CPT:** 99024, 99025, 99026, 99027 (post-operative follow-up codes)
+
+**Conclusion:** The vast majority of ICD and CPT codes in feature importance are informative and should be kept. Only a small number of administrative codes (routine examinations and post-operative follow-ups) are filtered out.
+
+### Configuration
+
+Administrative codes are maintained in:
+- **Lookup Table:** `4b_dtw_filter/administrative_codes_lookup.json`
+- **Cohort-Specific Config:** `3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_manual_filtering_config.json`
+- **Code Group Analysis:** `3b_feature_importance_eda/outputs/{cohort}/{age_band}/code_group_analysis.json`
+
+**See:** `3b_feature_importance_eda/README_feature_importance_eda.md` for details on the filtering workflow.
 
 ---
 
@@ -765,7 +870,6 @@ head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
 - Look at `n_models` column (2 = high confidence)
 - Check if top features make clinical sense
 - Review Recall values (should be reasonable, e.g., >0.6)
-- Compare across age bands for consistency
 
 ❌ **Don't:**
 - Use features ranked 100+ without inspection
@@ -1220,7 +1324,6 @@ uptime
 
 - **Main Notebook:** `feature_importance_mc_cv.ipynb`
 - **Visualization Script:** `create_visualizations.R`
-- **Cross-Age-Band Analysis:** `README_CROSS_AGEBAND_ANALYSIS.md`
 - **S3 Output Structure:** `S3_OUTPUT_STRUCTURE.md`
 - **rsample Bug:** `docs/RSAMPLE_BUG_WORKAROUND.md`
 

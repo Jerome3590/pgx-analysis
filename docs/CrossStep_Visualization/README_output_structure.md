@@ -27,7 +27,9 @@ Step 7: SHAP Analysis
 Step 8: Formal Feature Attribution (FFA)
   ↓ (Complete: outputs/)
 Step 9: Risk Dashboard
-  ↓ (Complete: outputs/)
+  ↓ (Complete: outputs/ + visualizations/)
+    - Frontend, Backend, Data Preparation, Deployment
+    - Visualizations: BupaR, FP-Growth, DTW (dashboard-only)
 ```
 
 ### Completion Criteria
@@ -65,26 +67,22 @@ Use this checklist to track progress:
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 4** ✅
 
-- [ ] **Step 4: FP-Growth Analysis** (`4_fpgrowth_analysis/`)
-  - [ ] Frequent itemsets generated
-  - [ ] Association rules computed
-  - [ ] Encoding maps created
+- [ ] **Step 4a: Model Data Extraction** (`4a_model_data/`)
+  - [ ] Model events extracted for all cohorts/age bands
+  - [ ] Results uploaded to S3 (if applicable)
+  - [ ] **READY FOR STEP 4b** ✅
+
+- [ ] **Step 4b: DTW Protocol Filtering** (`4b_dtw_filter/`)
+  - [ ] Protocol events filtered
+  - [ ] Filtered model events saved
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 5** ✅
 
-- [ ] **Step 5: BupaR Process Mining** (`5_bupaR_analysis/`)
-  - [ ] Event logs created
-  - [ ] Process flows discovered
-  - [ ] Sequence features extracted
+- [ ] **Step 5: PGx Feature Engineering** (`5_pgx_analysis/`)
+  - [ ] PGx features generated
+  - [ ] Features integrated into model data
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 6** ✅
-
-- [ ] **Step 6: DTW Trajectory Analysis** (`6_dtw_analysis/`)
-  - [ ] Patient trajectories computed
-  - [ ] Clustering completed
-  - [ ] Similarity scores calculated
-  - [ ] Results uploaded to S3 (if applicable)
-  - [ ] **READY FOR STEP 7** ✅
 
 - [ ] **Step 6: Final Model Development** (`6_final_model_selection/`)
   - [ ] Feature integration completed
@@ -93,22 +91,29 @@ Use this checklist to track progress:
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 7** ✅
 
-- [ ] **Step 7: SHAP Analysis** (`8_shap_analysis/`)
+- [ ] **Step 7: SHAP Analysis** (`7_shap_analysis/`)
   - [ ] SHAP values computed
   - [ ] Global importance calculated
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 8** ✅
 
-- [ ] **Step 8: Formal Feature Attribution** (`7_ffa_analysis/`)
+- [ ] **Step 8: Formal Feature Attribution** (`8_ffa_analysis/`)
   - [ ] Feature attribution computed (rule selection: first 100 + random 100 + all SHAP > 0)
   - [ ] Causal analysis completed
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 9** ✅
 
 - [ ] **Step 9: Risk Dashboard** (`9_risk_dashboard/`)
-  - [ ] Models prepared for deployment
-  - [ ] Metadata generated
-  - [ ] Dashboard artifacts created
+  - [ ] Models prepared for deployment (`outputs/models/`)
+  - [ ] Metadata generated (`outputs/metadata/`)
+  - [ ] CPIC data prepared (`outputs/cpic/`)
+  - [ ] Frontend dashboard built (`frontend/`)
+  - [ ] Backend API deployed (`backend/`)
+  - [ ] Visualizations generated (`visualizations/`):
+    - [ ] BupaR process mining visualizations (`visualizations/bupar/outputs/`)
+    - [ ] FP-Growth pattern visualizations (`visualizations/fpgrowth/outputs/`)
+    - [ ] DTW trajectory visualizations (`visualizations/dtw/outputs/`)
+  - [ ] All outputs uploaded to S3 (if applicable)
   - [ ] **ANALYSIS COMPLETE** ✅
 
 ---
@@ -155,8 +160,8 @@ Each analytical step follows this consistent structure:
 
 1. **Output Directory**: Each analysis step folder should have an `outputs/` subdirectory
    - Example: `3_feature_importance/outputs/`
-   - Example: `4_fpgrowth_analysis/outputs/`
-   - Example: `6_dtw_analysis/outputs/`
+   - Example: `6_final_model_selection/outputs/`
+   - Example: `9_risk_dashboard/outputs/` (and `9_risk_dashboard/visualizations/{type}/outputs/` for dashboard visualizations)
 
 2. **Plots Subdirectory**: All visualization files should be saved to `outputs/plots/`
    - Plots include: PNG, JPG, PDF, SVG files
@@ -232,26 +237,19 @@ ggsave(
 - **Plots Directory**: `3_feature_importance/outputs/plots/` (auto-created)
 - **Status**: Follows pattern ✅
 
-### ✅ 4_fpgrowth_analysis
-- **Notebooks**: `cohort_fpgrowth_feature_importance.ipynb`, `global_fpgrowth_feature_importance.ipynb`
-- **Supporting Scripts**: `cohort_fpgrowth.py`, `global_fpgrowth.py`
-- **Output Directory**: `4_fpgrowth_analysis/outputs/`
-- **Plots Directory**: `4_fpgrowth_analysis/outputs/plots/` (if applicable)
-- **Status**: Follows pattern ✅
-
-### ✅ 5_bupaR_analysis
-- **Notebooks**: `bupaR_pipeline_opioid_ed.ipynb`, `bupaR_pipeline_non_opioid_ed.ipynb`
-- **Supporting Scripts**: R scripts in `r_helpers/`
-- **Output Directory**: `5_bupaR_analysis/outputs/`
-- **Plots Directory**: `5_bupaR_analysis/outputs/plots/` (if applicable)
-- **Status**: Follows pattern ✅
-
-### ✅ 6_dtw_analysis
-- **Notebooks**: `dtw_pipeline_opioid_ed.ipynb`, `dtw_pipeline_non_opioid_ed.ipynb`
-- **Supporting Scripts**: `dtw_cohort_analysis.py`, `dtw_trajectory_analysis.py`
-- **Output Directory**: `6_dtw_analysis/outputs/`
-- **Plots Directory**: `6_dtw_analysis/outputs/plots/` (if applicable)
-- **Status**: Follows pattern ✅
+### ✅ 9_risk_dashboard (Visualizations)
+- **BupaR Visualizations**: `9_risk_dashboard/visualizations/bupar/`
+  - **Scripts**: `run_analysis.py`, `create_bupar_outputs_*.R`, `create_plots.R`
+  - **Output Directory**: `9_risk_dashboard/visualizations/bupar/outputs/`
+  - **Status**: Dashboard visualization only (not used as features) ✅
+- **FP-Growth Visualizations**: `9_risk_dashboard/visualizations/fpgrowth/`
+  - **Scripts**: `run_analysis.py`, `create_plots.py`, `create_fpgrowth_features.py`
+  - **Output Directory**: `9_risk_dashboard/visualizations/fpgrowth/outputs/`
+  - **Status**: Dashboard visualization only (not used as features) ✅
+- **DTW Visualizations**: `9_risk_dashboard/visualizations/dtw/`
+  - **Scripts**: `create_dtw_visualizations.py`, `create_dtw_features.py`
+  - **Output Directory**: `9_risk_dashboard/visualizations/dtw/outputs/`
+  - **Status**: Dashboard visualization only (not used as features) ✅
 
 ### ⚠️ 8_ffa_analysis
 - **Notebook**: `catboost_feature_attribution_analysis.ipynb`
@@ -355,11 +353,14 @@ Each step may depend on outputs from previous steps:
 | Step | Depends On | Key Inputs |
 |------|------------|------------|
 | **3_feature_importance** | Cohort data (`2_create_cohort/`) | Raw cohort parquet files |
-| **4_fpgrowth_analysis** | Step 3 outputs | Feature importance rankings, filtered model data |
-| **5_bupaR_analysis** | Step 4 outputs | FP-Growth itemsets, encoding maps |
-| **6_dtw_analysis** | Step 3-4 outputs | Feature importance, pattern data |
-| **7_final_model** | Steps 3-6 outputs | All feature sets from previous steps |
-| **8_ffa_analysis** | Step 7 outputs | Trained models, feature schema |
+| **4a_model_data** | Step 3 outputs | Feature importance rankings |
+| **4b_dtw_filter** | Step 4a outputs | Model events data |
+| **5_pgx_analysis** | Step 4b outputs | Filtered model events (no protocols) |
+| **6_final_model** | Step 5 outputs | PGx features + aggregated features |
+| **7_shap_analysis** | Step 6 outputs | Trained models, feature schema |
+| **8_ffa_analysis** | Step 7 outputs | SHAP results, trained models |
+| **9_risk_dashboard** | Steps 6-8 outputs | Models, SHAP, FFA, metadata |
+| **9_risk_dashboard/visualizations** | Step 4a outputs | Model events (for BupaR/FP-Growth/DTW visualizations only) |
 
 **Important:** Always verify that prerequisite outputs exist before starting a new step.
 

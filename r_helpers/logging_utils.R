@@ -4,6 +4,20 @@
 # R logging functions aligned with Python logging_utils
 # Provides console, file, and S3 logging capabilities
 
+# Helper function for timestamped logging (simple console output)
+# Used by BupaR analysis scripts and other R scripts
+# Args:
+#   msg: Message to log
+#   level: Log level (INFO, WARN, ERROR, etc.)
+log_msg <- function(msg, level = "INFO") {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  cat(sprintf("[%s] [%s] %s\n", timestamp, level, msg))
+  # Flush output streams to ensure immediate output in both interactive and Rscript modes
+  flush.console()  # For interactive R sessions (Jupyter, RStudio)
+  flush(stdout())  # For Rscript execution (non-interactive)
+  flush(stderr())  # For Rscript execution (non-interactive)
+}
+
 # Setup R logging similar to Python logging_utils.setup_logging()
 # Creates log file and returns logger object for logging to file and console
 setup_r_logging <- function(cohort_name, age_band, event_year) {
@@ -211,4 +225,3 @@ check_memory_usage_r <- function(logger = NULL, step_name = "Memory check") {
     return(list(used_mb = 0, max_mb = 0, gc_result = NULL))
   }
 }
-

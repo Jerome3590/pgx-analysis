@@ -7,13 +7,11 @@ Feature importance, pattern mining, and final model development for the Prescrip
 The analysis workflow implements a multi-stage approach to feature discovery, noise reduction, model development, and interpretation:
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
-2. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets)  
-3. **DTW-Based Protocol Filtering (Step 4b)** in `4b_dtw_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (BupaR, FP-Growth, DTW trajectory features, PGx)**.  
-4. **Extreme-Density Transaction Handling (Step 4b extension)** for all cohorts  
-   - Run `5b_fpgrowth_analysis/extract_extreme_density_cohort.py` once per `(cohort, age_band)` to split out an `{cohort}_extreme_density` cohort and **rewrite the base `4a_model_data` `model_events.parquet` without extreme-density patients**.  
-   - This guarantees that all downstream **feature engineering (`5a`–`5c`) and final model training (`6_final_model`) operate on the non‑extreme base cohorts in `4a_model_data`**, while `_extreme_density` cohorts are reserved for exploratory FP‑Growth / BupaR / DTW analysis.  
-5. **Feature Engineering** via FP-Growth, process mining (BupaR), optional DTW trajectory features, and PGx (`5a`–`5c` steps)  
-6. **Final Model Development** in `6_final_model/`, split into:
+2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
+3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
+4. **Event Filtering (Step 4b)** in `4b_event_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**. Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR).  
+5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
+6. **Final Model Development** in `6_final_model_selection/`
    - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
    - **6b_final_model_selection** – final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export.  
 7. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP for both XGBoost and CatBoost, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to filter and prioritize rules.
@@ -29,7 +27,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 **Goal**: Robust, model-agnostic feature ranking on noisy, high-dimensional data, using
 strict temporal validation and a small, focused model ensemble.
 
-**Process (implemented in `3_feature_importance/` and `4a_model_data/`):**
+**Process (implemented in `3_feature_importance/`, `3b_feature_importance_eda/`, and `4a_model_data/`):**
 1. **Monte Carlo Cross-Validation (MC‑CV)**  
    - Train on **2016–2018** and evaluate on a strict **2019 holdout** (no leakage).  
    - Default **10 splits** for feature-importance screening; many more (≈1000) for the final model.
@@ -47,9 +45,15 @@ strict temporal validation and a small, focused model ensemble.
    - Aggregate permutation scores per feature across MC‑CV splits.  
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
-5. **Model Data Extraction (`4a_model_data/`)**  
-   - Use the final aggregated importance to drive `4a_model_data` extraction and downstream pattern
-     mining / trajectory analysis.
+5. **Feature Refinement (Feature Importance EDA - `3b_feature_importance_eda/`)**  
+   - **BupaR Post-Target Analysis**: Use process mining to analyze sequences before and after target event to identify post-target leakage features in aggregated importances
+   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (actual event-level filtering happens in Step 4b)
+   - **Filter and Refine**: Remove post-target leakage features from aggregated feature importance list and generate refined `cohort_feature_importance` files
+   - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances
+   - Output: `cohort_feature_importance.csv` files that feed into Step 4a
+6. **Model Data Extraction (`4a_model_data/`)**  
+   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4a_model_data` extraction
+   - If Feature Importance EDA files are missing, Step 4a will error (no fallback to aggregated importances)
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -88,16 +92,16 @@ For the current analysis run, we fit a **separate end‑to‑end model (Steps 3�
 Each of these nine cells in the grid will have its own:
 - `3_feature_importance` run (MC‑CV + aggregation)
 - `4a_model_data` extraction (`model_events.parquet` for target and control)
-- `5_*` feature‑engineering passes (FP‑Growth, BupaR, DTW, PGx as applicable)
+- `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 9 for dashboard visualizations only)
 - `6_final_model` training + evaluation (one final model per `(cohort, age_band)`).
 
 ### Model Data Extraction (Target vs Control)
 
 After feature importance is computed for each `(cohort, age_band)` pair, we create a compact
-**model-ready event dataset** that downstream methods (FP-Growth, BupaR, DTW) consume:
+**model-ready event dataset** that downstream methods consume:
 
 - **Target cohort (opioid_ed)**:
-  - Read `*_aggregated_feature_importance.csv` to get the top important `item_*` features.
+  - Read `*_cohort_feature_importance.csv` from Feature Importance EDA (REQUIRED - no fallback to aggregated importances)
   - Strip the `item_` prefix to recover raw drug / ICD / procedure codes.
   - For each age band and event year, filter GOLD cohort events to **only those rows where at least one important item appears** in:
     - `drug_name`
@@ -113,111 +117,38 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
   - Write to:
     - `4a_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
 
-These paired `model_events.parquet` files provide a consistent, size-controlled input for FP-Growth,
-process mining (BupaR), and DTW trajectory analyses in Phase 2.
+These paired `model_events.parquet` files provide a consistent, size-controlled input for BupaR post-target analysis in Feature Importance EDA and downstream feature engineering.
 
-## Phase 2: Pattern & Process Mining + DTW + PGx (Feature Engineering in `5_*`)
+## Phase 2: PGx Feature Engineering (Step 5)
 
-**Goal**: Exploit structure in selected features and further reduce noise, then
-derive per-patient sequence/trajectory features for the final model.
+**Goal**: Add pharmacogenomics (PGx) features to the model-ready dataset.
 
-### Components
+### Step 5: PGx Feature Engineering (`5_pgx_analysis/`)
 
-1. **Step 5a – BupaR Process Mining** (`5a_bupaR_analysis/`)
-   - Process mining on drug/ICD/CPT codes for target vs control patients, **using the DTW-filtered `model_events_no_protocols.parquet` when available (else the base `model_events.parquet`) from `4a_model_data`**.  
-   - Pre- and post-F1120 sequence analysis (for `opioid_ed`) and general process maps.  
-   - Per-patient sequence features and Gantt-style visualizations mirrored to `feature_engineering_outputs/5_bupar/...`.
+- Pharmacogenomics (PGx) analysis on important drugs
+- Drug–gene mapping and allele-frequency-based risk features
+- Patient-level PGx feature tables joined by `mi_person_key`
 
-2. **Step 5b – FPGrowth Analysis** (`5b_fpgrowth_analysis/`)
-   - Frequent pattern mining on drug/ICD/CPT codes
-   - Target-focused association rules (predicting opioid dependence, ED visits)
-   - Itemset metrics and feature encoding
-   - **Step 5b output**: cohort-level itemsets/rules under `5b_fpgrowth_analysis/outputs/...`
+**Output**: PGx features integrated into the model-ready dataset
 
-3. **Step 5c – PGx Feature Engineering** (`5c_pgx_analysis/`)
-   - Pharmacogenomics (PGx) analysis on important drugs
-   - Drug–gene mapping and allele-frequency-based risk features
-   - Patient-level PGx feature tables joined by `mi_person_key`
+**Note**: 
+- **Feature Importance EDA**: Uses BupaR post-target analysis for feature refinement (not DTW)
+- **Step 4b**: Uses code-based filtering (administrative codes from 0_icd_cpt_check + post-event leakage from 1_bupaR) - creates `model_events_no_protocols.parquet`
+- **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories - visualization only)
 
-**Output**: Refined feature set that participates in frequent patterns, stable pathways, and respects process timing
-
-### Extreme-Density Transaction Handling (all cohorts)
-
-> **Why**: A small subset of patients can have extremely dense event histories (thousands of ICD/CPT items per TRAIN window).  
-> These patients are clinically interesting but computationally expensive for FP-Growth and BupaR, and they can dominate process-mining plots.  
-> We therefore (a) move them into a dedicated "extreme density" cohort for exploratory analysis, and (b) remove them from the main `model_events` used for final models.
-
-For each `(cohort, age_band)` we optionally run the following standardized sub-pipeline:
-
-1. **Identify and extract extreme-density patients**  
-   - Script: `5b_fpgrowth_analysis/extract_extreme_density_cohort.py`  
-   - Input: `4a_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet`.  
-   - Method:
-     - Recreates medical_code transactions (all 10 ICD diagnosis positions plus CPT) over TRAIN years (2016–2018).  
-     - Uses the same `assign_transaction_density` logic as `cohort_fpgrowth.py` to compute `transaction_size` per patient and bin into  
-       `low`, `medium`, `high`, and `extreme` based on percentile cut-points (P25/P50/P75/P95).  
-     - Flags all patients in the `extreme` bin.  
-   - Outputs:
-     - CSV of extreme patients:  
-       `4a_model_data/cohort_name={cohort}/age_band={band}/extreme_density_patients_{band_fname}.csv`.  
-     - New cohort with only extreme patients:  
-       `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events.parquet`.  
-     - Updated base `model_events.parquet` with extreme patients removed, plus a backup:  
-       `model_events_with_extreme.parquet` in the same folder.
-
-2. **Summarize and visualize the extreme-density cohort**  
-   - Script: `5b_fpgrowth_analysis/summarize_extreme_density_cohort.py`.  
-   - Input: `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events_no_protocols.parquet` when present, otherwise the base `model_events.parquet`.  
-   - Outputs (per `(cohort, age_band)` extreme cohort):
-     - Patient-level summary:
-       - `extreme_density_patient_summary_{band_fname}.csv` with per-patient counts  
-         (`n_events_total`, `n_events_pharmacy`, `n_events_medical`, `transaction_size_medical`, `target`).  
-     - Frequency tables and PNG plots:
-       - `extreme_density_drug_frequency_{band_fname}.{csv,png}`.  
-       - `extreme_density_icd_frequency_{band_fname}.{csv,png}` (all ICD positions collapsed).  
-       - `extreme_density_cpt_frequency_{band_fname}.{csv,png}`.  
-     - Histogram:
-       - `extreme_density_transaction_size_hist_{band_fname}.png` (distribution of `transaction_size_medical`).  
-     - Aggregate JSON summary:
-       - `extreme_density_summary_{band_fname}.json` with counts, event_type breakdown, target prevalence, and transaction-size stats.
-
-3. **BupaR process-mining for the extreme cohort**  
-   - For `opioid_ed`, we run: `5a_bupaR_analysis/create_bupar_outputs_opioid_ed_extreme.R {age_band}`.  
-   - This script:
-     - Reads `4a_model_data/cohort_name=opioid_ed_extreme_density/age_band={band}/model_events.parquet`.  
-     - Reuses the FP-Growth TARGET-only itemsets from the base `opioid_ed` cohort to define the activity alphabet (ICD/DRUG/CPT).  
-     - Builds a target-only eventlog for the extreme patients and computes:
-       - Target-only trace tables and process matrices.  
-       - Post-F1120 sequence features and patient-level post-F1120 summaries.  
-       - Overall activity-frequency and Gantt-style process plots for the extreme subset.  
-   - Outputs:
-     - Features under  
-       `5a_bupaR_analysis/outputs/opioid_ed_extreme_density/{band_fname}/features/*.csv` (also mirrored to S3).  
-     - Plots under  
-       `feature_engineering_outputs/5_bupar/opioid_ed_extreme_density/{age_band}/plots/*.png`.  
-
-4. **FP-Growth and DTW for the extreme cohort (feature-engineering mirror)**  
-   - **FP-Growth**: run `5b_fpgrowth_analysis/run_analysis.py --cohort-name {cohort}_extreme_density --age-band {age_band}` to mine itemsets and rules solely within the extreme cohort and create FP-Growth features and plots under `feature_engineering_outputs/4_fpgrowth/{cohort}_extreme_density/{age_band}/`.  
-   - **DTW**: run `4b_dtw_filter/run_analysis.py --cohort-name {cohort}_extreme_density --age-band {age_band}` followed by `4b_dtw_filter/create_dtw_plots.py --cohort-name {cohort}_extreme_density --age-band {age_band}` to generate DTW trajectory features and DTW-specific visualizations under `feature_engineering_outputs/6_dtw/{cohort}_extreme_density/{age_band}/`.  
-
-Over time we will repeat this extreme-density sub-pipeline for all cohorts and age bands, using these four steps so that every main model has a paired "extreme" cohort with its own FP-Growth, DTW, and BupaR feature engineering for exploratory visualization and process-mining, while keeping the main `model_events` used for modeling tractable.
-
-## Phase 3: Final Model Development (`6_final_model/`)
+## Phase 3: Final Model Development (`6_final_model_selection/`)
 
 **Goal**: Integrate features from all analysis methods into final prediction model.
 
 **Process**:
-1. **Feature Integration**: Combine feature-importance–filtered `4a_model_data`,
-   FP-Growth pattern information, BupaR sequence features, optional DTW trajectory
-   features, and PGx features into a single patient-level table (e.g. via
-   `6_final_model/build_final_cohort_model_features.py` for a given `(cohort, age_band)`).
+1. **Feature Integration**: Combine feature-importance–filtered `4a_model_data` and PGx features into a single patient-level table (e.g. via `6_final_model_selection/run_final_model.py` for a given `(cohort, age_band)`).
 2. **Feature Schema**: Unified patient-level feature matrix (~185-750 features)
 3. **Model Training**: CatBoost and Random Forest on integrated features
 4. **Model Evaluation**: Performance metrics and feature importance analysis
 
 **Output**: Trained models with interpretable feature sets
 
-**Location**: `6_final_model/`
+**Location**: `6_final_model_selection/`
 
 ## Enhanced Analysis Workflow Architecture
 
@@ -261,45 +192,49 @@ Over time we will repeat this extreme-density sub-pipeline for all cohorts and a
   - Class-specific importance rankings
   - Cross-validation stability
 
-## DTW and BupaR Integration
+## DTW Usage: Protocol Filtering and Dashboard Visualizations
 
-**DTW (Dynamic Time Warping)** and **BupaR (Process Mining)** serve different but complementary purposes:
+**DTW (Dynamic Time Warping)** is used in two distinct contexts:
 
-| Aspect | DTW | BupaR |
-|--------|-----|-------|
-| **Scope** | Pairwise sequence comparison | Process discovery across many cases |
-| **Output** | Distance metric | Process maps, flow diagrams |
-| **Abstraction** | Low-level (raw sequences) | High-level (process patterns) |
-| **Scalability** | O(n²) for each pair | Handles thousands of cases |
-| **Interpretability** | "These sequences are X% similar" | "80% of patients follow path A→B→C" |
+### 1. DTW Protocol Filtering (Step 4b)
 
-### DTW: Sequence Similarity Analysis
+**Purpose**: Identify and filter administrative/protocol codes from event data
 
-**Purpose:** Measure similarity between individual patient drug sequences that may vary in timing and length.
+**Location**: `4b_event_filter/`
+
+**Output**: `model_events_no_protocols.parquet` - Event data with administrative/protocol codes removed
+
+**Use Cases:**
+1. **Protocol Identification**: Identify standard care protocols that both targets and controls follow
+2. **Administrative Code Filtering**: Remove non-predictive administrative/scheduling codes
+3. **Data Cleaning**: Create clean event dataset for downstream feature engineering (PGx)
+
+**Note**: This filtering happens at the event level, creating `model_events_no_protocols.parquet` that is used as the preferred input for all downstream feature engineering steps.
+
+### 2. DTW Dashboard Visualizations (Step 9)
+
+**Purpose**: Trajectory analysis and visualization for dashboard exploration
+
+**Location**: `9_risk_dashboard/visualizations/dtw/`
 
 **Use Cases:**
 1. **Patient Clustering**: Group patients with similar drug exposure histories
-2. **Outlier Detection**: Identify patients with unusual drug sequences
-3. **Similarity-Based Features**: Calculate distance to known high-risk patterns
-4. **Sequence Validation**: Compare drug sequences across different time periods
+2. **Trajectory Visualization**: Interactive dashboard visualization of patient trajectories
+3. **Outlier Detection**: Identify patients with unusual drug sequences
+4. **Exploratory Analysis**: Visual exploration of sequence patterns (visualization only, not used as model features)
+
+**Note**: DTW trajectory analysis in Step 9 is for dashboard visualizations only - these are not used as model features.
 
 ### BupaR: Process Discovery and Pathway Analysis
 
 **Purpose:** Discover common process flows and temporal patterns across patient populations.
 
 **Use Cases:**
-1. **Process Flow Discovery**: Identify common pathways from drug exposure to outcomes
-2. **Temporal Pattern Analysis**: Understand timing relationships between events
-3. **Pathway Comparison**: Compare process flows between target and control groups
-4. **Performance Analysis**: Measure throughput times and bottlenecks
-
-### Integrated Workflow: DTW + BupaR
-
-1. **Cluster patients by drug sequence similarity** (DTW)
-2. **Add cluster labels to patient data**
-3. **Analyze process patterns within each DTW cluster** (BupaR)
-4. **Compare process flows across clusters**
-5. **Identify high-risk trajectory patterns**
+1. **Feature Importance EDA**: Post-target analysis to identify leakage features (Feature Importance EDA)
+2. **Process Flow Discovery**: Identify common pathways from drug exposure to outcomes (Step 9 dashboard)
+3. **Temporal Pattern Analysis**: Understand timing relationships between events
+4. **Pathway Comparison**: Compare process flows between target and control groups
+5. **Dashboard Visualizations**: Process mining visualizations for interactive exploration (Step 9)
 
 ## Analysis Pipeline Overview
 
@@ -310,50 +245,127 @@ flowchart TD
         B --> C[Top Features Selection]
     end
     
+    subgraph "Feature Importance EDA: Feature Refinement"
+        C --> C1[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
+        C1 --> C2[Code Research & Validation<br/>Administrative Codes]
+        C2 --> C3[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
+    end
+    
     subgraph "Step 4: Model Data & Filtering"
-        C --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        D --> E[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
+        C3 --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        D --> E[4b: Protocol Filtering<br/>Remove Administrative Codes]
     end
     
     subgraph "Step 5: PGx Feature Engineering"
-        E --> F[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
+        E --> F[PGx Feature Engineering<br/>PGx Drug Counts<br/>Drug Counts]
     end
     
     subgraph "Step 6: Final Model Training"
-        F --> G[Feature Integration<br/>Aggregated Features + PGx]
+        F --> G[Feature Integration<br/>Refined Features + PGx]
         G --> H[CatBoost Training]
         G --> I[XGBoost Training]
-        H --> J[Model Selection & Evaluation]
+        G --> I2[XGBoost RF Training]
+        H --> J[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
         I --> J
+        I2 --> J
     end
     
     subgraph "Step 7-8: Post-Model Analysis"
-        J --> K[7: SHAP Analysis<br/>SHAP Values]
-        J --> L[8: FFA Analysis<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
+        J --> K[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
+        J --> L[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
         K --> L
     end
     
     subgraph "Step 9: Risk Dashboard"
         L --> N[Risk Dashboard<br/>Model Deployment]
-        N --> O[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
+        K --> N
+        N --> N1[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
+        N --> N2[Backend API<br/>Lambda Function]
+        N --> N3[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
+        N1 --> N4[Production Deployment<br/>S3 + API Gateway + Lambda]
+        N2 --> N4
+        N3 --> N4
     end
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#bbf,stroke:#333,stroke-width:2px
     style F fill:#bfb,stroke:#333,stroke-width:2px
     style J fill:#fbb,stroke:#333,stroke-width:2px
-    style L fill:#fbf,stroke:#333,stroke-width:2px
-    style N fill:#ffb,stroke:#333,stroke-width:2px
+    style K fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
+    style L fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
+    style N fill:#ffb,stroke:#333,stroke-width:2px    %% Risk Dashboard
+    style N1 fill:#ffb,stroke:#333,stroke-width:2px    %% Frontend
+    style N2 fill:#ffb,stroke:#333,stroke-width:2px    %% Backend
+    style N3 fill:#ffb,stroke:#333,stroke-width:2px    %% Visualizations
+    style N4 fill:#ffb,stroke:#333,stroke-width:2px    %% Deployment
 ```
 
 ## Key Insights
 
 | Question | Analysis Method | Insights |
 |----------|----------------|-----------|
-| What itemsets are most common? | FpGrowth | Frequent co-occurrence patterns |
-| How do itemsets play out temporally? | BupaR | Process flows and sequences |
+| What itemsets are most common? | FP-Growth (visualization) | Frequent co-occurrence patterns for exploratory analysis |
+| How do itemsets play out temporally? | BupaR (visualization) | Process flows and sequences for clinical interpretation |
 | Which itemsets drive model predictions? | XGBoost FFA + CatBoost SHAP | Risk-influential patterns (XGBoost FFA with CatBoost SHAP filtering) |
-| Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis |
+| Are process-dominant paths aligned with risk? | BupaR vs. FFA | Pattern alignment analysis (visualization complements causal analysis) |
+
+## Lessons Learned
+
+### Why FP-Growth, BupaR, and DTW Are Visualization-Only
+
+**FP-Growth**:
+- **Target Leakage Risk**: Patterns mined from combined target+control data can encode target-specific information
+- **Direct Leakage**: Rules may include target codes (e.g., F1120) as consequents, creating perfect target leakage
+- **Solution**: Use FP-Growth for visualization and exploratory analysis only, not as model features
+
+**BupaR**:
+- **Complexity vs. Benefit**: Process mining features add significant complexity without sufficient predictive benefit over aggregated feature importances
+- **Value in Exploration**: BupaR visualizations provide valuable clinical insights into patient pathways
+- **Solution**: Use BupaR in Feature Importance EDA for feature refinement (post-target analysis) and in Step 9 for dashboard visualizations, but not as model features
+
+**DTW**:
+- **Protocol Filtering**: DTW excels at identifying standard care protocols that both targets and controls follow
+- **Non-Predictive**: These protocols are non-predictive by design (they're standard care)
+- **Solution**: Use DTW for protocol filtering (Step 4b) and trajectory visualization (Step 9), but not as model features
+
+### Why Aggregated Features Are Used Directly (No Encoding)
+
+**Initial Approach**: Feature encoding step to convert categorical features to numeric codes.
+
+**Final Approach**: Use aggregated feature importances directly from Step 3.
+
+**Key Insights**:
+- **MC-CV Already Filters**: The Monte Carlo cross-validation process already identifies and ranks the most important features
+- **Reduced Complexity**: Eliminating encoding reduces pipeline complexity and potential sources of error
+- **Maintains Predictive Power**: Aggregated importances capture the essential signals without encoding overhead
+- **PGx Adds Value**: PGx features provide additional pharmacogenomic information that complements aggregated features
+
+**Result**: Simpler, more maintainable pipeline with equivalent or better predictive performance.
+
+### Why SHAP Filters FFA Rules
+
+**Approach**: Use SHAP importance from Step 7 to filter and prioritize rules for FFA (Step 8) AXP computation.
+
+**Key Insights**:
+- **Rule Explosion**: Without filtering, FFA can generate thousands of rules, many of which are noise
+- **SHAP as Quality Filter**: SHAP importance identifies features that actually contribute to predictions
+- **Three-Set Union**: Rule selection uses union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) top 300 SHAP-filtered rules
+- **Causal Filtering**: Final rule set further filtered based on causal importance scores
+
+**Result**: Focused, high-quality rule set for causal analysis that balances comprehensiveness with interpretability.
+
+### Why CatBoost FFA Is Not Performed
+
+**Technical Limitation**: CatBoost's complex hashing and CTR (Counter-based Target Statistics) transformations make symbolic rule extraction difficult.
+
+**Design Philosophy**: This limitation functions as a deliberate quality control mechanism.
+
+**Key Insights**:
+- **Model Agreement**: Requiring features to be detected by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) filters out model-specific artifacts
+- **Robustness**: If CatBoost finds a signal that XGBoost cannot replicate, it may be an artifact of CatBoost's specific encoding
+- **Clinical Actionability**: Features that can't be translated to symbolic rules are too opaque for clinical decision-making
+
+**Result**: Higher-confidence features in causal analysis, with explicit logical verification possible.
 
 ## Output Paths Summary
 
@@ -387,10 +399,6 @@ flowchart TD
 - `s3://pgxdatalake/gold/pgx_features/global/pgx_drug_gene_mappings_global.csv` - Global drug-gene mapping cache
 - `s3://pgxdatalake/gold/pgx_features/global/pgx_allele_frequencies_global.csv` - Global allele frequency cache
 
-**Legacy S3 Location (for backward compatibility):**
-- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_features_{cohort}_{age_band}.csv` - Legacy intermediate features
-- `s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band}.csv` - Legacy final features
-
 **Checkpoints:**
 - `s3://pgx-repository/pipeline_checkpoints/5_pgx_analysis/{cohort}/{age_band}/checkpoint.json` - Step 5 completion checkpoint
 - `s3://pgx-repository/7_pgx_log/{cohort}/{age_band}/pgx_{cohort}_{age_band}.log` - Step 5 execution logs
@@ -406,7 +414,7 @@ flowchart TD
 
 The workflow checks for existing outputs in this order:
 1. **Local files**: Checks cohort-level, then global cache
-2. **S3 files**: Checks global cache → cohort-level → legacy age-band paths
+2. **S3 files**: Checks global cache → cohort-level paths
 3. **Checkpoints**: Checks `pgx-repository` bucket for completion checkpoints
 
 If outputs exist, the step is skipped. To force regeneration, use:

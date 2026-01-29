@@ -96,15 +96,70 @@ def prepare_train_test_s3(
     print(f"[INFO] Loaded {len(df)} patients with {len(df.columns)} columns")
     
     # Load model_data to get event_year information for temporal split
-    model_data_path = (
-        project_root
-        / "model_data"
-        / f"cohort_name={cohort_name}"
-        / f"age_band={age_band}"
-        / "model_events.parquet"
-    )
+    # Step 4a saves to 4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
+    from py_helpers.env_utils import get_data_root, is_linux
     
-    if not model_data_path.exists():
+    data_root = get_data_root() if is_linux() else None
+    
+    # Check multiple possible locations
+    model_data_paths = [
+        project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+    ]
+    
+    # Add /mnt/nvme path if on Linux
+    if data_root:
+        model_data_paths.append(
+            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet"
+        )
+    
+    # Try S3 if not found locally
+    model_data_path = None
+    for path in model_data_paths:
+        if path.exists():
+            model_data_path = path
+            break
+    
+    # If not found locally, try downloading from S3
+    if model_data_path is None:
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+            s3_key = f"gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
+            
+            # Try to download from S3
+            local_download_path = model_data_paths[0]  # Use first path as download destination
+            local_download_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            print(f"[INFO] model_events.parquet not found locally. Checking S3: s3://{S3_BUCKET}/{s3_key}")
+            try:
+                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                print(f"[INFO] Downloading from S3 to {local_download_path}")
+                s3_client.download_file(S3_BUCKET, s3_key, str(local_download_path))
+                model_data_path = local_download_path
+                print(f"[OK] Downloaded model_events.parquet from S3")
+            except ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                    raise FileNotFoundError(
+                        f"model_data not found locally or in S3. Checked:\n"
+                        f"  - {model_data_paths[0]}\n"
+                        f"  - {model_data_paths[1] if len(model_data_paths) > 1 else 'N/A'}\n"
+                        f"  - s3://{S3_BUCKET}/{s3_key}\n"
+                        f"Please run Step 4a first to create model_events.parquet"
+                    )
+                else:
+                    raise
+        except ImportError:
+            raise FileNotFoundError(
+                f"model_data not found locally. Checked:\n"
+                f"  - {model_data_paths[0]}\n"
+                f"  - {model_data_paths[1] if len(model_data_paths) > 1 else 'N/A'}\n"
+                f"boto3 not available for S3 download. Please run Step 4a first to create model_events.parquet"
+            )
+    
+    if model_data_path is None or not model_data_path.exists():
         raise FileNotFoundError(f"model_data not found: {model_data_path}")
     
     print(f"[INFO] Loading event year information from {model_data_path}")
@@ -186,9 +241,9 @@ def prepare_train_test_s3(
         print("[WARNING] Target column missing in test features, adding default target=1")
         test_features['target'] = 1
     
-    # Create local input directories in BOTH locations for compatibility
-    # Primary location: 6_final_model/outputs (for Step 8 FFA analysis)
-    primary_input_dir = (
+    # Create local input directories
+    # Location: 6_final_model/outputs (for Step 8 FFA analysis)
+    input_dir = (
         project_root
         / "6_final_model"
         / "outputs"
@@ -196,54 +251,27 @@ def prepare_train_test_s3(
         / age_band_fname
         / "inputs"
     )
-    primary_input_dir.mkdir(parents=True, exist_ok=True)
+    input_dir.mkdir(parents=True, exist_ok=True)
     
-    primary_train_dir = primary_input_dir / "model_train"
-    primary_test_dir = primary_input_dir / "model_test"
-    primary_train_dir.mkdir(exist_ok=True)
-    primary_test_dir.mkdir(exist_ok=True)
+    train_dir = input_dir / "model_train"
+    test_dir = input_dir / "model_test"
+    train_dir.mkdir(exist_ok=True)
+    test_dir.mkdir(exist_ok=True)
     
-    # Legacy location: 8_final_model/inputs (for backward compatibility)
-    legacy_input_dir = (
-        project_root
-        / "8_final_model"
-        / "inputs"
-        / cohort_name
-        / age_band_fname
-    )
-    legacy_input_dir.mkdir(parents=True, exist_ok=True)
+    # Save locally as Parquet (more efficient than CSV)
+    train_path = train_dir / "final_features.parquet"
+    test_path = test_dir / "final_features.parquet"
     
-    legacy_train_dir = legacy_input_dir / "model_train"
-    legacy_test_dir = legacy_input_dir / "model_test"
-    legacy_train_dir.mkdir(exist_ok=True)
-    legacy_test_dir.mkdir(exist_ok=True)
-    
-    # Save locally as Parquet (more efficient than CSV) in BOTH locations
-    primary_train_path = primary_train_dir / "final_features.parquet"
-    primary_test_path = primary_test_dir / "final_features.parquet"
-    legacy_train_path = legacy_train_dir / "final_features.parquet"
-    legacy_test_path = legacy_test_dir / "final_features.parquet"
-    
-    print(f"\n[INFO] Saving train dataset to primary location: {primary_train_path}")
-    train_features.to_parquet(primary_train_path, index=False, engine='pyarrow')
+    print(f"\n[INFO] Saving train dataset to: {train_path}")
+    train_features.to_parquet(train_path, index=False, engine='pyarrow')
     print(f"[INFO] Train dataset: {len(train_features)} rows, {len(train_features.columns)} columns")
     
-    # Also save to legacy location
-    print(f"[INFO] Also saving to legacy location: {legacy_train_path}")
-    train_features.to_parquet(legacy_train_path, index=False, engine='pyarrow')
-    
     if len(test_features) > 0:
-        print(f"[INFO] Saving test dataset to primary location: {primary_test_path}")
-        test_features.to_parquet(primary_test_path, index=False, engine='pyarrow')
+        print(f"[INFO] Saving test dataset to: {test_path}")
+        test_features.to_parquet(test_path, index=False, engine='pyarrow')
         print(f"[INFO] Test dataset: {len(test_features)} rows, {len(test_features.columns)} columns")
-        
-        # Also save to legacy location
-        print(f"[INFO] Also saving to legacy location: {legacy_test_path}")
-        test_features.to_parquet(legacy_test_path, index=False, engine='pyarrow')
     
-    # Use primary path for S3 upload
-    train_path = primary_train_path
-    test_path = primary_test_path
+    # train_path and test_path are already set above
     
     # Upload to S3 (CRITICAL: Training data must be in S3 for FFA analysis)
     # S3 structure: inputs folder (replicating local structure)

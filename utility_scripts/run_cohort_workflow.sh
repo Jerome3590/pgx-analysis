@@ -14,7 +14,8 @@ set -euo pipefail
 #
 # Steps:
 #   3: Feature Importance (check for completed aggregated feature importances)
-#   4a: Model Data Creation (generate model_events.parquet with cases + controls)
+#   3b: Feature Importance EDA and Refinement (BupaR post-target analysis to identify leakage)
+#   4a: Model Data Creation (generate model_events.parquet with cases + controls, uses refined features from Step 3b)
 #   4b: DTW Protocol Filtering (administrative/scheduling/non-medical codes, keep all surgeries)
 #   5c: PGx Feature Engineering (only feature engineering step)
 #   6: Final Model Training (use aggregated features + PGx, no encoding, select best by recall/AUC-PR)
@@ -203,6 +204,73 @@ except:
 " 2>/dev/null || echo "no")
     
     if [ "$STEP_COMPLETED" = "yes" ]; then
+        # For Step 4a, verify model_events.parquet exists AND has controls before skipping
+        if [ "$step_num" = "4a" ]; then
+            AGE_BAND_FNAME=$(echo "$AGE_BAND" | tr '-' '_')
+            data_root=$(python3 -c "import sys; sys.path.insert(0, '.'); from py_helpers.env_utils import get_data_root; print(get_data_root())" 2>/dev/null || echo "$PROJECT_ROOT")
+            
+            # Check multiple possible locations
+            MODEL_EVENTS_LINUX="$data_root/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+            MODEL_EVENTS_LOCAL="$PROJECT_ROOT/4a_model_data/cohort_name=$COHORT_NAME/age_band=$AGE_BAND/model_events.parquet"
+            
+            MODEL_EVENTS_FILE=""
+            if [ -f "$MODEL_EVENTS_LINUX" ]; then
+                MODEL_EVENTS_FILE="$MODEL_EVENTS_LINUX"
+            elif [ -f "$MODEL_EVENTS_LOCAL" ]; then
+                MODEL_EVENTS_FILE="$MODEL_EVENTS_LOCAL"
+            fi
+            
+            if [ -z "$MODEL_EVENTS_FILE" ]; then
+                log "Step 4a marked as completed but model_events.parquet is missing. Re-running to regenerate..."
+                # Clear the completion flag so we run the step
+                python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '4a' in data['step_times']:
+        data['step_times']['4a']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                STEP_COMPLETED="no"
+            else
+                # File exists - verify it has controls
+                HAS_CONTROLS=$(python3 -c "
+import duckdb
+con = duckdb.connect()
+try:
+    result = con.execute(\"SELECT COUNT(*) FILTER (WHERE target = 0) AS n_controls FROM read_parquet('$MODEL_EVENTS_FILE')\").fetchone()
+    n_controls = result[0] if result else 0
+    print('yes' if n_controls > 0 else 'no')
+except:
+    print('no')
+finally:
+    con.close()
+" 2>/dev/null || echo "no")
+                
+                if [ "$HAS_CONTROLS" != "yes" ]; then
+                    log "Step 4a marked as completed but model_events.parquet has no controls. Re-running to add controls..."
+                    # Clear the completion flag so we run the step
+                    python3 -c "
+import json
+try:
+    with open('$TIME_LOG_FILE', 'r') as f:
+        data = json.load(f)
+    if 'step_times' in data and '4a' in data['step_times']:
+        data['step_times']['4a']['completed'] = False
+    with open('$TIME_LOG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except:
+    pass
+" 2>/dev/null || true
+                    STEP_COMPLETED="no"
+                fi
+            fi
+        fi
+        
         # For Step 6, verify essential files exist before skipping
         # (Python script handles S3 downloads, but we need to let it run if files are missing)
         # Step 7 needs both the features CSV AND the model files, so check for both
@@ -411,14 +479,24 @@ except:
 
 # Step 3: Feature Importance (check for completed aggregated feature importances)
 # This step is idempotent - will skip if results already exist
+# Can work with cohort.parquet files if model_events.parquet doesn't exist yet
 run_step "3" "Feature Importance (Check/Generate Aggregated)" \
     "python 3_feature_importance/run_mc_feature_importance.py --cohort $COHORT_NAME --age_band $AGE_BAND"
+
+# Step 3b: Feature Importance EDA and Refinement
+# Analyzes aggregated feature importances using BupaR (post-target analysis to identify leakage)
+# Filters and refines features to produce cohort_feature_importance files
+# REQUIRED: Step 3b must run before Step 4a (Step 4a requires cohort_feature_importance files)
+# Note: Step 3b can use cohort.parquet files from Step 2 if model_events.parquet doesn't exist yet
+run_step "3b" "Feature Importance EDA and Refinement (BupaR Post-Target Analysis)" \
+    "python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 4a: Model Data Creation (with controls)
 # Generate model_events.parquet with cases AND controls from gold medical/pharmacy data
 # This must run BEFORE Step 4b to ensure local files with controls exist
-# (Otherwise Step 4b will download from S3, which has files without controls)
+# (Otherwise Step 4b will download from S3, which may have files without controls)
 # The script validates controls and uploads to S3 automatically
+# REQUIRES: cohort_feature_importance files from Step 3b (will error if not found)
 run_step "4a" "Model Data Creation (Cases + Controls)" \
     "python 4a_model_data/create_model_data.py --cohort $COHORT_NAME --age-band $AGE_BAND"
 
@@ -492,7 +570,7 @@ fi
 # Step 4b: DTW Protocol Filtering
 # Filter administrative/scheduling/non-medical codes, keep all surgeries
 run_step "4b" "DTW Protocol Filtering (Admin/Scheduling Filter, Keep Surgeries)" \
-    "python 4b_dtw_filter/filter_protocol_events.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
+    "python 4b_event_filter/filter_protocol_events.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 5: PGx Feature Engineering (ONLY feature engineering step)
 # Note: BupaR, FP-Growth, and DTW are now used only for dashboard visualizations
@@ -510,6 +588,11 @@ run_step "5" "PGx Feature Engineering" \
 # Note: run_step will verify features CSV exists before skipping
 run_step "6" "Final Model Training (Aggregated Features + PGx, No Encoding)" \
     "python 6_final_model_selection/run_final_model.py --cohort $COHORT_NAME --age_band $AGE_BAND"
+
+# Step 6.5: Prepare Train/Test Split (creates final_features.parquet for FFA)
+# This creates train/test final_features.parquet files that FFA analysis needs
+run_step "6.5" "Prepare Train/Test Split (final_features.parquet)" \
+    "python 6_final_model/prepare_train_test_s3.py --cohort-name $COHORT_NAME --age-band $AGE_BAND"
 
 # Step 7: SHAP Analysis (uses best CatBoost model binary)
 # Must run before Step 8 (FFA) since FFA uses SHAP values to prioritize rules

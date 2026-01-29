@@ -15,7 +15,7 @@ The Cohort Pipeline builds **event-based fact tables** for analytical cohorts us
 
 Each cohort includes **target cases** and **5 matching controls** per case to ensure statistical robustness. The pipeline uses a **dual-target system**:
 - **Target 1:** ICD/CPT codes (e.g., F1120 for opioid use disorder)
-- **Target 2:** HCG-based ED visit identification (P51, O11, P33 line codes)
+- **Target 2:** HCG-based ED visit identification (P51b, O11, P33 - using hcg_detail for precision)
 
 When partitions have zero targets, the pipeline creates **control-only cohorts** using pre-computed average target counts to ensure complete coverage for model training.
 
@@ -122,7 +122,7 @@ DuckDB handling has been fully aligned with the standardized system from the pha
 - **Demographics:** imputed age, race, gender, payer type, and location
 - **Medical Events:** ICD codes, CCS classification, provider and service metadata, **HCG fields** (hcg_setting, hcg_line, hcg_detail)
 - **Pharmacy Events:** drug name, therapeutic class, and exposure timing
-- **Cohort Metadata:** target/control indicator, cohort label, **cohort type** (OPIOID_ED, NON_OPIOID_ED, NON_ED), creation timestamp
+- **Cohort Metadata:** target/control indicator (`is_target_case`), legacy `target` column, cohort label, **cohort type** (OPIOID_ED, NON_OPIOID_ED, NON_ED), time window target columns (polypharmacy only), creation timestamp
 
 ### Cohort Classification Column
 
@@ -143,9 +143,20 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 | `first_ed_non_opioid_date` | STRING | Date of first non-opioid ED event (if any) | ❌ NULL | ✅ Populated |
 | `days_to_target_event` | INTEGER | Days from event to first target event | ❌ NULL* | ✅ Calculated |
 | `event_date` | STRING | Date of the event | ✅ All events | ✅ All events |
-| `event_sequence` | INTEGER | Sequential order of events per patient | ✅ All events | ✅ All events |
+| `event_sequence` | INTEGER | Sequential order of events per patient (globally ordered across medical and pharmacy) | ✅ All events | ✅ All events |
 
 \* For OPIOID_ED cohort, `days_to_target_event` is NULL. Users can calculate it from `event_date` and `first_opioid_ed_date` if needed.
+
+#### Target Case Indicators
+
+| Field | Type | Description | OPIOID_ED | ED_NON_OPIOID |
+| :-- | :-- | :-- | :-- | :-- |
+| `target` | INTEGER | **Legacy column** - Always 1 for OPIOID_ED/ED_NON_OPIOID cohorts (use `is_target_case` instead) | ✅ Always 1 | ✅ Always 1 |
+| `is_target_case` | INTEGER | Target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (uses 21-day window) |
+**Important Notes:**
+- **`target` column is legacy** - Always set to 1 for both cohorts. Use `is_target_case` for actual target/control distinction.
+- **`is_target_case` column** uses a fixed 21-day window for adverse drug event identification (excluding 0-day discharge prescriptions).
+- The 21-day window captures ~90.5% of adverse drug events based on distribution analysis.
 
 #### Cohort-Specific Temporal Behavior
 
@@ -164,43 +175,138 @@ The pipeline includes temporal analysis fields that differ between cohorts:
   WHERE first_opioid_ed_date IS NOT NULL
   ```
 
-**ED_NON_OPIOID Cohort:**
-- **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
+**ED_NON_OPIOID Cohort (Polypharmacy):**
+- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a 21-day window of drug events
+- **Dual Filter System for True Adverse Drug Events:** The cohort applies two sequential filters to ensure only true adverse drug events are included:
+  1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
+     - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+     - Filter applied first: Counts ED visits per patient per year, excludes patients with 5+ visits
+  2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
+     - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
+     - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 1-21 days (0-day gaps excluded as likely discharge prescriptions)
+- **Filter Pipeline:** The filtering logic uses a linear, sequential CTE approach for clarity and maintainability:
+  - Each filter step is a separate CTE that builds on the previous step
+  - This makes the logic easy to follow, debug, and modify
+  - See [Filter Pipeline Diagram](#ed-non-opioid-filter-pipeline) below for visual representation
+- **21-Day Time Window:** Single window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions) based on distribution analysis
+- **Time Window Lookback:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:** 
-  - Reference date: First ED_NON_OPIOID event
-  - Includes: Medical events OR drug events within 30 days before target
+  - Reference date: First ED_NON_OPIOID event within 21-day window of drug event (index event per patient)
+  - Includes: Medical events OR drug events within 21-day window before target
+  - Target indicator: `is_target_case` (1 if drug event within 1-21 days before ED, excluding 0-day discharge prescriptions)
+  - **Filtered to patients with <5 ED visits per year** (true adverse drug events only)
+  - **21-day window captures ~90.5% of adverse drug events** (excluding 0-day discharge prescriptions) based on distribution analysis
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event if none)
-  - Includes: Medical events OR drug events within 30 days before reference date
+  - Includes: Medical events OR drug events within 21-day window before reference date
+  - Excluded if they have HCG target events within the 21-day window
   - **Balanced temporal windows** ensure fair comparison between targets and controls
 - **First Target Date:** `first_ed_non_opioid_date` is populated for target cases only (NULL for controls)
 - **Days Calculation:** `days_to_target_event` is pre-calculated for all events
-  - For targets: Days to first ED_NON_OPIOID event
+  - For targets: Days to first ED_NON_OPIOID event within time window
   - For controls: Days to reference date (first non-ED medical event)
-  - Positive values: Event occurred before reference date (included in 30-day window)
-  - Zero: Event occurred on reference date
+  - Positive values (1-21): Event occurred before reference date (included in 21-day window for adverse drug event patterns)
+  - Zero: Event occurred on reference date (excluded for adverse drug event identification - likely discharge prescriptions)
   - Negative values: Event occurred after reference date (filtered out for drug events)
+
+#### ED_NON_OPIOID Filter Pipeline {#ed-non-opioid-filter-pipeline}
+
+The ED_NON_OPIOID cohort uses a sequential filtering approach to identify true adverse drug events. The pipeline applies two filters in sequence:
+
+```mermaid
+flowchart TD
+    A[All ED_NON_OPIOID Patients<br/>Excluding Opioid Patients<br/>N = Total Patients] --> B[Count ED Visits<br/>Per Patient Per Year<br/>hcg_patients_with_visit_counts]
+    B --> C{Filter 1:<br/>Visit Count<br/>< 5 per year?}
+    C -->|Yes| D[Patients with<br/>< 5 ED Visits/Year<br/>N = Filtered Count 1]
+    C -->|No| E[Excluded:<br/>5+ Visits/Year<br/>N = Excluded Count 1]
+    D --> F[Get ED Events<br/>for Filtered Patients<br/>ed_events]
+    F --> G[Get All Drug Events<br/>drug_events]
+    G --> H[Match ED-Drug Pairs<br/>Find Most Recent Drug<br/>Before Each ED Event<br/>ed_drug_pairs]
+    H --> I[Calculate Days<br/>From Drug to ED<br/>ed_drug_days]
+    I --> J{Filter 2:<br/>Temporal Relationship<br/>1-21 days?<br/>Exclude 0-day gaps}
+    J -->|Yes| K[Patients with<br/>Drug 1-21 days before ED<br/>N = Filtered Count 2<br/>Final Target Patients]
+    J -->|No| L[Excluded:<br/>0-day gaps or >21 days<br/>N = Excluded Count 2]
+    K --> M[Create Index ED Date<br/>First ED Event per Patient<br/>hcg_index]
+    M --> N[Build Cohort<br/>with 21-Day Window<br/>for Adverse Drug Events]
+
+    style A fill:#e1f5ff
+    style D fill:#c8e6c9
+    style K fill:#4caf50,color:#fff
+    style E fill:#ffcdd2
+    style L fill:#ffcdd2
+    style N fill:#81c784,color:#fff
+```
+
+**Filter Statistics Logged:**
+- Total patients before filters: `N_total`
+- Excluded by Filter 1 (5+ visits): `N_excluded_1`
+- Remaining after Filter 1: `N_filtered_1`
+- Excluded by Filter 2 (0-day gaps or no temporal relationship): `N_excluded_2`
+- Final target patients: `N_final = N_filtered_1 - N_excluded_2`
+
+**Note on 0-Day Gap Exclusion:**
+- 0-day gaps (drug filled on same day as ED visit) are excluded as they likely represent discharge prescriptions rather than adverse drug events
+- Only drug events occurring 1-21 days before ED visit are considered for adverse drug event identification
+
+#### 21-Day Window Justification
+
+The 21-day window for adverse drug event identification is based on empirical distribution analysis of drug-to-ED event gaps (excluding 0-day discharge prescriptions). Analysis of a sample cohort (age_band=65-74, event_year=2019) showed the following distribution:
+
+| Days from Drug to ED | ED Events | Percentage* | Cumulative |
+|---------------------|-----------|-------------|------------|
+| 1-7 days | 2,259 | 64.6% | 64.6% |
+| 8-14 days | 616 | 17.6% | 82.2% |
+| 15-21 days | 293 | 8.4% | **90.5%** |
+| **Total 1-21 days** | **3,168** | **90.5%** | - |
+| **Total excluding 0-day** | **3,497** | **100.0%** | - |
+
+\* Percentages calculated excluding 0-day discharge prescriptions (3,054 events excluded from denominator)
+
+**Key Findings:**
+- The 21-day window captures **~90.5% of adverse drug events** (excluding 0-day discharge prescriptions)
+- The majority of events (64.6%) occur within 7 days, consistent with acute adverse drug reactions
+- Events beyond 21 days represent a smaller proportion and are less likely to be causally related to the ED visit
+- The 21-day window balances **clinical relevance** (captures majority of events) with **causal plausibility** (events beyond 21 days have weaker temporal association)
+
+**Clinical Rationale:**
+- Most adverse drug events manifest within 1-2 weeks of drug initiation or dose changes
+- A 21-day window aligns with typical drug half-lives and clinical monitoring periods
+- Events beyond 21 days are more likely to be coincidental rather than causally related
+
+**Example Log Output:**
+```
+→ [PHASE 3 STEP 3] Target case counts:
+  ED_NON_OPIOID target patients (ed_non_opioid): 62,313
+  ED_NON_OPIOID: Excluded 15,000 patients by filters (<5 visits per year AND drug 1-21 days before ED, excluding 0-day discharge prescriptions)
+  ED_NON_OPIOID: Total before filters: 77,313, After filters: 62,313
+  Drug-to-ED Gap Distribution (days_from_drug_to_ed, excluding 0-day discharge prescriptions):
+    1-7 days: 2,259 ED events (64.6% of adverse drug events)
+    8-14 days: 616 ED events (17.6% of adverse drug events)
+    15-21 days: 293 ED events (8.4% of adverse drug events)
+    Total 1-21 days: 3,168 ED events (90.5% of adverse drug events, excluding 0-day)
+    Note: 3,054 0-day events (discharge prescriptions) excluded from calculation
+```
 
 #### Drug Window Filtering Logic
 
-For ED_NON_OPIOID cohort, the pipeline applies balanced temporal filtering to BOTH targets and controls:
+For ED_NON_OPIOID cohort, the pipeline applies balanced temporal filtering to BOTH targets and controls using a **21-day window**. **0-day gaps are excluded** to focus on adverse drug event patterns (discharge prescriptions filled on ED visit day are filtered out):
 ```sql
--- Target cases: include medical events OR drug events within 30 days before target
--- Controls: include medical events OR drug events within 30 days before reference date
+-- Target cases: include medical events OR drug events within 21 days before target
+-- Controls: include medical events OR drug events within 21 days before reference date
 WHERE (
   (is_target_case = 1 AND (
     event_type = 'medical' 
-    OR (event_type = 'pharmacy' 
-        AND days_to_target_event IS NOT NULL 
-        AND days_to_target_event >= 0 
-        AND days_to_target_event <= 30)
+                  OR (event_type = 'pharmacy' 
+                      AND days_to_target_event IS NOT NULL 
+                      AND days_to_target_event >= 0 
+                      AND days_to_target_event <= 21)
   ))
   OR (is_target_case = 0 AND (
     event_type = 'medical'
-    OR (event_type = 'pharmacy' 
-        AND days_to_target_event IS NOT NULL 
-        AND days_to_target_event >= 0 
-        AND days_to_target_event <= 30)
+                  OR (event_type = 'pharmacy' 
+                      AND days_to_target_event IS NOT NULL 
+                      AND days_to_target_event >= 0 
+                      AND days_to_target_event <= 21)
   ))
 )
 ```
@@ -239,7 +345,8 @@ Control selection ensures matched demographics:
 When a partition has **zero target cases** (no F1120 codes or HCG ED visits), the pipeline creates a **control-only cohort**:
 - Uses pre-computed average target count from all partitions
 - Samples `avg_targets * 5` controls (maintains 5:1 structure)
-- All records marked as `is_target_case = 0` and `target = 0`
+- All records marked as `is_target_case = 0` and `target = 0` (legacy)
+- All records marked as `is_target_case = 0` (no multiclass targets - simplified to single 21-day window)
 - Ensures every partition has a cohort file for complete model training coverage
 - Logs clearly indicate "CONTROL-ONLY" status
 
@@ -280,8 +387,44 @@ This creates `cohort_target_averages.json` in the project root, which Phase 3 us
 ```bash
 # Run with pre-computed averages (recommended)
 python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
+
+# Fixed 21-day window for adverse drug event identification
+# Note: Time window only applies to ED_NON_OPIOID (polypharmacy) cohort
+# OPIOID_ED cohort uses target event itself (no time window)
+# 0-day gaps are excluded (likely discharge prescriptions)
+# The --time-window-days argument is deprecated (window is fixed at 21 days)
 ```
 
+### Batch Processing Scripts
+
+**Important:** The batch processing scripts (`run_series_ed_non_opioid.py` and `run_series_opioid_ed.py`) are designed to process **ALL age_band/year combinations** for their respective cohort types, not just a single combination.
+
+**Behavior:**
+- These scripts loop through all predefined age bands (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-94, 95-114) and event years (2016, 2017, 2018, 2019, 2020)
+- With `--skip-existing`, they check S3 for existing cohorts and only process missing combinations
+- **Note:** `check_existing_cohorts()` checks for BOTH `opioid_ed` and `ed_non_opioid` cohorts. If either is missing for a given age_band/year, that combination will be processed
+- If you're starting fresh (no cohorts exist), all 36 combinations (9 age bands × 4 years) will be processed
+
+**Example Usage:**
+```bash
+# Process all ed_non_opioid cohorts (skips existing ones)
+python 2_create_cohort/run_series_ed_non_opioid.py --skip-existing --concurrent-workers 1
+
+# Process all opioid_ed cohorts (skips existing ones)
+python 2_create_cohort/run_series_opioid_ed.py --skip-existing --concurrent-workers 1
+```
+
+**To Process a Single Cohort:**
+If you only want to process one specific age_band/year combination, use `0_create_cohort.py` directly:
+
+```bash
+# Process only one specific cohort
+python 2_create_cohort/0_create_cohort.py \
+  --cohort ed_non_opioid \
+  --age-band 75-84 \
+  --event-year 2019 \
+  --concurrent-workers 1
+```
 
 ### Advanced Usage
 
@@ -294,10 +437,18 @@ python 0_create_cohort.py \
   --age-band "65-74" \
   --event-year 2019 \
   --cohort both \
+  # --time-window-days is deprecated (window is fixed at 21 days) \
+  --concurrent-workers 3 \
   --threads 8 \
   --mem-gb 16 \
   --tmp-dir /tmp/duckdb_cohort
 ```
+
+**Time Window Configuration:**
+- `--time-window-days`: **DEPRECATED** - Time window is now fixed at 21 days (this argument is ignored)
+- Only applies to ED_NON_OPIOID (polypharmacy) cohort
+- OPIOID_ED cohort always uses target event itself (no time window)
+- Fixed 21-day window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions)
 
 
 ***
@@ -374,6 +525,28 @@ Example QA log:
 | Duplication | High | Low | 80% reduced |
 
 Runs efficiently on 8–16 GB memory and supports 10M+ events per cohort.
+
+### Recent Technical Optimizations
+
+The pipeline has been optimized based on deep technical reviews to ensure correctness, performance, and reproducibility:
+
+**SQL Query Optimizations:**
+- **NOT EXISTS instead of NOT IN:** All subqueries use `NOT EXISTS` for safer NULL handling and better DuckDB performance
+- **Hash-based deterministic sampling:** Replaced `ORDER BY RANDOM()` with hash-based sampling (`ABS(hash(mi_person_key)) % 10000`) for faster, deterministic control selection
+- **Global event ordering:** `event_sequence` is now computed AFTER `UNION ALL` to ensure true chronological ordering across medical and pharmacy events
+- **Materialized CTEs:** Frequently used subqueries (e.g., `opioid_patients`) are materialized once to avoid repeated computation
+
+**Code Quality Improvements:**
+- **ICD normalization consistency:** Centralized normalization logic to prevent silent cohort drift across phases
+- **Target column fix:** `target` column now correctly reflects `is_target_case` instead of hardcoded values
+- **Partition-safe profiling:** Profiling filenames include `{age_band}_{event_year}` to prevent overwrites in parallel runs
+- **Corrupted file detection:** Local sync checks file size > 0 to detect and handle corrupted files
+
+**Pipeline Safety:**
+- **Fallback warnings:** Clear warnings when fallback cohort logic is used (Phase 3 skipped)
+- **Schema validation:** Comprehensive schema checks with dev validation mode for debugging
+- **Memory management:** Dynamic memory limits based on concurrent workers to prevent OOM
+- **DuckDB temp cleanup:** Automatic cleanup of DuckDB temporary files at startup and completion
 
 ### Opioid_ed Age-Band Cohort Sizes (F1120, 2016–2019)
 
@@ -509,6 +682,12 @@ print(state.get_progress())
 - Control-only cohorts can be used as negative-only examples
 - Consider excluding from training or weighting differently in loss function
 
+**Target Column Usage:**
+
+- **Use `is_target_case`** for target/control distinction (not the legacy `target` column)
+- **`is_target_case`** uses a fixed 21-day window for adverse drug event identification
+- 0-day gaps are excluded (likely discharge prescriptions filled on ED visit day)
+
 ***
 
 ## 📚 Related References
@@ -536,10 +715,13 @@ The pipeline uses two independent target identification methods:
    - **Comprehensive checking:** All 10 ICD diagnosis columns are checked (primary through ten), not just `primary_icd_diagnosis_code`
 
 2. **HCG-Based ED Visit Targets** (ED_NON_OPIOID cohort):
-   - Uses Healthcare Cost Group (HCG) line codes:
-     - `P51 - ER Visits and Observation Care`
-     - `O11 - Emergency Room`
-     - `P33 - Urgent Care Visits`
+   - Uses Healthcare Cost Group (HCG) line codes and **details** for precise identification:
+     - `P51 - ER Visits and Observation Care` with detail `P51b - PHY ED Visits and Observation Care - ED Visits`
+       - **Includes:** Only actual ED visits (P51b)
+       - **Excludes:** Observation care visits (P51a) - these are not true ED visits for adverse drug event identification
+     - `O11 - Emergency Room` (all details)
+     - `P33 - Urgent Care Visits` (all details)
+   - **Precision:** Uses `hcg_detail` field to distinguish actual ED visits from observation care
    - Identifies ED visits regardless of diagnosis codes
    - Always classified as `'ed_non_opioid'` in event classification
    - **Opioid exclusion:** All opioid patients are excluded by checking ALL 10 ICD diagnosis columns
@@ -595,6 +777,75 @@ The pipeline supports parallelization via environment variables:
 
 **Important:** `s3_max_connections` is **not** a valid DuckDB configuration parameter and will cause errors. S3 parallelization is handled automatically by DuckDB. Use `s3_uploader_thread_limit` if you need to tune upload performance.
 
+### Memory Management for Parallel Workers
+
+When running multiple cohort creation jobs in parallel (e.g., via `ThreadPoolExecutor` in a notebook), each worker needs to know the total number of concurrent workers to properly allocate memory. **This prevents memory oversubscription and OOM kills.**
+
+**Setting Worker Count in Notebook:**
+
+You have two options:
+
+**Option 1: Pass as CLI argument (cleanest):**
+
+```python
+MAX_WORKERS = 3  # Your notebook variable
+
+def run_cohort(job):
+    cmd = [
+        python_bin, script_path,
+        "--age-band", job["age_band"],
+        "--event-year", str(job["event_year"]),
+        "--concurrent-workers", str(MAX_WORKERS),  # Pass directly!
+        # ... other args
+    ]
+    # ... launch subprocess
+
+# Now launch workers
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    # ... submit jobs
+```
+
+**Option 2: Set environment variable (if you prefer):**
+
+```python
+import os
+
+MAX_WORKERS = 3  # Your notebook variable
+
+# Set as environment variable (code checks for this too)
+os.environ['MAX_WORKERS'] = str(MAX_WORKERS)
+# OR use PGX_COHORT_WORKERS for more explicit naming
+
+# Now launch workers
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    # ... submit jobs
+```
+
+**Recommendation:** Use Option 1 (CLI argument) - it's cleaner and doesn't require environment variable management.
+
+**How It Works:**
+
+- Each worker process detects `PGX_COHORT_WORKERS` from the environment
+- Calculates per-worker memory limit: `(60% of total system memory) / number of workers`
+- Sets DuckDB memory limit to prevent oversubscription
+- Example: 3 workers on 1TB system = ~200GB per worker (600GB total + 400GB buffer)
+
+**Environment Variable Priority:**
+
+1. `PGX_COHORT_WORKERS` (explicit name, preferred for clarity)
+2. `MAX_WORKERS` (works too - code checks for this automatically)
+3. Default: `3` workers (if neither is set)
+
+**Note:** Just set `os.environ['MAX_WORKERS'] = str(MAX_WORKERS)` in your notebook - no need for the extra `PGX_COHORT_WORKERS` step unless you prefer explicit naming.
+
+**Logging:**
+
+The pipeline logs the detected worker count and calculated memory limit:
+```
+→ [CONFIG] Detected PGX_COHORT_WORKERS=3 from environment
+→ [CONFIG] DuckDB memory limit: 200GB (for 3 workers, 1000GB total system memory, 600GB available for DuckDB)
+```
+
 **Example:**
 ```bash
 export PGX_THREADS_PER_WORKER=16
@@ -607,6 +858,7 @@ python 0_create_cohort.py --age-band "65-74" --event-year 2019 --operation-type 
 The **Cohort Creation Pipeline v4.3+** now features:
 - **Modular, checkpoint-enabled architecture** with 4 clean phases
 - **Dual-target system** (ICD codes + HCG ED visits) for comprehensive cohort identification
+- **Precise HCG identification:** Uses `hcg_detail` to distinguish actual ED visits (P51b) from observation care (P51a)
 - **Comprehensive ICD diagnosis checking** across all 10 ICD diagnosis columns (primary through ten) to ensure no opioid patients are missed or misclassified
 - **Control-only cohort logic** ensuring complete partition coverage for model training
 - **Pre-computed averages** for efficient control-only cohort sizing
@@ -616,8 +868,8 @@ The **Cohort Creation Pipeline v4.3+** now features:
 
 The pipeline achieves improved testability, maintainability, and resilience—while reducing runtime and resource usage by over 50%.
 
-**Last Updated:** 2025-11-15
-**Version:** 4.3 (Dual-Target + Control-Only Cohorts + HCG Integration + Comprehensive ICD Diagnosis Checking)
+**Last Updated:** 2026-01-23
+**Version:** 4.4 (Dual-Target + Control-Only Cohorts + HCG Integration + Comprehensive ICD Diagnosis Checking + Precise HCG Detail Matching)
 **Status:** Production-Ready
 **Authors:** PGx Analytics Engineering Team
 
@@ -645,8 +897,8 @@ For detailed SQL queries used in each phase of the pipeline, see the [SQL Refere
 
 This section provides a comprehensive reference for all SQL queries used in the Cohort Creation Pipeline. Each phase is documented with explanations, parameters, and example queries.
 
-**Last Updated:** 2025-11-15  
-**Version:** 4.4 (Statistical Independence + Balanced Temporal Windows + Column Matching + Comprehensive ICD Diagnosis Checking)
+**Last Updated:** 2026-01-23  
+**Version:** 5.0 (Simplified 21-Day Window - Removed Multiclass Targets)
 
 ---
 
@@ -787,9 +1039,9 @@ CASE
           OR three_icd_diagnosis_code IN ('F1120', ...)
           -- ... through ten_icd_diagnosis_code
           OR procedure_code IN (...)) THEN 'target'
-    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
-                      'O11 - Emergency Room', 
-                      'P33 - Urgent Care Visits') THEN 'ed_non_opioid'
+    WHEN (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+         OR hcg_line = 'O11 - Emergency Room'
+         OR hcg_line = 'P33 - Urgent Care Visits' THEN 'ed_non_opioid'
     ELSE 'non_target'
 END
 ```
@@ -803,9 +1055,9 @@ CASE
          OR three_icd_diagnosis_code IN ('F1120', 'F1121', ...)
          -- ... through ten_icd_diagnosis_code
          THEN 'opioid_ed'
-    WHEN hcg_line IN ('P51 - ER Visits and Observation Care', 
-                      'O11 - Emergency Room', 
-                      'P33 - Urgent Care Visits') THEN 'ed_non_opioid'
+    WHEN (hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+         OR hcg_line = 'O11 - Emergency Room'
+         OR hcg_line = 'P33 - Urgent Care Visits' THEN 'ed_non_opioid'
     ELSE 'ed_non_opioid'
 END
 ```
@@ -1021,6 +1273,12 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 
 **View:** `ed_non_opioid_cohort`
 
+**Key Features: Dual Filter System**
+1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
+2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
+
+The filtering uses a sequential CTE approach for clarity and maintainability. Each step builds on the previous one:
+
 ```sql
 CREATE OR REPLACE VIEW ed_non_opioid_cohort AS
 WITH opioid_patients AS (
@@ -1033,11 +1291,43 @@ WITH opioid_patients AS (
        OR three_icd_diagnosis_code IN ('F1120', 'F1121', 'F1122', ...)
        -- ... through ten_icd_diagnosis_code IN (...)
 ),
+hcg_patients_with_visit_counts AS (
+    -- Count ED visits per patient per year (for filtering)
+    SELECT
+        uef.mi_person_key,
+        uef.event_year,
+        CAST(COUNT(*) AS BIGINT) as ed_visit_count
+    FROM unified_event_fact_table uef
+    WHERE uef.event_classification = 'ed_non_opioid'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM opioid_patients_materialized op
+          WHERE op.mi_person_key = uef.mi_person_key
+      )
+    GROUP BY uef.mi_person_key, uef.event_year
+),
+hcg_index AS (
+    -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
+    -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
+    -- This anchors all time windows to a single index event per patient
+    SELECT
+        uef.mi_person_key,
+        MIN(uef.event_date) AS index_hcg_date
+    FROM unified_event_fact_table uef
+    INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
+        AND uef.event_year = vc.event_year
+    WHERE uef.event_classification = 'ed_non_opioid'
+      AND vc.ed_visit_count < 5
+      AND NOT EXISTS (
+          SELECT 1
+          FROM opioid_patients_materialized op
+          WHERE op.mi_person_key = uef.mi_person_key
+      )
+    GROUP BY uef.mi_person_key
+),
 target_cases AS (
     SELECT DISTINCT mi_person_key
-    FROM unified_event_fact_table
-    WHERE event_classification = 'ed_non_opioid'
-      AND mi_person_key NOT IN (SELECT mi_person_key FROM opioid_patients)  -- Exclude opioid patients
+    FROM hcg_index  -- Uses filtered index (only <5 visits per year)
 ),
 first_target_dates AS (
     -- Find first ED_NON_OPIOID target event date per patient
@@ -1090,7 +1380,11 @@ control_reference_dates AS (
         FROM unified_event_fact_table uef
         INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key
         WHERE uef.event_type = 'medical'
-          AND (uef.hcg_line IS NULL OR uef.hcg_line NOT IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits'))
+          AND NOT (
+              (uef.hcg_line = 'P51 - ER Visits and Observation Care' AND uef.hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+              OR uef.hcg_line = 'O11 - Emergency Room'
+              OR uef.hcg_line = 'P33 - Urgent Care Visits'
+          )
         GROUP BY uef.mi_person_key
     ),
     fallback_reference AS (
@@ -1380,13 +1674,37 @@ WHERE mi_person_key IN (
 ### Event Classification Priority
 
 1. **Target ICD/CPT codes** → `'target'` (or `'opioid_ed'` if default mode)
-2. **HCG ED visits** → `'ed_non_opioid'`
+2. **HCG ED visits** → `'ed_non_opioid'` (using `hcg_detail` for precision - see HCG Detail Matching below)
 3. **Other events** → `'non_target'` (or `'ed_non_opioid'` if default mode)
+
+### HCG Detail Matching for Precise ED Visit Identification
+
+The pipeline uses **both `hcg_line` and `hcg_detail`** to precisely identify ED visits for adverse drug event analysis:
+
+- **P51 - ER Visits and Observation Care:**
+  - ✅ **Includes:** `P51b - PHY ED Visits and Observation Care - ED Visits` (actual ED visits)
+  - ❌ **Excludes:** `P51a - PHY ED Visits and Observation Care - Observation Care` (observation care, not true ED visits)
+  - **Rationale:** Observation care visits are not true emergency department visits and should not be included in adverse drug event identification
+
+- **O11 - Emergency Room:**
+  - ✅ **Includes:** All details (all are ED visits)
+
+- **P33 - Urgent Care Visits:**
+  - ✅ **Includes:** All details (urgent care is relevant for adverse drug events)
+
+**SQL Condition:**
+```sql
+(hcg_line = 'P51 - ER Visits and Observation Care' AND hcg_detail = 'P51b - PHY ED Visits and Observation Care - ED Visits')
+OR hcg_line = 'O11 - Emergency Room'
+OR hcg_line = 'P33 - Urgent Care Visits'
+```
+
+This precision ensures that only actual ED visits (not observation care) are used for adverse drug event identification, improving the signal-to-noise ratio in the polypharmacy cohort.
 
 ### Cohort Separation
 
 - **OPIOID_ED cohort:** Patients with opioid ICD codes (F1120, etc.) in **ANY of the 10 ICD diagnosis columns**
-- **ED_NON_OPIOID cohort:** Patients with HCG ED visits, **excluding** all opioid patients (checked across all 10 ICD diagnosis columns)
+- **ED_NON_OPIOID cohort:** Patients with HCG ED visits (using `hcg_detail` for precision: P51b only, excludes P51a observation care), **excluding** all opioid patients (checked across all 10 ICD diagnosis columns)
 - **Complete separation:** Opioid patients cannot appear in ED_NON_OPIOID as targets or controls
 - **Comprehensive checking:** All 10 ICD diagnosis columns (`primary_icd_diagnosis_code` through `ten_icd_diagnosis_code`) are checked to ensure no opioid patients are missed or misclassified
 
@@ -1447,9 +1765,26 @@ The pipeline calculates temporal relationships between events and target events,
 
 #### ED_NON_OPIOID Cohort Temporal Behavior
 
+- **Dual Filter System:** The cohort applies two sequential filters to ensure only true adverse drug events:
+  1. **ED Visit Frequency Filter (<5 visits per year):**
+     - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+     - Applied via `hcg_patients_with_visit_counts` CTE that counts ED visits per patient per year
+     - Patients with 5+ visits are excluded before temporal relationship analysis
+     - Logging shows total patients before filter, after filter, and how many were excluded
+  2. **Temporal Drug-ED Relationship Filter (1-21 days, excluding 0-day):**
+     - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
+     - Applied via sequential CTEs: `ed_events` → `drug_events` → `ed_drug_pairs` → `ed_drug_days` → `qualifying_ed` (filters to 1-21 days, excludes 0-day) → `index_qualifying_ed` → `target_cases`
+     - For each ED event, finds most recent drug event before it
+     - Calculates days from drug event to ED event
+     - Only includes patients where drug event is within 1-21 days of ED event (excluding 0-day discharge prescriptions)
+     - QA check shows distribution of days (1-7, 8-14, 15-21 days, excluding 0-day discharge prescriptions)
+- **Sequential CTE Approach:** The filtering uses a linear, step-by-step CTE structure for clarity:
+  - Each filter step is a separate CTE that builds on the previous step
+  - Makes the logic easy to follow, debug, and modify
+  - Follows SQL best practices for complex filtering logic
 - **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:**
-  - Reference date: First ED_NON_OPIOID event
+  - Reference date: First ED_NON_OPIOID event (index event per patient, filtered to <5 visits per year)
   - Includes: Medical events OR drug events within 30 days before target
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event)

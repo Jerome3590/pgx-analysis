@@ -737,7 +737,10 @@ def _create_aggregated_feature_importance_visualizations(
 
 def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n: int = None) -> List[tuple[str, str]]:
     """
-    Load aggregated feature importance codes (drug/ICD/CPT) from Step 3.
+    Load refined feature importance codes (drug/ICD/CPT) from Step 3b (cohort_feature_importance).
+    
+    This function now uses the Step 3b refined feature importance files, which include
+    leakage filtering and refinement from BupaR post-target analysis.
     
     Args:
         cohort: Cohort name
@@ -747,40 +750,83 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
                If set, limits to top_n to prevent memory/SQL issues.
     
     Returns:
-        List of item codes (drug names, ICD codes, CPT codes) from aggregated FI CSV,
+        List of item codes (drug names, ICD codes, CPT codes) from refined FI CSV,
         sorted by importance_scaled (descending), optionally limited to top_n.
     """
     age_band_fname = age_band.replace("-", "_")
     
-    # Try local path first
-    agg_csv_path = (
+    # REQUIRED: Step 3b refined feature importance (removes target leakage)
+    # No fallback - Step 3b must run before Step 6
+    refined_csv_path = (
         PROJECT_ROOT
-        / "3_feature_importance"
+        / "3b_feature_importance_eda"
         / "outputs"
         / cohort
-        / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
     )
     
-    # Fallback: try S3 download location
-    if not agg_csv_path.exists():
-        agg_csv_path = (
-            PROJECT_ROOT
-            / "3_feature_importance"
-            / "from_s3"
-            / "by_cohort"
-            / cohort
-            / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    # Try S3 download if not found locally
+    if not refined_csv_path.exists():
+        age_band_fname_s3 = age_band.replace("-", "_")
+        s3_key = (
+            f"gold/feature_importance/{cohort}/{age_band}/"
+            f"{cohort}_{age_band_fname_s3}_cohort_feature_importance.csv"
         )
+        s3_path = f"s3://{S3_BUCKET}/{s3_key}"
+        
+        print(f"[INFO] Step 3b refined feature importance not found locally.")
+        print(f"[INFO] Checking S3: {s3_path}")
+        
+        try:
+            # Check if file exists in S3
+            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            print(f"[INFO] Found in S3. Downloading...")
+            refined_csv_path.parent.mkdir(parents=True, exist_ok=True)
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            with open(refined_csv_path, 'wb') as f:
+                f.write(obj['Body'].read())
+            print(f"[INFO] Successfully downloaded from S3: {refined_csv_path}")
+        except s3_client.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == '404':
+                print(f"[WARN] File not found in S3: {s3_path}")
+            else:
+                print(f"[WARN] S3 check failed (error: {error_code}): {e}")
+        except Exception as e:
+            print(f"[WARN] S3 download failed: {e}")
     
-    if not agg_csv_path.exists():
+    # REQUIRED: Step 3b refined feature importance must exist (no fallback)
+    if not refined_csv_path.exists():
         raise FileNotFoundError(
-            f"Aggregated feature importance CSV not found for {cohort}/{age_band}. "
-            f"Expected at: {agg_csv_path}"
+            f"Step 3b refined feature importance CSV is REQUIRED (removes target leakage) but not found for {cohort}/{age_band}.\n"
+            f"Expected location: {refined_csv_path}\n"
+            f"S3 location: s3://{S3_BUCKET}/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band_fname}_cohort_feature_importance.csv\n"
+            f"Step 3b must run before Step 6 to produce refined features with leakage filtering.\n"
+            f"Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort {cohort} --age-band {age_band}"
         )
     
-    df = pd.read_csv(agg_csv_path)
+    csv_path = refined_csv_path
+    print(f"\n[INFO] Using Step 3b refined feature importance (leakage-filtered): {csv_path}")
+    
+    df = pd.read_csv(csv_path)
     if "feature" not in df.columns:
-        raise ValueError(f"'feature' column not found in {agg_csv_path}")
+        raise ValueError(f"'feature' column not found in {csv_path}")
+    
+    # Log file info for verification
+    print(f"[INFO] Loaded {len(df)} features from Step 3b refined feature importance")
+    if "importance_scaled" in df.columns:
+        print(f"[INFO] Feature importance range: min={df['importance_scaled'].min():.6f}, max={df['importance_scaled'].max():.6f}, mean={df['importance_scaled'].mean():.6f}")
+    
+    # Check for potential leakage indicators in feature names
+    leakage_indicators = ['post', 'f1120', 'target', 'leakage']
+    potential_leakage = df[df['feature'].str.lower().str.contains('|'.join(leakage_indicators), na=False)]
+    if len(potential_leakage) > 0:
+        print(f"[WARN] Found {len(potential_leakage)} features with potential leakage indicators:")
+        for feat in potential_leakage['feature'].head(10):
+            print(f"[WARN]   - {feat}")
+        if len(potential_leakage) > 10:
+            print(f"[WARN]   ... and {len(potential_leakage) - 10} more")
     
     # Filter out features with zero or negative importance (no signal)
     importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
@@ -905,6 +951,37 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
     try:
         # Create a view so we can reference it multiple times without re-reading the parquet
         con.execute(f"CREATE OR REPLACE VIEW events_view AS SELECT * FROM read_parquet('{events_path}')")
+        
+        # Check if target column exists, if not create it based on F1120 presence
+        # F1120 (opioid dependence) indicates a target case (target=1)
+        columns_info = con.execute("DESCRIBE events_view").df()
+        has_target_column = 'target' in columns_info['column_name'].values
+        
+        if not has_target_column:
+            print("[WARN] Target column not found in model_events.parquet")
+            print("[INFO] Creating target column based on F1120 presence (F1120 = target=1)")
+            # Create target column: 1 if patient has F1120 in any ICD diagnosis column, 0 otherwise
+            con.execute(f"""
+                CREATE OR REPLACE VIEW events_view AS
+                SELECT 
+                    *,
+                    CASE 
+                        WHEN primary_icd_diagnosis_code LIKE '%F1120%'
+                          OR two_icd_diagnosis_code LIKE '%F1120%'
+                          OR three_icd_diagnosis_code LIKE '%F1120%'
+                          OR four_icd_diagnosis_code LIKE '%F1120%'
+                          OR five_icd_diagnosis_code LIKE '%F1120%'
+                          OR six_icd_diagnosis_code LIKE '%F1120%'
+                          OR seven_icd_diagnosis_code LIKE '%F1120%'
+                          OR eight_icd_diagnosis_code LIKE '%F1120%'
+                          OR nine_icd_diagnosis_code LIKE '%F1120%'
+                          OR ten_icd_diagnosis_code LIKE '%F1120%'
+                        THEN 1
+                        ELSE 0
+                    END AS target
+                FROM read_parquet('{events_path}')
+            """)
+            print("[OK] Target column created successfully")
         
         # Aggregate event-level data to one row per patient with label
         # Use MAX(target) to handle patients with mixed targets (prefer case=1 if any event is case)
@@ -1609,13 +1686,24 @@ def train_and_evaluate(
                 metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
                 metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
 
+        # Print metrics for all models
         print(
             f"[MC {run_idx + 1}/{n_runs}] "
             f"XGB AUC={metrics['xgb']['auc'][-1]:.4f}, PR-AUC={metrics['xgb']['pr_auc'][-1]:.4f}, "
             f"Recall={metrics['xgb']['recall'][-1]:.4f} | "
             f"XGB-RF AUC={metrics['xgb_rf']['auc'][-1]:.4f}, PR-AUC={metrics['xgb_rf']['pr_auc'][-1]:.4f}, "
-            f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}"
+            f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}",
+            end=""
         )
+        
+        # Add CatBoost metrics if available
+        if have_catboost and metrics.get("catboost") and metrics["catboost"].get("auc") and len(metrics["catboost"]["auc"]) > 0:
+            print(
+                f" | CatBoost AUC={metrics['catboost']['auc'][-1]:.4f}, PR-AUC={metrics['catboost']['pr_auc'][-1]:.4f}, "
+                f"Recall={metrics['catboost']['recall'][-1]:.4f}"
+            )
+        else:
+            print()  # Newline if CatBoost not available
 
         # Save artifacts from last run for detailed reporting and importances
         if run_idx == n_runs - 1:
@@ -1735,8 +1823,21 @@ def train_and_evaluate(
     xgb_rf_recall_mean = float(np.mean(metrics["xgb_rf"]["recall"])) if metrics["xgb_rf"]["recall"] else 0.0
     xgb_rf_pr_auc_mean = float(np.mean(metrics["xgb_rf"]["pr_auc"])) if metrics["xgb_rf"]["pr_auc"] else 0.0
     
+    # Calculate CatBoost mean metrics (if available)
+    cb_recall_mean = None
+    cb_pr_auc_mean = None
+    cb_auc_mean = None
+    cb_logloss_mean = None
+    if have_catboost and metrics.get("catboost") and metrics["catboost"].get("recall"):
+        cb_recall_mean = float(np.mean(metrics["catboost"]["recall"]))
+        cb_pr_auc_mean = float(np.mean(metrics["catboost"]["pr_auc"]))
+        cb_auc_mean = float(np.mean(metrics["catboost"]["auc"]))
+        cb_logloss_mean = float(np.mean(metrics["catboost"]["logloss"]))
+    
     print(f"XGBoost:      Recall={xgb_recall_mean:.4f}, AUC-PR={xgb_pr_auc_mean:.4f}")
     print(f"XGBoost RF:   Recall={xgb_rf_recall_mean:.4f}, AUC-PR={xgb_rf_pr_auc_mean:.4f}")
+    if cb_recall_mean is not None:
+        print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
     # Select best XGBoost variant: Primary = Recall, Secondary = AUC-PR
     if xgb_recall_mean > xgb_rf_recall_mean:
@@ -1770,6 +1871,15 @@ def train_and_evaluate(
         "xgb_rf_pr_auc_mean": xgb_rf_pr_auc_mean,
         "selection_reason": selection_reason,
     }
+    
+    # Add CatBoost metrics if available
+    if cb_recall_mean is not None:
+        selection_metadata.update({
+            "catboost_recall_mean": cb_recall_mean,
+            "catboost_pr_auc_mean": cb_pr_auc_mean,
+            "catboost_auc_mean": cb_auc_mean,
+            "catboost_logloss_mean": cb_logloss_mean,
+        })
     
     metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
     s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
@@ -1823,6 +1933,131 @@ def train_and_evaluate(
     
     save_model_idempotent(metadata_path, s3_metadata, save_metadata)
     print(f"Saved model selection metadata to {metadata_path}")
+    
+    # Create per-run MC CV results CSV
+    mc_cv_results = []
+    for run_idx in range(n_runs):
+        # XGBoost metrics
+        if run_idx < len(metrics["xgb"]["recall"]):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "XGBoost",
+                "recall": metrics["xgb"]["recall"][run_idx],
+                "pr_auc": metrics["xgb"]["pr_auc"][run_idx],
+                "auc": metrics["xgb"]["auc"][run_idx],
+                "logloss": metrics["xgb"]["logloss"][run_idx],
+            })
+        
+        # XGBoost RF metrics
+        if run_idx < len(metrics["xgb_rf"]["recall"]):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "XGBoost_RF",
+                "recall": metrics["xgb_rf"]["recall"][run_idx],
+                "pr_auc": metrics["xgb_rf"]["pr_auc"][run_idx],
+                "auc": metrics["xgb_rf"]["auc"][run_idx],
+                "logloss": metrics["xgb_rf"]["logloss"][run_idx],
+            })
+        
+        # CatBoost metrics (if available)
+        if have_catboost and run_idx < len(metrics.get("catboost", {}).get("recall", [])):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "CatBoost",
+                "recall": metrics["catboost"]["recall"][run_idx],
+                "pr_auc": metrics["catboost"]["pr_auc"][run_idx],
+                "auc": metrics["catboost"]["auc"][run_idx],
+                "logloss": metrics["catboost"]["logloss"][run_idx],
+            })
+        
+        # Ensemble metrics (if available)
+        if run_idx < len(metrics.get("ensemble", {}).get("recall", [])):
+            mc_cv_results.append({
+                "split": run_idx + 1,
+                "model": "Ensemble",
+                "recall": metrics["ensemble"]["recall"][run_idx],
+                "pr_auc": metrics["ensemble"]["pr_auc"][run_idx],
+                "auc": metrics["ensemble"]["auc"][run_idx],
+                "logloss": metrics["ensemble"]["logloss"][run_idx],
+            })
+    
+    # Save MC CV results CSV
+    mc_cv_csv_path = out_base / f"{cohort}_{age_band_fname}_mc_cv_results.csv"
+    s3_mc_cv_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_mc_cv_results.csv"
+    
+    def save_mc_cv_csv():
+        mc_cv_df = pd.DataFrame(mc_cv_results)
+        mc_cv_df.to_csv(mc_cv_csv_path, index=False)
+    
+    save_model_idempotent(mc_cv_csv_path, s3_mc_cv_csv, save_mc_cv_csv)
+    print(f"\nSaved MC CV per-run results CSV to {mc_cv_csv_path}")
+    print(f"  Total rows: {len(mc_cv_results)} (across {n_runs} splits and all models)")
+    
+    # Create summary CSV with metrics for all models
+    summary_data = []
+    
+    # XGBoost metrics
+    summary_data.append({
+        "model": "XGBoost",
+        "recall_mean": xgb_recall_mean,
+        "pr_auc_mean": xgb_pr_auc_mean,
+        "auc_mean": float(np.mean(metrics["xgb"]["auc"])) if metrics["xgb"]["auc"] else None,
+        "logloss_mean": float(np.mean(metrics["xgb"]["logloss"])) if metrics["xgb"]["logloss"] else None,
+        "n_runs": len(metrics["xgb"]["recall"]) if metrics["xgb"]["recall"] else 0,
+        "selected": best_xgb_variant == "xgb"
+    })
+    
+    # XGBoost RF metrics
+    summary_data.append({
+        "model": "XGBoost_RF",
+        "recall_mean": xgb_rf_recall_mean,
+        "pr_auc_mean": xgb_rf_pr_auc_mean,
+        "auc_mean": float(np.mean(metrics["xgb_rf"]["auc"])) if metrics["xgb_rf"]["auc"] else None,
+        "logloss_mean": float(np.mean(metrics["xgb_rf"]["logloss"])) if metrics["xgb_rf"]["logloss"] else None,
+        "n_runs": len(metrics["xgb_rf"]["recall"]) if metrics["xgb_rf"]["recall"] else 0,
+        "selected": best_xgb_variant == "xgb_rf"
+    })
+    
+    # CatBoost metrics (if available)
+    if cb_recall_mean is not None:
+        summary_data.append({
+            "model": "CatBoost",
+            "recall_mean": cb_recall_mean,
+            "pr_auc_mean": cb_pr_auc_mean,
+            "auc_mean": cb_auc_mean,
+            "logloss_mean": cb_logloss_mean,
+            "n_runs": len(metrics["catboost"]["recall"]) if metrics.get("catboost") and metrics["catboost"].get("recall") else 0,
+            "selected": False  # CatBoost is not used for model selection
+        })
+    
+    # Ensemble metrics (if available)
+    if metrics.get("ensemble") and metrics["ensemble"].get("recall"):
+        ensemble_recall_mean = float(np.mean(metrics["ensemble"]["recall"]))
+        ensemble_pr_auc_mean = float(np.mean(metrics["ensemble"]["pr_auc"]))
+        ensemble_auc_mean = float(np.mean(metrics["ensemble"]["auc"])) if metrics["ensemble"]["auc"] else None
+        ensemble_logloss_mean = float(np.mean(metrics["ensemble"]["logloss"])) if metrics["ensemble"]["logloss"] else None
+        
+        summary_data.append({
+            "model": "Ensemble",
+            "recall_mean": ensemble_recall_mean,
+            "pr_auc_mean": ensemble_pr_auc_mean,
+            "auc_mean": ensemble_auc_mean,
+            "logloss_mean": ensemble_logloss_mean,
+            "n_runs": len(metrics["ensemble"]["recall"]),
+            "selected": False  # Ensemble is not used for model selection
+        })
+    
+    # Create DataFrame and save to CSV
+    summary_df = pd.DataFrame(summary_data)
+    summary_csv_path = out_base / f"{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    
+    def save_summary_csv():
+        summary_df.to_csv(summary_csv_path, index=False)
+    
+    save_model_idempotent(summary_csv_path, s3_summary_csv, save_summary_csv)
+    print(f"\nSaved model metrics summary CSV to {summary_csv_path}")
+    print(summary_df.to_string(index=False))
 
     # ------------------------------------------------------------------
     # Train final models on full data and export best models

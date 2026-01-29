@@ -10,7 +10,7 @@ graph TD
     A --> C[2_create_cohort]
     A --> D[3_feature_importance]
     A --> E[4a_model_data]
-    A --> E2[4b_dtw_filter]
+    A --> E2[4b_event_filter]
     A --> H[5_pgx_analysis]
     A --> J[6_final_model_selection]
     A --> K[7_shap_analysis]
@@ -49,10 +49,11 @@ graph TD
     
     L --> L1[run_shap_analysis.py]
     
-    N --> N1[Risk Dashboard]
-    N --> N2[bupaR_dashboard_visual]
-    N --> N3[fpgrowth_dashboard_visual]
-    N --> N4[dtw_dashboard_visual]
+    N --> N1[frontend/<br/>Dashboard HTML]
+    N --> N2[backend/<br/>Lambda Function]
+    N --> N3[visualizations/<br/>DTW + FP-Growth + BupaR]
+    N --> N4[data_preparation/<br/>Model + Metadata Prep]
+    N --> N5[deployment/<br/>Docker + ECR]
     
     O --> O1[common_imports.py]
     O --> O2[duckdb_utils.py]
@@ -101,11 +102,12 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
-- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls
-- DTW-based protocol filtering (`4b_dtw_filter/`) to create `model_events_no_protocols.parquet`
+- Feature refinement (`3b_feature_importance_eda/`) using BupaR post-target analysis to filter and refine features, producing `cohort_feature_importance` files
+- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Feature Importance EDA
+- Event filtering (`4b_event_filter/`) to create `model_events_no_protocols.parquet` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR)
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
-- post-model analysis: SHAP (`8_shap_analysis/`) followed by FFA (`7_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
+- post-model analysis: SHAP (`7_shap_analysis/`) followed by FFA (`8_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 - risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
@@ -124,32 +126,46 @@ flowchart TD
         B2 --> B3[Top Features Selection]
     end
     
+    subgraph "Feature Importance EDA: Feature Refinement"
+        B3 --> B4[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
+        B4 --> B5[Code Research & Validation<br/>Administrative Codes]
+        B5 --> B6[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
+    end
+    
     subgraph "Step 4: Model Data & Filtering"
-        B3 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        C1 --> C2[4b: DTW Protocol Filtering<br/>Remove Administrative Codes]
+        B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
+        C1 --> C2[4b: Protocol Filtering<br/>Remove Administrative Codes]
     end
     
     subgraph "Step 5: PGx Feature Engineering"
-        C2 --> D1[PGx Feature Engineering<br/>Drug-Gene Mappings<br/>Allele Frequencies]
+        C2 --> D1[PGx Feature Engineering<br/>PGx Drug Counts<br/>Drug Counts]
     end
     
     subgraph "Step 6: Final Model Training"
-        D1 --> E1[Feature Integration<br/>Aggregated Features + PGx]
+        D1 --> E1[Feature Integration<br/>Refined Features + PGx]
         E1 --> E2[CatBoost Training]
         E1 --> E3[XGBoost Training]
-        E2 --> E4[Model Selection & Evaluation]
+        E1 --> E3a[XGBoost RF Training]
+        E2 --> E4[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
         E3 --> E4
+        E3a --> E4
     end
     
     subgraph "Step 7-8: Post-Model Analysis"
-        E4 --> F1[7: SHAP Analysis<br/>SHAP Values]
-        E4 --> F2[8: FFA Analysis<br/>Formal Feature Attribution<br/>Rule selection: first 100 + random 100 + all SHAP > 0]
+        E4 --> F1[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
+        E4 --> F2[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
         F1 --> F2
     end
     
     subgraph "Step 9: Risk Dashboard"
         F2 --> G1[Risk Dashboard<br/>Model Deployment]
-        G1 --> G2[Dashboard Visuals:<br/>BupaR/FP-Growth/DTW]
+        F1 --> G1
+        G1 --> G2[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
+        G1 --> G3[Backend API<br/>Lambda Function]
+        G1 --> G4[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
+        G2 --> G5[Production Deployment<br/>S3 + API Gateway + Lambda]
+        G3 --> G5
+        G4 --> G5
     end
     
     style A1 fill:#f9f,stroke:#333,stroke-width:2px
@@ -172,11 +188,11 @@ pgx-analysis/
 ├── 2_create_cohort/            # Cohort creation and QA
 ├── 3_feature_importance/       # MC-CV feature importance screening
 ├── 4a_model_data/              # Model-ready event datasets (target vs control)
-├── 4b_dtw_filter/              # DTW-based protocol filtering (creates model_events_no_protocols.parquet used by downstream feature engineering)
+├── 4b_event_filter/            # Event filtering (creates model_events_no_protocols.parquet - filters administrative codes and post-event leakage)
 ├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
 ├── 6_final_model_selection/    # Final model development and evaluation
-├── 7_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
-├── 8_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
+├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
+├── 8_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
 ├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, and deployment artifacts (Lambda + S3)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
@@ -207,17 +223,17 @@ pgx-analysis/
 - `create_visualizations.R` - Visualization utilities
 - Uses three core models for robust feature ranking: **CatBoost**, **XGBoost (boosted trees)**, and **XGBoost RF mode**
 
-**📊 4b_dtw_filter: DTW Protocol Filtering**
-- `filter_protocol_events.py` - DTW-derived protocol filtering to create `model_events_no_protocols.parquet`
-- `dtw_cohort_analysis.py` / `dtw_trajectory_analysis.py` - Optional sequence similarity and trajectory development
-- Patient clustering, similarity scoring, and time-window audit artifacts
+**📊 4b_event_filter: Event Filtering**
+- `filter_protocol_events.py` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR) to create `model_events_no_protocols.parquet`
+- Uses `administrative_codes_lookup.json` for code-based filtering
+- Filters events occurring after target event date (post-event leakage)
 
 **🤖 6_final_model_selection: Final Model Development**
 - `run_final_model.py` - Model training, selection, and export (CatBoost / XGBoost)
 - Model outputs include trained models, feature importance, and evaluation metrics
 - `catboost_models/` - Trained model artifacts and metadata
 
-**🎯 7_ffa_analysis: Feature Attribution**
+**🎯 8_ffa_analysis: Feature Attribution**
 - `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
 - `ffa_analysis.py` - Feature Filtering and Analysis pipeline
 - Tree export and causal inference
@@ -258,7 +274,7 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 - Treatment variables (drugs)
 - Post-treatment variables (mediators/outcomes)
 
-## Recent Enhancements
+## Key Design Decisions
 
 ### Drug Event Explosion Strategy
 - **Patient-Level → Drug-Level Transformation**: Each drug prescription becomes a separate row
@@ -283,6 +299,55 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 | **Abstraction** | Low-level (raw sequences) | High-level (process patterns) |
 | **Scalability** | O(n²) for each pair | Handles thousands of cases |
 | **Interpretability** | "These sequences are X% similar" | "80% of patients follow path A→B→C" |
+
+## Lessons Learned
+
+### Feature Engineering Simplification
+
+**Initial Approach**: Multiple feature engineering steps (BupaR, FP-Growth, DTW, PGx) with all features combined for final model.
+
+**Final Approach**: Single feature engineering step (PGx only) with aggregated feature importances used directly.
+
+**Key Insights**:
+- **FP-Growth Features**: Removed due to target leakage concerns. Patterns mined from combined target+control data can encode target-specific information, creating artificial predictive power that doesn't generalize.
+- **BupaR Features**: Moved to visualization-only. While valuable for exploratory analysis, process mining features add complexity without sufficient predictive benefit over aggregated importances.
+- **DTW Features**: Used for protocol filtering (Step 4b) but not as model features. DTW captures standard care protocols that both targets and controls follow, making them non-predictive.
+- **Aggregated Features**: Using feature importances directly (no encoding) simplifies the pipeline while maintaining predictive power. The MC-CV aggregation already captures the most important signals.
+
+**Result**: Streamlined workflow focused on PGx analysis as the primary feature engineering step, with other methods used for visualization and exploratory analysis only.
+
+### Model Selection Philosophy
+
+**Approach**: Use ensemble of three models (CatBoost, XGBoost, XGBoost RF) with "Model Agreement" philosophy.
+
+**Key Insights**:
+- **Robustness over Sensitivity**: Features important in multiple models receive higher scores than those found by a single model.
+- **CatBoost FFA Limitation**: CatBoost's complex hashing and CTR transformations make symbolic rule extraction difficult. This limitation functions as a quality control mechanism.
+- **Consensus Filter**: Requiring features to be detected by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) filters out model-specific artifacts.
+- **Selection Criteria**: Primary metric is Recall (for clinical sensitivity), secondary is AUC-PR (for precision-recall balance).
+
+**Result**: More robust feature selection and model interpretation, with higher confidence in final predictions.
+
+### Visualization vs. Feature Engineering
+
+**Key Insight**: Not all analysis methods need to produce model features. Some methods are more valuable for exploratory analysis and clinical interpretation.
+
+**BupaR, FP-Growth, DTW**: 
+- **As Features**: Added complexity, potential leakage (FP-Growth), or non-predictive patterns (DTW protocols)
+- **As Visualizations**: Provide valuable clinical insights, pathway analysis, and pattern discovery without affecting model integrity
+
+**Result**: Cleaner model pipeline with rich exploratory visualizations that complement but don't compromise the predictive model.
+
+### Temporal Validation Strategy
+
+**Approach**: Strict temporal validation with 2016-2018 training and 2019 holdout, excluding 2020 (COVID-19).
+
+**Key Insights**:
+- **Prevents Data Leakage**: Future data never seen during training ensures true temporal validation
+- **COVID Impact**: 2020 excluded due to pandemic-related changes in healthcare patterns
+- **Consistency**: Same train/test split across feature importance, model training, and evaluation ensures features generalize
+
+**Result**: More reliable model performance estimates and better generalization to future data.
 
 ## Related Documentation
 

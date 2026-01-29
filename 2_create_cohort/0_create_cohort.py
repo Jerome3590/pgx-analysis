@@ -202,12 +202,20 @@ def step_execution_dispatcher(starting_step, context):
 def execute_pipeline(context):
     """Execute the complete pipeline by running all phases in order with DuckDB optimizations."""
     logger = context["logger"]
+    age_band = context["age_band"]
+    event_year = context["event_year"]
     
     logger.info("→ [PIPELINE] Starting optimized 4-phase pipeline execution...")
     logger.info("→ [PIPELINE] Applied DUCKDB optimizations from APCD development")
     logger.info("→ [PIPELINE] Using new consolidated 4-phase workflow (5 steps total)")
     
     try:
+        # Pre-phase: Sync gold data from S3 to local /mnt/nvme if needed
+        from phases.common import sync_gold_data_to_local
+        logger.info("→ [PIPELINE] Pre-phase: Ensuring gold medical/pharmacy data is available locally...")
+        sync_gold_data_to_local("medical", age_band, event_year, logger)
+        sync_gold_data_to_local("pharmacy", age_band, event_year, logger)
+        
         # Phase 1: Data Preparation (APCD Integration)
         logger.info("→ [PIPELINE] Executing Phase 1: Data Preparation (APCD Integration)")
         run_phase1_data_preparation(context)
@@ -263,6 +271,10 @@ def main():
     parser.add_argument("--target-name", default=None, help="Optional target name to set (overrides PGX_TARGET_NAME env)")
     parser.add_argument("--target-icd-codes", default=None, help="Optional ICD codes string (comma-separated) to set PGX_TARGET_ICD_CODES")
     parser.add_argument("--target-cpt-codes", default=None, help="Optional CPT codes string (comma-separated) to set PGX_TARGET_CPT_CODES")
+    parser.add_argument("--time-window-days", type=int, default=None, choices=[7, 14, 21, 30, 45],
+                       help="DEPRECATED: Time window is fixed at 21 days. This argument is ignored.")
+    parser.add_argument("--concurrent-workers", type=int, default=None,
+                       help="Number of concurrent workers (for memory limit calculation). If not set, detects from MAX_WORKERS or PGX_COHORT_WORKERS env vars, or defaults to 3.")
     
     args = parser.parse_args()
     # If target overrides provided on CLI, set environment variables *before* reloading constants/s3_utils
@@ -295,6 +307,29 @@ def main():
     logger.info(f"{SYMBOLS['info']} Starting Step: {args.starting_step}")
     logger.info(f"{SYMBOLS['info']} Operation Type: {args.operation_type}")
     logger.info(f"{SYMBOLS['info']} Profiling: {'Enabled' if args.enable_profiling else 'Disabled'}")
+    
+    # Log process information
+    import os
+    import multiprocessing
+    current_pid = os.getpid()
+    cpu_count = multiprocessing.cpu_count()
+    logger.info(f"{SYMBOLS['info']} Process ID: {current_pid}")
+    logger.info(f"{SYMBOLS['info']} CPU Cores Available: {cpu_count}")
+    
+    # Check for concurrent workers setting (will be logged later in config section)
+    detected_workers = None
+    if args.concurrent_workers is not None:
+        detected_workers = args.concurrent_workers
+    elif os.getenv('PGX_COHORT_WORKERS'):
+        detected_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+    elif os.getenv('MAX_WORKERS'):
+        detected_workers = int(os.getenv('MAX_WORKERS'))
+    
+    if detected_workers:
+        logger.info(f"{SYMBOLS['info']} Concurrent Workers Detected: {detected_workers} (for memory limit calculation)")
+    else:
+        logger.info(f"{SYMBOLS['info']} Concurrent Workers: Not set (will use default: 3)")
+    
     logger.info("=" * 80)
     logger.info(f"{SYMBOLS['config']} DUCKDB OPTIMIZATIONS APPLIED:")
     logger.info("   - EC2-optimized connections (32-core 1TB RAM)")
@@ -331,14 +366,99 @@ def main():
                 logger.warning(f"Could not save logs to S3 on early exit: {e}")
             return
 
+        # Cleanup old DuckDB temp files at startup (from previous runs/crashes)
+        from phases.common import cleanup_duckdb_temp_files
+        logger.info("→ [STARTUP] Cleaning up old DuckDB temp files...")
+        cleanup_duckdb_temp_files(logger)
+        
         # Setup optimized DuckDB connection with parallelization
         # Since we're processing a single partition, use multiple threads for better performance
-        cohort_conn_duckdb = get_duckdb_connection(logger=logger)
+        # Use worker-specific temp directory (with process PID) to avoid conflicts when running multiple cohorts in parallel
+        from py_helpers.duckdb_utils import get_worker_temp_dir
+        worker_temp_dir = get_worker_temp_dir()
+        logger.info(f"→ [CONFIG] Using worker-specific temp directory: {worker_temp_dir}")
+        
+        cohort_conn_duckdb = get_duckdb_connection(tmp_dir=worker_temp_dir, logger=logger)
+
+        # CRITICAL: Set explicit memory limit to prevent oversubscription with multiple workers
+        # DuckDB auto-detects and uses ~900GB per connection, which causes OOM with multiple workers
+        # Calculate dynamic limit based on actual system memory and concurrent workers
+        import multiprocessing
+        try:
+            import psutil
+            total_memory_gb = psutil.virtual_memory().total / (1024**3)
+        except (ImportError, Exception):
+            # Fallback: assume 1TB EC2 instance
+            total_memory_gb = 1000.0
+        
+        # Detect concurrent workers (for memory limit calculation)
+        # Priority: CLI argument > PGX_COHORT_WORKERS env > MAX_WORKERS env > default
+        # IMPORTANT: This is the TOTAL number of concurrent workers running in parallel (e.g., from ThreadPoolExecutor)
+        # Each worker process should receive this value via --concurrent-workers CLI argument
+        concurrent_workers = None
+        if args.concurrent_workers is not None:
+            concurrent_workers = args.concurrent_workers
+            logger.info(f"→ [CONFIG] Using --concurrent-workers={concurrent_workers} from CLI argument")
+        elif os.getenv('PGX_COHORT_WORKERS'):
+            concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+            logger.info(f"→ [CONFIG] Detected PGX_COHORT_WORKERS={concurrent_workers} from environment")
+        elif os.getenv('MAX_WORKERS'):
+            concurrent_workers = int(os.getenv('MAX_WORKERS'))
+            logger.info(f"→ [CONFIG] Detected MAX_WORKERS={concurrent_workers} from environment")
+        else:
+            # Default: assume 3 workers (common for cohort creation)
+            concurrent_workers = 3
+            logger.info(f"→ [CONFIG] Using default worker count: {concurrent_workers} (set --concurrent-workers or env var to override)")
+        
+        # Log current process information for debugging
+        logger.info(f"→ [CONFIG] Current Process ID: {os.getpid()}")
+        logger.info(f"→ [CONFIG] Parent Process ID: {os.getppid() if hasattr(os, 'getppid') else 'N/A'}")
+        logger.info(f"→ [CONFIG] Total Concurrent Workers (for memory calculation): {concurrent_workers}")
+        logger.info(f"→ [CONFIG] NOTE: This process is 1 of {concurrent_workers} concurrent workers")
+        
+        # Reserve 40% for OS, buffers, and other processes (600GB for 1TB system)
+        # Divide remaining 60% among workers
+        available_for_duckdb = total_memory_gb * 0.6
+        per_worker_memory_gb = available_for_duckdb / max(1, concurrent_workers)
+        
+        # Clamp between 50GB (minimum for large cohorts) and 300GB (maximum per worker)
+        per_worker_memory_gb = max(50.0, min(300.0, per_worker_memory_gb))
+        
+        # Round to nearest 10GB for cleaner values
+        per_worker_memory_gb = round(per_worker_memory_gb / 10) * 10
+        
+        memory_limit = f"{int(per_worker_memory_gb)}GB"
+        cohort_conn_duckdb.sql(f"SET memory_limit='{memory_limit}'")
+        logger.info(f"→ [CONFIG] DuckDB memory limit: {memory_limit} (for {concurrent_workers} workers, {total_memory_gb:.0f}GB total system memory, {available_for_duckdb:.0f}GB available for DuckDB)")
+        
+        # Log active process count for debugging
+        try:
+            import psutil
+            current_process = psutil.Process()
+            # Count Python processes running 0_create_cohort.py
+            python_processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and any('0_create_cohort.py' in str(arg) for arg in cmdline):
+                        python_processes.append(proc.info['pid'])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            logger.info(f"→ [CONFIG] Active cohort creation processes: {len(python_processes)} (PIDs: {python_processes[:10]}{'...' if len(python_processes) > 10 else ''})")
+            logger.info(f"→ [CONFIG] Current process memory: {current_process.memory_info().rss / (1024**3):.2f}GB RSS")
+        except (ImportError, Exception) as e:
+            logger.debug(f"→ [CONFIG] Could not query process information: {e}")
 
         # Configure DuckDB for optimal parallelization based on operation type
-        threads = int(os.getenv('PGX_THREADS_PER_WORKER', '8'))  # Default 8 threads for single partition processing
+        # For single partition processing, we can use more threads (up to CPU cores - 2)
+        # Default to 8 threads, but allow override via PGX_THREADS_PER_WORKER
+        # On EC2 with 32 cores, we can safely use up to 30 threads for single partition processing
+        max_threads = max(1, multiprocessing.cpu_count() - 2)  # Reserve 2 cores for OS/other processes
+        default_threads = min(8, max_threads)  # Default to 8, but cap at available cores
+        threads = int(os.getenv('PGX_THREADS_PER_WORKER', str(default_threads)))
+        threads = min(threads, max_threads)  # Cap at available cores
         cohort_conn_duckdb.sql(f"PRAGMA threads={threads}")
-        logger.info(f"→ [CONFIG] DuckDB threads: {threads}")
+        logger.info(f"→ [CONFIG] DuckDB threads: {threads} (max available: {max_threads}, CPU cores: {multiprocessing.cpu_count()})")
 
         # Configure S3 uploader settings for optimal parallel uploads
         # These settings optimize multi-part uploads when saving large cohort files to S3
@@ -380,7 +500,8 @@ def main():
             "logger": logger,
             "operation_type": args.operation_type,
             "s3_bucket": constants.S3_BUCKET,
-            "pipeline_state": pipeline_state  # Add checkpoint system to context
+            "pipeline_state": pipeline_state,  # Add checkpoint system to context
+            "time_window_days": 21  # Fixed 21-day window (command-line argument is deprecated and ignored)
         }
         
         # Execute pipeline (step functions will use pipeline_state from context)
@@ -392,6 +513,8 @@ def main():
         # Cleanup
         try:
             cleanup_persistent_tables(context)
+            # Clean up DuckDB temp files after successful completion
+            cleanup_duckdb_temp_files(logger)
         except Exception as e:
             logger.warning(f"Cleanup encountered an issue: {e}")
         

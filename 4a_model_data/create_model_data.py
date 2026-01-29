@@ -6,9 +6,9 @@ Create model-ready event-level data filtered to important features, with
 This script is intentionally DuckDB + Parquet only for event-level data
 to avoid pandas memory pressure on large cohorts:
 
-1. Reads aggregated feature-importance CSVs from:
-     - 3_feature_importance/outputs/
-     - or, if not present locally, from 3_feature_importance/from_s3/by_cohort/**/
+1. Reads cohort_feature_importance CSVs from Step 3b:
+     - 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv
+   REQUIRED: Step 3b must run before Step 4a (will error if files not found)
 2. Extracts the `feature` column (e.g., `item_99284`, `item_AMOXICILLIN`) and
    strips the `item_` prefix to get raw item codes.
 3. For each (cohort_name, age_band) combination in those files, it:
@@ -71,11 +71,12 @@ from py_helpers.constants import (
     OPIOID_ICD_CODES,
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
+    get_cohort_slug,
 )
 from py_helpers.env_utils import get_data_root, is_linux
 
 
-OUTPUTS_DIR = PROJECT_ROOT / "3_feature_importance" / "outputs"
+STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
 # Use OS-aware path resolution: /mnt/nvme/4a_model_data on Linux, PROJECT_ROOT/4a_model_data on Windows
 def get_model_data_root() -> Path:
     """Get the root directory for model data output (OS-aware)."""
@@ -184,26 +185,31 @@ def resolve_local_pharmacy_root() -> Path:
 
 def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
     """
-    Parse cohort_name and age_band from an aggregated CSV filename.
+    Parse cohort_name and age_band from a cohort_feature_importance CSV filename (Step 3b output).
 
-    Current pattern (from 3_feature_importance/outputs or from_s3/by_cohort):
-        {cohort_name}_{age_band_fname}_aggregated_feature_importance.csv
+    Expected pattern (from 3b_feature_importance_eda/outputs):
+        {cohort_name}_{age_band_fname}_cohort_feature_importance.csv
+    
+    REQUIRED: Step 3b must run before Step 4a (no fallback to aggregated_feature_importance).
 
     Example:
-        opioid_ed_0_12_aggregated_feature_importance.csv
+        opioid_ed_0_12_cohort_feature_importance.csv
         -> cohort_name = opioid_ed
         -> age_band    = 0-12
     """
-    stem = path.stem  # e.g. opioid_ed_0_12_aggregated_feature_importance
+    stem = path.stem  # e.g. opioid_ed_0_12_cohort_feature_importance
     parts = stem.split("_")
 
-    # Expect pattern: {cohort_name}_{age_band_fname}_aggregated_feature_importance
-    # where age_band_fname is something like "0_12" or "13_24".
-    if len(parts) < 5:
-        raise ValueError(f"Unexpected aggregated filename format: {path.name}")
-
-    cohort_name_tokens = parts[:-5]
-    age_band_tokens = parts[-5:-3]
+    # Check for cohort_feature_importance pattern (Step 3b refined - REQUIRED)
+    if not stem.endswith("_cohort_feature_importance"):
+        raise ValueError(f"Unexpected feature importance filename format: {path.name}. Expected *_cohort_feature_importance.csv")
+    
+    # Pattern: {cohort_name}_{age_band_fname}_cohort_feature_importance
+    if len(parts) < 4:
+        raise ValueError(f"Unexpected refined filename format: {path.name}")
+    
+    cohort_name_tokens = parts[:-4]
+    age_band_tokens = parts[-4:-2]
 
     cohort_name = "_".join(cohort_name_tokens)
     age_band_fname = "_".join(age_band_tokens)
@@ -260,6 +266,41 @@ def _validate_model_events_has_controls(parquet_path: Path) -> dict:
         con.close()
 
 
+def load_control_exclusions(cohort_name: str, age_band: str, step3b_outputs_dir: Path) -> Optional[List[str]]:
+    """
+    Load control feature exclusions JSON and return list of item codes to exclude.
+    
+    Returns:
+        List of item codes (without 'item_' prefix) to exclude for controls, or None if not found
+    """
+    import json
+    from py_helpers.constants import age_band_to_fname
+    
+    age_band_fname = age_band_to_fname(age_band)
+    exclusions_path = step3b_outputs_dir / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_control_feature_exclusions.json"
+    
+    if exclusions_path.exists():
+        with open(exclusions_path, 'r') as f:
+            exclusions_data = json.load(f)
+        
+        # Get features to exclude and remove 'item_' prefix
+        features_to_exclude = exclusions_data.get('features_to_exclude', [])
+        # Features are already normalized: item_80307, item_SUBOXONE, item_F1120
+        # Just remove 'item_' prefix to get the code
+        items_to_exclude = []
+        for feature in features_to_exclude:
+            if feature.startswith('item_'):
+                code = feature[5:]  # Remove 'item_'
+                items_to_exclude.append(code)
+            else:
+                # Already without prefix
+                items_to_exclude.append(feature)
+        
+        return items_to_exclude
+    
+    return None
+
+
 def filter_cohort_events_for_items(
     cohort_name: str,
     age_band: str,
@@ -270,6 +311,8 @@ def filter_cohort_events_for_items(
     local_medical_root: Path,
     local_pharmacy_root: Path,
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
+    control_exclusions: Optional[List[str]] = None,
+    time_window_days: Optional[int] = None,  # Deprecated - time window now handled in Step 2
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4a_model_data/.
@@ -293,9 +336,11 @@ def filter_cohort_events_for_items(
 
     All heavy lifting is done in DuckDB; pandas is not used for event-level data.
     """
-    if not important_items:
-        print(f"[WARN] No important items for {cohort_name}/{age_band}; skipping.")
-        return
+    # If important_items is empty, create model_events.parquet with ALL events (no filtering)
+    # This allows Step 3 to run and generate feature importance, then Step 4a can be re-run with filtering
+    use_all_events = len(important_items) == 0
+    if use_all_events:
+        print(f"[INFO] No feature importance CSVs found. Creating model_events.parquet with ALL events (no filtering) for {cohort_name}/{age_band}.")
 
     # Build list of local cohort parquet paths for this cohort/age_band across years
     cohort_parquet_paths: List[str] = []
@@ -377,33 +422,65 @@ def filter_cohort_events_for_items(
         f"'{p}'" for p in (medical_parquet_paths + pharmacy_parquet_paths)
     )
 
-    item_list_literal = ", ".join(f"'{v}'" for v in important_items)
+    # Build SQL filter condition for items
+    # If important_items is empty, don't filter (keep all events)
+    if use_all_events:
+        item_filter_condition = "TRUE"  # Keep all events
+    else:
+        item_list_literal = ", ".join(f"'{v}'" for v in important_items)
+        if not item_list_literal:
+            item_list_literal = "''"  # Empty string to avoid SQL syntax error
 
-    # Build ICD diagnosis conditions dynamically from ALL_ICD_DIAGNOSIS_COLUMNS
-    icd_conditions = " OR ".join(
-        f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
-    )
+        # Build ICD diagnosis conditions dynamically from ALL_ICD_DIAGNOSIS_COLUMNS
+        icd_conditions = " OR ".join(
+            f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+        if not icd_conditions:
+            icd_conditions = "FALSE"  # Empty condition
+        
+        # Build the full filter condition
+        item_filter_condition = f"""(
+            drug_name IN ({item_list_literal}) OR
+            {icd_conditions} OR
+            procedure_code IN ({item_list_literal})
+        )"""
 
-    print(
-        f"[INFO] Building model events for {cohort_name}/{age_band} "
-        f"from {len(cohort_parquet_paths)} cohort files, "
-        f"{len(medical_parquet_paths)} medical globs, "
-        f"{len(pharmacy_parquet_paths)} pharmacy globs, "
-        f"using {len(important_items)} important items."
-    )
+    if use_all_events:
+        print(
+            f"[INFO] Building model events for {cohort_name}/{age_band} "
+            f"from {len(cohort_parquet_paths)} cohort files, "
+            f"{len(medical_parquet_paths)} medical globs, "
+            f"{len(pharmacy_parquet_paths)} pharmacy globs, "
+            f"with ALL events (no filtering - feature importance CSVs not found)."
+        )
+    else:
+        print(
+            f"[INFO] Building model events for {cohort_name}/{age_band} "
+            f"from {len(cohort_parquet_paths)} cohort files, "
+            f"{len(medical_parquet_paths)} medical globs, "
+            f"{len(pharmacy_parquet_paths)} pharmacy globs, "
+            f"using {len(important_items)} important items."
+        )
 
+    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+    cohort_slug = get_cohort_slug(age_band)
+    
+    # New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/
     out_dir = (
         output_root
-        / f"cohort_name={cohort_name}"
+        / "cohorts"
+        / "input_model_data"
+        / f"cohort_name={cohort_slug}"
         / f"age_band={age_band}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
 
     # Check S3 first for idempotency
+    # New format: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/
     s3_output_path = (
-        f"s3://pgxdatalake/gold/cohorts_model_data/"
-        f"cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
+        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
+        f"cohort_name={cohort_slug}/age_band={age_band}/model_events.parquet"
     )
 
     # Idempotency / Windows-friendly: if the file already exists locally, assume this
@@ -430,9 +507,11 @@ def filter_cohort_events_for_items(
             )
             aws_cli = shutil.which("aws")
             if aws_cli:
+                # Get cohort slug based on age band
+                cohort_slug = get_cohort_slug(age_band)
                 s3_dir_path = (
-                    f"s3://pgxdatalake/gold/cohorts_model_data/"
-                    f"cohort_name={cohort_name}/age_band={age_band}/"
+                    f"s3://pgxdatalake/gold/cohorts/input_model_data/"
+                    f"cohort_name={cohort_slug}/age_band={age_band}/"
                 )
                 result = subprocess.run(
                     [aws_cli, "s3", "cp", s3_output_path, str(out_path), "--no-progress"],
@@ -495,12 +574,85 @@ def filter_cohort_events_for_items(
     common_cols_sql_control = ", ".join(f"c.{c}" for c in common_cols)
 
     # 1. Case patients from gold cohorts
-    case_patients_query = f"""
-        CREATE TEMP TABLE case_patients AS
-        SELECT DISTINCT mi_person_key
-        FROM read_parquet([{cohort_paths_literal}])
-        WHERE is_target_case = 1
-    """
+    # NOTE: Time window filtering is now handled in Step 2 (2_create_cohort)
+    # Step 2 creates cohorts with time-windowed HCG events, so we just use all target cases from the cohort
+    # No need to re-filter here - the cohort definition in Step 2 is the source of truth
+    if False:  # Disabled - time window filtering moved to Step 2
+        # Filter target cases to only include those with HCG target events within time_window_days of drug events
+        # Need to get gold medical/pharmacy paths for time window checking
+        gold_medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
+        gold_pharmacy_paths_literal = ", ".join(f"'{p}'" for p in pharmacy_parquet_paths) if pharmacy_parquet_paths else ""
+        
+        if not gold_medical_paths_literal or not gold_pharmacy_paths_literal:
+            print(f"[WARN] Cannot apply time window filtering: missing medical or pharmacy files")
+            case_patients_query = f"""
+                CREATE TEMP TABLE case_patients AS
+                SELECT DISTINCT mi_person_key
+                FROM read_parquet([{cohort_paths_literal}])
+                WHERE is_target_case = 1
+            """
+        else:
+            case_patients_query = f"""
+                CREATE TEMP TABLE case_patients AS
+                WITH cohort_cases AS (
+                    SELECT DISTINCT mi_person_key
+                    FROM read_parquet([{cohort_paths_literal}])
+                    WHERE is_target_case = 1
+                ),
+                pharmacy_events AS (
+                    SELECT
+                        mi_person_key,
+                        CASE 
+                            WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                                CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                            ELSE CAST(incurred_date AS DATE)
+                        END AS event_date
+                    FROM read_parquet([{gold_pharmacy_paths_literal}])
+                ),
+                medical_events AS (
+                    SELECT
+                        mi_person_key,
+                        CASE 
+                            WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                                CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || 
+                                     SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                            ELSE CAST(incurred_date AS DATE)
+                        END AS event_date,
+                        hcg_line
+                    FROM read_parquet([{gold_medical_paths_literal}])
+                ),
+                patient_hcg_dates AS (
+                    SELECT
+                        me.mi_person_key,
+                        me.event_date AS hcg_event_date
+                    FROM medical_events me
+                    WHERE me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+                ),
+                drug_hcg_pairs AS (
+                    -- Check if ANY HCG target event occurs within time_window_days days of ANY drug event
+                    SELECT DISTINCT
+                        pe.mi_person_key
+                    FROM pharmacy_events pe
+                    INNER JOIN cohort_cases cc ON pe.mi_person_key = cc.mi_person_key
+                    INNER JOIN patient_hcg_dates phd ON pe.mi_person_key = phd.mi_person_key
+                        AND phd.hcg_event_date >= pe.event_date
+                        AND phd.hcg_event_date <= DATE_ADD(pe.event_date, INTERVAL {time_window_days} DAY)
+                )
+                SELECT DISTINCT mi_person_key
+                FROM drug_hcg_pairs
+            """
+            print(f"[INFO] Filtering target cases for polypharmacy cohort with {time_window_days}-day time window")
+    else:
+        # Standard case: use all target cases from cohort
+        case_patients_query = f"""
+            CREATE TEMP TABLE case_patients AS
+            SELECT DISTINCT mi_person_key
+            FROM read_parquet([{cohort_paths_literal}])
+            WHERE is_target_case = 1
+        """
     con.execute(case_patients_query)
 
     # Check number of cases; if zero, skip
@@ -586,11 +738,7 @@ def filter_cohort_events_for_items(
                     1 AS target
                 FROM read_parquet([{cohort_paths_literal}])
                 WHERE
-                    is_target_case = 1 AND (
-                        drug_name IN ({item_list_literal}) OR
-                        {icd_conditions} OR
-                        procedure_code IN ({item_list_literal})
-                    )
+                    is_target_case = 1 AND {item_filter_condition}
             ) TO '{str(out_path)}'
             (FORMAT PARQUET)
         """
@@ -625,13 +773,25 @@ def filter_cohort_events_for_items(
             1 AS target
         FROM read_parquet([{cohort_paths_literal}])
         WHERE
-            is_target_case = 1 AND (
-                drug_name IN ({item_list_literal}) OR
-                {icd_conditions} OR
-                procedure_code IN ({item_list_literal})
-            )
+            is_target_case = 1 AND {item_filter_condition}
     """
 
+    # Build control exclusion filter (blacklist approach)
+    # Controls keep all features EXCEPT post-target leakage features
+    control_exclusion_condition = "TRUE"  # Default: no exclusions
+    if control_exclusions and len(control_exclusions) > 0:
+        exclusion_list_literal = ", ".join(f"'{v}'" for v in control_exclusions)
+        # Build exclusion conditions for all item-bearing columns
+        exclusion_icd_conditions = " OR ".join(
+            f"{col} IN ({exclusion_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+        control_exclusion_condition = f"""NOT (
+            drug_name IN ({exclusion_list_literal}) OR
+            {exclusion_icd_conditions} OR
+            procedure_code IN ({exclusion_list_literal})
+        )"""
+        print(f"[INFO] Applying control exclusions: excluding {len(control_exclusions)} post-target leakage features")
+    
     control_events_query = f"""
         SELECT
             {common_cols_sql_control},
@@ -639,6 +799,7 @@ def filter_cohort_events_for_items(
         FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
         JOIN control_patients cp
             ON c.mi_person_key = cp.mi_person_key
+        WHERE {control_exclusion_condition}
     """
 
     final_query = f"""
@@ -655,7 +816,7 @@ def filter_cohort_events_for_items(
 
     print(f"[INFO] Wrote model_events.parquet for {cohort_name}/{age_band}: {out_path}")
     
-    # Validate that controls are present
+    # Validate that controls are present and ratio is approximately correct
     validation_result = _validate_model_events_has_controls(out_path)
     if not validation_result["has_controls"]:
         print(
@@ -663,9 +824,33 @@ def filter_cohort_events_for_items(
             f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
         )
         sys.exit(1)
+    
+    # Validate control:case ratio (should be approximately sample_ratio:1)
+    n_cases = validation_result['n_cases']
+    n_controls = validation_result['n_controls']
+    actual_ratio = n_controls / max(n_cases, 1)
+    expected_ratio = sample_ratio
+    
+    # Allow 20% tolerance (e.g., 4:1 to 6:1 for 5:1 target)
+    tolerance = 0.2
+    min_ratio = expected_ratio * (1 - tolerance)
+    max_ratio = expected_ratio * (1 + tolerance)
+    
+    if actual_ratio < min_ratio or actual_ratio > max_ratio:
+        print(
+            f"[WARN] Control:case ratio is {actual_ratio:.2f}:1, expected approximately "
+            f"{expected_ratio}:1 (tolerance: {min_ratio:.2f}-{max_ratio:.2f}:1). "
+            f"Cases: {n_cases}, Controls: {n_controls}"
+        )
+        # Don't fail - this is a warning, not an error (may be due to limited control candidates)
+    else:
+        print(
+            f"[INFO] Control:case ratio validation passed: {actual_ratio:.2f}:1 "
+            f"(target: {expected_ratio}:1)"
+        )
+    
     print(
-        f"[INFO] Validation passed: {validation_result['n_cases']} cases, "
-        f"{validation_result['n_controls']} controls"
+        f"[INFO] Validation passed: {n_cases} cases, {n_controls} controls"
     )
     
     # Upload to S3 using aws s3 sync (best-effort)
@@ -693,16 +878,21 @@ def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str
     """
     Sync model_events.parquet to S3 using aws s3 sync.
     
-    S3 path: s3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
+    S3 path: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet
+    where slug is "opioid" or "polypharmacy" based on age band.
     """
     aws_cli = shutil.which("aws")
     if not aws_cli:
         print("[WARN] AWS CLI not found, skipping S3 sync")
         return
     
+    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
+    cohort_slug = get_cohort_slug(age_band)
+    
+    # New format: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/
     s3_path = (
-        f"s3://pgxdatalake/gold/cohorts_model_data/"
-        f"cohort_name={cohort_name}/age_band={age_band}/"
+        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
+        f"cohort_name={cohort_slug}/age_band={age_band}/"
     )
     
     # Use s3 sync to upload the file (syncs the directory)
@@ -730,9 +920,9 @@ def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str
         print(f"[WARN] Error syncing to S3: {e}")
 
 
-def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
+def download_cohort_feature_importance_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
     """
-    Download aggregated feature importance files from S3.
+    Download cohort_feature_importance files from S3 (Step 3b outputs).
     
     If cohort and age_band are specified, downloads only that file.
     Otherwise, lists all available files in S3.
@@ -744,9 +934,9 @@ def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional
         age_band_fname = age_band.replace("-", "_")
         s3_key = (
             f"gold/feature_importance/{cohort}/{age_band}/"
-            f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         )
-        local_path = OUTPUTS_DIR / cohort / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        local_path = STEP3B_OUTPUTS_DIR / cohort / age_band_fname / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         
         try:
             s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -776,8 +966,8 @@ def download_aggregated_from_s3(cohort: Optional[str] = None, age_band: Optional
                             age_band = age_prefix_info["Prefix"].split("/")[-2]
                             age_band_fname = age_band.replace("-", "_")
                             
-                            s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-                            local_path = OUTPUTS_DIR / cohort_name / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+                            s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
+                            local_path = STEP3B_OUTPUTS_DIR / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
                             
                             try:
                                 s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -812,6 +1002,13 @@ def main() -> None:
         type=str,
         help="Process specific age band (e.g., 13-24). Requires --cohort to be specified.",
     )
+    parser.add_argument(
+        "--time-window-days",
+        type=int,
+        default=None,
+        choices=[7, 14, 21, 30, 45],
+        help="DEPRECATED: Time window is now handled in Step 2 (2_create_cohort). This argument is ignored.",
+    )
     args = parser.parse_args()
     
     # Ensure local directories exist (idempotent: we overwrite per file)
@@ -819,50 +1016,93 @@ def main() -> None:
     model_data_root = get_model_data_root()
     model_data_root.mkdir(parents=True, exist_ok=True)
 
-    # Discover aggregated feature-importance CSVs
-    # Files are stored in: outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv
+    # Discover cohort_feature_importance CSVs from Step 3b (REQUIRED - no fallback)
+    # Step 3b must run before Step 4a to produce refined feature importances
+    # Expected location: 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv
     aggregated_files = []
     
-    # If both cohort and age_band are specified, look for specific file first
+    # If both cohort and age_band are specified, look for specific file
     if args.cohort and args.age_band:
         age_band_fname = args.age_band.replace("-", "_")
-        specific_file = OUTPUTS_DIR / args.cohort / f"{args.cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        if specific_file.exists():
-            aggregated_files.append(specific_file)
-            print(f"[INFO] Found local aggregated file: {specific_file}")
+        
+        # Check for Step 3b refined feature importance (REQUIRED)
+        refined_file = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
+        if refined_file.exists():
+            aggregated_files.append(refined_file)
+            print(f"[INFO] Found Step 3b refined feature importance: {refined_file}")
         else:
-            # Try downloading from S3
-            print(f"[INFO] Local file not found. Checking S3 for {args.cohort}/{args.age_band}...")
-            downloaded = download_aggregated_from_s3(args.cohort, args.age_band)
-            if downloaded:
-                aggregated_files.extend(downloaded)
+            # Try downloading from S3 if not found locally
+            print(f"[INFO] Step 3b refined feature importance not found locally: {refined_file}")
+            print(f"[INFO] Attempting to download from S3...")
+            downloaded = download_cohort_feature_importance_from_s3(args.cohort, args.age_band)
+            if downloaded and downloaded[0].exists():
+                aggregated_files.append(downloaded[0])
+                print(f"[INFO] Successfully downloaded from S3: {downloaded[0]}")
+            else:
+                # Error out - file not found locally or in S3
+                print(f"[ERROR] Step 3b refined feature importance not found locally or in S3")
+                print(f"[ERROR] Expected: {refined_file}")
+                print(f"[ERROR] S3 path: s3://{S3_BUCKET}/gold/feature_importance/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_cohort_feature_importance.csv")
+                print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
+                print(f"[ERROR] Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort {args.cohort} --age-band {args.age_band}")
+                sys.exit(1)
     else:
-        # Check in outputs/{cohort}/ subdirectories
-        for cohort_dir in OUTPUTS_DIR.iterdir():
+        # Check Step 3b refined files for all cohorts
+        if not STEP3B_OUTPUTS_DIR.exists():
+            print(f"[ERROR] Step 3b outputs directory not found: {STEP3B_OUTPUTS_DIR}")
+            print(f"[ERROR] Step 3b must run before Step 4a")
+            sys.exit(1)
+        
+        for cohort_dir in STEP3B_OUTPUTS_DIR.iterdir():
             if not cohort_dir.is_dir():
                 continue
             # Filter by cohort if specified
             if args.cohort and cohort_dir.name != args.cohort:
                 continue
-            cohort_files = sorted(
-                cohort_dir.glob("*_aggregated_feature_importance.csv")
-            )
-            aggregated_files.extend(cohort_files)
+            
+            # Check each age_band subdirectory
+            for age_band_dir in cohort_dir.iterdir():
+                if not age_band_dir.is_dir():
+                    continue
+                refined_files = sorted(
+                    age_band_dir.glob("*_cohort_feature_importance.csv")
+                )
+                if not refined_files:
+                    # Try downloading from S3 if not found locally
+                    cohort_name = cohort_dir.name
+                    age_band = age_band_dir.name.replace("_", "-")
+                    print(f"[INFO] No cohort_feature_importance.csv found locally in {age_band_dir}")
+                    print(f"[INFO] Attempting to download from S3 for {cohort_name}/{age_band}...")
+                    downloaded = download_cohort_feature_importance_from_s3(cohort_name, age_band)
+                    if downloaded:
+                        refined_files = downloaded
+                        print(f"[INFO] Successfully downloaded from S3: {refined_files[0]}")
+                    else:
+                        print(f"[WARN] Could not download from S3. Step 3b must run for this cohort/age_band before Step 4a")
+                aggregated_files.extend(refined_files)
         
-        # Fallback: if outputs/ is empty locally, try downloading from S3
         if not aggregated_files:
-            print(f"[INFO] No local aggregated feature importance files found. Checking S3...")
-            aggregated_files = download_aggregated_from_s3(args.cohort, args.age_band)
+            print(f"[ERROR] No cohort_feature_importance files found in {STEP3B_OUTPUTS_DIR}")
+            print(f"[ERROR] Step 3b must run before Step 4a")
+            sys.exit(1)
     
     if not aggregated_files:
         print(
-            f"[WARN] No aggregated feature-importance CSVs found locally or in S3."
+            f"[ERROR] No cohort_feature_importance CSVs found."
         )
         if args.cohort and args.age_band:
+            age_band_fname = args.age_band.replace("-", "_")
+            expected_file = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
             print(
-                f"[INFO] Looking for: {args.cohort}_{args.age_band.replace('-', '_')}_aggregated_feature_importance.csv"
+                f"[ERROR] Expected file: {expected_file}"
             )
-        return
+            print(
+                f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files."
+            )
+            print(
+                f"[ERROR] Run: python 3b_feature_importance_eda/run_step_3b.py --cohort {args.cohort} --age-band {args.age_band}"
+            )
+        sys.exit(1)
 
     # Default years: match feature-importance temporal setup (2016–2018 train, 2019 test)
     YEARS = [2016, 2017, 2018, 2019]
@@ -896,6 +1136,11 @@ def main() -> None:
             )
             continue
 
+        # Load control exclusions (blacklist for controls)
+        control_exclusions = load_control_exclusions(cohort_name, age_band, STEP3B_OUTPUTS_DIR)
+        if control_exclusions:
+            print(f"[INFO] Loaded {len(control_exclusions)} control exclusions for {cohort_name}/{age_band}")
+
         filter_cohort_events_for_items(
             cohort_name=cohort_name,
             age_band=age_band,
@@ -906,6 +1151,7 @@ def main() -> None:
             local_medical_root=local_medical_root,
             local_pharmacy_root=local_pharmacy_root,
             sample_ratio=DEFAULT_SAMPLE_RATIO,
+            control_exclusions=control_exclusions,
         )
 
 

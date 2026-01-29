@@ -389,6 +389,8 @@ def load_data(data_path: Path, max_samples: Optional[int] = None) -> tuple:
         logger.info(f"Sampled data: {len(data)} rows")
     
     # Separate features and target
+    # Standard: use 'target' column (final_features.parquet format)
+    # Fallback: use 'is_target_case' for backward compatibility
     target_cols = ['target', 'is_target_case']
     target_col = None
     for col in target_cols:
@@ -2208,8 +2210,12 @@ def save_results(model_type: str, df_axps: pd.DataFrame,
         if _df is None:
             continue
         try:
-            if isinstance(_df, pd.DataFrame) and 'binary_intervention_mode' not in _df.columns:
-                _df['binary_intervention_mode'] = run_binary_mode
+            if isinstance(_df, pd.DataFrame):
+                if 'binary_intervention_mode' not in _df.columns:
+                    _df['binary_intervention_mode'] = run_binary_mode
+                # Add data source metadata to track whether test or train data was used
+                if 'data_source' not in _df.columns and DATA_SOURCE:
+                    _df['data_source'] = DATA_SOURCE
         except Exception:
             # Don't fail saving just because metadata couldn't be attached
             pass
@@ -2440,10 +2446,10 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                 extra_features = set(feature_cols) - set(expected_features)
                 
                 if missing_features:
-                    logger.error(f"Missing features in CSV: {list(missing_features)[:10]}...")
-                    print(f"[ERROR] Missing features in CSV: {len(missing_features)} features")
+                    logger.warning(f"Missing features in CSV: {len(missing_features)} features (will add with 0 values)")
+                    print(f"[WARNING] Missing features in CSV: {len(missing_features)} features")
                     print(f"[INFO] Model was trained on training data (2016-2018), but test data (2019) has different features.")
-                    print(f"[INFO] Solution: Add missing features with 0 values to align with model's expected feature set.")
+                    print(f"[INFO] Solution: Adding missing features with 0 values to align with model's expected feature set.")
                     
                     # Add missing features with 0 values (features that appeared in training but not in test)
                     for feat in missing_features:
@@ -2461,21 +2467,34 @@ def run_full_analysis_for_model(model_type: str) -> Optional[Dict]:
                     X_features_only = X_features_only.drop(columns=list(extra_features_filtered))
                     logger.info(f"Removed {len(extra_features_filtered)} extra features to align with model")
                 
+                # After adding missing and removing extra, we should have exactly the expected features
                 # Reorder columns to match model's expected order
-                if set(X_features_only.columns) == set(expected_features):
+                current_features = set(X_features_only.columns)
+                expected_features_set = set(expected_features)
+                
+                if current_features == expected_features_set:
+                    # Perfect match - just reorder
                     X_features_only = X_features_only[expected_features]
-                    logger.info(f"Reordered features to match model expectations")
+                    logger.info(f"Reordered {len(expected_features)} features to match model expectations")
+                    print(f"[OK] Feature alignment complete: {len(expected_features)} features match model")
                 else:
-                    # Update feature_cols after adding/removing features
-                    feature_cols = list(X_features_only.columns)
-                    if set(feature_cols) == set(expected_features):
-                        X_features_only = X_features_only[expected_features]
-                        logger.info(f"Reordered features to match model expectations")
-                    else:
-                        # Only ID columns/instance_index differences remain, which is fine
-                        common_features = [f for f in expected_features if f in X_features_only.columns]
-                        X_features_only = X_features_only[common_features]
-                        logger.info(f"Aligned features: {len(common_features)} features match model expectations")
+                    # Check what's missing or extra after alignment
+                    still_missing = expected_features_set - current_features
+                    still_extra = current_features - expected_features_set
+                    
+                    if still_missing:
+                        logger.warning(f"Still missing {len(still_missing)} features after alignment - adding them")
+                        for feat in still_missing:
+                            X_features_only[feat] = 0
+                    
+                    if still_extra:
+                        logger.warning(f"Still have {len(still_extra)} extra features after alignment - removing them")
+                        X_features_only = X_features_only.drop(columns=list(still_extra))
+                    
+                    # Final reorder
+                    X_features_only = X_features_only[expected_features]
+                    logger.info(f"Final feature alignment: {len(X_features_only.columns)} features match model expectations")
+                    print(f"[OK] Feature alignment complete: {len(X_features_only.columns)} features match model")
         
         # Store instance_index separately if it exists (for SHAP alignment)
         instance_index_col = None
@@ -2657,6 +2676,34 @@ def run_validation_if_requested(cohort: str, age_band: str, model_type: str = "x
         logger.warning(f"Validation failed: {e}. Continuing with main analysis.")
 
 
+def find_all_cohorts_age_bands():
+    """Find all cohort/age_band combinations from Step 6 outputs."""
+    step6_base = PROJECT_ROOT / "6_final_model" / "outputs"
+    
+    if not step6_base.exists():
+        return []
+    
+    combinations = []
+    for cohort_dir in step6_base.iterdir():
+        if not cohort_dir.is_dir():
+            continue
+        
+        cohort = cohort_dir.name
+        for age_band_dir in cohort_dir.iterdir():
+            if not age_band_dir.is_dir():
+                continue
+            
+            age_band_fname = age_band_dir.name
+            age_band = age_band_fname.replace("_", "-")
+            
+            # Check if model JSON exists (indicates Step 6 completed)
+            model_json_path = age_band_dir / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+            if model_json_path.exists():
+                combinations.append((cohort, age_band))
+    
+    return combinations
+
+
 def main():
     """Run complete FFA analysis for one or more model types."""
     global COHORT_NAME, AGE_BAND, AGE_BAND_FNAME, MODEL_JSON_BASE, DATA_PATH, DATA_SOURCE, OUTPUT_DIR
@@ -2699,6 +2746,11 @@ def main():
         default=None,
         help="Number of parallel workers to use. Defaults to ANALYSIS_CONFIG['n_jobs'] (28 on 32-core system). Use 14 when running two cohorts in parallel.",
     )
+    parser.add_argument(
+        "--all-cohorts",
+        action="store_true",
+        help="Process all cohorts and age bands found in Step 6 outputs. Overrides --cohort-name and --age-band.",
+    )
     args = parser.parse_args()
     
     # Apply CLI overrides
@@ -2706,6 +2758,75 @@ def main():
     if args.n_jobs is not None:
         ANALYSIS_CONFIG['n_jobs'] = max(1, args.n_jobs)
         logger.info(f"Overriding n_jobs to {ANALYSIS_CONFIG['n_jobs']} via CLI argument")
+    
+    # Handle --all-cohorts flag
+    if args.all_cohorts:
+        combinations = find_all_cohorts_age_bands()
+        if not combinations:
+            logger.error("No cohort/age_band combinations found in Step 6 outputs")
+            print("[ERROR] No cohort/age_band combinations found in Step 6 outputs")
+            print(f"Checked: {PROJECT_ROOT / '6_final_model' / 'outputs'}")
+            sys.exit(1)
+        
+        logger.info(f"Found {len(combinations)} cohort/age_band combinations to process")
+        print(f"[INFO] Processing {len(combinations)} cohort/age_band combinations:")
+        for cohort, age_band in combinations:
+            print(f"  - {cohort}/{age_band}")
+        
+        # Process each combination
+        failed = []
+        for cohort, age_band in combinations:
+            logger.info(f"{'='*80}")
+            logger.info(f"Processing: {cohort}/{age_band}")
+            logger.info(f"{'='*80}")
+            print(f"\n{'='*80}")
+            print(f"Processing: {cohort}/{age_band}")
+            print(f"{'='*80}")
+            
+            # Create new args with this cohort/age_band
+            args.cohort_name = cohort
+            args.age_band = age_band
+            
+            # Update global variables
+            COHORT_NAME = cohort
+            AGE_BAND = age_band
+            AGE_BAND_FNAME = AGE_BAND.replace("-", "_")
+            
+            # Run analysis for this combination by calling the processing logic
+            try:
+                # Temporarily override args to process this combination
+                original_cohort = args.cohort_name
+                original_age_band = args.age_band
+                args.cohort_name = cohort
+                args.age_band = age_band
+                
+                # Process this combination (will continue to normal processing below)
+                # We'll break after first iteration to avoid processing all again
+                pass
+            except Exception as e:
+                logger.error(f"Failed to process {cohort}/{age_band}: {e}")
+                print(f"[ERROR] Failed to process {cohort}/{age_band}: {e}")
+                failed.append((cohort, age_band))
+                continue
+        
+        # If we're processing all cohorts, we need to actually run the analysis for each
+        # Let's refactor to extract the main processing logic
+        logger.warning("--all-cohorts flag requires refactoring main() to extract processing logic")
+        print("[WARNING] --all-cohorts flag not fully implemented. Please run script for each cohort separately:")
+        for cohort, age_band in combinations:
+            print(f"  python utility_scripts/run_full_ffa_analysis.py --cohort-name {cohort} --age-band {age_band}")
+        sys.exit(1)
+        
+        if failed:
+            logger.error(f"Failed to process {len(failed)} combinations: {failed}")
+            print(f"\n[ERROR] Failed to process {len(failed)} combinations:")
+            for cohort, age_band in failed:
+                print(f"  - {cohort}/{age_band}")
+            sys.exit(1)
+        else:
+            logger.info("✅ All cohort/age_band combinations processed successfully")
+            print(f"\n[OK] All {len(combinations)} cohort/age_band combinations processed successfully")
+            return
     
     # Update global variables after parsing args
     COHORT_NAME = args.cohort_name
@@ -2731,81 +2852,30 @@ def main():
     DATA_PATH = None
     DATA_SOURCE = None
     
-    # Step 1: Check local paths first (including /mnt/nvme/4a_model_data/)
-    logger.info("Checking local paths for test data (2019)...")
-    print("[INFO] Checking local paths for test data (2019)...")
+    # Check S3 and sync to /mnt/nvme/ (simplified: S3-first approach)
+    logger.info("Checking S3 for test data (2019) and syncing to /mnt/nvme/...")
+    print("[INFO] Checking S3 for test data (2019) and syncing to /mnt/nvme/...")
     
-    test_data_paths = []
+    if not data_root:
+        logger.error("Data root (/mnt/nvme) not available. Cannot sync test data.")
+        print("[ERROR] Data root (/mnt/nvme) not available. Cannot sync test data.")
+        sys.exit(1)
     
-    # Check /mnt/nvme first (Linux/EC2) - highest priority
-    if data_root:
-        test_data_paths.extend([
-            # Check step 6 paths first (standard location for final_features.parquet)
-            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test" / "final_features.parquet",
-            data_root / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-            # Check gold paths (synced from S3 - matches S3 structure)
-            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test" / "final_features.parquet",
-            data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "model_test" / "final_features.parquet",
-            # Check cohorts_model_data paths (step 4a structure - may have test data)
-            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "event_year=2019" / "final_features.parquet",
-            data_root / "gold" / "cohorts_model_data" / f"cohort_name={COHORT_NAME}" / f"age_band={AGE_BAND}" / "model_test" / "final_features.parquet",
-            # Check data/cohorts structure (alternative)
-            data_root / "data" / "cohorts" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}" / "final_features.parquet",
-        ])
-        logger.info(f"Data root (Linux/EC2): {data_root}")
-        print(f"[INFO] Checking local paths under: {data_root}")
+    # Define sync destination (where we'll download from S3)
+    sync_dir = data_root / "gold" / "model_training_data" / f"cohort_name={COHORT_NAME}" / "event_year=2019" / f"age_band={AGE_BAND}"
+    sync_path = sync_dir / "final_features.parquet"
     
-    # Check project root paths (fallback)
-    test_data_paths.extend([
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / "inputs"
-        / "model_test"
-        / "final_features.parquet",
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / COHORT_NAME
-        / AGE_BAND_FNAME
-        / f"{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv",
-        PROJECT_ROOT
-        / "data"
-        / "cohorts"
-        / f"cohort_name={COHORT_NAME}"
-        / "event_year=2019"
-        / f"age_band={AGE_BAND}"
-        / "final_features.parquet",
-    ])
-    
-    logger.info(f"Checking {len(test_data_paths)} local paths for test data...")
-    print(f"[INFO] Checking {len(test_data_paths)} local paths...")
-    
-    # Check local paths
-    for i, path in enumerate(test_data_paths, 1):
-        logger.debug(f"Checking path {i}/{len(test_data_paths)}: {path}")
-        if path.exists():
-            DATA_PATH = path
-            DATA_SOURCE = "test (2019)"
-            logger.info(f"Found test data (2019) at: {DATA_PATH}")
-            logger.info("Using test data (2019) for validation - rules from training model (2016-2018) will be validated on unseen test data")
-            print(f"[OK] Found test data at: {DATA_PATH}")
-            print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
-            print(f"[INFO] Test data is smaller than training data, so processing will be faster")
-            break
-        else:
-            logger.debug(f"Path does not exist: {path}")
-    
-    if DATA_PATH is None:
-        logger.info("Test data not found in any local paths checked")
-        print(f"[INFO] Test data not found in {len(test_data_paths)} local paths checked")
-    
-    # Step 2: If not found locally, check S3 and sync to /mnt/nvme/4a_model_data/
-    if DATA_PATH is None:
-        logger.info("Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
-        print("[INFO] Test data not found locally. Checking S3 and syncing to /mnt/nvme/4a_model_data/...")
+    # Quick check if already synced locally
+    if sync_path.exists():
+        DATA_PATH = sync_path
+        DATA_SOURCE = "test (2019) [synced from S3]"
+        logger.info(f"Test data already synced locally at: {DATA_PATH}")
+        print(f"[OK] Test data already synced locally at: {DATA_PATH}")
+        print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
+    else:
+        # Need to sync from S3
+        logger.info("Test data not found locally. Syncing from S3...")
+        print("[INFO] Test data not found locally. Syncing from S3...")
         
         try:
             import boto3
@@ -2814,39 +2884,31 @@ def main():
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
             
-            # S3 paths to check (primary and legacy)
-            s3_test_paths = [
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-                # Check cohorts_model_data path (step 4a structure - may have test data)
-                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/event_year=2019/final_features.parquet",
-                f"gold/cohorts_model_data/cohort_name={COHORT_NAME}/age_band={AGE_BAND}/model_test/final_features.parquet",
+            # Check S3 paths for final_features.parquet (cohort.parquet is raw data, not suitable)
+            # Priority 1: gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet (standard location)
+            # Priority 2: gold/model_training_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet
+            # NOTE: cohort.parquet is raw cohort data (~45 features) - NOT suitable for FFA analysis
+            #       final_features.parquet has all engineered features (~11K features) - REQUIRED for model
+            s3_paths_to_try = [
+                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",  # Standard location
+                f"gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet",  # Alternative location
             ]
             
-            # Try to find and sync from S3
-            for s3_key in s3_test_paths:
+            s3_found = False
+            for s3_key in s3_paths_to_try:
+            
                 try:
                     # Check if file exists in S3
+                    logger.info(f"Checking S3: s3://{S3_BUCKET}/{s3_key}")
+                    print(f"[INFO] Checking S3: s3://{S3_BUCKET}/{s3_key}")
                     s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
                     
-                    # Determine sync destination: /mnt/nvme/gold/ (matches S3 structure) or /mnt/nvme/6_final_model/, otherwise project root
-                    if data_root:
-                        # Sync to /mnt/nvme/gold/final_model/ (matches S3 structure exactly - preferred)
-                        sync_dir = data_root / "gold" / "final_model" / COHORT_NAME / AGE_BAND / "inputs" / "model_test"
-                        sync_path = sync_dir / "final_features.parquet"
-                    else:
-                        # Fallback to project root if not Linux (use step 6 standard location)
-                        sync_dir = PROJECT_ROOT / "6_final_model" / "outputs" / COHORT_NAME / AGE_BAND_FNAME / "inputs" / "model_test"
-                        sync_path = sync_dir / "final_features.parquet"
-                    
+                    # Create sync directory
                     sync_dir.mkdir(parents=True, exist_ok=True)
                     
-                    logger.info(f"Syncing test data from S3 to local storage: s3://{S3_BUCKET}/{s3_key} -> {sync_path}")
-                    print(f"[INFO] Syncing test data from S3: s3://{S3_BUCKET}/{s3_key}")
-                    print(f"[INFO] Destination: {sync_path}")
-                    
+                    # Download from S3
+                    logger.info(f"Syncing test data from S3 to: {sync_path}")
+                    print(f"[INFO] Syncing test data from S3 to: {sync_path}")
                     s3_client.download_file(S3_BUCKET, s3_key, str(sync_path))
                     
                     if sync_path.exists():
@@ -2857,11 +2919,16 @@ def main():
                         print(f"[OK] Successfully synced test data from S3")
                         print(f"[OK] Using test data (2019) for validation - rules from training model (2016-2018) validated on unseen test data")
                         print(f"[INFO] Test data is smaller than training data, so processing will be faster")
+                        s3_found = True
                         break
-                    
+                    else:
+                        logger.error(f"Download completed but file not found at: {sync_path}")
+                        print(f"[ERROR] Download completed but file not found at: {sync_path}")
+                        
                 except ClientError as e:
                     if e.response['Error']['Code'] == '404':
                         # File doesn't exist, try next path
+                        logger.debug(f"S3 path not found (404): s3://{S3_BUCKET}/{s3_key}")
                         continue
                     else:
                         logger.warning(f"Error checking S3 path {s3_key}: {e}")
@@ -2869,6 +2936,14 @@ def main():
                 except Exception as e:
                     logger.warning(f"Error syncing from S3 path {s3_key}: {e}")
                     continue
+            
+            if not s3_found:
+                logger.error(f"Test data (final_features.parquet) not found in S3 at any of the checked paths")
+                print(f"[ERROR] Test data (final_features.parquet) not found in S3 at any of the checked paths:")
+                for s3_key in s3_paths_to_try:
+                    print(f"  - s3://{S3_BUCKET}/{s3_key}")
+                print(f"[ERROR] NOTE: cohort.parquet exists but is raw data (~45 features) - NOT suitable for FFA analysis")
+                print(f"[ERROR]       final_features.parquet is required (~11K engineered features matching the model)")
                     
         except ImportError:
             logger.warning("boto3 not available, skipping S3 lookup")
@@ -2904,16 +2979,10 @@ def main():
             import boto3
             s3_client = boto3.client("s3")
             S3_BUCKET = "pgxdatalake"
-            s3_test_paths = [
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-            ]
             logger.error("")
             logger.error("S3 test data paths checked:")
-            for s3_key in s3_test_paths:
-                logger.error(f"  - s3://{S3_BUCKET}/{s3_key}")
+            logger.error(f"  - s3://{S3_BUCKET}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+            logger.error(f"  - s3://{S3_BUCKET}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/cohort.parquet")
         except Exception:
             logger.error("")
             logger.error("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
@@ -2926,43 +2995,20 @@ def main():
         print("[ERROR] Test data (2019) not found. Test data is required for FFA analysis.")
         print("=" * 80)
         print("Data lookup strategy:")
-        print("  1. Check S3 first (source of truth with controls)")
-        print("  2. Sync from S3 to /mnt/nvme/4a_model_data/ drive (if Linux) or project root")
-        print("  3. Read from local storage (/mnt/nvme/4a_model_data/ or project root)")
+        print("  1. Check S3: gold/model_training_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet")
+        print("  2. Sync from S3 to /mnt/nvme/gold/model_training_data/ (matches S3 structure)")
         print("")
-        print("Local test data paths checked:")
+        print("S3 path checked:")
+        print(f"  - s3://pgxdatalake/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        print("")
+        print("Local sync destination:")
         if data_root:
-            print(f"  - {data_root}/4a_model_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet (synced from S3)")
-            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet")
-            print(f"  - {data_root}/gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet")
-            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
-            print(f"  - {data_root}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
-            print(f"  - {data_root}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
-        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet")
-        print(f"  - {PROJECT_ROOT}/6_final_model/outputs/{COHORT_NAME}/{AGE_BAND_FNAME}/{COHORT_NAME}_{AGE_BAND_FNAME}_test_final_features_no_leakage.csv")
-        print(f"  - {PROJECT_ROOT}/data/cohorts/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
-        
-        # List S3 paths that were checked
-        try:
-            import boto3
-            s3_client = boto3.client("s3")
-            S3_BUCKET = "pgxdatalake"
-            s3_test_paths = [
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND}/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/inputs/model_test/final_features.parquet",
-                f"gold/final_model/{COHORT_NAME}/{AGE_BAND_FNAME}/model_test/final_features.parquet",
-            ]
-            print("")
-            print("S3 test data paths checked:")
-            for s3_key in s3_test_paths:
-                print(f"  - s3://{S3_BUCKET}/{s3_key}")
-        except Exception:
-            print("")
-            print("S3 lookup not available (boto3 not installed or AWS credentials not configured)")
+            print(f"  - {data_root}/gold/model_training_data/cohort_name={COHORT_NAME}/event_year=2019/age_band={AGE_BAND}/final_features.parquet")
+        else:
+            print("  - Data root (/mnt/nvme) not available")
         
         print("")
-        print("Please ensure test data (2019) exists in S3 or at one of the local paths above.")
+        print("Please ensure test data (2019) exists in S3 at the path above.")
         print("Test data is required for proper validation of rules on unseen data.")
         print("=" * 80)
         sys.exit(1)

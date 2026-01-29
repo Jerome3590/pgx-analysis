@@ -533,12 +533,29 @@ def check_existing_cohorts(age_bands=None, event_years=None, bucket_name: str = 
     return jobs_to_process
 
 
-def run_cohort(job, script_path, python_bin=sys.executable, target_icd=None):
+def run_cohort(job, script_path, python_bin=sys.executable, target_icd=None, concurrent_workers=None):
     """Run the cohort entrypoint (script_path) for a single job and stream output.
 
     Returns one of: 'SUCCESS: id', 'FAILED: id (code)', 'SKIPPED_LOCKED: id', 'ERROR: id - msg'
+    
+    Args:
+        job: Dict with 'age_band' and 'event_year'
+        script_path: Path to 0_create_cohort.py script
+        python_bin: Python executable path
+        target_icd: Target ICD codes (optional)
+        concurrent_workers: Number of concurrent workers (for memory limit calculation).
+                           If None, will detect from MAX_WORKERS or PGX_COHORT_WORKERS env vars.
     """
     target_icd = target_icd or os.environ.get("PGX_TARGET_ICD_CODES", "F1120")
+    
+    # Detect concurrent workers if not provided
+    if concurrent_workers is None:
+        if os.getenv('PGX_COHORT_WORKERS'):
+            concurrent_workers = int(os.getenv('PGX_COHORT_WORKERS'))
+        elif os.getenv('MAX_WORKERS'):
+            concurrent_workers = int(os.getenv('MAX_WORKERS'))
+        # If still None, don't pass --concurrent-workers (will use default: 3)
+    
     cmd = [
         python_bin, script_path,
         "--age-band", job["age_band"],
@@ -549,6 +566,10 @@ def run_cohort(job, script_path, python_bin=sys.executable, target_icd=None):
         "--operation-type", "concurrent_processing",
         "--log-level", "INFO",
     ]
+    
+    # Add --concurrent-workers if we have a value
+    if concurrent_workers is not None:
+        cmd.extend(["--concurrent-workers", str(concurrent_workers)])
 
     job_id = f"{job['age_band']}/{job['event_year']}"
     print(f"\nStarting job: {job_id}", flush=True)

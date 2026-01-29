@@ -1,60 +1,88 @@
 # final_cohort_schema.py
 """
 Schema for the final cohort output of create_cohort.py
-- Order matches final_cohort_schema.json (with 'target' at the end)
+- Order matches final_cohort_schema.json
 - Includes descriptions and key comments for each field
+- Updated to reflect Phase 3 output with fixed 21-day window (multiclass targets removed)
 """
 
 final_cohort_schema = [
     # Unique person identifier
     ("mi_person_key", "str", "Unique masked person key (primary identifier)"),
-    # Demographics and cohort info
-    ("age_band", "str", "Age band (e.g., '65-74')"),
-    ("event_year", "int", "Year of event (e.g., 2016)"),
-    ("cohort_name", "str", "Cohort group: 'opioid_ed' or 'ed_non_opioid'"),
+    
     # Event details
     ("event_date", "str", "Date of event (YYYY-MM-DD)"),
-    ("event_type", "str", "Type of event: 'medical', 'drug', etc."),
-    ("data_source", "str", "Source of event data (claims, pharmacy, etc.)"),
-    # NOTE: days_to_target_event is NULL for OPIOID_ED cohort (can be calculated from event_date and first_opioid_ed_date)
-    # NOTE: days_to_target_event is calculated for ED_NON_OPIOID cohort (used for 30-day lookback window filtering)
-    ("days_to_target_event", "int", "Days from event to target event - NULL for OPIOID_ED, calculated for ED_NON_OPIOID"),
-    # Demographics
+    ("event_type", "str", "Type of event: 'medical' or 'pharmacy'"),
+    ("data_source", "str", "Source of event data: 'medical' or 'pharmacy'"),
+    
+    # Demographics (imputed)
     ("age_imputed", "int", "Imputed age at event (1-114)"),
-    ("member_gender", "str", "Gender of member"),
-    ("member_race", "str", "Race/ethnicity of member"),
-    ("member_zip_code_dos", "str", "ZIP code at date of service"),
-    ("member_county_dos", "str", "County at date of service"),
-    ("payer_type", "str", "Type of insurance payer"),
-    # Medical event fields (may be NULL for drug events)
+    ("member_gender", "str", "Gender of member (imputed)"),
+    ("member_race", "str", "Race/ethnicity of member (imputed)"),
+    ("zip_imputed", "str", "ZIP code at date of service (imputed)"),
+    ("county_imputed", "str", "County at date of service (imputed)"),
+    ("payer_imputed", "str", "Type of insurance payer (imputed)"),
+    
+    # ALL ICD diagnosis codes (for ML feature discovery) - positions 1-10
     ("primary_icd_diagnosis_code", "str", "Primary ICD diagnosis code (medical events only)"),
-    ("primary_icd_rollup", "str", "ICD code rollup (medical events only)"),
-    ("primary_icd_ccs_level_1", "str", "CCS Level 1 (medical events only)"),
-    ("primary_icd_ccs_level_2", "str", "CCS Level 2 (medical events only)"),
-    ("primary_icd_ccs_level_3", "str", "CCS Level 3 (medical events only)"),
-    ("hcg_setting", "str", "Healthcare setting (medical events only)"),
-    ("hcg_line", "str", "Healthcare line (medical events only)"),
-    ("hcg_detail", "str", "Healthcare detail (medical events only)"),
-    ("place_of_service", "str", "Place of service (medical events only)"),
-    ("admit_type", "str", "Admission type (medical events only)"),
-    ("procedure_code", "str", "Procedure code (medical events only)"),
-    ("procedure_name", "str", "Procedure name (medical events only)"),
-    ("billing_provider_name", "str", "Billing provider name (medical events only)"),
-    ("service_provider_name", "str", "Service provider name (medical events only)"),
+    ("two_icd_diagnosis_code", "str", "Second ICD diagnosis code (medical events only)"),
+    ("three_icd_diagnosis_code", "str", "Third ICD diagnosis code (medical events only)"),
+    ("four_icd_diagnosis_code", "str", "Fourth ICD diagnosis code (medical events only)"),
+    ("five_icd_diagnosis_code", "str", "Fifth ICD diagnosis code (medical events only)"),
+    ("six_icd_diagnosis_code", "str", "Sixth ICD diagnosis code (medical events only)"),
+    ("seven_icd_diagnosis_code", "str", "Seventh ICD diagnosis code (medical events only)"),
+    ("eight_icd_diagnosis_code", "str", "Eighth ICD diagnosis code (medical events only)"),
+    ("nine_icd_diagnosis_code", "str", "Ninth ICD diagnosis code (medical events only)"),
+    ("ten_icd_diagnosis_code", "str", "Tenth ICD diagnosis code (medical events only)"),
+    
+    # ALL ICD procedure codes (for ML feature discovery) - positions 2-10
+    ("two_icd_procedure_code", "str", "Second ICD procedure code (medical events only)"),
+    ("three_icd_procedure_code", "str", "Third ICD procedure code (medical events only)"),
+    ("four_icd_procedure_code", "str", "Fourth ICD procedure code (medical events only)"),
+    ("five_icd_procedure_code", "str", "Fifth ICD procedure code (medical events only)"),
+    ("six_icd_procedure_code", "str", "Sixth ICD procedure code (medical events only)"),
+    ("seven_icd_procedure_code", "str", "Seventh ICD procedure code (medical events only)"),
+    ("eight_icd_procedure_code", "str", "Eighth ICD procedure code (medical events only)"),
+    ("nine_icd_procedure_code", "str", "Ninth ICD procedure code (medical events only)"),
+    ("ten_icd_procedure_code", "str", "Tenth ICD procedure code (medical events only)"),
+    
     # Drug event fields (may be NULL for medical events)
-    ("drug_name", "str", "Drug name (drug events only)"),
-    ("therapeutic_class_1", "str", "Therapeutic class level 1 (drug events only)"),
-    ("therapeutic_class_2", "str", "Therapeutic class level 2 (drug events only)"),
-    ("therapeutic_class_3", "str", "Therapeutic class level 3 (drug events only)"),
+    ("drug_name", "str", "Drug name (pharmacy events only)"),
+    ("therapeutic_class_1", "str", "Therapeutic class level 1 (pharmacy events only)"),
+    
+    # CPT/procedure codes (medical events only)
+    ("procedure_code", "str", "Procedure code (medical events only)"),
+    ("cpt_mod_1_code", "str", "CPT modifier 1 (medical events only)"),
+    ("cpt_mod_2_code", "str", "CPT modifier 2 (medical events only)"),
+    
+    # HCG fields for ED visit identification (medical events only)
+    ("hcg_setting", "str", "Healthcare setting (medical events only)"),
+    ("hcg_line", "str", "Healthcare line code - used for ED visit identification (medical events only)"),
+    ("hcg_detail", "str", "Healthcare detail (medical events only)"),
+    
+    # Event classification and sequence
+    ("event_classification", "str", "Event classification: 'opioid_ed', 'ed_non_opioid', 'target', 'non_target'"),
+    ("event_sequence", "int", "Sequential order of events per patient (globally ordered across medical and pharmacy)"),
+    
+    # Cohort metadata
+    # NOTE: target column is legacy compatibility - use is_target_case for actual target/control distinction
+    ("target", "int", "Legacy target column: 1 for OPIOID_ED/ED_NON_OPIOID cohorts (use is_target_case instead)"),
+    ("cohort_name", "str", "Cohort group name: 'OPIOID_ED' or 'ED_NON_OPIOID'"),
+    ("cohort", "str", "Cohort classification: 'OPIOID_ED', 'NON_OPIOID_ED', or 'NON_ED'"),
+    
+    # Target case indicators
+    # NOTE: is_target_case uses a fixed 21-day window for adverse drug event identification (excluding 0-day discharge prescriptions)
+    # NOTE: Multiclass targets (7d, 14d, 30d, 45d) have been removed - simplified to single 21-day window
+    ("is_target_case", "int", "Target case indicator: 1=target case (drug event 1-21 days before ED), 0=control (ED without qualifying drug event)"),
+    
     # Cohort-specific event dates
     # NOTE: first_opioid_ed_date is populated for OPIOID_ED cohort only (NULL for ED_NON_OPIOID)
     # NOTE: first_ed_non_opioid_date is populated for ED_NON_OPIOID cohort only (NULL for OPIOID_ED)
     ("first_opioid_ed_date", "str", "Date of first opioid ED event (if any) - OPIOID_ED cohort only"),
     ("first_ed_non_opioid_date", "str", "Date of first non-opioid ED event (if any) - ED_NON_OPIOID cohort only"),
-    # Metadata
-    ("created_at", "str", "Timestamp when row was created"),
-    ("age_band_filter", "str", "Age band filter used for cohort selection"),
-    ("event_year_filter", "int", "Event year filter used for cohort selection"),
-    # Target variable (for ML)
-    ("target", "int", "Target variable: 1=case, 0=control (place at end for ML)")
+    
+    # Temporal analysis
+    # NOTE: days_to_target_event is NULL for OPIOID_ED cohort (can be calculated from event_date and first_opioid_ed_date)
+    # NOTE: days_to_target_event is calculated for ED_NON_OPIOID cohort (used for 21-day window filtering)
+    ("days_to_target_event", "int", "Days from event to target event - NULL for OPIOID_ED, calculated for ED_NON_OPIOID")
 ]

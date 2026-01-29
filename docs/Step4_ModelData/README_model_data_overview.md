@@ -13,13 +13,14 @@ L12:- **4b – DTW-Based Protocol Filtering (`4b_dtw_filter/`)**
 L13:  - Removes protocol-like or repetitive time-windowed events to reduce noise before feature engineering.  
 L14:  - Produces `model_events_no_protocols.parquet` alongside the base `model_events.parquet` where applicable.
 L15:
-L16:- **4c – Extreme-Density Cohort Split (`5b_fpgrowth_analysis/extract_extreme_density_cohort.py`)**  
-L17:  - Uses the same transaction-density logic as FP-Growth to identify **extreme** patients with very dense medical histories.  
-L18:  - For each `(cohort, age_band)`:
-L19:    - Writes an extreme-only cohort to  
-L20:      `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events.parquet`.  
-L21:    - Rewrites the base `model_events.parquet` in `4a_model_data/cohort_name={cohort}/age_band={band}/` with extreme patients removed (backing up the original as `model_events_with_extreme.parquet`).  
-L22:  - Ensures all **main models and feature engineering steps** run on the non-extreme base cohorts, while `_extreme_density` cohorts are available for exploratory FP-Growth, BupaR, DTW, and process mining.
+L16:- **4c – Extreme-Density Cohort Split (Optional)**  
+L17:  - Script: `9_risk_dashboard/visualizations/fpgrowth/extract_extreme_density_cohort.py`  
+L18:  - Uses transaction-density logic to identify **extreme** patients with very dense medical histories.  
+L19:  - For each `(cohort, age_band)`:
+L20:    - Writes an extreme-only cohort to  
+L21:      `4a_model_data/cohort_name={cohort}_extreme_density/age_band={band}/model_events.parquet`.  
+L22:    - Rewrites the base `model_events.parquet` with extreme patients removed (backing up the original as `model_events_with_extreme.parquet`).  
+L23:  - **Note**: Extreme-density cohorts are used for exploratory visualization analysis only, not for main model training.
 L23:
 L24:## Purpose in the Workflow
 L25:
