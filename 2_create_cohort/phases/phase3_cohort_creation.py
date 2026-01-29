@@ -666,7 +666,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 1 as target,
                 'ED_NON_OPIOID' as cohort_name,
                 CASE 
-                    WHEN tca.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
+                    WHEN tc.mi_person_key IS NOT NULL THEN 'NON_OPIOID_ED'
                     WHEN ewd.event_type = 'medical' AND ewd.hcg_line IS NULL THEN 'NON_ED'
                     ELSE 'NON_ED'
                 END as cohort,

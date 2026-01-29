@@ -200,6 +200,13 @@ The dashboard includes the following visualization tabs:
 - Output directory: `9_risk_dashboard/outputs/metadata`
 - Uses directory structure: `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
 
+## PGx Calculator Workflow (full deployment)
+
+For the **full risk calculator dashboard deployment workflow** (from cohorts with aggregated feature importances through Lambda/Docker), use:
+
+- **Notebook:** [pgx_calculator_workflow.ipynb](pgx_calculator_workflow.ipynb) – interactive steps (verify inputs → metadata → models → Lambda dir → verify → deploy).
+- **Docs:** [README_CALCULATOR_WORKFLOW.md](README_CALCULATOR_WORKFLOW.md) – PHTS→PGx model mapping (Baseline → opioid_ed, Extended → polypharmacy) and workflow overview.
+
 ## Quick Start
 
 ### 1. Prepare Data for Dashboard
