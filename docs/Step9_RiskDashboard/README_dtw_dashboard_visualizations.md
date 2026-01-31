@@ -4,7 +4,7 @@
 
 Dynamic Time Warping (DTW) trajectory visualizations for the risk dashboard. These visualizations show patient trajectory similarities, clustering patterns, and temporal sequences to complement risk predictions.
 
-**⚠️ Important**: DTW visualizations are for **exploratory analysis only**. DTW is used in Step 4b for protocol filtering (removing administrative codes), but DTW features are **NOT** used in the final model.
+**⚠️ Important**: DTW visualizations are for **exploratory analysis only**. Event-level filtering is in Step 1b (`1b_apcd_event_filter`). DTW features are **NOT** used in the final model.
 
 ## Purpose
 
@@ -90,8 +90,8 @@ python create_dtw_visualizations.py --cohort-name opioid_ed --age-band 25-44
 
 ### Required Inputs
 
-- **Model Events Data**: `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`
-  - Prefer DTW-filtered data (no protocols)
+- **Model Events Data**: `4_model_data/` (or event-filter outputs) — e.g. `model_events_no_protocols.parquet` for DTW-filtered, or base `model_events.parquet`
+  - Prefer DTW-filtered data (no protocols) when available for dashboard use
   - Falls back to base `model_events.parquet` if filtered version unavailable
 
 ### Output Verification
@@ -132,7 +132,7 @@ Visualizations can be filtered by user-selected codes:
 - Used to filter features before model data extraction
 - **Not** used as model features
 
-### Step 4b: Protocol Filtering
+### Event Filtering (Step 1b)
 - DTW used to identify and remove standard care protocols
 - Creates `model_events_no_protocols.parquet` for downstream steps
 - Removes administrative codes that both targets and controls follow
@@ -145,13 +145,13 @@ Visualizations can be filtered by user-selected codes:
 ## Dependencies
 
 - **Python**: `pandas`, `numpy`, `scipy` (for DTW algorithm), `scikit-learn` (for clustering), `matplotlib`, `seaborn`, `boto3`
-- **Input Data**: Model events parquet files from Step 4a/4b
+- **Input Data**: Model events parquet files from Step 4 (model data) or event-filter outputs (Step 1b)
 
 ## Notes
 
 1. **Visualization Only**: DTW outputs are for visualization and exploratory analysis only, not model features.
 
-2. **Protocol Filtering**: DTW is primarily used for protocol filtering (Step 4b) to remove administrative codes. The visualizations show trajectory patterns but these are not predictive features.
+2. **Event Filtering**: Event-level filtering runs in Step 1b (`1b_apcd_event_filter`). DTW visualizations show trajectory patterns for dashboard only; these are not predictive features.
 
 3. **Sequence Comparison**: DTW compares patient drug exposure sequences to identify similar trajectories. This helps understand patient groupings but does not directly predict outcomes.
 
@@ -163,5 +163,5 @@ Visualizations can be filtered by user-selected codes:
 
 - **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
-- **[DTW Protocol Filtering](../../4b_dtw_filter/)** - DTW protocol filtering implementation
+- **[Event Filtering (Step 1b)](../../1b_apcd_event_filter/)** - ICD/administrative code filtering before cohort creation
 - **[Feature Importance EDA](../../3b_feature_importance_eda/)** - BupaR post-target analysis for feature refinement

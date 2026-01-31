@@ -6,6 +6,8 @@ Visualization approaches, interpretation, and network analysis for the Prescript
 
 The pipeline generates various visualizations to help understand patterns, relationships, and model predictions. This document covers visualization approaches, interpretation guidelines, and common pitfalls.
 
+**Project approach:** FP-Growth, BupaR, and DTW are used for **dashboard visualizations only** (Step 9, `9_risk_dashboard/visualizations/`), not as model features. Model features come from aggregated feature importance (Steps 3a–3b), refined in Feature Importance EDA, then model data (Step 4). SHAP (Step 7) and FFA (Step 8) provide post-model interpretability; FFA uses SHAP to prioritize rules.
+
 ## Visualization Approaches
 
 The pipeline generates visualizations across multiple analysis methods. Each visualization type serves specific purposes in understanding patterns, relationships, and model predictions.
@@ -285,6 +287,8 @@ create_ageband_heatmap(
 - Heatmap visualization: Features × Age bands (color = importance)
 - Summary CSV: Variability metrics (CV, consistency, mean importance)
 - Insights: Universal vs age-specific features
+
+**Full guide:** See `docs/archived/README_cross_ageband_analysis.md` (optional analysis; not part of final workflow).
 
 ### Storage Locations
 
@@ -810,10 +814,10 @@ Network graphs visualize association rules discovered through FP-Growth pattern 
    - Identify drug interaction patterns
    - Discover diagnostic patterns
 
-3. **Feature Engineering**
-   - Identify important itemsets for model features
-   - Understand feature relationships
-   - Guide feature selection
+3. **Exploratory Analysis (visualization-only)**
+   - Explore itemset patterns for clinical insight (not used as model features; model features come from Step 3a/3b refined importances)
+   - Understand feature relationships in dashboard context
+   - Support quality assurance and interpretation
 
 4. **Quality Assurance**
    - Validate expected clinical patterns

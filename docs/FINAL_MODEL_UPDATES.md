@@ -2,7 +2,7 @@
 
 ## Summary of Changes Needed
 
-The `6b_final_model_selection/run_final_model.py` script needs significant updates to match the new workflow requirements.
+The `6_final_model/run_final_model.py` script needs significant updates to match the new workflow requirements.
 
 ## Key Changes
 
@@ -91,9 +91,9 @@ else:
 
 ## Files to Update
 
-1. `6b_final_model_selection/run_final_model.py` - Main script updates
-2. `8_shap_analysis/run_shap_analysis.py` - Update to use best CatBoost binary
-3. `7_ffa_analysis/run_full_ffa_analysis.py` - Update to use best XGBoost JSON
+1. `6_final_model/run_final_model.py` - Main script updates
+2. `7_shap_analysis/run_shap_analysis.py` - Update to use best CatBoost binary
+3. `8_ffa_analysis/run_full_ffa_analysis.py` - Update to use best XGBoost JSON
 
 ## Testing Checklist
 

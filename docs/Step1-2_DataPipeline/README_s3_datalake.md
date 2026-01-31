@@ -243,7 +243,7 @@ s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_ana
 - Summary statistics (CV, range, consistency metrics)
 - Identifies universal vs age-specific features
 
-**See:** `README_CROSS_AGEBAND_ANALYSIS.md` for details
+**See:** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md) for details (optional analysis; not part of final workflow).
 
 ---
 
@@ -259,7 +259,7 @@ s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_ana
 - `feature_importance_mc_cv.ipynb` - Analysis notebook
 - `create_visualizations.R` - Per-cohort visualization script
 - `create_cross_ageband_heatmap.R` - Cross-age-band comparison
-- `README_CROSS_AGEBAND_ANALYSIS.md` - Cross-age-band analysis guide
+- `docs/archived/README_cross_ageband_analysis.md` - Cross-age-band analysis (archived; optional)
 - `docs/RSAMPLE_BUG_WORKAROUND.md` - Known issues and fixes
 
 ---
@@ -282,5 +282,5 @@ s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_ana
 ---
 
 **Questions or Issues?**  
-See `3_feature_importance/README.md` for methodology details.
+See `3a_feature_importance/README.md` for methodology details.
 

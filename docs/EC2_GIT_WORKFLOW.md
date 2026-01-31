@@ -39,7 +39,7 @@ git add .
 git add path/to/file1.sh path/to/file2.sh
 
 # OR stage all changes in a directory
-git add utility_scripts/
+git add archived/utility_scripts/
 ```
 
 #### 4. Commit Your Changes
@@ -116,10 +116,10 @@ git push origin main
 **Solution**: Commit the fixed files so they persist:
 ```bash
 # Fix line endings
-sed -i 's/\r$//' utility_scripts/*.sh
+sed -i 's/\r$//' archived/utility_scripts/*.sh
 
 # Commit the fixed files
-git add utility_scripts/*.sh
+git add archived/utility_scripts/*.sh
 git commit -m "EC2: Fix line endings in shell scripts"
 
 # Push to GitHub

@@ -39,7 +39,7 @@ The dashboard deployment process supports incremental builds, allowing deploymen
 
 ```bash
 # Build with available cohorts
-./utility_scripts/build_dashboard.sh
+See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
 ```
 
 **What it does**:
@@ -145,7 +145,7 @@ aws s3 cp 9_risk_dashboard/index.html s3://<BUCKET>/index.html
 - **Result**: Dashboard works for ages 13-44 only
 
 **After More Cohorts Complete**:
-- Rebuild: `./utility_scripts/build_dashboard.sh`
+- Rebuild: See `9_risk_dashboard/deployment/` or `archived/utility_scripts/build_dashboard.sh`
 - Redeploy: `./docker_build.sh` and update Lambda
 - **Result**: Dashboard now includes new cohorts
 

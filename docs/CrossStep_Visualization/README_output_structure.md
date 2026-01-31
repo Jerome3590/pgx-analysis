@@ -1,7 +1,9 @@
 # Output Structure Framework
 
 **Date:** December 9, 2025  
-**Purpose:** Standardize output directory structure and sequential workflow across all analysis steps
+**Purpose:** Standardize output directory structure and sequential workflow across all analysis steps.
+
+**Project alignment:** Step numbering and folder names match the main workflow: **1a_apcd_input_data**, **1b_apcd_event_filter**, **2_create_cohort**, **3a_feature_importance**, **3b_feature_importance_eda**, **4_model_data**, **5_pgx_analysis**, **6_final_model**, **7_shap_analysis**, **8_ffa_analysis**, **9_risk_dashboard**. Three workflow notebooks: 1_cohort_workflow.ipynb (1–2), 2_feature_importance.ipynb (3a–3b), 3_pgx_calculator_workflow.ipynb (4–9).
 
 ---
 
@@ -11,25 +13,33 @@
 
 ### Execution Order
 
+Execution order matches the project's three workflow notebooks and step numbering:
+
 ```
-Step 3: Feature Importance
-  ↓ (Complete: outputs/ + outputs/plots/)
-Step 4a: Model Data Extraction
-  ↓ (Complete: outputs/)
-Step 4b: DTW Protocol Filtering
-  ↓ (Complete: outputs/)
-Step 5: PGx Feature Engineering
-  ↓ (Complete: outputs/)
-Step 6: Final Model Training
-  ↓ (Complete: outputs/)
-Step 7: SHAP Analysis
-  ↓ (Complete: outputs/)
-Step 8: Formal Feature Attribution (FFA)
-  ↓ (Complete: outputs/)
-Step 9: Risk Dashboard
+Step 1a: APCD Input Data (1a_apcd_input_data)
+  ↓
+Step 1b: Event Filter – ICD/administrative (1b_apcd_event_filter)
+  ↓
+Step 2: Cohort Creation (2_create_cohort)
+  ↓ (1_cohort_workflow.ipynb complete)
+Step 3a: Feature Importance – MC-CV (3a_feature_importance)
+  ↓
+Step 3b: Feature Importance EDA – BupaR, code research (3b_feature_importance_eda)
+  ↓ (2_feature_importance.ipynb complete; outputs refined cohort_feature_importance.csv)
+Step 4: Model Data (4_model_data) – model_events.parquet from refined features
+  ↓
+Step 5: PGx Feature Engineering (5_pgx_analysis)
+  ↓
+Step 6: Final Model (6_final_model) – training and selection
+  ↓
+Step 7: SHAP Analysis (7_shap_analysis)
+  ↓
+Step 8: Formal Feature Attribution – FFA (8_ffa_analysis); uses SHAP to prioritize rules
+  ↓
+Step 9: Risk Dashboard (9_risk_dashboard)
   ↓ (Complete: outputs/ + visualizations/)
     - Frontend, Backend, Data Preparation, Deployment
-    - Visualizations: BupaR, FP-Growth, DTW (dashboard-only)
+    - Visualizations: BupaR, FP-Growth, DTW (dashboard-only, not used as model features)
 ```
 
 ### Completion Criteria
@@ -60,21 +70,20 @@ Before proceeding to the next step, verify:
 
 Use this checklist to track progress:
 
-- [ ] **Step 3: Feature Importance** (`3_feature_importance/`)
+- [ ] **Step 3a: Feature Importance** (`3a_feature_importance/`)
   - [ ] All cohort/age-band combinations processed
   - [ ] Aggregated feature importance files generated
   - [ ] Individual model results saved
   - [ ] Results uploaded to S3 (if applicable)
+  - [ ] **READY FOR STEP 3b** ✅
+
+- [ ] **Step 3b: Feature Importance EDA** (`3b_feature_importance_eda/`)
+  - [ ] BupaR post-target and code research completed
+  - [ ] Refined cohort_feature_importance.csv generated per cohort/age_band
   - [ ] **READY FOR STEP 4** ✅
 
-- [ ] **Step 4a: Model Data Extraction** (`4a_model_data/`)
-  - [ ] Model events extracted for all cohorts/age bands
-  - [ ] Results uploaded to S3 (if applicable)
-  - [ ] **READY FOR STEP 4b** ✅
-
-- [ ] **Step 4b: DTW Protocol Filtering** (`4b_dtw_filter/`)
-  - [ ] Protocol events filtered
-  - [ ] Filtered model events saved
+- [ ] **Step 4: Model Data** (`4_model_data/`)
+  - [ ] Model events extracted for all cohorts/age bands using refined features
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 5** ✅
 
@@ -84,7 +93,7 @@ Use this checklist to track progress:
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 6** ✅
 
-- [ ] **Step 6: Final Model Development** (`6_final_model_selection/`)
+- [ ] **Step 6: Final Model** (`6_final_model/`)
   - [ ] Feature integration completed
   - [ ] Models trained
   - [ ] Evaluation metrics computed
@@ -159,19 +168,19 @@ Each analytical step follows this consistent structure:
 ### Directory Structure Rules
 
 1. **Output Directory**: Each analysis step folder should have an `outputs/` subdirectory
-   - Example: `3_feature_importance/outputs/`
-   - Example: `6_final_model_selection/outputs/`
+   - Example: `3a_feature_importance/outputs/`
+   - Example: `6_final_model/outputs/`
    - Example: `9_risk_dashboard/outputs/` (and `9_risk_dashboard/visualizations/{type}/outputs/` for dashboard visualizations)
 
 2. **Plots Subdirectory**: All visualization files should be saved to `outputs/plots/`
    - Plots include: PNG, JPG, PDF, SVG files
-   - Example: `3_feature_importance/outputs/plots/top50_features.png`
+   - Example: `3a_feature_importance/outputs/plots/top50_features.png`
 
 3. **Data Files**: All data output files (CSV, JSON, Parquet, etc.) go directly in `outputs/`
-   - Example: `3_feature_importance/outputs/opioid_ed_0_12_aggregated_feature_importance.csv`
+   - Example: `3a_feature_importance/outputs/opioid_ed_0_12_aggregated_feature_importance.csv`
 
 4. **Relative Paths**: When specifying `output_dir` in code, use paths relative to the analysis folder:
-   - ✅ Good: `output_dir='3_feature_importance/outputs'`
+   - ✅ Good: `output_dir='3a_feature_importance/outputs'`
    - ✅ Good: `output_dir='outputs'` (if running from within the analysis folder)
    - ❌ Bad: `output_dir='/absolute/path/to/outputs'`
    - ❌ Bad: `output_dir='../outputs'` (outside analysis folder)
@@ -187,7 +196,7 @@ import os
 from pathlib import Path
 
 # Option 1: Specify full path relative to project root
-output_dir = '3_feature_importance/outputs'
+output_dir = '3a_feature_importance/outputs'
 plots_dir = os.path.join(output_dir, 'plots')
 os.makedirs(plots_dir, exist_ok=True)
 
@@ -230,11 +239,11 @@ ggsave(
 
 ## Current Analysis Steps
 
-### ✅ 3_feature_importance
-- **Notebook**: `feature_importance_cohort_runner.ipynb`
-- **Supporting Scripts**: `run_cohort_*.py` (orchestrated by notebook)
-- **Output Directory**: `3_feature_importance/outputs/`
-- **Plots Directory**: `3_feature_importance/outputs/plots/` (auto-created)
+### ✅ 3a_feature_importance
+- **Notebook**: `feature_importance_cohort_runner.ipynb` (or use root `2_feature_importance.ipynb` for Steps 3a–3b)
+- **Supporting Scripts**: `run_cohort_*.py`, `run_mc_feature_importance.py` (orchestrated by notebook)
+- **Output Directory**: `3a_feature_importance/outputs/`
+- **Plots Directory**: `3a_feature_importance/outputs/plots/` (auto-created)
 - **Status**: Follows pattern ✅
 
 ### ✅ 9_risk_dashboard (Visualizations)
@@ -342,7 +351,7 @@ from py_helpers.feature_importance_utils import run_cohort_analysis
 result = run_cohort_analysis(
     cohort_name="opioid_ed",
     age_band="0-12",
-    output_dir='3_feature_importance/outputs'
+    output_dir='3a_feature_importance/outputs'
 )
 ```
 
@@ -352,15 +361,15 @@ Each step may depend on outputs from previous steps:
 
 | Step | Depends On | Key Inputs |
 |------|------------|------------|
-| **3_feature_importance** | Cohort data (`2_create_cohort/`) | Raw cohort parquet files |
-| **4a_model_data** | Step 3 outputs | Feature importance rankings |
-| **4b_dtw_filter** | Step 4a outputs | Model events data |
-| **5_pgx_analysis** | Step 4b outputs | Filtered model events (no protocols) |
-| **6_final_model** | Step 5 outputs | PGx features + aggregated features |
+| **3a_feature_importance** | Cohort data (`2_create_cohort/`) | Cohort parquet (after 1a, 1b, 2) |
+| **3b_feature_importance_eda** | Step 3a outputs | Aggregated feature importance |
+| **4_model_data** | Step 3b outputs | Refined cohort_feature_importance.csv |
+| **5_pgx_analysis** | Step 4 outputs | model_events.parquet |
+| **6_final_model** | Step 5 outputs | PGx features + model events |
 | **7_shap_analysis** | Step 6 outputs | Trained models, feature schema |
 | **8_ffa_analysis** | Step 7 outputs | SHAP results, trained models |
-| **9_risk_dashboard** | Steps 6-8 outputs | Models, SHAP, FFA, metadata |
-| **9_risk_dashboard/visualizations** | Step 4a outputs | Model events (for BupaR/FP-Growth/DTW visualizations only) |
+| **9_risk_dashboard** | Steps 6–8 outputs | Models, SHAP, FFA, metadata |
+| **9_risk_dashboard/visualizations** | Step 4 outputs | Model events (for BupaR/FP-Growth/DTW dashboard-only visualizations) |
 
 **Important:** Always verify that prerequisite outputs exist before starting a new step.
 
@@ -402,7 +411,7 @@ def validate_step(step_folder, expected_outputs, expected_plots):
         return True
 
 # Usage
-if not validate_step("3_feature_importance", 
+if not validate_step("3a_feature_importance", 
                      ["opioid_ed_0_12_aggregated_feature_importance.csv"],
                      ["opioid_ed_0_12_top50_features.png"]):
     print("Cannot proceed to Step 4 until Step 3 is complete!")

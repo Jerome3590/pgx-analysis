@@ -56,8 +56,8 @@ def check_prerequisites(cohort: str, age_band: str) -> tuple[bool, str]:
     
     # Check model_events.parquet exists
     model_events_paths = [
-        PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        PROJECT_ROOT / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet"
+        PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet"
     ]
     
     model_events_path = None

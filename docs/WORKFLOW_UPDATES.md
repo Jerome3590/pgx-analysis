@@ -8,15 +8,11 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 
 ### Step 3: Feature Importance
 - **Purpose**: Check for completed aggregated feature importances
-- **Script**: `3_feature_importance/run_mc_feature_importance.py`
+- **Script**: `3a_feature_importance/run_mc_feature_importance.py`
 - **Output**: `{cohort}_{age_band}_aggregated_feature_importance.csv`
 - **Note**: Idempotent - skips if results already exist
 
-### Step 4b: DTW Protocol Filtering
-- **Purpose**: Filter administrative, scheduling, and non-medical related codes
-- **Keep**: All surgeries
-- **Script**: `4b_dtw_filter/filter_protocol_events.py`
-- **Output**: Filtered model events data
+**Note:** Event filtering (administrative/scheduling/non-medical codes) is performed in **Step 1b** (cohort/event-filter workflow). DTW is used only for dashboard visualizations (Step 9), not as a pipeline step.
 
 ### Step 5: PGx Feature Engineering
 - **Purpose**: Generate PGx features (ONLY feature engineering step)
@@ -26,7 +22,7 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 
 ### Step 6: Final Model Training
 - **Purpose**: Train final models using aggregated features + PGx features
-- **Script**: `6b_final_model_selection/run_final_model.py`
+- **Script**: `6_final_model/run_final_model.py`
 - **Key Changes**:
   - Uses aggregated feature importances directly (no encoding)
   - Only combines with PGx features (no BupaR, DTW, FP-Growth features)
@@ -44,7 +40,7 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 
 ### Step 8: FFA Analysis
 - **Purpose**: Feature Forward Analysis using best XGBoost model
-- **Script**: `7_ffa_analysis/run_full_ffa_analysis.py`
+- **Script**: `8_ffa_analysis/run_full_ffa_analysis.py`
 - **Input**: Best XGBoost model JSON from Step 6 + SHAP importance from Step 7
 - **Note**: Uses SHAP importance to filter rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP importance > 0. Consensus between SHAP and FFA is reflected in FFA's causal importance scores.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Extract an "extreme density" cohort from model_events and remove these patients
-from the main 4a_model_data event set for a given cohort / age_band.
+from the main 4_model_data event set for a given cohort / age_band.
 
 Definition of extreme density:
 - Reuses the same Transaction_Density logic as cohort_fpgrowth.assign_transaction_density
@@ -28,8 +28,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 # Local copies of core configuration and helpers from cohort_fpgrowth,
-# now operating on the canonical 4a_model_data event store.
-MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
+# now operating on the canonical 4_model_data event store.
+MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
 TRAIN_YEARS = [2016, 2017, 2018]
 DENSITY_BINS = ["low", "medium", "high", "extreme"]
 
@@ -117,8 +117,8 @@ def extract_extreme_density_cohort(
 ) -> None:
     """
     Identify extreme-density patients (by medical_code) and:
-    - write a new extreme-density cohort under 4a_model_data
-    - remove them from the source cohort's model_events in 4a_model_data.
+    - write a new extreme-density cohort under 4_model_data
+    - remove them from the source cohort's model_events in 4_model_data.
     """
     logger: logging.Logger = setup_logger("extract_extreme_density")
 
@@ -150,7 +150,7 @@ def extract_extreme_density_cohort(
 
     # NOTE: Earlier versions of model_events included an event_type column to
     # distinguish medical vs pharmacy events and this query filtered on
-    # event_type = 'medical'. The current 4a_model_data schema does not carry
+    # event_type = 'medical'. The current 4_model_data schema does not carry
     # event_type, so we approximate "medical_code" density by looking at all
     # ICD diagnosis columns plus procedure_code for events in the TRAIN years,
     # independent of event_type.
@@ -333,7 +333,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Extract an extreme-density cohort from model_events and remove those "
-            "patients from the source 4a_model_data event set."
+            "patients from the source 4_model_data event set."
         )
     )
     parser.add_argument(

@@ -204,8 +204,8 @@ The dashboard includes the following visualization tabs:
 
 For the **full risk calculator dashboard deployment workflow** (from cohorts with aggregated feature importances through Lambda/Docker), use:
 
-- **Notebook:** [pgx_calculator_workflow.ipynb](pgx_calculator_workflow.ipynb) – interactive steps (verify inputs → metadata → models → Lambda dir → verify → deploy).
-- **Docs:** [README_CALCULATOR_WORKFLOW.md](README_CALCULATOR_WORKFLOW.md) – PHTS→PGx model mapping (Baseline → opioid_ed, Extended → polypharmacy) and workflow overview.
+- **Notebook:** [3_pgx_calculator_workflow.ipynb](../3_pgx_calculator_workflow.ipynb) (project root) – interactive steps (verify inputs → metadata → models → Lambda dir → verify → deploy).
+- **Docs:** [README_calculator_workflow.md](README_calculator_workflow.md) – Cohort/model mapping and workflow overview.
 
 ## Quick Start
 
@@ -461,7 +461,7 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 ### Related Documentation
 
-- `visualizations/fpgrowth/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
+- `visualizations/fpgrowth/README_visualization_only.md`: Why FP-Growth is visualization-only
 - `visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `8_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)
 

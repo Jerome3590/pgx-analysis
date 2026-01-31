@@ -11,8 +11,9 @@ This document describes the workflow testing framework used to validate the sequ
 The workflow follows a **sequential execution pattern** where each analysis step must be completed (all outputs and plots generated) before proceeding to the next step:
 
 ```
-3_feature_importance → 4_fpgrowth_analysis → 5_bupaR_analysis → 6_dtw_analysis → ...
+3a_feature_importance → 4_model_data → 5_pgx_analysis → 6_final_model → 7_shap_analysis → 8_ffa_analysis → 9_risk_dashboard
 ```
+FP-Growth, BupaR, and DTW are used for dashboard visualizations only (`9_risk_dashboard/visualizations/`).
 
 Each step has:
 - **Output Manifests**: Documented expected outputs in each step's README
@@ -24,7 +25,7 @@ Each step has:
 ## Test Example: Cohort 1, Age Band 0-12
 
 **Date:** December 9, 2025  
-**Step:** 3_feature_importance  
+**Step:** 3a_feature_importance  
 **Test Status:** ✅ Complete
 
 ### Test Results
@@ -83,11 +84,11 @@ All plots generated in `outputs/plots/`:
 
 ### Feature Importance Validation
 
-**Script:** `3_feature_importance/validate_outputs.py`
+**Script:** `3a_feature_importance/validate_outputs.py`
 
 **Usage:**
 ```bash
-python 3_feature_importance/validate_outputs.py opioid_ed 0_12
+python 3a_feature_importance/validate_outputs.py opioid_ed 0_12
 ```
 
 **Output:**
@@ -97,8 +98,8 @@ Step 3: Feature Importance - Output Validation
 ======================================================================
 
 Cohort: opioid_ed, Age Band: 0_12
-Output Directory: 3_feature_importance/outputs
-Plots Directory: 3_feature_importance/outputs/plots
+Output Directory: 3a_feature_importance/outputs
+Plots Directory: 3a_feature_importance/outputs/plots
 
 Data Files Status:
 ----------------------------------------------------------------------
@@ -163,7 +164,7 @@ Manifests documented in each step's README:
 
 ### ✅ Validation Scripts
 Tools created for checking completion:
-- `3_feature_importance/validate_outputs.py` - Feature importance validation
+- `3a_feature_importance/validate_outputs.py` - Feature importance validation
 - Can be extended for other steps
 
 ### ✅ Directory Structure
@@ -216,7 +217,7 @@ For each analysis step, verify:
 ## Related Documentation
 
 - [`docs/README_output_structure.md`](README_output_structure.md) - Standard output structure framework
-- [`3_feature_importance/README.md`](../3_feature_importance/README.md) - Step 3 analysis documentation
+- [`3a_feature_importance/README.md`](../3a_feature_importance/README.md) - Step 3 analysis documentation
 - [`docs/README_feature_importance.md`](README_feature_importance.md) - Feature importance analysis guide
 - [`docs/README_feature_importance_visualization.md`](README_feature_importance_visualization.md) - Visualization guide
 

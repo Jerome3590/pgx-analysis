@@ -97,8 +97,8 @@ def analyze_post_target_leakage_from_events(
         data_root = str(project_root)
     
     model_data_paths = [
-        Path(data_root) / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        project_root / "4a_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        Path(data_root) / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        project_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
         project_root / "model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
     ]
     

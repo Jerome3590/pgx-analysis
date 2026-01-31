@@ -17,7 +17,7 @@ The dashboard build process (`build_dashboard.sh`) requires outputs from multipl
 
 ### Step 3: Feature Importance (Required for Metadata)
 
-**Location:** `3_feature_importance/outputs/`
+**Location:** `3a_feature_importance/outputs/`
 
 **Required Files:**
 - `{cohort}_{age_band}_aggregated_feature_importance.csv`
@@ -26,7 +26,7 @@ The dashboard build process (`build_dashboard.sh`) requires outputs from multipl
 
 **Example:**
 ```
-3_feature_importance/outputs/opioid_ed_13_24_aggregated_feature_importance.csv
+3a_feature_importance/outputs/opioid_ed_13_24_aggregated_feature_importance.csv
 ```
 
 ---
@@ -137,7 +137,7 @@ The dashboard build process (`build_dashboard.sh`) requires outputs from multipl
 
 3. **Build Dashboard:**
    ```bash
-   bash utility_scripts/build_dashboard.sh
+   See `9_risk_dashboard/deployment/` for build/deploy; or use `archived/utility_scripts/build_dashboard.sh` if present
    ```
    - Processes all available cohorts
    - Skips missing cohorts gracefully
@@ -182,7 +182,7 @@ To check what's available for dashboard build:
 ls -la 6_final_model/outputs/opioid_ed/*/models/*.joblib
 
 # Check Step 3 outputs (required for metadata)
-ls -la 3_feature_importance/outputs/*aggregated_feature_importance.csv
+ls -la 3a_feature_importance/outputs/*aggregated_feature_importance.csv
 
 # Check Step 7 outputs (optional)
 ls -la 7_shap_analysis/outputs/opioid_ed/*/*shap*.csv

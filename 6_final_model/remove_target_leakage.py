@@ -188,7 +188,7 @@ def remove_target_leakage(
         if not model_data_path.exists():
             model_data_path = (
                 project_root
-                / "4a_model_data"
+                / "4_model_data"
                 / f"cohort_name={cohort_name}"
                 / f"age_band={age_band}"
                 / "model_events_no_protocols.parquet"

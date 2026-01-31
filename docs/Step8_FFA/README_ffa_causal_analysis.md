@@ -42,23 +42,20 @@ Model-based causal importance is more robust than correlation-based methods beca
 - Aligns with temporal validation best practices
 
 **Test data lookup strategy** (in order):
-1. **Check local paths first** (fastest - `/mnt/nvme/4a_model_data/` on Linux/EC2):
-   - `/mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux/EC2 - highest priority, where test data is stored)
-   - `/mnt/nvme/6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Linux/EC2 - alternative)
+1. **Check local paths first** (fastest - `6_final_model/outputs` or NVMe on Linux/EC2):
+   - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (project root)
    - `/mnt/nvme/gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Linux/EC2 - synced from S3)
    - `/mnt/nvme/gold/final_model/{cohort}/{age_band}/model_test/final_features.parquet` (Linux/EC2)
-   - `/mnt/nvme/data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux/EC2)
-   - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (project root)
    - `data/cohorts/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (project root)
-2. **If not found locally, check S3 and sync** (source of truth - has controls):
+2. **If not found locally, check S3 and sync** (source of truth - train/test uploaded by Step 6):
    - Checks S3 paths:
      - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet`
      - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/model_test/final_features.parquet`
      - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band_fname}/inputs/model_test/final_features.parquet`
      - `s3://pgxdatalake/gold/final_model/{cohort}/{age_band_fname}/model_test/final_features.parquet`
-   - Syncs to `/mnt/nvme/4a_model_data/` (if Linux/EC2) or project root:
-     - Downloads to `/mnt/nvme/4a_model_data/cohort_name={cohort}/event_year=2019/age_band={age_band}/final_features.parquet` (Linux - matches step 4a structure)
-     - Or `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Windows/local)
+   - Syncs to project root or NVMe:
+     - `6_final_model/outputs/{cohort}/{age_band}/inputs/model_test/final_features.parquet` (Windows/local)
+     - Or NVMe path if on Linux/EC2
 
 **Benefits of this approach**:
 - ✅ Fast local access first (checks `/mnt/nvme/` before S3)
@@ -260,20 +257,20 @@ For detailed guides on pruning, see:
 
 ```bash
 # Run complete FFA analysis (includes causal analysis)
-python utility_scripts/run_full_ffa_analysis.py \
+python 8_ffa_analysis/ \
     --cohort opioid_ed \
     --age_band 13-24 \
     --model-type xgboost
 
 # Force rerun (clears existing outputs)
-python utility_scripts/run_full_ffa_analysis.py \
+python 8_ffa_analysis/ \
     --cohort opioid_ed \
     --age_band 13-24 \
     --model-type xgboost \
     --force
 
 # Adjust parallel workers (for CPU optimization)
-python utility_scripts/run_full_ffa_analysis.py \
+python 8_ffa_analysis/ \
     --cohort opioid_ed \
     --age_band 13-24 \
     --model-type xgboost \
@@ -282,7 +279,7 @@ python utility_scripts/run_full_ffa_analysis.py \
 
 ### Configuration
 
-Edit `ANALYSIS_CONFIG` in `utility_scripts/run_full_ffa_analysis.py`:
+Edit `ANALYSIS_CONFIG` in `8_ffa_analysis/`:
 
 ```python
 ANALYSIS_CONFIG = {

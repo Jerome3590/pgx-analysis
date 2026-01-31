@@ -118,9 +118,8 @@ python run_analysis.py --cohort-name {cohort} --age-band {age_band}
 
 ### Required Inputs
 
-- **Model Events Data**: `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`
-  - Prefer DTW-filtered data (no protocols)
-  - Falls back to base `model_events.parquet` if filtered version unavailable
+- **Model Events Data**: `4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+  - Event-level filtering is applied in Step 1b (`1b_apcd_event_filter`) before cohort creation.
 
 ### Output Verification
 
@@ -156,7 +155,7 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 - **R Packages**: `bupaR`, `processmapR`, `eventdataR`, `ggplot2`, `dplyr`
 - **Python**: `pandas`, `boto3` (for S3 uploads)
-- **Input Data**: Model events parquet files from Step 4a/4b
+- **Input Data**: Model events parquet files from Step 4 (`4_model_data/`)
 
 ## Notes
 
@@ -164,7 +163,7 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 2. **Feature Importance EDA Usage**: BupaR is also used in Feature Importance EDA (`3b_feature_importance_eda/`) for post-target analysis to identify leakage features. This is separate from dashboard visualizations.
 
-3. **Protocol Filtering**: Visualizations use `model_events_no_protocols.parquet` when available (from Step 4b DTW filtering) to remove administrative codes.
+3. **Event Filtering**: Event-level ICD/administrative code filtering runs in Step 1b (`1b_apcd_event_filter`); model data (Step 4) uses that filtered event set.
 
 4. **Cohort-Specific**: `opioid_ed` cohort has additional pre/post F1120 visualizations that `non_opioid_ed` does not have.
 

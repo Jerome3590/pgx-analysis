@@ -42,7 +42,7 @@ def build_drug_codebook(cohort: str, age_band: str) -> pd.DataFrame:
     age_band_fname = age_band_to_fname(age_band)
     events_path = (
         PROJECT_ROOT
-        / "4a_model_data"
+        / "4_model_data"
         / f"cohort_name={cohort}"
         / f"age_band={age_band}"
         / "model_events.parquet"

@@ -429,7 +429,7 @@ tail -f 3_fpgrowth_analysis/run_fixed.log
 tail -f 3_fpgrowth_analysis/cohort_execution.log
 
 # Feature importance logs
-tail -f 3_feature_importance/logs/*.txt
+tail -f 3a_feature_importance/logs/*.txt
 ```
 
 ### Parallel Process Logging
@@ -482,25 +482,25 @@ For parallel analysis jobs (e.g., Feature Importance Analysis with MC-CV), the p
 **Real-Time Monitoring:**
 ```bash
 # Watch logs in real-time (all workers visible)
-tail -f 3_feature_importance/logs/feature_importance_*.log
+tail -f 3a_feature_importance/logs/feature_importance_*.log
 
 # Filter by specific worker
-tail -f 3_feature_importance/logs/feature_importance_*.log | grep "Worker-LokyProcess-27"
+tail -f 3a_feature_importance/logs/feature_importance_*.log | grep "Worker-LokyProcess-27"
 
 # Count active workers
-tail -f 3_feature_importance/logs/feature_importance_*.log | grep -o "Worker-[^]]*" | sort -u | wc -l
+tail -f 3a_feature_importance/logs/feature_importance_*.log | grep -o "Worker-[^]]*" | sort -u | wc -l
 ```
 
 **Progress Tracking:**
 ```bash
 # Count completed splits
-grep "training completed" 3_feature_importance/logs/feature_importance_*.log | wc -l
+grep "training completed" 3a_feature_importance/logs/feature_importance_*.log | wc -l
 
 # Check for errors
-grep -i error 3_feature_importance/logs/feature_importance_*.log
+grep -i error 3a_feature_importance/logs/feature_importance_*.log
 
 # View timing information
-grep "training completed\|prediction completed" 3_feature_importance/logs/feature_importance_*.log
+grep "training completed\|prediction completed" 3a_feature_importance/logs/feature_importance_*.log
 ```
 
 #### Benefits

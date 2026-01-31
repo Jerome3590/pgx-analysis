@@ -124,7 +124,7 @@ def save_step_checkpoint(
     Save checkpoint metadata to S3.
     
     Args:
-        step_name: Name of the step (e.g., "4a_model_data", "4b_dtw_filter")
+        step_name: Name of the step (e.g., "4_model_data", "4b_dtw_filter")
         cohort: Cohort name
         age_band: Age band
         metadata: Optional metadata dictionary

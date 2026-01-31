@@ -2,18 +2,20 @@
 
 This guide shows how to build frequency datasets for `drug_name` and `target_code`, generate static charts, and publish interactive Plotly dashboards to S3. All outputs are written to S3 as Parquet/CSV with a stable "latest" key, so you can always fetch the most recent data based on S3 object metadata.
 
+**Project alignment:** Paths and helpers match the rest of the project: APCD input data lives in **1a_apcd_input_data**, shared Python utilities in **py_helpers**. ICD/administrative event filtering runs in **1b_apcd_event_filter** (before cohort creation); this guide builds frequency visualizations from gold pharmacy/medical data (Step 1a outputs).
+
 ### Prerequisites
 - S3 credentials available to DuckDB (`CALL load_aws_credentials()`)
 - Python environment with `duckdb`, `pandas`, `matplotlib`, `seaborn`, and Plotly (Plotly is loaded from CDN in the dashboard HTML)
 - Repository path added to `sys.path` in notebooks when importing helpers
 
 Environment note: the canonical local outputs directory used by helpers is
-`1_apcd_input_data/outputs` by default. You can override this per-environment
+`1a_apcd_input_data/outputs` by default. You can override this per-environment
 by setting the `PGX_TARGET_OUTPUTS_DIR` environment variable to an absolute
 or relative path (useful on EC2 or CI):
 
 ```bash
-export PGX_TARGET_OUTPUTS_DIR=/home/pgx3874/pgx-analysis/1_apcd_input_data/outputs
+export PGX_TARGET_OUTPUTS_DIR=/path/to/pgx-analysis/1a_apcd_input_data/outputs
 ```
 
 ---
@@ -42,12 +44,12 @@ WHERE drug_name IS NOT NULL AND drug_name <> ''
 GROUP BY event_year, drug_name
 """).df()
 
-from helpers_1997_13.visualization_utils import write_drug_frequency_latest
+from py_helpers.visualization_utils import write_drug_frequency_latest
 write_drug_frequency_latest(drug_freq)
 ```
 
 ### B. target_code frequency by year (ICD + CPT from Medical)
-Use `1_apcd_input_data/6_target_frequency_analysis.py` to generate unified ICD/CPT counts and write to `s3://pgxdatalake/gold/target_code/target_code_latest.(parquet|csv)`.
+Use `1a_apcd_input_data/6_target_frequency_analysis.py` to generate unified ICD/CPT counts and write to `s3://pgxdatalake/gold/target_code/target_code_latest.(parquet|csv)`.
 
 Minimal notebook cell:
 ```python
@@ -112,7 +114,7 @@ COPY all_targets TO 's3://pgxdatalake/gold/target_code/target_code_latest.csv'
 import sys, pandas as pd
 sys.path.append('/home/pgx3874/pgx-analysis')
 
-from helpers_1997_13.visualization_utils import (
+from py_helpers.visualization_utils import (
     plot_stacked_by_year,
     plot_top_bars,
     save_current_chart,
@@ -147,7 +149,7 @@ save_current_chart('cpt_stacked', 'target_code_frequency')
 ## 3) Interactive Plotly Dashboards (HTML to S3)
 
 ```python
-from helpers_1997_13.visualization_utils import create_plotly_frequency_dashboard
+from py_helpers.visualization_utils import create_plotly_frequency_dashboard
 
 # Drug dashboard
 create_plotly_frequency_dashboard(
@@ -195,7 +197,7 @@ GROUP BY a.event_year, LEAST(a.drug, b.drug), GREATEST(a.drug, b.drug)
 """).df()
 
 # Save latest pairs to S3 if desired
-from helpers_1997_13.visualization_utils import write_drug_pairs_latest
+from py_helpers.visualization_utils import write_drug_pairs_latest
 write_drug_pairs_latest(pairs_df)
 
 # Dashboard with co-occurrence enabled
@@ -243,13 +245,13 @@ Option A (preferred): call the existing script functions via importlib
 ```python
 import importlib.util
 
-path = '/home/pgx3874/pgx-analysis/1_apcd_input_data/4_drug_frequency_analysis.py'
+path = '/path/to/pgx-analysis/1a_apcd_input_data/4_drug_frequency_analysis.py'
 spec = importlib.util.spec_from_file_location('drug_freq_module', path)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 df = mod.get_drug_frequency_data()
-from helpers_1997_13.visualization_utils import write_drug_frequency_latest
+from py_helpers.visualization_utils import write_drug_frequency_latest
 write_drug_frequency_latest(df)
 ```
 
@@ -263,14 +265,14 @@ FROM read_parquet('s3://pgxdatalake/gold/pharmacy/age_band=*/event_year=*/pharma
 WHERE drug_name IS NOT NULL AND drug_name <> '' AND event_year BETWEEN 2016 AND 2020
 GROUP BY event_year, drug_name
 """).df()
-from helpers_1997_13.visualization_utils import write_drug_frequency_latest
+from py_helpers.visualization_utils import write_drug_frequency_latest
 write_drug_frequency_latest(df)
 ```
 
 #### Cell d2: Static visualizations
 ```python
 import duckdb
-from helpers_1997_13.visualization_utils import plot_stacked_by_year, plot_top_bars, save_current_chart
+from py_helpers.visualization_utils import plot_stacked_by_year, plot_top_bars, save_current_chart
 
 duckdb.sql("LOAD httpfs; CALL load_aws_credentials(); SET s3_region='us-east-1'; SET s3_url_style='path'")
 drug_df = duckdb.sql("SELECT * FROM read_parquet('s3://pgxdatalake/gold/drug_name/drug_frequency_latest.parquet')").df()
@@ -286,7 +288,7 @@ save_current_chart('drugname_top20', 'drug_name_frequency')
 #### Cell d3: Interactive dashboard with export
 ```python
 import duckdb
-from helpers_1997_13.visualization_utils import create_plotly_frequency_dashboard
+from py_helpers.visualization_utils import create_plotly_frequency_dashboard
 
 duckdb.sql("LOAD httpfs; CALL load_aws_credentials(); SET s3_region='us-east-1'; SET s3_url_style='path'")
 drug_df = duckdb.sql("SELECT * FROM read_parquet('s3://pgxdatalake/gold/drug_name/drug_frequency_latest.parquet')").df()
@@ -307,9 +309,9 @@ Option A (preferred): run the existing script (writes latest S3 outputs)
 ```python
 import subprocess
 subprocess.run([
-    '/home/pgx3874/jupyter-env/bin/python3.11',
-    '/home/pgx3874/pgx-analysis/1_apcd_input_data/6_target_frequency_analysis.py'
-], check=True)
+    'python',
+    '1a_apcd_input_data/6_target_frequency_analysis.py'
+], check=True, cwd='/path/to/pgx-analysis')
 ```
 
 Option B: inline DuckDB (equivalent)
@@ -353,7 +355,7 @@ duckdb.sql("COPY all_targets TO 's3://pgxdatalake/gold/target_code/target_code_l
 #### Cell t1b: Optional - load precomputed pickle for extended outputs (age-band)
 ```python
 import pickle
-pk_path = '1_apcd_input_data/outputs/target_analysis_data.pkl'
+pk_path = '1a_apcd_input_data/outputs/target_analysis_data.pkl'
 with open(pk_path, 'rb') as f:
     tdata = pickle.load(f)
 
@@ -371,7 +373,7 @@ all_targets = tdata['all_targets']         # event_year, target_code, frequency,
 #### Cell t2: Static visualizations
 ```python
 import duckdb
-from helpers_1997_13.visualization_utils import plot_stacked_by_year, save_current_chart
+from py_helpers.visualization_utils import plot_stacked_by_year, save_current_chart
 
 duckdb.sql("LOAD httpfs; CALL load_aws_credentials(); SET s3_region='us-east-1'; SET s3_url_style='path'")
 tc_df = duckdb.sql("SELECT * FROM read_parquet('s3://pgxdatalake/gold/target_code/target_code_latest.parquet')").df()
@@ -473,7 +475,7 @@ plt.tight_layout()
 #### Cell t3: Interactive dashboard with export
 ```python
 import duckdb
-from helpers_1997_13.visualization_utils import create_plotly_frequency_dashboard
+from py_helpers.visualization_utils import create_plotly_frequency_dashboard
 
 duckdb.sql("INSTALL httpfs; LOAD httpfs; CALL load_aws_credentials(); SET s3_region='us-east-1'; SET s3_url_style='path'")
 tc_df = duckdb.sql("SELECT * FROM read_parquet('s3://pgxdatalake/gold/target_code/target_code_latest.parquet')").df()
@@ -499,8 +501,8 @@ Example notebook call (script name TBD, e.g., `8_code_correction_qa.py`):
 ```python
 import subprocess
 subprocess.run([
-    '/home/pgx3874/jupyter-env/bin/python3.11',
-    '/home/pgx3874/pgx-analysis/1_apcd_input_data/8_code_correction_qa.py',
+    'python',
+    '1a_apcd_input_data/8_code_correction_qa.py',
     '--domain', 'icd',                    # icd|cpt|drug
     '--needle', 'F11.20',                 # code of interest
     '--apply',                            # include to apply corrections; omit for dry-run report

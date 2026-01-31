@@ -80,8 +80,8 @@ LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fa
 # If a model_data file exists for a given (cohort, age_band), FP-Growth will
 # prefer it over the raw GOLD cohorts parquet.
 #
-# NOTE: The canonical location for model_data in this project is now 4a_model_data.
-MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
+# NOTE: The canonical location for model_data in this project is now 4_model_data.
+MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
 USE_MODEL_DATA_IF_AVAILABLE = True
 
 # Local FP-Growth outputs (mirrors feature-importance naming with cohort + age_band)
@@ -90,7 +90,7 @@ LOCAL_OUTPUT_ROOT = PROJECT_ROOT / "10b_fpgrowth_dashboard_visual" / "outputs"
 # Optional model_data root (filtered to important features + 5:1 control ratio).
 # If a model_data file exists for a given (cohort, age_band), FP-Growth will
 # prefer it over the raw GOLD cohorts parquet.
-MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
+MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
 USE_MODEL_DATA_IF_AVAILABLE = True
 
 # =============================================================================
@@ -425,7 +425,7 @@ def process_single_cohort(
         # Build query based on item type. Always include `target` so we can run
         # a separate target-only FP-Growth pass (within-case patterns).
         if item_type == 'drug_name':
-            # 4a_model_data already encodes event context; filter directly on drug_name.
+            # 4_model_data already encodes event context; filter directly on drug_name.
             query = f"""
             SELECT mi_person_key, drug_name as item, target
             FROM read_parquet('{parquet_file}')

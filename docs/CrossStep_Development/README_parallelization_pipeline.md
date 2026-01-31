@@ -728,10 +728,10 @@ Row-level analysis combines multiple approaches (SHAP, FFA, FPGrowth) for patien
 ```bash
 # Step 1: Feature Importance (with sampling for speed)
 export PGX_PERM_MAX_ROWS=50000  # Use 50K rows for permutation importance
-python 3_feature_importance/run_cohort_2_65_74.py
+python 3a_feature_importance/run_cohort_2_65_74.py
 
 # Step 2: FPGrowth Pattern Mining (parallel)
-python 4_fpgrowth_analysis/run_single_cohort_fpgrowth.py \
+python 9_risk_dashboard/visualizations/fpgrowth/run_single_cohort_fpgrowth.py \
     --cohort-name non_opioid_ed \
     --age-band 65-74
 
@@ -742,7 +742,7 @@ python 8_final_model/add_shap_analysis.py \
 
 # Step 4: FFA Analysis (memory-conservative)
 export FFA_MAX_SAMPLES=10000
-python 9_ffa_analysis/run_full_ffa_analysis.py
+python 8_ffa_analysis/run_full_ffa_analysis.py
 
 # Step 5: Combine Results (single-threaded, fast)
 python 10_results/combine_shap_ffa_results.py \

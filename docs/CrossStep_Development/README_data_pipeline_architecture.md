@@ -325,7 +325,7 @@ The production pipeline (Steps 1-9) uses **Parquet as the preferred format** thr
 #### Step-by-Step Data Flow
 
 ```
-Step 1-2: Cohort Creation
+Step 1-2: Cohort Creation (including event filtering in Step 1b)
   Input:  Raw APCD data (Silver tier)
   Output: model_events.parquet (Gold tier)
           Location: s3://pgxdatalake/gold/model_data/{cohort}/{age_band}/model_events.parquet
@@ -333,31 +333,18 @@ Step 1-2: Cohort Creation
 Step 3: Feature Importance
   Input:  model_events.parquet
   Output: aggregated_feature_importance.csv
-          Location: 3_feature_importance/outputs/{cohort}/{age_band}/
+          Location: 3a_feature_importance/outputs/{cohort}/{age_band}/
 
-Step 4a: Model Data Extraction
+Step 4: Model Data
   Input:  model_events.parquet
   Output: model_events.parquet (filtered, target/control split)
-          Location: 4a_model_data/{cohort}/{age_band}/model_events.parquet
+          Location: 4_model_data/{cohort}/{age_band}/model_events.parquet
+  Note: Event filtering (administrative/scheduling codes) is in Step 1b. DTW protocol filtering is for dashboard visualizations only (Step 9).
 
-Step 4b: DTW Protocol Filtering ⭐ OPTIMIZED
+Step 5: PGx Feature Engineering (main pipeline)
   Input:  model_events.parquet
-  Output: model_events_no_protocols.parquet (Parquet, optimized DuckDB SQL)
-          Location: 4b_dtw_filter/outputs/{cohort}/{age_band}/model_events_no_protocols.parquet
-          S3: s3://pgxdatalake/gold/dtw_filter/{cohort}/{age_band}/model_events_no_protocols.parquet
-  Idempotency Check: Checks for 3 S3 outputs:
-    - model_events_no_protocols.parquet
-    - protocol_summary_{cohort}_{age_band}.csv
-    - event_intervals_{cohort}_{age_band}.parquet
-  Optimization: Pure DuckDB SQL, COPY TO parquet, integer-based sequences
-
-Step 5a-5d: Feature Engineering
-  Input:  model_events_no_protocols.parquet (preferred)
-  Output: Various feature tables (CSV/Parquet depending on step)
-          - BupaR features
-          - FP-Growth features
-          - DTW trajectory features
-          - PGx features
+  Output: PGx feature tables
+  Note: BupaR, FP-Growth, and DTW trajectory features are used only for dashboard visualizations (Step 9), not as model inputs.
 
 Step 6: Final Model Training ⭐ OPTIMIZED
   Input:  Feature tables from Steps 5a-5d
@@ -414,9 +401,8 @@ Step 9: Risk Dashboard
 | :-- | :-- | :-- | :-- |
 | **1-2: Cohort Creation** | Parquet | N/A | All outputs Parquet |
 | **3: Feature Importance** | CSV | N/A | Small files, CSV acceptable |
-| **4a: Model Data** | Parquet | N/A | Event-level data |
-| **4b: DTW Filter** | Parquet | N/A | Optimized DuckDB SQL |
-| **5a-5d: Features** | Mixed | CSV/Parquet | Step-dependent |
+| **4: Model Data** | Parquet | N/A | Event-level data |
+| **5: PGx Features** | CSV/Parquet | N/A | PGx only; BupaR/DTW/FP-Growth for dashboard only |
 | **6: Final Model** | **Parquet** ⭐ | CSV | **Parquet preferred, CSV for compatibility** |
 | **7: SHAP** | **Parquet** ⭐ | CSV | **Row-level SHAP in Parquet** |
 | **8: FFA** | **Parquet** ⭐ | N/A | **All outputs Parquet** |
@@ -441,11 +427,7 @@ Step 9: Risk Dashboard
 
 ### Key Optimization Points
 
-1. **Step 4b (DTW Filter):**
-   - Pure DuckDB SQL (no pandas `.apply()`)
-   - Integer-based sequences (not strings)
-   - Direct `COPY TO parquet` operations
-   - **Idempotency:** Checks 3 S3 outputs before running
+1. **Step 4 (Model Data):** Event filtering is in Step 1b; DTW protocol filtering is for dashboard visualizations only (Step 9).
 
 2. **Step 6 (Final Model):**
    - Saves both CSV and Parquet
@@ -528,13 +510,13 @@ s3://pgx-repository/pipeline_checkpoints/{step_name}/{cohort}/{age_band}/checkpo
 - ✅ If nothing exists → Run step, upload outputs, save checkpoint
 
 **File Format Matching:**
-- **Step 4b:** Checks `.parquet` and `.csv` (matches actual outputs)
+- **Step 4:** Checks `.parquet` for model_events (matches actual outputs)
 - **Step 7:** Checks `.parquet` for sample values, `.csv` for global importance (matches actual outputs)
 - **Step 8:** Checks `.parquet` only (all outputs are Parquet)
 
 **Verification:**
 All documented S3 paths match the actual idempotency checks in the code:
-- ✅ Step 4b: `s3://pgxdatalake/gold/dtw_filter/{cohort}/{age_band}/model_events_no_protocols.parquet`
+- ✅ Step 4: `s3://pgxdatalake/gold/model_data/{cohort}/{age_band}/model_events.parquet`
 - ✅ Step 7: `s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/*.parquet` and `*.csv`
 - ✅ Step 8: `s3://pgxdatalake/gold/ffa_analysis/{cohort}/{age_band}/{model_type}/*.parquet`
 

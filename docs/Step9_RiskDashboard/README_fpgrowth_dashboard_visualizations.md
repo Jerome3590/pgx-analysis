@@ -122,9 +122,8 @@ python create_plots.py --cohort-name {cohort} --age-band {age_band} --item-type 
 
 ### Required Inputs
 
-- **Model Events Data**: `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`
-  - Prefer DTW-filtered data (no protocols)
-  - Falls back to base `model_events.parquet` if filtered version unavailable
+- **Model Events Data**: `4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+  - Event-level filtering is in Step 1b (`1b_apcd_event_filter`).
 
 ### Output Verification
 
@@ -185,7 +184,7 @@ See `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for 
 
 - **Python**: `pandas`, `numpy`, `mlxtend` (for FP-Growth), `networkx`, `boto3`
 - **JavaScript**: Cytoscape.js (embedded in HTML networks)
-- **Input Data**: Model events parquet files from Step 4a/4b
+- **Input Data**: Model events parquet files from Step 4 (`4_model_data/`)
 
 ## Notes
 
@@ -207,4 +206,4 @@ See `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for 
 
 - **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
-- **[FP-Growth Visualization Only](../../9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md)** - Target leakage analysis and visualization-only rationale
+- **[FP-Growth Visualization Only](../../9_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md)** - Target leakage analysis and visualization-only rationale

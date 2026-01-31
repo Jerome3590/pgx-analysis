@@ -1015,7 +1015,7 @@ def find_preferred_pickle(base_dir: str, name: str = 'target_analysis_data.pkl')
     
     Returns the outputs path if present, otherwise None.
     """
-    # Support callers that either pass the project base (e.g. '1_apcd_input_data')
+    # Support callers that either pass the project base (e.g. '1a_apcd_input_data')
     # or the explicit outputs directory (e.g. '1_apcd_input_data/outputs'). If
     # `base_dir` already ends with 'outputs' use it as the canonical directory;
     # otherwise append 'outputs'.
@@ -1239,8 +1239,8 @@ def load_target_artifacts(outputs_dir: Optional[str] = None,
     # directories when present.
     try:
         mapping_paths = [
-            os.path.join('1_apcd_input_data', 'target_mapping', 'target_icd_mapping.json'),
-            os.path.join('1_apcd_input_data', 'claim_mappings', 'target_icd_mapping.json')
+            os.path.join('1a_apcd_input_data', 'target_mapping', 'target_icd_mapping.json'),
+            os.path.join('1a_apcd_input_data', 'claim_mappings', 'target_icd_mapping.json')
         ]
         map_dict = {}
         for mp in mapping_paths:

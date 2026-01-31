@@ -4,7 +4,7 @@
 **Strategy:** Maximum parallelization (all cohorts + optimized DuckDB threading)
 
 **Last Updated:** 2026-01-07
-**Workflow:** 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
+**Workflow:** 3a/3b → 4 → 5 → 6 → 7 → 8 → 9 (run via **1_cohort_workflow.ipynb**, **2_feature_importance.ipynb**, **3_pgx_calculator_workflow.ipynb**)
 
 ---
 
@@ -16,11 +16,10 @@
    - NVMe temp directory for fast I/O
 
 2. **Workflow Steps:**
-   - **Step 3:** Feature Importance (Monte Carlo CV) - Complete, reused
-   - **Step 4a:** Model Data Extraction
-   - **Step 4b:** DTW Protocol Filtering
-   - **Step 5c:** PGx Feature Engineering (only feature engineering step)
-   - **Step 6:** Final Model Training (aggregated features + PGx)
+   - **Steps 3a–3b:** Feature Importance (MC-CV) and Feature Importance EDA (BupaR, code research) – complete, reused
+   - **Step 4:** Model Data (`4_model_data/` → `model_events.parquet`)
+   - **Step 5:** PGx Feature Engineering (`5_pgx_analysis/`)
+   - **Step 6:** Final Model Training (train/test uploaded to S3; required for SHAP/FFA)
    - **Step 7:** SHAP Analysis (XGBoost + CatBoost, required before Step 8)
    - **Step 8:** FFA Analysis (XGBoost only, uses SHAP from Step 7)
    - **Step 9:** Risk Dashboard (visualizations)
@@ -37,25 +36,25 @@
 
 ---
 
-## Per-Cohort Sequential Time (Steps 4a-9) on EC2
+## Per-Cohort Sequential Time (Steps 4–9) on EC2
 
 Based on final production workflow with DuckDB optimizations (4 threads per connection):
 
-| Cohort | Events (train) | Step 4a | Step 4b | Step 5c | Step 6 | Step 7 | Step 8 | Step 9 | **Total Sequential** |
-|--------|----------------|---------|---------|---------|--------|--------|--------|--------|---------------------|
-| **opioid_ed 13-24** | ~500K | 5 min | 5 min | 5 min | 15 min | 30 min | 45 min | 10 min | **~1.75 hours** |
-| **opioid_ed 25-44** | ~1.5M | 8 min | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
-| **opioid_ed 45-54** | ~1.2M | 8 min | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
-| **opioid_ed 55-64** | ~3.2M | 15 min | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
-| **non_opioid_ed 65-74** | ~2.9M | 15 min | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
-| **non_opioid_ed 75-84** | ~1.2M | 10 min | 10 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
-| **non_opioid_ed 85-94** | ~274K | 5 min | 5 min | 5 min | 15 min | 20 min | 30 min | 10 min | **~1.5 hours** |
+| Cohort | Events (train) | Step 4 | Step 5 | Step 6 | Step 7 | Step 8 | Step 9 | **Total Sequential** |
+|--------|----------------|--------|--------|--------|--------|--------|--------|---------------------|
+| **opioid_ed 13-24** | ~500K | 5 min | 5 min | 15 min | 30 min | 45 min | 10 min | **~1.75 hours** |
+| **opioid_ed 25-44** | ~1.5M | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **opioid_ed 45-54** | ~1.2M | 8 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **opioid_ed 55-64** | ~3.2M | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
+| **non_opioid_ed 65-74** | ~2.9M | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
+| **non_opioid_ed 75-84** | ~1.2M | 10 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
+| **non_opioid_ed 85-94** | ~274K | 5 min | 5 min | 15 min | 20 min | 30 min | 10 min | **~1.5 hours** |
 
 **Note:**
-- Step 3 (Feature Importance) is complete and reused
-- Steps 4a-9 are sequential per cohort (Step 7 must complete before Step 8)
+- Steps 3a–3b (Feature Importance) are complete and reused
+- Steps 4–9 are sequential per cohort (Step 7 must complete before Step 8)
 - DuckDB uses 4 threads per connection (optimized for 32-core EC2)
-- Times include DuckDB optimizations (pure SQL, LAG() instead of joins, etc.)
+- Run via the three workflow notebooks; legacy shell scripts are in `archived/utility_scripts/`
 
 ---
 
@@ -63,28 +62,13 @@ Based on final production workflow with DuckDB optimizations (4 threads per conn
 
 ### Strategy 1: All Cohorts in Parallel (Maximum Throughput)
 
-**Run all 7 cohorts simultaneously using workflow scripts:**
+**Run the three workflow notebooks in order** (1_cohort_workflow.ipynb → 2_feature_importance.ipynb → 3_pgx_calculator_workflow.ipynb). For parallel cohort execution within a notebook, run cells for multiple (cohort, age_band) in separate kernels or use the notebook’s loop over cohorts/age bands.
 
-```bash
-# All cohorts in parallel (recommended)
-bash utility_scripts/run_all_cohorts_workflow.sh
-```
+Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.sh`) are in **archived/utility_scripts/**; use the notebooks as the primary entry point.
 
 ![Workflow Execution](workflow_execution.png)
 
-**Or run individually in separate terminals:**
-```bash
-# Terminal 1-4: Opioid ED cohorts
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24 &
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44 &
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 45-54 &
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 55-64 &
-
-# Terminal 5-7: Non-Opioid ED cohorts
-bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74 &
-bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 75-84 &
-bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 85-94 &
-```
+**Primary entry:** Run the three workflow notebooks in order. For per-cohort parallel runs, use the notebook cells or (legacy) `archived/utility_scripts/run_cohort_workflow.sh` per cohort/age_band in separate terminals.
 
 **Total Wall Time:** ~6 hours (bottleneck is the longest cohort: 55-64 or 65-74)
 
@@ -99,11 +83,11 @@ bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 85-94 &
 ### Strategy 2: Batched Parallelization (Recommended for Resource Management)
 
 **Phase 1: Data Preparation (All cohorts in parallel)**
-- Run Steps 4a and 4b for all 7 cohorts in parallel
-- **Time:** ~20 minutes (bottleneck: 15 min for large cohorts)
+- Run Step 4 (Model Data) for all 7 cohorts in parallel
+- **Time:** ~15–20 minutes (bottleneck: large cohorts)
 
 **Phase 2: Feature Engineering (All cohorts in parallel)**
-- Run Step 5c (PGx) for all cohorts in parallel
+- Run Step 5 (PGx) for all cohorts in parallel
 - **Time:** ~10 minutes (bottleneck: large cohorts)
 
 **Phase 3: Model Training (All cohorts in parallel)**
@@ -132,14 +116,14 @@ bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 85-94 &
 
 **Batch 1: Opioid ED cohorts (4 cohorts in parallel)**
 ```bash
-bash utility_scripts/run_opioid_ed_workflow.sh
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 ```
 - Cohorts: 13-24, 25-44, 45-54, 55-64
 - **Time:** ~6 hours (bottleneck: 55-64)
 
 **Batch 2: Non-Opioid ED cohorts (3 cohorts in parallel)**
 ```bash
-bash utility_scripts/run_non_opioid_ed_workflow.sh
+# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
 ```
 - Cohorts: 65-74, 75-84, 85-94
 - **Time:** ~6 hours (bottleneck: 65-74)
@@ -160,7 +144,7 @@ bash utility_scripts/run_non_opioid_ed_workflow.sh
 
 ```bash
 # Single command runs all cohorts
-bash utility_scripts/run_all_cohorts_workflow.sh
+# Use 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Expected:** All complete in ~6 hours (bottleneck: 55-64 or 65-74)
@@ -175,11 +159,11 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 
 ```bash
 # Day 1: Opioid ED cohorts (4 cohorts in parallel)
-bash utility_scripts/run_opioid_ed_workflow.sh
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 # Expected: ~6 hours
 
 # Day 2: Non-Opioid ED cohorts (3 cohorts in parallel)
-bash utility_scripts/run_non_opioid_ed_workflow.sh
+# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
 # Expected: ~6 hours
 ```
 
@@ -191,8 +175,8 @@ bash utility_scripts/run_non_opioid_ed_workflow.sh
 
 ```bash
 # Run individual cohorts
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
+# Use workflow notebooks; legacy: archived/utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
+# archived/utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
 # ... etc
 ```
 
@@ -214,17 +198,16 @@ bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
 
 ### Workflow Dependencies
 
-1. **Step 3 → Step 4a:** Feature importance required for model data extraction
-2. **Step 4a → Step 4b:** Model data required for protocol filtering
-3. **Step 4b → Step 5c:** Protocol-filtered data used for PGx features
-4. **Step 5c → Step 6:** PGx features + aggregated features → final model
-5. **Step 6 → Step 7:** Final model required for SHAP analysis
-6. **Step 7 → Step 8:** SHAP importance required for FFA rule filtering (Step 8 uses SHAP from Step 7)
-7. **Step 8 → Step 9:** FFA analysis outputs used for dashboard
+1. **Steps 3a–3b → Step 4:** Feature importance required for model data extraction
+2. **Step 4 → Step 5:** Model data used for PGx feature engineering
+3. **Step 5 → Step 6:** PGx features + refined features → final model (train/test uploaded to S3 for SHAP/FFA)
+4. **Step 6 → Step 7:** Final model required for SHAP analysis
+5. **Step 7 → Step 8:** SHAP importance required for FFA rule filtering (Step 8 uses SHAP from Step 7)
+6. **Step 8 → Step 9:** FFA analysis outputs used for dashboard
 
 ### Parallelization Opportunities
 
-1. **Multiple cohorts:** All cohorts can run Steps 4a-9 in parallel (independent workflows)
+1. **Multiple cohorts:** All cohorts can run Steps 4–9 in parallel (independent workflows)
 2. **Within cohort:** Steps must run sequentially (dependencies above)
 3. **Step 7 before Step 8:** Critical dependency - FFA requires SHAP importance values
 
@@ -233,9 +216,8 @@ bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
 ## Memory Considerations
 
 **Per-Cohort Memory Usage (estimated):**
-- Step 4a (Model Data): ~10-20GB
-- Step 4b (DTW Filter): ~10-20GB (DuckDB optimized)
-- Step 5c (PGx): ~10-20GB
+- Step 4 (Model Data): ~10-20GB
+- Step 5 (PGx): ~10-20GB
 - Step 6 (Final Model): ~50-100GB (CatBoost + XGBoost training)
 - Step 7 (SHAP): ~50-100GB (two-pass streamed approach, memory efficient)
 - Step 8 (FFA): ~50-100GB (XGBoost only, uses SHAP importance)
@@ -257,7 +239,7 @@ bash utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
 **Best Strategy: Run all 7 cohorts in parallel**
 
 ```bash
-bash utility_scripts/run_all_cohorts_workflow.sh
+# Use 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Why:**
@@ -280,8 +262,7 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 ### Run All Cohorts in Parallel (Recommended)
 
 ```bash
-# Single command runs all 7 cohorts (Steps 4a-9)
-bash utility_scripts/run_all_cohorts_workflow.sh
+# Run 3_pgx_calculator_workflow.ipynb for Steps 4-9 (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Expected:** All cohorts complete in ~6 hours
@@ -290,18 +271,18 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 
 ```bash
 # Opioid ED cohorts (4 cohorts in parallel)
-bash utility_scripts/run_opioid_ed_workflow.sh
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 
 # Non-Opioid ED cohorts (3 cohorts in parallel)
-bash utility_scripts/run_non_opioid_ed_workflow.sh
+# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
 ```
 
 ### Run Individual Cohorts
 
 ```bash
 # Single cohort/age band
-bash utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
-bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
+bash archived/utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
+bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 ```
 
 **Available Cohorts:**
@@ -314,5 +295,5 @@ bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
 **Last Updated:** 2026-01-07
 **System:** EC2 32-core, 1TB RAM
-**Workflow:** 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
+**Workflow:** 3a/3b → 4 → 5 → 6 → 7 → 8 → 9
 **DuckDB:** 4 threads per connection, 512GB memory limit, NVMe temp directory

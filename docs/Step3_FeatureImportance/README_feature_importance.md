@@ -98,7 +98,7 @@ conda activate pgx-analysis   # or source your venv
 jupyter notebook
 ```
 
-Then open this notebook: `3_feature_importance/run_feature_importance_cohorts.ipynb`.
+Then open this notebook: `3a_feature_importance/feature_importance_cohort_runner.ipynb`.
 
 ### Production Run (25–50 splits on EC2)
 
@@ -602,7 +602,7 @@ high_risk_patients = X_test[y_pred_proba > 0.8]
 #### 3. **FPGrowth Pattern Mining** (Already Available)
 
 Your codebase has FPGrowth analysis that finds **frequent drug combinations**:
-- `4_fpgrowth_analysis/` - Finds frequent itemsets
+- FP-Growth (dashboard): `9_risk_dashboard/visualizations/fpgrowth/` - Finds frequent itemsets for visualizations
 - Identifies which drug combinations are associated with outcomes
 - Preserves row-level associations
 
@@ -720,7 +720,7 @@ importance_scaled = importance_normalized × best_performance
 ### 1. Aggregated Feature Importance CSV
 
 **Location:**
-- Local: `3_feature_importance/outputs/{cohort}_{age_band}_aggregated_feature_importance.csv`
+- Local: `3a_feature_importance/outputs/{cohort}_{age_band}_aggregated_feature_importance.csv`
 - S3: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
 
 **Columns:**
@@ -802,7 +802,7 @@ create_ageband_heatmap(
 - Find age-specific features (high CV)
 - Decide between age-agnostic vs age-stratified models
 
-**See:** `README_CROSS_AGEBAND_ANALYSIS.md` for details
+**See:** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md) for details (optional; archived).
 
 ---
 
@@ -1003,11 +1003,11 @@ N_SPLITS <- 50  # instead of 100
 
 ## Related Documentation
 
-- **Main Notebook:** `3_feature_importance/feature_importance_cohort_runner.ipynb`
+- **Main Notebook:** `3a_feature_importance/feature_importance_cohort_runner.ipynb`
 - **Visualization Guide:** [`docs/README_feature_importance_visualization.md`](README_feature_importance_visualization.md)
 - **Visualization Script:** `py_helpers/create_feature_importance_visualizations.py` (Python, recommended)
 - **Legacy Visualization Script:** `r_helpers/create_visualizations.R` (R, maintained for backward compatibility)
-- **Cross-Age-Band Analysis:** [`docs/README_cross_ageband_analysis.md`](README_cross_ageband_analysis.md)
+- **Cross-Age-Band Analysis (optional):** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md)
 - **Workflow Testing:** [`docs/README_workflow_testing.md`](README_workflow_testing.md)
 - **S3 Output Structure:** `S3_OUTPUT_STRUCTURE.md`
 - **rsample Bug:** `docs/RSAMPLE_BUG_WORKAROUND.md`
