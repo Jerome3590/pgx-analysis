@@ -31,8 +31,9 @@ Scripts and configurations for deploying the dashboard to AWS.
    - Set environment variables
 
 4. **Deploy Frontend**:
-   - Upload `../frontend/index.html` to S3
-   - Configure S3 bucket for static website hosting
+   - **S3 location:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
+   - Upload `../frontend/index.html` and assets to that prefix (e.g. `aws s3 sync ../frontend/ s3://jerome-dixon.io/vcu/pgx-risk-calculator/`)
+   - Configure the bucket for static website hosting (or use CloudFront with that origin)
    - (Optional) Set up CloudFront distribution
 
 ## Architecture
