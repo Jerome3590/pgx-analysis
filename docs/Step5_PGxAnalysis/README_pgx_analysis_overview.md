@@ -15,7 +15,7 @@ This folder documents the PGx feature-engineering step that maps drugs to pharma
 
 ### Role in the Workflow
 
-Step 5 runs **after** model data extraction and DTW protocol filtering (Steps 4a–4b) and focuses on pharmacogenomic enrichment:
+Step 5 runs **after** model data extraction (Step 4) and focuses on pharmacogenomic enrichment:
 
 - Uses important drugs from feature importance / FP-Growth to identify **clinically relevant drug–gene pairs** (CPIC-based).  
 - Integrates **population allele frequencies** for key variants in those genes.  
@@ -24,7 +24,7 @@ Step 5 runs **after** model data extraction and DTW protocol filtering (Steps 4a
 ### Inputs and Outputs
 
 - **Inputs** (per `(cohort, age_band)`):
-  - Model events data from Step 4a/4b (`model_events_no_protocols.parquet` preferred)
+  - Model events data from Step 4 (`4_model_data/.../model_events.parquet`)
   - CPIC reference files under `5_pgx_analysis/data/` and `5_pgx_analysis/cpic/`.
 
 - **Outputs**:

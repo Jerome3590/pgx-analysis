@@ -63,14 +63,14 @@ visualizations/
 Each visualization type has its own README with specific usage instructions:
 
 ### Dashboard Visualization READMEs
-- **[`bupar/README_DASHBOARD.md`](bupar/README_DASHBOARD.md)** - BupaR process mining dashboard visualizations
-- **[`fpgrowth/README_DASHBOARD.md`](fpgrowth/README_DASHBOARD.md)** - FP-Growth pattern mining dashboard visualizations
-- **[`dtw/README_DASHBOARD.md`](dtw/README_DASHBOARD.md)** - DTW trajectory dashboard visualizations
+- **[`bupar/README_dashboard.md`](bupar/README_dashboard.md)** - BupaR process mining dashboard visualizations
+- **[`fpgrowth/README_dashboard.md`](fpgrowth/README_dashboard.md)** - FP-Growth pattern mining dashboard visualizations
+- **[`dtw/README_dashboard.md`](dtw/README_dashboard.md)** - DTW trajectory dashboard visualizations
 
 ### Legacy Documentation (for reference)
 - `bupar/README.md` - BupaR feature engineering documentation (legacy)
 - `fpgrowth/README.md` - FP-Growth analysis documentation (legacy)
-- `fpgrowth/README_VISUALIZATION_ONLY.md` - FP-Growth visualization-only rationale
+- `fpgrowth/README_visualization_only.md` - FP-Growth visualization-only rationale
 
 ## Integration with Dashboard
 

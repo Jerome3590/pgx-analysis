@@ -99,22 +99,22 @@ def create_patient_pgx_features(
     if is_linux_system:
         # On Linux/EC2: prioritize /mnt/nvme
         candidates_filtered = [
-            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
         ]
         candidates_unfiltered = [
-            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-            project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
         ]
     else:
         # On Windows: prioritize project root
         candidates_filtered = [
-            project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
         ]
         candidates_unfiltered = [
-            project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
         ]
     
     # First try filtered version (preferred)

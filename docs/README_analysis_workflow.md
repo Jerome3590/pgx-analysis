@@ -8,12 +8,12 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
 2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
-3. **Model Data Extraction** into `4a_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
-4. **Event Filtering (Step 4b)** in `4b_event_filter` to create `model_events_no_protocols.parquet` that is then used as the **preferred input for all downstream feature engineering steps (PGx)**. Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR).  
+3. **Model Data Extraction** into `4_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
+4. **Event Filtering (Step 1b)** – ICD/administrative code filtering runs **earlier** in `1b_apcd_event_filter` (before cohort creation) for efficient data processing and true feature importances; feature importances (3a/3b) are rerun after cohorts.  
 5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
-6. **Final Model Development** in `6_final_model_selection/`
-   - **6a_feature_encoding** – cohort- and age-band-specific feature lookup tables and numeric drug codebooks (saved under `feature_encoding_outputs/`).  
-   - **6b_final_model_selection** – final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export.  
+6. **Final Model Development** in `6_final_model/`
+   - Feature encoding (cohort- and age-band-specific lookup tables, drug codebooks; saved under `feature_encoding_outputs/`).
+   - Final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export. Train/test datasets are uploaded to S3 (required for SHAP and FFA analysis).  
 7. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP for both XGBoost and CatBoost, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to filter and prioritize rules.
 8. **Post‑Model Structural Analysis** via FFA (`8_ffa_analysis`):
    - **XGBoost FFA only**: FFA analysis is performed only for XGBoost models
@@ -27,7 +27,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 **Goal**: Robust, model-agnostic feature ranking on noisy, high-dimensional data, using
 strict temporal validation and a small, focused model ensemble.
 
-**Process (implemented in `3_feature_importance/`, `3b_feature_importance_eda/`, and `4a_model_data/`):**
+**Process (implemented in `3a_feature_importance/`, `3b_feature_importance_eda/`, and `4_model_data/`):**
 1. **Monte Carlo Cross-Validation (MC‑CV)**  
    - Train on **2016–2018** and evaluate on a strict **2019 holdout** (no leakage).  
    - Default **10 splits** for feature-importance screening; many more (≈1000) for the final model.
@@ -47,13 +47,13 @@ strict temporal validation and a small, focused model ensemble.
      aggregate across models (including a rare-variant XGBoost pass when available).
 5. **Feature Refinement (Feature Importance EDA - `3b_feature_importance_eda/`)**  
    - **BupaR Post-Target Analysis**: Use process mining to analyze sequences before and after target event to identify post-target leakage features in aggregated importances
-   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (actual event-level filtering happens in Step 4b)
+   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (event-level filtering runs earlier in Step 1b: `1b_apcd_event_filter`)
    - **Filter and Refine**: Remove post-target leakage features from aggregated feature importance list and generate refined `cohort_feature_importance` files
    - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances
-   - Output: `cohort_feature_importance.csv` files that feed into Step 4a
-6. **Model Data Extraction (`4a_model_data/`)**  
-   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4a_model_data` extraction
-   - If Feature Importance EDA files are missing, Step 4a will error (no fallback to aggregated importances)
+   - Output: `cohort_feature_importance.csv` files that feed into Step 4
+6. **Model Data Extraction (`4_model_data/`)**  
+   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4_model_data` extraction
+   - If Feature Importance EDA files are missing, Step 4 will error (no fallback to aggregated importances)
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -90,8 +90,8 @@ For the current analysis run, we fit a **separate end‑to‑end model (Steps 3�
   - **85–94**
 
 Each of these nine cells in the grid will have its own:
-- `3_feature_importance` run (MC‑CV + aggregation)
-- `4a_model_data` extraction (`model_events.parquet` for target and control)
+- `3a_feature_importance` run (MC‑CV + aggregation)
+- `4_model_data` extraction (`model_events.parquet` for target and control)
 - `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 9 for dashboard visualizations only)
 - `6_final_model` training + evaluation (one final model per `(cohort, age_band)`).
 
@@ -108,14 +108,14 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
     - `primary_icd_diagnosis_code` through `nine_icd_diagnosis_code`
     - `procedure_code`
   - Write filtered events to:
-    - `4a_model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet`
+    - `4_model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet`
 
 - **Control cohort (non_opioid_ed)**:
   - Load full, unfiltered control cohort events for the same age band and years.
   - Sample control patients to maintain an approximate **5:1 control:target person-level ratio**.
   - Keep **all events** for sampled control patients (no feature filtering).
   - Write to:
-    - `4a_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
+    - `4_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
 
 These paired `model_events.parquet` files provide a consistent, size-controlled input for BupaR post-target analysis in Feature Importance EDA and downstream feature engineering.
 
@@ -133,22 +133,22 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **Note**: 
 - **Feature Importance EDA**: Uses BupaR post-target analysis for feature refinement (not DTW)
-- **Step 4b**: Uses code-based filtering (administrative codes from 0_icd_cpt_check + post-event leakage from 1_bupaR) - creates `model_events_no_protocols.parquet`
+- **Step 1b** (`1b_apcd_event_filter`): Event-level ICD/administrative code filtering (before cohort creation). **Step 4** (`4_model_data/`): Produces `model_events.parquet` per (cohort, age_band).
 - **Step 9**: Risk dashboard visualizations (BupaR process mining, FP-Growth patterns, DTW trajectories - visualization only)
 
-## Phase 3: Final Model Development (`6_final_model_selection/`)
+## Phase 3: Final Model Development (`6_final_model/`)
 
 **Goal**: Integrate features from all analysis methods into final prediction model.
 
 **Process**:
-1. **Feature Integration**: Combine feature-importance–filtered `4a_model_data` and PGx features into a single patient-level table (e.g. via `6_final_model_selection/run_final_model.py` for a given `(cohort, age_band)`).
+1. **Feature Integration**: Combine feature-importance–filtered `4_model_data` and PGx features into a single patient-level table (e.g. via `6_final_model/run_final_model.py` for a given `(cohort, age_band)`).
 2. **Feature Schema**: Unified patient-level feature matrix (~185-750 features)
 3. **Model Training**: CatBoost and Random Forest on integrated features
 4. **Model Evaluation**: Performance metrics and feature importance analysis
 
 **Output**: Trained models with interpretable feature sets
 
-**Location**: `6_final_model_selection/`
+**Location**: `6_final_model/`
 
 ## Enhanced Analysis Workflow Architecture
 
@@ -196,20 +196,17 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 **DTW (Dynamic Time Warping)** is used in two distinct contexts:
 
-### 1. DTW Protocol Filtering (Step 4b)
+### 1. Event-Level Filtering (Step 1b)
 
-**Purpose**: Identify and filter administrative/protocol codes from event data
+**Purpose**: Filter administrative/ICD codes from event data before cohort creation.
 
-**Location**: `4b_event_filter/`
+**Location**: `1b_apcd_event_filter/`
 
-**Output**: `model_events_no_protocols.parquet` - Event data with administrative/protocol codes removed
+**Output**: Filtered events feed into cohort creation (Step 2) and model data (Step 4). Step 4 produces `model_events.parquet` per (cohort, age_band).
 
 **Use Cases:**
-1. **Protocol Identification**: Identify standard care protocols that both targets and controls follow
-2. **Administrative Code Filtering**: Remove non-predictive administrative/scheduling codes
-3. **Data Cleaning**: Create clean event dataset for downstream feature engineering (PGx)
-
-**Note**: This filtering happens at the event level, creating `model_events_no_protocols.parquet` that is used as the preferred input for all downstream feature engineering steps.
+1. **Administrative Code Filtering**: Remove non-predictive administrative/scheduling codes (via `administrative_codes_lookup.json`).
+2. **Data Cleaning**: Event-level filtering in Step 1b ensures cohorts and feature importance (3a/3b) use the same filtered event set.
 
 ### 2. DTW Dashboard Visualizations (Step 9)
 
@@ -238,66 +235,43 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 ## Analysis Pipeline Overview
 
+Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. ICD filtering runs in **Step 1b** (before cohorts).
+
 ```mermaid
 flowchart TD
-    subgraph "Step 3: Feature Importance"
-        A[Monte Carlo CV] --> B[Aggregated Feature Importance<br/>CatBoost + XGBoost]
-        B --> C[Top Features Selection]
+    subgraph W1["1_cohort_workflow.ipynb (Steps 1-2)"]
+        A1[1a: APCD Input Data] --> A2[Data Cleaning]
+        A2 --> A1b[1b: Event Filter ICD/Admin]
+        A1b --> A3[2: Cohort Creation]
+        A3 --> A4[Quality Assurance]
     end
-    
-    subgraph "Feature Importance EDA: Feature Refinement"
-        C --> C1[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
-        C1 --> C2[Code Research & Validation<br/>Administrative Codes]
-        C2 --> C3[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
+
+    subgraph W2["2_feature_importance.ipynb (Steps 3a-3b)"]
+        A4 --> B1[3a: Monte Carlo CV]
+        B1 --> B2[Aggregated Feature Importance]
+        B2 --> B3[Top Features Selection]
+        B3 --> B4[BupaR Post-Target + Code Research]
+        B4 --> B6[Refined cohort_feature_importance.csv]
     end
-    
-    subgraph "Step 4: Model Data & Filtering"
-        C3 --> D[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        D --> E[4b: Protocol Filtering<br/>Remove Administrative Codes]
+
+    subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
+        B6 --> C1[4: Model Data]
+        C1 --> D1[5: PGx Feature Engineering]
+        D1 --> E1[6: Final Model]
+        E1 --> E4[Model Selection]
+        E4 --> F1[7: SHAP]
+        E4 --> F2[8: FFA]
+        F1 --> G1[9: Risk Dashboard]
+        F2 --> G1
+        G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
-    
-    subgraph "Step 5: PGx Feature Engineering"
-        E --> F[PGx Feature Engineering<br/>PGx Drug Counts<br/>Drug Counts]
-    end
-    
-    subgraph "Step 6: Final Model Training"
-        F --> G[Feature Integration<br/>Refined Features + PGx]
-        G --> H[CatBoost Training]
-        G --> I[XGBoost Training]
-        G --> I2[XGBoost RF Training]
-        H --> J[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
-        I --> J
-        I2 --> J
-    end
-    
-    subgraph "Step 7-8: Post-Model Analysis"
-        J --> K[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
-        J --> L[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
-        K --> L
-    end
-    
-    subgraph "Step 9: Risk Dashboard"
-        L --> N[Risk Dashboard<br/>Model Deployment]
-        K --> N
-        N --> N1[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
-        N --> N2[Backend API<br/>Lambda Function]
-        N --> N3[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
-        N1 --> N4[Production Deployment<br/>S3 + API Gateway + Lambda]
-        N2 --> N4
-        N3 --> N4
-    end
-    
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style F fill:#bfb,stroke:#333,stroke-width:2px
-    style J fill:#fbb,stroke:#333,stroke-width:2px
-    style K fill:#fbf,stroke:#333,stroke-width:2px    %% SHAP Analysis
-    style L fill:#fbf,stroke:#333,stroke-width:2px    %% FFA Analysis
-    style N fill:#ffb,stroke:#333,stroke-width:2px    %% Risk Dashboard
-    style N1 fill:#ffb,stroke:#333,stroke-width:2px    %% Frontend
-    style N2 fill:#ffb,stroke:#333,stroke-width:2px    %% Backend
-    style N3 fill:#ffb,stroke:#333,stroke-width:2px    %% Visualizations
-    style N4 fill:#ffb,stroke:#333,stroke-width:2px    %% Deployment
+
+    style A1 fill:#f9f,stroke:#333
+    style A1b fill:#e9c,stroke:#333
+    style B2 fill:#bbf,stroke:#333
+    style C1 fill:#bfb,stroke:#333
+    style E4 fill:#fbb,stroke:#333
+    style G1 fill:#ffb,stroke:#333
 ```
 
 ## Key Insights
@@ -326,7 +300,7 @@ flowchart TD
 **DTW**:
 - **Protocol Filtering**: DTW excels at identifying standard care protocols that both targets and controls follow
 - **Non-Predictive**: These protocols are non-predictive by design (they're standard care)
-- **Solution**: Use DTW for protocol filtering (Step 4b) and trajectory visualization (Step 9), but not as model features
+- **Solution**: Event/ICD filtering runs in **Step 1b** (1b_apcd_event_filter); use DTW for trajectory visualization (Step 9), but not as model features
 
 ### Why Aggregated Features Are Used Directly (No Encoding)
 
@@ -419,7 +393,8 @@ The workflow checks for existing outputs in this order:
 
 If outputs exist, the step is skipped. To force regeneration, use:
 ```bash
-python utility_scripts/clear_pgx_step5_outputs.py --cohort {cohort} --age-band {age_band} --clear-local --clear-prerequisites
+# Clear PGx outputs if needed: run from 5_pgx_analysis/ or use archived/utility_scripts/clear_pgx_step5_outputs.py if present
+# Example: python archived/utility_scripts/clear_pgx_step5_outputs.py --cohort {cohort} --age-band {age_band} --clear-local --clear-prerequisites
 ```
 
 ## Model Artifacts and Storage Structure

@@ -349,11 +349,11 @@ def create_all_fpgrowth_features(
         project_root / "10b_fpgrowth_dashboard_visual" / "outputs" / cohort_name / split_type / age_band_fname / event_year
     )
     
-    # Model data path: use canonical 4a_model_data (model-ready cases + controls).
+    # Model data path: use canonical 4_model_data (model-ready cases + controls).
     # We no longer read from the legacy model_data/ tree for feature engineering.
     model_data_dir = (
         project_root
-        / "4a_model_data"
+        / "4_model_data"
         / f"cohort_name={cohort_name}"
         / f"age_band={age_band}"
     )

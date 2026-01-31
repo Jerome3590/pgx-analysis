@@ -1,18 +1,18 @@
 # Analysis Workflow (Alias)
 
-This file is now a **short pointer** to the canonical, up-to-date workflow documentation.
+This file is a **short pointer** to the canonical workflow documentation.
 
 - For the full end‑to‑end analysis workflow (Steps 3–9), including:
-  - Monte Carlo feature importance  
-  - Step 4 (4a model data, 4b DTW protocol filter, 4c extreme-density split)  
-  - Feature engineering (Steps 5a–5d: BupaR, FPGrowth, PGx, DTW)  
-  - Final model, FFA, SHAP, and combined SHAP+FFA  
-  
+  - **Steps 3a–3b:** Monte Carlo feature importance, BupaR/code research → refined `cohort_feature_importance.csv`
+  - **Step 4:** Model data (`4_model_data/` → `model_events.parquet`)
+  - **Step 5:** PGx feature engineering (`5_pgx_analysis/`)
+  - **Step 6:** Final model training and selection (`6_final_model/`); train/test uploaded to S3 (required for SHAP/FFA)
+  - **Steps 7–8:** SHAP analysis, then FFA (XGBoost only; uses SHAP to prioritize rules)
+  - **Step 9:** Risk dashboard deployment
+
   see: **`docs/README_analysis_workflow.md`** (top-level workflow doc).
 
 - For research‑question–to‑method mappings and cohort‑specific examples, see:
-  - `docs/CrossStep_Workflow/README_research_questions_mapping.md`  
-  - `docs/CrossStep_Workflow/README_cross_ageband_analysis.md`  
-
-This keeps a single canonical workflow description while avoiding duplicate, slightly divergent copies. 
+  - `docs/CrossStep_Workflow/README_research_questions_mapping.md`
+  - `docs/archived/README_cross_ageband_analysis.md` (optional cross-age-band analysis; archived) 
 

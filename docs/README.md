@@ -4,8 +4,14 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ## 📚 Documentation by Workflow Step
 
+### Final Workflow (Three Notebooks)
+
+- **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (ICD/admin), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
+- **2_feature_importance.ipynb** (Steps 3a-3b): 3a MC-CV feature importance, 3b BupaR/code research. Run after cohorts; sync gold/cohorts from S3.
+- **3_pgx_calculator_workflow.ipynb** (Steps 4-9): Model data, PGx, final model, SHAP, FFA, risk dashboard deployment. Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
+
 ### Step 1-2: Data Pipeline & Cohort Creation
-**Location**: [`Step1-2_DataPipeline/`](Step1-2_DataPipeline/)
+**Location**: [`Step1-2_DataPipeline/`](Step1-2_DataPipeline/), **Code**: `1a_apcd_input_data/`, `1b_apcd_event_filter/`, `2_create_cohort/`
 
 - **[README_data_pipeline.md](Step1-2_DataPipeline/README_data_pipeline.md)** - Complete data pipeline architecture and optimization
 - **[README_create_cohort.md](Step1-2_DataPipeline/README_create_cohort.md)** - Cohort creation guide
@@ -22,17 +28,15 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 **Code**: `3b_feature_importance_eda/`
 
 - **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage features in aggregated importances
-- **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (actual event-level filtering happens in Step 4b)
+- **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (event-level filtering runs in **Step 1b**: `1b_apcd_event_filter`)
 - **Filter Post-Target Leakage** – Removes post-target leakage features from already-processed aggregated feature importance list
-- **Note**: This is NOT a DTW filter - it filters aggregated feature importances using BupaR process mining and code research
-- **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4a
+- **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4
 
-### Step 4: Model Data & Filtering
-**Code**: `4a_model_data/`, `4b_dtw_filter/`
+### Step 4: Model Data
+**Code**: `4_model_data/`
 
-- **[README_step4_overview.md](Step4_ModelData/README_step4_overview.md)** – Model-events extraction, DTW protocol filtering, and standardized extreme-density cohort split for all `(cohort, age_band)` combinations.
-- **Step 4a**: Model-ready event datasets (target vs control) using refined features from Step 3b
-- **Step 4b**: DTW protocol filtering to remove administrative codes, creating `model_events_no_protocols.parquet`
+- **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations.
+- Model-ready event datasets (target vs control) using refined features from Step 3b. Event/ICD filtering runs earlier in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 5: PGx Feature Engineering
 **Location**: [`Step5_PGxAnalysis/`](Step5_PGxAnalysis/)
@@ -40,7 +44,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 - **[README_pgx_analysis_overview.md](Step5_PGxAnalysis/README_pgx_analysis_overview.md)** – PGx mapping, allele frequencies, and PGx feature integration.
 
 ### Step 6: Final Model Development
-**Location**: [`Step6_FinalModel/`](Step6_FinalModel/)
+**Code**: `6_final_model/` | **Location**: [`Step6_FinalModel/`](Step6_FinalModel/)
 
 - **[README_final_model.md](Step6_FinalModel/README_final_model.md)** - Final model training and evaluation
 - **[README_catboost.md](Step6_FinalModel/README_catboost.md)** - CatBoost model details
@@ -118,10 +122,10 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 ### Workflow & Analysis
 **Location**: [`CrossStep_Workflow/`](CrossStep_Workflow/)
 
-- **[README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** - Complete analysis workflow (FPGrowth → CatBoost → BupaR)
+- **[README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** - Pointer to canonical analysis workflow (Steps 3a–9; three notebooks)
 - **[README_research_questions_mapping.md](CrossStep_Workflow/README_research_questions_mapping.md)** - Research questions to analysis methods mapping
 - **[README_healthcare_outcomes.md](CrossStep_Workflow/README_healthcare_outcomes.md)** - Healthcare outcomes rationale for cohort design
-- **[README_cross_ageband_analysis.md](CrossStep_Workflow/README_cross_ageband_analysis.md)** - Cross-age band analysis
+- **[docs/archived/README_cross_ageband_analysis.md](archived/README_cross_ageband_analysis.md)** - Cross-age band analysis (optional; archived)
 
 ### Visualization & Output
 **Location**: [`CrossStep_Visualization/`](CrossStep_Visualization/)
@@ -167,16 +171,14 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ```
 docs/
-├── Step1-2_DataPipeline/      # Data pipeline & cohort creation
-├── Step3_FeatureImportance/   # Step 3: Feature importance analysis
-├── Step3b_FeatureRefinement/  # Step 3b: Feature refinement (BupaR post-target analysis) - NEW
-├── Step4_ModelData/           # Step 4: Model data, DTW protocol filter, and extreme-density split
-├── Step5_PGxAnalysis/        # Step 5: Pharmacogenomic (PGx) feature engineering
+├── Step1-2_DataPipeline/      # Data pipeline & cohort creation (Steps 1a, 1b, 2)
+├── Step3_FeatureImportance/   # Step 3a: Feature importance (MC-CV)
+├── Step4_ModelData/           # Step 4: Model data (model_events.parquet)
+├── Step5_PGxAnalysis/         # Step 5: Pharmacogenomic (PGx) feature engineering
 ├── Step6_FinalModel/          # Step 6: Final model development
-├── Step7_SHAP/                # Step 7: SHAP analysis
 ├── Step8_FFA/                 # Step 8: Formal Feature Attribution analysis
 ├── Step9_RiskDashboard/       # Step 9: Risk dashboard
-├── CrossStep_Workflow/        # Cross-step workflow docs
+├── CrossStep_Workflow/        # Cross-step workflow docs (3a/3b, ICD filtering earlier)
 ├── CrossStep_Visualization/   # Visualization docs
 ├── CrossStep_Development/     # Development & testing docs
 └── Presentations/             # Presentation materials

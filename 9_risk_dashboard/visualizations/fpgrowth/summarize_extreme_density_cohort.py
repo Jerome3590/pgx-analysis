@@ -35,7 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-MODEL_DATA_ROOT = PROJECT_ROOT / "4a_model_data"
+MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
 TRAIN_YEARS = [2016, 2017, 2018]
 
 

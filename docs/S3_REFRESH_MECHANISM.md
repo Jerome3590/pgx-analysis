@@ -35,13 +35,13 @@ Use the utility script to clear outputs before re-running:
 
 ```bash
 # Clear Step 7 (SHAP) outputs
-python utility_scripts/regenerate_ffa_shap_if_stale.py \
+python archived/utility_scripts/regenerate_ffa_shap_if_stale.py \
     --cohort opioid_ed \
     --age-band 13-24 \
     --clear-step7
 
 # Clear Step 8 (FFA) outputs
-python utility_scripts/regenerate_ffa_shap_if_stale.py \
+python archived/utility_scripts/regenerate_ffa_shap_if_stale.py \
     --cohort opioid_ed \
     --age-band 13-24 \
     --clear-step8
@@ -104,7 +104,7 @@ aws s3 rm s3://pgxdatalake/gold/ffa_analysis/opioid_ed/13-24/ --recursive
 Use the utility script to check if files exist:
 
 ```bash
-python utility_scripts/check_shap_s3_files.py \
+python archived/utility_scripts/check_shap_s3_files.py \
     --cohort opioid_ed \
     --age-band 13-24
 ```
@@ -128,7 +128,7 @@ exists = check_s3_output_exists(s3_path)
 ## Related Files
 
 - `py_helpers/checkpoint_utils.py` - Upload and checkpoint functions
-- `utility_scripts/regenerate_ffa_shap_if_stale.py` - Clear outputs utility
-- `utility_scripts/check_shap_s3_files.py` - Check file existence utility
+- `archived/utility_scripts/regenerate_ffa_shap_if_stale.py` - Clear outputs utility
+- `archived/utility_scripts/check_shap_s3_files.py` - Check file existence utility
 - `py_helpers/s3_utils.py` - S3 utility functions (including `s3_delete_object_if_exists`)
 

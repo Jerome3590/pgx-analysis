@@ -54,7 +54,7 @@ This folder contains all documentation for the production-ready risk assessment 
     - `prepare_cpic_data.py` - Prepare CPIC data for PGx cards
   - Deployment: `docker_build.sh` - Docker container build script
 
-- **Workflow integration**: `utility_scripts/run_cohort_workflow.sh`
+- **Workflow integration**: Run via `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`; legacy scripts in `archived/utility_scripts/run_cohort_workflow.sh`
   - Step 9 runs automatically for each cohort/age_band
   - Prepares dashboard artifacts incrementally
 

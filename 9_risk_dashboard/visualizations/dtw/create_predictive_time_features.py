@@ -228,10 +228,10 @@ def create_predictive_time_features(
     
     age_band_fname = age_band.replace("-", "_")
     
-    # Prefer protocol-filtered 4a_model_data (canonical model-ready cases + controls).
+    # Prefer protocol-filtered 4_model_data (canonical model-ready cases + controls).
     model_data_dir = (
         project_root
-        / "4a_model_data"
+        / "4_model_data"
         / f"cohort_name={cohort_name}"
         / f"age_band={age_band}"
     )

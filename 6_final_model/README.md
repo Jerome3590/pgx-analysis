@@ -1,6 +1,6 @@
 # Final Model Development - PGx Analysis
 
-This module hosts the final prediction model pipeline combining features from FPGrowth, BupaR, and DTW analyses for patient-level classification.
+This module (`6_final_model`) hosts the final prediction model pipeline combining features from FPGrowth, BupaR, and DTW analyses for patient-level classification.
 
 ## Overview
 

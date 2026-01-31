@@ -2,15 +2,19 @@
 """
 Prepare and upload train/test datasets to S3 for final model training.
 
+Saving to S3 is **required** (not optional): SHAP (Step 7) and FFA (Step 8) analysis
+depend on model training input data in S3 when run in separate environments or
+when syncing from S3. This script fails if upload fails.
+
 This script:
 1. Loads the final feature table
 2. Splits into train (2016-2018) and test (2019) using temporal validation
-3. Saves train and test datasets to S3 gold location
+3. Saves train and test datasets to S3 gold location (required)
 4. Organizes by cohort and age_band
 
 S3 Structure:
-- s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/model_train/final_features.parquet
-- s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/model_test/final_features.parquet
+- s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/inputs/model_train/final_features.parquet
+- s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/inputs/model_test/final_features.parquet
 
 Usage:
     python prepare_train_test_s3.py --cohort-name opioid_ed --age-band 0-12
@@ -96,20 +100,20 @@ def prepare_train_test_s3(
     print(f"[INFO] Loaded {len(df)} patients with {len(df.columns)} columns")
     
     # Load model_data to get event_year information for temporal split
-    # Step 4a saves to 4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
+    # Step 4a saves to 4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
     from py_helpers.env_utils import get_data_root, is_linux
     
     data_root = get_data_root() if is_linux() else None
     
     # Check multiple possible locations
     model_data_paths = [
-        project_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
+        project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
     ]
     
     # Add /mnt/nvme path if on Linux
     if data_root:
         model_data_paths.append(
-            data_root / "4a_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet"
+            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet"
         )
     
     # Try S3 if not found locally
@@ -321,6 +325,7 @@ def prepare_train_test_s3(
             print(f"[ERROR] boto3 upload failed: {e}")
             raise RuntimeError(f"Failed to upload training data to S3: {e}")
     
+    # Test dataset upload is required for SHAP/FFA (same as train).
     if len(test_features) > 0:
         upload_test_success = False
         if aws_cli:
@@ -346,8 +351,13 @@ def prepare_train_test_s3(
                 print(f"[INFO] Uploading test dataset to S3 using boto3: s3://{bucket}/{s3_key_test}")
                 s3_client.upload_file(str(test_path), bucket, s3_key_test)
                 print(f"[INFO] Test dataset uploaded successfully to S3")
+                upload_test_success = True
+            except ImportError:
+                print(f"[ERROR] boto3 not available. Test data must be in S3 for SHAP/FFA.")
+                raise RuntimeError("S3 upload failed and boto3 is not available. Install boto3: pip install boto3")
             except Exception as e:
-                print(f"[WARNING] Test dataset upload failed: {e} (non-critical)")
+                print(f"[ERROR] Test dataset upload failed: {e}")
+                raise RuntimeError(f"Failed to upload test data to S3 (required for SHAP/FFA): {e}")
     
     # Also save metadata files (in both locations)
     metadata_train = {

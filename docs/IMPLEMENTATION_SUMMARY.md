@@ -8,17 +8,17 @@ This document summarizes the major updates made to align the workflow with the n
 
 ### 1. Workflow Script Updates ✅
 
-**File**: `utility_scripts/run_cohort_workflow.sh`
+**File**: Workflow runs via the three primary notebooks (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/` if needed.
 
 **Changes**:
 - Removed steps 5a (BupaR), 5b (FP-Growth), 5d (DTW) from main pipeline
-- Updated pipeline to: Feature Importance → DTW Filter → PGx → Final Model → FFA → SHAP → Combined → Dashboard → Deploy
-- Added comments explaining that BupaR, DTW, and FP-Growth are now dashboard-only visualizations
+- Pipeline: Feature Importance (Step 2) → Model Data (Step 4) → PGx (Step 5) → Final Model (Step 6) → SHAP (Step 7) → FFA (Step 8) → Dashboard (Step 9)
+- Event filtering is in Step 1b; BupaR, DTW, and FP-Growth are dashboard-only visualizations
 - Updated step descriptions to reflect new requirements
 
 ### 2. Final Model Script Updates ✅
 
-**File**: `6b_final_model_selection/run_final_model.py`
+**File**: `6_final_model/run_final_model.py`
 
 **Major Changes**:
 
@@ -55,7 +55,7 @@ This document summarizes the major updates made to align the workflow with the n
 
 ### 4. FFA Analysis Updates ✅
 
-**File**: `7_ffa_analysis/run_full_ffa_analysis.py`
+**File**: `8_ffa_analysis/run_full_ffa_analysis.py`
 
 **Changes**:
 - ✅ Updated to load `best_xgboost_model.json` instead of separate xgb/xgb_rf models
@@ -118,8 +118,8 @@ else:
 The updated workflow now follows this sequence:
 
 1. **Step 3**: Feature Importance (idempotent - checks for existing aggregated results)
-2. **Step 4b**: DTW Protocol Filtering (administrative/scheduling codes, keep surgeries)
-3. **Step 5c**: PGx Feature Engineering (ONLY feature engineering step)
+2. **Step 4**: Model Data (model events; event filtering done in Step 1b)
+3. **Step 5**: PGx Feature Engineering (ONLY feature engineering step)
 4. **Step 6**: Final Model Training
    - Uses aggregated features + PGx features
    - Trains CatBoost, XGBoost, XGBoost RF
@@ -128,7 +128,7 @@ The updated workflow now follows this sequence:
 5. **Step 7**: SHAP Analysis (uses best CatBoost binary, produces SHAP importance)
 6. **Step 8**: FFA Analysis (uses best XGBoost JSON + SHAP importance from Step 7). Rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 7. **Step 9**: Risk Dashboard (BupaR/DTW/FP-Growth visualizations)
-9. **Step 11**: Deploy to S3/AWS Lambda
+8. **Deploy**: S3/AWS Lambda as needed
 
 ## Testing Checklist
 

@@ -11,7 +11,7 @@ Status: ✅ Complete (for historical reference only; used `4_model_data` and old
 Model performance and step details are preserved below but superseded by the refactored run.
 
 ### Summary (Legacy)
-- Step 3: Feature Importance – complete, artifacts preserved under `3_feature_importance/outputs/`
+- Step 3: Feature Importance – complete, artifacts preserved under `3a_feature_importance/outputs/`
 - Step 4: FP-Growth Analysis – complete
 - Step 5: BupaR Analysis – complete
 - Step 6: DTW Analysis – complete
@@ -27,17 +27,15 @@ Model performance and step details are preserved below but superseded by the ref
 **As of:** 2026-01-07  
 **Status:** ✅ Final production workflow definition
 
-**Workflow Execution:**
+**Workflow Execution:** Run via the three workflow notebooks (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/`:
 ```bash
-# Single cohort/age band
-bash utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band>
+# Single cohort/age band (legacy)
+bash archived/utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band>
 
-# All cohorts in a group
-bash utility_scripts/run_opioid_ed_workflow.sh
-bash utility_scripts/run_non_opioid_ed_workflow.sh
-
-# All cohorts
-bash utility_scripts/run_all_cohorts_workflow.sh
+# All cohorts (legacy)
+bash archived/utility_scripts/run_opioid_ed_workflow.sh
+bash archived/utility_scripts/run_non_opioid_ed_workflow.sh
+bash archived/utility_scripts/run_all_cohorts_workflow.sh
 ```
 
 **Performance Configuration:**
@@ -47,94 +45,31 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 
 ### Step 3: Feature Importance ✅
 - **Status:** ✅ Complete (reused from previous run)
-- **Outputs:** `3_feature_importance/outputs/`
-- **Notes:** Not regenerated; serves as input to `4a_model_data/create_model_data.py` and PGx scripts.
+- **Outputs:** `3a_feature_importance/outputs/`
+- **Notes:** Not regenerated; serves as input to `4_model_data/create_model_data.py` and PGx scripts.
 
-### Step 4a: Model Data Extraction (4a_model_data) ⏳
+### Step 4: Model Data (4_model_data) ⏳
 - **Goal:** Build within-cohort model-ready event data (cases + clean controls) for `opioid_ed / 0-12`.
-- **Script:** `4a_model_data/create_model_data.py`
+- **Script:** `4_model_data/create_model_data.py`
 - **Outputs:**  
-  - `4a_model_data/cohort_name=opioid_ed/age_band=0-12/model_events.parquet`
+  - `4_model_data/cohort_name=opioid_ed/age_band=0-12/model_events.parquet`
 - **Status:** ⏳ To (re)run with updated DuckDB-only implementation.
+- **Note:** Event filtering (administrative/scheduling codes) is in Step 1b (`1b_apcd_event_filter`). DTW protocol filtering is for dashboard visualizations only (Step 9).
 
-### Step 4b: DTW Protocol Filtering (`4b_dtw_filter`) ⏳
-- **Goal:** Create protocol-filtered event data to reduce noise from routine care sequences.
-- **Script:** `4b_dtw_filter/filter_protocol_events.py`
-- **Inputs:**  
-  - `4a_model_data/cohort_name=opioid_ed/age_band=0-12/model_events.parquet`
-- **Outputs:**  
-  - `4a_model_data/cohort_name=opioid_ed/age_band=0-12/model_events_no_protocols.parquet`
-- **Status:** ⏳ Pending after Step 4a completes.
+### Step 4 (optional): Extreme-Density Cohort Split ⏳
+- **Goal:** Optional extraction of patients with extremely dense medical_code trajectories for dashboard visualizations (not part of main pipeline).
+- **Inputs/Outputs:** If used, extreme-density outputs live under `4_model_data/` or dashboard-specific paths.
+- **Status:** Optional; main pipeline uses `4_model_data/` only.
 
-### Step 4c: Extreme-Density Cohort Split (`5b_fpgrowth_analysis/extract_extreme_density_cohort.py`) ⏳
-- **Goal:** Identify patients with extremely dense medical_code trajectories (ICD + procedure_code over TRAIN years) and:
-  - move them into a separate `_extreme_density` cohort, and  
-  - remove them from the main `4a_model_data` event set so they do not dominate FP-Growth, BupaR, DTW, and final models.
-- **Script:** `5b_fpgrowth_analysis/extract_extreme_density_cohort.py`
-- **Inputs:**  
-  - `4a_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet` (after Steps 4a and 4b as applicable)
-- **Outputs:**  
-  - `4a_model_data/cohort_name={cohort_name}_extreme_density/age_band={age_band}/model_events.parquet`  
-  - `4a_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet` rewritten with extreme-density patients removed  
-  - `4a_model_data/cohort_name={cohort_name}/age_band={age_band}/extreme_density_patients_{age_band_fname}.csv`
-- **Status:** ⏳ Run once per `(cohort, age_band)` before `5b_fpgrowth_analysis/run_analysis.py`; when complete, main and `_extreme_density` cohorts can each run through Steps 5–8 independently.
+**Note:** FP-Growth, BupaR, and DTW are used for dashboard visualizations only (Step 9, `9_risk_dashboard/`), not as pipeline steps. Main pipeline: 3a → 4 → 5 → 6 → 7 → 8 → 9.
 
-### Step 5b: FP-Growth Analysis (Pattern Mining + Features + Plots) ⏳
-- **Goal:** Rebuild FP-Growth itemsets, rules, features, and visualizations using the new layout.
-- **Script:** `5b_fpgrowth_analysis/run_analysis.py`
-- **Inputs:**  
-  - `4a_model_data/.../model_events[_no_protocols].parquet` (via `create_fpgrowth_features.py`)  
-  - FP-Growth itemsets JSONs under `5b_fpgrowth_analysis/outputs/...`
-- **Outputs (authoritative):**  
-  - `5b_fpgrowth_analysis/outputs/...` (itemsets, rules, metrics, encoding maps)  
-  - `5b_fpgrowth_analysis/outputs/feature_engineering/fpgrowth_features_*`  
-  - `5b_fpgrowth_analysis/outputs/feature_engineering/fpgrowth_added_features_*`
-- **Outputs (mirrored for convenience):**  
-  - `feature_engineering_outputs/4_fpgrowth/opioid_ed/0-12/fpgrowth_features_opioid_ed_0_12.csv`  
-  - `feature_engineering_outputs/4_fpgrowth/opioid_ed/0-12/fpgrowth_added_features_opioid_ed_0_12.csv`  
-  - `feature_engineering_outputs/4_fpgrowth/opioid_ed/0-12/plots/` (all FP-Growth plots)
-- **Status:** ⏳ Pending (to be rerun end‑to‑end).
-
-### Step 5a: BupaR Process Mining ⏳
-- **Goal:** Rebuild BupaR event logs, pre-/post-target features, and merged patient-level table.
-- **Scripts:**  
-  - `5a_bupaR_analysis/create_bupar_outputs_opioid_ed.R`  
-  - `5a_bupaR_analysis/add_bupar_features_to_model_data.R`
-- **Inputs:**  
-  - `4a_model_data/.../model_events[_no_protocols].parquet` (via create_bupar scripts)  
-  - FP-Growth target-only itemsets from `5b_fpgrowth_analysis/outputs/...`
-- **Outputs (authoritative):**  
-  - `5a_bupaR_analysis/outputs/opioid_ed/0_12/features/...`  
-  - `5a_bupaR_analysis/outputs/feature_engineering/bupaR_added_features_opioid_ed_0_12.csv`
-- **Outputs (mirrored for convenience):**  
-  - `feature_engineering_outputs/5_bupar/opioid_ed/0-12/bupaR_added_features_opioid_ed_0_12.csv`  
-  - `feature_engineering_outputs/5_bupar/opioid_ed/0-12/sequence_features_opioid_ed_0_12.csv` (if present)  
-  - `feature_engineering_outputs/5_bupar/opioid_ed/0-12/plots/` (Gantt charts, activity plots, etc.)
-- **Status:** ⏳ Pending (to be rerun with new event data + central mirroring).
-
-### Step 6: DTW Trajectory Features ⏳
-- **Goal:** Rebuild DTW trajectory features and merge them into a single patient-level block.
-- **Scripts:**  
-  - `5d_dtw_analysis/create_dtw_features.py`  
-  - `5d_dtw_analysis/add_dtw_features_to_model_data.py`
-- **Inputs:**  
-  - Protocol-filtered model data from Step 4b  
-  - FP-Growth itemsets (`5b_fpgrowth_analysis/outputs/...`)
-- **Outputs (authoritative):**  
-  - `5d_dtw_analysis/outputs/feature_engineering/dtw_features_opioid_ed_0_12.csv`  
-  - `5d_dtw_analysis/outputs/feature_engineering/dtw_added_features_opioid_ed_0_12.csv`
-- **Outputs (mirrored for convenience):**  
-  - `feature_engineering_outputs/6_dtw/opioid_ed/0-12/dtw_features_opioid_ed_0_12.csv`  
-  - `feature_engineering_outputs/6_dtw/opioid_ed/0-12/dtw_added_features_opioid_ed_0_12.csv`
-- **Status:** ⏳ Pending.
-
-### Step 5c: PGx Feature Engineering ✅
+### Step 5: PGx Feature Engineering ✅
 - **Goal:** Build PGx patient-level features from drug-gene mappings and allele frequencies.
 - **Script:** `5_pgx_analysis/run_analysis.py`
 - **Inputs:**  
-  - Aggregated feature importance (`3_feature_importance/outputs/...`)  
+  - Aggregated feature importance (`3a_feature_importance/outputs/...`)  
   - Drug–gene mappings, allele frequencies (`5_pgx_analysis/outputs/...`)  
-  - Model events from `4a_model_data/...` (for exposure linking)
+  - Model events from `4_model_data/...` (for exposure linking)
 - **Outputs:**  
   - `5_pgx_analysis/outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`  
   - `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`
@@ -143,10 +78,10 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 
 ### Step 6: Final Model Training ✅
 - **Goal:** Assemble final feature matrix from aggregated feature importances + PGx features, train CatBoost and XGBoost models, select best by recall/AUC-PR.
-- **Script:** `6_final_model_selection/run_final_model.py`
+- **Script:** `6_final_model/run_final_model.py`
 - **Inputs:**  
-  - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`  
-  - Aggregated feature importances (`3_feature_importance/outputs/...`)
+  - `4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` (event filtering in Step 1b)  
+  - Aggregated feature importances (`3a_feature_importance/outputs/...`)
   - PGx features (`5_pgx_analysis/outputs/feature_engineering/pgx_added_features_*.csv`)
 - **Outputs:**  
   - `6_final_model/outputs/{cohort}/{age_band_fname}/final_model_json/*.json` (XGBoost JSON for FFA)
@@ -215,18 +150,14 @@ bash utility_scripts/run_all_cohorts_workflow.sh
 For each `(cohort, age_band)` we track the following high-level checkpoints:
 
 1. **Step 3: Feature Importance Complete** ✅
-   - Aggregated feature importances present under `3_feature_importance/outputs/{cohort}/{age_band}/`
-   - Used as input for Step 4a and Step 5c
+   - Aggregated feature importances present under `3a_feature_importance/outputs/{cohort}/{age_band}/`
+   - Used as input for Step 4 and Step 5
 
-2. **Step 4a: Model Data Extraction Complete** ✅
-   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` present
-   - Contains cases + controls for model training
+2. **Step 4: Model Data Complete** ✅
+   - `4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` present
+   - Contains cases + controls for model training (event filtering in Step 1b)
 
-3. **Step 4b: DTW Protocol Filtering Complete** ✅
-   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet` present
-   - Administrative/scheduling codes filtered out
-
-4. **Step 5c: PGx Feature Engineering Complete** ✅
+3. **Step 5: PGx Feature Engineering Complete** ✅
    - `5_pgx_analysis/outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv` present
    - S3: `s3://pgxdatalake/gold/pgx_features/{cohort}/{age_band}/pgx_added_features_*.csv`
 
@@ -235,7 +166,7 @@ For each `(cohort, age_band)` we track the following high-level checkpoints:
    - `6_final_model/outputs/{cohort}/{age_band_fname}/*.cbm` (CatBoost binary for SHAP)
    - `6_final_model/outputs/{cohort}/{age_band_fname}/*_train_final_features_no_leakage.csv`
 
-6. **Step 7: SHAP Analysis Complete** ✅
+5. **Step 7: SHAP Analysis Complete** ✅
    - S3: `s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/`
      - `*_shap_global_importance_xgboost.csv`
      - `*_shap_global_importance_catboost.csv`
@@ -252,7 +183,7 @@ For each `(cohort, age_band)` we track the following high-level checkpoints:
    - **Note:** Only XGBoost FFA is performed (CatBoost FFA not performed due to hashing/CTR complexity)
    - Uses SHAP importance from both XGBoost and CatBoost (from Step 7) to filter/prioritize rules
 
-8. **Step 9: Risk Dashboard Complete** ✅
+7. **Step 9: Risk Dashboard Complete** ✅
    - Dashboard visualizations and causal analysis reports generated
    - Interactive dashboards (Plotly HTML) and static visualizations (PNG)
 
@@ -273,9 +204,9 @@ Legend:
 | Cohort      | Age Band | 3. Feature Importance | 4a. Model Data | 4b. DTW Filter | 5c. PGx Features | 6. Final Model | 7. SHAP Analysis | 8. FFA Analysis | 9. Dashboard | Notes                                  |
 |------------|----------|----------------------|----------------|----------------|------------------|----------------|------------------|-----------------|-------------|----------------------------------------|
 | opioid_ed  | 0-12     | TEST                 | TEST           | TEST           | TEST             | TEST           | TEST             | TEST            | TEST        | Test-only cohort; pipeline smoke test. |
-| opioid_ed  | 13-24    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
-| opioid_ed  | 25-44    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
-| opioid_ed  | 45-54    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed on DTW-filtered 4a_model_data. |
+| opioid_ed  | 13-24    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed (4_model_data). |
+| opioid_ed  | 25-44    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed (4_model_data). |
+| opioid_ed  | 45-54    | DONE                 | DONE           | DONE           | DONE             | DONE           | DONE             | DONE            | DONE         | All steps completed (4_model_data). |
 | opioid_ed  | 55-64    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Planned production cohort.             |
 
 **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
@@ -305,9 +236,9 @@ Legend (same as above):
 | Cohort                 | Age Band | 1. Feature Engineering | 2. Final Model Selection | 3. FFA Analysis | 4. SHAP Analysis | 5. Dashboard Artifacts | Notes                                                           |
 |------------------------|----------|------------------------|--------------------------|-----------------|------------------|------------------------|-----------------------------------------------------------------|
 | opioid_ed_extreme_density | 13-24 | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Optional; can mirror main-cohort pipeline if density cohort is of interest. |
-| opioid_ed_extreme_density | 25-44 | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Historical extreme-density split exists in legacy layout; refactor to 4a_model_data as needed. |
-| opioid_ed_extreme_density | 45-54 | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Planned once main 45–54 refactor is complete.                  |
-| opioid_ed_extreme_density | 55-64 | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | Extreme-density split implemented in `4a_model_data`; rerun Steps 5–8 on this cohort. |
+| opioid_ed_extreme_density | 25-44 | PENDING   | PENDING | PENDING | PENDING | PENDING | Historical extreme-density split; refactor to 4_model_data as needed. |
+| opioid_ed_extreme_density | 45-54 | PENDING   | PENDING | PENDING | PENDING | PENDING | Planned once main 45–54 refactor is complete. |
+| opioid_ed_extreme_density | 55-64 | PENDING   | PENDING | PENDING | PENDING | PENDING | Extreme-density in `4_model_data`; rerun Steps 5–8 if used. |
 
 **Cohort 2 – Polypharmacy ED Extreme-Density (`non_opioid_ed_extreme_density`)**
 
@@ -322,15 +253,15 @@ Legend (same as above):
 ## Execution Log
 
 ### 2026-01-07 – Final Production Workflow Established
-- ✅ Final workflow steps defined: 3 → 4a → 4b → 5c → 6 → 7 → 8 → 9
-- ✅ CatBoost FFA removed (not performed due to hashing/CTR complexity)
-- ✅ CatBoost SHAP used for feature importance filtering in XGBoost FFA
+- ✅ Final workflow steps: 3 → 4 → 5 → 6 → 7 → 8 → 9 (notebooks: 1_cohort_workflow, 2_feature_importance, 3_pgx_calculator_workflow)
+- ✅ Event filtering in Step 1b (`1b_apcd_event_filter`); model data in `4_model_data/`
+- ✅ CatBoost FFA removed (not performed); CatBoost SHAP used for feature importance filtering in XGBoost FFA
 - ✅ Rule selection logic: first 100 + random 100 + top 300 SHAP-filtered rules
 - ✅ DuckDB threads increased to 4 per connection (optimized for 32-core EC2)
-- ✅ Workflow execution commands documented in top-level README
+- ✅ Workflow execution via three notebooks; legacy scripts in `archived/utility_scripts/`
 - ✅ All steps are idempotent (skip completed steps automatically)
 
 ### 2025-12-31 – Workflow Layout Updated
-- ✅ Preserve Step 3 Feature Importance artifacts under `3_feature_importance/outputs/`.
-- ✅ Update scripts and paths to use `4a_model_data/` and `feature_engineering_outputs/{step}/{cohort}/{age_band}/`.
+- ✅ Step 3 Feature Importance artifacts under `3a_feature_importance/outputs/`.
+- ✅ Scripts and paths use `4_model_data/`; BupaR/DTW/FP-Growth for dashboard only (Step 9).
 

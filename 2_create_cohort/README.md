@@ -360,7 +360,7 @@ Before running the cohort pipeline, run the target frequency analysis script (wh
 
 ```bash
 # Analyze target codes and automatically pre-compute averages for cohort creation
-python 1_apcd_input_data/7_target_frequency_analysis.py --profile mushin
+python 1a_apcd_input_data/7_target_frequency_analysis.py --profile mushin
 ```
 
 This creates `cohort_target_averages.json` in the project root, which Phase 3 uses for control-only cohort sizing. The pre-computation happens automatically as part of the target frequency analysis.
@@ -697,7 +697,7 @@ print(state.get_progress())
 - `docs/README_duckdb_dev.md` — Database performance tuning
 - `docs/README_preprocessing.md` — Pre-imputation overview
 - `2_create_cohort/phases/` — Phase-level logic reference
-- `1_apcd_input_data/7_target_frequency_analysis.py` — Target frequency analysis (includes automatic pre-computation of cohort target averages)
+- `1a_apcd_input_data/7_target_frequency_analysis.py` — Target frequency analysis (includes automatic pre-computation of cohort target averages)
 - `control_only_cohort_analysis.md` — Detailed analysis of control-only cohort strategy
 
 ***

@@ -251,7 +251,7 @@ Generates PGx patient card from SNP data.
 
 The dashboard supports incremental deployment:
 
-- **Build with available cohorts**: `./utility_scripts/build_dashboard.sh`
+- **Build with available cohorts**: See `9_risk_dashboard/deployment/` or `archived/utility_scripts/build_dashboard.sh`
 - **Graceful degradation**: Missing cohorts show helpful error messages
 - **Incremental updates**: Rebuild as more cohorts complete
 - **No failures**: Dashboard works with partial data

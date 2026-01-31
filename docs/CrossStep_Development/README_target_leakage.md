@@ -197,7 +197,7 @@ This ensures that at prediction time, we don't need to know if/when F1120 will o
 - Patient has itemset `[AMOXICILLIN, F10.10]` → `drug_name_itemset_2_match = 1`, `drug_name_itemset_2_support = 0.15`
 - Patient matches rule `AMOXICILLIN → F10.10` → `drug_name_rule_5_match = 1`, `drug_name_rule_5_confidence = 0.8`
 
-**Source:** `4_fpgrowth_analysis/create_fpgrowth_features.py`
+**Source:** `9_risk_dashboard/visualizations/fpgrowth/create_fpgrowth_features.py`
 
 ---
 

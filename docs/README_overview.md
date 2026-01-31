@@ -6,20 +6,21 @@ Project structure, components, and high-level workflow for the Prescription Drug
 
 ```mermaid
 graph TD
-    A[pgx_analysis] --> B[1_apcd_input_data]
+    A[pgx_analysis] --> B[1a_apcd_input_data]
+    A --> B2[1b_apcd_event_filter]
     A --> C[2_create_cohort]
-    A --> D[3_feature_importance]
-    A --> E[4a_model_data]
-    A --> E2[4b_event_filter]
+    A --> D[3a_feature_importance]
+    A --> D2[3b_feature_importance_eda]
+    A --> E[4_model_data]
     A --> H[5_pgx_analysis]
-    A --> J[6_final_model_selection]
+    A --> J[6_final_model]
     A --> K[7_shap_analysis]
     A --> L[8_ffa_analysis]
     A --> N[9_risk_dashboard]
     A --> O[py_helpers]
     
     B --> B1[medical]
-    B --> B2[pharmacy]
+    B --> B_ph[pharmacy]
     B --> B3[0_txt_to_parquet.py]
     B --> B4[3_apcd_clean.py]
     B --> B5[drug_mappings]
@@ -36,8 +37,8 @@ graph TD
     E --> E1[create_model_data.py]
     E --> E3[model_events.parquet]
     
-    E2 --> E4[filter_protocol_events.py]
-    E2 --> E5[model_events_no_protocols.parquet]
+    B2 --> B2a[filter_protocol_events.py]
+    B2 --> B2b[ICD/administrative code filtering]
     
     H --> H1[run_analysis.py]
     H --> H2[pgx_added_features.csv]
@@ -45,9 +46,9 @@ graph TD
     J --> J1[run_final_model.py]
     J --> J2[final_model outputs]
     
-    K --> K1[run_full_ffa_analysis.py<br/>Uses SHAP to prioritize rules]
+    K --> K1[run_shap_analysis.py]
     
-    L --> L1[run_shap_analysis.py]
+    L --> L1[ffa_analysis.py<br/>Uses SHAP to prioritize rules]
     
     N --> N1[frontend/<br/>Dashboard HTML]
     N --> N2[backend/<br/>Lambda Function]
@@ -65,7 +66,7 @@ graph TD
     style C fill:#bbf,stroke:#333,stroke-width:2px
     style D fill:#bbf,stroke:#333,stroke-width:2px
     style E fill:#bbf,stroke:#333,stroke-width:2px
-    style E2 fill:#bbf,stroke:#333,stroke-width:2px
+    style B2 fill:#bbf,stroke:#333,stroke-width:2px
     style H fill:#bfb,stroke:#333,stroke-width:2px
     style J fill:#fbb,stroke:#333,stroke-width:2px
     style K fill:#fbf,stroke:#333,stroke-width:2px
@@ -100,100 +101,78 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 - **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
   - Age bands modeled: **65–74**, **75–84**, **85–94**
 
+**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3b), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). **ICD filtering** runs earlier in **1b_apcd_event_filter** (before cohorts) for efficient data processing and true feature importances; feature importances (3a/3b) are rerun after cohorts.
+
 For every `(cohort, age_band)` above we run:
-- MC‑CV feature importance (`3_feature_importance/`) producing aggregated feature importances
+- MC‑CV feature importance (`3a_feature_importance/`) producing aggregated feature importances
 - Feature refinement (`3b_feature_importance_eda/`) using BupaR post-target analysis to filter and refine features, producing `cohort_feature_importance` files
-- model‑ready event extraction (`4a_model_data/`) creating event-level cases + controls using refined features from Feature Importance EDA
-- Event filtering (`4b_event_filter/`) to create `model_events_no_protocols.parquet` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR)
+- model‑ready event extraction (`4_model_data/`) creating event-level cases + controls using refined features from Feature Importance EDA
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
-- final model training and export (`6_final_model_selection/`), producing **one model per cohort/age‑band** using aggregated features + PGx features (no encoding)
+- final model training and export (`6_final_model/`), producing **one model per cohort/age‑band**
 - post-model analysis: SHAP (`7_shap_analysis/`) followed by FFA (`8_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
 - risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
 
+Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for idempotency. Three notebooks: **1_cohort_workflow.ipynb** (Steps 1-2), **2_feature_importance.ipynb** (Steps 3a-3b), **3_pgx_calculator_workflow.ipynb** (Steps 4-9).
+
 ```mermaid
 flowchart TD
-    subgraph "Step 1-2: Data Preparation"
-        A1[APCD Input Data] --> A2[Data Cleaning]
-        A2 --> A3[Cohort Creation]
+    subgraph W1["1_cohort_workflow.ipynb (Steps 1-2)"]
+        A1[1a: APCD Input Data] --> A2[Data Cleaning]
+        A2 --> A1b[1b: Event Filter ICD/Admin]
+        A1b --> A3[2: Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
-    
-    subgraph "Step 3: Feature Discovery"
-        A4 --> B1[Monte Carlo CV]
-        B1 --> B2[Aggregated Feature Importance<br/>CatBoost + XGBoost]
+
+    subgraph W2["2_feature_importance.ipynb (Steps 3a-3b)"]
+        A4 --> B1[3a: Monte Carlo CV]
+        B1 --> B2[Aggregated Feature Importance]
         B2 --> B3[Top Features Selection]
+        B3 --> B4[BupaR Post-Target + Code Research]
+        B4 --> B6[Refined cohort_feature_importance.csv]
     end
-    
-    subgraph "Feature Importance EDA: Feature Refinement"
-        B3 --> B4[BupaR Post-Target Analysis<br/>Identify Post-Target Leakage]
-        B4 --> B5[Code Research & Validation<br/>Administrative Codes]
-        B5 --> B6[Refined Cohort Feature Importance<br/>cohort_feature_importance.csv]
+
+    subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
+        B6 --> C1[4: Model Data]
+        C1 --> D1[5: PGx Feature Engineering]
+        D1 --> E1[6: Final Model]
+        E1 --> E4[Model Selection]
+        E4 --> F1[7: SHAP]
+        E4 --> F2[8: FFA]
+        F1 --> G1[9: Risk Dashboard]
+        F2 --> G1
+        G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
-    
-    subgraph "Step 4: Model Data & Filtering"
-        B6 --> C1[4a: Model Data Extraction<br/>Event-level Cases + Controls]
-        C1 --> C2[4b: Protocol Filtering<br/>Remove Administrative Codes]
-    end
-    
-    subgraph "Step 5: PGx Feature Engineering"
-        C2 --> D1[PGx Feature Engineering<br/>PGx Drug Counts<br/>Drug Counts]
-    end
-    
-    subgraph "Step 6: Final Model Training"
-        D1 --> E1[Feature Integration<br/>Refined Features + PGx]
-        E1 --> E2[CatBoost Training]
-        E1 --> E3[XGBoost Training]
-        E1 --> E3a[XGBoost RF Training]
-        E2 --> E4[Model Selection & Evaluation<br/>Best Model<br/>Recall + AUC-PR]
-        E3 --> E4
-        E3a --> E4
-    end
-    
-    subgraph "Step 7-8: Post-Model Analysis"
-        E4 --> F1[7: SHAP Analysis<br/>CatBoost + XGBoost<br/>SHAP Values]
-        E4 --> F2[8: FFA Analysis<br/>XGBoost Only<br/>Formal Feature Attribution<br/>Uses SHAP to prioritize rules]
-        F1 --> F2
-    end
-    
-    subgraph "Step 9: Risk Dashboard"
-        F2 --> G1[Risk Dashboard<br/>Model Deployment]
-        F1 --> G1
-        G1 --> G2[Frontend Dashboard<br/>Risk Assessment + PGx Cards]
-        G1 --> G3[Backend API<br/>Lambda Function]
-        G1 --> G4[Dashboard Visuals:<br/>Causal Analysis + DTW +<br/>FP-Growth + BupaR]
-        G2 --> G5[Production Deployment<br/>S3 + API Gateway + Lambda]
-        G3 --> G5
-        G4 --> G5
-    end
-    
-    style A1 fill:#f9f,stroke:#333,stroke-width:2px
-    style B2 fill:#bbf,stroke:#333,stroke-width:2px
-    style D1 fill:#bfb,stroke:#333,stroke-width:2px
-    style E4 fill:#fbb,stroke:#333,stroke-width:2px
-    style F3 fill:#fbf,stroke:#333,stroke-width:2px
-    style G1 fill:#ffb,stroke:#333,stroke-width:2px
-    style D4 fill:#fbb,stroke:#333,stroke-width:2px
-    style E2 fill:#fbb,stroke:#333,stroke-width:2px
-    style E3 fill:#fbb,stroke:#333,stroke-width:2px
-    style F3 fill:#f9f,stroke:#333,stroke-width:2px
+
+    style A1 fill:#f9f,stroke:#333
+    style A1b fill:#e9c,stroke:#333
+    style B2 fill:#bbf,stroke:#333
+    style C1 fill:#bfb,stroke:#333
+    style E4 fill:#fbb,stroke:#333
+    style G1 fill:#ffb,stroke:#333
 ```
 
 ## Repository Structure
 
 ```
 pgx-analysis/
-├── 1_apcd_input_data/          # APCD data preprocessing and cleaning (bronze → silver → gold)
-├── 2_create_cohort/            # Cohort creation and QA
-├── 3_feature_importance/       # MC-CV feature importance screening
-├── 4a_model_data/              # Model-ready event datasets (target vs control)
-├── 4b_event_filter/            # Event filtering (creates model_events_no_protocols.parquet - filters administrative codes and post-event leakage)
+├── 1a_apcd_input_data/         # APCD data preprocessing and cleaning (bronze → silver → gold)
+├── 1b_apcd_event_filter/      # Event filtering (ICD/administrative codes; runs before cohorts)
+├── 2_create_cohort/            # Cohort creation and QA (5:1 target:control)
+├── 3a_feature_importance/      # MC-CV feature importance screening
+├── 3b_feature_importance_eda/  # Feature refinement (BupaR post-target, code research)
+├── 4_model_data/               # Model-ready event datasets (target vs control)
 ├── 5_pgx_analysis/            # Pharmacogenomics (PGx) feature engineering
-├── 6_final_model_selection/    # Final model development and evaluation
-├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis (distributional, per-feature and per-patient)
-├── 8_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis (uses SHAP to prioritize rules)
-├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, and deployment artifacts (Lambda + S3)
+├── 6_final_model/             # Final model development and evaluation
+├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis
+├── 8_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis
+├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, deployment (Lambda + S3)
+├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, Python/R deps, pipeline run instructions
+├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
+├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3b (feature importance)
+├── 3_pgx_calculator_workflow.ipynb  # Workflow notebook: Steps 4–9 (dashboard deployment)
+├── archived/                   # Code not called by the three notebooks (see archived/README.md)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
 └── docs/                       # Documentation
@@ -203,7 +182,7 @@ pgx-analysis/
 
 ### Core Analysis Modules
 
-**📊 1_apcd_input_data: APCD Data Processing**
+**📊 1a_apcd_input_data: APCD Data Processing**
 - `0_txt_to_parquet.py` - Convert text files to Parquet format
 - `3_apcd_clean.py` - Main data cleaning script
 - `3a_clean_pharmacy.py` - Pharmacy data cleaning
@@ -217,21 +196,25 @@ pgx-analysis/
 - `phases/` - Individual pipeline phase implementations
 - `table_mappings/` - Table mapping configurations
 
-**📈 3_feature_importance: Feature Screening**
+**📈 3a_feature_importance: Feature Screening**
 - `feature_importance_mc_cv.ipynb` - Monte Carlo CV feature importance analysis
 - `feature_importance_mc_cv.R` - R script for MC-CV analysis
 - `create_visualizations.R` - Visualization utilities
 - Uses three core models for robust feature ranking: **CatBoost**, **XGBoost (boosted trees)**, and **XGBoost RF mode**
 
-**📊 4b_event_filter: Event Filtering**
-- `filter_protocol_events.py` - Filters administrative codes (from 0_icd_cpt_check) and post-event leakage (from 1_bupaR) to create `model_events_no_protocols.parquet`
+**📊 1b_apcd_event_filter: Event Filtering (ICD / Administrative Codes)**
+- Runs **before** cohort creation for efficient data processing and true feature importances
+- `filter_protocol_events.py` - Filters administrative codes and post-event leakage
 - Uses `administrative_codes_lookup.json` for code-based filtering
-- Filters events occurring after target event date (post-event leakage)
 
-**🤖 6_final_model_selection: Final Model Development**
+**🤖 6_final_model: Final Model Development**
 - `run_final_model.py` - Model training, selection, and export (CatBoost / XGBoost)
 - Model outputs include trained models, feature importance, and evaluation metrics
 - `catboost_models/` - Trained model artifacts and metadata
+
+**📊 7_shap_analysis: SHAP Post-Model Analysis**
+- `run_shap_analysis.py` - Global and local SHAP values (CatBoost + XGBoost)
+- Runs before FFA; FFA uses SHAP importance to filter and prioritize rules
 
 **🎯 8_ffa_analysis: Feature Attribution**
 - `catboost_axp_explainer.py` - CatBoost AXP (Approximate Explanations) analysis
@@ -311,7 +294,7 @@ For full operator‑level details (worker counts, DuckDB configuration, checkpoi
 **Key Insights**:
 - **FP-Growth Features**: Removed due to target leakage concerns. Patterns mined from combined target+control data can encode target-specific information, creating artificial predictive power that doesn't generalize.
 - **BupaR Features**: Moved to visualization-only. While valuable for exploratory analysis, process mining features add complexity without sufficient predictive benefit over aggregated importances.
-- **DTW Features**: Used for protocol filtering (Step 4b) but not as model features. DTW captures standard care protocols that both targets and controls follow, making them non-predictive.
+- **DTW**: Used for dashboard visualizations only (Step 9). Event-level filtering is in Step 1b (`1b_apcd_event_filter`); DTW is not used as model features.
 - **Aggregated Features**: Using feature importances directly (no encoding) simplifies the pipeline while maintaining predictive power. The MC-CV aggregation already captures the most important signals.
 
 **Result**: Streamlined workflow focused on PGx analysis as the primary feature engineering step, with other methods used for visualization and exploratory analysis only.

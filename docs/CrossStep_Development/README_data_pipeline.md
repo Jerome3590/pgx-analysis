@@ -118,21 +118,21 @@ The data pipeline processes large-scale healthcare datasets from APCD (All-Payer
 10. **Feature Importance Analysis**
     - Loads CatBoost model feature importance results
     - Identifies significant features using support and coverage metrics
-    - Prepares data for downstream pattern and process mining via `4a_model_data/`:
+    - Prepares data for downstream pattern and process mining via **Step 4 (model data)**:
       - For the **target cohort** (`opioid_ed`):
         - Reads aggregated feature-importance CSVs to get important `item_*` features.
         - Filters event-level GOLD cohort data (2016–2019) to rows where any important item appears
           in `drug_name`, ICD diagnosis columns 1–9, or `procedure_code`.
         - Writes filtered events to:
-          - `4a_model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet`
+          - `4_model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet` (or equivalent Gold path)
       - For the **control cohort** (`non_opioid_ed`):
         - Loads full event-level cohorts for matching age bands and years.
         - Randomly samples patients to maintain an approximate **5:1 control:target ratio**.
         - Keeps all events for sampled control patients (no feature filtering).
         - Writes control events to:
-          - `4a_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`
+          - `4_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet` (or equivalent Gold path)
       - Maintains temporal information, `mi_person_key`, and item codes required for FP-Growth,
-        BupaR, and DTW analyses.
+        BupaR, and DTW analyses (dashboard visualizations in Step 9).
 
 ## Cohort Creation Pipeline
 
@@ -223,7 +223,7 @@ aws configure
 ## Related Documentation
 
 - [`README_overview.md`](README_overview.md) - Project structure and components
-- [`README_analysis_workflow.md`](README_analysis_workflow.md) - Feature importance, Step 4c extreme-density split, and pattern mining
+- [`README_analysis_workflow.md`](README_analysis_workflow.md) - Feature importance, Step 4 model data, and pattern mining
 - [`Step1-2_DataPipeline/README_create_cohort.md`](Step1-2_DataPipeline/README_create_cohort.md) - Comprehensive cohort creation guide
 - [`README_data_pipeline_architecture.md`](README_data_pipeline_architecture.md) - Detailed pipeline architecture
 

@@ -22,7 +22,7 @@ This guide covers visualization generation for feature importance results, inclu
 The visualization system uses Python (matplotlib/seaborn) for consistency with the rest of the analysis workflow. The main script is:
 
 - **`py_helpers/create_feature_importance_visualizations.py`** - Primary visualization tool
-- **`3_feature_importance/create_plots.py`** - Convenience wrapper script
+- **`3a_feature_importance/create_plots.py`** - Convenience wrapper script
 
 ### Generated Plots
 
@@ -113,11 +113,11 @@ python py_helpers\create_feature_importance_visualizations.py ^
 **Using Wrapper Script:**
 ```bash
 # Linux EC2
-python 3_feature_importance/create_plots.py \
+python 3a_feature_importance/create_plots.py \
     outputs/opioid_ed_0_12_aggregated_feature_importance.csv
 
 # Windows
-python 3_feature_importance\create_plots.py ^
+python 3a_feature_importance\create_plots.py ^
     outputs\opioid_ed_0_12_aggregated_feature_importance.csv
 ```
 
@@ -286,14 +286,14 @@ create_feature_importance_plots(str(csv_file))
 
 ```python
 # Cell 1: Run analysis
-!python 3_feature_importance/run_cohort_1_0_12.py
+!python 3a_feature_importance/run_cohort_1_0_12.py
 
 # Cell 2: Generate visualizations
 from py_helpers.create_feature_importance_visualizations import create_feature_importance_plots
 
 plots = create_feature_importance_plots(
-    '3_feature_importance/outputs/opioid_ed_0_12_aggregated_feature_importance.csv',
-    output_dir='3_feature_importance/outputs',
+    '3a_feature_importance/outputs/opioid_ed_0_12_aggregated_feature_importance.csv',
+    output_dir='3a_feature_importance/outputs',
     cohort_name='opioid_ed',
     age_band='0-12',
     event_year=2019,
@@ -316,7 +316,7 @@ from pathlib import Path
 
 def generate_visualizations(cohort_name, age_band, event_year=2019):
     """Generate visualizations for a cohort/age-band combination."""
-    output_dir = Path(f"3_feature_importance/outputs")
+    output_dir = Path(f"3a_feature_importance/outputs")
     aggregated_file = output_dir / f"{cohort_name}_{age_band.replace('-', '_')}_aggregated_feature_importance.csv"
     
     if not aggregated_file.exists():
@@ -367,6 +367,6 @@ generate_visualizations('opioid_ed', '0-12', 2019)
 ## Related Documentation
 
 - [`docs/README_feature_importance.md`](README_feature_importance.md) - Main feature importance analysis guide
-- [`3_feature_importance/README.md`](../3_feature_importance/README.md) - Step 3 analysis documentation
+- [`3a_feature_importance/README.md`](../3a_feature_importance/README.md) - Step 3 analysis documentation
 - [`docs/README_output_structure.md`](README_output_structure.md) - Standard output structure framework
 

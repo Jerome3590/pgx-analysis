@@ -10,19 +10,15 @@ All pipeline steps (4-9) now support S3-based checkpointing and idempotency chec
 
 ## Implementation Status
 
-### ✅ Step 4a: Model Data Creation
+### ✅ Step 4: Model Data Creation
 - **S3 Check**: Checks for `model_events.parquet` in S3 before running
 - **Upload**: Uses `aws s3 sync` to upload after completion
 - **Checkpoint**: Saves checkpoint metadata to S3
-- **Location**: `s3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+- **Location**: `s3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` (or `gold/model_data/{cohort}/{age_band}/model_events.parquet`)
 
-### ✅ Step 4b: DTW Protocol Filtering
-- **S3 Check**: Checks for filtered outputs in S3 before running
-- **Upload**: Uploads filtered data, protocol summary, and event intervals to S3
-- **Checkpoint**: Saves checkpoint metadata to S3
-- **Location**: `s3://pgxdatalake/gold/dtw_filter/{cohort}/{age_band}/`
+**Note:** Event filtering (administrative/scheduling codes) is in Step 1b. DTW protocol filtering is for dashboard visualizations only (Step 9), not a separate pipeline checkpoint.
 
-### ⏳ Step 5c: PGx Feature Engineering
+### ⏳ Step 5: PGx Feature Engineering
 - **Status**: Already has local idempotency (checks for existing mapping files)
 - **TODO**: Add S3 checks and uploads for:
   - `drug_gene_mappings.csv`
@@ -36,21 +32,21 @@ All pipeline steps (4-9) now support S3-based checkpointing and idempotency chec
 - **Location**: `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/`
 - **Files**: Best XGBoost JSON, Best CatBoost CBM, model selection metadata
 
-### ⏳ Step 7: FFA Analysis
-- **Status**: Checks for model JSON locally
-- **TODO**: Add S3 checks for:
-  - Model JSON in S3
-  - FFA outputs (AXP explanations, importance)
-- **Location**: `s3://pgxdatalake/gold/ffa_analysis/{cohort}/{age_band}/`
-
-### ⏳ Step 8: SHAP Analysis
+### ⏳ Step 7: SHAP Analysis
 - **Status**: Checks for model binary locally
 - **TODO**: Add S3 checks for:
   - Model binary in S3
   - SHAP outputs (values, importance, plots)
 - **Location**: `s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/`
 
-### ⏳ Step 9: Combined SHAP + FFA
+### ⏳ Step 8: FFA Analysis
+- **Status**: Checks for model JSON locally
+- **TODO**: Add S3 checks for:
+  - Model JSON in S3
+  - FFA outputs (AXP explanations, importance)
+- **Location**: `s3://pgxdatalake/gold/ffa_analysis/{cohort}/{age_band}/`
+
+### ⏳ Step 9: Risk Dashboard (combined SHAP + FFA)
 - **Status**: Not yet implemented
 - **TODO**: Add S3 checks and uploads for combined analysis outputs
 - **Location**: `s3://pgxdatalake/gold/combined_analysis/{cohort}/{age_band}/`
@@ -86,7 +82,7 @@ s3://pgx-repository/pipeline_checkpoints/{step_name}/{cohort}/{age_band}/checkpo
 Checkpoint JSON structure:
 ```json
 {
-  "step_name": "4a_model_data",
+  "step_name": "4_model_data",
   "cohort": "opioid_ed",
   "age_band": "13-24",
   "completed_at": "2026-01-04T03:30:00Z",
@@ -155,7 +151,7 @@ except ImportError:
 
 ## Next Steps
 
-1. Complete S3 checkpoint implementation for Steps 5c, 7, 8, and 9
+1. Complete S3 checkpoint implementation for Steps 5, 7, 8, and 9
 2. Add checkpoint verification utilities
 3. Add checkpoint cleanup utilities for failed runs
 4. Add monitoring/alerting for checkpoint failures

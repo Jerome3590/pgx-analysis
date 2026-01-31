@@ -46,14 +46,14 @@ The dashboard uses age to automatically select the appropriate model and provide
 ### Cohort 1: Opioid ED (`opioid_ed`)
 - **Age Range**: 13-64 (age bands: 13-24, 25-44, 45-54, 55-64)
 - **Models**: `8_final_model/outputs/opioid_ed/{age_band}/models/`
-- **Feature Importances**: `3_feature_importance/outputs/opioid_ed_{age_band}_aggregated_feature_importance.csv`
+- **Feature Importances**: `3a_feature_importance/outputs/opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, ICD codes, CPT codes, Drug names
 - **Note**: Age band 0-12 excluded due to small cohort size
 
 ### Cohort 2: Polypharmacy (`non_opioid_ed`)
 - **Age Range**: 65-114 (age bands: 65-74, 75-84, 85-94)
 - **Models**: `8_final_model/outputs/non_opioid_ed/{age_band}/models/`
-- **Feature Importances**: `3_feature_importance/outputs/non_opioid_ed_{age_band}_aggregated_feature_importance.csv`
+- **Feature Importances**: `3a_feature_importance/outputs/non_opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, Drug names (single or combinations)
 - **Note**: Ages 95-114 are mapped to age band 85-94 (uses 85-94 model) due to small cohort size
 
@@ -660,7 +660,7 @@ def determine_cohort_and_age_band(age):
 
 ## References
 
-- Feature Importance Files: `3_feature_importance/outputs/`
+- Feature Importance Files: `3a_feature_importance/outputs/`
 - Final Models: `8_final_model/outputs/`
 - FFA Analysis: `9_ffa_analysis/outputs/`
 - S3 Data Lake: `s3://pgxdatalake/gold/`

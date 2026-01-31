@@ -163,7 +163,7 @@ aws s3 ls s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/ --recurs
 
 ```bash
 # For each cohort and age band:
-python 4a_model_data/create_model_data.py \
+python 4_model_data/create_model_data.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 ```
@@ -180,7 +180,7 @@ ls -lh /mnt/nvme/4a_model_data/cohort_name={cohort}/age_band={age_band}/model_ev
 
 ```bash
 # For each cohort and age band:
-python 4b_event_filter/filter_protocol_events.py \
+python 1b_apcd_event_filter/filter_protocol_events.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 ```
@@ -188,7 +188,7 @@ python 4b_event_filter/filter_protocol_events.py \
 **Verify:**
 ```bash
 # Check model_events_no_protocols.parquet created
-ls -lh /mnt/nvme/4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet
+ls -lh /mnt/nvme/4_model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet
 ```
 
 ### 4.3 Step 5: PGx Feature Engineering
@@ -214,7 +214,7 @@ ls -lh 5_pgx_analysis/outputs/{cohort}/{age_band}/pgx_added_features_*.csv
 
 ```bash
 # For each cohort and age band:
-python 6_final_model_selection/run_final_model.py \
+python 6_final_model/run_final_model.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 ```
@@ -222,9 +222,9 @@ python 6_final_model_selection/run_final_model.py \
 **Verify:**
 ```bash
 # Check models trained
-ls -lh 6_final_model_selection/models/{cohort}/{age_band}/
-ls -lh 6_final_model_selection/outputs/{cohort}/{age_band}/*model_metrics_summary.csv
-ls -lh 6_final_model_selection/outputs/{cohort}/{age_band}/*mc_cv_results.csv
+ls -lh 6_final_model/models/{cohort}/{age_band}/
+ls -lh 6_final_model/outputs/{cohort}/{age_band}/*model_metrics_summary.csv
+ls -lh 6_final_model/outputs/{cohort}/{age_band}/*mc_cv_results.csv
 ```
 
 ### 4.5 Step 7: SHAP Analysis
@@ -250,7 +250,7 @@ ls -lh 7_shap_analysis/outputs/{cohort}/{age_band}/
 
 ```bash
 # For each cohort and age band:
-python 8_ffa_analysis/run_ffa_analysis.py \
+python 8_ffa_analysis/run_full_ffa_analysis.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 ```
@@ -318,20 +318,20 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 
 ## Automation Option
 
-**Use the workflow script to run all steps automatically:**
+**Run via the three workflow notebooks** (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/`:
 
 ```bash
-# For a single cohort/age band:
-bash utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
+# For a single cohort/age band (legacy):
+bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
-# For all polypharmacy cohorts:
-bash utility_scripts/run_non_opioid_ed_workflow.sh
+# For all polypharmacy cohorts (legacy):
+bash archived/utility_scripts/run_non_opioid_ed_workflow.sh
 
-# For all opioid ED cohorts:
-bash utility_scripts/run_opioid_ed_workflow.sh
+# For all opioid ED cohorts (legacy):
+bash archived/utility_scripts/run_opioid_ed_workflow.sh
 
-# For all cohorts:
-bash utility_scripts/run_all_cohorts_workflow.sh
+# For all cohorts (legacy):
+bash archived/utility_scripts/run_all_cohorts_workflow.sh
 ```
 
 **Note**: The workflow script will automatically run Steps 3-8 in sequence. You still need to:

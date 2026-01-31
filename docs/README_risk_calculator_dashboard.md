@@ -460,7 +460,7 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 ### Related Documentation
 
-- `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md`: Why FP-Growth is visualization-only
+- `9_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md`: Why FP-Growth is visualization-only
 - `9_risk_dashboard/visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `8_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)
 
