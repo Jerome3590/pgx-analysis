@@ -19,6 +19,17 @@ from_s3/*
 !4a_model_data/*.py
 !4a_model_data/README*.md
 
+# 4_model_data: event-level model data (generated), keep code and docs only
+4_model_data/*
+4_model_data/*/**
+!4_model_data/*.py
+!4_model_data/README*.md
+
+# FFA analysis results (model outputs, SHAP, causal importance, etc.)
+8_ffa_analysis/results/
+
+# Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
+9_risk_dashboard/visualizations/*/outputs/
 
 *.pyc
 .ipynb_checkpoints/
