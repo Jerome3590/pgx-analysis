@@ -203,30 +203,29 @@ def _validate_and_filter_aggregated_feature_importance(
                 break
             except Exception:
                 continue
-    # 2) pgx-repository (historical): pgx-analysis/3_feature_importance/outputs/{cohort}/{age_band}/...
+    # 2) pgx-repository (historical): flat layout pgx-analysis/3_feature_importance/outputs/{cohort}_{age_band}_aggregated_feature_importance.csv
     if agg_csv_path is None:
-        for s3_suffix, subdir in [("_baseline/", "_baseline"), ("", "")]:
-            s3_key = (
-                f"{PGX_REPO_FI_PREFIX}/{cohort}/{age_band}/{s3_suffix}{filename}"
+        s3_key = f"{PGX_REPO_FI_PREFIX}/{filename}"
+        logger.info(
+            "Trying historical bucket s3://%s/%s for aggregated FI",
+            PGX_REPO_BUCKET,
+            s3_key,
+        )
+        try:
+            s3_client.head_object(Bucket=PGX_REPO_BUCKET, Key=s3_key)
+            dest_dir = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_path = dest_dir / filename
+            s3_client.download_file(PGX_REPO_BUCKET, s3_key, str(dest_path))
+            agg_csv_path = dest_path
+            logger.info(
+                "Downloaded aggregated feature importance from S3 (historical): s3://%s/%s -> %s",
+                PGX_REPO_BUCKET,
+                s3_key,
+                agg_csv_path,
             )
-            try:
-                s3_client.head_object(Bucket=PGX_REPO_BUCKET, Key=s3_key)
-                dest_dir = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
-                if subdir:
-                    dest_dir = dest_dir / subdir
-                dest_dir.mkdir(parents=True, exist_ok=True)
-                dest_path = dest_dir / filename
-                s3_client.download_file(PGX_REPO_BUCKET, s3_key, str(dest_path))
-                agg_csv_path = dest_path
-                logger.info(
-                    "Downloaded aggregated feature importance from S3 (historical): s3://%s/%s -> %s",
-                    PGX_REPO_BUCKET,
-                    s3_key,
-                    agg_csv_path,
-                )
-                break
-            except Exception:
-                continue
+        except Exception as e:
+            logger.debug("Historical bucket %s/%s: %s", PGX_REPO_BUCKET, s3_key, e)
     if agg_csv_path is None:
         agg_csv_path = (
             PROJECT_ROOT
@@ -247,7 +246,9 @@ def _validate_and_filter_aggregated_feature_importance(
             "cleaned_path": None,
             "error": (
                 f"Aggregated feature importance CSV not found for {cohort}/{age_band}. "
-                f"Expected under outputs/.../_baseline/ or outputs/... (or S3 gold/feature_importance/...). "
+                f"Checked: local outputs/.../_baseline/ and outputs/..., "
+                f"S3 pgxdatalake gold/feature_importance/..., "
+                f"S3 pgx-repository {PGX_REPO_FI_PREFIX}/{filename}. "
                 f"Run Step 3a with --baseline first to create baseline FI."
             ),
         }
