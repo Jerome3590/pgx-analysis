@@ -24,9 +24,7 @@ Filter events in two passes to reduce feature count and improve Step 3a feature 
    - Codes are identified in Step 3b `0_icd_cpt_check` through code research and validation
    - Lookup table: `1b_apcd_event_filter/administrative_codes_lookup.json`
 
-3. **Post-event leakage filtering**: Remove events occurring on or after target event date
-   - Target event date identified in Step 3b `1_bupaR` post-target analysis
-   - Prevents target leakage by removing events that occur after the outcome
+3. **Target leakage**: Not applied here. Events on or after target date are removed in **Step 4** (model data) after 3b identifies leakage (linear flow: 3b → 4).
 
 4. **Code classification**: Events are classified as administrative vs. medical/pharmacy
    - Administrative: Billing, scheduling, documentation codes
@@ -47,7 +45,7 @@ python 1b_apcd_event_filter/filter_protocol_events.py \
 
 ### Step 3b: Feature Importance EDA
 - **0_icd_cpt_check**: Identifies administrative codes → `administrative_codes_lookup.json`
-- **1_bupaR**: Identifies post-target leakage features → Used to filter events after target date
+- **1_bupaR**: Identifies post-target leakage → **Step 4** removes those events when building model data
 
 ### Step 4: Model Data Creation
 - Creates `model_events.parquet` using refined features from Feature Importance EDA

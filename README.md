@@ -39,11 +39,11 @@ Shell scripts that ran the full pipeline (e.g. `run_cohort_workflow.sh`) are in 
 ### Workflow Steps (Executed Automatically)
 
 1. **Step 1a**: APCD input data (1a_apcd_input_data) – bronze → silver → gold.
-2. **Step 1b**: Event filter (1b_apcd_event_filter) – ICD/administrative code filtering (moved earlier for efficiency and true feature importances).
+2. **Step 1b**: Event filter (1b_apcd_event_filter) – Aggregated FI + ICD/administrative code filtering (target leakage removed in Step 4).
 3. **Step 2**: Cohort creation (2_create_cohort) – 5:1 target:control cohorts.
 4. **Step 3a**: Feature importance (3a_feature_importance) – MC-CV aggregated importances (CatBoost, XGBoost, XGBoost RF).
 5. **Step 3b**: Feature Importance EDA (3b_feature_importance_eda) – BupaR post-target analysis, code research; outputs refined `cohort_feature_importance.csv`.
-6. **Step 4**: Model data (4_model_data) – `model_events.parquet` from refined features (required).
+6. **Step 4**: Model data (4_model_data) – `model_events.parquet` from refined features; **removes target leakage** (events on/after target date) for a linear flow (3b → 4).
 7. **Step 5**: PGx feature engineering (5_pgx_analysis).
 8. **Step 6**: Final model (6_final_model) – training and selection (Recall / AUC-PR).
 9. **Step 7**: SHAP analysis (7_shap_analysis).
@@ -114,7 +114,7 @@ flowchart TD
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data]
+        B6 --> C1[4: Model Data + Leakage Removal]
         C1 --> D1[5: PGx Feature Engineering]
         D1 --> E1[6: Final Model]
         E1 --> E4[Model Selection]
@@ -169,7 +169,7 @@ publication-grade, health outcomes–oriented modeling is anchored on these two 
 
 - `3a_feature_importance/README.md` – Feature importance methodology and cohort configuration
 - `4_model_data/README_model_data.md` – Model-ready events and target vs control extraction
-- Event filtering: `1b_apcd_event_filter/filter_protocol_events.py` – ICD/administrative codes (runs before cohorts)
+- Event filtering: `1b_apcd_event_filter/filter_protocol_events.py` – Aggregated FI + ICD/administrative codes (target leakage removed in Step 4)
 - `6_final_model/README.md` – Final model training and selection
 - `5_pgx_analysis/README.md` – Pharmacogenomics (PGx) feature engineering
 - `status/WORKFLOW_STATUS.md` – Per-cohort workflow execution status and checkpoints

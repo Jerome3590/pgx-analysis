@@ -35,6 +35,9 @@ to avoid pandas memory pressure on large cohorts:
    - writes the combined events to:
        4_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
      with an event-level `target` column.
+   - **Target leakage removal (Step 4):** For case events, keeps only events strictly before
+     the target date (event_date < first_opioid_ed_date or first_ed_non_opioid_date). Events
+     on or after the target date are dropped here (linear flow: 3b identifies leakage → 4 removes it).
 
 This output is then used as input for:
  - FP-Growth (pattern mining on important features plus within-cohort controls)
@@ -730,7 +733,15 @@ def filter_cohort_events_for_items(
             f"[WARN] No eligible control patients found for {cohort_name}/{age_band}; "
             f"using cases only."
         )
-        # In this degenerate case, just build case-only events.
+        # In this degenerate case, just build case-only events (with target leakage removal).
+        leakage_condition = "TRUE"
+        if "event_date" in cohort_cols:
+            target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+            if target_date_col in cohort_cols:
+                leakage_condition = (
+                    f"(event_date IS NULL OR {target_date_col} IS NULL OR "
+                    f"CAST(event_date AS DATE) < CAST({target_date_col} AS DATE))"
+                )
         final_query = f"""
             COPY (
                 SELECT
@@ -738,7 +749,7 @@ def filter_cohort_events_for_items(
                     1 AS target
                 FROM read_parquet([{cohort_paths_literal}])
                 WHERE
-                    is_target_case = 1 AND {item_filter_condition}
+                    is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
             ) TO '{str(out_path)}'
             (FORMAT PARQUET)
         """
@@ -767,13 +778,24 @@ def filter_cohort_events_for_items(
     )
 
     # 4. Construct case and control events and write to Parquet
+    # Target leakage removal (Step 4): keep only events strictly before target date for cases.
+    # Events on or after target date are removed here (previously done in 1b; now linear: 3b → 4).
+    leakage_condition = "TRUE"
+    if "event_date" in common_cols:
+        target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+        if target_date_col in common_cols:
+            leakage_condition = (
+                f"(event_date IS NULL OR {target_date_col} IS NULL OR "
+                f"CAST(event_date AS DATE) < CAST({target_date_col} AS DATE))"
+            )
+            print(f"[INFO] Applying target leakage removal: keep only events before {target_date_col}")
     case_events_query = f"""
         SELECT
             {common_cols_sql},
             1 AS target
         FROM read_parquet([{cohort_paths_literal}])
         WHERE
-            is_target_case = 1 AND {item_filter_condition}
+            is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
     """
 
     # Build control exclusion filter (blacklist approach)

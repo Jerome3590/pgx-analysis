@@ -6,15 +6,15 @@ Filter order:
 1. Aggregated feature importance (first pass): Keep only events whose codes (ICD/CPT/drug) appear
    in the aggregated feature-importance CSV from Step 3/3a. This reduces the number of features
    for final cohorts and makes Step 3a feature importance more accurate on a second pass.
-2. Administrative codes and post-event leakage (second pass): Remove administrative codes
-   (from administrative_codes_lookup / research) and events occurring on or after target date.
+2. Administrative codes (second pass): Remove administrative codes from administrative_codes_lookup
+   and Step 3b research. Target leakage (events on/after target date) is removed in Step 4 (model data).
 
 The filtering is based on:
 - Aggregated feature importance CSV (Step 3 or 3a: {cohort}_{age_band}_aggregated_feature_importance.csv)
 - Administrative codes lookup and research (Step 3b 0_icd_cpt_check, protocol_vs_clinical analysis)
-- Post-event leakage (Step 3b 1_bupaR)
 
 Output: model_events_no_protocols.parquet - Event data with low-importance and administrative events removed.
+Target leakage removal happens in Step 4 (model training / model data).
 """
 
 import os
@@ -767,7 +767,7 @@ def filter_administrative_events(
        of (drug_name, ICD columns, procedure_code) is in the aggregated feature-importance
        allowed set. This reduces features before the final cohort and makes step 3a
        feature importance more accurate on a second pass.
-    2. Then: remove administrative codes (from research + hardcoded) and post-event leakage.
+    2. Then: remove administrative codes (from research + hardcoded). Target leakage is removed in Step 4.
 
     This version keeps processing inside DuckDB (no pandas row-wise apply),
     and writes the filtered dataset directly to Parquet via COPY.
@@ -843,11 +843,11 @@ def filter_administrative_events(
 
         administrative_codes['cpt'].update(hardcoded_admin_cpt)
 
-        # If research outputs don't exist, start with hardcoded sets (will filter known admin codes + post-event leakage)
+        # If research outputs don't exist, start with hardcoded sets (will filter known admin codes only; target leakage is removed in Step 4)
         if (not administrative_codes.get("icd")) and (not administrative_codes.get("cpt")) and (not administrative_codes.get("drug")):
             logger.info(
                 "No administrative codes found in research outputs. "
-                "Will only filter post-event leakage (events on/after target date)."
+                "Will only filter hardcoded administrative codes (target leakage is removed in Step 4)."
             )
         else:
             logger.info(
@@ -928,22 +928,9 @@ def filter_administrative_events(
                 len(allowed_codes_from_fi),
             )
 
-        # Build administrative predicates (only referencing columns that exist)
+        # Build administrative predicates (only referencing columns that exist).
+        # Target leakage (events on/after target date) is removed in Step 4 (model data), not here.
         predicates = []
-
-        # Leakage predicate: events on/after target date are removed
-        target_date_field = None
-        if cohort_name:
-            if "opioid" in cohort_name.lower():
-                target_date_field = "first_opioid_ed_date"
-            else:
-                target_date_field = "first_ed_non_opioid_date"
-
-        if target_date_field and (target_date_field in available_cols) and ("event_date" in available_cols):
-            predicates.append(
-                f"(event_date IS NOT NULL AND {target_date_field} IS NOT NULL "
-                f"AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP))"
-            )
 
         # ICD predicates across the 5 ICD columns (present_icd_cols already defined above)
         if present_icd_cols and icd_codes:
@@ -961,7 +948,7 @@ def filter_administrative_events(
         if predicates:
             is_admin_expr = " OR ".join(predicates)
         else:
-            # No code tables and no leakage field -> nothing to filter
+            # No code tables -> nothing to filter (target leakage is removed in Step 4)
             is_admin_expr = "FALSE"
 
         # Keep logic
@@ -1616,7 +1603,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Filter administrative events using code classification and post-event leakage filtering"
+        description="Filter administrative events using code classification (target leakage removed in Step 4)"
     )
     parser.add_argument(
         "--cohort-name",

@@ -120,7 +120,7 @@ Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for
 flowchart TD
     subgraph W1["1_cohort_workflow.ipynb (Steps 1-2)"]
         A1[1a: APCD Input Data] --> A2[Data Cleaning]
-        A2 --> A1b[1b: Event Filter ICD/Admin]
+        A2 --> A1b[1b: Event Filter FI + ICD/Admin]
         A1b --> A3[2: Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
@@ -134,7 +134,7 @@ flowchart TD
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data]
+        B6 --> C1[4: Model Data + Leakage Removal]
         C1 --> D1[5: PGx Feature Engineering]
         D1 --> E1[6: Final Model]
         E1 --> E4[Model Selection]
