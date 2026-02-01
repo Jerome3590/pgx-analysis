@@ -89,6 +89,88 @@ The preprocessing pipeline follows a three-tier data lake architecture:
    - Final quality checks and validation
    - Output ready for cohort creation
 
+### Glue tables and bronze→gold validation (pharmacy)
+
+**Databases:** Pharmacy uses explicit Glue databases per layer: **bronze_pharmacy**, **silver_pharmacy**, **gold_pharmacy** (each with tables pointing at the S3 path below).
+
+S3 paths for pharmacy:
+
+- **Bronze:** `s3://pgxdatalake/bronze/pharmacy/` → database **bronze_pharmacy**
+- **Silver:** `s3://pgxdatalake/silver/imputed/pharmacy_partitioned/` → database **silver_pharmacy**
+- **Gold:** `s3://pgxdatalake/gold/pharmacy/` → database **gold_pharmacy**
+
+The script **runs locally** (no EC2 required) and uses AWS profile **mushin** by default (`--profile` to override). By default it uses these per-layer databases; pass `--database pgxdatalake` to use a single database (legacy).
+
+To **check that Glue tables exist** for these paths (and optionally create crawlers and run row-count validation):
+
+```bash
+# From project root
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py
+
+# Use credentials under a directory (e.g. /mnt/c/Projects)
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py --credentials-dir /mnt/c/Projects
+
+# Create crawlers and run them if a table is missing
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py --create-missing --credentials-dir /mnt/c/Projects
+
+# Run Athena row-count validation only (no Glue check; requires --athena-output)
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py --validate-only --athena-output s3://pgxdatalake/athena-query-results/ --credentials-dir /mnt/c/Projects
+
+# Or use account Athena results bucket
+export ATHENA_QUERY_RESULTS="s3://aws-athena-query-results-us-east-1-ACCOUNT_ID/"
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py --athena-output "$ATHENA_QUERY_RESULTS" --credentials-dir /mnt/c/Projects
+```
+
+**Interpreting row counts:** Bronze is the source; after normalization and reconciliation, silver and gold should be populated. If silver or gold show 0 rows, either the pipeline (global imputation → gold clean) has not been run for those layers yet, or the Glue tables may point at different S3 paths. The script warns if gold is &lt; 50% of bronze (possible data loss).
+
+**Data loss check (pharmacy bronze → gold)**  
+To confirm consistent row coverage and **no data loss during drug name normalization** (silver → gold), run the Athena validation and check:
+
+- **Silver = Gold** → no rows dropped in the drug name normalization step (gold clean).
+- **Gold ≤ Bronze** → no unexpected row inflation; any reduction should occur in bronze → silver (imputation/validation), not in normalization.
+
+Example (from project root):
+
+```bash
+python 1a_apcd_input_data/check_pharmacy_glue_and_validate.py --validate-only --athena-output s3://pgxdatalake/athena-query-results/ --credentials-dir /mnt/c/Projects
+```
+
+Or use the dedicated check script (exits 0 only if silver = gold and gold ≤ bronze):
+
+```bash
+python utility_scripts/validate_pharmacy_row_coverage.py --athena-output s3://pgxdatalake/athena-query-results/ --credentials-dir /mnt/c/Projects
+```
+
+The script:
+
+1. Checks the Glue database (default `pgxdatalake`) for tables whose location matches each S3 prefix.
+2. If a table is missing and `--create-missing` is set: looks for an existing crawler targeting that path; if found, runs it; otherwise creates a new crawler and runs it.
+3. If `--athena-output` is set: runs `SELECT COUNT(*)` on each table and reports bronze/silver/gold row counts, and warns if gold is &lt; 50% of bronze (possible data loss).
+
+### Glue tables and bronze→gold validation (medical)
+
+**Databases:** Medical uses explicit Glue databases per layer: **bronze_medical**, **silver_medical**, **gold_medical** (same structure as pharmacy).
+
+S3 paths for medical:
+
+- **Bronze:** `s3://pgxdatalake/bronze/medical/` → database **bronze_medical**
+- **Silver:** `s3://pgxdatalake/silver/imputed/medical_partitioned/` → database **silver_medical**
+- **Gold:** `s3://pgxdatalake/gold/medical/` → database **gold_medical**
+
+Crawlers are named **pgx_medical_{layer}** (e.g. `pgx_medical_bronze_medical`). TablePrefix uses layer-only (`bronze_`, `silver_`, `gold_`) so table names are not doubled.
+
+To check Glue tables (and optionally create crawlers) for medical:
+
+```bash
+# From project root
+python 1a_apcd_input_data/check_medical_glue_and_validate.py --credentials-dir /mnt/c/Projects
+
+# Create crawlers if tables missing
+python 1a_apcd_input_data/check_medical_glue_and_validate.py --create-missing --credentials-dir /mnt/c/Projects
+```
+
+**Athena row-count QA (medical):** Run **aws-pgx-setup/glue/validate_medical_row_coverage.py** (exits 0 only if silver = gold and gold ≤ bronze; verifies no loss during ICD code standardization). Or run **validate_row_coverage_both.py** for pharmacy and medical together.
+
 ### Part Files Processing Findings
 
 **Schema Validation:**

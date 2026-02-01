@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-Filter out administrative events from model_data before feature engineering.
+Filter model_data events: first by aggregated feature importance, then by administrative codes.
 
-This script filters events at the event level to remove:
-1. Administrative codes (from administrative_codes_lookup.json, identified in Step 3b 0_icd_cpt_check)
-2. Post-event leakage (events occurring after target event date, identified in Step 3b 1_bupaR)
+Filter order:
+1. Aggregated feature importance (first pass): Keep only events whose codes (ICD/CPT/drug) appear
+   in the aggregated feature-importance CSV from Step 3/3a. This reduces the number of features
+   for final cohorts and makes Step 3a feature importance more accurate on a second pass.
+2. Administrative codes and post-event leakage (second pass): Remove administrative codes
+   (from administrative_codes_lookup / research) and events occurring on or after target date.
 
 The filtering is based on:
-1. Administrative codes lookup table (from 0_icd_cpt_check)
-2. Post-event leakage filtering (from BupaR post-target analysis in 1_bupaR)
-3. Code classification (administrative vs. medical/pharmacy)
+- Aggregated feature importance CSV (Step 3 or 3a: {cohort}_{age_band}_aggregated_feature_importance.csv)
+- Administrative codes lookup and research (Step 3b 0_icd_cpt_check, protocol_vs_clinical analysis)
+- Post-event leakage (Step 3b 1_bupaR)
 
-Output: model_events_no_protocols.parquet - Event data with administrative codes and post-event leakage removed
+Output: model_events_no_protocols.parquet - Event data with low-importance and administrative events removed.
 """
 
 import os
@@ -85,6 +88,38 @@ def _validate_s3_file_has_controls(s3_path: str) -> dict:
         con.close()
 
 
+def get_allowed_codes_from_aggregated_fi(agg_csv_path: Path) -> set:
+    """
+    Load allowed codes from aggregated feature importance CSV (for first-pass filter).
+
+    The CSV has a 'feature' column; values may have an 'item_' prefix (e.g. item_99284,
+    item_Z34.03). We strip that and build a set of allowed codes. For ICD-like codes
+    (letter + digits) we add both dot and no-dot variants so events match regardless of format.
+
+    Returns
+    -------
+    set
+        Allowed code strings (including ICD dot/no-dot variants) for use in SQL IN (...).
+    """
+    df = pd.read_csv(agg_csv_path)
+    if "feature" not in df.columns:
+        return set()
+    allowed = set()
+    for raw in df["feature"].astype(str).unique():
+        code = raw.strip()
+        if code.startswith("item_"):
+            code = code[5:]
+        if not code or code == "nan":
+            continue
+        allowed.add(code)
+        # ICD-style codes: add dot and no-dot variants for matching
+        if code[0].isalpha() and any(c.isdigit() for c in code):
+            allowed.add(code.replace(".", ""))
+            if "." not in code and len(code) >= 4:
+                allowed.add(f"{code[:3]}.{code[3:]}")
+    return allowed
+
+
 def _validate_and_filter_aggregated_feature_importance(
     cohort: str, age_band: str
 ) -> dict:
@@ -101,25 +136,76 @@ def _validate_and_filter_aggregated_feature_importance(
     from py_helpers.constants import age_band_to_fname
     
     age_band_fname = age_band_to_fname(age_band)
-    
-    # Try local path first
-    agg_csv_path = (
-        PROJECT_ROOT
-        / "3_feature_importance"
-        / "outputs"
-        / cohort
-        / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    
-    # Fallback: try S3 download location
-    if not agg_csv_path.exists():
+    filename = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+
+    # Prefer original (first-pass) aggregated FI in _baseline; then current (second-pass) location
+    agg_csv_path = None
+    for step_dir in ("3_feature_importance", "3a_feature_importance"):
+        # 1) _baseline (original aggregated FI from first pass)
+        candidate_baseline = (
+            PROJECT_ROOT / step_dir / "outputs" / cohort / "_baseline" / filename
+        )
+        if candidate_baseline.exists():
+            agg_csv_path = candidate_baseline
+            logger.info("Using aggregated feature importance from _baseline: %s", agg_csv_path)
+            break
+    if agg_csv_path is None:
+        for step_dir in ("3_feature_importance", "3a_feature_importance"):
+            # 2) Current location (second-pass or legacy)
+            candidate = (
+                PROJECT_ROOT / step_dir / "outputs" / cohort / filename
+            )
+            if candidate.exists():
+                agg_csv_path = candidate
+                break
+    # Fallback: try S3 download location (_baseline first, then current)
+    if agg_csv_path is None:
+        for step_dir in ("3_feature_importance", "3a_feature_importance"):
+            candidate_baseline = (
+                PROJECT_ROOT / step_dir / "from_s3" / "by_cohort" / cohort / "_baseline" / filename
+            )
+            if candidate_baseline.exists():
+                agg_csv_path = candidate_baseline
+                break
+    if agg_csv_path is None:
+        for step_dir in ("3_feature_importance", "3a_feature_importance"):
+            candidate = (
+                PROJECT_ROOT / step_dir / "from_s3" / "by_cohort" / cohort / filename
+            )
+            if candidate.exists():
+                agg_csv_path = candidate
+                break
+    # Fallback: try downloading from S3 (_baseline first, then current)
+    if agg_csv_path is None:
+        for s3_suffix, subdir in [("_baseline/", "_baseline"), ("", "")]:
+            s3_key = (
+                f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}{filename}"
+            )
+            try:
+                s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                dest_dir = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
+                if subdir:
+                    dest_dir = dest_dir / subdir
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                dest_path = dest_dir / filename
+                s3_client.download_file(S3_BUCKET, s3_key, str(dest_path))
+                agg_csv_path = dest_path
+                logger.info(
+                    "Downloaded aggregated feature importance from S3: %s -> %s",
+                    s3_key,
+                    agg_csv_path,
+                )
+                break
+            except Exception:
+                continue
+    if agg_csv_path is None:
         agg_csv_path = (
             PROJECT_ROOT
             / "3_feature_importance"
-            / "from_s3"
-            / "by_cohort"
+            / "outputs"
             / cohort
-            / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            / "_baseline"
+            / filename
         )
     
     if not agg_csv_path.exists():
@@ -130,7 +216,11 @@ def _validate_and_filter_aggregated_feature_importance(
             "n_zero_importance": 0,
             "n_duplicates": 0,
             "cleaned_path": None,
-            "error": f"Aggregated feature importance CSV not found for {cohort}/{age_band}. Expected at: {agg_csv_path}",
+            "error": (
+                f"Aggregated feature importance CSV not found for {cohort}/{age_band}. "
+                f"Expected under outputs/.../_baseline/ or outputs/... (or S3 gold/feature_importance/...). "
+                f"Run Step 3a with --baseline first to create baseline FI."
+            ),
         }
     
     try:
@@ -638,15 +728,22 @@ def filter_administrative_events(
     administrative_codes: Optional[dict] = None,
     keep_first_event: bool = True,
     admin_code_threshold_pct: float = 80.0,
+    allowed_codes_from_fi: Optional[set] = None,
 ) -> dict:
     """
     Filter out administrative events from model_data based on code classification.
 
+    Filter order:
+    1. If allowed_codes_from_fi is provided: keep only events where at least one
+       of (drug_name, ICD columns, procedure_code) is in the aggregated feature-importance
+       allowed set. This reduces features before the final cohort and makes step 3a
+       feature importance more accurate on a second pass.
+    2. Then: remove administrative codes (from research + hardcoded) and post-event leakage.
+
     This version keeps processing inside DuckDB (no pandas row-wise apply),
     and writes the filtered dataset directly to Parquet via COPY.
 
-    Returns a small dict of counts (original/filtered/removed) to avoid
-    materializing the full dataset in pandas (critical when running cohorts in parallel).
+    Returns a small dict of counts (original/filtered/removed, fi_removed if applicable).
     """
     logger.info("Filtering administrative events from %s", model_data_path)
 
@@ -752,6 +849,15 @@ def filter_administrative_events(
         ).fetchall()
         available_cols = {r[0] for r in desc_rows}
 
+        icd_cols = [
+            "primary_icd_diagnosis_code",
+            "two_icd_diagnosis_code",
+            "three_icd_diagnosis_code",
+            "four_icd_diagnosis_code",
+            "five_icd_diagnosis_code",
+        ]
+        present_icd_cols = [c for c in icd_cols if c in available_cols]
+
         # Register administrative code lists as small in-memory tables
         # (DuckDB handles joining/IN efficiently; avoids Python per-row checks)
         # Add both dot and no-dot versions to handle different code formats in data
@@ -775,6 +881,24 @@ def filter_administrative_events(
         con.register("admin_cpt", pd.DataFrame({"code": cpt_codes}) if cpt_codes else pd.DataFrame({"code": []}))
         con.register("admin_drug", pd.DataFrame({"code": drug_codes}) if drug_codes else pd.DataFrame({"code": []}))
 
+        # Optional first pass: keep only events whose codes appear in aggregated feature importance
+        use_fi_filter = allowed_codes_from_fi is not None and len(allowed_codes_from_fi) > 0
+        if use_fi_filter:
+            allowed_fi_list = sorted(allowed_codes_from_fi)
+            con.register("allowed_fi_codes", pd.DataFrame({"code": allowed_fi_list}))
+            fi_parts = []
+            if "drug_name" in available_cols:
+                fi_parts.append("(drug_name IN (SELECT code FROM allowed_fi_codes))")
+            for c in present_icd_cols:
+                fi_parts.append(f"({c} IN (SELECT code FROM allowed_fi_codes))")
+            if "procedure_code" in available_cols:
+                fi_parts.append("(procedure_code IN (SELECT code FROM allowed_fi_codes))")
+            fi_predicate = "(" + " OR ".join(fi_parts) + ")" if fi_parts else "TRUE"
+            logger.info(
+                "Applying aggregated feature-importance filter first: keep only events matching %s allowed codes",
+                len(allowed_codes_from_fi),
+            )
+
         # Build administrative predicates (only referencing columns that exist)
         predicates = []
 
@@ -792,15 +916,7 @@ def filter_administrative_events(
                 f"AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP))"
             )
 
-        # ICD predicates across the 5 ICD columns used elsewhere in the script
-        icd_cols = [
-            "primary_icd_diagnosis_code",
-            "two_icd_diagnosis_code",
-            "three_icd_diagnosis_code",
-            "four_icd_diagnosis_code",
-            "five_icd_diagnosis_code",
-        ]
-        present_icd_cols = [c for c in icd_cols if c in available_cols]
+        # ICD predicates across the 5 ICD columns (present_icd_cols already defined above)
         if present_icd_cols and icd_codes:
             icd_or = " OR ".join([f"{c} IN (SELECT code FROM admin_icd)" for c in present_icd_cols])
             predicates.append(f"({icd_or})")
@@ -826,10 +942,9 @@ def filter_administrative_events(
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Materialize a temp table so we can get counts without re-running the whole pipeline twice
+        # Optional: first restrict to events whose codes appear in aggregated feature importance
         con.execute("DROP TABLE IF EXISTS _flagged_events")
-        con.execute(
-            f"""
-            CREATE TEMP TABLE _flagged_events AS
+        base_cte = f"""
             WITH base AS (
               SELECT
                 *,
@@ -838,28 +953,51 @@ def filter_administrative_events(
                   ORDER BY event_date
                 ) AS event_seq
               FROM read_parquet('{model_data_path}')
+            )"""
+        if use_fi_filter:
+            source_from = f"""
+            , fi_filtered AS (
+              SELECT * FROM base WHERE {fi_predicate}
             )
             SELECT
               *,
               ({is_admin_expr}) AS is_administrative
-            FROM base
+            FROM fi_filtered"""
+        else:
+            source_from = f"""
+            SELECT
+              *,
+              ({is_admin_expr}) AS is_administrative
+            FROM base"""
+        con.execute(
+            f"""
+            CREATE TEMP TABLE _flagged_events AS
+            {base_cte}
+            {source_from}
             """
         )
 
-        # Counts
+        # Original event count (before any filter) for FI-removed reporting
+        events_before_fi = int(
+            con.execute(f"SELECT COUNT(*)::UBIGINT FROM read_parquet('{model_data_path}')").fetchone()[0]
+            or 0
+        )
+        # Counts from _flagged_events (after FI filter if applied, before admin keep_expr)
         counts = con.execute(
             f"""
             SELECT
-              COUNT(*)::UBIGINT AS original_events,
+              COUNT(*)::UBIGINT AS events_after_fi,
               SUM(CASE WHEN is_administrative THEN 1 ELSE 0 END)::UBIGINT AS administrative_events,
               SUM(CASE WHEN {keep_expr} THEN 1 ELSE 0 END)::UBIGINT AS kept_events
             FROM _flagged_events
             """
         ).fetchone()
 
-        original_n = int(counts[0]) if counts and counts[0] is not None else 0
+        events_after_fi_n = int(counts[0]) if counts and counts[0] is not None else 0
         admin_n = int(counts[1]) if counts and counts[1] is not None else 0
         kept_n = int(counts[2]) if counts and counts[2] is not None else 0
+        fi_removed_n = (events_before_fi - events_after_fi_n) if use_fi_filter else 0
+        original_n = events_before_fi
 
         con.execute(
             f"""
@@ -874,11 +1012,18 @@ def filter_administrative_events(
             """
         )
 
+        if use_fi_filter and fi_removed_n > 0:
+            logger.info(
+                "Aggregated FI filter: %s events -> %s events (removed %s low-importance)",
+                f"{events_before_fi:,}",
+                f"{events_after_fi_n:,}",
+                f"{fi_removed_n:,}",
+            )
         logger.info("Filtered %s events -> %s events", f"{original_n:,}", f"{kept_n:,}")
         logger.info(
             "Removed %s administrative events (%0.1f%%)",
             f"{admin_n:,}",
-            (100.0 * admin_n / max(original_n, 1)),
+            (100.0 * admin_n / max(events_after_fi_n, 1)),
         )
         logger.info("Saved filtered model_data to %s", output_path)
         
@@ -904,7 +1049,7 @@ def filter_administrative_events(
             f"{validation_result['n_controls']} controls"
         )
 
-        return {
+        result = {
             "original_events": original_n,
             "filtered_events": kept_n,
             "removed_events": original_n - kept_n,
@@ -912,6 +1057,9 @@ def filter_administrative_events(
             "n_cases": validation_result["n_cases"],
             "n_controls": validation_result["n_controls"],
         }
+        if use_fi_filter:
+            result["fi_removed_events"] = fi_removed_n
+        return result
     finally:
         con.close()
 
@@ -949,7 +1097,7 @@ def create_research_outputs_for_review(
     duckdb_temp_dir = os.getenv("DUCKDB_TMP_DIR", "")
     if not duckdb_temp_dir:
         try:
-            duckdb_temp_dir = str(get_worker_temp_dir(prefix="duckdb_tmp"))
+            duckdb_temp_dir = tempfile.mkdtemp(prefix="duckdb_tmp_")
         except Exception:
             duckdb_temp_dir = ""
 
@@ -1486,8 +1634,11 @@ if __name__ == "__main__":
     if not fi_validation["is_valid"]:
         logger.error(f"❌ Aggregated feature importance validation failed: {fi_validation.get('error', 'Unknown error')}")
         logger.error(
-            f"Please regenerate the aggregated feature importance CSV by running Step 3:\n"
-            f"  python 3_feature_importance/run_mc_feature_importance.py --cohort {args.cohort_name} --age_band {args.age_band} --force"
+            "Please generate the baseline aggregated feature importance (first pass) by running Step 3a with --baseline:\n"
+            "  python 3a_feature_importance/run_mc_feature_importance.py --cohort %s --age_band %s --baseline\n"
+            "Then re-run this event filter. For second-pass FI (after event filter), run without --baseline.",
+            args.cohort_name,
+            args.age_band,
         )
         sys.exit(1)
     else:
@@ -1650,7 +1801,12 @@ if __name__ == "__main__":
         min_interval_days=args.min_interval_days,
     )
 
-    # Step 3: Filter based on code classification (administrative vs. medical/pharmacy)
+    # Step 3: Filter based on aggregated feature importance first, then administrative codes
+    allowed_codes_from_fi = get_allowed_codes_from_aggregated_fi(fi_validation["cleaned_path"])
+    logger.info(
+        "Using %s allowed codes from aggregated feature importance for first-pass filter",
+        len(allowed_codes_from_fi),
+    )
     filtered_stats = filter_administrative_events(
         model_data_path=model_data_path,
         output_path=output_path,
@@ -1659,12 +1815,15 @@ if __name__ == "__main__":
         administrative_codes=None,  # Will load from research outputs
         keep_first_event=args.keep_first_event,
         admin_code_threshold_pct=args.admin_code_threshold_pct,
+        allowed_codes_from_fi=allowed_codes_from_fi,
     )
 
-    print("\n[INFO] Administrative event filtering complete!")
+    print("\n[INFO] Event filtering complete (aggregated FI first, then administrative)!")
     print(f"  Original events: {original_count:,}")
+    if filtered_stats.get("fi_removed_events", 0) > 0:
+        print(f"  After FI filter: {filtered_stats['original_events'] - filtered_stats['fi_removed_events']:,} (removed {filtered_stats['fi_removed_events']:,} low-importance)")
     print(f"  Filtered events: {filtered_stats['filtered_events']:,}")
-    print(f"  Removed: {filtered_stats['removed_events']:,} ({100.0 * filtered_stats['removed_events'] / max(original_count, 1):.1f}%)")
+    print(f"  Removed (total): {filtered_stats['removed_events']:,} ({100.0 * filtered_stats['removed_events'] / max(original_count, 1):.1f}%)")
     print("\n[INFO] Research outputs saved to:")
     print(f"  {OUTPUT_ROOT / 'for_review' / args.cohort_name / age_band_fname}")
     print("\n[INFO] Next steps:")
