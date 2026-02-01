@@ -6,25 +6,29 @@ Step 4b filters events at the event level to remove administrative codes and pos
 
 ## Purpose
 
-Filter events to remove:
-1. **Administrative codes** - Identified in Step 3b (`0_icd_cpt_check`) and stored in `administrative_codes_lookup.json`
-2. **Post-event leakage** - Events occurring after target event date, identified in Step 3b (`1_bupaR` post-target analysis)
+Filter events in two passes to reduce feature count and improve Step 3a feature importance on a second pass:
+
+1. **Aggregated feature importance (first pass)**: Keep only events whose codes (ICD, CPT, drug) appear in the aggregated feature-importance CSV from Step 3/3a. This reduces the number of features before final cohorts.
+2. **Administrative codes and post-event leakage (second pass)**: Remove administrative codes and events occurring on or after target event date.
 
 ## Workflow
 
 ### Input
 - `model_events.parquet` from Step 4a (created using refined features from Feature Importance EDA)
+- Aggregated feature importance CSV from Step 3 or 3a: `{cohort}_{age_band}_aggregated_feature_importance.csv` (must exist; script validates and cleans it before use)
 
 ### Filtering Logic
-1. **Administrative Code Filtering**: Remove events with codes listed in `administrative_codes_lookup.json`
+1. **Aggregated feature-importance filter (first)**: Keep only events where at least one of (drug_name, ICD diagnosis columns, procedure_code) is in the allowed set from the aggregated FI CSV. Events that do not match any important feature are dropped. Step 3a will run feature importance again on this reduced set for greater accuracy.
+
+2. **Administrative code filtering**: Remove events with codes listed in research outputs and `administrative_codes_lookup.json`
    - Codes are identified in Step 3b `0_icd_cpt_check` through code research and validation
    - Lookup table: `1b_apcd_event_filter/administrative_codes_lookup.json`
 
-2. **Post-Event Leakage Filtering**: Remove events occurring on or after target event date
+3. **Post-event leakage filtering**: Remove events occurring on or after target event date
    - Target event date identified in Step 3b `1_bupaR` post-target analysis
    - Prevents target leakage by removing events that occur after the outcome
 
-3. **Code Classification**: Events are classified as administrative vs. medical/pharmacy
+4. **Code classification**: Events are classified as administrative vs. medical/pharmacy
    - Administrative: Billing, scheduling, documentation codes
    - Medical/Pharmacy: Clinical diagnoses, procedures, medications
 

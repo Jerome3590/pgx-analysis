@@ -58,4 +58,23 @@ Refined feature-importance CSVs (from Step 3b) drive the case-side event filteri
 - Model data can be mirrored between environments via:
   - `aws s3 sync 4a_model_data s3://pgxdatalake/gold/cohorts_model_data --exclude "*" --include "cohort_name=*/age_band=*/model_events.parquet" --profile <profile>`
 
+### Checking gold/pharmacy (and gold/medical) completeness
+
+Before or after syncing from S3, you can verify that `gold/pharmacy` (and optionally `gold/medical`) on NVMe has all expected cells. Step 4 expects:
+
+- **Age bands:** 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-94  
+- **Event years:** 2016, 2017, 2018, 2019  
+- **Layout:** `gold/pharmacy/age_band={band}/event_year={year}/*.parquet`
+
+From project root:
+
+```bash
+python 4_model_data/check_gold_pharmacy_completeness.py           # pharmacy only
+python 4_model_data/check_gold_pharmacy_completeness.py --medical  # pharmacy + medical
+python 4_model_data/check_gold_pharmacy_completeness.py --s3       # compare to S3 object count/size
+```
+
+The script reports present/missing cells, file count, and total size. If pharmacy looks low (e.g. &lt; ~4 GB total), re-sync from S3:  
+`aws s3 sync s3://pgxdatalake/gold/pharmacy /mnt/nvme/gold/pharmacy`
+
 

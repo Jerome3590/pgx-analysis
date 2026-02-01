@@ -162,52 +162,57 @@ def _validate_s3_file_has_controls(s3_path: str) -> dict:
         con.close()
 
 
-def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
+def _resolve_model_events_path(cohort: str, age_band: str, prefer_filtered: bool = True) -> Path:
     """
     Resolve the path to model_events.parquet, checking multiple locations.
-    
+
+    When prefer_filtered=False (baseline run), use only unfiltered model_events.parquet.
+    When prefer_filtered=True (default), prefer model_events_no_protocols.parquet then fall back to model_events.parquet.
+
     Priority on Linux/EC2:
     1. get_data_root()/4_model_data/... (/mnt/nvme/4_model_data/...)
     2. PROJECT_ROOT/4_model_data/... (fallback)
     3. Try downloading from S3 to get_data_root() if not found locally
-    
+
     Priority on Windows:
     1. PROJECT_ROOT/4_model_data/... (Windows/local dev)
     2. get_data_root()/4_model_data/... (fallback)
     3. Try downloading from S3 to PROJECT_ROOT if not found locally
-    
+
     Returns:
         Path to model_events.parquet file
     """
     age_band_fname = age_band_to_fname(age_band)
     data_root = get_data_root()
     is_linux_system = is_linux()
-    
-    # Build candidate paths - prioritize filtered data (model_events_no_protocols.parquet) if Step 4b has run
-    # Then fall back to unfiltered data (model_events.parquet)
     if is_linux_system:
         # On Linux/EC2: prioritize /mnt/nvme
-        candidates = [
-            # Prefer filtered data (Step 4b output) if available
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            # Fall back to unfiltered data
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer data root on Linux
+        if prefer_filtered:
+            candidates = [
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            ]
+        else:
+            candidates = [
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            ]
         download_dest = data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
     else:
-        # On Windows: prioritize project root
-        candidates = [
-            # Prefer filtered data (Step 4b output) if available
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            # Fall back to unfiltered data
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer project root on Windows
+        if prefer_filtered:
+            candidates = [
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            ]
+        else:
+            candidates = [
+                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+            ]
         download_dest = PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
     
     # Check each candidate (filtered data first, then unfiltered)
@@ -318,24 +323,27 @@ def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
     raise FileNotFoundError(error_msg)
 
 
-def build_final_features_for_mc(cohort: str, age_band: str) -> pd.DataFrame:
+def build_final_features_for_mc(cohort: str, age_band: str, prefer_filtered: bool = True) -> pd.DataFrame:
     """
     Build feature matrix for Step 3 (Feature Importance) from raw model_events.parquet.
-    
+
+    When prefer_filtered=False (baseline), use only model_events.parquet (unfiltered).
+    When prefer_filtered=True (default), use model_events_no_protocols.parquet if available.
+
     Step 3 runs BEFORE Step 5 (PGx Feature Engineering), so it uses only raw features
     from the model_events.parquet dataset. Step 5 will add PGx features later, which
     will be used in Step 6 (Final Model Selection).
-    
+
     Note: FP-Growth, BupaR, and DTW features are no longer used in the pipeline;
     they are only used for dashboard visualizations in Step 10.
-    
+
     Inputs:
       - 4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
-        (or model_events_no_protocols.parquet if Step 4b has run)
+        (or model_events_no_protocols.parquet if Step 4b has run and prefer_filtered=True)
     """
     age_band_fname = age_band_to_fname(age_band)
 
-    events_path = _resolve_model_events_path(cohort, age_band)
+    events_path = _resolve_model_events_path(cohort, age_band, prefer_filtered=prefer_filtered)
 
     print(f"Loading model data (cases + controls) from {events_path}")
     con = duckdb.connect()
@@ -384,8 +392,17 @@ def run_mc_feature_importance(
     test_size: float = 0.3,
     random_seed: int = 42,
     force: bool = False,
+    baseline: bool = False,
 ) -> pd.DataFrame:
     """Run Monte-Carlo CV for multiple models and aggregate feature importances.
+
+    Default (baseline=False): second pass. Use model_events_no_protocols.parquet if
+    available and write to outputs/{cohort}/. Baseline aggregated FI is expected to
+    already exist (e.g. on S3); the 1b event filter uses it for the FI-based filter.
+
+    When baseline=True: first pass only. Use unfiltered model_events.parquet and write
+    to outputs/{cohort}/_baseline/. Use this only when generating baseline FI for the
+    first time; normal pipeline runs should omit --baseline.
 
     Models:
       - XGBoost (gradient boosted trees, CPU on Linux, GPU on Windows if available)
@@ -403,21 +420,25 @@ def run_mc_feature_importance(
         print(f"[INFO] Writing Step 3 outputs to NVMe: {out_dir}")
     else:
         out_dir = PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort
+    if baseline:
+        out_dir = out_dir / "_baseline"
+        print(f"[INFO] Baseline run: writing to _baseline subfolder (original aggregated FI for 1b event filter)")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Check for existing aggregated results (idempotency)
     agg_path = out_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    
+
     if not force and agg_path.exists():
         print(f"✓ Aggregated feature importance already exists locally: {agg_path}")
         print("  Skipping Monte-Carlo feature importance computation.")
         print("  Use --force to rerun.")
         return pd.read_csv(agg_path)
 
-    # Check S3 if not found locally
+    # Check S3 if not found locally (use _baseline in S3 key when baseline=True)
     if not force:
+        s3_suffix = "_baseline/" if baseline else ""
         s3_key_agg = (
-            f"gold/feature_importance/{cohort}/{age_band}/"
+            f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}"
             f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
         )
         try:
@@ -435,7 +456,8 @@ def run_mc_feature_importance(
             pass
 
     # Assemble final feature matrix (with leakage removal baked in)
-    df = build_final_features_for_mc(cohort, age_band)
+    # Baseline: use unfiltered model_events.parquet only. Second pass: prefer model_events_no_protocols.parquet.
+    df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
     if df.empty:
         raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
 
@@ -805,10 +827,11 @@ def run_mc_feature_importance(
         print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
         print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
         
-        # Upload to S3
+        # Upload to S3 (use _baseline subfolder in key when baseline=True)
         try:
+            s3_suffix = "_baseline/" if baseline else ""
             s3_key_agg = (
-                f"gold/feature_importance/{cohort}/{age_band}/"
+                f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}"
                 f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
             )
             import io
@@ -847,6 +870,13 @@ def main() -> None:
         action="store_true",
         help="Force rerun even if results already exist",
     )
+    parser.add_argument(
+        "--baseline",
+        action="store_true",
+        help="First-pass run only: use unfiltered model_events.parquet and write to outputs/{cohort}/_baseline/. "
+        "Default is no baseline (second pass): use filtered model_events_no_protocols.parquet and write to outputs/{cohort}/. "
+        "Use --baseline only when generating baseline FI for the first time; baseline is usually already on S3.",
+    )
     args = parser.parse_args()
 
     run_mc_feature_importance(
@@ -854,6 +884,7 @@ def main() -> None:
         age_band=args.age_band,
         n_runs=args.n_runs,
         force=args.force,
+        baseline=args.baseline,
     )
 
 
