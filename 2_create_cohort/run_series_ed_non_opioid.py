@@ -3,13 +3,15 @@
 Wrapper script to run cohort creation for ed_non_opioid (polypharmacy) cohort
 across all age bands and event years, processing heavy partitions first.
 
-This script processes partitions sequentially in the recommended order:
-1. Heavy partitions first: 25-44, 65-74
-2. Remaining partitions in descending expected size
-3. Years: 2016-2019
+This script:
+1. Creates cohort parquets (all age_band × event_year) via 0_create_cohort.py
+2. Runs the event filter (Step 1b) for each age_band, producing model_events_no_protocols.parquet
+
+Event filter requires baseline aggregated feature importance (Step 3a) for each age_band.
+Run Step 3a with --baseline first if needed.
 
 Usage:
-    python run_series_ed_non_opioid.py [--skip-existing]
+    python run_series_ed_non_opioid.py [--skip-existing] [--no-event-filter]
 """
 
 import os
@@ -138,7 +140,7 @@ def main():
 
     # Summary
     print(f"\n{'='*80}")
-    print(f"📊 FINAL SUMMARY")
+    print(f"📊 COHORT CREATION SUMMARY")
     print(f"{'='*80}")
     print(f"✅ Successful: {success_count}")
     print(f"❌ Failed: {failed_count}")
