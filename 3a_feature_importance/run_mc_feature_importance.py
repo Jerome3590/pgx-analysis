@@ -3,9 +3,8 @@
 Monte-Carlo feature-importance runner for the final, leakage-filtered feature set.
 
 This script:
-  - Mirrors `build_final_features` logic from `6_final_model/run_final_model.py`
-    to assemble the patient-level feature matrix (with target-leakage
-    removal already applied).
+  - Uses **cohort data** (Step 2 cohort.parquet) to build the patient-level feature matrix.
+    It does not depend on Step 4 (model_events.parquet).
   - Runs N Monte-Carlo train/test splits with XGBoost (CPU on Linux, GPU on Windows if available).
   - Aggregates feature importances across runs, producing a CSV in the same
     schema as the legacy `*_aggregated_feature_importance.csv` files:
@@ -47,6 +46,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import age_band_to_fname  # noqa: E402
 from py_helpers.env_utils import get_xgb_cpu_nthread, get_data_root, is_linux  # noqa: E402
+from py_helpers.s3_utils import normalize_cohort_name, get_cohort_parquet_path  # noqa: E402
+
+# Event years to combine when loading cohort data (matches 4_model_data default)
+DEFAULT_EVENT_YEARS = [2016, 2017, 2018, 2019]
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
@@ -125,248 +128,140 @@ def _remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _validate_s3_file_has_controls(s3_path: str) -> dict:
+def _validate_cohort_file_has_controls(path_or_s3: str) -> dict:
     """
-    Validate that an S3 parquet file contains both cases (target=1) and controls (target=0).
-    Uses DuckDB's S3 support to query without downloading the entire file.
-    
+    Validate that a cohort.parquet file contains both cases (is_target_case=1) and controls (is_target_case=0).
+    path_or_s3: local path or s3:// URL.
     Returns:
         dict with keys: has_controls (bool), n_cases (int), n_controls (int), error (str or None)
     """
-    import duckdb
     con = duckdb.connect()
     try:
         result = con.execute(
             f"""
             SELECT 
-                COUNT(*) FILTER (WHERE target = 1) AS n_cases,
-                COUNT(*) FILTER (WHERE target = 0) AS n_controls
-            FROM read_parquet('{s3_path}')
+                COUNT(*) FILTER (WHERE is_target_case = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE is_target_case = 0) AS n_controls
+            FROM read_parquet('{path_or_s3}')
             """
         ).fetchone()
-        
-        n_cases = result[0] if result else 0
-        n_controls = result[1] if result else 0
-        has_controls = n_controls > 0
-        
+        n_cases = int(result[0]) if result else 0
+        n_controls = int(result[1]) if result else 0
         return {
-            "has_controls": has_controls,
+            "has_controls": n_controls > 0,
             "n_cases": n_cases,
             "n_controls": n_controls,
             "error": None,
         }
     except Exception as e:
-        return {
-            "has_controls": False,
-            "n_cases": 0,
-            "n_controls": 0,
-            "error": str(e),
-        }
+        return {"has_controls": False, "n_cases": 0, "n_controls": 0, "error": str(e)}
     finally:
         con.close()
 
 
-def _resolve_model_events_path(cohort: str, age_band: str, prefer_filtered: bool = True) -> Path:
+def _cohort_local_root() -> Path:
+    """Local root for syncing cohort.parquet from S3 (NVMe on EC2). DuckDB uses only local paths."""
+    return get_data_root() / "gold" / "cohorts"
+
+
+def _resolve_cohort_parquet_paths(cohort: str, age_band: str) -> List[str]:
     """
-    Resolve the path to model_events.parquet, checking multiple locations.
-
-    When prefer_filtered=False (baseline run), use only unfiltered model_events.parquet.
-    When prefer_filtered=True (default), prefer model_events_no_protocols.parquet then fall back to model_events.parquet.
-
-    Priority on Linux/EC2:
-    1. get_data_root()/4_model_data/... (/mnt/nvme/4_model_data/...)
-    2. PROJECT_ROOT/4_model_data/... (fallback)
-    3. Try downloading from S3 to get_data_root() if not found locally
-
-    Priority on Windows:
-    1. PROJECT_ROOT/4_model_data/... (Windows/local dev)
-    2. get_data_root()/4_model_data/... (fallback)
-    3. Try downloading from S3 to PROJECT_ROOT if not found locally
-
-    Returns:
-        Path to model_events.parquet file
+    Resolve paths to cohort.parquet for (cohort, age_band) across DEFAULT_EVENT_YEARS.
+    Returns only **local** paths: if a file exists only on S3, it is synced to local (NVMe/data) first,
+    so DuckDB never sees mixed local/S3 paths.
     """
-    age_band_fname = age_band_to_fname(age_band)
+    cohort_slug = normalize_cohort_name(cohort)
+    local_root = _cohort_local_root()
+    # Candidate local roots to check before syncing (same layout as 4_model_data)
     data_root = get_data_root()
-    is_linux_system = is_linux()
-    if is_linux_system:
-        # On Linux/EC2: prioritize /mnt/nvme
-        if prefer_filtered:
-            candidates = [
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            ]
-        else:
-            candidates = [
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            ]
-        download_dest = data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
-    else:
-        if prefer_filtered:
-            candidates = [
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            ]
-        else:
-            candidates = [
-                PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-                data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            ]
-        download_dest = PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
-    
-    # Check each candidate (filtered data first, then unfiltered)
-    for path in candidates:
-        if path.exists():
-            if "no_protocols" in path.name:
-                print(f"Found filtered model_events_no_protocols.parquet at: {path} (administrative codes already filtered)")
-            else:
-                print(f"Found model_events.parquet at: {path} (using unfiltered data - Step 4b may not have run)")
-            return path
-    
-    # Log which paths we checked
-    print(f"Model data not found locally. Checked paths:")
-    for path in candidates:
-        print(f"  - {path} (exists: {path.exists()})")
-    
-    # If not found locally, try downloading from S3
-    s3_key_candidates = [
-        f"gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
-        f"gold/model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
-        f"gold/model_data/{cohort}/{age_band}/model_events.parquet",
+    check_roots: List[Path] = [
+        data_root / "gold" / "cohorts",
+        data_root / "data" / "gold_cohorts",
+        PROJECT_ROOT / "data" / "gold_cohorts",
     ]
-    
-    download_dest.parent.mkdir(parents=True, exist_ok=True)
-    
-    for s3_key in s3_key_candidates:
-        try:
-            # Check if file exists in S3
-            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-            s3_path = f"s3://{S3_BUCKET}/{s3_key}"
-            
-            # Validate controls BEFORE downloading (using DuckDB S3 support)
-            print(f"Checking S3 file for controls: {s3_path}")
-            validation_result = _validate_s3_file_has_controls(s3_path)
-            
-            if validation_result.get("error"):
-                print(f"Warning: Could not validate S3 file {s3_path}: {validation_result['error']}")
-                print("Proceeding with download and will validate after...")
-            elif not validation_result.get("has_controls", False):
-                print(
-                    f"ERROR: S3 file {s3_path} is missing controls! "
-                    f"Cases: {validation_result.get('n_cases', 0)}, Controls: {validation_result.get('n_controls', 0)}"
-                )
-                print(
-                    f"This file should be regenerated with controls. "
-                    f"Please run: python 4_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
-                )
-                print("Skipping this S3 file and trying next candidate...")
-                continue  # Skip this S3 file, try next candidate
-            
-            # Download the file
-            print(f"Downloading model_events.parquet from S3: {s3_path}")
-            print(f"Downloading to: {download_dest}")
-            import io
-            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-            with open(download_dest, 'wb') as f:
-                f.write(obj['Body'].read())
-            print(f"Saved to: {download_dest}")
-            
-            # Validate again after download (double-check)
-            import duckdb
-            con = duckdb.connect()
+    if os.environ.get("LOCAL_DATA_PATH"):
+        check_roots.insert(0, Path(os.environ["LOCAL_DATA_PATH"]))
+
+    found: List[str] = []
+    for year in DEFAULT_EVENT_YEARS:
+        rel = f"cohort_name={cohort_slug}/event_year={year}/age_band={age_band}/cohort.parquet"
+        local_path = local_root / rel
+        # Prefer existing local file from any check root
+        for root in check_roots:
+            p = root / rel
+            if p.exists():
+                found.append(str(p))
+                break
+        else:
+            # Not found locally: try S3 and sync to local_root (NVMe) then use that path
+            s3_path = get_cohort_parquet_path(cohort_slug, age_band, year)
             try:
-                result = con.execute(
-                    f"""
-                    SELECT 
-                        COUNT(*) FILTER (WHERE target = 1) AS n_cases,
-                        COUNT(*) FILTER (WHERE target = 0) AS n_controls
-                    FROM read_parquet('{download_dest}')
-                    """
-                ).fetchone()
-                
-                n_cases = result[0] if result else 0
-                n_controls = result[1] if result else 0
-                if n_controls == 0:
-                    print(
-                        f"ERROR: Downloaded file is missing controls! "
-                        f"Cases: {n_cases}, Controls: {n_controls}"
-                    )
-                    print(
-                        f"This file should be regenerated with controls. "
-                        f"Please run: python 4_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
-                    )
-                    # Delete the invalid file
-                    download_dest.unlink()
-                    print("Deleted invalid file. Trying next S3 candidate...")
-                    continue
-                else:
-                    print(f"Validation passed: {n_cases} cases, {n_controls} controls")
-            finally:
-                con.close()
-            
-            return download_dest
-        except Exception as e:
-            print(f"S3 key not found or error: {s3_key} - {e}")
-            continue
-    
-    # If all checks failed, raise error with helpful message
-    error_msg = (
-        f"Model data not found for cohort={cohort}, age_band={age_band}.\n"
-        f"Checked locations:\n"
-    )
-    for path in candidates:
-        error_msg += f"  - {path} (exists: {path.exists()})\n"
-    error_msg += f"\nS3 locations checked:\n"
-    for s3_key in s3_key_candidates:
-        error_msg += f"  - s3://{S3_BUCKET}/{s3_key}\n"
-    raise FileNotFoundError(error_msg)
+                from urllib.parse import urlparse
+                parsed = urlparse(s3_path)
+                bucket = parsed.netloc
+                key = parsed.path.lstrip("/")
+                s3_client.head_object(Bucket=bucket, Key=key)
+            except Exception:
+                continue
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                obj = s3_client.get_object(Bucket=bucket, Key=key)
+                with open(local_path, "wb") as f:
+                    f.write(obj["Body"].read())
+                print(f"Synced cohort.parquet from S3 to local: {local_path}")
+                found.append(str(local_path))
+            except Exception as e:
+                print(f"Warning: could not sync {s3_path} to {local_path}: {e}")
+    return found
 
 
 def build_final_features_for_mc(cohort: str, age_band: str, prefer_filtered: bool = True) -> pd.DataFrame:
     """
-    Build feature matrix for Step 3 (Feature Importance) from raw model_events.parquet.
+    Build feature matrix for Step 3 (Feature Importance) from **cohort data** (Step 2 cohort.parquet).
 
-    When prefer_filtered=False (baseline), use only model_events.parquet (unfiltered).
-    When prefer_filtered=True (default), use model_events_no_protocols.parquet if available.
+    Does not use Step 4 (model_events.parquet). Loads cohort.parquet for (cohort, age_band)
+    across DEFAULT_EVENT_YEARS (2016–2019); files missing locally are synced from S3 to
+    local (NVMe) first so DuckDB sees only local paths. Aggregates to patient-level:
+    mi_person_key, target = MAX(is_target_case), n_events = COUNT(*).
 
-    Step 3 runs BEFORE Step 5 (PGx Feature Engineering), so it uses only raw features
-    from the model_events.parquet dataset. Step 5 will add PGx features later, which
-    will be used in Step 6 (Final Model Selection).
-
-    Note: FP-Growth, BupaR, and DTW features are no longer used in the pipeline;
-    they are only used for dashboard visualizations in Step 10.
-
-    Inputs:
-      - 4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
-        (or model_events_no_protocols.parquet if Step 4b has run and prefer_filtered=True)
+    prefer_filtered is kept for API compatibility but has no effect when using cohort data.
     """
-    age_band_fname = age_band_to_fname(age_band)
+    cohort_paths = _resolve_cohort_parquet_paths(cohort, age_band)
+    if not cohort_paths:
+        raise FileNotFoundError(
+            f"Cohort data not found for cohort={cohort}, age_band={age_band}. "
+            f"Checked local gold/cohorts and S3 gold/cohorts/ for event years {DEFAULT_EVENT_YEARS}. "
+            "Run Step 2 (2_create_cohort) first to produce cohort.parquet files."
+        )
 
-    events_path = _resolve_model_events_path(cohort, age_band, prefer_filtered=prefer_filtered)
+    # Validate at least one file has controls
+    for path in cohort_paths[:1]:
+        v = _validate_cohort_file_has_controls(path)
+        if v.get("error"):
+            print(f"Warning: Could not validate cohort file: {path} - {v['error']}")
+        elif not v.get("has_controls", False):
+            print(
+                f"Warning: Cohort file has no controls: {path} "
+                f"(cases={v.get('n_cases', 0)}, controls={v.get('n_controls', 0)})"
+            )
 
-    print(f"Loading model data (cases + controls) from {events_path}")
+    print(f"Loading cohort data (cases + controls) from {len(cohort_paths)} file(s)")
+    paths_sql = ", ".join(repr(p) for p in cohort_paths)
     con = duckdb.connect()
     grouped = con.execute(
         f"""
         SELECT
             CAST(mi_person_key AS VARCHAR) AS mi_person_key,
-            CAST(target AS INTEGER)        AS target,
-            COUNT(*)                       AS n_events
-        FROM read_parquet('{events_path}')
-        GROUP BY mi_person_key, target
+            CAST(MAX(is_target_case) AS INTEGER) AS target,
+            COUNT(*)::BIGINT AS n_events
+        FROM read_parquet([{paths_sql}])
+        GROUP BY mi_person_key
         """
     ).df()
     con.close()
 
     grouped["target"] = grouped["target"].astype(int).clip(lower=0, upper=1)
 
-    # Step 3 uses only raw features from model_events.parquet
-    # No feature engineering outputs are loaded here (Step 5 adds PGx features later)
     final = grouped.copy()
     final = final.dropna(subset=["target"])
     final = _remove_target_leakage_features(final)
@@ -400,13 +295,14 @@ def run_mc_feature_importance(
 ) -> pd.DataFrame:
     """Run Monte-Carlo CV for multiple models and aggregate feature importances.
 
-    Default (baseline=False): second pass. Use model_events_no_protocols.parquet if
-    available and write to outputs/{cohort}/. Baseline aggregated FI is expected to
-    already exist (e.g. on S3); the 1b event filter uses it for the FI-based filter.
+    Uses cohort data (Step 2 cohort.parquet) to build the feature matrix. Does not
+    depend on Step 4 (model_events.parquet).
 
-    When baseline=True: first pass only. Use unfiltered model_events.parquet and write
-    to outputs/{cohort}/_baseline/. Use this only when generating baseline FI for the
-    first time; normal pipeline runs should omit --baseline.
+    Default (baseline=False): write to outputs/{cohort}/. Baseline aggregated FI is
+    expected to already exist (e.g. on S3); the 1b event filter uses it for the FI-based filter.
+
+    When baseline=True: write to outputs/{cohort}/_baseline/. Use this only when
+    generating baseline FI for the first time; normal pipeline runs should omit --baseline.
 
     Models:
       - XGBoost (gradient boosted trees, CPU on Linux, GPU on Windows if available)
@@ -423,10 +319,10 @@ def run_mc_feature_importance(
         out_dir = Path(_outputs_base) / cohort
         print(f"[INFO] Writing Step 3 outputs to NVMe: {out_dir}")
     else:
-        out_dir = PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort
+        out_dir = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
     if baseline:
         out_dir = out_dir / "_baseline"
-        print(f"[INFO] Baseline run: writing to _baseline subfolder (original aggregated FI for 1b event filter)")
+        print("[INFO] Baseline run: writing to _baseline subfolder (original aggregated FI for 1b event filter)")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Check for existing aggregated results (idempotency)
@@ -459,8 +355,7 @@ def run_mc_feature_importance(
             # File doesn't exist in S3, proceed with computation
             pass
 
-    # Assemble final feature matrix (with leakage removal baked in)
-    # Baseline: use unfiltered model_events.parquet only. Second pass: prefer model_events_no_protocols.parquet.
+    # Assemble final feature matrix from cohort data (with leakage removal baked in)
     df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
     if df.empty:
         raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
@@ -565,7 +460,7 @@ def run_mc_feature_importance(
             else:
                 scaled = np.zeros_like(importances)
 
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled):
+            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
@@ -612,7 +507,7 @@ def run_mc_feature_importance(
             else:
                 scaled = np.zeros_like(importances)
 
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled):
+            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
@@ -665,7 +560,7 @@ def run_mc_feature_importance(
             else:
                 scaled = np.zeros_like(importances)
 
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled):
+            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
@@ -886,8 +781,8 @@ def main() -> None:
     parser.add_argument(
         "--baseline",
         action="store_true",
-        help="First-pass run only: use unfiltered model_events.parquet and write to outputs/{cohort}/_baseline/. "
-        "Default is no baseline (second pass): use filtered model_events_no_protocols.parquet and write to outputs/{cohort}/. "
+        help="First-pass run: write to outputs/{cohort}/_baseline/. "
+        "Default is no baseline: write to outputs/{cohort}/. "
         "Use --baseline only when generating baseline FI for the first time; baseline is usually already on S3.",
     )
     args = parser.parse_args()
