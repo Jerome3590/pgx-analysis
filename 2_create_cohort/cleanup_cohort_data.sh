@@ -94,16 +94,32 @@ S3_BUCKET="pgxdatalake"
 S3_REPO_BUCKET="pgx-repository"
 
 # Local paths (EC2)
+# NEVER delete gold/medical or gold/pharmacy (only gold/cohorts and other step outputs).
 PROJECT_ROOT="${HOME}/pgx-analysis"
-DATA_ROOT="/mnt/nvme/gold"
-MODEL_DATA_ROOT="/mnt/nvme/4a_model_data"
-MODEL_DATA_ROOT_4="/mnt/nvme/4_model_data"  # Current step name
-LOCAL_COHORT_ROOT="${DATA_ROOT}/cohorts"  # If synced locally
+NVME_ROOT="/mnt/nvme"
+DATA_ROOT="${NVME_ROOT}/gold"
+LOCAL_COHORT_ROOT="${DATA_ROOT}/cohorts"  # Only gold/cohorts; never ${DATA_ROOT}/medical or ${DATA_ROOT}/pharmacy
+MODEL_DATA_ROOT="${NVME_ROOT}/4a_model_data"
+MODEL_DATA_ROOT_4="${NVME_ROOT}/4_model_data"  # Current step name
 STEP3B_OUTPUTS="${PROJECT_ROOT}/3b_feature_importance_eda/outputs"
 STEP3A_OUTPUTS="${PROJECT_ROOT}/3a_feature_importance/outputs"
 STEP3_OUTPUTS="${PROJECT_ROOT}/3_feature_importance/outputs"
 STEP1B_OUTPUTS="${PROJECT_ROOT}/1b_apcd_event_filter/outputs"
 STEP6_MODELS="${PROJECT_ROOT}/6_final_model/models"
+# Project pipeline output dirs (Steps 2, 5–9) — same as notebook PROJECT_OUTPUT_DIRS
+PROJECT_OUTPUT_DIRS=(
+    "2_create_cohort/cohort_metrics"
+    "4_model_data/cohort_name=opioid_ed"
+    "4_model_data/cohort_name=non_opioid_ed"
+    "5_pgx_analysis/outputs"
+    "6_final_model/outputs"
+    "6_final_model/model_outputs"
+    "7_shap_analysis/outputs"
+    "8_ffa_analysis/results"
+    "9_risk_dashboard/outputs"
+    "feature_encoding_outputs"
+    "logs"
+)
 
 # Counter for deleted items
 DELETED_COUNT=0
@@ -309,22 +325,37 @@ check_s3_path "s3://${S3_BUCKET}/gold/cohorts_F1120/" "Step 2: Legacy cohorts_F1
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts_model_data/" "Step 2: Legacy cohorts_model_data (S3 - old format)"
 check_local_path "${LOCAL_COHORT_ROOT}/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (local)"
 check_local_path "${LOCAL_COHORT_ROOT}/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (local)"
-if [ -d "${PROJECT_ROOT}/data/gold_cohorts" ]; then
-    check_local_path "${PROJECT_ROOT}/data/gold_cohorts/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (project data)"
-    check_local_path "${PROJECT_ROOT}/data/gold_cohorts/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (project data)"
+check_local_path "${LOCAL_COHORT_ROOT}/cohort_name=non_opioid_ed" "Step 2: NON_OPIOID_ED cohorts (local)"
+check_local_path "${NVME_ROOT}/cohorts_staging" "Step 2: Cohorts staging (NVMe)"
+for _rel in "${PROJECT_OUTPUT_DIRS[@]}"; do
+    check_local_path "${PROJECT_ROOT}/${_rel}" "Project: ${_rel}"
+done
+if [ -d "${PROJECT_ROOT}/data/gold/cohorts" ]; then
+    check_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (project data)"
+    check_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (project data)"
+    check_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=non_opioid_ed" "Step 2: NON_OPIOID_ED cohorts (project data)"
 fi
 
 echo ""
 
-# Step 3b: Feature importance outputs
-echo "--- Step 3b: Feature Importance Outputs ---"
-log_message "--- Step 3b: Feature Importance Outputs ---"
+# Step 1b: Event filter outputs
+echo "--- Step 1b: Event Filter Outputs ---"
+log_message "--- Step 1b: Event Filter Outputs ---"
+check_local_path "${STEP1B_OUTPUTS}" "Step 1b: Event filter outputs (local)"
+check_s3_path "s3://${S3_BUCKET}/gold/event_filter/" "Step 1b: Event filter (S3)"
+
+echo ""
+
+# Step 3b + 3a: Feature importance outputs
+echo "--- Step 3b / 3a: Feature Importance Outputs ---"
+log_message "--- Step 3b / 3a: Feature Importance Outputs ---"
 check_local_path "${STEP3B_OUTPUTS}/ed_non_opioid" "Step 3b: ED_NON_OPIOID feature importance"
 check_local_path "${STEP3B_OUTPUTS}/opioid_ed" "Step 3b: OPIOID_ED feature importance"
+check_local_path "${STEP3A_OUTPUTS}" "Step 3a: MC feature importance outputs"
+check_local_path "${STEP3_OUTPUTS}" "Step 3: Legacy feature importance outputs"
 check_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
 check_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
-check_s3_path "s3://${S3_BUCKET}/gold/feature_importance/ed_non_opioid/" "Step 3b: ED_NON_OPIOID feature importance (S3)"
-check_s3_path "s3://${S3_BUCKET}/gold/feature_importance/opioid_ed/" "Step 3b: OPIOID_ED feature importance (S3)"
+check_s3_path "s3://${S3_BUCKET}/gold/feature_importance/" "Step 3a: Feature importance (S3, includes _baseline)"
 
 echo ""
 
@@ -409,23 +440,38 @@ delete_s3_path "s3://${S3_BUCKET}/gold/cohorts_F1120/" "Step 2: Legacy cohorts_F
 delete_s3_path "s3://${S3_BUCKET}/gold/cohorts_model_data/" "Step 2: Legacy cohorts_model_data (S3 - old format)"
 delete_local_path "${LOCAL_COHORT_ROOT}/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (local)"
 delete_local_path "${LOCAL_COHORT_ROOT}/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (local)"
+delete_local_path "${LOCAL_COHORT_ROOT}/cohort_name=non_opioid_ed" "Step 2: NON_OPIOID_ED cohorts (local)"
+delete_local_path "${NVME_ROOT}/cohorts_staging" "Step 2: Cohorts staging (NVMe)"
+# Project pipeline output dirs (Steps 2, 5–9)
+for _rel in "${PROJECT_OUTPUT_DIRS[@]}"; do
+    delete_local_path "${PROJECT_ROOT}/${_rel}" "Project: ${_rel}"
+done
 
-# Also check project root data directory
-if [ -d "${PROJECT_ROOT}/data/gold_cohorts" ]; then
-    delete_local_path "${PROJECT_ROOT}/data/gold_cohorts/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (project data)"
-    delete_local_path "${PROJECT_ROOT}/data/gold_cohorts/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (project data)"
+# Project data dir: gold/cohorts layout (never gold/medical or gold/pharmacy)
+if [ -d "${PROJECT_ROOT}/data/gold/cohorts" ]; then
+    delete_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=ed_non_opioid" "Step 2: ED_NON_OPIOID cohorts (project data)"
+    delete_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=opioid_ed" "Step 2: OPIOID_ED cohorts (project data)"
+    delete_local_path "${PROJECT_ROOT}/data/gold/cohorts/cohort_name=non_opioid_ed" "Step 2: NON_OPIOID_ED cohorts (project data)"
 fi
 
 echo ""
 
-# Step 3b: Feature importance outputs
-echo "--- Step 3b: Feature Importance Outputs ---"
+# Step 1b: Event filter outputs
+echo "--- Step 1b: Event Filter Outputs ---"
+delete_local_path "${STEP1B_OUTPUTS}" "Step 1b: Event filter outputs (local)"
+delete_s3_path "s3://${S3_BUCKET}/gold/event_filter/" "Step 1b: Event filter (S3)"
+
+echo ""
+
+# Step 3b + 3a: Feature importance outputs
+echo "--- Step 3b / 3a: Feature Importance Outputs ---"
 delete_local_path "${STEP3B_OUTPUTS}/ed_non_opioid" "Step 3b: ED_NON_OPIOID feature importance"
 delete_local_path "${STEP3B_OUTPUTS}/opioid_ed" "Step 3b: OPIOID_ED feature importance"
+delete_local_path "${STEP3A_OUTPUTS}" "Step 3a: MC feature importance outputs"
+delete_local_path "${STEP3_OUTPUTS}" "Step 3: Legacy feature importance outputs"
 delete_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
 delete_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
-delete_s3_path "s3://${S3_BUCKET}/gold/feature_importance/ed_non_opioid/" "Step 3b: ED_NON_OPIOID feature importance (S3)"
-delete_s3_path "s3://${S3_BUCKET}/gold/feature_importance/opioid_ed/" "Step 3b: OPIOID_ED feature importance (S3)"
+delete_s3_path "s3://${S3_BUCKET}/gold/feature_importance/" "Step 3a: Feature importance (S3, includes _baseline)"
 
 echo ""
 
@@ -458,6 +504,12 @@ delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opio
 # Legacy path (very old format) - for cleanup
 delete_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - legacy)"
 delete_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - legacy)"
+delete_s3_path "s3://${S3_BUCKET}/gold/model_data/" "Step 4: Model data (S3 - alternate path)"
+delete_s3_path "s3://${S3_BUCKET}/gold/pgx_features/" "Step 5: PGx features (S3)"
+delete_s3_path "s3://${S3_BUCKET}/gold/final_model/" "Step 6: Final model (S3)"
+delete_s3_path "s3://${S3_BUCKET}/gold/shap_analysis/" "Step 7: SHAP analysis (S3)"
+delete_s3_path "s3://${S3_BUCKET}/gold/ffa_analysis/" "Step 8: FFA analysis (S3)"
+delete_s3_path "s3://${S3_BUCKET}/gold/combined_analysis/" "Step 9: Combined analysis (S3)"
 
 echo ""
 
