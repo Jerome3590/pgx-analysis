@@ -38,7 +38,7 @@ This asymmetry is intentional and standard for classification problems:
 
 ### Target leakage removal (Step 4)
 
-**Linear flow:** 3b identifies target leakage (e.g. BupaR post-target analysis) → Step 4 removes it when building model data. For **case events**, only events **strictly before** the target date are kept: `event_date < first_opioid_ed_date` (opioid_ed) or `event_date < first_ed_non_opioid_date` (non_opioid_ed). Events on or after the target date are dropped here (previously done in 1b; now in Step 4 for a linear pipeline).
+Step 4 removes target leakage when building model data: for **case events**, only events **strictly before** the target date are kept (`event_date < first_opioid_ed_date` for opioid_ed, `event_date < first_ed_non_opioid_date` for non_opioid_ed). Events on or after the target date are dropped.
 
 ### Feature-Importance Filtering
 

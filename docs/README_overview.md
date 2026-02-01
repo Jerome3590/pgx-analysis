@@ -101,7 +101,7 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 - **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
   - Age bands modeled: **65–74**, **75–84**, **85–94**
 
-**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3b), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). **ICD filtering** runs earlier in **1b_apcd_event_filter** (before cohorts) for efficient data processing and true feature importances; feature importances (3a/3b) are rerun after cohorts.
+**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3b), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). Step 1b (event filter: aggregated FI + ICD/administrative codes) runs before cohort creation; Step 4 builds model data and removes target leakage for case events.
 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3a_feature_importance/`) producing aggregated feature importances

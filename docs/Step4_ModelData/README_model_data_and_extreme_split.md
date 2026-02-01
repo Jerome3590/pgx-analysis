@@ -1,6 +1,6 @@
 ## Step 4: Model Data
 
-This step produces **model-ready event data** for each `(cohort, age_band)` using refined feature importance from Step 3b. **Target leakage removal** (events on/after target date) is applied here for case events (linear flow: 3b → 4). ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`).
+This step produces **model-ready event data** for each `(cohort, age_band)` using refined feature importance from Step 3b. Step 4 removes target leakage for case events (events before target date only). ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 4 – Model Data (`4_model_data/`)
 
