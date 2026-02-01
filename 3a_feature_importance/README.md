@@ -1060,8 +1060,7 @@ CatBoost is the primary model used for **high-cardinality, sparse healthcare fea
 
 ### Random Forest / XGBoost RF and Complementary Signals
 
-In prior work (e.g., graft-loss feature importance; see the per-model outputs in  
-[graft-loss/feature_importance/outputs](https://github.com/Jerome3590/phts/tree/main/graft-loss/feature_importance/outputs)), we observed that **random forest–style models** sometimes surface clinically plausible features that **do not appear in the top ranks of boosted models** (including CatBoost).
+In prior work, we observed that **random forest–style models** sometimes surface clinically plausible features that **do not appear in the top ranks of boosted models** (including CatBoost).
 
 **Why we include XGBoost RF in the core ensemble:**
 

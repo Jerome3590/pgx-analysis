@@ -1,30 +1,24 @@
-# ICD Filtering Moved Earlier (Step 1b)
+# Event Filtering (Step 1b)
 
 ## Summary
 
-ICD/administrative code filtering has been **moved earlier** in the pipeline: it now runs in **Step 1b** (`1b_apcd_event_filter`) **before** cohort creation (Step 2), instead of as a separate post–model-data step.
+ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`) before cohort creation (Step 2). Step 1b applies aggregated feature importance filtering and administrative code filtering; Step 4 removes target leakage when building model data.
 
-## Why This Is More Efficient
-
-1. **Less data downstream** – Filtering at the event level before cohort assembly reduces the volume of events that flow into cohort creation and feature importance. Fewer administrative/scheduling codes are carried through the pipeline.
-2. **Single filtered event set** – Cohorts and feature importance (Steps 3a/3b) are built on the **same** filtered event set. There is no mismatch between “raw” events in cohorts and “filtered” events in later steps.
-3. **True feature importances** – Feature importance (Step 3a/3b) is computed on events that already exclude administrative codes. Importances therefore reflect **predictive** signal (e.g. clinical ICD/CPT and drugs) rather than administrative noise, giving a more accurate ranking of features for model data (Step 4) and final model (Step 6).
-
-## Verification
-
-- **Efficiency:** Filtering once in 1b avoids duplicate filtering logic and reduces data volume before expensive cohort and MC-CV steps.
-- **Correctness:** Cohorts (Step 2) and feature importance (3a/3b) both consume the filtered event set produced by 1b; model data (Step 4) applies **target leakage removal** (events on/after target date) and final model (Step 6) use the same refined feature set (linear flow: 3b → 4).
-- **Rerun requirement:** After moving ICD filtering earlier, **cohorts must be rebuilt** (Step 2) and **feature importances must be rerun** (Steps 3a and 3b) so that all downstream steps use the new, filtered event set and consistent feature lists.
-
-## Pipeline Order (Current)
+## Pipeline order
 
 1. **Step 1a** – APCD input data (bronze → silver → gold).
-2. **Step 1b** – Event filter (ICD/administrative codes) → filtered events.
+2. **Step 1b** – Event filter (aggregated FI + ICD/administrative codes) → filtered events.
 3. **Step 2** – Cohort creation (5:1 target:control) using filtered events.
 4. **Step 3a** – Feature importance (MC-CV) on cohort data (from filtered events).
 5. **Step 3b** – Feature Importance EDA (BupaR, code research) → refined `cohort_feature_importance.csv`.
-6. **Step 4** – Model data (`model_events.parquet`) using refined features.
+6. **Step 4** – Model data (`model_events.parquet`) using refined features; removes target leakage for case events.
 7. Steps 5–9 – PGx, final model, SHAP, FFA, risk dashboard.
+
+## Why Step 1b runs before cohorts
+
+- **Less data downstream** – Filtering at the event level before cohort assembly reduces the volume of events that flow into cohort creation and feature importance.
+- **Single filtered event set** – Cohorts and feature importance (Steps 3a/3b) are built on the same filtered event set.
+- **Feature importances** – Feature importance (Step 3a/3b) is computed on events that already exclude administrative codes, so importances reflect predictive signal rather than administrative noise.
 
 ## References
 

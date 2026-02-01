@@ -9,7 +9,7 @@ This folder documents the Step 4 pipeline that prepares cohort event data for do
 - Writes target and control event data under:
   - `4_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet`
 
-Event-level ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`); target leakage is removed in **Step 4**, not in 1b.
+Event-level ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`). Step 4 removes target leakage for case events when building model data.
 
 ## Purpose in the Workflow
 

@@ -27,16 +27,15 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 ### Feature Importance EDA: Feature Refinement (BupaR Process Mining + Code Research)
 **Code**: `3b_feature_importance_eda/`
 
-- **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage features in aggregated importances
-- **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (event-level filtering runs in **Step 1b**: `1b_apcd_event_filter`)
-- **Filter Post-Target Leakage** – Removes post-target leakage features from already-processed aggregated feature importance list
+- **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage; Step 4 removes those events when building model data
+- **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (event-level filtering in **Step 1b**: `1b_apcd_event_filter`)
 - **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4
 
 ### Step 4: Model Data
 **Code**: `4_model_data/`
 
 - **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations.
-- Model-ready event datasets (target vs control) using refined features from Step 3b. **Target leakage removal** (events on/after target date) is applied in Step 4 for case events. Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
+- Model-ready event datasets (target vs control) using refined features from Step 3b. Step 4 removes target leakage for case events (events before target date only). Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 5: PGx Feature Engineering
 **Location**: [`Step5_PGxAnalysis/`](Step5_PGxAnalysis/)

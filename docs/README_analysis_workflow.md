@@ -9,7 +9,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
 2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
 3. **Model Data Extraction** into `4_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
-4. **Event Filtering (Step 1b)** – ICD/administrative code filtering runs **earlier** in `1b_apcd_event_filter` (before cohort creation) for efficient data processing and true feature importances; feature importances (3a/3b) are rerun after cohorts.  
+4. **Event Filtering (Step 1b)** – Aggregated FI + ICD/administrative code filtering in `1b_apcd_event_filter`; runs before cohort creation (Step 2).  
 5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
 6. **Final Model Development** in `6_final_model/`
    - Feature encoding (cohort- and age-band-specific lookup tables, drug codebooks; saved under `feature_encoding_outputs/`).
@@ -236,7 +236,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 ## Analysis Pipeline Overview
 
-Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. **Step 1b**: Aggregated FI + ICD/administrative filtering (target leakage removed in **Step 4**). **Step 4**: Model data + **target leakage removal** (events on/after target date dropped; linear: 3b → 4).
+Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. Step 1b: aggregated FI + ICD/administrative filtering. Step 4: model data and target leakage removal (case events before target date only).
 
 ```mermaid
 flowchart TD
