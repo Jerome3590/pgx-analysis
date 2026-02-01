@@ -55,6 +55,10 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
+# Historical bucket for aggregated FI (written here and read by 1b; never cleared)
+PGX_REPO_BUCKET = "pgx-repository"
+PGX_REPO_FI_PREFIX = "pgx-analysis/3_feature_importance/outputs"
+
 
 def _load_feature_table(path: Path, required: bool = True) -> pd.DataFrame:
     """Simplified loader mirroring 6_final_model.run_final_model._load_feature_table."""
@@ -827,15 +831,13 @@ def run_mc_feature_importance(
         print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
         print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
         
-        # Upload to S3 (use _baseline subfolder in key when baseline=True)
+        # Upload to S3: pgxdatalake (pipeline) and pgx-repository (historical; 1b reads from here)
+        import io
+        obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
+        s3_suffix = "_baseline/" if baseline else ""
+        filename_agg = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        s3_key_agg = f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}{filename_agg}"
         try:
-            s3_suffix = "_baseline/" if baseline else ""
-            s3_key_agg = (
-                f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}"
-                f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-            )
-            import io
-            obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
             s3_client.put_object(
                 Bucket=S3_BUCKET,
                 Key=s3_key_agg,
@@ -844,9 +846,20 @@ def run_mc_feature_importance(
             )
             print(f"✓ Uploaded aggregated feature importance to S3: s3://{S3_BUCKET}/{s3_key_agg}")
         except Exception as e:
-            print(f"[WARN] Failed to upload to S3: {e}")
+            print(f"[WARN] Failed to upload to pgxdatalake: {e}")
             print(f"  File saved locally at: {agg_path}")
-            print(f"  You can manually upload with: aws s3 cp {agg_path} s3://{S3_BUCKET}/{s3_key_agg}")
+        # Historical copy in pgx-repository (never cleared; 1b reads from here; bucket has versioning so overwrite is safe)
+        repo_key = f"{PGX_REPO_FI_PREFIX}/{cohort}/{age_band}/{s3_suffix}{filename_agg}"
+        try:
+            s3_client.put_object(
+                Bucket=PGX_REPO_BUCKET,
+                Key=repo_key,
+                Body=io.BytesIO(obj_bytes),
+                ContentType='text/csv'
+            )
+            print(f"✓ Uploaded to historical bucket: s3://{PGX_REPO_BUCKET}/{repo_key}")
+        except Exception as e:
+            print(f"[WARN] Failed to upload to pgx-repository (historical): {e}")
 
     # Return the XGBoost boosting table by default
     return results.get("xgb", pd.DataFrame())

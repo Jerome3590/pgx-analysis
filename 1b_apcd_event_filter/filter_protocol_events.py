@@ -39,6 +39,10 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
+# Historical bucket for aggregated FI (read from here; never cleared by cleanup)
+PGX_REPO_BUCKET = "pgx-repository"
+PGX_REPO_FI_PREFIX = "pgx-analysis/3_feature_importance/outputs"
+
 OUTPUT_ROOT = PROJECT_ROOT / "1b_apcd_event_filter" / "outputs"
 
 logging.basicConfig(
@@ -176,6 +180,7 @@ def _validate_and_filter_aggregated_feature_importance(
                 agg_csv_path = candidate
                 break
     # Fallback: try downloading from S3 (_baseline first, then current)
+    # 1) pgxdatalake: gold/feature_importance/{cohort}/{age_band}/...
     if agg_csv_path is None:
         for s3_suffix, subdir in [("_baseline/", "_baseline"), ("", "")]:
             s3_key = (
@@ -192,6 +197,30 @@ def _validate_and_filter_aggregated_feature_importance(
                 agg_csv_path = dest_path
                 logger.info(
                     "Downloaded aggregated feature importance from S3: %s -> %s",
+                    s3_key,
+                    agg_csv_path,
+                )
+                break
+            except Exception:
+                continue
+    # 2) pgx-repository (historical): pgx-analysis/3_feature_importance/outputs/{cohort}/{age_band}/...
+    if agg_csv_path is None:
+        for s3_suffix, subdir in [("_baseline/", "_baseline"), ("", "")]:
+            s3_key = (
+                f"{PGX_REPO_FI_PREFIX}/{cohort}/{age_band}/{s3_suffix}{filename}"
+            )
+            try:
+                s3_client.head_object(Bucket=PGX_REPO_BUCKET, Key=s3_key)
+                dest_dir = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
+                if subdir:
+                    dest_dir = dest_dir / subdir
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                dest_path = dest_dir / filename
+                s3_client.download_file(PGX_REPO_BUCKET, s3_key, str(dest_path))
+                agg_csv_path = dest_path
+                logger.info(
+                    "Downloaded aggregated feature importance from S3 (historical): s3://%s/%s -> %s",
+                    PGX_REPO_BUCKET,
                     s3_key,
                     agg_csv_path,
                 )
