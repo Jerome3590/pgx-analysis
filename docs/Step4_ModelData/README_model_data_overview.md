@@ -5,10 +5,11 @@ This folder documents the Step 4 pipeline that prepares cohort event data for do
 ## Step 4: Model Data (`4_model_data/`)
 
 - **Model Data Extraction** – Creates compact, model-ready `model_events.parquet` datasets for each `(cohort, age_band)` using refined feature importance from Step 3b.
+- **Target leakage removal (Step 4)**: For case events, keeps only events **strictly before** the target date (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`). Events on/after target date are dropped here (linear flow: 3b identifies leakage → Step 4 removes it).
 - Writes target and control event data under:
   - `4_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet`
 
-Event-level ICD/administrative code filtering runs earlier in **Step 1b** (`1b_apcd_event_filter`), so Step 4 consumes already-filtered cohort and gold medical/pharmacy data.
+Event-level ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`); target leakage is removed in **Step 4**, not in 1b.
 
 ## Purpose in the Workflow
 

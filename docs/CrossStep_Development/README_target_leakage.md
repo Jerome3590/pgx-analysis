@@ -24,6 +24,10 @@ This document outlines our approach to preventing **target leakage** in the fina
 
 This ensures that at prediction time, we don't need to know if/when F1120 will occur.
 
+### Where Event-Level Leakage Is Removed (Pipeline)
+
+**Linear flow:** Step 3b (e.g. BupaR post-target analysis) identifies target leakage → **Step 4** (model data) removes it when building `model_events.parquet`. For **case events**, Step 4 keeps only events **strictly before** the target date (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`); events on or after the target date are dropped. This is done in **Step 4** (`4_model_data/create_model_data.py`), not in Step 1b (event filter), so the pipeline is linear and repeatable: 3b → 4.
+
 ---
 
 ## What is Target Leakage?

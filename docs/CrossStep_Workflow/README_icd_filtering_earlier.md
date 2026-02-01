@@ -13,7 +13,7 @@ ICD/administrative code filtering has been **moved earlier** in the pipeline: it
 ## Verification
 
 - **Efficiency:** Filtering once in 1b avoids duplicate filtering logic and reduces data volume before expensive cohort and MC-CV steps.
-- **Correctness:** Cohorts (Step 2) and feature importance (3a/3b) both consume the filtered event set produced by 1b; model data (Step 4) and final model (Step 6) use the same refined feature set derived from that importance.
+- **Correctness:** Cohorts (Step 2) and feature importance (3a/3b) both consume the filtered event set produced by 1b; model data (Step 4) applies **target leakage removal** (events on/after target date) and final model (Step 6) use the same refined feature set (linear flow: 3b → 4).
 - **Rerun requirement:** After moving ICD filtering earlier, **cohorts must be rebuilt** (Step 2) and **feature importances must be rerun** (Steps 3a and 3b) so that all downstream steps use the new, filtered event set and consistent feature lists.
 
 ## Pipeline Order (Current)

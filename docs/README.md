@@ -6,7 +6,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ### Final Workflow (Three Notebooks)
 
-- **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (ICD/admin), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
+- **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
 - **2_feature_importance.ipynb** (Steps 3a-3b): 3a MC-CV feature importance, 3b BupaR/code research. Run after cohorts; sync gold/cohorts from S3.
 - **3_pgx_calculator_workflow.ipynb** (Steps 4-9): Model data, PGx, final model, SHAP, FFA, risk dashboard deployment. Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
 
@@ -36,7 +36,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 **Code**: `4_model_data/`
 
 - **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations.
-- Model-ready event datasets (target vs control) using refined features from Step 3b. Event/ICD filtering runs earlier in **Step 1b** (`1b_apcd_event_filter`).
+- Model-ready event datasets (target vs control) using refined features from Step 3b. **Target leakage removal** (events on/after target date) is applied in Step 4 for case events. Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 5: PGx Feature Engineering
 **Location**: [`Step5_PGxAnalysis/`](Step5_PGxAnalysis/)

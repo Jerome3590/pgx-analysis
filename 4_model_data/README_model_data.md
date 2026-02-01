@@ -36,6 +36,10 @@ This asymmetry is intentional and standard for classification problems:
 - **Cases**: tightly defined and optionally event-filtered by feature importance.
 - **Controls**: broad, label-clean background population, with full event histories preserved.
 
+### Target leakage removal (Step 4)
+
+**Linear flow:** 3b identifies target leakage (e.g. BupaR post-target analysis) → Step 4 removes it when building model data. For **case events**, only events **strictly before** the target date are kept: `event_date < first_opioid_ed_date` (opioid_ed) or `event_date < first_ed_non_opioid_date` (non_opioid_ed). Events on or after the target date are dropped here (previously done in 1b; now in Step 4 for a linear pipeline).
+
 ### Feature-Importance Filtering
 
 Refined feature-importance CSVs (from Step 3b) drive the case-side event filtering:

@@ -46,14 +46,15 @@ strict temporal validation and a small, focused model ensemble.
    - Normalize within each model, scale by model performance (recall or inverse logloss), then
      aggregate across models (including a rare-variant XGBoost pass when available).
 5. **Feature Refinement (Feature Importance EDA - `3b_feature_importance_eda/`)**  
-   - **BupaR Post-Target Analysis**: Use process mining to analyze sequences before and after target event to identify post-target leakage features in aggregated importances
-   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (event-level filtering runs earlier in Step 1b: `1b_apcd_event_filter`)
-   - **Filter and Refine**: Remove post-target leakage features from aggregated feature importance list and generate refined `cohort_feature_importance` files
-   - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances
-   - Output: `cohort_feature_importance.csv` files that feed into Step 4
+   - **BupaR Post-Target Analysis**: Use process mining to identify post-target leakage; **Step 4** removes those events when building model data (linear flow: 3b → 4).
+   - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (event-level filtering in Step 1b: `1b_apcd_event_filter`).
+   - **Filter and Refine**: Refine aggregated feature importance and generate `cohort_feature_importance` files.
+   - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances.
+   - Output: `cohort_feature_importance.csv` files that feed into Step 4.
 6. **Model Data Extraction (`4_model_data/`)**  
-   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4_model_data` extraction
-   - If Feature Importance EDA files are missing, Step 4 will error (no fallback to aggregated importances)
+   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4_model_data` extraction.
+   - **Target leakage removal (Step 4)**: For case events, keep only events **strictly before** the target date (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`); events on/after target date are dropped here (linear: 3b identifies → 4 removes).
+   - If Feature Importance EDA files are missing, Step 4 will error (no fallback to aggregated importances).
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -235,13 +236,13 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 ## Analysis Pipeline Overview
 
-Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. ICD filtering runs in **Step 1b** (before cohorts).
+Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. **Step 1b**: Aggregated FI + ICD/administrative filtering (target leakage removed in **Step 4**). **Step 4**: Model data + **target leakage removal** (events on/after target date dropped; linear: 3b → 4).
 
 ```mermaid
 flowchart TD
     subgraph W1["1_cohort_workflow.ipynb (Steps 1-2)"]
         A1[1a: APCD Input Data] --> A2[Data Cleaning]
-        A2 --> A1b[1b: Event Filter ICD/Admin]
+        A2 --> A1b[1b: Event Filter FI + ICD/Admin]
         A1b --> A3[2: Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
@@ -255,7 +256,7 @@ flowchart TD
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data]
+        B6 --> C1[4: Model Data + Leakage Removal]
         C1 --> D1[5: PGx Feature Engineering]
         D1 --> E1[6: Final Model]
         E1 --> E4[Model Selection]
