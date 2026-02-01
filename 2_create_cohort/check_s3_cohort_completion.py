@@ -38,6 +38,7 @@ STATE_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgx-repository")
 STATE_PREFIX = "pgx-pipeline-status/create_cohort"
 COHORT_BUCKET = os.environ.get("PGX_DATALAKE_BUCKET", "pgxdatalake")
 COHORT_PREFIX = "gold/cohorts"
+BUILD_LOGS_PREFIX = "build_logs/create_cohort"
 
 
 def _parse_iso(s):
@@ -95,6 +96,34 @@ def fetch_pipeline_states(s3_client):
     return states
 
 
+def list_build_logs(s3_client, bucket=STATE_BUCKET, prefix=BUILD_LOGS_PREFIX, max_keys=100):
+    """List recent build log objects (create_cohort) from pgx-repository."""
+    results = []
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix + "/", MaxKeys=max_keys):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not key.endswith(".txt"):
+                continue
+            # key like build_logs/create_cohort/opioid_ed/25-44/2016/log_20260201_123456.txt
+            parts = key.replace(prefix + "/", "").split("/")
+            if len(parts) >= 4:
+                cohort_name, band, year = parts[0], parts[1], parts[2]
+                log_name = parts[-1]
+            else:
+                cohort_name = band = year = ""
+                log_name = key.split("/")[-1]
+            results.append({
+                "cohort_name": cohort_name,
+                "age_band": band,
+                "event_year": year,
+                "key": key,
+                "last_modified": obj.get("LastModified"),
+                "size": obj.get("Size", 0),
+            })
+    return results
+
+
 def list_cohort_outputs(s3_client, bucket=COHORT_BUCKET, prefix=COHORT_PREFIX):
     """List cohort parquet keys with LastModified and size."""
     results = []
@@ -138,6 +167,11 @@ def main():
         "--outputs",
         action="store_true",
         help="List each cohort parquet in pgxdatalake with LastModified and size",
+    )
+    parser.add_argument(
+        "--logs",
+        action="store_true",
+        help="List recent build logs from pgx-repository (create_cohort)",
     )
     parser.add_argument(
         "--bucket-state",
@@ -241,6 +275,30 @@ def main():
             print(f"Total parquet files: {len(outputs)}")
             for c, count in sorted(by_cohort.items()):
                 print(f"  {c}: {count}")
+
+    # ----- Build logs (pgx-repository) -----
+    if args.logs:
+        print()
+        print("=" * 80)
+        print("BUILD LOGS (pgx-repository)")
+        print(f"Bucket: {args.bucket_state}  Prefix: {BUILD_LOGS_PREFIX}/")
+        print("=" * 80)
+        logs = list_build_logs(s3, bucket=args.bucket_state)
+        if not logs:
+            print("No build logs found.")
+        else:
+            logs.sort(key=lambda x: (x["last_modified"] or datetime.min.replace(tzinfo=timezone.utc), x["cohort_name"], x["age_band"], x["event_year"]), reverse=True)
+            fmt = "{:<18} {:<8} {:<6}  {}  {}"
+            print(fmt.format("COHORT", "AGE_BAND", "YEAR", "LAST_MODIFIED", "KEY"))
+            print("-" * 90)
+            for log in logs[:80]:
+                lm = log["last_modified"]
+                lm_str = lm.strftime("%Y-%m-%d %H:%M") if lm else "—"
+                key_short = log["key"].split("/")[-1] if log["key"] else ""
+                print(fmt.format(log["cohort_name"], log["age_band"], str(log["event_year"]), lm_str, key_short))
+            if len(logs) > 80:
+                print(f"... and {len(logs) - 80} more")
+            print(f"Total log files: {len(logs)}")
 
     print()
 
