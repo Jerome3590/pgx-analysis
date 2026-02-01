@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""
+Check S3 for cohort creation completion status with time durations.
+
+Reads pipeline state from pgx-repository (pgx-pipeline-status/create_cohort/)
+and optionally lists cohort parquets in pgxdatalake (gold/cohorts/) to report:
+- Status (completed / running / failed)
+- created_at, completed_at
+- Duration (completed_at - created_at)
+
+Usage:
+    python check_s3_cohort_completion.py [--cohorts] [--outputs] [--profile NAME]
+    --cohorts: only show pipeline state (default: both state + outputs summary)
+    --outputs: also list each cohort parquet in pgxdatalake with LastModified and size
+    --profile: AWS profile (default: AWS_PROFILE or default).
+    Local: if C:\\Projects\\credentials exists, uses it (AWS_SHARED_CREDENTIALS_FILE).
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import boto3
+
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Use C:\Projects\credentials when present (local runs)
+_creds_file = project_root.parent / "credentials"
+if _creds_file.exists() and not os.environ.get("AWS_SHARED_CREDENTIALS_FILE"):
+    os.environ["AWS_SHARED_CREDENTIALS_FILE"] = str(_creds_file)
+
+STATE_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgx-repository")
+STATE_PREFIX = "pgx-pipeline-status/create_cohort"
+COHORT_BUCKET = os.environ.get("PGX_DATALAKE_BUCKET", "pgxdatalake")
+COHORT_PREFIX = "gold/cohorts"
+
+
+def _parse_iso(s):
+    if not s:
+        return None
+    try:
+        # Handle Z suffix and +00:00
+        s = s.replace("Z", "+00:00")
+        return datetime.fromisoformat(s.replace("+00:00", ""))
+    except Exception:
+        return None
+
+
+def _duration_seconds(created_at, completed_at):
+    if not created_at or not completed_at:
+        return None
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    if completed_at.tzinfo is None:
+        completed_at = completed_at.replace(tzinfo=timezone.utc)
+    return (completed_at - created_at).total_seconds()
+
+
+def _format_duration(seconds):
+    if seconds is None:
+        return "—"
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    if seconds < 3600:
+        return f"{seconds / 60:.1f}m"
+    return f"{seconds / 3600:.2f}h"
+
+
+def fetch_pipeline_states(s3_client):
+    """List and fetch all create_cohort state.json from pgx-repository."""
+    prefix = f"{STATE_PREFIX}/"
+    states = []
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=STATE_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not key.endswith("state.json"):
+                continue
+            try:
+                resp = s3_client.get_object(Bucket=STATE_BUCKET, Key=key)
+                body = resp["Body"].read().decode("utf-8")
+                data = json.loads(body)
+                entity_id = key.replace(prefix, "").replace("/state.json", "").strip("/")
+                data["_entity_id"] = entity_id
+                data["_key"] = key
+                data["_last_modified"] = obj.get("LastModified")
+                states.append(data)
+            except Exception as e:
+                print(f"Warning: could not read {key}: {e}", file=sys.stderr)
+    return states
+
+
+def list_cohort_outputs(s3_client, bucket=COHORT_BUCKET, prefix=COHORT_PREFIX):
+    """List cohort parquet keys with LastModified and size."""
+    results = []
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not key.endswith("cohort.parquet"):
+                continue
+            # key like gold/cohorts/cohort_name=opioid_ed/event_year=2016/age_band=25-44/cohort.parquet
+            parts = key.replace(prefix + "/", "").split("/")
+            cohort_name = age_band = event_year = ""
+            for p in parts:
+                if p.startswith("cohort_name="):
+                    cohort_name = p.replace("cohort_name=", "")
+                elif p.startswith("event_year="):
+                    event_year = p.replace("event_year=", "")
+                elif p.startswith("age_band="):
+                    age_band = p.replace("age_band=", "")
+            results.append({
+                "cohort_name": cohort_name,
+                "event_year": event_year,
+                "age_band": age_band,
+                "key": key,
+                "last_modified": obj.get("LastModified"),
+                "size_bytes": obj.get("Size", 0),
+            })
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Check S3 for cohort creation completion status with time durations"
+    )
+    parser.add_argument(
+        "--cohorts",
+        action="store_true",
+        help="Only show pipeline state (default: state + outputs summary)",
+    )
+    parser.add_argument(
+        "--outputs",
+        action="store_true",
+        help="List each cohort parquet in pgxdatalake with LastModified and size",
+    )
+    parser.add_argument(
+        "--bucket-state",
+        default=STATE_BUCKET,
+        help=f"S3 bucket for pipeline state (default: {STATE_BUCKET})",
+    )
+    parser.add_argument(
+        "--bucket-cohorts",
+        default=COHORT_BUCKET,
+        help=f"S3 bucket for cohort parquets (default: {COHORT_BUCKET})",
+    )
+    parser.add_argument(
+        "--profile",
+        default=os.environ.get("AWS_PROFILE"),
+        help="AWS profile for S3 (default: AWS_PROFILE or default profile)",
+    )
+    args = parser.parse_args()
+
+    session_kw = {}
+    if args.profile:
+        session_kw["profile_name"] = args.profile
+    session = boto3.Session(**session_kw)
+    s3 = session.client("s3")
+
+    # ----- Pipeline state (pgx-repository) -----
+    print("=" * 80)
+    print("COHORT PIPELINE STATE (pgx-repository)")
+    print(f"Bucket: {args.bucket_state}  Prefix: {STATE_PREFIX}/")
+    print("=" * 80)
+
+    states = fetch_pipeline_states(s3)
+    if not states:
+        print("No pipeline state files found.")
+    else:
+        # Sort by entity_id for stable output
+        states.sort(key=lambda x: x.get("_entity_id", ""))
+
+        rows = []
+        for s in states:
+            entity_id = s.get("_entity_id", "?")
+            status = s.get("status", "?")
+            created_at = _parse_iso(s.get("created_at"))
+            completed_at = _parse_iso(s.get("completed_at"))
+            duration_sec = _duration_seconds(created_at, completed_at)
+            created_str = created_at.strftime("%Y-%m-%d %H:%M") if created_at else "—"
+            completed_str = completed_at.strftime("%Y-%m-%d %H:%M") if completed_at else "—"
+            rows.append({
+                "entity_id": entity_id,
+                "status": status,
+                "created": created_str,
+                "completed": completed_str,
+                "duration": _format_duration(duration_sec),
+            })
+
+        # Print table
+        max_id = max(len(r["entity_id"]) for r in rows)
+        max_id = max(max_id, 24)
+        fmt = f"{{:<{max_id}}}  {{:<10}}  {{:<16}}  {{:<16}}  {{:<10}}"
+        print(fmt.format("ENTITY_ID", "STATUS", "CREATED", "COMPLETED", "DURATION"))
+        print("-" * (max_id + 60))
+        for r in rows:
+            print(fmt.format(r["entity_id"], r["status"], r["created"], r["completed"], r["duration"]))
+
+        # Summary
+        completed = sum(r["status"] == "completed" for r in rows)
+        failed = sum(r["status"] == "failed" for r in rows)
+        running = sum(r["status"] == "running" for r in rows)
+        print("-" * (max_id + 60))
+        print(f"Total: {len(rows)}  completed: {completed}  failed: {failed}  running: {running}")
+
+    # ----- Cohort outputs (pgxdatalake) -----
+    if not args.cohorts:
+        print()
+        print("=" * 80)
+        print("COHORT OUTPUTS (pgxdatalake)")
+        print(f"Bucket: {args.bucket_cohorts}  Prefix: {COHORT_PREFIX}/")
+        print("=" * 80)
+
+        outputs = list_cohort_outputs(s3, bucket=args.bucket_cohorts)
+        if not outputs:
+            print("No cohort.parquet files found.")
+        else:
+            outputs.sort(key=lambda x: (x["cohort_name"], x["event_year"], x["age_band"]))
+            if args.outputs:
+                fmt = "{:<18} {:<6} {:<10}  {}  {:>12}"
+                print(fmt.format("COHORT", "YEAR", "AGE_BAND", "LAST_MODIFIED", "SIZE_MB"))
+                print("-" * 70)
+                for o in outputs:
+                    lm = o["last_modified"]
+                    lm_str = lm.strftime("%Y-%m-%d %H:%M") if lm else "—"
+                    size_mb = o["size_bytes"] / (1024 * 1024)
+                    print(fmt.format(
+                        o["cohort_name"], o["event_year"], o["age_band"],
+                        lm_str, f"{size_mb:.2f}"
+                    ))
+            # Summary by cohort
+            by_cohort = {}
+            for o in outputs:
+                c = o["cohort_name"]
+                by_cohort[c] = by_cohort.get(c, 0) + 1
+            print(f"Total parquet files: {len(outputs)}")
+            for c, count in sorted(by_cohort.items()):
+                print(f"  {c}: {count}")
+
+    print()
+
+
+if __name__ == "__main__":
+    main()
