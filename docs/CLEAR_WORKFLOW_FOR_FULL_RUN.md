@@ -17,7 +17,7 @@ chmod +x 2_create_cohort/cleanup_cohort_data.sh
 - `--skip-local` — Only delete S3 (and keep EC2/local).
 - `--yes` — Skip confirmation prompt.
 
-**Preserved:** Gold medical/pharmacy tables (`/mnt/nvme/gold/medical`, `/mnt/nvme/gold/pharmacy`) and baseline feature importances on S3 (if you want to keep them, use `--skip-s3` for `gold/feature_importance/` or manually exclude `_baseline/`).
+**Preserved (never deleted):** The script only deletes under **gold/cohorts** and other step outputs. It **never** deletes **gold/medical** or **gold/pharmacy** (`/mnt/nvme/gold/medical`, `/mnt/nvme/gold/pharmacy`). Project-local cohort copy uses **data/gold/cohorts** (not data/gold_cohorts). Baseline feature importances on S3: if you want to keep them, use `--skip-s3` for `gold/feature_importance/` or manually exclude `_baseline/`.
 
 ---
 
@@ -63,6 +63,7 @@ Clearing these forces steps to re-run (unless they also check for output files i
 
 | Path | Step | Contents |
 |------|------|----------|
+| `data/gold/cohorts/` | 2 | Project-local copy of cohort parquet (same layout as S3 gold/cohorts). |
 | `2_create_cohort/` (cohort_metrics, etc.) | 2 | Local cohort metrics. |
 | `3b_feature_importance_eda/outputs/` | 3b | Feature importance EDA. |
 | `3_feature_importance/outputs/` | 3a | Feature importance (legacy naming). |
