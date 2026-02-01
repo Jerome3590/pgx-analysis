@@ -1083,8 +1083,10 @@ def get_output_paths(cohort_name, age_band, event_year, bucket_name="pgxdatalake
 
         # Final deliverables: write FP-Growth artifacts under GOLD fpgrowth/cohort
         cohort_base = f"s3://{bucket_name}/gold/fpgrowth/cohort/{partitions}"
-        # Curated cohort parquet lives under GOLD cohorts (default)
-        gold_cohorts_base = f"s3://{bucket_name}/gold/cohorts/{partitions}"
+        # Curated cohort parquet lives under GOLD cohorts; use normalized name so skip-check matches phase4 write path
+        cohort_slug = normalize_cohort_name(cohort_name)
+        gold_cohorts_partitions = f"cohort_name={cohort_slug}/event_year={event_year}/age_band={age_band}"
+        gold_cohorts_base = f"s3://{bucket_name}/gold/cohorts/{gold_cohorts_partitions}"
 
         paths = {
             "fpgrowth_features_parquet": f"{cohort_base}/fpgrowth_features.parquet",
