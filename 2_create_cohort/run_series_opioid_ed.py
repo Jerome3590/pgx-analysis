@@ -3,10 +3,9 @@
 Wrapper script to run cohort creation for opioid_ed cohort
 across all age bands and event years, processing heavy partitions first.
 
-This script processes partitions sequentially in the recommended order:
-1. Heavy partitions first: 25-44, 65-74
-2. Remaining partitions in descending expected size
-3. Years: 2016-2019
+Run the event filter (Step 1b) after Step 1a (APCD input) but before this script:
+  for each (age_band, event_year): python 1b_apcd_event_filter/filter_protocol_events.py --before-cohorts --age-band <band> --event-year <year>
+Then Step 2 (this script) will use filtered gold when present.
 
 Usage:
     python run_series_opioid_ed.py [--skip-existing]
@@ -60,9 +59,15 @@ def main():
         default=sys.executable,
         help="Python executable path (default: current interpreter)"
     )
+    parser.add_argument(
+        "--no-event-filter",
+        action="store_true",
+        help="Skip running the event filter (Step 1b) after cohort creation"
+    )
     args = parser.parse_args()
 
     script_path = Path(__file__).parent / "0_create_cohort.py"
+    filter_script = project_root / "1b_apcd_event_filter" / "filter_protocol_events.py"
     if not script_path.exists():
         print(f"❌ Error: {script_path} not found")
         sys.exit(1)
@@ -138,7 +143,7 @@ def main():
 
     # Summary
     print(f"\n{'='*80}")
-    print(f"📊 FINAL SUMMARY")
+    print(f"📊 COHORT CREATION SUMMARY")
     print(f"{'='*80}")
     print(f"✅ Successful: {success_count}")
     print(f"❌ Failed: {failed_count}")

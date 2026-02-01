@@ -371,11 +371,14 @@ def sync_gold_data_to_local(dataset: str, age_band: str, event_year: int, logger
 
 def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
     """
-    Resolve path to gold medical/pharmacy data, preferring local /mnt/nvme paths over S3.
+    Resolve path to gold medical/pharmacy data. Prefers filtered gold (from Step 1b --before-cohorts)
+    when present, then local raw gold, then S3.
     
     Priority:
-    1. Local path: /mnt/nvme/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
-    2. S3 path: s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet
+    1. Filtered (Step 1b before cohorts): gold/{dataset}_filtered/age_band=.../event_year=.../{dataset}_data.parquet
+    2. Local raw: /mnt/nvme/gold/{dataset}/age_band=.../event_year=.../{dataset}_data.parquet
+    3. S3 filtered: s3://.../gold/{dataset}_filtered/...
+    4. S3 raw: s3://.../gold/{dataset}/...
     
     Args:
         dataset: 'medical' or 'pharmacy'
@@ -385,14 +388,32 @@ def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
     Returns:
         Path string (local if exists, otherwise S3)
     """
-    # Check local path first (Linux/EC2: /mnt/nvme/gold/{dataset}/)
+    data_root = get_data_root()
+    filtered_subdir = f"{dataset}_filtered"
+    # 1) Local filtered (Step 1b run after Step 1a, before Step 2)
     if is_linux():
-        data_root = get_data_root()
+        local_filtered = data_root / "gold" / filtered_subdir / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if local_filtered.exists():
+            return str(local_filtered)
+    project_data = Path(project_root) / "data" / "gold" / filtered_subdir / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    if project_data.exists():
+        return str(project_data)
+    # 2) Local raw
+    if is_linux():
         local_path = data_root / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
         if local_path.exists():
             return str(local_path)
-    
-    # Fall back to S3
+    local_alt = Path(project_root) / "data" / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    if local_alt.exists():
+        return str(local_alt)
+    # 3) S3 filtered then S3 raw
+    try:
+        from py_helpers.common_imports import s3_client, S3_BUCKET
+        key_filtered = f"gold/{filtered_subdir}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
+        s3_client.head_object(Bucket=S3_BUCKET, Key=key_filtered)
+        return f"s3://{S3_BUCKET}/{key_filtered}"
+    except Exception:
+        pass
     return f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
 
 

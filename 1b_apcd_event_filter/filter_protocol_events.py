@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 """
-Filter model_data events: first by aggregated feature importance, then by administrative codes.
+Event filter: remove administrative codes from event data; optionally keep only baseline FI codes.
 
-Filter order:
-1. Aggregated feature importance (first pass): Keep only events whose codes (ICD/CPT/drug) appear
-   in the aggregated feature-importance CSV from Step 3/3a. This reduces the number of features
-   for final cohorts and makes Step 3a feature importance more accurate on a second pass.
-2. Administrative codes (second pass): Remove administrative codes from administrative_codes_lookup
-   and Step 3b research. Target leakage (events on/after target date) is removed in Step 4 (model data).
+Two feature importances: (1) **Baseline FI** — precomputed from an initial run; does not need to be
+recomputed. (2) **Updated FI** — second pass after event filtering for greater accuracy.
 
-The filtering is based on:
-- Aggregated feature importance CSV (Step 3 or 3a: {cohort}_{age_band}_aggregated_feature_importance.csv)
-- Administrative codes lookup and research (Step 3b 0_icd_cpt_check, protocol_vs_clinical analysis)
+Two modes:
 
-Output: model_events_no_protocols.parquet - Event data with low-importance and administrative events removed.
-Target leakage removal happens in Step 4 (model training / model data).
+1. **Before cohorts (--before-cohorts):** Run after Step 1a (APCD input), before Step 2 (create cohort).
+   - Reads gold medical/pharmacy. Removes admin codes; optionally keeps only events whose codes
+     appear in **baseline** aggregated FI (precomputed) to reduce cohort processing.
+   - Writes gold/medical_filtered/ and gold/pharmacy_filtered/. Step 2 uses filtered gold when present.
+
+2. **After cohorts (default):** Run after Step 2, using cohort parquets.
+   - Reads cohort.parquet files. Applies **baseline** aggregated FI filter + administrative codes.
+   - Writes model_events_no_protocols.parquet. Step 3a can then run **updated** FI (second pass) on this.
+   - Target leakage is removed in Step 4 (model data).
 """
 
 import os
 import sys
 import logging
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Union
 
 import duckdb
 import pandas as pd
@@ -43,7 +45,114 @@ except ImportError:
 PGX_REPO_BUCKET = "pgx-repository"
 PGX_REPO_FI_PREFIX = "pgx-analysis/3_feature_importance/outputs"
 
+# Event years for cohort parquet resolution (Step 2 output)
+COHORT_EVENT_YEARS = [2016, 2017, 2018, 2019]
+
 OUTPUT_ROOT = PROJECT_ROOT / "1b_apcd_event_filter" / "outputs"
+
+# Gold data layout (Step 1a output); filtered output uses gold/{medical|pharmacy}_filtered/ same layout
+def _resolve_gold_path(dataset: str, age_band: str, event_year: int, filtered: bool = False) -> Path:
+    """Path to gold medical/pharmacy parquet. When filtered=True returns output path for filtered write (same layout)."""
+    subdir = f"{dataset}_filtered" if filtered else dataset
+    data_root = get_data_root()
+    if is_linux():
+        return data_root / "gold" / subdir / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    return PROJECT_ROOT / "data" / "gold" / subdir / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+
+
+def _resolve_gold_path_str(dataset: str, age_band: str, event_year: int, filtered: bool = False) -> str:
+    """String path for DuckDB; use S3 if local raw not present (before-cohorts reads gold)."""
+    data_root = get_data_root()
+    if not filtered and is_linux():
+        local_path = data_root / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if local_path.exists():
+            return str(local_path)
+    if not filtered:
+        local_alt = PROJECT_ROOT / "data" / "gold" / dataset / f"age_band={age_band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if local_alt.exists():
+            return str(local_alt)
+    return f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
+
+
+def run_event_filter_on_gold(
+    age_band: str,
+    event_year: int,
+    allowed_codes_from_fi: Optional[set] = None,
+) -> None:
+    """
+    Filter gold medical/pharmacy: remove administrative codes; optionally keep only events whose
+    codes are in aggregated FI (to reduce cohort processing). Run after Step 1a, before Step 2.
+    Writes gold/medical_filtered/ and gold/pharmacy_filtered/ (same layout). Step 2 uses these when present.
+
+    When allowed_codes_from_fi is provided (e.g. from a prior run's aggregated FI CSV), events are
+    kept only if at least one of (drug_name, ICD cols, procedure_code) is in that set — reducing
+    data before Step 2.
+    """
+    import json
+    admin_path = PROJECT_ROOT / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
+    admin_codes = {"icd": set(), "cpt": set(), "drug": set()}
+    if admin_path.exists():
+        with open(admin_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for k in ("icd", "cpt", "drug"):
+            admin_codes[k] = set(str(c) for c in data.get("administrative_codes", {}).get(k, []))
+    use_fi = allowed_codes_from_fi is not None and len(allowed_codes_from_fi) > 0
+    logger.info(
+        "Event filter on gold (before cohorts): admin ICD=%s CPT=%s drug=%s; FI keep-only=%s",
+        len(admin_codes["icd"]), len(admin_codes["cpt"]), len(admin_codes["drug"]),
+        len(allowed_codes_from_fi) if allowed_codes_from_fi else 0,
+    )
+
+    con = duckdb.connect()
+    if use_fi:
+        fi_list = sorted(allowed_codes_from_fi)
+        con.register("allowed_fi_codes", pd.DataFrame({"code": fi_list}))
+    for dataset in ("medical", "pharmacy"):
+        raw_path = _resolve_gold_path_str(dataset, age_band, event_year, filtered=False)
+        out_path = _resolve_gold_path(dataset, age_band, event_year, filtered=True)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            desc = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{raw_path}')").fetchall()
+            cols = {r[0] for r in desc}
+        except Exception as e:
+            logger.warning("Gold %s not found or unreadable for %s/%s: %s", dataset, age_band, event_year, e)
+            continue
+        icd_cols = [c for c in ("primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code", "four_icd_diagnosis_code", "five_icd_diagnosis_code") if c in cols]
+        # Build FI keep predicate: keep row if any code column is in allowed FI set
+        fi_pred = "TRUE"
+        if use_fi:
+            fi_parts = []
+            if "drug_name" in cols and dataset == "pharmacy":
+                fi_parts.append("(drug_name IN (SELECT code FROM allowed_fi_codes))")
+            for c in icd_cols:
+                fi_parts.append(f"({c} IN (SELECT code FROM allowed_fi_codes))")
+            if "procedure_code" in cols and dataset == "medical":
+                fi_parts.append("(procedure_code IN (SELECT code FROM allowed_fi_codes))")
+            fi_pred = "(" + " OR ".join(fi_parts) + ")" if fi_parts else "TRUE"
+        # Build admin remove predicate
+        admin_pred = "TRUE"
+        if dataset == "medical" and (icd_cols or "procedure_code" in cols):
+            icd_list = ", ".join(f"'{x}'" for x in sorted(admin_codes["icd"])) if admin_codes["icd"] else ""
+            cpt_list = ", ".join(f"'{x}'" for x in sorted(admin_codes["cpt"])) if admin_codes["cpt"] else ""
+            preds = []
+            if icd_list and icd_cols:
+                preds.append(" OR ".join(f"{c} IN ({icd_list})" for c in icd_cols))
+            if cpt_list and "procedure_code" in cols:
+                preds.append(f"procedure_code IN ({cpt_list})")
+            admin_pred = "NOT (" + " OR ".join(preds) + ")" if preds else "TRUE"
+        elif dataset == "pharmacy" and "drug_name" in cols:
+            drug_list = ", ".join(f"'{x}'" for x in sorted(admin_codes["drug"])) if admin_codes["drug"] else ""
+            admin_pred = f"NOT (drug_name IN ({drug_list}))" if drug_list else "TRUE"
+        # Apply both: keep FI-allowed and drop admin
+        where_clause = f"({fi_pred}) AND ({admin_pred})"
+        if dataset == "medical" and (icd_cols or "procedure_code" in cols):
+            con.execute(f"COPY (SELECT * FROM read_parquet('{raw_path}') WHERE {where_clause}) TO '{out_path}' (FORMAT PARQUET)")
+            logger.info("Wrote filtered gold medical: %s", out_path)
+        elif dataset == "pharmacy" and "drug_name" in cols:
+            con.execute(f"COPY (SELECT * FROM read_parquet('{raw_path}') WHERE {where_clause}) TO '{out_path}' (FORMAT PARQUET)")
+            logger.info("Wrote filtered gold pharmacy: %s", out_path)
+    con.close()
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -358,149 +467,156 @@ def _validate_model_events_has_controls(parquet_path: Path) -> dict:
         con.close()
 
 
-def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
+def _to_parquet_read_spec(path_or_paths: Union[Path, List[Path]]) -> str:
+    """Return DuckDB read_parquet(...) SQL fragment for single path or list of paths."""
+    if isinstance(path_or_paths, (list, tuple)):
+        paths = list(path_or_paths)
+        if not paths:
+            raise ValueError("path_or_paths list is empty")
+        literal = "[" + ", ".join(f"'{str(p)}'" for p in paths) + "]"
+        return f"read_parquet({literal})"
+    return f"read_parquet('{path_or_paths}')"
+
+
+def _validate_cohort_events_has_controls(path_or_paths: Union[Path, List[Path]]) -> dict:
     """
-    Resolve the path to model_events.parquet, checking multiple locations.
-    
-    Priority on Linux/EC2:
-    1. get_data_root()/4_model_data/... (/mnt/nvme/4_model_data/...)
-    2. PROJECT_ROOT/4_model_data/... (fallback)
-    3. Try downloading from S3 to get_data_root() if not found locally
-    
-    Priority on Windows:
-    1. PROJECT_ROOT/4_model_data/... (Windows/local dev)
-    2. get_data_root()/4_model_data/... (fallback)
-    3. Try downloading from S3 to PROJECT_ROOT if not found locally
-    
-    Returns:
-        Path to model_events.parquet file
+    Validate that cohort parquet(s) contain both cases and controls (target=1 and target=0, or is_target_case).
+    Cohort parquets from Step 2 use target or is_target_case.
+    """
+    con = duckdb.connect()
+    try:
+        spec = _to_parquet_read_spec(path_or_paths)
+        # Cohort schema may have target or is_target_case (COALESCE for compatibility)
+        result = con.execute(
+            f"""
+            SELECT 
+                COUNT(*) FILTER (WHERE COALESCE(target, is_target_case) = 1) AS n_cases,
+                COUNT(*) FILTER (WHERE COALESCE(target, is_target_case) = 0) AS n_controls
+            FROM ({spec})
+            """
+        ).fetchone()
+        n_cases = result[0] if result else 0
+        n_controls = result[1] if result else 0
+        has_controls = n_controls > 0
+        return {"has_controls": has_controls, "n_cases": n_cases, "n_controls": n_controls}
+    except Exception:
+        return {"has_controls": False, "n_cases": 0, "n_controls": 0}
+    finally:
+        con.close()
+
+
+def _cohort_root_candidates() -> List[Path]:
+    """Cohort parquet root dirs (Step 2 output): gold/cohorts or data/gold_cohorts."""
+    data_root = get_data_root()
+    return [
+        data_root / "gold" / "cohorts",
+        data_root / "data" / "gold_cohorts",
+        PROJECT_ROOT / "data" / "gold_cohorts",
+    ]
+
+
+def get_event_filter_output_dir(cohort: str, age_band: str) -> Path:
+    """Output directory for event filter: 4_model_data/cohort_name=.../age_band=... (same layout as Step 4)."""
+    data_root = get_data_root()
+    if is_linux():
+        return data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}"
+    return PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}"
+
+
+def _resolve_cohort_parquet_paths(cohort: str, age_band: str) -> List[Path]:
+    """
+    Resolve paths to cohort.parquet files (Step 2 create cohort output).
+    Returns one path per event_year; multiple years are unioned by the filter.
+    Priority: local cohort roots (gold/cohorts, data/gold_cohorts), then S3 download.
     """
     data_root = get_data_root()
-    is_linux_system = is_linux()
-    
-    # Build candidate paths - prioritize data root on Linux, project root on Windows
-    if is_linux_system:
-        # On Linux/EC2: prioritize /mnt/nvme
-        candidates = [
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer data root on Linux
-        download_dest = candidates[0]
-    else:
-        # On Windows: prioritize project root
-        candidates = [
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer project root on Windows
-        download_dest = candidates[0]
-    
-    # Check each candidate
-    for path in candidates:
-        if path.exists():
-            logger.info(f"Found model_events.parquet at: {path}")
-            # Validate controls for local files too
-            validation_result = _validate_model_events_has_controls(path)
-            if not validation_result["has_controls"]:
-                logger.warning(
-                    f"Local file {path} is missing controls! "
-                    f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
-                )
-                logger.warning(
-                    f"This file should be regenerated with controls. "
-                    f"Please run: python 4_model_data/create_model_data.py"
-                )
-            else:
-                logger.debug(
-                    f"Validation passed: {validation_result['n_cases']} cases, "
-                    f"{validation_result['n_controls']} controls"
-                )
-            return path
-    
-    # Log which paths we checked
-    logger.info(f"Model data not found locally. Checked paths:")
-    for path in candidates:
-        logger.info(f"  - {path} (exists: {path.exists()})")
-    
-    # If not found locally, try downloading from S3
-    s3_key_candidates = [
-        f"gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
-        f"gold/model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet",
-        f"gold/model_data/{cohort}/{age_band}/model_events.parquet",
-    ]
-    
-    download_dest.parent.mkdir(parents=True, exist_ok=True)
-    
-    for s3_key in s3_key_candidates:
-        try:
-            # Check if file exists in S3
-            s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-            s3_path = f"s3://{S3_BUCKET}/{s3_key}"
-            
-            # Validate controls BEFORE downloading (using DuckDB S3 support)
-            logger.info(f"Checking S3 file for controls: {s3_path}")
-            validation_result = _validate_s3_file_has_controls(s3_path)
-            
-            if validation_result.get("error"):
-                logger.warning(f"Could not validate S3 file {s3_path}: {validation_result['error']}")
-                logger.info("Proceeding with download and will validate after...")
-            elif not validation_result.get("has_controls", False):
-                logger.error(
-                    f"S3 file {s3_path} is missing controls! "
-                    f"Cases: {validation_result.get('n_cases', 0)}, Controls: {validation_result.get('n_controls', 0)}"
-                )
-                logger.error(
-                    f"This file should be regenerated with controls. "
-                    f"Please run: python 4_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
-                )
-                logger.error("Skipping this S3 file and trying next candidate...")
-                continue  # Skip this S3 file, try next candidate
-            
-            # Download the file
-            logger.info(f"Downloading model_events.parquet from S3: {s3_path}")
-            logger.info(f"Downloading to: {download_dest}")
-            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-            with open(download_dest, 'wb') as f:
-                f.write(obj['Body'].read())
-            logger.info(f"Saved to: {download_dest}")
-            
-            # Validate again after download (double-check)
-            validation_result = _validate_model_events_has_controls(download_dest)
-            if not validation_result["has_controls"]:
-                logger.error(
-                    f"Downloaded file is missing controls! "
-                    f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
-                )
-                logger.error(
-                    f"This file should be regenerated with controls. "
-                    f"Please run: python 4_model_data/create_model_data.py --cohort {cohort} --age-band {age_band}"
-                )
-                # Delete the invalid file
-                download_dest.unlink()
-                logger.error("Deleted invalid file. Trying next S3 candidate...")
-                continue
-            else:
-                logger.info(
-                    f"Validation passed: {validation_result['n_cases']} cases, "
-                    f"{validation_result['n_controls']} controls"
-                )
-            
-            return download_dest
-        except Exception as e:
-            logger.debug(f"S3 key not found or error: {s3_key} - {e}")
+    found: List[Path] = []
+
+    # Local: check each cohort root × event_year
+    for root in _cohort_root_candidates():
+        if not root.exists():
             continue
-    
-    # If all checks failed, raise error with helpful message
+        for year in COHORT_EVENT_YEARS:
+            path = (
+                root
+                / f"cohort_name={cohort}"
+                / f"event_year={year}"
+                / f"age_band={age_band}"
+                / "cohort.parquet"
+            )
+            if path.exists():
+                found.append(path)
+        if found:
+            break
+    if found:
+        logger.info(
+            "Found cohort parquets at %s: %s",
+            found[0].parent.parent.parent,
+            [p.name for p in found],
+        )
+        validation = _validate_cohort_events_has_controls(found)
+        if not validation["has_controls"]:
+            logger.warning(
+                "Cohort parquets have no controls: cases=%s, controls=%s",
+                validation["n_cases"],
+                validation["n_controls"],
+            )
+        else:
+            logger.debug(
+                "Cohort validation: %s cases, %s controls",
+                validation["n_cases"],
+                validation["n_controls"],
+            )
+        return found
+
+    # S3: gold/cohorts/cohort_name=.../event_year=.../age_band=.../cohort.parquet
+    try:
+        from py_helpers.s3_utils import get_cohort_parquet_path
+    except ImportError:
+        get_cohort_parquet_path = None
+    if get_cohort_parquet_path:
+        # Download destination: same layout under data_root or PROJECT_ROOT
+        base = data_root / "gold" / "cohorts" if is_linux() else PROJECT_ROOT / "data" / "gold_cohorts"
+        base = base / f"cohort_name={cohort}"
+        base.mkdir(parents=True, exist_ok=True)
+        for year in COHORT_EVENT_YEARS:
+            s3_path = get_cohort_parquet_path(cohort, age_band, year)
+            # s3_path is full s3://bucket/key
+            if s3_path.startswith("s3://"):
+                parts = s3_path.replace("s3://", "").split("/", 1)
+                bucket, key = parts[0], parts[1]
+            else:
+                continue
+            dest = base / f"event_year={year}" / f"age_band={age_band}" / "cohort.parquet"
+            try:
+                s3_client.head_object(Bucket=bucket, Key=key)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(bucket, key, str(dest))
+                found.append(dest)
+                logger.info("Downloaded cohort parquet from S3: %s -> %s", s3_path, dest)
+            except Exception as e:
+                logger.debug("S3 cohort %s: %s", s3_path, e)
+        if found:
+            return found
+
+    # Nothing found
+    checked = []
+    for root in _cohort_root_candidates():
+        for year in COHORT_EVENT_YEARS:
+            p = root / f"cohort_name={cohort}" / f"event_year={year}" / f"age_band={age_band}" / "cohort.parquet"
+            checked.append(p)
     error_msg = (
-        f"Model data not found for cohort={cohort}, age_band={age_band}.\n"
-        "Checked locations:\n"
+        f"Cohort parquets not found for cohort={cohort}, age_band={age_band}.\n"
+        "Checked (Step 2 create cohort output):\n"
     )
-    for path in candidates:
+    for path in checked[:8]:  # limit lines
         error_msg += f"  - {path} (exists: {path.exists()})\n"
-    error_msg += "\nS3 locations checked:\n"
-    for s3_key in s3_key_candidates:
-        error_msg += f"  - s3://{S3_BUCKET}/{s3_key}\n"
+    if len(checked) > 8:
+        error_msg += f"  ... and {len(checked) - 8} more.\n"
+    error_msg += (
+        "S3: gold/cohorts/cohort_name=.../event_year=<year>/age_band=.../cohort.parquet\n"
+        "Run Step 2 (create cohort) for this cohort/age_band, then re-run this event filter."
+    )
     raise FileNotFoundError(error_msg)
 
 
@@ -667,7 +783,7 @@ def load_administrative_codes_from_research(
 
 
 def calculate_event_intervals(
-    model_data_path: Path,
+    model_data_path: Union[Path, List[Path]],
     min_interval_days: int = 1,
     max_interval_days: Optional[int] = None,
 ) -> pd.DataFrame:
@@ -676,8 +792,9 @@ def calculate_event_intervals(
 
     Parameters
     ----------
-    model_data_path : Path
-        Path to model_events.parquet
+    model_data_path : Path or List[Path]
+        Path(s) to cohort or model event parquet (Step 2 cohort.parquet or Step 4 model_events.parquet).
+        Cohort parquets use target or is_target_case; multiple paths are unioned.
     min_interval_days : int
         Minimum interval (days) to consider non-protocol. Events closer than this
         are considered protocol-like.
@@ -689,16 +806,18 @@ def calculate_event_intervals(
     pd.DataFrame
         DataFrame with event intervals and protocol flags
     """
-    logger.info("Calculating event intervals from {0}".format(model_data_path))
+    parquet_spec = _to_parquet_read_spec(model_data_path)
+    logger.info("Calculating event intervals from %s", model_data_path if isinstance(model_data_path, Path) else f"{len(model_data_path)} cohort parquets")
 
     con = duckdb.connect()
 
+    # Cohort parquets may have target or is_target_case; use COALESCE for compatibility
     query = f"""
     WITH base AS (
         SELECT
             mi_person_key,
             event_date AS current_event_date,
-            target,
+            COALESCE(target, is_target_case) AS target,
             drug_name,
             primary_icd_diagnosis_code,
             procedure_code,
@@ -710,7 +829,7 @@ def calculate_event_intervals(
                 PARTITION BY mi_person_key
                 ORDER BY event_date
             ) AS previous_event_date
-        FROM read_parquet('{model_data_path}')
+        FROM ({parquet_spec})
         WHERE event_date IS NOT NULL
     )
     SELECT
@@ -751,7 +870,7 @@ def calculate_event_intervals(
 
 
 def filter_administrative_events(
-    model_data_path: Path,
+    model_data_path: Union[Path, List[Path]],
     output_path: Path,
     cohort_name: str,
     age_band: str,
@@ -761,7 +880,7 @@ def filter_administrative_events(
     allowed_codes_from_fi: Optional[set] = None,
 ) -> dict:
     """
-    Filter out administrative events from model_data based on code classification.
+    Filter out administrative events from cohort/model data based on code classification.
 
     Filter order:
     1. If allowed_codes_from_fi is provided: keep only events where at least one
@@ -775,7 +894,11 @@ def filter_administrative_events(
 
     Returns a small dict of counts (original/filtered/removed, fi_removed if applicable).
     """
-    logger.info("Filtering administrative events from %s", model_data_path)
+    parquet_spec = _to_parquet_read_spec(model_data_path)
+    logger.info(
+        "Filtering administrative events from %s",
+        model_data_path if isinstance(model_data_path, Path) else f"{len(model_data_path)} cohort parquets",
+    )
 
     # Load administrative codes from research if not provided
     if administrative_codes is None:
@@ -875,7 +998,7 @@ def filter_administrative_events(
 
         # Discover available columns in the parquet so we can build safe SQL
         desc_rows = con.execute(
-            f"DESCRIBE SELECT * FROM read_parquet('{model_data_path}')"
+            f"DESCRIBE SELECT * FROM ({parquet_spec})"
         ).fetchall()
         available_cols = {r[0] for r in desc_rows}
 
@@ -969,7 +1092,7 @@ def filter_administrative_events(
                   PARTITION BY mi_person_key
                   ORDER BY event_date
                 ) AS event_seq
-              FROM read_parquet('{model_data_path}')
+              FROM ({parquet_spec})
             )"""
         if use_fi_filter:
             source_from = f"""
@@ -996,7 +1119,7 @@ def filter_administrative_events(
 
         # Original event count (before any filter) for FI-removed reporting
         events_before_fi = int(
-            con.execute(f"SELECT COUNT(*)::UBIGINT FROM read_parquet('{model_data_path}')").fetchone()[0]
+            con.execute(f"SELECT COUNT(*)::UBIGINT FROM ({parquet_spec})").fetchone()[0]
             or 0
         )
         # Counts from _flagged_events (after FI filter if applied, before admin keep_expr)
@@ -1083,7 +1206,7 @@ def filter_administrative_events(
 
 def create_research_outputs_for_review(
     intervals_df: pd.DataFrame,
-    model_data_path: Path,
+    model_data_path: Union[Path, List[Path]],
     cohort_name: str,
     age_band: str,
     min_interval_days: int = 1,
@@ -1145,7 +1268,7 @@ def create_research_outputs_for_review(
                             LAG(event_date) OVER (PARTITION BY mi_person_key ORDER BY event_date),
                             event_date
                         ) AS days_since_previous
-                    FROM read_parquet('{model_data_path}')
+                    FROM ({parquet_spec})
                     WHERE event_date IS NOT NULL
                 )
                 SELECT
@@ -1214,7 +1337,7 @@ def create_research_outputs_for_review(
                     WHEN procedure_code IS NOT NULL AND TRIM(procedure_code) != '' THEN 'CPT:' || procedure_code
                     ELSE NULL
                 END AS cpt_activity
-            FROM read_parquet('{model_data_path}')
+            FROM ({parquet_spec})
             WHERE event_date IS NOT NULL;
             """
         )
@@ -1604,19 +1727,36 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Filter administrative events using code classification (target leakage removed in Step 4)"
+        description="Filter administrative events. Use --before-cohorts after Step 1a (gold in/out); default runs after Step 2 (cohort in, model_events_no_protocols out)."
+    )
+    parser.add_argument(
+        "--before-cohorts",
+        action="store_true",
+        help="Run after Step 1a (APCD input), before Step 2: filter gold medical/pharmacy by admin codes only; write gold/medical_filtered, gold/pharmacy_filtered.",
     )
     parser.add_argument(
         "--cohort-name",
         type=str,
-        required=True,
-        help="Cohort name (e.g., opioid_ed)",
+        default=None,
+        help="Cohort name (e.g., opioid_ed). Required when not using --before-cohorts.",
     )
     parser.add_argument(
         "--age-band",
         type=str,
         required=True,
-        help="Age band (e.g., 0-12)",
+        help="Age band (e.g., 0-12 or 13-24)",
+    )
+    parser.add_argument(
+        "--event-year",
+        type=int,
+        default=None,
+        help="Event year (e.g., 2016). Required when using --before-cohorts.",
+    )
+    parser.add_argument(
+        "--aggregated-fi-csv",
+        type=str,
+        default=None,
+        help="Path to baseline aggregated FI CSV (precomputed; does not need to be recomputed). With --before-cohorts, gold is filtered to keep only events whose codes appear in this CSV, reducing cohort processing. If --cohort-name is also set, baseline FI is auto-resolved when this is omitted.",
     )
     parser.add_argument(
         "--min-interval-days",
@@ -1641,6 +1781,37 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Before-cohorts mode: filter gold medical/pharmacy (after Step 1a, before Step 2)
+    # Baseline FI is precomputed (initial run); does not need to be recomputed. Use it here to reduce cohort processing.
+    if args.before_cohorts:
+        if args.event_year is None:
+            logger.error("--event-year is required when using --before-cohorts")
+            sys.exit(1)
+        allowed_fi = None
+        if args.aggregated_fi_csv:
+            fi_path = Path(args.aggregated_fi_csv)
+            if not fi_path.exists():
+                logger.error("Baseline aggregated FI CSV not found: %s", fi_path)
+                sys.exit(1)
+            allowed_fi = get_allowed_codes_from_aggregated_fi(fi_path)
+            logger.info("Using baseline aggregated FI CSV for before-cohorts: %s allowed codes", len(allowed_fi))
+        elif args.cohort_name:
+            # Auto-resolve baseline FI (precomputed) from same locations as after-cohorts
+            fi_validation = _validate_and_filter_aggregated_feature_importance(args.cohort_name, args.age_band)
+            if fi_validation.get("is_valid") and fi_validation.get("cleaned_path") and fi_validation["cleaned_path"].exists():
+                allowed_fi = get_allowed_codes_from_aggregated_fi(fi_validation["cleaned_path"])
+                logger.info("Auto-resolved baseline aggregated FI for before-cohorts: %s allowed codes", len(allowed_fi))
+            else:
+                logger.info("Baseline FI not found for %s/%s; filtering gold by admin codes only.", args.cohort_name, args.age_band)
+        logger.info("Running event filter on gold data (before cohorts): age_band=%s, event_year=%s", args.age_band, args.event_year)
+        run_event_filter_on_gold(args.age_band, args.event_year, allowed_codes_from_fi=allowed_fi)
+        print("Event filter on gold complete. Step 2 (create cohort) will use filtered gold when present.")
+        sys.exit(0)
+
+    if not args.cohort_name:
+        logger.error("--cohort-name is required when not using --before-cohorts")
+        sys.exit(1)
 
     age_band_fname = args.age_band.replace("-", "_")
 
@@ -1673,14 +1844,10 @@ if __name__ == "__main__":
             )
         print(f"\n[INFO] Final aggregated feature importance count: {fi_validation['n_features_final']} features")
 
-    # Use OS-aware path resolution for model_events.parquet (needed for local check)
-    model_data_path = _resolve_model_events_path(args.cohort_name, args.age_band)
-    
-    # Output path: use same base directory as input
-    output_path = (
-        model_data_path.parent
-        / "model_events_no_protocols.parquet"
-    )
+    # Resolve cohort parquets (Step 2 create cohort output); multiple event_years are unioned
+    cohort_paths = _resolve_cohort_parquet_paths(args.cohort_name, args.age_band)
+    output_dir = get_event_filter_output_dir(args.cohort_name, args.age_band)
+    output_path = output_dir / "model_events_no_protocols.parquet"
 
     # Output paths for audit artifacts (needed for local check)
     audit_dir = OUTPUT_ROOT / args.cohort_name / age_band_fname
@@ -1793,14 +1960,16 @@ if __name__ == "__main__":
     audit_dir.mkdir(parents=True, exist_ok=True)
 
     # Load original data count (avoid materializing full dataset in pandas)
+    parquet_spec = _to_parquet_read_spec(cohort_paths)
     con = duckdb.connect()
     original_count = con.execute(
-        f"SELECT COUNT(*) FROM read_parquet('{model_data_path}')"
+        f"SELECT COUNT(*)::BIGINT FROM ({parquet_spec})"
     ).fetchone()[0]
+    original_count = int(original_count) if original_count is not None else 0
     con.close()
 
     # Step 1: Calculate time intervals (for research purposes)
-    intervals_df = calculate_event_intervals(model_data_path, args.min_interval_days)
+    intervals_df = calculate_event_intervals(cohort_paths, args.min_interval_days)
 
     # Persist full event-level intervals with protocol flags for audit/exploration
     intervals_df.to_parquet(intervals_path, index=False)
@@ -1812,7 +1981,7 @@ if __name__ == "__main__":
     # Step 2: Create comprehensive research outputs for review (used to identify administrative codes)
     create_research_outputs_for_review(
         intervals_df=intervals_df,
-        model_data_path=model_data_path,
+        model_data_path=cohort_paths,
         cohort_name=args.cohort_name,
         age_band=args.age_band,
         min_interval_days=args.min_interval_days,
@@ -1825,7 +1994,7 @@ if __name__ == "__main__":
         len(allowed_codes_from_fi),
     )
     filtered_stats = filter_administrative_events(
-        model_data_path=model_data_path,
+        model_data_path=cohort_paths,
         output_path=output_path,
         cohort_name=args.cohort_name,
         age_band=args.age_band,
