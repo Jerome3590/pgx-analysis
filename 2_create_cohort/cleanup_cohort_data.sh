@@ -5,14 +5,16 @@
 # This script clears:
 # - Step 2: Cohort parquet (S3 + local)
 # - Step 1b: Event filter outputs (S3 + local)
-# - Step 3b/3a: Feature importance outputs (S3 + local, includes _baseline)
+# - Step 3b/3a: Feature importance outputs (S3 + local; _baseline preserved, overwritten on re-run)
 # - Step 4/4a: Model data (S3 + NVMe + project)
 # - Step 5–9: PGx features, final model, SHAP, FFA, combined (S3)
 # - Step 6: Trained models (local + S3)
 # - Checkpoints: pipeline_checkpoints + pgx-pipeline-status (optional)
 #
 # IMPORTANT: Does NOT delete gold medical/pharmacy tables
-# (/mnt/nvme/gold/medical/, /mnt/nvme/gold/pharmacy/). See docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md.
+# (/mnt/nvme/gold/medical/, /mnt/nvme/gold/pharmacy/). Does NOT delete historical FI:
+# s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/ (1b reads from here; bucket has versioning so overwrites are safe).
+# See docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md.
 #
 # Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local] [--yes]
 #
@@ -254,6 +256,32 @@ delete_s3_path() {
     log_message ""
 }
 
+# Delete S3 prefix but preserve keys containing _baseline/ (baseline aggregated FI; overwritten on re-run)
+delete_s3_prefix_exclude_baseline() {
+    local prefix=$1
+    local description=$2
+    if [ "$SKIP_S3" = true ]; then
+        echo -e "${YELLOW}[SKIP S3]${NC} $description"
+        return
+    fi
+    echo -e "${YELLOW}[S3]${NC} Deleting (preserving _baseline): $description"
+    log_message "[S3 DELETE EXCLUDE BASELINE] $description"
+    log_message "           Prefix: s3://${S3_BUCKET}/${prefix}"
+    set +e
+    local deleted=0
+    while IFS= read -r key; do
+        [ -z "$key" ] && continue
+        if [[ "$key" != *"_baseline/"* ]]; then
+            aws s3 rm "s3://${S3_BUCKET}/${key}" 2>/dev/null && ((deleted++)) || true
+        fi
+    done < <(aws s3 ls "s3://${S3_BUCKET}/${prefix}" --recursive 2>/dev/null | awk '{print $4}')
+    set -e
+    echo -e "${GREEN}[S3]${NC} Deleted $deleted objects (baseline preserved): $description"
+    log_message "           Status: DELETED $deleted objects (baseline preserved)"
+    [ "$deleted" -gt 0 ] && { set +e; ((DELETED_COUNT++)); set -e; }
+    log_message ""
+}
+
 # Function to delete local path
 delete_local_path() {
     local path=$1
@@ -355,7 +383,7 @@ check_local_path "${STEP3A_OUTPUTS}" "Step 3a: MC feature importance outputs"
 check_local_path "${STEP3_OUTPUTS}" "Step 3: Legacy feature importance outputs"
 check_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
 check_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
-check_s3_path "s3://${S3_BUCKET}/gold/feature_importance/" "Step 3a: Feature importance (S3, includes _baseline)"
+check_s3_path "s3://${S3_BUCKET}/gold/feature_importance/" "Step 3a: Feature importance (S3, _baseline preserved)"
 
 echo ""
 
@@ -463,15 +491,31 @@ delete_s3_path "s3://${S3_BUCKET}/gold/event_filter/" "Step 1b: Event filter (S3
 
 echo ""
 
-# Step 3b + 3a: Feature importance outputs
+# Step 3b + 3a: Feature importance outputs (preserve _baseline; overwritten on 3a --baseline re-run)
 echo "--- Step 3b / 3a: Feature Importance Outputs ---"
 delete_local_path "${STEP3B_OUTPUTS}/ed_non_opioid" "Step 3b: ED_NON_OPIOID feature importance"
 delete_local_path "${STEP3B_OUTPUTS}/opioid_ed" "Step 3b: OPIOID_ED feature importance"
-delete_local_path "${STEP3A_OUTPUTS}" "Step 3a: MC feature importance outputs"
-delete_local_path "${STEP3_OUTPUTS}" "Step 3: Legacy feature importance outputs"
+# Clear 3a local outputs but preserve _baseline subdir (overwritten on 3a --baseline re-run)
+if [ "$SKIP_LOCAL" = false ]; then
+    for _out_root in "${STEP3A_OUTPUTS}" "${STEP3_OUTPUTS}"; do
+        [ -d "$_out_root" ] || continue
+        for _cohort_dir in "${_out_root}"/*/; do
+            [ -d "$_cohort_dir" ] || continue
+            for _item in "${_cohort_dir}"*; do
+                [ -e "$_item" ] || continue
+                case "$_item" in
+                    *"/_baseline" ) ;;
+                    * ) rm -rf "$_item" 2>/dev/null || true ;;
+                esac
+            done
+        done
+    done
+    echo -e "${GREEN}[LOCAL]${NC} Cleared 3a/3 feature importance (baseline preserved)"
+    log_message "[LOCAL] Cleared 3a/3 feature importance outputs (baseline preserved)"
+fi
 delete_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
 delete_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
-delete_s3_path "s3://${S3_BUCKET}/gold/feature_importance/" "Step 3a: Feature importance (S3, includes _baseline)"
+delete_s3_prefix_exclude_baseline "gold/feature_importance/" "Step 3a: Feature importance (S3, _baseline preserved)"
 
 echo ""
 

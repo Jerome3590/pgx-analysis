@@ -17,7 +17,7 @@ chmod +x 2_create_cohort/cleanup_cohort_data.sh
 - `--skip-local` — Only delete S3 (and keep EC2/local).
 - `--yes` — Skip confirmation prompt.
 
-**Preserved (never deleted):** The script only deletes under **gold/cohorts** and other step outputs. It **never** deletes **gold/medical** or **gold/pharmacy** (`/mnt/nvme/gold/medical`, `/mnt/nvme/gold/pharmacy`). Project-local cohort copy uses **data/gold/cohorts** (not data/gold_cohorts). Baseline feature importances on S3: if you want to keep them, use `--skip-s3` for `gold/feature_importance/` or manually exclude `_baseline/`.
+**Preserved (never deleted):** The script only deletes under **gold/cohorts** and other step outputs. It **never** deletes **gold/medical** or **gold/pharmacy** (`/mnt/nvme/gold/medical`, `/mnt/nvme/gold/pharmacy`). Project-local cohort copy uses **data/gold/cohorts** (not data/gold_cohorts). **Baseline aggregated feature importances** (`_baseline/` under feature_importance in pgxdatalake) are **preserved**; only second-pass FI is cleared. Baseline files are overwritten when you re-run Step 3a with `--baseline`. The **historical FI bucket** `s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/` is **never** deleted; 1b reads from it when local/pgxdatalake FI is missing. That bucket has **versioning** enabled, so Step 3a can overwrite with new data and previous versions remain recoverable.
 
 ---
 
