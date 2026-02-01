@@ -1,19 +1,20 @@
 #!/bin/bash
 #
-# Cleanup script for cohort data and related outputs
-# 
+# Cleanup script for full workflow reset: checkpoints, S3 artifacts, EC2/local outputs.
+#
 # This script clears:
-# - Step 2: Cohort parquet files (S3 and local)
-# - Step 3b: Feature importance outputs
-# - Step 4a: Model data
-# - Step 6: Trained models
-# - Checkpoints (optional)
+# - Step 2: Cohort parquet (S3 + local)
+# - Step 1b: Event filter outputs (S3 + local)
+# - Step 3b/3a: Feature importance outputs (S3 + local, includes _baseline)
+# - Step 4/4a: Model data (S3 + NVMe + project)
+# - Step 5–9: PGx features, final model, SHAP, FFA, combined (S3)
+# - Step 6: Trained models (local + S3)
+# - Checkpoints: pipeline_checkpoints + pgx-pipeline-status (optional)
 #
-# IMPORTANT: This script does NOT delete gold medical/pharmacy tables
-# (/mnt/nvme/gold/medical/ and /mnt/nvme/gold/pharmacy/) as these are
-# shared across multiple workers and should be preserved for reuse.
+# IMPORTANT: Does NOT delete gold medical/pharmacy tables
+# (/mnt/nvme/gold/medical/, /mnt/nvme/gold/pharmacy/). See docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md.
 #
-# Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local]
+# Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local] [--yes]
 #
 
 set -e  # Exit on error
@@ -62,11 +63,13 @@ echo "=========================================="
 echo ""
 echo "This script will clear:"
 echo "  - Step 2: Cohort parquet files"
-echo "  - Step 3b: Feature importance outputs"
-echo "  - Step 4a: Model data"
-echo "  - Step 6: Trained models"
+echo "  - Step 1b: Event filter outputs"
+echo "  - Step 3b / 3a: Feature importance outputs"
+echo "  - Step 4/4a: Model data"
+echo "  - Step 5–9: PGx features, final model, SHAP, FFA, combined (S3)"
+echo "  - Step 6: Trained models (local)"
 if [ "$SKIP_CHECKPOINTS" = false ]; then
-    echo "  - Checkpoints (optional)"
+    echo "  - Checkpoints (S3: pipeline_checkpoints + pgx-pipeline-status)"
 fi
 echo ""
 echo -e "${GREEN}NOTE: Gold medical/pharmacy tables are preserved${NC}"
@@ -94,8 +97,12 @@ S3_REPO_BUCKET="pgx-repository"
 PROJECT_ROOT="${HOME}/pgx-analysis"
 DATA_ROOT="/mnt/nvme/gold"
 MODEL_DATA_ROOT="/mnt/nvme/4a_model_data"
+MODEL_DATA_ROOT_4="/mnt/nvme/4_model_data"  # Current step name
 LOCAL_COHORT_ROOT="${DATA_ROOT}/cohorts"  # If synced locally
 STEP3B_OUTPUTS="${PROJECT_ROOT}/3b_feature_importance_eda/outputs"
+STEP3A_OUTPUTS="${PROJECT_ROOT}/3a_feature_importance/outputs"
+STEP3_OUTPUTS="${PROJECT_ROOT}/3_feature_importance/outputs"
+STEP1B_OUTPUTS="${PROJECT_ROOT}/1b_apcd_event_filter/outputs"
 STEP6_MODELS="${PROJECT_ROOT}/6_final_model/models"
 
 # Counter for deleted items
@@ -327,14 +334,18 @@ log_message "--- Step 4a: Model Data ---"
 # Local paths (old format)
 check_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe - old format)"
 check_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe - old format)"
+check_local_path "${MODEL_DATA_ROOT_4}/cohort_name=non_opioid_ed" "Step 4: POLYPHARMACY model data (NVMe - 4_model_data)"
+check_local_path "${MODEL_DATA_ROOT_4}/cohort_name=opioid_ed" "Step 4: OPIOID_ED model data (NVMe - 4_model_data)"
 # Local paths (new format with slugs)
 check_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (NVMe - new format)"
 check_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (NVMe - new format)"
-if [ -d "${PROJECT_ROOT}/4a_model_data" ]; then
+if [ -d "${PROJECT_ROOT}/4a_model_data" ] || [ -d "${PROJECT_ROOT}/4_model_data" ]; then
     check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (project - old format)"
     check_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project - old format)"
     check_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (project - new format)"
     check_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (project - new format)"
+    [ -d "${PROJECT_ROOT}/4_model_data" ] && check_local_path "${PROJECT_ROOT}/4_model_data/cohort_name=non_opioid_ed" "Step 4: POLYPHARMACY model data (project - 4_model_data)"
+    [ -d "${PROJECT_ROOT}/4_model_data" ] && check_local_path "${PROJECT_ROOT}/4_model_data/cohort_name=opioid_ed" "Step 4: OPIOID_ED model data (project - 4_model_data)"
 fi
 # S3 paths (old format with cohort names)
 check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - old format)"
@@ -345,6 +356,12 @@ check_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=opioi
 # Legacy path (very old format) - for cleanup
 check_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - legacy)"
 check_s3_path "s3://${S3_BUCKET}/gold/4a_model_data/cohort_name=opioid_ed/" "Step 4a: OPIOID_ED model data (S3 - legacy)"
+check_s3_path "s3://${S3_BUCKET}/gold/model_data/" "Step 4: Model data (S3 - alternate path)"
+check_s3_path "s3://${S3_BUCKET}/gold/pgx_features/" "Step 5: PGx features (S3)"
+check_s3_path "s3://${S3_BUCKET}/gold/final_model/" "Step 6: Final model (S3)"
+check_s3_path "s3://${S3_BUCKET}/gold/shap_analysis/" "Step 7: SHAP analysis (S3)"
+check_s3_path "s3://${S3_BUCKET}/gold/ffa_analysis/" "Step 8: FFA analysis (S3)"
+check_s3_path "s3://${S3_BUCKET}/gold/combined_analysis/" "Step 9: Combined analysis (S3)"
 
 echo ""
 
@@ -360,6 +377,7 @@ echo ""
 if [ "$SKIP_CHECKPOINTS" = false ]; then
     echo "--- Checkpoints ---"
     log_message "--- Checkpoints ---"
+    check_s3_path "s3://${S3_REPO_BUCKET}/pipeline_checkpoints/" "All step checkpoints (1b, 4, 6, etc.)"
     check_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/create_cohort/" "Step 2: Cohort creation checkpoints"
     check_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/feature_importance_eda/" "Step 3b: Feature importance checkpoints"
     check_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/model_data/" "Step 4a: Model data checkpoints"
@@ -416,6 +434,8 @@ echo "--- Step 4a: Model Data ---"
 # Local paths (old format)
 delete_local_path "${MODEL_DATA_ROOT}/cohort_name=ed_non_opioid" "Step 4a: ED_NON_OPIOID model data (NVMe - old format)"
 delete_local_path "${MODEL_DATA_ROOT}/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (NVMe - old format)"
+delete_local_path "${MODEL_DATA_ROOT_4}/cohort_name=non_opioid_ed" "Step 4: POLYPHARMACY model data (NVMe - 4_model_data)"
+delete_local_path "${MODEL_DATA_ROOT_4}/cohort_name=opioid_ed" "Step 4: OPIOID_ED model data (NVMe - 4_model_data)"
 # Local paths (new format with slugs)
 delete_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (NVMe - new format)"
 delete_local_path "${MODEL_DATA_ROOT}/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (NVMe - new format)"
@@ -424,6 +444,10 @@ if [ -d "${PROJECT_ROOT}/4a_model_data" ]; then
     delete_local_path "${PROJECT_ROOT}/4a_model_data/cohort_name=opioid_ed" "Step 4a: OPIOID_ED model data (project - old format)"
     delete_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=polypharmacy" "Step 4a: POLYPHARMACY model data (project - new format)"
     delete_local_path "${PROJECT_ROOT}/4a_model_data/cohorts/input_model_data/cohort_name=opioid" "Step 4a: OPIOID model data (project - new format)"
+fi
+if [ -d "${PROJECT_ROOT}/4_model_data" ]; then
+    delete_local_path "${PROJECT_ROOT}/4_model_data/cohort_name=non_opioid_ed" "Step 4: POLYPHARMACY model data (project - 4_model_data)"
+    delete_local_path "${PROJECT_ROOT}/4_model_data/cohort_name=opioid_ed" "Step 4: OPIOID_ED model data (project - 4_model_data)"
 fi
 # S3 paths (old format with cohort names)
 delete_s3_path "s3://${S3_BUCKET}/gold/cohorts/input_model_data/cohort_name=ed_non_opioid/" "Step 4a: ED_NON_OPIOID model data (S3 - old format)"
@@ -447,6 +471,7 @@ echo ""
 # Checkpoints (optional)
 if [ "$SKIP_CHECKPOINTS" = false ]; then
     echo "--- Checkpoints ---"
+    delete_s3_path "s3://${S3_REPO_BUCKET}/pipeline_checkpoints/" "All step checkpoints (1b, 4, 6, etc.)"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/create_cohort/" "Step 2: Cohort creation checkpoints"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/feature_importance_eda/" "Step 3b: Feature importance checkpoints"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/model_data/" "Step 4a: Model data checkpoints"

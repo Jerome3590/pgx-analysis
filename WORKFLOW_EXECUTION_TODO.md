@@ -5,6 +5,7 @@ This document provides a step-by-step checklist for executing the complete workf
 ## Prerequisites
 
 - EC2 instance with access to S3 (`pgxdatalake` and `pgx-repository` buckets)
+- **Full reset:** To run the workflow from scratch (no checkpoints, no S3/EC2 artifacts), run `./2_create_cohort/cleanup_cohort_data.sh` first. See [docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md](docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md).
 - Python 3.11+ with jupyter-env activated
 - R with required packages (bupaR, edeaR, etc.)
 - AWS CLI configured
