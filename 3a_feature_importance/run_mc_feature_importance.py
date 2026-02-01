@@ -848,8 +848,8 @@ def run_mc_feature_importance(
         except Exception as e:
             print(f"[WARN] Failed to upload to pgxdatalake: {e}")
             print(f"  File saved locally at: {agg_path}")
-        # Historical copy in pgx-repository (never cleared; 1b reads from here; bucket has versioning so overwrite is safe)
-        repo_key = f"{PGX_REPO_FI_PREFIX}/{cohort}/{age_band}/{s3_suffix}{filename_agg}"
+        # Historical copy in pgx-repository: flat layout pgx-analysis/3_feature_importance/outputs/{cohort}_{age_band}_aggregated_feature_importance.csv
+        repo_key = f"{PGX_REPO_FI_PREFIX}/{filename_agg}"
         try:
             s3_client.put_object(
                 Bucket=PGX_REPO_BUCKET,
