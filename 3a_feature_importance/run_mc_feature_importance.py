@@ -41,6 +41,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from py_helpers.constants import age_band_to_fname  # noqa: E402
 from py_helpers.env_utils import get_xgb_cpu_nthread, get_data_root, is_linux  # noqa: E402
 from py_helpers.s3_utils import normalize_cohort_name, get_cohort_parquet_path  # noqa: E402
+from py_helpers.feature_importance_utils import aggregate_feature_importance  # noqa: E402
 
 # Event years to combine when loading cohort data (matches 4_model_data default)
 DEFAULT_EVENT_YEARS = [2016, 2017, 2018, 2019]
@@ -907,70 +908,105 @@ def run_mc_feature_importance(
         plt.savefig(scatter_path, dpi=150)
         plt.close()
 
-    # For backward compatibility, also write an "aggregated" file name based on XGBoost boosting
+    # Aggregated file: normalize across all model types with weighting for best model (recall)
     if "xgb" in results:
         agg_path = (
             out_dir
             / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
         )
-        
-        # Filter zero-importance features and remove duplicates before saving
-        agg_df = results["xgb"].copy()
-        
-        # Filter out features with zero or negative importance (no signal)
-        initial_count = len(agg_df)
-        if "scaled_importance_mean" in agg_df.columns:
-            agg_df = agg_df[agg_df["scaled_importance_mean"] > 1e-10].copy()
+
+        # Build all_results for aggregate_feature_importance (expects feature, importance_mean, recall_mean, logloss_mean)
+        all_results = {}
+        for model_name in model_keys:
+            if model_name not in results:
+                continue
+            df = results[model_name]
+            if "feature" not in df.columns or "importance_mean" not in df.columns:
+                continue
+            label = model_label_map[model_name]
+            all_results[label] = df
+
+        if len(all_results) >= 1:
+            # Use cross-model aggregation with normalization and best-model weighting when we have multiple models
+            if len(all_results) >= 2:
+                agg_combined = aggregate_feature_importance(
+                    all_results, scaling_metric="recall", logger=None
+                )
+                # Map to schema expected by downstream: feature, scaled_importance_mean, importance_mean, recall_mean, logloss_mean
+                best_model_key = max(
+                    results.keys(),
+                    key=lambda k: results[k]["recall_mean"].iloc[0] if len(results[k]) > 0 else 0,
+                )
+                best_recall = results[best_model_key]["recall_mean"].iloc[0]
+                best_logloss = results[best_model_key]["logloss_mean"].iloc[0]
+                agg_df = agg_combined[["feature", "importance_normalized", "importance_scaled", "n_models", "models"]].copy()
+                agg_df.rename(columns={"importance_scaled": "scaled_importance_mean", "importance_normalized": "importance_mean"}, inplace=True)
+                agg_df["scaled_importance_std"] = 0.0
+                agg_df["scaled_importance_count"] = n_runs
+                agg_df["importance_std"] = 0.0
+                agg_df["recall_mean"] = best_recall
+                agg_df["logloss_mean"] = best_logloss
+                if "auc_mean" in list(results.values())[0].columns:
+                    agg_df["auc_mean"] = list(results.values())[0]["auc_mean"].iloc[0]
+                if "pr_auc_mean" in list(results.values())[0].columns:
+                    agg_df["pr_auc_mean"] = list(results.values())[0]["pr_auc_mean"].iloc[0]
+                print("[INFO] Aggregated feature importance: normalized across all model types with best-model (recall) weighting")
+            else:
+                # Single model: keep existing behavior (one model's output)
+                agg_df = list(all_results.values())[0].copy()
+
+            # Filter out features with zero or negative importance (no signal)
+            initial_count = len(agg_df)
+            if "scaled_importance_mean" in agg_df.columns:
+                agg_df = agg_df[agg_df["scaled_importance_mean"] > 1e-10].copy()
+            elif "importance_mean" in agg_df.columns:
+                agg_df = agg_df[agg_df["importance_mean"] > 1e-10].copy()
             filtered_count = len(agg_df)
             if filtered_count < initial_count:
                 print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
                 print(f"[INFO] Keeping {filtered_count} features with importance > 0")
-        elif "importance_mean" in agg_df.columns:
-            agg_df = agg_df[agg_df["importance_mean"] > 1e-10].copy()
-            filtered_count = len(agg_df)
-            if filtered_count < initial_count:
-                print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
-                print(f"[INFO] Keeping {filtered_count} features with importance > 0")
-        
-        # Remove duplicate features (keep first occurrence, which should be highest importance after sorting)
-        initial_count = len(agg_df)
-        agg_df = agg_df.drop_duplicates(subset=["feature"], keep="first")
-        if len(agg_df) < initial_count:
-            print(f"[INFO] Removed {initial_count - len(agg_df)} duplicate features")
-        
-        # Ensure sorted by importance (descending)
-        if "scaled_importance_mean" in agg_df.columns:
-            agg_df = agg_df.sort_values("scaled_importance_mean", ascending=False)
-        elif "importance_mean" in agg_df.columns:
-            agg_df = agg_df.sort_values("importance_mean", ascending=False)
 
-        # Remove administrative/Z codes so second pass = aggregated FI minus admin Z
-        agg_df = _filter_aggregated_fi_admin_codes(agg_df)
+            # Remove duplicate features (keep first occurrence)
+            initial_count = len(agg_df)
+            agg_df = agg_df.drop_duplicates(subset=["feature"], keep="first")
+            if len(agg_df) < initial_count:
+                print(f"[INFO] Removed {initial_count - len(agg_df)} duplicate features")
 
-        agg_df.to_csv(agg_path, index=False)
-        print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
-        print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
+            # Ensure sorted by importance (descending)
+            if "scaled_importance_mean" in agg_df.columns:
+                agg_df = agg_df.sort_values("scaled_importance_mean", ascending=False)
+            elif "importance_mean" in agg_df.columns:
+                agg_df = agg_df.sort_values("importance_mean", ascending=False)
 
-        # Second-pass aggregated FI is always saved to pgxdatalake and used for final model train features (Step 4 / Step 6).
-        # Do not write to pgx-repository so historical baseline is never overwritten.
-        import io
-        obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
-        s3_suffix = "_baseline/" if baseline else ""
-        filename_agg = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        s3_key_agg = f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}{filename_agg}"
-        try:
-            s3_client.put_object(
-                Bucket=S3_BUCKET,
-                Key=s3_key_agg,
-                Body=io.BytesIO(obj_bytes),
-                ContentType='text/csv'
-            )
-            print(f"✓ Uploaded aggregated feature importance to pgxdatalake: s3://{S3_BUCKET}/{s3_key_agg}")
-            if not baseline:
-                print("[INFO] Second-pass FI in pgxdatalake is the source for final model train features (Step 4 / Step 6).")
-        except Exception as e:
-            print(f"[WARN] Failed to upload to pgxdatalake: {e}")
-            print(f"  File saved locally at: {agg_path}")
+            # Remove administrative/Z codes so second pass = aggregated FI minus admin Z
+            agg_df = _filter_aggregated_fi_admin_codes(agg_df)
+
+            agg_df.to_csv(agg_path, index=False)
+            print(f"Saved aggregated feature importance to {agg_path}")
+            print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
+
+            # Second-pass aggregated FI is always saved to pgxdatalake and used for final model train features (Step 4 / Step 6).
+            # Do not write to pgx-repository so historical baseline is never overwritten.
+            import io
+            obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
+            s3_suffix = "_baseline/" if baseline else ""
+            filename_agg = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            s3_key_agg = f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}{filename_agg}"
+            try:
+                s3_client.put_object(
+                    Bucket=S3_BUCKET,
+                    Key=s3_key_agg,
+                    Body=io.BytesIO(obj_bytes),
+                    ContentType='text/csv'
+                )
+                print(f"✓ Uploaded aggregated feature importance to pgxdatalake: s3://{S3_BUCKET}/{s3_key_agg}")
+                if not baseline:
+                    print("[INFO] Second-pass FI in pgxdatalake is the source for final model train features (Step 4 / Step 6).")
+            except Exception as e:
+                print(f"[WARN] Failed to upload to pgxdatalake: {e}")
+                print(f"  File saved locally at: {agg_path}")
+        else:
+            print("[WARN] No valid per-model results to aggregate; skipping aggregated CSV.")
 
     # Return the XGBoost boosting table by default
     return results.get("xgb", pd.DataFrame())
