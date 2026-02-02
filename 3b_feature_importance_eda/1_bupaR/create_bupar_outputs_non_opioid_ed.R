@@ -74,11 +74,12 @@ log_msg("=", level = "INFO")
 # - HCG target events identified by specific hcg_line values (matching control exclusion)
 # - We'll identify target events by checking hcg_line values in the original data
 
-# OS-aware model data path resolution
-# Try data root first (for EC2/Linux: /mnt/nvme/4a_model_data), then project root
+# Cohort slug for paths: opioid (age < 65), polypharmacy (age >= 65) — matches Step 4 / 3b layout
+cohort_slug <- if (age_band %in% c("13-24", "25-44", "45-54", "55-64")) "opioid" else "polypharmacy"
+
+# OS-aware data root (EC2: /mnt/nvme, Windows: project root)
 data_root <- Sys.getenv("PGX_DATA_ROOT", "")
 if (data_root == "") {
-  # Auto-detect: Linux uses /mnt/nvme, Windows uses project root
   if (.Platform$OS.type == "unix") {
     data_root <- "/mnt/nvme"
   } else {
@@ -86,10 +87,11 @@ if (data_root == "") {
   }
 }
 
-# Try multiple locations for model_data
+# Try multiple locations: 3b-built (cohort + 3a FI + target) first, then Step 4
 model_data_candidates <- c(
-  file.path(data_root, "4a_model_data", paste0("cohort_name=", cohort_name), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(project_root, "4a_model_data", paste0("cohort_name=", cohort_name), paste0("age_band=", age_band), "model_events.parquet")
+  file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(project_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet")
 )
 
 model_data_path <- NULL
@@ -105,7 +107,7 @@ if (is.null(model_data_path)) {
   model_data_path <- model_data_candidates[1]
   
   # Try to download from S3 if not found locally
-  s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", cohort_name, "/age_band=", age_band, "/model_events.parquet")
+  s3_path <- paste0("s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name=", cohort_slug, "/age_band=", age_band, "/model_events.parquet")
   cat("Model data not found locally. Checking S3: ", s3_path, "\n", sep = "")
   
   # Create directory if it doesn't exist
@@ -175,7 +177,7 @@ save_bupar_csv <- function(df, filename,
 
 if (!file.exists(model_data_path)) {
   stop("model_data parquet not found at: ", model_data_path,
-       "\nRun 3_feature_importance/create_model_data.py for this cohort/age band first.")
+       "\nRun 3b create_bupar_input_from_cohort.py (builds from cohort + 3a FI + target), or 4_model_data/create_model_data.py for this cohort/age band first.")
 }
 
 con <- dbConnect(duckdb::duckdb())

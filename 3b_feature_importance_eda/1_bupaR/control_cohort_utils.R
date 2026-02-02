@@ -182,7 +182,7 @@ ensure_control_cohort_with_ratio <- function(
     }
     
     # Call create_control_cohort_model_data.py directly (simpler than ensure_control_cohort.py)
-    create_script <- file.path(project_root, "4a_model_data", "create_control_cohort_model_data.py")
+    create_script <- file.path(project_root, "4_model_data", "create_control_cohort_model_data.py")
     
     if (python_cmd != "" && file.exists(create_script)) {
       create_cmd <- c(
@@ -249,7 +249,7 @@ ensure_control_cohort_with_ratio <- function(
       cat("   Python: ", python_cmd, "\n", sep = "")
       cat("   Script: ", create_script, "\n", sep = "")
       cat("   Please run manually:\n")
-      cat("   ", python_cmd, " 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
+      cat("   ", python_cmd, " 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
     }
   }
   
@@ -284,7 +284,7 @@ ensure_control_cohort_with_ratio <- function(
     warning("Control model_data parquet not found: ", control_model_data_path)
     cat("\n⚠️  Control cohort '", control_cohort, "' model_events.parquet not found.\n", sep = "")
     cat("   To create it, run:\n")
-    cat("   python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, "\n\n", sep = "")
+    cat("   python 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, "\n\n", sep = "")
     # Return empty data frame with same structure as target
     # This will be handled by the calling script
   }

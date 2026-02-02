@@ -86,6 +86,25 @@ def run_bupar_analysis(
     if not r_script.exists():
         print(f"[ERROR] R script not found: {r_script}")
         return False
+
+    # Build BupaR input from cohort + 3a aggregated FI + target (so BupaR can run before Step 4)
+    build_script = project_root / "3b_feature_importance_eda" / "create_bupar_input_from_cohort.py"
+    if build_script.exists():
+        print(f"[INFO] Building BupaR input from cohort data + 3a aggregated FI + target...")
+        build_result = subprocess.run(
+            [sys.executable, str(build_script), "--cohort", cohort, "--age-band", age_band],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+        )
+        if build_result.returncode == 0:
+            print(f"[OK] BupaR input built successfully")
+        else:
+            if build_result.stdout:
+                print(build_result.stdout)
+            if build_result.stderr:
+                print(build_result.stderr)
+            print(f"[WARN] BupaR input build failed (exit {build_result.returncode}); R will try existing paths (e.g. Step 4 output)")
     
     # Change to project root directory for R script
     original_cwd = os.getcwd()
