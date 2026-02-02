@@ -61,6 +61,6 @@ Many features: drug names, ICD codes, CPT codes.
 |------|--------------|
 | **Historical aggregated feature importances (baseline)** | Live in **pgx-repository** (read-only). Used to filter cohort features **after cohorts are built** (1b event filter). |
 | **After cohorts built** | 1b event filter uses baseline FI to keep only events whose codes appear in baseline. |
-| **Second feature importances** | Load **historical aggregated FI from pgx-repository** → minus admin/Z codes → use that list as features → build patient-level feature matrix from cohort.parquet → run MC CV → **always save to pgxdatalake**. So the second pass has **all columns from aggregated feature importances minus the admin Z codes**. |
+| **Second feature importances** | Start from **baseline aggregated FI** (not the original full item-level set). Load **historical aggregated FI from pgx-repository** → minus admin/Z codes → use that list as features (~**11K features**) → build patient-level feature matrix from cohort.parquet → run MC CV → **always save to pgxdatalake**. So the second pass has **all columns from aggregated feature importances minus the admin Z codes**; feature set is much smaller than the original (~11K). |
 | **Final model train features** | Final model training (Step 6) uses **second-pass feature importances from pgxdatalake** for train features (build_final_cohort_model_features / run_final_model). |
 | **Target** | Unchanged: `target = MAX(is_target_case)` from cohort (0 = control, 1 = case). Validated so both classes are present. |

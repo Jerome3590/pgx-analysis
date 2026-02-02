@@ -5,7 +5,8 @@ Monte-Carlo feature-importance runner for the final, leakage-filtered feature se
 Flow:
   1. **Historical aggregated FI (baseline)** — in **pgx-repository** (read-only). Used to filter
      cohort features after cohorts are built (1b event filter).
-  2. **Second pass** (default): load historical FI from pgx-repository → minus admin/Z codes →
+  2. **Second pass** (default): start from baseline aggregated FI (not original full set). Load
+     historical FI from pgx-repository → minus admin/Z codes → use that list as features (~11K) →
      build patient-level feature matrix from cohort.parquet → run MC CV.
   3. **Second-pass FI are always saved to pgxdatalake** (gold/feature_importance/{cohort}/{age_band}/).
   4. **Final model training** uses these second-pass feature importances from pgxdatalake for
@@ -210,6 +211,65 @@ def _get_feature_list_minus_admin_z(agg_df: pd.DataFrame) -> List[str]:
             continue
         features.append(name)
     return list(dict.fromkeys(features))  # preserve order, dedupe
+
+
+# Minimum features in historical FI to use it as baseline; below this we use cohort-derived feature list
+MIN_BASELINE_FEATURES = 100
+
+
+def _get_cohort_feature_list_minus_admin_z(cohort: str, age_band: str) -> List[str]:
+    """
+    Get all distinct codes from cohort.parquet event-level code columns, minus admin/Z.
+    Used when historical aggregated FI from pgx-repository has too few features (e.g. only n_events).
+    """
+    cohort_paths = _resolve_cohort_parquet_paths(cohort, age_band)
+    if not cohort_paths:
+        raise FileNotFoundError(
+            f"Cohort data not found for cohort={cohort}, age_band={age_band}. "
+            "Run Step 2 (2_create_cohort) first."
+        )
+    code_cols = [
+        "primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code",
+        "four_icd_diagnosis_code", "five_icd_diagnosis_code", "six_icd_diagnosis_code",
+        "seven_icd_diagnosis_code", "eight_icd_diagnosis_code", "nine_icd_diagnosis_code",
+        "ten_icd_diagnosis_code", "procedure_code", "cpt_mod_1_code", "cpt_mod_2_code",
+        "drug_name",
+    ]
+    con = duckdb.connect()
+    try:
+        desc = con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet({repr(cohort_paths[0])})"
+        ).fetchall()
+        existing = {r[0] for r in desc}
+    except Exception:
+        existing = set()
+    code_cols_present = [c for c in code_cols if c in existing]
+    con.close()
+    if not code_cols_present:
+        return []
+    paths_sql = ", ".join(repr(p) for p in cohort_paths)
+    selects = [
+        f"SELECT DISTINCT TRIM(CAST({c} AS VARCHAR)) AS code FROM read_parquet([{paths_sql}]) "
+        f"WHERE {c} IS NOT NULL AND TRIM(CAST({c} AS VARCHAR)) <> ''"
+        for c in code_cols_present
+    ]
+    union_sql = " UNION ".join(selects)
+    con = duckdb.connect()
+    codes_df = con.execute(
+        f"SELECT code FROM ({union_sql}) WHERE code <> ''"
+    ).df()
+    con.close()
+    raw_codes = codes_df["code"].astype(str).unique().tolist()
+    exclude = _load_administrative_codes_to_exclude()
+    features: List[str] = []
+    for raw in raw_codes:
+        name = _normalize_feature_for_admin_check(raw)
+        if not name or name == "nan":
+            continue
+        if name in exclude:
+            continue
+        features.append(name)
+    return list(dict.fromkeys(features))
 
 
 def _build_patient_features_from_cohort_and_fi_list(
@@ -467,6 +527,35 @@ def _prepare_xy(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     return X, y, numeric_feature_cols
 
 
+def _non_constant_mask_and_slices(
+    X_train: pd.DataFrame,
+    X_test: pd.DataFrame,
+    feature_names: List[str],
+) -> Tuple[np.ndarray, pd.DataFrame, pd.DataFrame, List[str]]:
+    """Drop columns that are constant in X_train so models (e.g. CatBoost) do not see all-constant features.
+
+    Returns:
+        non_constant: boolean array of shape (n_features,) True where column has variance > 0 in X_train
+        X_train_active: X_train with only non-constant columns
+        X_test_active: X_test with same columns
+        active_feature_names: list of feature names for non-constant columns
+    """
+    # Column order matches feature_names (X was df[numeric_feature_cols])
+    X_tr = X_train.values if hasattr(X_train, "values") else np.asarray(X_train)
+    var_per_col = np.var(X_tr, axis=0)
+    non_constant = np.asarray(var_per_col, dtype=float) > 0
+    if not np.any(non_constant):
+        raise ValueError(
+            "In this train split all features are constant (zero variance). "
+            "Cannot fit CatBoost/XGBoost. Try a different random seed or larger cohort."
+        )
+    idx = np.where(non_constant)[0]
+    active_names = [feature_names[i] for i in idx]
+    X_train_active = X_train.iloc[:, idx]
+    X_test_active = X_test.iloc[:, idx]
+    return non_constant, X_train_active, X_test_active, active_names
+
+
 def run_mc_feature_importance(
     cohort: str,
     age_band: str,
@@ -638,6 +727,13 @@ def run_mc_feature_importance(
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, stratify=y, random_state=rs
         )
+        # Drop columns that are constant in this train split (avoids CatBoost/XGBoost "all constant" error)
+        non_constant, X_train_active, X_test_active, _ = _non_constant_mask_and_slices(
+            X_train, X_test, feature_names
+        )
+        n_active = int(non_constant.sum())
+        if run_idx == 0 and n_active < len(feature_names):
+            print(f"[INFO] Split 0: using {n_active:,} non-constant features (dropped {len(feature_names) - n_active:,} constant in train)")
 
         # --------------------
         # XGBoost (boosting)
@@ -656,34 +752,31 @@ def run_mc_feature_importance(
             random_state=rs,
         )
         try:
-            xgb_clf.fit(X_train, y_train)
+            xgb_clf.fit(X_train_active, y_train)
         except Exception:
             # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
             xgb_clf.set_params(tree_method="hist")
             if "device" in xgb_clf.get_params():
                 xgb_clf.set_params(device="cpu")
-            xgb_clf.fit(X_train, y_train)
+            xgb_clf.fit(X_train_active, y_train)
 
         for model_name, clf in [("xgb", xgb_clf)]:
-            y_proba = clf.predict_proba(X_test)[:, 1]
+            y_proba = clf.predict_proba(X_test_active)[:, 1]
             y_pred = (y_proba >= 0.5).astype(int)
             recalls[model_name].append(recall_score(y_test, y_pred))
             loglosses[model_name].append(log_loss(y_test, y_proba))
             aucs[model_name].append(roc_auc_score(y_test, y_proba))
             pr_aucs[model_name].append(average_precision_score(y_test, y_proba))
 
-            importances = np.asarray(clf.feature_importances_, dtype=float)
-            if importances.shape[0] != len(feature_names):
-                raise RuntimeError(
-                    f"Feature importance length mismatch for model {model_name}."
-                )
-            mean_imp = float(importances.mean()) if importances.size > 0 else 0.0
+            importances_active = np.asarray(clf.feature_importances_, dtype=float)
+            full_importances = np.zeros(len(feature_names), dtype=float)
+            full_importances[non_constant] = importances_active
+            mean_imp = float(full_importances.mean()) if full_importances.size > 0 else 0.0
             if mean_imp > 0:
-                scaled = importances / mean_imp
+                full_scaled = full_importances / mean_imp
             else:
-                scaled = np.zeros_like(importances)
-
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
+                full_scaled = np.zeros_like(full_importances)
+            for fname, imp, imp_scaled in zip(feature_names, full_importances, full_scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
@@ -703,34 +796,31 @@ def run_mc_feature_importance(
             random_state=rs + 1,
         )
         try:
-            xgbrf_clf.fit(X_train, y_train)
+            xgbrf_clf.fit(X_train_active, y_train)
         except Exception:
             # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
             xgbrf_clf.set_params(tree_method="hist")
             if "device" in xgbrf_clf.get_params():
                 xgbrf_clf.set_params(device="cpu")
-            xgbrf_clf.fit(X_train, y_train)
+            xgbrf_clf.fit(X_train_active, y_train)
 
         for model_name, clf in [("xgb_rf", xgbrf_clf)]:
-            y_proba = clf.predict_proba(X_test)[:, 1]
+            y_proba = clf.predict_proba(X_test_active)[:, 1]
             y_pred = (y_proba >= 0.5).astype(int)
             recalls[model_name].append(recall_score(y_test, y_pred))
             loglosses[model_name].append(log_loss(y_test, y_proba))
             aucs[model_name].append(roc_auc_score(y_test, y_proba))
             pr_aucs[model_name].append(average_precision_score(y_test, y_proba))
 
-            importances = np.asarray(clf.feature_importances_, dtype=float)
-            if importances.shape[0] != len(feature_names):
-                raise RuntimeError(
-                    f"Feature importance length mismatch for model {model_name}."
-                )
-            mean_imp = float(importances.mean()) if importances.size > 0 else 0.0
+            importances_active = np.asarray(clf.feature_importances_, dtype=float)
+            full_importances = np.zeros(len(feature_names), dtype=float)
+            full_importances[non_constant] = importances_active
+            mean_imp = float(full_importances.mean()) if full_importances.size > 0 else 0.0
             if mean_imp > 0:
-                scaled = importances / mean_imp
+                full_scaled = full_importances / mean_imp
             else:
-                scaled = np.zeros_like(importances)
-
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
+                full_scaled = np.zeros_like(full_importances)
+            for fname, imp, imp_scaled in zip(feature_names, full_importances, full_scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
@@ -749,7 +839,7 @@ def run_mc_feature_importance(
                 verbose=False,
             )
             try:
-                cb_clf.fit(X_train, y_train)
+                cb_clf.fit(X_train_active, y_train)
             except Exception:
                 # Fallback is still CPU since CatBoost manages devices internally
                 cb_clf = CatBoostClassifier(
@@ -762,28 +852,25 @@ def run_mc_feature_importance(
                     random_seed=rs + 2,
                     verbose=False,
                 )
-                cb_clf.fit(X_train, y_train)
+                cb_clf.fit(X_train_active, y_train)
 
             model_name = "catboost"
-            y_proba = cb_clf.predict_proba(X_test)[:, 1]
+            y_proba = cb_clf.predict_proba(X_test_active)[:, 1]
             y_pred = (y_proba >= 0.5).astype(int)
             recalls[model_name].append(recall_score(y_test, y_pred))
             loglosses[model_name].append(log_loss(y_test, y_proba))
             aucs[model_name].append(roc_auc_score(y_test, y_proba))
             pr_aucs[model_name].append(average_precision_score(y_test, y_proba))
 
-            importances = np.asarray(cb_clf.get_feature_importance(), dtype=float)
-            if importances.shape[0] != len(feature_names):
-                raise RuntimeError(
-                    f"Feature importance length mismatch for model {model_name}."
-                )
-            mean_imp = float(importances.mean()) if importances.size > 0 else 0.0
+            importances_active = np.asarray(cb_clf.get_feature_importance(), dtype=float)
+            full_importances = np.zeros(len(feature_names), dtype=float)
+            full_importances[non_constant] = importances_active
+            mean_imp = float(full_importances.mean()) if full_importances.size > 0 else 0.0
             if mean_imp > 0:
-                scaled = importances / mean_imp
+                full_scaled = full_importances / mean_imp
             else:
-                scaled = np.zeros_like(importances)
-
-            for fname, imp, imp_scaled in zip(feature_names, importances, scaled, strict=True):
+                full_scaled = np.zeros_like(full_importances)
+            for fname, imp, imp_scaled in zip(feature_names, full_importances, full_scaled, strict=True):
                 per_feature_importances[model_name][fname].append(float(imp))
                 per_feature_scaled[model_name][fname].append(float(imp_scaled))
 
