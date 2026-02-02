@@ -2,35 +2,29 @@
 """
 Monte-Carlo feature-importance runner for the final, leakage-filtered feature set.
 
-This script:
-  - Uses **cohort data** (Step 2 cohort.parquet) to build the patient-level feature matrix.
-    It does not depend on Step 4 (model_events.parquet).
-  - Runs N Monte-Carlo train/test splits with XGBoost (CPU on Linux, GPU on Windows if available).
-  - Aggregates feature importances across runs, producing a CSV in the same
-    schema as the legacy `*_aggregated_feature_importance.csv` files:
-
-      feature,
-      scaled_importance_mean,
-      scaled_importance_std,
-      scaled_importance_count,
-      importance_mean,
-      importance_std,
-      recall_mean,
-      logloss_mean
+Flow:
+  1. **Historical aggregated FI (baseline)** — in **pgx-repository** (read-only). Used to filter
+     cohort features after cohorts are built (1b event filter).
+  2. **Second pass** (default): load historical FI from pgx-repository → minus admin/Z codes →
+     build patient-level feature matrix from cohort.parquet → run MC CV.
+  3. **Second-pass FI are always saved to pgxdatalake** (gold/feature_importance/{cohort}/{age_band}/).
+  4. **Final model training** uses these second-pass feature importances from pgxdatalake for
+     train features (Step 6 build_final_cohort_model_features / run_final_model).
 
 Usage (example):
 
-    python 3_feature_importance/run_mc_feature_importance.py \
+    python 3a_feature_importance/run_mc_feature_importance.py \
         --cohort opioid_ed \
         --age_band 13-24 \
         --n_runs 25
 """
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -58,10 +52,9 @@ except ImportError:
     s3_client = boto3.client("s3")
     S3_BUCKET = "pgxdatalake"
 
-# Historical bucket for aggregated FI (written here and read by 1b; never cleared)
+# Historical baseline aggregated FI (read-only): used to filter cohort features after cohorts built; second pass = this minus admin/Z
 PGX_REPO_BUCKET = "pgx-repository"
 PGX_REPO_FI_PREFIX = "pgx-analysis/3_feature_importance/outputs"
-
 
 def _load_feature_table(path: Path, required: bool = True) -> pd.DataFrame:
     """Simplified loader mirroring 6_final_model.run_final_model._load_feature_table."""
@@ -126,6 +119,193 @@ def _remove_target_leakage_features(df: pd.DataFrame) -> pd.DataFrame:
         return df[kept].copy()
 
     return df
+
+
+def _load_administrative_codes_to_exclude() -> Set[str]:
+    """
+    Load administrative and Z codes to exclude from aggregated feature importance output.
+    Uses 1b_apcd_event_filter/administrative_codes_lookup.json (ICD, CPT, drug).
+    Returns a set of normalized code strings; for ICD-style codes both dot and no-dot
+    variants are included so we can match feature names with or without dots.
+    """
+    admin_path = PROJECT_ROOT / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
+    if not admin_path.exists():
+        return set()
+    with open(admin_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    codes = data.get("administrative_codes", {})
+    exclude: Set[str] = set()
+    for code in codes.get("icd", []) + codes.get("cpt", []) + codes.get("drug", []):
+        c = str(code).strip()
+        if not c:
+            continue
+        exclude.add(c)
+        # ICD-style: add no-dot variant for matching
+        if c[0].isalpha() and any(x.isdigit() for x in c):
+            exclude.add(c.replace(".", ""))
+            if "." not in c and len(c) >= 4:
+                exclude.add(f"{c[:3]}.{c[3:]}")
+    return exclude
+
+
+def _normalize_feature_for_admin_check(feature: str) -> str:
+    """Strip item_ prefix for comparison against administrative code list."""
+    return str(feature).strip().removeprefix("item_")
+
+
+def _filter_aggregated_fi_admin_codes(agg_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove rows from aggregated FI where feature is an administrative or Z code.
+    Keeps the second pass aligned with 'aggregated feature importances minus admin Z codes'.
+    """
+    exclude = _load_administrative_codes_to_exclude()
+    if not exclude:
+        return agg_df
+    if "feature" not in agg_df.columns:
+        return agg_df
+    before = len(agg_df)
+    normalized = agg_df["feature"].astype(str).map(_normalize_feature_for_admin_check)
+    mask = ~normalized.isin(exclude)
+    out = agg_df.loc[mask].copy()
+    n_removed = before - len(out)
+    if n_removed > 0:
+        print(
+            f"[INFO] Filtered out {n_removed} administrative/Z code(s) from aggregated FI: "
+            f"{sorted(normalized[~mask].unique().tolist())}"
+        )
+    return out
+
+
+def _load_historical_aggregated_fi_from_pgx_repo(
+    cohort: str, age_band_fname: str
+) -> Optional[pd.DataFrame]:
+    """
+    Load historical (baseline) aggregated feature importance from pgx-repository.
+    Used for second pass: feature set = historical minus admin/Z codes.
+    Returns None if not found.
+    """
+    filename = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    s3_key = f"{PGX_REPO_FI_PREFIX}/{filename}"
+    try:
+        import io
+        obj = s3_client.get_object(Bucket=PGX_REPO_BUCKET, Key=s3_key)
+        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+        if "feature" not in df.columns:
+            return None
+        return df
+    except Exception:
+        return None
+
+
+def _get_feature_list_minus_admin_z(agg_df: pd.DataFrame) -> List[str]:
+    """Get list of feature names from aggregated FI CSV, excluding administrative/Z codes (no item_ prefix)."""
+    exclude = _load_administrative_codes_to_exclude()
+    features: List[str] = []
+    for raw in agg_df["feature"].astype(str).unique():
+        name = _normalize_feature_for_admin_check(raw)
+        if not name or name == "nan":
+            continue
+        if name in exclude:
+            continue
+        features.append(name)
+    return list(dict.fromkeys(features))  # preserve order, dedupe
+
+
+def _build_patient_features_from_cohort_and_fi_list(
+    cohort: str, age_band: str, allowed_features: List[str]
+) -> pd.DataFrame:
+    """
+    Build patient-level feature matrix from cohort.parquet using only allowed features
+    (historical aggregated FI minus admin/Z). Cohort is event-level; we aggregate to
+    one row per patient with columns = [mi_person_key, target, <feature_count>...].
+    """
+    cohort_paths = _resolve_cohort_parquet_paths(cohort, age_band)
+    if not cohort_paths:
+        raise FileNotFoundError(
+            f"Cohort data not found for cohort={cohort}, age_band={age_band}. "
+            "Run Step 2 (2_create_cohort) first."
+        )
+    # Normalize allowed features: strip item_ for matching; build code->feature_name map (with dot/no-dot)
+    code_to_feature: Dict[str, str] = {}
+    for f in allowed_features:
+        name = _normalize_feature_for_admin_check(f)
+        code_to_feature[name] = f
+        if name and name[0].isalpha() and any(c.isdigit() for c in name):
+            no_dot = name.replace(".", "")
+            code_to_feature[no_dot] = f
+            if "." not in name and len(name) >= 4:
+                code_to_feature[f"{name[:3]}.{name[3:]}"] = f
+    if not code_to_feature:
+        raise ValueError("No allowed features after normalization.")
+
+    paths_sql = ", ".join(repr(p) for p in cohort_paths)
+    # Code columns that may appear in cohort.parquet (from unified_event_fact_table)
+    code_cols = [
+        "primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code",
+        "four_icd_diagnosis_code", "five_icd_diagnosis_code", "six_icd_diagnosis_code",
+        "seven_icd_diagnosis_code", "eight_icd_diagnosis_code", "nine_icd_diagnosis_code",
+        "ten_icd_diagnosis_code", "procedure_code", "cpt_mod_1_code", "cpt_mod_2_code",
+        "drug_name",
+    ]
+    # Build UNPIVOT-like query: one row per (mi_person_key, is_target_case, code)
+    selects = []
+    for c in code_cols:
+        selects.append(f"SELECT mi_person_key, is_target_case, CAST({c} AS VARCHAR) AS code FROM t WHERE {c} IS NOT NULL AND CAST({c} AS VARCHAR) <> ''")
+    union_sql = " UNION ALL ".join(selects)
+    con = duckdb.connect()
+    # Get schema of first file to see which code columns exist
+    try:
+        desc = con.execute(f"DESCRIBE SELECT * FROM read_parquet({repr(cohort_paths[0])})").fetchall()
+        existing = {r[0] for r in desc}
+    except Exception:
+        existing = set()
+    con.close()
+    code_cols_present = [c for c in code_cols if c in existing]
+    if not code_cols_present:
+        raise ValueError(
+            f"Cohort parquet has no code columns among {code_cols}. "
+            "Cannot build feature matrix from historical FI list."
+        )
+    selects = [
+        f"SELECT mi_person_key, is_target_case, CAST({c} AS VARCHAR) AS code FROM read_parquet([{paths_sql}]) WHERE {c} IS NOT NULL AND TRIM(CAST({c} AS VARCHAR)) <> ''"
+        for c in code_cols_present
+    ]
+    union_sql = " UNION ALL ".join(selects)
+    con = duckdb.connect()
+    events_sql = f"""
+    WITH unpivoted AS (
+        {union_sql}
+    )
+    SELECT mi_person_key, is_target_case, TRIM(code) AS code
+    FROM unpivoted
+    WHERE TRIM(code) <> ''
+    """
+    events_df = con.execute(events_sql).df()
+    # All patients and target from cohort (so we include patients with zero matching events)
+    patients_sql = f"""
+    SELECT
+        CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+        CAST(MAX(is_target_case) AS INTEGER) AS target
+    FROM read_parquet([{paths_sql}])
+    GROUP BY mi_person_key
+    """
+    patients_df = con.execute(patients_sql).df()
+    con.close()
+    patients_df["target"] = patients_df["target"].astype(int).clip(lower=0, upper=1)
+    # Filter events to allowed codes (match via code_to_feature)
+    events_df = events_df[events_df["code"].isin(code_to_feature.keys())]
+    events_df["feature_name"] = events_df["code"].map(code_to_feature)
+    pivot_df = events_df.groupby(["mi_person_key", "feature_name"], as_index=False).size()
+    pivot_wide = pivot_df.pivot(index="mi_person_key", columns="feature_name", values="size")
+    pivot_wide = pivot_wide.reindex(columns=allowed_features, fill_value=0)
+    final = patients_df.merge(pivot_wide, on="mi_person_key", how="left")
+    for col in allowed_features:
+        if col not in final.columns:
+            final[col] = 0
+    final = final[["mi_person_key", "target"] + [c for c in allowed_features if c in final.columns]]
+    final = final.fillna(0)
+    final = _remove_target_leakage_features(final)
+    return final
 
 
 def _validate_cohort_file_has_controls(path_or_s3: str) -> dict:
@@ -265,6 +445,8 @@ def build_final_features_for_mc(cohort: str, age_band: str, prefer_filtered: boo
     final = grouped.copy()
     final = final.dropna(subset=["target"])
     final = _remove_target_leakage_features(final)
+    # Log aggregated table shape and columns (for verifying dataset build)
+    print(f"[DATASET] Aggregated patient-level: {len(final):,} rows, columns: {list(final.columns)}")
     return final
 
 
@@ -298,11 +480,11 @@ def run_mc_feature_importance(
     Uses cohort data (Step 2 cohort.parquet) to build the feature matrix. Does not
     depend on Step 4 (model_events.parquet).
 
-    Default (baseline=False): write to outputs/{cohort}/. Baseline aggregated FI is
-    expected to already exist (e.g. on S3); the 1b event filter uses it for the FI-based filter.
+    Default (baseline=False, second pass): load historical aggregated FI from pgx-repository,
+    minus admin/Z codes; build feature matrix from cohort with those features; write to outputs/{cohort}/ and pgxdatalake.
 
-    When baseline=True: write to outputs/{cohort}/_baseline/. Use this only when
-    generating baseline FI for the first time; normal pipeline runs should omit --baseline.
+    When baseline=True: write to outputs/{cohort}/_baseline/. Use only when generating
+    a local baseline; normal pipeline uses historical baseline in pgx-repository.
 
     Models:
       - XGBoost (gradient boosted trees, CPU on Linux, GPU on Windows if available)
@@ -355,12 +537,52 @@ def run_mc_feature_importance(
             # File doesn't exist in S3, proceed with computation
             pass
 
-    # Assemble final feature matrix from cohort data (with leakage removal baked in)
-    df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
+    # Assemble final feature matrix
+    # Second pass (baseline=False): use historical aggregated FI from pgx-repository minus admin/Z codes
+    # Baseline (baseline=True) or if historical not found: use cohort-only n_events
+    df: Optional[pd.DataFrame] = None
+    if not baseline:
+        hist_df = _load_historical_aggregated_fi_from_pgx_repo(cohort, age_band_fname)
+        if hist_df is not None and not hist_df.empty:
+            feature_list = _get_feature_list_minus_admin_z(hist_df)
+            if feature_list:
+                print(
+                    f"[INFO] Second pass: using historical aggregated FI from pgx-repository "
+                    f"(minus admin/Z): {len(feature_list)} features"
+                )
+                df = _build_patient_features_from_cohort_and_fi_list(cohort, age_band, feature_list)
+            else:
+                print(
+                    "[WARN] Historical FI has no features after removing admin/Z codes; "
+                    "falling back to n_events only."
+                )
+        else:
+            print(
+                "[WARN] Historical aggregated FI not found in pgx-repository; "
+                "second pass will use n_events only. Expected: s3://pgx-repository/"
+                f"{PGX_REPO_FI_PREFIX}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            )
+    if df is None or df.empty:
+        df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
     if df.empty:
         raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
 
     X, y, feature_names = _prepare_xy(df)
+
+    # Dataset build verification (for logs: verify features and target are correct)
+    n_patients = len(df)
+    n_cases = int((y == 1).sum())
+    n_controls = int((y == 0).sum())
+    print(f"[DATASET] Built patient-level table: {n_patients:,} rows")
+    print(f"[DATASET] Target: {n_cases:,} cases (1), {n_controls:,} controls (0)")
+    print(f"[DATASET] Features ({len(feature_names)}): {feature_names}")
+    print(f"[DATASET] X shape: {X.shape}, y shape: {y.shape}")
+    if n_cases == 0 or n_controls == 0:
+        raise ValueError(
+            f"Dataset must have both cases and controls. Got cases={n_cases}, controls={n_controls}. "
+            "Check cohort.parquet has is_target_case 0 and 1."
+        )
+    print("[DATASET] OK: both classes present, ready for MC-CV")
 
     try:
         import xgboost as xgb  # type: ignore
@@ -721,12 +943,16 @@ def run_mc_feature_importance(
             agg_df = agg_df.sort_values("scaled_importance_mean", ascending=False)
         elif "importance_mean" in agg_df.columns:
             agg_df = agg_df.sort_values("importance_mean", ascending=False)
-        
+
+        # Remove administrative/Z codes so second pass = aggregated FI minus admin Z
+        agg_df = _filter_aggregated_fi_admin_codes(agg_df)
+
         agg_df.to_csv(agg_path, index=False)
         print(f"Saved aggregated feature importance (XGBoost) to {agg_path}")
         print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
-        
-        # Upload to S3: pgxdatalake (pipeline) and pgx-repository (historical; 1b reads from here)
+
+        # Second-pass aggregated FI is always saved to pgxdatalake and used for final model train features (Step 4 / Step 6).
+        # Do not write to pgx-repository so historical baseline is never overwritten.
         import io
         obj_bytes = agg_df.to_csv(index=False).encode('utf-8')
         s3_suffix = "_baseline/" if baseline else ""
@@ -739,22 +965,12 @@ def run_mc_feature_importance(
                 Body=io.BytesIO(obj_bytes),
                 ContentType='text/csv'
             )
-            print(f"✓ Uploaded aggregated feature importance to S3: s3://{S3_BUCKET}/{s3_key_agg}")
+            print(f"✓ Uploaded aggregated feature importance to pgxdatalake: s3://{S3_BUCKET}/{s3_key_agg}")
+            if not baseline:
+                print("[INFO] Second-pass FI in pgxdatalake is the source for final model train features (Step 4 / Step 6).")
         except Exception as e:
             print(f"[WARN] Failed to upload to pgxdatalake: {e}")
             print(f"  File saved locally at: {agg_path}")
-        # Historical copy in pgx-repository: flat layout pgx-analysis/3_feature_importance/outputs/{cohort}_{age_band}_aggregated_feature_importance.csv
-        repo_key = f"{PGX_REPO_FI_PREFIX}/{filename_agg}"
-        try:
-            s3_client.put_object(
-                Bucket=PGX_REPO_BUCKET,
-                Key=repo_key,
-                Body=io.BytesIO(obj_bytes),
-                ContentType='text/csv'
-            )
-            print(f"✓ Uploaded to historical bucket: s3://{PGX_REPO_BUCKET}/{repo_key}")
-        except Exception as e:
-            print(f"[WARN] Failed to upload to pgx-repository (historical): {e}")
 
     # Return the XGBoost boosting table by default
     return results.get("xgb", pd.DataFrame())

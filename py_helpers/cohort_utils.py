@@ -32,7 +32,8 @@ from py_helpers.s3_utils import (
     parse_path_params,
     save_to_s3_parquet,
     get_output_paths,
-    s3_exists
+    get_cohort_parquet_path,
+    s3_exists,
 )
 
 from py_helpers.fpgrowth_utils import (
@@ -173,14 +174,9 @@ def check_cohort_needs_processing(s3_path, bucket_name: str = "pgxdatalake", log
 
 
 def check_cohort_exists(age_band, event_year, cohort_name, logger: Optional[logging.Logger] = None):
-    key = f"cohorts/cohort_name={cohort_name}/age_band={age_band}/event_year={event_year}/cohort.parquet"
-    try:
-        s3_client.head_object(Bucket=S3_BUCKET, Key=key)
-        return True
-    except s3_client.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == "404":
-            return False
-        raise
+    """Check if cohort parquet exists in S3 (gold/cohorts/cohort_name=.../event_year=.../age_band=.../cohort.parquet)."""
+    path = get_cohort_parquet_path(cohort_name, age_band, event_year)
+    return s3_exists(path)
 
 
 def check_cohort_exists_and_delete_message(age_band, event_year, sqs_queue_url, receipt_handle, logger: Optional[logging.Logger] = None):
@@ -470,15 +466,16 @@ def check_existing_cohorts(age_bands=None, event_years=None, bucket_name: str = 
             if combo_key in processed_combinations:
                 continue
 
-            opioid_ed_key = f"cohorts/cohort_name=opioid_ed/age_band={band}/event_year={year}/cohort.parquet"
-            ed_non_opioid_key = f"cohorts/cohort_name=ed_non_opioid/age_band={band}/event_year={year}/cohort.parquet"
+            # Use gold/cohorts paths (cohort_name/event_year/age_band) to match phase4 write
+            opioid_ed_path = get_cohort_parquet_path("opioid_ed", band, year)
+            ed_non_opioid_path = get_cohort_parquet_path("ed_non_opioid", band, year)
             lock_key = f"cohorts/locks/{band}_{year}.lock"
 
-            opioid_ed_exists = False
-            ed_non_opioid_exists = False
+            opioid_ed_exists = s3_exists(opioid_ed_path)
+            ed_non_opioid_exists = s3_exists(ed_non_opioid_path)
             lock_exists = False
 
-            # Check lock
+            # Check lock (legacy location)
             try:
                 s3.head_object(Bucket=bucket_name, Key=lock_key)
                 lock_exists = True
@@ -490,27 +487,15 @@ def check_existing_cohorts(age_bands=None, event_years=None, bucket_name: str = 
             if lock_exists:
                 continue
 
-            # Check opioid_ed
-            try:
-                s3.head_object(Bucket=bucket_name, Key=opioid_ed_key)
-                opioid_ed_exists = True
+            if opioid_ed_exists:
                 print(f"✓ Opioid ED cohort exists for {band}/{year}")
-            except s3.exceptions.ClientError as e:
-                if e.response['Error']['Code'] in ("404", "NotFound"):
-                    print(f"→ Missing opioid ED cohort for {band}/{year}")
-                else:
-                    raise
+            else:
+                print(f"→ Missing opioid ED cohort for {band}/{year}")
 
-            # Check ed_non_opioid
-            try:
-                s3.head_object(Bucket=bucket_name, Key=ed_non_opioid_key)
-                ed_non_opioid_exists = True
+            if ed_non_opioid_exists:
                 print(f"✓ ED non-opioid cohort exists for {band}/{year}")
-            except s3.exceptions.ClientError as e:
-                if e.response['Error']['Code'] in ("404", "NotFound"):
-                    print(f"→ Missing ED non-opioid cohort for {band}/{year}")
-                else:
-                    raise
+            else:
+                print(f"→ Missing ED non-opioid cohort for {band}/{year}")
 
             if opioid_ed_exists and ed_non_opioid_exists:
                 existing_cohorts.append((band, year))
