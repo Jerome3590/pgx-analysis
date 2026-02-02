@@ -316,6 +316,7 @@ def filter_cohort_events_for_items(
     sample_ratio: float = DEFAULT_SAMPLE_RATIO,
     control_exclusions: Optional[List[str]] = None,
     time_window_days: Optional[int] = None,  # Deprecated - time window now handled in Step 2
+    skip_s3_download: bool = False,  # When True (e.g. 3b BupaR input), build locally only, no S3
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4_model_data/.
@@ -497,58 +498,59 @@ def filter_cohort_events_for_items(
         con.close()
         return
 
-    # Check S3 and download if exists there but not locally
-    try:
-        from py_helpers.checkpoint_utils import check_s3_output_exists
-        import subprocess
-        import shutil
-        
-        if check_s3_output_exists(s3_output_path):
-            # File exists in S3 but not locally - download it
-            print(
-                f"[INFO] model_events.parquet exists in S3 but not locally. Downloading from S3..."
-            )
-            aws_cli = shutil.which("aws")
-            if aws_cli:
-                # Get cohort slug based on age band
-                cohort_slug = get_cohort_slug(age_band)
-                s3_dir_path = (
-                    f"s3://pgxdatalake/gold/cohorts/input_model_data/"
-                    f"cohort_name={cohort_slug}/age_band={age_band}/"
+    # Check S3 and download if exists there but not locally (skip when building 3b BupaR input)
+    if not skip_s3_download:
+        try:
+            from py_helpers.checkpoint_utils import check_s3_output_exists
+            import subprocess
+            import shutil
+
+            if check_s3_output_exists(s3_output_path):
+                # File exists in S3 but not locally - download it
+                print(
+                    f"[INFO] model_events.parquet exists in S3 but not locally. Downloading from S3..."
                 )
-                result = subprocess.run(
-                    [aws_cli, "s3", "cp", s3_output_path, str(out_path), "--no-progress"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
-                    check=False,
-                )
-                if result.returncode == 0 and out_path.exists():
-                    print(f"[INFO] Successfully downloaded from S3: {out_path}")
-                    # Validate downloaded file has controls
-                    validation_result = _validate_model_events_has_controls(out_path)
-                    if validation_result["has_controls"]:
-                        print(
-                            f"[INFO] Downloaded file validated: {validation_result['n_cases']} cases, "
-                            f"{validation_result['n_controls']} controls"
-                        )
-                        con.close()
-                        return
+                aws_cli = shutil.which("aws")
+                if aws_cli:
+                    # Get cohort slug based on age band
+                    cohort_slug = get_cohort_slug(age_band)
+                    s3_dir_path = (
+                        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
+                        f"cohort_name={cohort_slug}/age_band={age_band}/"
+                    )
+                    result = subprocess.run(
+                        [aws_cli, "s3", "cp", s3_output_path, str(out_path), "--no-progress"],
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                        check=False,
+                    )
+                    if result.returncode == 0 and out_path.exists():
+                        print(f"[INFO] Successfully downloaded from S3: {out_path}")
+                        # Validate downloaded file has controls
+                        validation_result = _validate_model_events_has_controls(out_path)
+                        if validation_result["has_controls"]:
+                            print(
+                                f"[INFO] Downloaded file validated: {validation_result['n_cases']} cases, "
+                                f"{validation_result['n_controls']} controls"
+                            )
+                            con.close()
+                            return
+                        else:
+                            print(
+                                f"[WARN] Downloaded file from S3 is missing controls! "
+                                f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}. "
+                                f"Will rebuild..."
+                            )
+                            out_path.unlink()  # Delete invalid file, will rebuild below
                     else:
-                        print(
-                            f"[WARN] Downloaded file from S3 is missing controls! "
-                            f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}. "
-                            f"Will rebuild..."
-                        )
-                        out_path.unlink()  # Delete invalid file, will rebuild below
+                        print(f"[WARN] Failed to download from S3: {result.stderr if result.stderr else 'Unknown error'}")
                 else:
-                    print(f"[WARN] Failed to download from S3: {result.stderr if result.stderr else 'Unknown error'}")
-            else:
-                print("[WARN] AWS CLI not found, cannot download from S3")
-    except ImportError:
-        pass  # Fallback to local check if checkpoint_utils not available
-    except Exception as e:
-        print(f"[WARN] Error checking/downloading from S3: {e}")
+                    print("[WARN] AWS CLI not found, cannot download from S3")
+        except ImportError:
+            pass  # Fallback to local check if checkpoint_utils not available
+        except Exception as e:
+            print(f"[WARN] Error checking/downloading from S3: {e}")
 
     # Derive a common set of columns present in both cohort and control sources,
     # so that set operations (UNION ALL) are well-defined.

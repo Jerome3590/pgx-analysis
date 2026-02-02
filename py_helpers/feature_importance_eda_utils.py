@@ -38,16 +38,17 @@ def load_aggregated_feature_importance(
     age_band_fname = age_band_to_fname(age_band)
     
     # Try multiple locations (check for Parquet first, then CSV)
+    # Step 3a outputs: 3a_feature_importance/outputs
     possible_paths = []
     # Check for Parquet files first (preferred format)
     possible_paths.extend([
-        project_root / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
-        project_root / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
+        project_root / "3a_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
+        project_root / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
     ])
     # Fallback to CSV files
     possible_paths.extend([
-        project_root / "3_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-        project_root / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
+        project_root / "3a_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
+        project_root / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
     ])
     
     for path in possible_paths:

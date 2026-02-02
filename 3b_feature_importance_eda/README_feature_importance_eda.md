@@ -24,7 +24,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 ## Inputs
 
 - **Aggregated feature importances** from Step 3:
-  - `3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
+  - `3a_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
 - **Model events data** (for BupaR analysis):
   - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
 
@@ -363,7 +363,7 @@ See `FEATURE_FILTERING_APPROACH.md` for detailed documentation.
 ## Integration with Pipeline
 
 - **Input**: Step 3 aggregated feature importances
-  - `3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
+  - `3a_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
 - **Output**: Refined `cohort_feature_importance` files
   - `outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_cohort_feature_importance.csv`
 - **Consumed by**: Step 4a model data creation

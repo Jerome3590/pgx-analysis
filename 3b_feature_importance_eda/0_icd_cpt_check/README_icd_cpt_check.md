@@ -53,7 +53,7 @@ Compare analysis results with the administrative codes lookup table:
 ### Step 4: Document Findings
 
 Document findings in:
-- **Feature Importance README:** `3_feature_importance/README.md`
+- **Feature Importance README:** `3a_feature_importance/README.md`
 - **Administrative Codes Lookup:** `4b_dtw_filter/administrative_codes_lookup.json`
 
 ## Key Findings
@@ -136,7 +136,7 @@ The results from this validation process inform filtering:
 - **Workflow Script:** `validate_icd_cpt_codes.py`
 - **Administrative Codes Lookup (Local Copy):** `administrative_codes_lookup.json`
 - **Administrative Codes Lookup (Original):** `../../4b_dtw_filter/administrative_codes_lookup.json`
-- **Feature Importance README:** `../../3_feature_importance/README.md`
+- **Feature Importance README:** `../../3a_feature_importance/README.md`
 
 ## Files in This Folder
 

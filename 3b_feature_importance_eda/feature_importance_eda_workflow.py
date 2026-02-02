@@ -161,7 +161,7 @@ if 'PROJECT_ROOT' not in globals():
             # Fallback: use current working directory (Jupyter/IPython)
             PROJECT_ROOT = Path.cwd()
             # If we're in a subdirectory, go up to project root
-            if PROJECT_ROOT.name in ['3b_feature_importance_eda', '3_feature_importance']:
+            if PROJECT_ROOT.name in ['3b_feature_importance_eda', '3a_feature_importance']:
                 PROJECT_ROOT = PROJECT_ROOT.parent
     except:
         # Final fallback based on OS
@@ -325,10 +325,10 @@ print(f"   Output Directory: {OUTPUT_DIR}")
 # ### 1. Load Aggregated Feature Importances from Step 3
 
 # %%
-# Load aggregated feature importance from Step 3
+# Load aggregated feature importance from Step 3a
 possible_paths = [
-    PROJECT_ROOT / "3_feature_importance" / "outputs" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
-    PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
+    PROJECT_ROOT / "3a_feature_importance" / "outputs" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
+    PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
 ]
 
 aggregated_fi = None
@@ -360,8 +360,19 @@ else:
 # ### 1. Load Administrative Codes Lookup Table
 
 # %%
-# Load administrative codes lookup table
-administrative_lookup_path = PROJECT_ROOT / "4b_event_filter" / "administrative_codes_lookup.json"
+# Load administrative codes lookup table (try multiple locations)
+_administrative_lookup_candidates = [
+    PROJECT_ROOT / "4b_event_filter" / "administrative_codes_lookup.json",
+    PROJECT_ROOT / "1b_apcd_event_filter" / "administrative_codes_lookup.json",
+    PROJECT_ROOT / "3b_feature_importance_eda" / "0_icd_cpt_check" / "administrative_codes_lookup.json",
+]
+administrative_lookup_path = None
+for _p in _administrative_lookup_candidates:
+    if _p.exists():
+        administrative_lookup_path = _p
+        break
+if administrative_lookup_path is None:
+    administrative_lookup_path = _administrative_lookup_candidates[0]  # for error message
 
 if administrative_lookup_path.exists():
     try:
@@ -415,7 +426,9 @@ if administrative_lookup_path.exists():
         print(f"   Path checked: {administrative_lookup_path}")
         ADMINISTRATIVE_CODES = {'icd': set(), 'cpt': set(), 'hcpcs': set()}
 else:
-    print(f"ℹ️  Administrative codes lookup table not found at: {administrative_lookup_path}")
+    print(f"ℹ️  Administrative codes lookup table not found. Checked paths:")
+    for _p in _administrative_lookup_candidates:
+        print(f"     - {_p}")
     print(f"   Will proceed without pre-identified administrative codes")
     ADMINISTRATIVE_CODES = {'icd': set(), 'cpt': set(), 'hcpcs': set()}
 
@@ -476,9 +489,9 @@ if rscript_path:
 print("\n" + "="*80)
 
 # %% [markdown]
-# ### 2. Run BupaR Post-Target Analysis
-# 
-# **Note:** This Python script calls R scripts (`create_bupar_outputs_*.R`) using Rscript. The script automatically finds Rscript, so no manual configuration is needed.
+# ### 2. Build BupaR input (cohort + 3a FI + target), then run BupaR
+#
+# BupaR identifies target leakage (pre vs post F1120). Input is built from **cohort data**, **Step 3a aggregated feature importance**, and **target**. This runs before Step 4.
 
 # %%
 # Note: subprocess and datetime already imported in Section A
@@ -489,9 +502,27 @@ if 'COHORT' not in globals():
 if 'AGE_BAND' not in globals():
     raise NameError("AGE_BAND is not defined. Please run the 'Configuration and Setup' section first.")
 
-print("🚀 Running BupaR Post-Target Analysis...")
+# Build BupaR input from cohort data + 3a aggregated FI + target (so BupaR can run before Step 4)
+print("Building BupaR input from cohort data + 3a aggregated feature importance + target...")
+build_result = subprocess.run(
+    [str(PYTHON_BIN), str(PROJECT_ROOT / "3b_feature_importance_eda" / "create_bupar_input_from_cohort.py"), "--cohort", COHORT, "--age-band", AGE_BAND],
+    cwd=str(PROJECT_ROOT),
+    capture_output=True,
+    text=True,
+)
+if build_result.stdout:
+    print(build_result.stdout)
+if build_result.stderr:
+    print("STDERR:", build_result.stderr)
+if build_result.returncode != 0:
+    print(f"BupaR input build failed (exit {build_result.returncode}). Check gold cohort and 3a aggregated FI paths.")
+else:
+    print("BupaR input built successfully.")
+
+# Run BupaR Post-Target Analysis (uses 3b-built parquet or Step 4 if present)
+print("\nRunning BupaR Post-Target Analysis...")
 print(f"Started at: {datetime.now()}")
-print(f"Note: This will call R scripts using Rscript")
+print("Note: This will call R scripts using Rscript")
 
 cmd = [
     str(PYTHON_BIN),
@@ -508,15 +539,15 @@ if result.stderr:
     print("STDERR:", result.stderr)
 
 if result.returncode == 0:
-    print(f"\n✅ BupaR analysis completed successfully")
+    print(f"\nBupaR analysis completed successfully")
 else:
-    print(f"\n❌ BupaR analysis failed with return code {result.returncode}")
-    stderr_text = result.stderr or ""
-    stdout_text = result.stdout or ""
-    if "Rscript not found" in stderr_text or "Rscript not found" in stdout_text:
-        print("\n💡 Tip: Make sure R is installed and Rscript is in your PATH")
-        print(f"   Current RSCRIPT_BIN: {RSCRIPT_BIN if RSCRIPT_BIN else 'Not found (will use auto-detection)'}")
-        print("   Rscript detection is configured in the OS detection section at the top of this file")
+    print(f"\nBupaR analysis failed with return code {result.returncode}")
+stderr_text = result.stderr or ""
+stdout_text = result.stdout or ""
+if "Rscript not found" in stderr_text or "Rscript not found" in stdout_text:
+    print("\nTip: Make sure R is installed and Rscript is in your PATH")
+    print(f"   Current RSCRIPT_BIN: {RSCRIPT_BIN if RSCRIPT_BIN else 'Not found (will use auto-detection)'}")
+    print("   Rscript detection is configured in the OS detection section at the top of this file")
 
 # %% [markdown]
 # ### 3. Load and Review BupaR Results

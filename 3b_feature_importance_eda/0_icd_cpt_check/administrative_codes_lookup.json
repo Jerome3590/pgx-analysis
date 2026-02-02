@@ -2,7 +2,7 @@
   "description": "Lookup table for classifying codes as administrative vs. medical/pharmacy. Codes listed here will be filtered out during Feature Importance EDA feature filtering.",
   "version": "1.0",
   "last_updated": "2024-01-01",
-  "documentation": "See 3_feature_importance/README.md for details on Z code filtering. These 4 Z codes (Z00.00, Z00.01, Z00.121, Z00.129) were identified as administrative based on feature importance analysis showing they represent routine administrative examinations rather than clinical risk factors.",
+  "documentation": "See 3a_feature_importance/README.md for details on Z code filtering. These 4 Z codes (Z00.00, Z00.01, Z00.121, Z00.129) were identified as administrative based on feature importance analysis showing they represent routine administrative examinations rather than clinical risk factors.",
   "administrative_codes": {
     "icd": [
       "Z00.00",

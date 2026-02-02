@@ -17,7 +17,7 @@ def analyze_code_groups(cohort="opioid_ed", age_band="13-24", project_root=None)
     
     # Load feature importance data
     age_band_fname = age_band.replace("-", "_")
-    fi_path = project_root / f"3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    fi_path = project_root / f"3a_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
     
     if not fi_path.exists():
         print(f"File not found: {fi_path}")
@@ -25,12 +25,20 @@ def analyze_code_groups(cohort="opioid_ed", age_band="13-24", project_root=None)
     
     df = pd.read_csv(fi_path)
     
-    # Load administrative codes lookup (check local copy first, then original location)
+    # Load administrative codes lookup (check local copy first, then known locations)
     local_lookup_path = Path(__file__).parent / "administrative_codes_lookup.json"
-    admin_lookup_path = project_root / "4b_event_filter/administrative_codes_lookup.json"
-    
-    # Use local copy if available, otherwise use original
-    lookup_path = local_lookup_path if local_lookup_path.exists() else admin_lookup_path
+    admin_candidates = [
+        project_root / "4b_event_filter" / "administrative_codes_lookup.json",
+        project_root / "1b_apcd_event_filter" / "administrative_codes_lookup.json",
+    ]
+    lookup_path = local_lookup_path if local_lookup_path.exists() else None
+    if lookup_path is None:
+        for p in admin_candidates:
+            if p.exists():
+                lookup_path = p
+                break
+    if lookup_path is None:
+        lookup_path = admin_candidates[0]
     
     admin_codes = {"icd": set(), "cpt": set()}
     if lookup_path.exists():
