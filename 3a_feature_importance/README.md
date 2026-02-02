@@ -11,6 +11,7 @@
 ## Table of Contents
 
 1. [Overview](#overview)
+   - [Background: Categorical features as count columns](#background-categorical-features-as-count-columns)
 2. [Quick Start](#quick-start)
    - [Local Testing](#local-testing-5-splits-5-minutes)
    - [Production Run](#production-run-100-splits-1-2-hours-on-ec2)
@@ -70,6 +71,25 @@ This project calculates scaled feature importance for predicting opioid dependen
 ✅ **Quality Weighting** – Features scaled by model performance (Recall)  
 ✅ **Model Consensus** – Union-based aggregation rewards agreement  
 ✅ **Publication-Ready Plots** – 4 visualization types with S3 upload
+
+### Background: Categorical features as count columns
+
+Event-level data has categorical columns (e.g. drug name, ICD code, procedure code). In this pipeline we convert them to **one numeric column per distinct code**, where each cell is the **event count** for that patient for that code (0, 1, 2, …). All three models (CatBoost, XGBoost, XGBoost RF) then receive the same numeric count matrix; CatBoost is **not** given raw categorical columns.
+
+**Why this approach is correct and efficient here**
+
+- **Semantics:** The natural summary is “how many times did this code appear?” — counts are the right representation for utilization/frequency.
+- **Interpretability:** Feature importance is directly “which codes matter”; no extra encoding layer.
+- **Efficiency:** One pass over events (unpivot → filter → groupby patient + code → pivot) fits DuckDB/SQL and produces a sparse matrix that tree models handle well.
+- **No target leakage:** We only use event-level codes and aggregate to counts; no post-event or target-time information in the matrix.
+
+**Why categoricals aren’t always handled this way**
+
+- **Cardinality:** With ~11K codes we get ~11K columns, which is fine for trees. With millions of categories (e.g. user IDs), one column per category is usually impractical; people use embeddings, hashing, or target-style encodings instead.
+- **Meaning:** Counts make sense when the variable is event-like (“how often X happened”). For purely nominal categories (e.g. region, color) there is no “count” per row — then one-hot, label encoding, or target/embedding encodings are more common.
+- **Model type:** Trees work well with many sparse numeric columns. Linear models and some others prefer fewer dimensions (e.g. one-hot or a small set of embedding dimensions) and may need regularization or dimension reduction when there are many columns.
+
+**Summary:** Using one column per code with event counts is a straightforward and appropriate choice when (1) the variable is event-like and count is meaningful, (2) cardinality is manageable for the tools, and (3) models are tree-based and handle many sparse numeric features well — as in this feature-importance pipeline.
 
 ### Understanding Permutation Importance vs. Row-Level Analysis
 
