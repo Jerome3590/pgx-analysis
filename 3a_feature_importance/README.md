@@ -55,6 +55,13 @@ This project calculates scaled feature importance for predicting opioid dependen
 - All splits evaluate on the same 2019 test set
 - This provides robust feature importance estimates while maintaining temporal integrity
 
+### Flow and downstream use
+
+- **Historical baseline FI** lives in **pgx-repository** (read-only); used to filter cohort features after cohorts are built (1b event filter).
+- **Second pass** (default): load historical FI from pgx-repository → minus admin/Z codes → build feature matrix from cohort → run MC CV.
+- **Second-pass feature importances are always saved to pgxdatalake** (`gold/feature_importance/{cohort}/{age_band}/`). We never write second-pass results to pgx-repository so the historical baseline is never overwritten.
+- **Final model train features:** Step 4 (model data) and Step 6 (final model) use these second-pass feature importances from pgxdatalake for train features.
+
 ### Key Features
 
 ✅ **Monte Carlo Cross-Validation** – Up to 1000 random train/test splits  

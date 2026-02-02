@@ -352,19 +352,35 @@ def main():
         pipeline_state = PipelineState('create_cohort', entity_id, logger)
         logger.info(f"Checkpoint location: s3://pgx-repository/pgx-pipeline-status/create_cohort/{entity_id.replace('/', '_')}/")
 
-        # Check if final output already exists
-        output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
-        cohort_output = output_paths.get('cohort_parquet')
-        if cohort_output and PipelineState.check_output_exists(cohort_output):
-            logger.info(f"{SYMBOLS['success']} Final output already exists: {cohort_output}")
-            logger.info(f"{SYMBOLS['success']} Skipping pipeline - cohort already created")
-            pipeline_state.mark_pipeline_completed({'output': cohort_output, 'skipped': True})
-            # Persist logs to S3 before exit (consistent with APCD logging)
-            try:
-                save_logs_to_s3(log_buffer, args.cohort, args.age_band, args.event_year, "create_cohort", logger=logger)
-            except Exception as e:
-                logger.warning(f"Could not save logs to S3 on early exit: {e}")
-            return
+        # Check if final output already exists (skip if all requested cohort parquets exist)
+        if args.cohort == "both":
+            opioid_path = s3_utils.get_cohort_parquet_path("opioid_ed", args.age_band, args.event_year)
+            ed_path = s3_utils.get_cohort_parquet_path("ed_non_opioid", args.age_band, args.event_year)
+            both_exist = (
+                PipelineState.check_output_exists(opioid_path) and
+                PipelineState.check_output_exists(ed_path)
+            )
+            if both_exist:
+                logger.info(f"{SYMBOLS['success']} Both cohort parquets already exist: opioid_ed, ed_non_opioid")
+                logger.info(f"{SYMBOLS['success']} Skipping pipeline - cohort already created")
+                pipeline_state.mark_pipeline_completed({'output': opioid_path, 'skipped': True})
+                try:
+                    save_logs_to_s3(log_buffer, args.cohort, args.age_band, args.event_year, "create_cohort", logger=logger)
+                except Exception as e:
+                    logger.warning(f"Could not save logs to S3 on early exit: {e}")
+                return
+        else:
+            output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
+            cohort_output = output_paths.get('cohort_parquet')
+            if cohort_output and PipelineState.check_output_exists(cohort_output):
+                logger.info(f"{SYMBOLS['success']} Final output already exists: {cohort_output}")
+                logger.info(f"{SYMBOLS['success']} Skipping pipeline - cohort already created")
+                pipeline_state.mark_pipeline_completed({'output': cohort_output, 'skipped': True})
+                try:
+                    save_logs_to_s3(log_buffer, args.cohort, args.age_band, args.event_year, "create_cohort", logger=logger)
+                except Exception as e:
+                    logger.warning(f"Could not save logs to S3 on early exit: {e}")
+                return
 
         # Cleanup old DuckDB temp files at startup (from previous runs/crashes)
         from phases.common import cleanup_duckdb_temp_files
@@ -525,12 +541,17 @@ def main():
         except Exception as e:
             logger.warning(f"Could not close DuckDB connection: {e}")
         
-        # Mark pipeline as completed
+        # Mark pipeline as completed (output path for state)
+        if args.cohort == "both":
+            output_for_state = s3_utils.get_cohort_parquet_path("opioid_ed", args.age_band, args.event_year)
+        else:
+            output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
+            output_for_state = output_paths.get("cohort_parquet")
         pipeline_state.mark_pipeline_completed({
-            'cohort': args.cohort,
-            'age_band': args.age_band,
-            'event_year': args.event_year,
-            'output': cohort_output
+            "cohort": args.cohort,
+            "age_band": args.age_band,
+            "event_year": args.event_year,
+            "output": output_for_state,
         })
         
         logger.info("=" * 80)
