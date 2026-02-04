@@ -326,10 +326,16 @@ print(f"   Output Directory: {OUTPUT_DIR}")
 
 # %%
 # Load aggregated feature importance from Step 3a
+# Step 3a writes to outputs/{cohort}/{filename} (no age_band subdir); also check from_s3 and S3.
 possible_paths = [
+    PROJECT_ROOT / "3a_feature_importance" / "outputs" / COHORT / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
     PROJECT_ROOT / "3a_feature_importance" / "outputs" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
     PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort" / COHORT / AGE_BAND / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv",
 ]
+# NVMe on EC2 (PGX_FEATURE_IMPORTANCE_OUTPUTS)
+_env_3a = os.environ.get("PGX_FEATURE_IMPORTANCE_OUTPUTS")
+if _env_3a:
+    possible_paths.insert(0, Path(_env_3a) / COHORT / f"{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv")
 
 aggregated_fi = None
 for path in possible_paths:
@@ -340,10 +346,33 @@ for path in possible_paths:
         break
 
 if aggregated_fi is None:
+    # Try S3 (pgxdatalake gold/feature_importance)
+    try:
+        import io
+        try:
+            from py_helpers.common_imports import s3_client, S3_BUCKET
+        except ImportError:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+        _key = f"gold/feature_importance/{COHORT}/{AGE_BAND}/{COHORT}_{AGE_BAND_FNAME}_aggregated_feature_importance.csv"
+        _obj = s3_client.get_object(Bucket=S3_BUCKET, Key=_key)
+        aggregated_fi = pd.read_csv(io.BytesIO(_obj["Body"].read()))
+        print(f"✅ Loaded aggregated feature importance from S3: s3://{S3_BUCKET}/{_key}")
+        print(f"   Total features: {len(aggregated_fi):,}")
+        _local = possible_paths[0]
+        _local.parent.mkdir(parents=True, exist_ok=True)
+        aggregated_fi.to_csv(_local, index=False)
+        print(f"   Saved locally: {_local}")
+    except Exception:
+        pass
+
+if aggregated_fi is None:
     print(f"❌ Could not find aggregated feature importance file")
     print(f"   Checked paths:")
     for path in possible_paths:
         print(f"     - {path}")
+    print(f"   Also tried S3: gold/feature_importance/{{cohort}}/{{age_band}}/...")
 else:
     # Display summary
     print(f"\n📊 Feature Importance Summary:")
