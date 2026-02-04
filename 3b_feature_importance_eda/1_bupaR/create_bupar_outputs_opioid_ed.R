@@ -359,16 +359,17 @@ if (control_result$was_recreated) {
 # Assert that control PATIENTS are not duplicated (check distinct patients, not event-level data)
 # Event-level data will have duplicate mi_person_key values (one row per event per patient)
 # Note: We only need mi_person_key for verification, so we can query just that column
-if (nrow(pgx_df_control) > 0) {
+has_control <- nrow(pgx_df_control) > 0 && file.exists(control_model_data_path)
+if (has_control) {
   distinct_control_patients <- unique(pgx_df_control$mi_person_key)
   stopifnot(!anyDuplicated(distinct_control_patients))
   cat("Verified ", length(distinct_control_patients), " distinct control patients (", nrow(pgx_df_control), " total events)\n", sep = "")
+} else {
+  log_msg("Running without control cohort (target-only). Post-F1120 leakage analysis will still run.", level = "WARN")
 }
 
-log_msg("Creating combined target+control query with DuckDB UNION ALL and UNPIVOT...")
-# Optimized: Use DuckDB UNION ALL and UNPIVOT for combined target+control transformation
-# This processes both datasets in DuckDB before loading into R
-query_combined_long <- sprintf(
+# Build event long table: target+control if control exists, else target-only (so we don't require control before it's built)
+query_target_only_long <- sprintf(
   "SELECT 
     mi_person_key,
     event_date,
@@ -416,10 +417,16 @@ query_combined_long <- sprintf(
       procedure_code
     )
   )
-  WHERE code IS NOT NULL AND code != '' AND code != 'NA'
-  
+  WHERE code IS NOT NULL AND code != '' AND code != 'NA'",
+  model_data_path,
+  paste(train_years, collapse = ",")
+)
+
+if (has_control) {
+  log_msg("Creating combined target+control query with DuckDB UNION ALL and UNPIVOT...")
+  query_combined_long <- sprintf(
+    "%s
   UNION ALL
-  
   SELECT 
     mi_person_key,
     event_date,
@@ -468,20 +475,22 @@ query_combined_long <- sprintf(
     )
   )
   WHERE code IS NOT NULL AND code != '' AND code != 'NA'",
-  model_data_path,
-  paste(train_years, collapse = ","),
-  control_model_data_path,
-  paste(train_years, collapse = ",")
-)
-
-log_msg("Executing combined query for target+control data...")
-pgx_df_all_long <- dbGetQuery(con, query_combined_long) %>%
-  mutate(
-    timestamp = as.POSIXct(event_date)
+    query_target_only_long,
+    control_model_data_path,
+    paste(train_years, collapse = ",")
   )
+  log_msg("Executing combined query for target+control data...")
+  pgx_df_all_long <- dbGetQuery(con, query_combined_long) %>%
+    mutate(timestamp = as.POSIXct(event_date))
+  log_msg(sprintf("✓ Loaded %d combined events (target + control)", nrow(pgx_df_all_long)))
+} else {
+  log_msg("Executing target-only query (control cohort not available)...")
+  pgx_df_all_long <- dbGetQuery(con, query_target_only_long) %>%
+    mutate(timestamp = as.POSIXct(event_date))
+  log_msg(sprintf("✓ Loaded %d target-only events (control skipped)", nrow(pgx_df_all_long)))
+}
 
-log_msg(sprintf("✓ Loaded %d combined events (target + control)", nrow(pgx_df_all_long)))
-log_msg("Creating combined BupaR eventlog for Sankey visualization...")
+log_msg(if (has_control) "Creating combined BupaR eventlog for Sankey visualization..." else "Creating target-only eventlog for Sankey...")
 sankey_eventlog <- pgx_df_all_long %>%
   transmute(
     case_id              = mi_person_key,
@@ -501,7 +510,7 @@ sankey_eventlog <- pgx_df_all_long %>%
     timestamp            = "timestamp"
   )
 
-log_msg("✓ Combined TARGET + CONTROL sankey_eventlog created")
+log_msg(if (has_control) "✓ Combined TARGET + CONTROL sankey_eventlog created" else "✓ Target-only sankey_eventlog created")
 cat("Combined eventlog summary:\n")
 print(sankey_eventlog)
 
