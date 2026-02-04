@@ -2,27 +2,30 @@
 """
 Build BupaR input event data from cohort data + Step 3a aggregated feature importance + target.
 
-This allows Step 3b BupaR (target leakage identification) to run before Step 4.
-Uses gold cohort parquet, gold medical/pharmacy, and 3a aggregated FI to produce
-model_events-like parquet with the same schema (target, event_year, drug_name, ICDs, procedure_code).
+- **Feature filter:** Important items from 3a aggregated feature importance, with administrative
+  codes removed (same filter used later in Step 4). Not count data or unfiltered features.
+- **Data granularity:** Original event-level data only (one row per medical/pharmacy event).
+  model_events.parquet is built from gold cohort + gold medical/pharmacy parquet; no aggregation.
 
+This allows Step 3b BupaR (target leakage identification) to run before Step 4.
 Output: 3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/age_band={band}/model_events.parquet
-R script (create_bupar_outputs_*.R) looks for this path first, then falls back to Step 4 output.
+R script (create_bupar_outputs_*.R) looks for this path first; it does not build model data.
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]  # 3b_feature_importance_eda -> repo root
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Step 4 logic for building event table from cohort + medical + pharmacy
 from py_helpers.constants import get_cohort_slug
+from py_helpers.feature_importance_eda_utils import (
+    load_administrative_codes,
+    resolve_aggregated_fi_path,
+)
 
-# Import from 4_model_data (same project)
 sys.path.insert(0, str(PROJECT_ROOT))
 from importlib.util import spec_from_file_location, module_from_spec
 _create_model_data = PROJECT_ROOT / "4_model_data" / "create_model_data.py"
@@ -35,43 +38,6 @@ resolve_local_medical_root = _mod.resolve_local_medical_root
 resolve_local_pharmacy_root = _mod.resolve_local_pharmacy_root
 get_important_items = _mod.get_important_items
 DEFAULT_SAMPLE_RATIO = getattr(_mod, "DEFAULT_SAMPLE_RATIO", 5.0)
-
-
-def resolve_aggregated_fi_path(cohort_name: str, age_band: str, age_band_fname: str) -> Path | None:
-    """Resolve path to 3a aggregated feature importance CSV (same logic as feature_importance_eda_workflow)."""
-    filename = f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-    base_3a = PROJECT_ROOT / "3a_feature_importance" / "outputs"
-    possible = [
-        base_3a / cohort_name / filename,
-        base_3a / cohort_name / age_band / filename,
-        PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort_name / age_band / filename,
-    ]
-    env_3a = os.environ.get("PGX_FEATURE_IMPORTANCE_OUTPUTS")
-    if env_3a:
-        possible.insert(0, Path(env_3a) / cohort_name / filename)
-    for p in possible:
-        if p.exists():
-            return p
-    # S3 fallback
-    try:
-        try:
-            from py_helpers.common_imports import s3_client, S3_BUCKET
-        except ImportError:
-            import boto3
-            s3_client = boto3.client("s3")
-            S3_BUCKET = "pgxdatalake"
-        key = f"gold/feature_importance/{cohort_name}/{age_band}/{filename}"
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        import io
-        import pandas as pd
-        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
-        save_path = base_3a / cohort_name / filename
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(save_path, index=False)
-        print(f"[INFO] Downloaded 3a aggregated FI from S3: s3://{S3_BUCKET}/{key} -> {save_path}")
-        return save_path
-    except Exception:
-        return None
 
 
 def main():
@@ -87,7 +53,7 @@ def main():
     age_band_fname = age_band.replace("-", "_")
     years = [2016, 2017, 2018, 2019]
 
-    agg_csv = resolve_aggregated_fi_path(cohort_name, age_band, age_band_fname)
+    agg_csv = resolve_aggregated_fi_path(cohort_name, age_band, PROJECT_ROOT)
     if agg_csv is None:
         print("[ERROR] Step 3a aggregated FI not found locally or in S3.")
         print("        Checked: 3a_feature_importance/outputs/{cohort}/, from_s3, PGX_FEATURE_IMPORTANCE_OUTPUTS, S3 gold/feature_importance/...")
@@ -97,6 +63,17 @@ def main():
     important_items = get_important_items(agg_csv)
     if not important_items:
         print(f"[WARN] No important items in {agg_csv}; building with all events (no FI filter).")
+    else:
+        admin_codes = load_administrative_codes(PROJECT_ROOT)
+        if admin_codes:
+            n_before = len(important_items)
+            important_items = [x for x in important_items if x not in admin_codes]
+            n_removed = n_before - len(important_items)
+            if n_removed:
+                print(f"[INFO] Removed {n_removed} administrative codes from feature list ({len(important_items)} items left).")
+        if not important_items:
+            print(f"[WARN] All items were administrative; building with all events (no FI filter).")
+            important_items = []  # filter_cohort_events_for_items may treat empty as "all"
 
     # Output under 3b so R finds it first
     output_root = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"

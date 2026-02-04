@@ -2,67 +2,140 @@
 Feature Importance EDA Utilities
 
 Shared utility functions for Step 3b Feature Importance EDA.
-Functions for loading feature importance files, filters, and related data.
+Functions for loading feature importance files, admin codes, filters, and related data.
 """
 
-import duckdb
+import io
+import json
+import os
 from pathlib import Path
 from typing import Optional, Set, Tuple
+
 import pandas as pd
-import json
+import duckdb
 
 from py_helpers.constants import age_band_to_fname
+
+# Step 3a writes to outputs/{cohort}/{filename} (no age_band subdir). Same order as workflow and create_bupar_input.
+def resolve_aggregated_fi_path(
+    cohort: str,
+    age_band: str,
+    project_root: Path,
+) -> Optional[Path]:
+    """
+    Resolve path to 3a aggregated feature importance CSV.
+    Tries local paths (outputs/cohort/filename, NVMe env, from_s3), then S3; downloads and saves if from S3.
+    Returns Path if found, None otherwise.
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    filename = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+    base_3a = project_root / "3a_feature_importance" / "outputs"
+    possible = [
+        base_3a / cohort / filename,
+        base_3a / cohort / age_band / filename,
+        project_root / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / filename,
+    ]
+    env_3a = os.environ.get("PGX_FEATURE_IMPORTANCE_OUTPUTS")
+    if env_3a:
+        possible.insert(0, Path(env_3a) / cohort / filename)
+    for p in possible:
+        if p.exists():
+            return p
+    try:
+        try:
+            from py_helpers.common_imports import s3_client, S3_BUCKET
+        except ImportError:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+        key = f"gold/feature_importance/{cohort}/{age_band}/{filename}"
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+        save_path = base_3a / cohort / filename
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(save_path, index=False)
+        return save_path
+    except Exception:
+        return None
+
+
+def load_aggregated_fi(
+    cohort: str,
+    age_band: str,
+    project_root: Path,
+) -> Tuple[Optional[pd.DataFrame], Optional[Path]]:
+    """
+    Load 3a aggregated feature importance. Uses resolve_aggregated_fi_path then reads CSV.
+    Returns (dataframe, path) or (None, None) if not found.
+    """
+    path = resolve_aggregated_fi_path(cohort, age_band, project_root)
+    if path is None:
+        return None, None
+    df = pd.read_csv(path)
+    return df, path
+
+
+# Administrative codes lookup: same candidate order as workflow and create_bupar_input.
+ADMIN_LOOKUP_RELATIVE = [
+    "4b_event_filter/administrative_codes_lookup.json",
+    "1b_apcd_event_filter/administrative_codes_lookup.json",
+    "3b_feature_importance_eda/0_icd_cpt_check/administrative_codes_lookup.json",
+]
+
+
+def get_administrative_lookup_path(project_root: Path) -> Optional[Path]:
+    """Return first existing administrative_codes_lookup.json path, or None."""
+    for rel in ADMIN_LOOKUP_RELATIVE:
+        p = project_root / rel
+        if p.exists():
+            return p
+    return None
+
+
+def load_administrative_codes(project_root: Path) -> Set[str]:
+    """Load administrative codes (ICD/CPT/HCPCS) as a set for filtering."""
+    path = get_administrative_lookup_path(project_root)
+    if not path:
+        return set()
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        codes = data.get("administrative_codes", {})
+        out = set()
+        for key in ("icd", "cpt", "hcpcs"):
+            out.update(codes.get(key, []))
+        return out
+    except Exception:
+        return set()
 
 
 def load_aggregated_feature_importance(
     cohort: str,
     age_band: str,
-    project_root: Path
+    project_root: Path,
 ) -> pd.DataFrame:
     """
-    Load aggregated feature importance from Step 3.
-    
-    Following cursor dev rules: Use DuckDB to read CSV/Parquet files instead of pandas.
-    
-    Args:
-        cohort: Cohort name
-        age_band: Age band
-        project_root: Project root directory
-    
-    Returns:
-        DataFrame with aggregated feature importance
-    
-    Raises:
-        FileNotFoundError: If file not found in any expected location
+    Load aggregated feature importance from Step 3a.
+    Uses resolve_aggregated_fi_path (local + S3), then falls back to legacy paths.
+    Raises FileNotFoundError if not found.
     """
+    path = resolve_aggregated_fi_path(cohort, age_band, project_root)
+    if path:
+        return pd.read_csv(path)
     age_band_fname = age_band_to_fname(age_band)
-    
-    # Try multiple locations (check for Parquet first, then CSV)
-    # Step 3a outputs: 3a_feature_importance/outputs
-    possible_paths = []
-    # Check for Parquet files first (preferred format)
-    possible_paths.extend([
+    legacy = [
         project_root / "3a_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
-        project_root / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
-    ])
-    # Fallback to CSV files
-    possible_paths.extend([
         project_root / "3a_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-        project_root / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv",
-    ])
-    
-    for path in possible_paths:
-        if path.exists():
-            print(f"Loading aggregated feature importance from: {path}")
+    ]
+    for p in legacy:
+        if p.exists():
+            if p.suffix.lower() == ".csv":
+                return pd.read_csv(p)
             con = duckdb.connect()
-            path_str = str(path).replace("'", "''")
-            if path.suffix.lower() == '.parquet':
-                result = con.execute(f"SELECT * FROM read_parquet('{path_str}')").df()
-            else:
-                result = con.execute(f"SELECT * FROM read_csv_auto('{path_str}')").df()
+            path_esc = str(p).replace("'", "''")
+            out = con.execute(f"SELECT * FROM read_parquet('{path_esc}')").df()
             con.close()
-            return result
-    
+            return out
     raise FileNotFoundError(f"Could not find aggregated feature importance file for {cohort}/{age_band}")
 
 

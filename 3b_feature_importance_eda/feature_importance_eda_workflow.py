@@ -518,9 +518,9 @@ if rscript_path:
 print("\n" + "="*80)
 
 # %% [markdown]
-# ### 2. Build BupaR input (cohort + 3a FI + target), then run BupaR
+# ### 2. Update cohort data, then build BupaR input (cohort + 3a FI + target), then run BupaR
 #
-# BupaR identifies target leakage (pre vs post F1120). Input is built from **cohort data**, **Step 3a aggregated feature importance**, and **target**. This runs before Step 4.
+# Sync gold/cohorts, gold/medical, gold/pharmacy from S3 so we use the latest data between 3a and 3b. Then build model data (gold cohort filtered by 3a FI + admin removed). R only consumes the parquet.
 
 # %%
 # Note: subprocess and datetime already imported in Section A
@@ -531,8 +531,24 @@ if 'COHORT' not in globals():
 if 'AGE_BAND' not in globals():
     raise NameError("AGE_BAND is not defined. Please run the 'Configuration and Setup' section first.")
 
-# Build BupaR input from cohort data + 3a aggregated FI + target (so BupaR can run before Step 4)
-print("Building BupaR input from cohort data + 3a aggregated feature importance + target...")
+# Update cohort data from S3 so 3b uses latest data (seamless between 3a and 3b)
+try:
+    from py_helpers.env_utils import get_data_root
+    from py_helpers.workflow_sync_checkpoint import sync_s3_to_local
+    _s3_bucket = os.environ.get("PGX_S3_BUCKET", "pgxdatalake")
+    _data_root = get_data_root()
+    for _name, _prefix, _local in [
+        ("cohorts", f"s3://{_s3_bucket}/gold/cohorts/", _data_root / "gold" / "cohorts"),
+        ("medical", f"s3://{_s3_bucket}/gold/medical/", _data_root / "gold" / "medical"),
+        ("pharmacy", f"s3://{_s3_bucket}/gold/pharmacy/", _data_root / "gold" / "pharmacy"),
+    ]:
+        sync_s3_to_local(_prefix, _local)
+    print("Cohort data synced from S3.")
+except Exception as _e:
+    print(f"Note: Could not sync cohort data from S3: {_e}")
+
+# Build model data (gold cohort filtered by 3a aggregated FI with admin codes removed) before R runs.
+print("Building BupaR input from cohort data + 3a aggregated feature importance + target (admin codes removed)...")
 build_result = subprocess.run(
     [str(PYTHON_BIN), str(PROJECT_ROOT / "3b_feature_importance_eda" / "create_bupar_input_from_cohort.py"), "--cohort", COHORT, "--age-band", AGE_BAND],
     cwd=str(PROJECT_ROOT),
