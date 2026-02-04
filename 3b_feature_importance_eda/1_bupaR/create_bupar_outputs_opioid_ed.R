@@ -316,10 +316,10 @@ if (file.exists(utils_path)) {
   stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
-# Control model data path - use same OS-aware resolution
+# Control model data path - same structure as 4_model_data/create_control_cohort_model_data.py
 control_model_data_candidates <- c(
-  file.path(data_root, "4a_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(project_root, "4a_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
+  file.path(data_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(project_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
 
 control_model_data_path <- NULL

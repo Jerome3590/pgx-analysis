@@ -164,15 +164,15 @@ def create_control_cohort_model_data(
     
     print(f"[INFO] Found {len(medical_parquet_paths)} medical files and {len(pharmacy_parquet_paths)} pharmacy files")
     
-    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
-    cohort_slug = get_cohort_slug(age_band)
+    # Control cohort uses fixed slug "non_opioid_non_ed" (matches R/control_cohort_utils and S3)
+    control_slug = "non_opioid_non_ed"
     
-    # New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/
+    # New structure: cohorts/input_model_data/cohort_name=non_opioid_non_ed/age_band={age_band}/
     out_dir = (
         output_root 
         / "cohorts" 
         / "input_model_data"
-        / f"cohort_name={cohort_slug}" 
+        / f"cohort_name={control_slug}" 
         / f"age_band={age_band}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
