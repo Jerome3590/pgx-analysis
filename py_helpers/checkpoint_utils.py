@@ -173,20 +173,20 @@ def check_step_checkpoint_exists(
 ) -> bool:
     """
     Check if a step checkpoint exists in S3.
-    
+
     Args:
         step_name: Name of the step
         cohort: Cohort name
         age_band: Age band
         logger: Optional logger
-    
+
     Returns:
         True if checkpoint exists, False otherwise
     """
     checkpoint_key = (
         f"pipeline_checkpoints/{step_name}/{cohort}/{age_band.replace('-', '_')}/checkpoint.json"
     )
-    
+
     try:
         s3_client.head_object(Bucket="pgx-repository", Key=checkpoint_key)
         if logger:
@@ -198,6 +198,63 @@ def check_step_checkpoint_exists(
         raise
     except Exception:
         return False
+
+
+def delete_step_checkpoint(
+    step_name: str,
+    cohort: str,
+    age_band: str,
+    logger: Optional[logging.Logger] = None
+) -> bool:
+    """
+    Delete a step checkpoint from S3 so the step will run again.
+
+    Args:
+        step_name: Name of the step (e.g., "3b_feature_importance_eda")
+        cohort: Cohort name (e.g., "opioid_ed")
+        age_band: Age band (e.g., "13-24")
+        logger: Optional logger
+
+    Returns:
+        True if deleted or already missing, False on error
+    """
+    checkpoint_key = (
+        f"pipeline_checkpoints/{step_name}/{cohort}/{age_band.replace('-', '_')}/checkpoint.json"
+    )
+    try:
+        s3_client.delete_object(Bucket="pgx-repository", Key=checkpoint_key)
+        if logger:
+            logger.info(f"✓ Deleted checkpoint: s3://pgx-repository/{checkpoint_key}")
+        return True
+    except s3_client.exceptions.ClientError as e:
+        if e.response["Error"]["Code"] in ["404", "NoSuchKey"]:
+            if logger:
+                logger.info(f"Checkpoint already missing: s3://pgx-repository/{checkpoint_key}")
+            return True
+        if logger:
+            logger.warning(f"Failed to delete checkpoint: {e}")
+        return False
+    except Exception as e:
+        if logger:
+            logger.warning(f"Failed to delete checkpoint: {e}")
+        return False
+
+
+def clear_step_checkpoints(
+    step_name: str,
+    cohort: str,
+    age_bands: List[str],
+    logger: Optional[logging.Logger] = None
+) -> int:
+    """
+    Delete checkpoints for a step/cohort for the given age bands.
+    Returns the number of checkpoints deleted (or already missing).
+    """
+    deleted = 0
+    for age_band in age_bands:
+        if delete_step_checkpoint(step_name, cohort, age_band, logger):
+            deleted += 1
+    return deleted
 
 
 def _parse_s3_path(s3_path: str) -> tuple[str, str]:

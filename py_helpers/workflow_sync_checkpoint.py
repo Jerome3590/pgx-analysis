@@ -33,6 +33,8 @@ from py_helpers.env_utils import get_data_root
 from py_helpers.checkpoint_utils import (
     check_step_checkpoint_exists,
     save_step_checkpoint,
+    delete_step_checkpoint,
+    clear_step_checkpoints,
 )
 
 __all__ = [
@@ -40,6 +42,8 @@ __all__ = [
     "get_data_root",
     "check_step_checkpoint_exists",
     "save_step_checkpoint",
+    "delete_step_checkpoint",
+    "clear_step_checkpoints",
 ]
 
 logger = logging.getLogger(__name__)
