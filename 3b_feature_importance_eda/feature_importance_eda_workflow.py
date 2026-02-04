@@ -373,6 +373,11 @@ if aggregated_fi is None:
     for path in possible_paths:
         print(f"     - {path}")
     print(f"   Also tried S3: gold/feature_importance/{{cohort}}/{{age_band}}/...")
+    raise SystemExit(
+        "Aggregated feature importance is required for Step 3b. "
+        "Run Step 3a (2_feature_importance.ipynb) for this cohort/age_band first. "
+        "Do not continue—feature importances define the feature set and include potential target leakage."
+    )
 else:
     # Display summary
     print(f"\n📊 Feature Importance Summary:")

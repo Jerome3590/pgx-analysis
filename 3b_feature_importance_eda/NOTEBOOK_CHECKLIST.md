@@ -70,9 +70,10 @@ All notebooks follow these patterns:
    - Fallback 1: `OUTPUT_DIR / "features" / f"{COHORT}_{AGE_BAND_FNAME}_{plot_type}.png"`
    - Fallback 2: `PLOTS_DIR / f"{plot_type}.png"` (without cohort prefix)
 
-3. **Model Data:**
-   - EC2: `/mnt/nvme/4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
-   - (Handled by Python scripts, not directly in notebooks)
+3. **Model Data (Step 3b – Step 1/2/3 only, no 4_model_data):**
+   - Target and control: `3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet`
+   - 4_model_data is created only after target leakage removal (later step).
+   - (Handled by R/Python scripts, not directly in notebooks)
 
 ### ✅ Conclusion:
 All notebooks are consistent and follow the same file path patterns. The Rplots.pdf issue should be resolved by the R script changes (explicit PDF device management). If you still see Rplots.pdf in the project root, you can manually add the cleanup code snippet above, or simply delete it manually.

@@ -96,7 +96,7 @@ The main input is an event log table (long format) from `model_events.parquet`:
 | 12345         | ICD:F1120           | 2020-01-15  | ...                   |
 | 12345         | CPT:80307           | 2020-01-20  | ...                   |
 
-- **Source:** `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+- **Source (Step 3b):** Only Step 1/2/3 artifacts. `3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`. No 4_model_data (that is created after target leakage removal).
 - **Format:** Parquet file with event-level data including ICD codes, CPT codes, and drugs
 - **How to use:** This table is the direct input to BupaR for process mining and sequence analysis.
 - **Activity Format:** Activities are prefixed with type (e.g., `DRUG:`, `ICD:`, `CPT:`) for easy categorization
