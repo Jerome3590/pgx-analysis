@@ -11,6 +11,7 @@ R script (create_bupar_outputs_*.R) looks for this path first, then falls back t
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -20,7 +21,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # Step 4 logic for building event table from cohort + medical + pharmacy
 from py_helpers.constants import get_cohort_slug
-from py_helpers.env_utils import get_data_root
 
 # Import from 4_model_data (same project)
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -37,6 +37,43 @@ get_important_items = _mod.get_important_items
 DEFAULT_SAMPLE_RATIO = getattr(_mod, "DEFAULT_SAMPLE_RATIO", 5.0)
 
 
+def resolve_aggregated_fi_path(cohort_name: str, age_band: str, age_band_fname: str) -> Path | None:
+    """Resolve path to 3a aggregated feature importance CSV (same logic as feature_importance_eda_workflow)."""
+    filename = f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
+    base_3a = PROJECT_ROOT / "3a_feature_importance" / "outputs"
+    possible = [
+        base_3a / cohort_name / filename,
+        base_3a / cohort_name / age_band / filename,
+        PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort_name / age_band / filename,
+    ]
+    env_3a = os.environ.get("PGX_FEATURE_IMPORTANCE_OUTPUTS")
+    if env_3a:
+        possible.insert(0, Path(env_3a) / cohort_name / filename)
+    for p in possible:
+        if p.exists():
+            return p
+    # S3 fallback
+    try:
+        try:
+            from py_helpers.common_imports import s3_client, S3_BUCKET
+        except ImportError:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+        key = f"gold/feature_importance/{cohort_name}/{age_band}/{filename}"
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        import io
+        import pandas as pd
+        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+        save_path = base_3a / cohort_name / filename
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(save_path, index=False)
+        print(f"[INFO] Downloaded 3a aggregated FI from S3: s3://{S3_BUCKET}/{key} -> {save_path}")
+        return save_path
+    except Exception:
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Build BupaR input from cohort data + 3a aggregated FI + target"
@@ -50,16 +87,10 @@ def main():
     age_band_fname = age_band.replace("-", "_")
     years = [2016, 2017, 2018, 2019]
 
-    # 3a aggregated feature importance path
-    outputs_3a = PROJECT_ROOT / "3a_feature_importance" / "outputs"
-    agg_csv = (
-        outputs_3a
-        / cohort_name
-        / age_band
-        / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    if not agg_csv.exists():
-        print(f"[ERROR] Step 3a aggregated FI not found: {agg_csv}")
+    agg_csv = resolve_aggregated_fi_path(cohort_name, age_band, age_band_fname)
+    if agg_csv is None:
+        print("[ERROR] Step 3a aggregated FI not found locally or in S3.")
+        print("        Checked: 3a_feature_importance/outputs/{cohort}/, from_s3, PGX_FEATURE_IMPORTANCE_OUTPUTS, S3 gold/feature_importance/...")
         print("        Run Step 3a for this cohort/age_band first (2_feature_importance.ipynb).")
         sys.exit(1)
 
