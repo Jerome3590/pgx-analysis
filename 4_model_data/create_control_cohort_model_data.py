@@ -21,20 +21,28 @@ This is a simplified version that only creates control events (target=0).
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import duckdb
 
-# Add project root to path
+# Add project root and 4_model_data to path (for get_important_items from create_model_data)
 PROJECT_ROOT = Path(__file__).parent.parent
+MODEL_DATA_DIR = Path(__file__).parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+if str(MODEL_DATA_DIR) not in sys.path:
+    sys.path.insert(0, str(MODEL_DATA_DIR))
 
 from py_helpers.constants import (
-    get_opioid_icd_sql_condition,
+    ALL_ICD_DIAGNOSIS_COLUMNS,
     get_cohort_slug,
+    get_opioid_icd_sql_condition,
 )
 from py_helpers.env_utils import get_data_root, is_linux
+from py_helpers.feature_importance_eda_utils import load_administrative_codes
+
+# get_important_items from create_model_data (same as target cohort filter)
+from create_model_data import get_important_items
 
 
 def get_model_data_root() -> Path:
@@ -110,13 +118,31 @@ def resolve_local_pharmacy_root() -> Path:
     return candidates[2]  # Default to project root
 
 
+def _item_filter_condition_sql(important_items: List[str]) -> str:
+    """Build SQL WHERE condition for event-level filter (drug_name, ICD cols, procedure_code). Same logic as create_model_data.filter_cohort_events_for_items."""
+    if not important_items:
+        return "TRUE"
+    item_list_literal = ", ".join(f"'{v}'" for v in important_items)
+    icd_conditions = " OR ".join(
+        f"{col} IN ({item_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+    )
+    if not icd_conditions:
+        icd_conditions = "FALSE"
+    return f"""(
+        drug_name IN ({item_list_literal}) OR
+        {icd_conditions} OR
+        procedure_code IN ({item_list_literal})
+    )"""
+
+
 def create_control_cohort_model_data(
     age_band: str,
     years: List[int] = [2016, 2017, 2018],
     sample_size: int = 10000,
     output_root: Path = None,
     target_cohort_path: Path = None,
-        time_window_days: int = 14,
+    aggregated_fi_csv: Optional[Path] = None,
+    time_window_days: int = 14,
 ) -> None:
     """
     Create model_events.parquet for non_opioid_non_ed control cohort.
@@ -124,17 +150,35 @@ def create_control_cohort_model_data(
     For POLYPHARMACY COHORT, controls must have drug events but NO HCG target events
     within the specified time window of their drug events.
     
+    Optionally filter control events to the same feature set as target (3a aggregated FI
+    minus admin codes) to reduce noise in BupaR analysis.
+    
     Args:
         age_band: Age band (e.g., "13-24")
         years: List of years to include
         sample_size: Number of control patients to sample
         output_root: Root directory for output (default: get_model_data_root())
         target_cohort_path: Optional path to target cohort model_events.parquet for ratio logging
+        aggregated_fi_csv: Path to 3a aggregated feature importance CSV; control events are filtered
+            to the same items (with admin codes removed) as target. Required when output_root is set (Step 3b).
         time_window_days: Time window in days for checking HCG target events near drug events (default: 30)
                           Common values: 30, 60, 90, 120
     """
     if output_root is None:
         output_root = get_model_data_root()
+    
+    important_items: List[str] = []
+    if aggregated_fi_csv and aggregated_fi_csv.exists():
+        important_items = get_important_items(aggregated_fi_csv)
+        admin_codes = load_administrative_codes(PROJECT_ROOT)
+        if admin_codes:
+            n_before = len(important_items)
+            important_items = [x for x in important_items if x not in admin_codes]
+            if n_before > len(important_items):
+                print(f"[INFO] Filtering control events by 3a FI (admin removed): {len(important_items)} items")
+        if not important_items:
+            important_items = []
+    item_filter_sql = _item_filter_condition_sql(important_items)
     
     local_medical_root = resolve_local_medical_root()
     local_pharmacy_root = resolve_local_pharmacy_root()
@@ -344,6 +388,7 @@ def create_control_cohort_model_data(
         fue.*,
         0 AS target
     FROM final_unified_events fue
+    WHERE {item_filter_sql}
     """
     
     try:
@@ -543,12 +588,30 @@ def main():
         default=10000,
         help="Number of control patients to sample (default: 10000)",
     )
+    parser.add_argument(
+        "--output-root",
+        type=str,
+        default=None,
+        help="Root directory for output (default: 4_model_data). Use 3b_feature_importance_eda/outputs for Step 3b so control is not written to 4_model_data.",
+    )
+    parser.add_argument(
+        "--aggregated-fi-csv",
+        type=str,
+        default=None,
+        help="Path to 3a aggregated feature importance CSV; control events are filtered to same items (admin removed). Required when --output-root is set (Step 3b).",
+    )
     args = parser.parse_args()
     
+    output_root = Path(args.output_root) if args.output_root else None
+    aggregated_fi_csv = Path(args.aggregated_fi_csv) if args.aggregated_fi_csv else None
+    if output_root is not None and (aggregated_fi_csv is None or not aggregated_fi_csv.exists()):
+        raise SystemExit("When --output-root is set (Step 3b), --aggregated-fi-csv is required and must point to an existing 3a aggregated feature importance CSV.")
     create_control_cohort_model_data(
         age_band=args.age_band,
         years=args.years,
         sample_size=args.sample_size,
+        output_root=output_root,
+        aggregated_fi_csv=aggregated_fi_csv,
     )
 
 

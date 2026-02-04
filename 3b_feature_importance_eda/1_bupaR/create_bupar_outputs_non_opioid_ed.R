@@ -87,11 +87,27 @@ if (data_root == "") {
   }
 }
 
-# Try multiple locations: 3b-built (cohort + 3a FI + target) first, then Step 4
+# Aggregated feature importance is required—it defines the feature set and includes potential target leakage. Do not continue without it.
+agg_fi_candidates_top <- c(
+  file.path(project_root, "3a_feature_importance", "outputs", cohort_name, paste0(cohort_name, "_", age_band_fname, "_aggregated_feature_importance.csv")),
+  file.path(project_root, "3a_feature_importance", "outputs", cohort_name, age_band, paste0(cohort_name, "_", age_band_fname, "_aggregated_feature_importance.csv")),
+  file.path(project_root, "3a_feature_importance", "from_s3", "by_cohort", cohort_name, age_band, paste0(cohort_name, "_", age_band_fname, "_aggregated_feature_importance.csv"))
+)
+aggregated_fi_found <- FALSE
+for (p in agg_fi_candidates_top) {
+  if (file.exists(p)) {
+    aggregated_fi_found <- TRUE
+    break
+  }
+}
+if (!aggregated_fi_found) {
+  stop("Aggregated feature importance is required. Run Step 3a (2_feature_importance.ipynb) for cohort ", cohort_name, " age_band ", age_band, " first. Do not continue without it.")
+}
+
+# Step 3b uses only Step 1/2/3 artifacts. No 4_model_data (that is created after target leakage removal).
 model_data_candidates <- c(
   file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(data_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(project_root, "4_model_data", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet")
+  file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet")
 )
 
 model_data_path <- NULL
@@ -338,10 +354,10 @@ if (file.exists(utils_path)) {
   stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
-# Control model data path - use same OS-aware resolution
+# Control: Step 3b only. Control cohort (if used) lives under 3b outputs; we do not use 4_model_data yet.
 control_model_data_candidates <- c(
-  file.path(data_root, "4a_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(project_root, "4a_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
+  file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
 
 control_model_data_path <- NULL
@@ -357,6 +373,18 @@ if (is.null(control_model_data_path)) {
   control_model_data_path <- control_model_data_candidates[1]
 }
 
+# Resolve 3a aggregated FI path for control filtering (required; already verified at top of script)
+aggregated_fi_path <- NULL
+for (p in agg_fi_candidates_top) {
+  if (file.exists(p)) {
+    aggregated_fi_path <- p
+    break
+  }
+}
+if (is.null(aggregated_fi_path)) {
+  stop("Aggregated feature importance is required. Run Step 3a (2_feature_importance.ipynb) for cohort ", cohort_name, " age_band ", age_band, " first.")
+}
+
 # Use utility function to validate and ensure control cohort with 5:1 ratio
 control_result <- ensure_control_cohort_with_ratio(
   con = con,
@@ -366,6 +394,8 @@ control_result <- ensure_control_cohort_with_ratio(
   age_band = age_band,
   train_years = train_years,
   project_root = project_root,
+  output_root_3b = file.path(project_root, "3b_feature_importance_eda", "outputs"),
+  aggregated_fi_path = aggregated_fi_path,
   expected_ratio = 5.0,
   tolerance = 0.2
 )

@@ -23,10 +23,12 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 
 ## Inputs
 
-- **Aggregated feature importances** from Step 3:
-  - `3a_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
-- **Model events data** (for BupaR analysis):
-  - `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+- **Aggregated feature importances from Step 3 (required, not optional):**
+  - Path: `3a_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
+  - These define the feature set and include features that may be target leakage. Any step that uses them will **fail early** if they are not ready (workflow, BupaR R scripts, create_bupar_input_from_cohort, control cohort creation, filter_and_refine). Run Step 3a (2_feature_importance.ipynb) first; do not continue without them.
+- **Model events data** (for BupaR analysis): Step 3b uses **only Step 1, Step 2, and Step 3 artifacts**. We do not read or write 4_model_data (that is created after target leakage removal).
+  - Target: `3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet` (built from Step 2 cohort + Step 3 3a FI + target via `create_bupar_input_from_cohort.py`)
+  - Control (if used): same directory tree under 3b `outputs/`; created via `4_model_data/create_control_cohort_model_data.py --output-root 3b_feature_importance_eda/outputs --aggregated-fi-csv <path>`. **3a aggregated feature importance is required** (not optional); control events are filtered to the same feature set as target (admin codes removed) to reduce noise in BupaR.
 
 ## Outputs
 
@@ -304,9 +306,10 @@ ls -lh /home/pgx3874/pgx-analysis/3b_feature_importance_eda/outputs/non_opioid_e
 **Solution**: Each notebook will automatically create its age-band-specific control cohort if it doesn't exist. If you want to pre-create them:
 ```bash
 # Create control cohorts for all three age bands (use full path to Python jupyter environment - EC2)
-/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 65-74 --sample-size 100000
-/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 75-84 --sample-size 100000
-/home/pgx3874/jupyter-env/bin/python3.11 4a_model_data/create_control_cohort_model_data.py --age-band 85-94 --sample-size 100000
+# Step 3b: write control under 3b outputs only (no 4_model_data)
+/home/pgx3874/jupyter-env/bin/python3.11 4_model_data/create_control_cohort_model_data.py --age-band 65-74 --sample-size 100000 --output-root 3b_feature_importance_eda/outputs
+/home/pgx3874/jupyter-env/bin/python3.11 4_model_data/create_control_cohort_model_data.py --age-band 75-84 --sample-size 100000 --output-root 3b_feature_importance_eda/outputs
+/home/pgx3874/jupyter-env/bin/python3.11 4_model_data/create_control_cohort_model_data.py --age-band 85-94 --sample-size 100000 --output-root 3b_feature_importance_eda/outputs
 ```
 
 **Note**: Each age band creates its own separate control cohort file, so you can run these in parallel too!

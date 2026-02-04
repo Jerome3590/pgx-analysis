@@ -13,6 +13,8 @@
 #' @param age_band Age band (e.g., "13-24")
 #' @param train_years Vector of training years (e.g., c(2016L, 2017L, 2018L))
 #' @param project_root Project root directory
+#' @param output_root_3b Optional. When set (e.g. Step 3b), control is created under this root (no 4_model_data). Use 3b_feature_importance_eda/outputs.
+#' @param aggregated_fi_path Optional. Path to 3a aggregated feature importance CSV; if set, control events are filtered to same items (admin removed) to reduce noise.
 #' @param expected_ratio Expected control:case ratio (default: 5.0)
 #' @param tolerance Tolerance for ratio validation (default: 0.2, i.e., 20%)
 #'
@@ -29,6 +31,8 @@ ensure_control_cohort_with_ratio <- function(
   age_band,
   train_years,
   project_root,
+  output_root_3b = NULL,
+  aggregated_fi_path = NULL,
   expected_ratio = 5.0,
   tolerance = 0.2
 ) {
@@ -37,29 +41,31 @@ ensure_control_cohort_with_ratio <- function(
   was_recreated <- FALSE
   validation_passed <- FALSE
   
-  # Step 1: Try to download from S3 if not found locally
+  # Step 1: Try to download from S3 if not found locally (skip when Step 3b: we use only Step 1/2/3 artifacts)
   if (!file.exists(control_model_data_path)) {
-    control_s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", control_cohort, "/age_band=", age_band, "/model_events.parquet")
-    cat("Control model data not found locally. Checking S3: ", control_s3_path, "\n", sep = "")
-    
-    # Create directory if it doesn't exist
-    dir.create(dirname(control_model_data_path), recursive = TRUE, showWarnings = FALSE)
-    
-    # Try AWS CLI sync
-    aws_cli <- Sys.which("aws")
-    if (aws_cli != "") {
-      cat("Downloading control cohort from S3 using AWS CLI...\n")
-      sync_cmd <- c("s3", "cp", control_s3_path, control_model_data_path)
-      sync_result <- system2(aws_cli, sync_cmd, stdout = TRUE, stderr = TRUE)
+    if (is.null(output_root_3b) || !nzchar(output_root_3b)) {
+      control_s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", control_cohort, "/age_band=", age_band, "/model_events.parquet")
+      cat("Control model data not found locally. Checking S3: ", control_s3_path, "\n", sep = "")
       
-      if (file.exists(control_model_data_path)) {
-        cat("Successfully downloaded control cohort from S3: ", control_model_data_path, "\n", sep = "")
+      dir.create(dirname(control_model_data_path), recursive = TRUE, showWarnings = FALSE)
+      aws_cli <- Sys.which("aws")
+      if (aws_cli != "") {
+        cat("Downloading control cohort from S3 using AWS CLI...\n")
+        sync_cmd <- c("s3", "cp", control_s3_path, control_model_data_path)
+        sync_result <- system2(aws_cli, sync_cmd, stdout = TRUE, stderr = TRUE)
+        
+        if (file.exists(control_model_data_path)) {
+          cat("Successfully downloaded control cohort from S3: ", control_model_data_path, "\n", sep = "")
+        } else {
+          cat("Failed to download control cohort from S3. Error output:\n")
+          cat(paste(sync_result, collapse = "\n"), "\n")
+        }
       } else {
-        cat("Failed to download control cohort from S3. Error output:\n")
-        cat(paste(sync_result, collapse = "\n"), "\n")
+        cat("AWS CLI not found. Cannot download control cohort from S3.\n")
       }
     } else {
-      cat("AWS CLI not found. Cannot download control cohort from S3.\n")
+      cat("Step 3b: control under 3b outputs only; skipping S3 (using only Step 1/2/3 artifacts).\n", sep = "")
+      dir.create(dirname(control_model_data_path), recursive = TRUE, showWarnings = FALSE)
     }
   }
   
@@ -182,7 +188,7 @@ ensure_control_cohort_with_ratio <- function(
     }
     
     # Call create_control_cohort_model_data.py directly (simpler than ensure_control_cohort.py)
-    create_script <- file.path(project_root, "4a_model_data", "create_control_cohort_model_data.py")
+    create_script <- file.path(project_root, "4_model_data", "create_control_cohort_model_data.py")
     
     if (python_cmd != "" && file.exists(create_script)) {
       create_cmd <- c(
@@ -190,6 +196,19 @@ ensure_control_cohort_with_ratio <- function(
         "--age-band", age_band,
         "--sample-size", as.character(required_controls)
       )
+      if (!is.null(output_root_3b) && nzchar(output_root_3b)) {
+        # Step 3b: write control under 3b outputs only (no 4_model_data yet)
+        create_cmd <- c(create_cmd, "--output-root", output_root_3b)
+      }
+      # Step 3b: aggregated FI is required when writing to 3b output
+      if (!is.null(output_root_3b) && nzchar(output_root_3b)) {
+        if (is.null(aggregated_fi_path) || !nzchar(aggregated_fi_path) || !file.exists(aggregated_fi_path)) {
+          stop("Step 3b requires 3a aggregated feature importance CSV for control. Resolve aggregated_fi_path for this cohort/age_band.")
+        }
+        create_cmd <- c(create_cmd, "--aggregated-fi-csv", aggregated_fi_path)
+      } else if (!is.null(aggregated_fi_path) && nzchar(aggregated_fi_path) && file.exists(aggregated_fi_path)) {
+        create_cmd <- c(create_cmd, "--aggregated-fi-csv", aggregated_fi_path)
+      }
       
       cat("[INFO] Running: ", python_cmd, " ", paste(create_cmd, collapse = " "), "\n", sep = "")
       create_result <- system2(python_cmd, create_cmd, stdout = TRUE, stderr = TRUE)
@@ -249,7 +268,14 @@ ensure_control_cohort_with_ratio <- function(
       cat("   Python: ", python_cmd, "\n", sep = "")
       cat("   Script: ", create_script, "\n", sep = "")
       cat("   Please run manually:\n")
-      cat("   ", python_cmd, " 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
+      manual_cmd <- paste(python_cmd, " 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, sep = "")
+      if (!is.null(output_root_3b) && nzchar(output_root_3b)) {
+        manual_cmd <- paste(manual_cmd, " --output-root ", output_root_3b, sep = "")
+      }
+      if (!is.null(aggregated_fi_path) && nzchar(aggregated_fi_path) && file.exists(aggregated_fi_path)) {
+        manual_cmd <- paste(manual_cmd, " --aggregated-fi-csv ", shQuote(aggregated_fi_path), sep = "")
+      }
+      cat("   ", manual_cmd, "\n\n", sep = "")
     }
   }
   
@@ -284,7 +310,7 @@ ensure_control_cohort_with_ratio <- function(
     warning("Control model_data parquet not found: ", control_model_data_path)
     cat("\n⚠️  Control cohort '", control_cohort, "' model_events.parquet not found.\n", sep = "")
     cat("   To create it, run:\n")
-    cat("   python 4a_model_data/create_control_cohort_model_data.py --age-band ", age_band, "\n\n", sep = "")
+    cat("   python 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, "\n\n", sep = "")
     # Return empty data frame with same structure as target
     # This will be handled by the calling script
   }
