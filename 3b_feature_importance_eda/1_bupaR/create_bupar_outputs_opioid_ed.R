@@ -1215,14 +1215,27 @@ if (nrow(rare_sequences) > 0) {
 }
 
 # 2) Process Matrix and CSV export
-# Note: process_matrix may fail with small datasets - wrap in tryCatch
+# Filter out NA in timestamp/activity/case_id to avoid "missing value where TRUE/FALSE needed"
+target_eventlog_valid <- target_eventlog %>%
+  filter(!is.na(timestamp), !is.na(activity), !is.na(case_id))
+if (nrow(target_eventlog_valid) < nrow(target_eventlog)) {
+  log_msg(sprintf("Dropped %d rows with NA in timestamp/activity/case_id for process_matrix", nrow(target_eventlog) - nrow(target_eventlog_valid)))
+}
 pm_target <- tryCatch({
-  process_matrix(target_eventlog, type = "frequency")
+  if (n_events(target_eventlog_valid) > 0 && n_cases(target_eventlog_valid) > 0) {
+    process_matrix(target_eventlog_valid, type = "frequency")
+  } else {
+    NULL
+  }
 }, error = function(e) {
   cat("Note: process_matrix skipped due to error:", conditionMessage(e), "\n")
   NULL
 })
-pm_target_df <- as.data.frame(pm_target)
+if (is.null(pm_target)) {
+  pm_target_df <- data.frame()
+} else {
+  pm_target_df <- as.data.frame(pm_target)
+}
 save_bupar_csv(
   pm_target_df,
   sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
