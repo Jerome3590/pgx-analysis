@@ -41,9 +41,10 @@ def normalize_feature_name(feature: str) -> str:
     Normalize feature name to match aggregated importance format.
     
     Aggregated importance uses: item_80307, item_SUBOXONE, item_F1120
-    Safe filter uses: item_cpt_80307, item_drug_SUBOXONE, item_icd_F1120
+    Safe filter / BupaR use: item_cpt_80307, item_drug_SUBOXONE, item_icd_F1120
+    Activity-style: ICD:F1120, CPT:80307, DRUG:SUBOXONE -> item_F1120, item_80307, item_SUBOXONE
     
-    This function converts from safe filter format to aggregated importance format.
+    This function converts to canonical item_XXXX format for matching.
     
     Args:
         feature: Feature name in any format
@@ -51,25 +52,31 @@ def normalize_feature_name(feature: str) -> str:
     Returns:
         Normalized feature name (item_XXXX format)
     """
-    if not feature.startswith('item_'):
+    if not isinstance(feature, str) or not feature.strip():
         return feature
-    
+    s = feature.strip()
+    # Activity-style from BupaR/eventlog: ICD:F1120, CPT:80307, DRUG:SUBOXONE
+    if s.upper().startswith("ICD:"):
+        return f"item_{s[4:].strip()}"
+    if s.upper().startswith("CPT:"):
+        return f"item_{s[4:].strip()}"
+    if s.upper().startswith("DRUG:"):
+        return f"item_{s[5:].strip()}"
+    # Aggregated FI sometimes has bare codes (F1120, 80307, SUBOXONE); normalize to item_XXX for matching
+    if not s.startswith('item_') and len(s) < 50 and ' ' not in s and s:
+        return f"item_{s}"
+    if not s.startswith('item_'):
+        return s
     # Remove item_ prefix
-    code = feature[5:]
-    
+    code = s[5:]
     # Check if it has type prefix (item_cpt_, item_drug_, item_icd_)
     if code.startswith('cpt_'):
-        # item_cpt_80307 -> item_80307
         return f"item_{code[4:]}"
-    elif code.startswith('drug_'):
-        # item_drug_SUBOXONE -> item_SUBOXONE
+    if code.startswith('drug_'):
         return f"item_{code[5:]}"
-    elif code.startswith('icd_'):
-        # item_icd_F1120 -> item_F1120
+    if code.startswith('icd_'):
         return f"item_{code[4:]}"
-    else:
-        # Already in normalized format (item_80307)
-        return feature
+    return s
 
 
 def normalize_feature_set(features: Set[str]) -> Set[str]:

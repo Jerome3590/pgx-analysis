@@ -142,6 +142,11 @@ def filter_and_refine_features(
     aggregated_fi = sanitize_feature_names(aggregated_fi)
     
     refined_fi = aggregated_fi.copy()
+    # Resolve feature column (aggregated CSV may have "feature" or first column as feature names)
+    feature_col = "feature" if "feature" in refined_fi.columns else refined_fi.columns[0]
+    if feature_col != "feature":
+        refined_fi = refined_fi.rename(columns={feature_col: "feature"})
+        feature_col = "feature"
     
     # Track filtering decisions
     filtering_summary = {
@@ -178,14 +183,28 @@ def filter_and_refine_features(
             print(f"  Excluded {filtering_summary['filtered_by_safe_filter']} features (post-target leakage + not in whitelist)")
             if features_to_exclude:
                 print(f"  NOTE: Controls will use blacklist approach (exclude only {len(features_to_exclude)} leakage features, keep all other features)")
+            if filtering_summary['filtered_by_safe_filter'] == 0:
+                agg_sample = refined_fi['feature'].dropna().head(15).tolist()
+                keep_sample = sorted(features_to_keep)[:15] if features_to_keep else []
+                print(f"  [DIAG] Filtered=0: aggregated 'feature' sample (raw): {agg_sample}")
+                print(f"  [DIAG] Filtered=0: safe filter 'features_to_keep' sample: {keep_sample}")
     
     # Fallback: exclude leakage from BupaR CSV (robust to column names and flag values)
     elif filter_post_target and not bupar_results.empty:
+        # No safe filter found; log column name samples for both sources
+        bupar_feature_col = next((c for c in bupar_results.columns if c.lower() == "feature"), bupar_results.columns[0] if len(bupar_results.columns) else None)
+        agg_raw_sample = refined_fi['feature'].dropna().head(15).tolist()
+        bupar_raw_sample = bupar_results[bupar_feature_col].dropna().head(15).tolist() if bupar_feature_col else []
+        print(f"  [DIAG] No safe filter; using BupaR fallback. Aggregated 'feature' sample (raw): {agg_raw_sample}")
+        print(f"  [DIAG] No safe filter; BupaR CSV '{bupar_feature_col}' sample (raw): {bupar_raw_sample}")
+
         post_target_features_raw = _leakage_feature_set_from_bupar(bupar_results)
         post_target_features = normalize_feature_set(post_target_features_raw)
 
         before_count = len(refined_fi)
         refined_fi['feature_normalized'] = refined_fi['feature'].apply(normalize_feature_name)
+        agg_norm_all = set(refined_fi['feature_normalized'].dropna().tolist())
+        overlap_count = len(agg_norm_all & post_target_features)
         refined_fi = refined_fi[~refined_fi['feature_normalized'].isin(post_target_features)].copy()
         if 'feature_normalized' in refined_fi.columns:
             refined_fi = refined_fi.drop(columns=['feature_normalized'])
@@ -193,6 +212,12 @@ def filter_and_refine_features(
         filtering_summary['filtered_by_post_target'] = before_count - len(refined_fi)
         if post_target_features:
             print(f"Filtered {filtering_summary['filtered_by_post_target']} post-target leakage features (fallback: {len(post_target_features)} leakage features from BupaR CSV)")
+            print(f"  [DIAG] Aggregated FI normalized set size: {len(agg_norm_all)}; overlap with leakage set: {overlap_count}")
+            print(f"  [DIAG] Aggregated normalized sample: {sorted(agg_norm_all)[:15]}")
+            print(f"  [DIAG] Leakage normalized sample: {sorted(post_target_features)[:15]}")
+            if filtering_summary['filtered_by_post_target'] == 0:
+                print(f"  [DIAG] Filtered=0: aggregated 'feature' sample (raw): {agg_raw_sample}")
+                print(f"  [DIAG] Filtered=0: BupaR leakage feature sample (raw): {sorted(post_target_features_raw)[:15]}")
         else:
             print(f"[WARN] BupaR CSV has no leakage features identified (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
     
