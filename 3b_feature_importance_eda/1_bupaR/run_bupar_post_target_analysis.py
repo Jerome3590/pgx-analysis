@@ -301,8 +301,13 @@ def run_bupar_analysis(
                     if result_analysis.stdout:
                         print(result_analysis.stdout)
                 else:
-                    print(f"[WARN] Failed to create post-target analysis CSV:")
-                    print(result_analysis.stderr)
+                    print(f"[WARN] Failed to create post-target analysis CSV (exit {result_analysis.returncode}):")
+                    if result_analysis.stdout:
+                        print("STDOUT:", result_analysis.stdout)
+                    if result_analysis.stderr:
+                        print("STDERR:", result_analysis.stderr)
+                    if not result_analysis.stdout and not result_analysis.stderr:
+                        print("(no output captured)")
             else:
                 print(f"[WARN] Post-target analysis script not found: {create_analysis_script}")
         except Exception as e:
