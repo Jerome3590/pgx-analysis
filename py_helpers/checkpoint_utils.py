@@ -64,7 +64,7 @@ def check_step_outputs_exist(s3_paths: List[str], logger: Optional[logging.Logge
             return False
     
     if logger:
-        logger.info(f"✓ All {len(s3_paths)} outputs exist in S3, step can be skipped")
+        logger.info(f"[OK] All {len(s3_paths)} outputs exist in S3, step can be skipped")
     return True
 
 
@@ -94,7 +94,7 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
             try:
                 s3_client.head_object(Bucket=bucket, Key=key)
                 if logger:
-                    logger.info(f"✓ File already exists in S3: {s3_path} (skipping upload)")
+                    logger.info(f"[OK] File already exists in S3: {s3_path} (skipping upload)")
                 return True
             except s3_client.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] not in ["404", "NoSuchKey"]:
@@ -104,7 +104,7 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
         # Upload file
         s3_client.upload_file(str(local_path), bucket, key)
         if logger:
-            logger.info(f"✓ Uploaded to S3: {s3_path}")
+            logger.info(f"[OK] Uploaded to S3: {s3_path}")
         return True
     except Exception as e:
         if logger:
@@ -157,7 +157,7 @@ def save_step_checkpoint(
             ContentType="application/json"
         )
         if logger:
-            logger.info(f"✓ Saved checkpoint to s3://pgx-repository/{checkpoint_key}")
+            logger.info(f"[OK] Saved checkpoint to s3://pgx-repository/{checkpoint_key}")
         return True
     except Exception as e:
         if logger:
@@ -190,7 +190,7 @@ def check_step_checkpoint_exists(
     try:
         s3_client.head_object(Bucket="pgx-repository", Key=checkpoint_key)
         if logger:
-            logger.info(f"✓ Checkpoint exists: s3://pgx-repository/{checkpoint_key}")
+            logger.info(f"[OK] Checkpoint exists: s3://pgx-repository/{checkpoint_key}")
         return True
     except s3_client.exceptions.ClientError as e:
         if e.response["Error"]["Code"] in ["404", "NoSuchKey"]:
@@ -224,7 +224,7 @@ def delete_step_checkpoint(
     try:
         s3_client.delete_object(Bucket="pgx-repository", Key=checkpoint_key)
         if logger:
-            logger.info(f"✓ Deleted checkpoint: s3://pgx-repository/{checkpoint_key}")
+            logger.info(f"[OK] Deleted checkpoint: s3://pgx-repository/{checkpoint_key}")
         return True
     except s3_client.exceptions.ClientError as e:
         if e.response["Error"]["Code"] in ["404", "NoSuchKey"]:
