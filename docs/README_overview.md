@@ -101,7 +101,7 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 - **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
   - Age bands modeled: **65–74**, **75–84**, **85–94**
 
-**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3b), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). Step 1b (event filter: aggregated FI + ICD/administrative codes) runs before cohort creation; Step 4 builds model data and removes target leakage for case events.
+**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3c), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). Step 1b (event filter: aggregated FI + ICD/administrative codes) runs before cohort creation; Step 3c is the final update to features before Step 4; Step 4 builds model data and removes target leakage for case events.
 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3a_feature_importance/`) producing aggregated feature importances
@@ -114,7 +114,7 @@ For every `(cohort, age_band)` above we run:
 
 ### Workflow Pipeline
 
-Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for idempotency. Three notebooks: **1_cohort_workflow.ipynb** (Steps 1-2), **2_feature_importance.ipynb** (Steps 3a-3b), **3_pgx_calculator_workflow.ipynb** (Steps 4-9).
+Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for idempotency. Three notebooks: **1_cohort_workflow.ipynb** (Steps 1-2), **2_feature_importance.ipynb** (Steps 3a-3c), **3_pgx_calculator_workflow.ipynb** (Steps 4-9).
 
 ```mermaid
 flowchart TD
@@ -125,12 +125,13 @@ flowchart TD
         A3 --> A4[Quality Assurance]
     end
 
-    subgraph W2["2_feature_importance.ipynb (Steps 3a-3b)"]
+    subgraph W2["2_feature_importance.ipynb (Steps 3a-3c)"]
         A4 --> B1[3a: Monte Carlo CV]
         B1 --> B2[Aggregated Feature Importance]
         B2 --> B3[Top Features Selection]
-        B3 --> B4[BupaR Post-Target + Code Research]
-        B4 --> B6[Refined cohort_feature_importance.csv]
+        B3 --> B4[3b: BupaR Post-Target + Code Research]
+        B4 --> B5[3c: Final update to features]
+        B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
@@ -170,7 +171,7 @@ pgx-analysis/
 ├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, deployment (Lambda + S3)
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, Python/R deps, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
-├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3b (feature importance)
+├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)
 ├── 3_pgx_calculator_workflow.ipynb  # Workflow notebook: Steps 4–9 (dashboard deployment)
 ├── archived/                   # Code not called by the three notebooks (see archived/README.md)
 ├── py_helpers/                 # Shared Python helper utilities

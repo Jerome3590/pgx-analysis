@@ -11,8 +11,9 @@ ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`) b
 3. **Step 2** – Cohort creation (5:1 target:control) using filtered events.
 4. **Step 3a** – Feature importance (MC-CV) on cohort data (from filtered events).
 5. **Step 3b** – Feature Importance EDA (BupaR, code research) → refined `cohort_feature_importance.csv`.
-6. **Step 4** – Model data (`model_events.parquet`) using refined features; removes target leakage for case events.
-7. Steps 5–9 – PGx, final model, SHAP, FFA, risk dashboard.
+6. **Step 3c** – Final update to features (2_feature_importance.ipynb) → strip remaining BupaR leakage; these CSVs are the only input to Step 4.
+7. **Step 4** – Model data (`model_events.parquet`) using refined features from Step 3c; removes target leakage for case events.
+8. Steps 5–9 – PGx, final model, SHAP, FFA, risk dashboard.
 
 ## Why Step 1b runs before cohorts
 
@@ -24,4 +25,4 @@ ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`) b
 
 - Event filter implementation: `1b_apcd_event_filter/filter_protocol_events.py`
 - Lookup: `1b_apcd_event_filter/administrative_codes_lookup.json`
-- Workflow notebooks: `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3b)
+- Workflow notebooks: `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3c)

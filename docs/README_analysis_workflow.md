@@ -8,19 +8,20 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
 
 1. **Feature Screening** with three core models (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation  
 2. **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis to filter and refine aggregated feature importances, producing `cohort_feature_importance` files
-3. **Model Data Extraction** into `4_model_data/` (target vs control event datasets) using refined features from Feature Importance EDA  
-4. **Event Filtering (Step 1b)** – Aggregated FI + ICD/administrative code filtering in `1b_apcd_event_filter`; runs before cohort creation (Step 2).  
-5. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features  
-6. **Final Model Development** in `6_final_model/`
+3. **Step 3c (final update to features)** – Strip any remaining BupaR-identified leakage from `cohort_feature_importance.csv` in `2_feature_importance.ipynb`; these CSVs are the only input to Step 4
+4. **Model Data Extraction** into `4_model_data/` (target vs control event datasets) using refined features from Step 3c  
+5. **Event Filtering (Step 1b)** – Aggregated FI + ICD/administrative code filtering in `1b_apcd_event_filter`; runs before cohort creation (Step 2).
+6. **PGx Feature Engineering (Step 5)** via `5_pgx_analysis/` adding pharmacogenomics features
+7. **Final Model Development** in `6_final_model/`
    - Feature encoding (cohort- and age-band-specific lookup tables, drug codebooks; saved under `feature_encoding_outputs/`).
    - Final feature assembly, Monte Carlo CV, model training/export, and FFA-friendly JSON export. Train/test datasets are uploaded to S3 (required for SHAP and FFA analysis).  
-7. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP for both XGBoost and CatBoost, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to filter and prioritize rules.
-8. **Post‑Model Structural Analysis** via FFA (`8_ffa_analysis`):
+8. **SHAP-Based Distributional Analysis** via `7_shap_analysis` (global + local SHAP for both XGBoost and CatBoost, aligned with the final model feature set). Must run before Step 8 since FFA uses SHAP importance to filter and prioritize rules.
+9. **Post‑Model Structural Analysis** via FFA (`8_ffa_analysis`):
    - **XGBoost FFA only**: FFA analysis is performed only for XGBoost models
    - **CatBoost FFA**: NOT performed due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables
    - **CatBoost SHAP**: Used for feature importance filtering in XGBoost FFA (not for CatBoost FFA rule extraction)
    - **Rule Selection**: Uses SHAP importance from both XGBoost and CatBoost (from Step 7) to filter and prioritize rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) top 300 SHAP-filtered rules (or all rules above 10th percentile, whichever is larger). Causal analysis filters the final rule set based on causal importance scores.
-9. **Risk Calculator + Dashboard Deployment** via `9_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
+10. **Risk Calculator + Dashboard Deployment** via `9_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
 
 ## Phase 1: Monte Carlo CV + Feature Importance
 
@@ -50,11 +51,12 @@ strict temporal validation and a small, focused model ensemble.
    - **Code Research and Validation**: Research and identify non-informative administrative/scheduling codes (event-level filtering in Step 1b: `1b_apcd_event_filter`).
    - **Filter and Refine**: Refine aggregated feature importance and generate `cohort_feature_importance` files.
    - **Note**: This is NOT a DTW filter - it uses BupaR process mining and code research to filter already-processed aggregated feature importances.
-   - Output: `cohort_feature_importance.csv` files that feed into Step 4.
-6. **Model Data Extraction (`4_model_data/`)**  
-   - Use the refined `cohort_feature_importance` files from Feature Importance EDA to drive `4_model_data` extraction.
-   - **Target leakage removal (Step 4)**: For case events, keep only events **strictly before** the target date (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`); events on/after target date are dropped here (linear: 3b identifies → 4 removes).
-   - If Feature Importance EDA files are missing, Step 4 will error (no fallback to aggregated importances).
+   - Output: `cohort_feature_importance.csv` files (intermediate).
+6. **Step 3c (final update to features)** – In `2_feature_importance.ipynb`, strip any remaining BupaR-identified leakage from each `cohort_feature_importance.csv`. Step 4 uses only these updated CSVs (required; run after all Step 3b cells).
+7. **Model Data Extraction (`4_model_data/`)**  
+   - Use the refined `cohort_feature_importance` files from Step 3c to drive `4_model_data` extraction.
+   - **Target leakage removal (Step 4)**: For case events, keep only events **strictly before** the target date (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`); events on/after target date are dropped here (linear: 3b/3c identify → 4 removes).
+   - If Step 3c output is missing, Step 4 will error (no fallback to aggregated importances).
 
 **Cohort Focus Strategy (Phase 1):**
 
@@ -236,7 +238,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 ## Analysis Pipeline Overview
 
-Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3b** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. Step 1b: aggregated FI + ICD/administrative filtering. Step 4: model data and target leakage removal (case events before target date only).
+Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3c** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. Step 1b: aggregated FI + ICD/administrative filtering. Step 3c: final update to features passed into Step 4. Step 4: model data and target leakage removal (case events before target date only).
 
 ```mermaid
 flowchart TD
@@ -247,12 +249,13 @@ flowchart TD
         A3 --> A4[Quality Assurance]
     end
 
-    subgraph W2["2_feature_importance.ipynb (Steps 3a-3b)"]
+    subgraph W2["2_feature_importance.ipynb (Steps 3a-3c)"]
         A4 --> B1[3a: Monte Carlo CV]
         B1 --> B2[Aggregated Feature Importance]
         B2 --> B3[Top Features Selection]
-        B3 --> B4[BupaR Post-Target + Code Research]
-        B4 --> B6[Refined cohort_feature_importance.csv]
+        B3 --> B4[3b: BupaR Post-Target + Code Research]
+        B4 --> B5[3c: Final update to features]
+        B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]

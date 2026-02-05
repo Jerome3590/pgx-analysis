@@ -6,7 +6,7 @@ Visualization approaches, interpretation, and network analysis for the Prescript
 
 The pipeline generates various visualizations to help understand patterns, relationships, and model predictions. This document covers visualization approaches, interpretation guidelines, and common pitfalls.
 
-**Project approach:** FP-Growth, BupaR, and DTW are used for **dashboard visualizations only** (Step 9, `9_risk_dashboard/visualizations/`), not as model features. Model features come from aggregated feature importance (Steps 3a–3b), refined in Feature Importance EDA, then model data (Step 4). SHAP (Step 7) and FFA (Step 8) provide post-model interpretability; FFA uses SHAP to prioritize rules.
+**Project approach:** FP-Growth, BupaR, and DTW are used for **dashboard visualizations only** (Step 9, `9_risk_dashboard/visualizations/`), not as model features. Model features come from aggregated feature importance (Steps 3a–3c), refined in Feature Importance EDA with Step 3c as final update, then model data (Step 4). SHAP (Step 7) and FFA (Step 8) provide post-model interpretability; FFA uses SHAP to prioritize rules.
 
 ## Visualization Approaches
 

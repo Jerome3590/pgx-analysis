@@ -43,12 +43,13 @@ Shell scripts that ran the full pipeline (e.g. `run_cohort_workflow.sh`) are in 
 3. **Step 2**: Cohort creation (2_create_cohort) – 5:1 target:control cohorts.
 4. **Step 3a**: Feature importance (3a_feature_importance) – MC-CV aggregated importances (CatBoost, XGBoost, XGBoost RF).
 5. **Step 3b**: Feature Importance EDA (3b_feature_importance_eda) – BupaR post-target analysis, code research; outputs refined `cohort_feature_importance.csv`.
-6. **Step 4**: Model data (4_model_data) – `model_events.parquet` from refined features; removes target leakage (events on/after target date) for case events.
-7. **Step 5**: PGx feature engineering (5_pgx_analysis).
-8. **Step 6**: Final model (6_final_model) – training and selection (Recall / AUC-PR).
-9. **Step 7**: SHAP analysis (7_shap_analysis).
-10. **Step 8**: FFA analysis (8_ffa_analysis) – XGBoost only, SHAP-prioritized rules.
-11. **Step 9**: Risk dashboard (9_risk_dashboard) – deployment (Lambda, dashboard).
+6. **Step 3c**: Final update to features (2_feature_importance.ipynb) – Strip remaining BupaR-identified leakage from `cohort_feature_importance.csv`; these CSVs are the only input to Step 4.
+8. **Step 4**: Model data (4_model_data) – `model_events.parquet` from refined features; removes target leakage (events on/after target date) for case events.
+9. **Step 5**: PGx feature engineering (5_pgx_analysis).
+10. **Step 6**: Final model (6_final_model) – training and selection (Recall / AUC-PR).
+11. **Step 7**: SHAP analysis (7_shap_analysis).
+12. **Step 8**: FFA analysis (8_ffa_analysis) – XGBoost only, SHAP-prioritized rules.
+13. **Step 9**: Risk dashboard (9_risk_dashboard) – deployment (Lambda, dashboard).
 
 The scripts are idempotent and will skip completed steps automatically.
 
@@ -59,7 +60,7 @@ The pipeline is split into three workflow notebooks for clarity and rerun contro
 | Notebook | Scope | Purpose |
 |----------|--------|---------|
 | **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Steps 1–2 | Build cohorts: APCD input (1a), event filter (1b), cohort creation (2). Run first; then rerun feature importance after cohorts exist. |
-| **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Step 3a / 3b | Feature importance (3a MC-CV) and Feature Importance EDA (3b BupaR, code research). Run after cohorts; ICD filtering is applied earlier (1b) for efficient data processing and true feature importances. |
+| **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Steps 3a–3c | Feature importance (3a MC-CV), Feature Importance EDA (3b BupaR, code research), and final update to features (3c). Step 3c ensures the feature list passed to Step 4 is leakage-free. Run after cohorts. |
 | **[3_pgx_calculator_workflow.ipynb](3_pgx_calculator_workflow.ipynb)** | Steps 4–9 | Model data, training, SHAP/FFA, and risk dashboard deployment. |
 
 **ICD filtering moved earlier:** Administrative/ICD code filtering runs in **1b_apcd_event_filter** (before cohort creation). That reduces downstream data volume and ensures feature importance (Step 3a/3b) is computed on the same filtered event set, capturing true predictive features. After moving ICD filtering earlier, feature importances must be rerun once cohorts are rebuilt.
@@ -81,7 +82,7 @@ pgx-analysis/
 ├── 9_risk_dashboard/           # Step 9: Risk dashboard deployment (Lambda, dashboard UI)
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
-├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3b (feature importance)
+├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)
 ├── 3_pgx_calculator_workflow.ipynb  # Workflow notebook: Steps 4–9 (dashboard deployment)
 ├── archived/                   # Code not called by the three notebooks (see archived/README.md)
 │   ├── utility_scripts/        # Old workflow shell scripts, sync/download/run scripts
@@ -105,12 +106,13 @@ flowchart TD
         A3 --> A4[Quality Assurance]
     end
 
-    subgraph W2["2_feature_importance.ipynb (Steps 3a-3b)"]
+    subgraph W2["2_feature_importance.ipynb (Steps 3a-3c)"]
         A4 --> B1[3a: Monte Carlo CV]
         B1 --> B2[Aggregated Feature Importance]
         B2 --> B3[Top Features Selection]
-        B3 --> B4[BupaR Post-Target + Code Research]
-        B4 --> B6[Refined cohort_feature_importance.csv]
+        B3 --> B4[3b: BupaR Post-Target + Code Research]
+        B4 --> B5[3c: Final update to features]
+        B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
     subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]

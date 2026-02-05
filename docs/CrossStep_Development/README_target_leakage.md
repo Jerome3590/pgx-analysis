@@ -26,7 +26,7 @@ This ensures that at prediction time, we don't need to know if/when F1120 will o
 
 ### Where Event-Level Leakage Is Removed (Pipeline)
 
-Step 4 (model data) removes target leakage when building `model_events.parquet`: for **case events**, only events **strictly before** the target date are kept (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`). Events on or after the target date are dropped. Implemented in **Step 4** (`4_model_data/create_model_data.py`). Step 3b (e.g. BupaR post-target analysis) identifies leakage; Step 4 applies the filter when constructing model data.
+Step 4 (model data) removes target leakage when building `model_events.parquet`: for **case events**, only events **strictly before** the target date are kept (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`). Events on or after the target date are dropped. Implemented in **Step 4** (`4_model_data/create_model_data.py`). Step 3b (e.g. BupaR post-target analysis) and Step 3c identify leakage; Step 3c strips it from the feature list; Step 4 applies the filter when constructing model data.
 
 ---
 
