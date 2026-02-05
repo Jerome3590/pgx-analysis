@@ -117,16 +117,16 @@ def analyze_post_target_leakage_from_events(
         if path.exists():
             model_data_path = path
             break
-    
+
     if not model_data_path:
         print(f"[ERROR] Model events file not found. Checked:")
         for path in model_data_paths:
             print(f"  - {path}")
         return pd.DataFrame()
-    
+
     print(f"Loading event data from: {model_data_path}")
-    
-    # Target by cohort: opioid_ed -> F1120, non_opioid_ed -> HCG (polypharmacy / 14-day window)
+
+    # Target by cohort: opioid_ed -> F1120, non_opioid_ed -> first_ed_non_opioid_date from cohort (polypharmacy)
     uses_f1120 = cohort_uses_f1120_target(cohort)
     target_name = get_target_name_by_cohort(cohort)
     # Cohort-specific analysis scope
@@ -134,11 +134,11 @@ def analyze_post_target_leakage_from_events(
         print(f"[INFO] POLYPHARMACY COHORT: Analyzing DRUGS only (target: {target_name})")
     else:
         print(f"[INFO] OPIOID_ED COHORT: Analyzing all features (target: {target_name})")
-    
+
     con = duckdb.connect()
-    
+
     # Query to analyze each feature's pre/post target distribution
-    # opioid_ed: first F1120 event date; non_opioid_ed: first HCG (ED visit) date
+    # opioid_ed: first F1120 event date from model_events; non_opioid_ed: first_ed_non_opioid_date from cohort parquet (model_events may be pharmacy-only, so no hcg_line)
     model_data_path_str = str(model_data_path).replace("'", "''")
 
     if uses_f1120:
@@ -167,14 +167,29 @@ def analyze_post_target_leakage_from_events(
     ),
     """
     else:
-        # POLYPHARMACY COHORT: Find first time-windowed HCG event (specific hcg_line values) for each patient
+        # POLYPHARMACY COHORT: Get target date from cohort parquet (first_ed_non_opioid_date).
+        # model_events for polypharmacy may contain only drug (pharmacy) events for cases, so hcg_line is always NULL there.
+        cohort_parquet_paths = []
+        for year in [2016, 2017, 2018, 2019]:
+            for base in [project_root, data_root]:
+                p = base / "gold" / "cohorts" / f"cohort_name={cohort}" / f"event_year={year}" / f"age_band={age_band}" / "cohort.parquet"
+                if p.exists():
+                    cohort_parquet_paths.append(str(p))
+                    break
+        if not cohort_parquet_paths:
+            print(f"[ERROR] Cohort parquet(s) not found for {cohort}/{age_band}. Need first_ed_non_opioid_date for polypharmacy target. Checked gold/cohorts/cohort_name={cohort}/event_year=*/age_band={age_band}/cohort.parquet under project_root and data_root.")
+            con.close()
+            return pd.DataFrame()
+        cohort_paths_literal = ", ".join(f"'{p.replace(chr(39), chr(39) + chr(39))}'" for p in cohort_parquet_paths)
         query = f"""
     WITH target_patients AS (
-        SELECT DISTINCT
+        SELECT
             mi_person_key,
-            MIN(CASE WHEN hcg_line IS NOT NULL THEN CAST(event_date AS DATE) END) as target_date
-        FROM read_parquet('{model_data_path_str}')
-        WHERE target = 1
+            MIN(CAST(TRIM(first_ed_non_opioid_date) AS DATE)) as target_date
+        FROM read_parquet([{cohort_paths_literal}])
+        WHERE is_target_case = 1
+          AND first_ed_non_opioid_date IS NOT NULL
+          AND TRIM(first_ed_non_opioid_date) <> ''
         GROUP BY mi_person_key
         HAVING target_date IS NOT NULL
     ),
