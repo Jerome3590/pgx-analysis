@@ -38,7 +38,7 @@ from py_helpers.constants import (
     RETRY_DELAY,
     DICTIONARY_SIZE_LIMIT_PERCENT,
     BLOOM_FILTER_FALSE_POSITIVE_RATIO,
-    OPIOID_ICD_CODES,
+    get_opioid_icd_sql_condition,
     S3_BUCKET
 )
 
@@ -430,7 +430,9 @@ def run_step7_event_features_optimized(context):
         # Enable query profiling for this step
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_step7_event_features.json")
         
-        # Create unified event features using pre-imputed demographics
+        # Create unified event features using pre-imputed demographics.
+        # Event classification: check ALL 10 ICD diagnosis columns for opioid codes (match Phase 2 logic).
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         event_features_sql = f"""
         CREATE OR REPLACE VIEW cohort_event_features AS
         SELECT 
@@ -447,9 +449,9 @@ def run_step7_event_features_optimized(context):
             primary_icd_diagnosis_code,
             NULL as drug_name,
             NULL as therapeutic_class_1,
-            -- Event classification
+            -- Event classification (all 10 ICD columns, consistent with Phase 2)
             CASE 
-                WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {opioid_icd_condition} THEN 'opioid_ed'
                 ELSE 'ed_non_opioid'
             END as event_classification,
             -- First event flags
@@ -879,7 +881,9 @@ def run_phase2_step1_event_fact_table(context):
         # Enable query profiling for this step
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profiling_phase2_step1_event_fact_table.json")
         
-        # Create unified event fact table
+        # Create unified event fact table.
+        # Event classification: check ALL 10 ICD diagnosis columns for opioid codes (match Phase 2 logic).
+        opioid_icd_condition = get_opioid_icd_sql_condition()
         event_fact_table_sql = f"""
         CREATE OR REPLACE VIEW unified_event_fact_table AS
         SELECT 
@@ -896,9 +900,9 @@ def run_phase2_step1_event_fact_table(context):
             primary_icd_diagnosis_code,
             NULL as drug_name,
             NULL as therapeutic_class_1,
-            -- Event classification
+            -- Event classification (all 10 ICD columns, consistent with Phase 2)
             CASE 
-                WHEN primary_icd_diagnosis_code IN {tuple(OPIOID_ICD_CODES)} THEN 'opioid_ed'
+                WHEN {opioid_icd_condition} THEN 'opioid_ed'
                 ELSE 'ed_non_opioid'
             END as event_classification,
             -- First event flags

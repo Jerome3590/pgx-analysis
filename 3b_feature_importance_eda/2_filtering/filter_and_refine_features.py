@@ -39,7 +39,9 @@ from py_helpers.feature_utils import (
     normalize_feature_name,
     normalize_feature_set,
     sanitize_feature_names,
-    sanitize_column_names
+    sanitize_column_names,
+    feature_to_code,
+    is_substance_use_disorder_code,
 )
 from py_helpers.feature_importance_eda_utils import (
     load_aggregated_feature_importance,
@@ -122,7 +124,8 @@ def filter_and_refine_features(
     bupar_results: pd.DataFrame,
     filter_post_target: bool = True,
     min_importance_threshold: float = 0.0,
-    safe_feature_filter: Optional[tuple[Set[str], Optional[Set[str]]]] = None
+    safe_feature_filter: Optional[tuple[Set[str], Optional[Set[str]]]] = None,
+    cohort: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Filter and refine feature importances based on EDA results.
@@ -133,6 +136,7 @@ def filter_and_refine_features(
         filter_post_target: Whether to filter post-target leakage features
         min_importance_threshold: Minimum importance threshold to keep
         safe_feature_filter: Tuple of (features_to_keep_for_cases, features_to_exclude_for_controls)
+        cohort: Cohort name (e.g. opioid_ed). When opioid_ed, excludes F11.x target-family codes from features.
     
     Returns:
         Refined feature importance DataFrame
@@ -152,6 +156,7 @@ def filter_and_refine_features(
     filtering_summary = {
         'original_count': len(refined_fi),
         'filtered_by_post_target': 0,
+        'filtered_by_target_family': 0,
         'filtered_by_threshold': 0,
         'filtered_by_safe_filter': 0,
         'final_count': 0
@@ -221,6 +226,16 @@ def filter_and_refine_features(
         else:
             print(f"[WARN] BupaR CSV has no leakage features identified (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
     
+    # Exclude target-family codes (F10/F11/F19 substance use disorder) for opioid_ed — they are outcome, not predictors
+    if cohort and (str(cohort).strip().lower() == "opioid_ed"):
+        before_count = len(refined_fi)
+        refined_fi["_code"] = refined_fi["feature"].apply(feature_to_code)
+        refined_fi = refined_fi[~refined_fi["_code"].apply(is_substance_use_disorder_code)].copy()
+        refined_fi = refined_fi.drop(columns=["_code"], errors="ignore")
+        n_target_family = before_count - len(refined_fi)
+        filtering_summary["filtered_by_target_family"] = n_target_family
+        if n_target_family > 0:
+            print(f"Excluded {n_target_family} target-family (F10/F11/F19 substance use disorder) features — outcome codes, not predictors")
     
     # Filter by minimum importance threshold
     if 'importance_scaled_by_model_sum' in refined_fi.columns:
@@ -334,7 +349,8 @@ def main():
         bupar_results=bupar_results,
         filter_post_target=not args.no_filter_post_target,
         min_importance_threshold=args.min_importance,
-        safe_feature_filter=safe_feature_filter
+        safe_feature_filter=safe_feature_filter,
+        cohort=args.cohort,
     )
     
     # Save refined feature importance
@@ -371,6 +387,8 @@ def main():
         print(f"  Filtered by safe feature filter (whitelist): {filtering_summary['filtered_by_safe_filter']}")
     else:
         print(f"  Filtered by post-target: {filtering_summary['filtered_by_post_target']}")
+    if filtering_summary.get('filtered_by_target_family', 0) > 0:
+        print(f"  Filtered by target-family (F10/F11/F19): {filtering_summary['filtered_by_target_family']}")
     print(f"  Filtered by threshold: {filtering_summary['filtered_by_threshold']}")
     print(f"  Final features: {filtering_summary['final_count']}")
     
