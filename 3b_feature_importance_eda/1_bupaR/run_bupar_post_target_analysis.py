@@ -35,7 +35,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, get_cohort_slug
 from py_helpers.rscript_utils import find_rscript, print_rscript_version
 
 
@@ -87,9 +87,13 @@ def run_bupar_analysis(
         print(f"[ERROR] R script not found: {r_script}")
         return False
 
-    # Build BupaR input from cohort + 3a aggregated FI + target (so BupaR can run before Step 4)
+    # Build BupaR input from cohort + 3a aggregated FI + target if not already present (idempotent)
+    cohort_slug = get_cohort_slug(age_band)
+    target_parquet = project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet"
     build_script = project_root / "3b_feature_importance_eda" / "create_bupar_input_from_cohort.py"
-    if build_script.exists():
+    if target_parquet.exists():
+        print(f"[INFO] BupaR input already exists at {target_parquet}; skipping build.")
+    elif build_script.exists():
         print(f"[INFO] Building BupaR input from cohort data + 3a aggregated FI + target...")
         build_result = subprocess.run(
             [sys.executable, str(build_script), "--cohort", cohort, "--age-band", age_band],
@@ -104,7 +108,7 @@ def run_bupar_analysis(
                 print(build_result.stdout)
             if build_result.stderr:
                 print(build_result.stderr)
-            print(f"[WARN] BupaR input build failed (exit {build_result.returncode}); R will try existing paths (e.g. Step 4 output)")
+            print(f"[WARN] BupaR input build failed (exit {build_result.returncode}); R will try existing paths.")
     
     # Change to project root directory for R script
     original_cwd = os.getcwd()

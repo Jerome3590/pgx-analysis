@@ -74,12 +74,23 @@ ensure_control_cohort_with_ratio <- function(
   n_cases <- 0
   n_controls <- 0
   
+  # Only delete control file when it's under 3b output (never delete gold)
+  control_path_under_3b <- function() {
+    if (is.null(output_root_3b) || !nzchar(output_root_3b)) return(TRUE)
+    grepl(gsub("\\\\", "/", output_root_3b), gsub("\\\\", "/", control_model_data_path), fixed = TRUE)
+  }
+  
   if (file.exists(control_model_data_path)) {
     # Check if file is valid parquet (not empty/corrupted)
     file_size <- file.info(control_model_data_path)$size
     if (is.na(file_size) || file_size < 1000) {  # Parquet files should be at least 1KB
-      cat("⚠️  Control cohort file exists but is too small/corrupted (", file_size, " bytes). Will recreate.\n", sep = "")
-      unlink(control_model_data_path)  # Delete invalid file
+      cat("⚠️  Control cohort file exists but is too small/corrupted (", file_size, " bytes).\n", sep = "")
+      if (control_path_under_3b()) {
+        unlink(control_model_data_path)
+        cat("   Removed 3b copy; will recreate.\n", sep = "")
+      } else {
+        cat("   File is under gold; not removing. Will use as-is or run without control.\n", sep = "")
+      }
       needs_recreation <- TRUE
     } else {
       # Try to validate parquet file by attempting a simple query
@@ -91,8 +102,12 @@ ensure_control_cohort_with_ratio <- function(
         }
       }, error = function(e) {
         cat("⚠️  Control cohort file exists but is invalid/corrupted: ", conditionMessage(e), "\n", sep = "")
-        cat("   File size: ", file_size, " bytes. Will delete and recreate.\n", sep = "")
-        unlink(control_model_data_path)  # Delete invalid file
+        if (control_path_under_3b()) {
+          unlink(control_model_data_path)
+          cat("   Removed 3b copy; will recreate.\n", sep = "")
+        } else {
+          cat("   File is under gold; not removing.\n", sep = "")
+        }
         needs_recreation <<- TRUE
       })
     }
@@ -108,8 +123,12 @@ ensure_control_cohort_with_ratio <- function(
         n_controls <- dbGetQuery(con, query_control_count)$n_controls[1]
       }, error = function(e) {
         cat("⚠️  Failed to query control cohort file: ", conditionMessage(e), "\n", sep = "")
-        cat("   File may be corrupted. Will delete and recreate.\n", sep = "")
-        unlink(control_model_data_path)
+        if (control_path_under_3b()) {
+          unlink(control_model_data_path)
+          cat("   Removed 3b copy; will recreate.\n", sep = "")
+        } else {
+          cat("   File is under gold; not removing.\n", sep = "")
+        }
         needs_recreation <<- TRUE
         n_controls <<- 0
       })
@@ -141,12 +160,25 @@ ensure_control_cohort_with_ratio <- function(
   }
   
   # Step 3: Recreate control cohort if needed or if missing
+  # Do not delete or overwrite control that lives on NVMe gold/4_model_data; only recreate when the path is under 3b output
+  if (needs_recreation && file.exists(control_model_data_path) && !is.null(output_root_3b) && nzchar(output_root_3b)) {
+    path_normalized <- gsub("\\\\", "/", control_model_data_path)
+    root_3b_normalized <- gsub("\\\\", "/", output_root_3b)
+    if (!grepl(root_3b_normalized, path_normalized, fixed = TRUE)) {
+      cat("⚠️  Control cohort found at ", control_model_data_path, " (not under 3b output). Using as-is; not recreating.\n", sep = "")
+      needs_recreation <- FALSE
+    }
+  }
   if (needs_recreation || !file.exists(control_model_data_path)) {
     if (needs_recreation) {
-      # Remove existing file
+      # Remove existing file only if it is under 3b output (we never delete gold/4_model_data)
       if (file.exists(control_model_data_path)) {
-        file.remove(control_model_data_path)
-        cat("[INFO] Removed existing control cohort file for recreation\n")
+        path_normalized <- gsub("\\\\", "/", control_model_data_path)
+        root_3b_normalized <- if (!is.null(output_root_3b) && nzchar(output_root_3b)) gsub("\\\\", "/", output_root_3b) else ""
+        if (root_3b_normalized == "" || grepl(root_3b_normalized, path_normalized, fixed = TRUE)) {
+          file.remove(control_model_data_path)
+          cat("[INFO] Removed existing control cohort file for recreation\n")
+        }
       }
     }
     
