@@ -3,7 +3,7 @@
 **Date:** December 9, 2025  
 **Purpose:** Standardize output directory structure and sequential workflow across all analysis steps.
 
-**Project alignment:** Step numbering and folder names match the main workflow: **1a_apcd_input_data**, **1b_apcd_event_filter**, **2_create_cohort**, **3a_feature_importance**, **3b_feature_importance_eda**, **4_model_data**, **5_pgx_analysis**, **6_final_model**, **7_shap_analysis**, **8_ffa_analysis**, **9_risk_dashboard**. Three workflow notebooks: 1_cohort_workflow.ipynb (1–2), 2_feature_importance.ipynb (3a–3b), 3_pgx_calculator_workflow.ipynb (4–9).
+**Project alignment:** Step numbering and folder names match the main workflow: **1a_apcd_input_data**, **1b_apcd_event_filter**, **2_create_cohort**, **3a_feature_importance**, **3b_feature_importance_eda**, **4_model_data**, **5_pgx_analysis**, **6_final_model**, **7_shap_analysis**, **8_ffa_analysis**, **9_risk_dashboard**. Three workflow notebooks: 1_cohort_workflow.ipynb (1–2), 2_feature_importance.ipynb (3a–3c), 3_pgx_calculator_workflow.ipynb (4–9).
 
 ---
 
@@ -25,6 +25,8 @@ Step 2: Cohort Creation (2_create_cohort)
 Step 3a: Feature Importance – MC-CV (3a_feature_importance)
   ↓
 Step 3b: Feature Importance EDA – BupaR, code research (3b_feature_importance_eda)
+  ↓
+Step 3c: Final update to features (2_feature_importance.ipynb) – strip remaining BupaR leakage from cohort_feature_importance.csv
   ↓ (2_feature_importance.ipynb complete; outputs refined cohort_feature_importance.csv)
 Step 4: Model Data (4_model_data) – model_events.parquet from refined features
   ↓
@@ -80,6 +82,10 @@ Use this checklist to track progress:
 - [ ] **Step 3b: Feature Importance EDA** (`3b_feature_importance_eda/`)
   - [ ] BupaR post-target and code research completed
   - [ ] Refined cohort_feature_importance.csv generated per cohort/age_band
+  - [ ] **READY FOR STEP 3c** ✅
+
+- [ ] **Step 3c: Final update to features** (`2_feature_importance.ipynb`)
+  - [ ] Step 3c cell run after all Step 3b cells; remaining BupaR leakage stripped from cohort_feature_importance.csv
   - [ ] **READY FOR STEP 4** ✅
 
 - [ ] **Step 4: Model Data** (`4_model_data/`)
@@ -240,7 +246,7 @@ ggsave(
 ## Current Analysis Steps
 
 ### ✅ 3a_feature_importance
-- **Notebook**: `feature_importance_cohort_runner.ipynb` (or use root `2_feature_importance.ipynb` for Steps 3a–3b)
+- **Notebook**: `feature_importance_cohort_runner.ipynb` (or use root `2_feature_importance.ipynb` for Steps 3a–3c)
 - **Supporting Scripts**: `run_cohort_*.py`, `run_mc_feature_importance.py` (orchestrated by notebook)
 - **Output Directory**: `3a_feature_importance/outputs/`
 - **Plots Directory**: `3a_feature_importance/outputs/plots/` (auto-created)
@@ -363,7 +369,7 @@ Each step may depend on outputs from previous steps:
 |------|------------|------------|
 | **3a_feature_importance** | Cohort data (`2_create_cohort/`) | Cohort parquet (after 1a, 1b, 2) |
 | **3b_feature_importance_eda** | Step 3a outputs | Aggregated feature importance |
-| **4_model_data** | Step 3b outputs | Refined cohort_feature_importance.csv |
+| **4_model_data** | Step 3c outputs | Refined cohort_feature_importance.csv (final) |
 | **5_pgx_analysis** | Step 4 outputs | model_events.parquet |
 | **6_final_model** | Step 5 outputs | PGx features + model events |
 | **7_shap_analysis** | Step 6 outputs | Trained models, feature schema |

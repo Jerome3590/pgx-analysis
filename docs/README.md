@@ -7,7 +7,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 ### Final Workflow (Three Notebooks)
 
 - **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
-- **2_feature_importance.ipynb** (Steps 3a-3b): 3a MC-CV feature importance, 3b BupaR/code research. Run after cohorts; sync gold/cohorts from S3.
+- **2_feature_importance.ipynb** (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
 - **3_pgx_calculator_workflow.ipynb** (Steps 4-9): Model data, PGx, final model, SHAP, FFA, risk dashboard deployment. Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
 
 ### Step 1-2: Data Pipeline & Cohort Creation
@@ -29,13 +29,13 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 - **BupaR Post-Target Analysis** – Uses process mining to identify post-target leakage; Step 4 removes those events when building model data
 - **Code Research and Validation** – Researches and identifies non-value-added administrative/scheduling codes (event-level filtering in **Step 1b**: `1b_apcd_event_filter`)
-- **Output**: Refined `cohort_feature_importance.csv` files that feed into Step 4
+- **Output**: Refined `cohort_feature_importance.csv` files; Step 3c (2_feature_importance.ipynb) is the final update before Step 4
 
 ### Step 4: Model Data
 **Code**: `4_model_data/`
 
 - **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations.
-- Model-ready event datasets (target vs control) using refined features from Step 3b. Step 4 removes target leakage for case events (events before target date only). Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
+- Model-ready event datasets (target vs control) using refined features from Step 3c. Step 4 removes target leakage for case events (events before target date only). Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 5: PGx Feature Engineering
 **Location**: [`Step5_PGxAnalysis/`](Step5_PGxAnalysis/)

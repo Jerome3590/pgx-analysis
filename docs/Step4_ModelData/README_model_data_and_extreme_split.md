@@ -1,13 +1,13 @@
 ## Step 4: Model Data
 
-This step produces **model-ready event data** for each `(cohort, age_band)` using refined feature importance from Step 3b. Step 4 removes target leakage for case events (events before target date only). ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`).
+This step produces **model-ready event data** for each `(cohort, age_band)` using refined feature importance from Step 3c. Step 4 removes target leakage for case events (events before target date only). ICD/administrative code filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 4 – Model Data (`4_model_data/`)
 
 **Goal**: Build compact, analysis-ready `model_events.parquet` files for target and control cohorts.
 
 - **Target and control** (per cohort/age_band):
-  - Reads refined `cohort_feature_importance.csv` from Step 3b (required).
+  - Reads refined `cohort_feature_importance.csv` from Step 3c (required).
   - Reads Step 2 cohort parquets and gold medical/pharmacy from `DATA_ROOT/gold/cohorts`, `gold/medical`, `gold/pharmacy` (or project data paths on Windows).
   - Builds cases (target=1) and controls (target=0), samples controls to approximate 5:1 ratio.
   - Writes: `4_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet`
