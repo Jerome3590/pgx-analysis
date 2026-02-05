@@ -5,10 +5,11 @@ Feature Importance EDA and Refinement - Orchestration Script
 Runs all Feature Importance EDA analyses in order:
 1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
 2. BupaR post-target analysis (identify pre/post target events; F1120 for opioid_ed, HCG for polypharmacy)
-3. Create safe feature filter (exclude leakage, keep pre-target features)
-4. Filter and refine feature importances
+3. Create safe feature filter JSON (idempotent: skip if already exists; exclude leakage, keep pre-target features)
+4. Filter and refine feature importances (uses safe_feature_filter.json when present)
+5. Create BupaR visualizations
 
-Outputs refined cohort_feature_importance files for Step 4a.
+Outputs refined cohort_feature_importance files for Step 4.
 """
 
 import argparse
@@ -76,6 +77,32 @@ def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
 
 
 
+def run_create_safe_feature_filter(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """Create safe feature filter JSON (idempotent: skip if JSON already exists)."""
+    age_band_fname = age_band_to_fname(age_band)
+    output_dir = script_dir / "outputs" / cohort / age_band_fname
+    json_path = output_dir / f"{cohort}_{age_band_fname}_safe_feature_filter.json"
+    if json_path.exists():
+        print(f"\n[INFO] Safe feature filter already exists (idempotent skip): {json_path}")
+        return True
+    print(f"\n{'='*80}")
+    print(f"Creating Safe Feature Filter: {cohort} / {age_band}")
+    print(f"{'='*80}")
+    script_path = script_dir / "2_filtering" / "create_safe_feature_filter_json.py"
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cohort", cohort,
+        "--age-band", age_band,
+    ]
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode == 0
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Create safe feature filter failed: {e}")
+        return False
+
+
 def run_filter_and_refine(cohort: str, age_band: str, script_dir: Path) -> bool:
     """Run filter and refine step."""
     print(f"\n{'='*80}")
@@ -137,12 +164,16 @@ def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir
     if not run_bupar_analysis(cohort, age_band, script_dir):
         print(f"[WARN] BupaR analysis failed, continuing...")
     
-    # Step 3: Filter and refine (combines all filtering results)
+    # Step 3: Create safe feature filter JSON (idempotent: skip if already exists)
+    if not run_create_safe_feature_filter(cohort, age_band, script_dir):
+        print("[WARN] Safe feature filter not created; filter_and_refine will use BupaR CSV fallback")
+
+    # Step 4: Filter and refine (combines all filtering results; uses safe_feature_filter.json when present)
     if not run_filter_and_refine(cohort, age_band, script_dir):
         print(f"[ERROR] Filter and refine failed")
         return False
     
-    # Step 4: Create BupaR visualizations
+    # Step 5: Create BupaR visualizations
     if not create_bupar_visualizations(cohort, age_band, script_dir):
         print(f"[WARN] BupaR visualization creation failed, continuing...")
     
