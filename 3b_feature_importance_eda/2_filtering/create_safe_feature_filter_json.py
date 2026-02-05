@@ -2,10 +2,12 @@
 """
 Create safe feature filter JSON: Exclude post-target leakage, keep all pre-target features.
 
+Works for any target: F1120 (opioid use disorder) or HCG windowed (ED visit) target.
+
 This script:
 1. Loads bupar_post_target_analysis.csv
-2. Excludes features with >=80% post-F1120 ratio (pure leakage)
-3. Keeps ALL features with ANY pre-F1120 presence (maximize information)
+2. Excludes features with >=threshold post-target ratio (pure leakage)
+3. Keeps ALL features with ANY pre-target presence (maximize information)
 4. Creates a JSON file with features to KEEP for both cases and controls
 """
 
@@ -35,7 +37,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_target_name
+from py_helpers.constants import age_band_to_fname, get_target_name_by_cohort, cohort_uses_f1120_target
 from py_helpers.feature_utils import categorize_feature
 
 
@@ -45,13 +47,16 @@ from py_helpers.feature_utils import categorize_feature
 def create_safe_feature_filter_json(
     cohort: str,
     age_band: str,
-    post_f1120_threshold: float = 0.8,
+    post_target_threshold: float = 0.8,
     min_events: int = 1  # Keep features with at least 1 event
 ):
-    """Create safe feature filter: exclude post-target leakage, keep all pre-target features."""
+    """Create safe feature filter: exclude post-target leakage, keep all pre-target features.
+    Works for F1120 target (age < 65) or HCG windowed target (age >= 65)."""
     age_band_fname = age_band_to_fname(age_band)
     project_root = PROJECT_ROOT
-    
+    # Target by cohort: opioid_ed=F1120, non_opioid_ed=HCG (polypharmacy / 14-day window)
+    target_name = get_target_name_by_cohort(cohort)
+
     # Load BupaR analysis results
     analysis_path = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname / f"{cohort}_{age_band_fname}_bupar_post_target_analysis.csv"
     
@@ -73,9 +78,9 @@ def create_safe_feature_filter_json(
     
     print(f"\n{'='*80}")
     print(f"Creating Safe Feature Filter JSON")
-    print(f"Cohort: {cohort} / Age Band: {age_band}")
-    print(f"Strategy: Exclude post-target leakage (>= {post_f1120_threshold:.0%} post-F1120)")
-    print(f"          Keep ALL features with ANY pre-F1120 presence")
+    print(f"Cohort: {cohort} / Age Band: {age_band} / Target: {target_name}")
+    print(f"Strategy: Exclude post-target leakage (>= {post_target_threshold:.0%} post-{target_name})")
+    print(f"          Keep ALL features with ANY pre-{target_name} presence")
     print(f"{'='*80}\n")
     
     # Following cursor dev rules: Use DuckDB to read CSV/Parquet files instead of pandas
@@ -83,45 +88,50 @@ def create_safe_feature_filter_json(
     con = duckdb.connect()
     path_str = str(analysis_path).replace("'", "''")
     # Check for Parquet first (preferred), then CSV
-    parquet_path = analysis_path.with_suffix('.parquet')
+    parquet_path = analysis_path.with_suffix(".parquet")
     if parquet_path.exists():
-        df = con.execute(f"SELECT * FROM read_parquet('{str(parquet_path).replace(\"'\", \"''\")}')").df()
+        parquet_path_str = str(parquet_path).replace("'", "''")
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path_str}')").df()
     else:
         df = con.execute(f"SELECT * FROM read_csv_auto('{path_str}')").df()
     con.close()
-    
-    # Filter: Exclude pure post-target leakage (>=80% post-F1120)
-    # Keep everything else (including mixed-timing features with any pre-F1120 presence)
-    post_leakage = df[df['post_f1120_ratio'] >= post_f1120_threshold].copy()
-    
+
+    # Support both generic (post_target_ratio) and legacy (post_f1120_ratio) column names
+    post_ratio_col = "post_target_ratio" if "post_target_ratio" in df.columns else "post_f1120_ratio"
+    pre_ratio_col = "pre_target_ratio" if "pre_target_ratio" in df.columns else "pre_f1120_ratio"
+    if post_ratio_col not in df.columns:
+        print(f"[ERROR] Analysis CSV must have 'post_target_ratio' or 'post_f1120_ratio'. Found: {list(df.columns)}")
+        return None
+
+    # Filter: Exclude pure post-target leakage (>=threshold post-target)
+    # Keep everything else (including mixed-timing features with any pre-target presence)
+    post_leakage = df[df[post_ratio_col] >= post_target_threshold].copy()
+
     # Features to keep: everything that's NOT pure post-target leakage
-    # This includes:
-    # - Pure pre-target features (>=80% pre-F1120)
-    # - Mixed-timing features (any pre-F1120 presence, <80% post-F1120)
-    features_to_keep = df[df['post_f1120_ratio'] < post_f1120_threshold].copy()
-    
+    features_to_keep = df[df[post_ratio_col] < post_target_threshold].copy()
+
     # Ensure minimum event count
     features_to_keep = features_to_keep[features_to_keep['total_count'] >= min_events].copy()
-    
-    # IMPORTANT: Always include F1120 for target creation
-    f1120_feature = 'item_icd_F1120'
-    if f1120_feature not in features_to_keep['feature'].values:
-        # Check if F1120 is in the leakage list (it shouldn't be, but just in case)
-        f1120_row = df[df['feature'] == f1120_feature]
-        if len(f1120_row) > 0:
-            features_to_keep = pd.concat([features_to_keep, f1120_row], ignore_index=True)
-            print(f"[INFO] Added {f1120_feature} to keep list (needed for target creation)")
+
+    # Target feature to always include (only opioid_ed has single ICD target F1120; non_opioid_ed uses HCG window)
+    target_feature = "item_icd_F1120" if cohort_uses_f1120_target(cohort) else None
+    if target_feature and target_feature not in features_to_keep['feature'].values:
+        target_row = df[df['feature'] == target_feature]
+        if len(target_row) > 0:
+            features_to_keep = pd.concat([features_to_keep, target_row], ignore_index=True)
+            print(f"[INFO] Added {target_feature} to keep list (needed for target creation)")
     
     print(f"Feature breakdown:")
     print(f"  Total features analyzed: {len(df)}")
     print(f"  Post-target leakage (EXCLUDE): {len(post_leakage)} features")
     print(f"  Features to KEEP: {len(features_to_keep)} features")
     
-    # Categorize kept features by timing
+    # Categorize kept features by timing (use pre ratio column - may be pre_target_ratio or pre_f1120_ratio)
     features_to_keep['feature_type'] = features_to_keep['feature'].apply(lambda x: categorize_feature(x)[0])
+    pre_col = pre_ratio_col if pre_ratio_col in features_to_keep.columns else None
     features_to_keep['timing_category'] = features_to_keep.apply(
-        lambda row: 'pure_predictive' if row['pre_f1120_ratio'] >= 0.8 
-                   else 'mixed_timing' if row['pre_f1120_ratio'] > 0
+        lambda row: 'pure_predictive' if (pre_col and row[pre_col] >= 0.8)
+                   else 'mixed_timing' if (pre_col and row[pre_col] > 0)
                    else 'low_pre_but_not_leakage',
         axis=1
     )
@@ -133,7 +143,7 @@ def create_safe_feature_filter_json(
     
     # Create JSON structure
     filter_json = {
-        "description": f"Safe feature filter: Excludes post-target leakage (>= {post_f1120_threshold:.0%} post-F1120) and keeps ALL features with ANY pre-F1120 presence. This maximizes information available to the algorithm while preventing target leakage. Same feature set applied to both cases and controls.",
+        "description": f"Safe feature filter: Excludes post-target leakage (>= {post_target_threshold:.0%} post-{target_name}) and keeps ALL features with ANY pre-{target_name} presence. This maximizes information available to the algorithm while preventing target leakage. Same feature set applied to both cases and controls.",
         "version": "1.0",
         "created_date": datetime.now().strftime("%Y-%m-%d"),
         "cohort": cohort,
@@ -146,8 +156,8 @@ def create_safe_feature_filter_json(
         "total_features_to_exclude": len(post_leakage),
         "total_features_analyzed": len(df),
         "strategy": {
-            "exclude": f"Features with >= 80% post-{target_name} ratio (pure post-target leakage)",
-            "keep": f"All features with < 80% post-{target_name} ratio (includes pure pre-target, mixed-timing, and low-pre features)",
+            "exclude": f"Features with >= {post_target_threshold:.0%} post-{target_name} ratio (pure post-target leakage)",
+            "keep": f"All features with < {post_target_threshold:.0%} post-{target_name} ratio (includes pure pre-target, mixed-timing, and low-pre features)",
             "rationale": "Maximize information for training while preventing target leakage. Keeping mixed-timing features ensures algorithm has access to all potentially predictive signals."
         },
         "usage": {
@@ -199,7 +209,7 @@ def create_safe_feature_filter_json(
     
     print(f"\n[INFO] This approach:")
     print(f"  - Excludes {len(post_leakage)} post-target leakage features")
-    print(f"  - Keeps {len(features_to_keep)} features with pre-F1120 presence")
+    print(f"  - Keeps {len(features_to_keep)} features with pre-{target_name} presence")
     print(f"  - Maximizes information available to the algorithm")
     print(f"  - Same feature set for cases and controls")
     
@@ -211,9 +221,10 @@ if __name__ == "__main__":
     parser.add_argument("--cohort", default="opioid_ed", help="Cohort name")
     parser.add_argument("--age-band", default="13-24", help="Age band")
     parser.add_argument(
-        "--post-f1120-threshold",
+        "--post-target-threshold",
         type=float,
         default=0.8,
+        dest="post_target_threshold",
         help="Threshold for post-target ratio to flag as leakage (default: 0.8 = 80%%)"
     )
     parser.add_argument(

@@ -68,6 +68,55 @@ from py_helpers.checkpoint_utils import upload_file_to_s3
 # load_safe_feature_filter moved to py_helpers.feature_importance_eda_utils
 
 
+def _leakage_feature_set_from_bupar(bupar_results: pd.DataFrame) -> Set[str]:
+    """
+    Get set of post-target leakage feature names from BupaR CSV.
+    Accepts is_post_target_leakage in (1, True, "1", "True"). If column missing,
+    uses post_target_ratio or post_f1120_ratio >= 0.8.
+    """
+    if bupar_results.empty or "feature" not in bupar_results.columns:
+        return set()
+    # Normalize column names for lookup
+    cols_lower = {c.lower(): c for c in bupar_results.columns}
+    feature_col = cols_lower.get("feature", "feature")
+    df = bupar_results.copy()
+
+    # Leakage flag: accept 1, True, "1", "True"
+    leak_col = None
+    for c in df.columns:
+        if c.lower() == "is_post_target_leakage":
+            leak_col = c
+            break
+
+    if leak_col is not None:
+        leak_vals = df[leak_col]
+        mask = leak_vals.astype(str).str.strip().str.lower().isin(("1", "true"))
+        try:
+            mask = mask | (pd.to_numeric(leak_vals, errors="coerce") == 1).fillna(False)
+        except Exception:
+            pass
+        raw = set(df.loc[mask, feature_col].dropna().astype(str).tolist())
+        if raw:
+            return raw
+
+    # Fallback: use ratio column >= 0.8
+    ratio_col = None
+    for c in df.columns:
+        if c in ("post_target_ratio", "post_f1120_ratio"):
+            ratio_col = c
+            break
+    if ratio_col is None:
+        for c in df.columns:
+            if c.lower() in ("post_target_ratio", "post_f1120_ratio"):
+                ratio_col = c
+                break
+    if ratio_col is not None:
+        raw = set(df.loc[df[ratio_col].astype(float) >= 0.8, feature_col].dropna().astype(str).tolist())
+        return raw
+
+    return set()
+
+
 def filter_and_refine_features(
     aggregated_fi: pd.DataFrame,
     bupar_results: pd.DataFrame,
@@ -130,27 +179,22 @@ def filter_and_refine_features(
             if features_to_exclude:
                 print(f"  NOTE: Controls will use blacklist approach (exclude only {len(features_to_exclude)} leakage features, keep all other features)")
     
-    # Fallback to old approach if safe filter not available
+    # Fallback: exclude leakage from BupaR CSV (robust to column names and flag values)
     elif filter_post_target and not bupar_results.empty:
-        post_target_features_raw = set(
-            bupar_results[bupar_results['is_post_target_leakage'] == 1]['feature'].tolist()
-        )
-        
-        # Normalize feature names to match aggregated importance format
+        post_target_features_raw = _leakage_feature_set_from_bupar(bupar_results)
         post_target_features = normalize_feature_set(post_target_features_raw)
-        
+
         before_count = len(refined_fi)
-        # Normalize aggregated importance features for comparison
         refined_fi['feature_normalized'] = refined_fi['feature'].apply(normalize_feature_name)
         refined_fi = refined_fi[~refined_fi['feature_normalized'].isin(post_target_features)].copy()
-        
-        # Drop the temporary normalized column
         if 'feature_normalized' in refined_fi.columns:
             refined_fi = refined_fi.drop(columns=['feature_normalized'])
-        
+
         filtering_summary['filtered_by_post_target'] = before_count - len(refined_fi)
-        
-        print(f"Filtered {filtering_summary['filtered_by_post_target']} post-target leakage features (fallback method)")
+        if post_target_features:
+            print(f"Filtered {filtering_summary['filtered_by_post_target']} post-target leakage features (fallback: {len(post_target_features)} leakage features from BupaR CSV)")
+        else:
+            print(f"[WARN] BupaR CSV has no leakage features identified (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
     
     
     # Filter by minimum importance threshold
