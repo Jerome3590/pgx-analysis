@@ -230,7 +230,7 @@ def create_control_cohort_model_data(
     con = duckdb.connect()
     
     # Get opioid ICD condition
-    opioid_condition = get_opioid_icd_sql_condition("ue")
+    opioid_condition = get_opioid_icd_sql_condition("me")
     
     # Build query to:
     # 1. Load all medical and pharmacy events
@@ -420,17 +420,22 @@ def create_control_cohort_model_data(
         diag_drug = con.execute(diag_drug_query).fetchone()[0]
         print(f"[DEBUG] Patients with drug events (pharmacy): {diag_drug:,}")
         
-        # Check control candidates count - use same structure as main query
+        # Check control candidates count - use same structure as main query (parquet has incurred_date, derive event_date)
+        _event_date_sql = """CASE 
+                WHEN LENGTH(CAST(incurred_date AS VARCHAR)) = 8 THEN 
+                    CAST(SUBSTR(CAST(incurred_date AS VARCHAR), 1, 4) || '-' || SUBSTR(CAST(incurred_date AS VARCHAR), 5, 2) || '-' || SUBSTR(CAST(incurred_date AS VARCHAR), 7, 2) AS DATE)
+                ELSE CAST(incurred_date AS DATE)
+            END"""
         diag_candidates_simple = f"""
         WITH medical_events AS (
-            SELECT mi_person_key, event_date, primary_icd_diagnosis_code, two_icd_diagnosis_code,
+            SELECT mi_person_key, {_event_date_sql} AS event_date, primary_icd_diagnosis_code, two_icd_diagnosis_code,
                    three_icd_diagnosis_code, four_icd_diagnosis_code, five_icd_diagnosis_code,
                    six_icd_diagnosis_code, seven_icd_diagnosis_code, eight_icd_diagnosis_code,
                    nine_icd_diagnosis_code, ten_icd_diagnosis_code, hcg_line
             FROM read_parquet([{medical_paths_literal}])
         ),
         pharmacy_events AS (
-            SELECT mi_person_key, event_date
+            SELECT mi_person_key, {_event_date_sql} AS event_date
             FROM read_parquet([{pharmacy_paths_literal}])
         ),
         patients_with_drug_events AS (

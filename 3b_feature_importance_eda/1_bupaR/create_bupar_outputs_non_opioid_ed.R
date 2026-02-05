@@ -354,8 +354,9 @@ if (file.exists(utils_path)) {
   stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
-# Control: Step 3b only. Control cohort (if used) lives under 3b outputs; we do not use 4_model_data yet.
+# Control: use existing if already built (NVMe gold only; no 4_model_data—we are not at that step). Else 3b outputs. Only create if not found.
 control_model_data_candidates <- c(
+  file.path(data_root, "gold", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
@@ -368,9 +369,9 @@ for (candidate in control_model_data_candidates) {
   }
 }
 
-# If not found, use first candidate
+# If not found, use 3b output path as target for creation
 if (is.null(control_model_data_path)) {
-  control_model_data_path <- control_model_data_candidates[1]
+  control_model_data_path <- file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 }
 
 # Resolve 3a aggregated FI path for control filtering (required; already verified at top of script)
