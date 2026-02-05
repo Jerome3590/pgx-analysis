@@ -1080,6 +1080,8 @@ if (nrow(target_events_sample) > 0) {
   }
   
   # Activity sequence with top activities highlighted
+  # For polypharmacy cohort, event_type = drug name (many levels); use color only to avoid
+  # "Insufficient values in manual scale" when mapping shape to many event_types
   if (nrow(target_activity_freq) > 0) {
     top_activities <- target_activity_freq$activity[1:min(10, nrow(target_activity_freq))]
     target_events_top <- target_events_sample %>%
@@ -1088,16 +1090,12 @@ if (nrow(target_events_sample) > 0) {
     p5 <- ggplot(target_events_top,
            aes(x = timestamp,
                y = case_id_factor,
-               color = activity_highlight,
-               shape = event_type)) +
-      geom_point(size = 2, alpha = 0.7) +
+               color = activity_highlight)) +
+      geom_point(size = 2, alpha = 0.7, shape = 16) +
       scale_x_datetime() +
-      # For polypharmacy cohort, event_type is the drug name (each drug is a different type)
-      # Use single shape since all are drugs, but color will differentiate
-      scale_shape_manual(values = 16) +
       labs(title = paste("Activity Sequence with Top Activities:", cohort_name, age_band),
            x = "Event Time", y = "Patient ID",
-           color = "Activity (Top 10)", shape = "Drug") +
+           color = "Activity (Top 10)") +
       theme_bw() +
       theme(legend.position = "right",
             axis.text.y = element_text(size = 6))

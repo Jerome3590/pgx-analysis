@@ -3,7 +3,7 @@
 ## Overview
 
 Feature Importance EDA performs additional exploratory data analysis on **already processed aggregated feature importances** from Step 3, using:
-1. **BupaR post-target analysis** to identify pre/post F1120 ICD/CPT events (target leakage detection)
+1. **BupaR post-target analysis** to identify pre/post target ICD/CPT events (target leakage detection; target = F1120 for opioid_ed, HCG for polypharmacy/non_opioid_ed)
 2. **Code research and validation** (identify and validate non-informative ICD/CPT codes from lookup table - actual event-level filtering happens in Step 4b)
 3. **Interactive code review and filtering** to refine feature selection (filters post-target leakage features from feature importance list)
 
@@ -13,7 +13,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 
 ## Purpose
 
-- **Identify post-target leakage**: Use BupaR process mining to analyze sequences before and after the target event (F1120) to identify features that may leak future information
+- **Identify post-target leakage**: Use BupaR process mining to analyze sequences before and after the target event (F1120 for opioid_ed, HCG for polypharmacy) to identify features that may leak future information
 - **Research and validate codes**: Identify and validate administrative, scheduling, and non-medical codes through code research (actual event-level filtering happens in Step 4b)
 - **Apply safe feature filtering**: Exclude post-target leakage features from aggregated feature importance list while keeping all pre-target features to maximize information available to the algorithm
 - **Refine feature importances**: Update already-processed aggregated feature importances based on BupaR and code research findings
@@ -47,7 +47,7 @@ Based on this EDA, we filter and update the aggregated feature importances to pr
 - `outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_pre_target_predictive_features.json` - Pre-target predictive features
 
 **BupaR Feature Files:**
-- `outputs/{cohort}/{age_band_fname}/features/*_bupar.csv` - BupaR process mining outputs (traces, patient features, time-to-F1120)
+- `outputs/{cohort}/{age_band_fname}/features/*_bupar.csv` - BupaR process mining outputs (traces, patient features, time-to-target)
 - See `1_bupaR/README_bupaR.md` for complete file manifest
 
 **Visualizations:**
@@ -69,9 +69,9 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 1. **Load aggregated feature importances** from Step 3 (already processed feature importance scores)
 2. **BupaR Post-Target Analysis** (`1_bupaR/`):
    - Build BupaR event logs from `model_events.parquet`
-   - Analyze sequences before and after target event (F1120)
-   - Calculate pre-F1120 and post-F1120 ratios for each feature
-   - Identify features that appear primarily post-target (>=80% post-F1120 ratio = potential leakage)
+   - Analyze sequences before and after target event (F1120 for opioid_ed, HCG for polypharmacy)
+   - Calculate pre-target and post-target ratios for each feature
+   - Identify features that appear primarily post-target (>=80% post-target ratio = potential leakage)
    - Generate comprehensive BupaR features and visualizations
    - Output: `{cohort}_{age_band}_bupar_post_target_analysis.csv`
    - See `1_bupaR/README_bupaR.md` for detailed BupaR process mining documentation
@@ -82,9 +82,9 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
    - **Note**: This step only validates and identifies codes - actual event-level filtering happens in Step 4b
    - See `0_icd_cpt_check/README_icd_cpt_check.md` for detailed validation process
 4. **Create Safe Feature Filter**:
-   - Exclude features with >=80% post-F1120 ratio (pure post-target leakage)
-   - Keep ALL features with ANY pre-F1120 presence (maximize information)
-   - Explicitly include F1120 for target creation
+   - Exclude features with >=80% post-target ratio (pure post-target leakage)
+   - Keep ALL features with ANY pre-target presence (maximize information)
+   - For opioid_ed, explicitly include F1120 for target creation; polypharmacy uses HCG target
    - Output: `{cohort}_{age_band}_safe_feature_filter.json`
 5. **Filter and Update Feature Importances**:
    - Apply safe feature filter (whitelist for cases, blacklist for controls)
@@ -335,8 +335,8 @@ ls -lh /home/pgx3874/pgx-analysis/3b_feature_importance_eda/outputs/non_opioid_e
 ## Feature Filtering Strategy
 
 We use a **safe feature filter** approach that:
-1. **Excludes** post-target leakage features (>=80% post-F1120 ratio)
-2. **Keeps** ALL features with ANY pre-F1120 presence (maximize information)
+1. **Excludes** post-target leakage features (>=80% post-target ratio)
+2. **Keeps** ALL features with ANY pre-target presence (maximize information)
 3. **Applies** different filtering for cases vs controls:
    - **Cases (target=1)**: Whitelist approach (only features from `all_features_to_keep`)
    - **Controls (target=0)**: Blacklist approach (exclude only post-target leakage features)

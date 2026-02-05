@@ -47,6 +47,7 @@ from py_helpers.constants import (
     get_cohort_slug_by_cohort,
     get_target_name,
     get_target_name_by_cohort,
+    get_target_file_suffix,
     cohort_uses_f1120_target,
 )
 from py_helpers.feature_utils import (
@@ -395,12 +396,13 @@ def analyze_post_target_leakage(
     print(f"\n[INFO] Using BupaR outputs for post-target leakage analysis")
     age_band_fname = age_band_to_fname(age_band)
     output_dir = project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname
-    
-    # Paths to BupaR output files
-    post_traces_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_traces_bupar.csv"
-    pre_traces_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_traces_bupar.csv"
-    post_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv"
-    pre_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv"
+    suffix = get_target_file_suffix(cohort)  # f1120 for opioid_ed, target for non_opioid_ed (no F1120 ref)
+
+    # Paths to BupaR output files (cohort-aware: opioid_ed uses f1120, polypharmacy uses target)
+    post_traces_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_{suffix}_traces_bupar.csv"
+    pre_traces_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_{suffix}_traces_bupar.csv"
+    post_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_{suffix}_patient_features_bupar.csv"
+    pre_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_{suffix}_patient_features_bupar.csv"
     
     # Extract features from post-target outputs (target by cohort)
     target_name = get_target_name_by_cohort(cohort)
