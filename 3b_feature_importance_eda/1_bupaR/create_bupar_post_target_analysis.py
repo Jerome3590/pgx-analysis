@@ -130,7 +130,8 @@ def analyze_post_target_leakage_from_events(
     # For POLYPHARMACY COHORT, find first time-windowed HCG event date for each patient
     # Escape the path for SQL
     model_data_path_str = str(model_data_path).replace("'", "''")
-    
+    uses_f1120 = age_band_uses_f1120_target(age_band)
+
     if uses_f1120:
         # Find first F1120 event date for each target patient (age bands < 65)
         query = f"""
