@@ -4,7 +4,7 @@ Feature Importance EDA and Refinement - Orchestration Script
 
 Runs all Feature Importance EDA analyses in order:
 1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
-2. BupaR post-target analysis (identify pre/post F1120 ICD/CPT events)
+2. BupaR post-target analysis (identify pre/post target events; F1120 for opioid_ed, HCG for polypharmacy)
 3. Create safe feature filter (exclude leakage, keep pre-target features)
 4. Filter and refine feature importances
 
@@ -133,7 +133,7 @@ def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir
     print(f"\n[INFO] Step 1: Administrative/Non-informative code filtering")
     print(f"       (Handled in filter_and_refine step using administrative_codes_lookup.json)")
     
-    # Step 2: BupaR post-target analysis (identify pre/post F1120 events)
+    # Step 2: BupaR post-target analysis (identify pre/post target events)
     if not run_bupar_analysis(cohort, age_band, script_dir):
         print(f"[WARN] BupaR analysis failed, continuing...")
     

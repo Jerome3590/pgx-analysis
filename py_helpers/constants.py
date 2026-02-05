@@ -263,6 +263,11 @@ def get_cohort_slug_by_cohort(cohort: str) -> str:
     return "opioid" if cohort_uses_f1120_target(cohort) else "polypharmacy"
 
 
+def get_target_file_suffix(cohort: str) -> str:
+    """File suffix for BupaR pre/post target outputs: opioid_ed -> f1120, non_opioid_ed -> target (no F1120 ref)."""
+    return "f1120" if cohort_uses_f1120_target(cohort) else "target"
+
+
 def age_band_to_fname(age_band: str) -> str:
     """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
     return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
