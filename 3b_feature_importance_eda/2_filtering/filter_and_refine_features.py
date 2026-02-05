@@ -220,7 +220,7 @@ def main():
     print(f"Filtering and Refining Features: {args.cohort} / {args.age_band}")
     print("=" * 80)
     
-    aggregated_fi = load_aggregated_feature_importance(args.cohort, args.age_band)
+    aggregated_fi = load_aggregated_feature_importance(args.cohort, args.age_band, PROJECT_ROOT)
     print(f"Loaded {len(aggregated_fi)} features from aggregated importance")
     
     # Load BupaR results
