@@ -12,6 +12,7 @@ Outputs refined cohort_feature_importance files for Step 4a.
 """
 
 import argparse
+import gc
 import sys
 import subprocess
 import os
@@ -169,7 +170,19 @@ def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir
         print(f"[OK] Checkpoint saved to S3")
     
     print(f"\n[OK] Feature Importance EDA completed for {cohort} / {age_band}")
+    # Encourage GC before next age band when running multiple in sequence
+    gc.collect()
     return True
+
+
+def clear_age_band_memory():
+    """
+    Run garbage collection to free memory after processing an age band.
+    Call this in notebooks/workflows after each age band when running multiple
+    in the same session (e.g. after loading aggregated_fi, bupar_results,
+    model_events, or refined_fi) to avoid memory growth across bands.
+    """
+    gc.collect()
 
 
 def main():
@@ -234,6 +247,8 @@ def main():
             success_count += 1
         else:
             fail_count += 1
+        # Clear memory after each age band when running multiple in sequence
+        clear_age_band_memory()
     
     # Summary
     print()

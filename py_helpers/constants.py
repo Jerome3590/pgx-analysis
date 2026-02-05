@@ -32,7 +32,10 @@ EXCLUDED_CODES = {
     'freestyle_lancets'  # Blood glucose testing supplies
 }
 
-# Comprehensive Opioid-Related ICD Codes
+# Comprehensive Opioid-Related ICD Codes (Step 2 cohort target for opioid_ed).
+# F10 (alcohol) and F19 (other psychoactive substance) are intentionally NOT included:
+# cohort target is opioid-specific. In 3b feature importance, F10/F11/F19 are excluded
+# as outcome-related (substance-use) features.
 OPIOID_ICD_CODES = {
     # Opioid Use Disorder (F11.x)
     'F11.20', 'F11.21', 'F11.22', 'F11.23', 'F11.24', 'F11.25', 'F11.26', 'F11.27', 'F11.28', 'F11.29',

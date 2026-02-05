@@ -140,6 +140,13 @@ which Rscript
 jupyter notebook --no-browser --port=8888
 ```
 
+## Memory when running multiple age bands
+
+- **CLI (`run_feature_importance_eda.py --all-cohorts` or loop over age bands):** The script runs each age band in subprocesses and calls `gc.collect()` after each, so the main process does not accumulate large in-memory data. No extra cleanup is required.
+- **Notebooks / interactive workflow:** If you run multiple age bands in the same kernel (e.g. loop over age bands in `feature_importance_eda_workflow` or a step3b notebook), large objects (aggregated_fi, bupar_results, model_events, refined_fi, etc.) can accumulate. To avoid memory growth:
+  - After each age band, delete large variables you no longer need: `del aggregated_fi, bupar_results, refined_fi` (and any other large DataFrames).
+  - Then run garbage collection: `from 3b_feature_importance_eda.run_feature_importance_eda import clear_age_band_memory; clear_age_band_memory()` or `import gc; gc.collect()`.
+
 ## Scripts
 
 ### Main Orchestration

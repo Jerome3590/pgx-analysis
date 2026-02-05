@@ -79,6 +79,54 @@ def normalize_feature_name(feature: str) -> str:
     return s
 
 
+def feature_to_code(feature: str) -> str:
+    """
+    Extract the code part from a feature name (for target-family / exclusion checks).
+    Examples: 'F1123' -> 'F1123'; 'item_F1123' -> 'F1123'; 'item_icd_F1120' -> 'F1120'.
+    """
+    if not isinstance(feature, str) or not feature.strip():
+        return feature.strip()
+    s = feature.strip()
+    if s.upper().startswith("ICD:"):
+        return s[4:].strip()
+    if s.upper().startswith("CPT:"):
+        return s[4:].strip()
+    if s.upper().startswith("DRUG:"):
+        return s[5:].strip()
+    if s.startswith("item_"):
+        code = s[5:]
+        if code.startswith("cpt_"):
+            return code[4:]
+        if code.startswith("drug_"):
+            return code[5:]
+        if code.startswith("icd_"):
+            return code[4:]
+        return code
+    return s
+
+
+def is_opioid_use_disorder_code(code: str) -> bool:
+    """True if code is in the F11.x opioid use disorder family (target-family for opioid_ed)."""
+    return is_substance_use_disorder_code(code)
+
+
+def is_substance_use_disorder_code(code: str) -> bool:
+    """
+    True if code is F10.x (alcohol), F11.x (opioid), or F19.x (other substance) use disorder.
+    These are outcome/target-family codes for opioid_ed and should be excluded as predictors.
+    """
+    if not code or not isinstance(code, str):
+        return False
+    c = code.strip().upper()
+    if c.startswith("F10"):  # Alcohol use disorder
+        return True
+    if c.startswith("F11"):  # Opioid use disorder
+        return True
+    if c.startswith("F19"):  # Other psychoactive substance use disorder
+        return True
+    return False
+
+
 def normalize_feature_set(features: Set[str]) -> Set[str]:
     """
     Normalize a set of feature names.
