@@ -40,7 +40,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_target_name
+from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_cohort_slug, get_target_name
 from py_helpers.feature_utils import (
     extract_features_from_traces,
     extract_features_from_patient_features
@@ -88,18 +88,19 @@ def analyze_post_target_leakage_from_events(
     
     age_band_fname = age_band_to_fname(age_band)
     
-    # Find model_events.parquet file
-    # Check EC2 path first (/mnt/nvme), then project root
+    # Find model_events.parquet file (Step 3b: 3b outputs and gold only; no 4_model_data)
     data_root = os.getenv("PGX_DATA_ROOT", "")
     if not data_root and IS_LINUX:
         data_root = "/mnt/nvme"
     elif not data_root:
         data_root = str(project_root)
-    
+    data_root = Path(data_root)
+    cohort_slug = get_cohort_slug(age_band)  # "opioid" or "polypharmacy"
+
     model_data_paths = [
-        Path(data_root) / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        project_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        project_root / "model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
+        data_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
+        data_root / "gold" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
     ]
     
     model_data_path = None
