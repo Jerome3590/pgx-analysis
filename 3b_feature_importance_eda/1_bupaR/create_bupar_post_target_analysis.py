@@ -40,7 +40,15 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname, age_band_uses_f1120_target, get_cohort_slug, get_target_name
+from py_helpers.constants import (
+    age_band_to_fname,
+    age_band_uses_f1120_target,
+    get_cohort_slug,
+    get_cohort_slug_by_cohort,
+    get_target_name,
+    get_target_name_by_cohort,
+    cohort_uses_f1120_target,
+)
 from py_helpers.feature_utils import (
     extract_features_from_traces,
     extract_features_from_patient_features
@@ -88,14 +96,14 @@ def analyze_post_target_leakage_from_events(
     
     age_band_fname = age_band_to_fname(age_band)
     
-    # Find model_events.parquet file (Step 3b: 3b outputs and gold only; no 4_model_data)
+    # Find model_events.parquet: path by cohort (opioid_ed -> opioid, non_opioid_ed -> polypharmacy)
     data_root = os.getenv("PGX_DATA_ROOT", "")
     if not data_root and IS_LINUX:
         data_root = "/mnt/nvme"
     elif not data_root:
         data_root = str(project_root)
     data_root = Path(data_root)
-    cohort_slug = get_cohort_slug(age_band)  # "opioid" or "polypharmacy"
+    cohort_slug = get_cohort_slug_by_cohort(cohort)  # "opioid" or "polypharmacy" by cohort
 
     model_data_paths = [
         project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
@@ -117,20 +125,20 @@ def analyze_post_target_leakage_from_events(
     
     print(f"Loading event data from: {model_data_path}")
     
+    # Target by cohort: opioid_ed -> F1120, non_opioid_ed -> HCG (polypharmacy / 14-day window)
+    uses_f1120 = cohort_uses_f1120_target(cohort)
+    target_name = get_target_name_by_cohort(cohort)
     # Cohort-specific analysis scope
     if cohort == "non_opioid_ed":  # POLYPHARMACY COHORT
-        print(f"[INFO] POLYPHARMACY COHORT: Analyzing DRUGS only (excluding ICD/CPT codes)")
+        print(f"[INFO] POLYPHARMACY COHORT: Analyzing DRUGS only (target: {target_name})")
     else:
-        print(f"[INFO] Analyzing all features: ICD codes, CPT codes, and drugs")
+        print(f"[INFO] OPIOID_ED COHORT: Analyzing all features (target: {target_name})")
     
     con = duckdb.connect()
     
     # Query to analyze each feature's pre/post target distribution
-    # For opioid_ed cohort, find first F1120 event date for each patient
-    # For POLYPHARMACY COHORT, find first time-windowed HCG event date for each patient
-    # Escape the path for SQL
+    # opioid_ed: first F1120 event date; non_opioid_ed: first HCG (ED visit) date
     model_data_path_str = str(model_data_path).replace("'", "''")
-    uses_f1120 = age_band_uses_f1120_target(age_band)
 
     if uses_f1120:
         # Find first F1120 event date for each target patient (age bands < 65)
@@ -325,12 +333,8 @@ def analyze_post_target_leakage_from_events(
             leakage_count = results_df['is_post_target_leakage'].sum()
             predictive_count = results_df.get('is_pre_target_predictive', pd.Series([0]*len(results_df))).sum()
             
-            # Check if there are any pre-F1120 events at all
             total_pre_events = results_df.get('pre_count', pd.Series([0]*len(results_df))).sum()
             total_post_events = results_df.get('post_count', pd.Series([0]*len(results_df))).sum()
-            
-            # Cohort-specific target terminology
-            target_name = get_target_name(age_band)
             
             if total_pre_events == 0 and total_post_events > 0:
                 print(f"\n   [WARN] CRITICAL FINDING: No pre-target events found!")
@@ -398,8 +402,8 @@ def analyze_post_target_leakage(
     post_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_post_f1120_patient_features_bupar.csv"
     pre_features_path = output_dir / "features" / f"{cohort}_{age_band_fname}_train_target_pre_f1120_patient_features_bupar.csv"
     
-    # Extract features from post-target outputs
-    target_name = get_target_name(age_band)
+    # Extract features from post-target outputs (target by cohort)
+    target_name = get_target_name_by_cohort(cohort)
     post_features = set()
     
     # Following cursor dev rules: Use DuckDB to read CSV files instead of pandas
@@ -535,9 +539,8 @@ def main():
     print(f"   Total features analyzed: {len(results_df)}")
     print(f"   Post-target leakage features: {results_df['is_post_target_leakage'].sum()}")
     
-    # Show statistics
-    # Cohort-specific target terminology for output
-    target_name = get_target_name(args.age_band)
+    # Show statistics (target by cohort: opioid_ed=F1120, non_opioid_ed=HCG)
+    target_name = get_target_name_by_cohort(args.cohort)
     ratio_col = 'post_target_ratio' if 'post_target_ratio' in results_df.columns else 'post_f1120_ratio'
     pre_ratio_col = 'pre_target_ratio' if 'pre_target_ratio' in results_df.columns else 'pre_f1120_ratio'
     

@@ -241,6 +241,25 @@ def get_cohort_slug(age_band: str) -> str:
         return "polypharmacy"
 
 
+def cohort_uses_f1120_target(cohort: str) -> bool:
+    """
+    Determine target by cohort (Step 2 / 3b convention).
+    - opioid_ed: F1120 (first opioid use disorder ED)
+    - non_opioid_ed: HCG (polypharmacy / ED visit, 14-day window after drug event)
+    """
+    return (cohort or "").strip().lower() == "opioid_ed"
+
+
+def get_target_name_by_cohort(cohort: str) -> str:
+    """Target name for display: opioid_ed -> F1120, non_opioid_ed -> ED visit (HCG)."""
+    return "F1120" if cohort_uses_f1120_target(cohort) else "ED visit (HCG)"
+
+
+def get_cohort_slug_by_cohort(cohort: str) -> str:
+    """Cohort slug for paths: opioid_ed -> opioid, non_opioid_ed -> polypharmacy."""
+    return "opioid" if cohort_uses_f1120_target(cohort) else "polypharmacy"
+
+
 def age_band_to_fname(age_band: str) -> str:
     """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
     return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
