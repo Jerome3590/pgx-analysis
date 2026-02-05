@@ -373,8 +373,8 @@ def analyze_post_target_leakage(
         DataFrame with leakage analysis results
     """
     # Cohort-specific target terminology
-            target_name = get_target_name(age_band)
-    
+    target_name = get_target_name(age_band)
+
     if use_event_data:
         print(f"\n[INFO] Using event-level data for post-target leakage analysis")
         print(f"       This provides accurate pre/post {target_name} ratios for each feature")
