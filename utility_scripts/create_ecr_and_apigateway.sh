@@ -55,14 +55,26 @@ else
 fi
 
 echo "=== ECR repository ==="
-run_aws ecr create-repository --repository-name pgx-risk-dashboard --region "$REGION"
-echo "Created: pgx-risk-dashboard"
+ECR_REPO="pgx-risk-dashboard"
+if run_aws ecr describe-repositories --repository-names "$ECR_REPO" --region "$REGION" 2>/dev/null; then
+  echo "Already exists: $ECR_REPO"
+else
+  run_aws ecr create-repository --repository-name "$ECR_REPO" --region "$REGION"
+  echo "Created: $ECR_REPO"
+fi
 echo ""
 
 echo "=== API Gateway (template) ==="
-run_aws apigateway create-rest-api --name "pgx-calculator-api" \
-  --description "PGx Risk Calculator API" \
-  --endpoint-configuration types=EDGE \
-  --region "$REGION"
+API_NAME="pgx-calculator-api"
+EXISTING_ID=$(run_aws apigateway get-rest-apis --region "$REGION" --query "items[?name=='$API_NAME'].id" --output text 2>/dev/null | tr -d '\r')
+if [[ -n "$EXISTING_ID" ]]; then
+  echo "Already exists: $API_NAME (id: $EXISTING_ID)"
+else
+  run_aws apigateway create-rest-api --name "$API_NAME" \
+    --description "PGx Risk Calculator API" \
+    --endpoint-configuration types=EDGE \
+    --region "$REGION"
+  echo "Created: $API_NAME"
+fi
 echo ""
 echo "Next (API Gateway console): add resource (e.g. /predict), add POST method, integrate with Lambda (container image from ECR)."
