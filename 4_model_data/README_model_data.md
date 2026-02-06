@@ -1,5 +1,7 @@
 ## Model Data (Step 4) – Event-Level Inputs for Feature Engineering and Final Models
 
+**Single canonical location:** All model data uses one root: `py_helpers.env_utils.get_model_data_root()` (local: `4_model_data` under data root or project root; S3: `gold/cohorts_model_data/`). Do not use `gold/model_training_data` or other paths—use one location for efficiency.
+
 This directory contains event-level `model_events.parquet` files used as inputs to:
 
 - Step 5a–5d feature engineering (FP-Growth, BupaR, DTW, PGx)
@@ -7,7 +9,7 @@ This directory contains event-level `model_events.parquet` files used as inputs 
 
 Each file corresponds to a specific `(cohort_name, age_band)` cell:
 
-- `4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
+- `4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`
 
 ### Label Definition and Case/Control Construction
 
@@ -56,11 +58,11 @@ Refined feature-importance CSVs (from Step 3b) drive the case-side event filteri
 
 ### Idempotency and Rebuilds
 
-- `4a_model_data/create_model_data.py` is designed to be **idempotent**:
+- `4_model_data/create_model_data.py` is designed to be **idempotent**:
   - It can be re-run safely after updating feature importances or cohort/gold inputs.
   - Existing `model_events.parquet` files may be skipped to avoid Windows file-in-use errors; deleting a partition’s file and re-running will force a fresh rebuild for that cell.
 - Model data can be mirrored between environments via:
-  - `aws s3 sync 4a_model_data s3://pgxdatalake/gold/cohorts_model_data --exclude "*" --include "cohort_name=*/age_band=*/model_events.parquet" --profile <profile>`
+  - `aws s3 sync 4_model_data s3://pgxdatalake/gold/cohorts_model_data --exclude "*" --include "cohort_name=*/age_band=*/model_events.parquet" --profile <profile>`
 
 ### Checking gold/pharmacy (and gold/medical) completeness
 

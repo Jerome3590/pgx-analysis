@@ -99,29 +99,18 @@ def prepare_train_test_s3(
     
     print(f"[INFO] Loaded {len(df)} patients with {len(df.columns)} columns")
     
-    # Load model_data to get event_year information for temporal split
-    # Step 4a saves to 4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
-    from py_helpers.env_utils import get_data_root, is_linux
+    # Load model_data to get event_year information for temporal split (single canonical location)
+    from py_helpers.env_utils import get_model_data_root
+
+    model_data_root = get_model_data_root()
+    canonical_path = (
+        model_data_root
+        / f"cohort_name={cohort_name}"
+        / f"age_band={age_band}"
+        / "model_events.parquet"
+    )
     
-    data_root = get_data_root() if is_linux() else None
-    
-    # Check multiple possible locations
-    model_data_paths = [
-        project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-    ]
-    
-    # Add /mnt/nvme path if on Linux
-    if data_root:
-        model_data_paths.append(
-            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet"
-        )
-    
-    # Try S3 if not found locally
-    model_data_path = None
-    for path in model_data_paths:
-        if path.exists():
-            model_data_path = path
-            break
+    model_data_path = canonical_path if canonical_path.exists() else None
     
     # If not found locally, try downloading from S3
     if model_data_path is None:
@@ -133,8 +122,8 @@ def prepare_train_test_s3(
             S3_BUCKET = "pgxdatalake"
             s3_key = f"gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
             
-            # Try to download from S3
-            local_download_path = model_data_paths[0]  # Use first path as download destination
+            # Download to canonical location
+            local_download_path = canonical_path
             local_download_path.parent.mkdir(parents=True, exist_ok=True)
             
             print(f"[INFO] model_events.parquet not found locally. Checking S3: s3://{S3_BUCKET}/{s3_key}")
@@ -148,19 +137,17 @@ def prepare_train_test_s3(
                 if e.response['Error']['Code'] == '404':
                     raise FileNotFoundError(
                         f"model_data not found locally or in S3. Checked:\n"
-                        f"  - {model_data_paths[0]}\n"
-                        f"  - {model_data_paths[1] if len(model_data_paths) > 1 else 'N/A'}\n"
+                        f"  - {canonical_path}\n"
                         f"  - s3://{S3_BUCKET}/{s3_key}\n"
-                        f"Please run Step 4a first to create model_events.parquet"
+                        f"Please run Step 4 first to create model_events.parquet"
                     )
                 else:
                     raise
         except ImportError:
             raise FileNotFoundError(
                 f"model_data not found locally. Checked:\n"
-                f"  - {model_data_paths[0]}\n"
-                f"  - {model_data_paths[1] if len(model_data_paths) > 1 else 'N/A'}\n"
-                f"boto3 not available for S3 download. Please run Step 4a first to create model_events.parquet"
+                f"  - {canonical_path}\n"
+                f"boto3 not available for S3 download. Please run Step 4 first to create model_events.parquet"
             )
     
     if model_data_path is None or not model_data_path.exists():

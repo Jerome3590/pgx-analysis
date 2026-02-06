@@ -76,7 +76,7 @@ from py_helpers.constants import (
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
 )
-from py_helpers.env_utils import get_data_root, is_linux
+from py_helpers.env_utils import get_data_root, get_model_data_root
 
 try:
     from py_helpers.fe_monitor import mirror_log_to_s3
@@ -113,17 +113,7 @@ def get_step3b_fi_roots() -> list:
         data_root / "gold" / "feature_importance",
         STEP3B_OUTPUTS_DIR,
     ]
-# Use OS-aware path resolution: /mnt/nvme/4_model_data on Linux, PROJECT_ROOT/4_model_data on Windows
-def get_model_data_root() -> Path:
-    """Get the root directory for model data output (OS-aware)."""
-    data_root = get_data_root()
-    if is_linux():
-        # On Linux/EC2: use /mnt/nvme/4_model_data
-        return data_root / "4_model_data"
-    else:
-        # On Windows/local dev: use PROJECT_ROOT/4_model_data
-        return PROJECT_ROOT / "4_model_data"
-
+# Single canonical location: py_helpers.env_utils.get_model_data_root()
 MODEL_DATA_ROOT = get_model_data_root()
 
 

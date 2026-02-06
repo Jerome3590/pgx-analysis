@@ -2,6 +2,24 @@
 
 This folder documents the Step 4 pipeline that prepares cohort event data for downstream feature engineering and final modeling.
 
+## Single canonical location (use one for efficiency)
+
+Model data is written and read from **one location** only:
+
+| Environment | Path |
+|-------------|------|
+| **Local (Linux/EC2)** | `get_data_root() / "4_model_data"` → e.g. `/mnt/nvme/4_model_data` |
+| **Local (Windows)** | `PROJECT_ROOT / "4_model_data"` |
+| **S3** | `s3://pgxdatalake/gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` |
+
+All code uses `py_helpers.env_utils.get_model_data_root()` for the local root. **Do not use** `gold/model_training_data` or any other duplicate path. On EC2, if `gold/model_training_data` exists, remove it or symlink it to the canonical location to avoid duplication:
+
+```bash
+# Optional: point legacy path to canonical location
+ln -snf /mnt/nvme/4_model_data /mnt/nvme/gold/model_training_data
+# Or remove the duplicate: rm -rf /mnt/nvme/gold/model_training_data
+```
+
 ## Step 4: Model Data (`4_model_data/`)
 
 - **Model Data Extraction** – Creates compact, model-ready `model_events.parquet` datasets for each `(cohort, age_band)` using refined feature importance from Step 3c (final update to features in `2_feature_importance.ipynb`).
