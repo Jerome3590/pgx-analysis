@@ -190,7 +190,8 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 
 ### Output Files (Not Tracked in Git)
 
-- **`outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`**: Patient-level PGx features
+- **`outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`**: Intermediate patient-level PGx features (from `create_pgx_features_patient_level.py`)
+- **`outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`**: Final PGx features used by **Step 6** (`run_final_model.py`). Written by `add_pgx_features_to_model_data.py`; also mirrored to `5_feature_engineering/feature_engineering_outputs/7_pgx/{cohort}/{age_band}/` and uploaded to S3 `gold/pgx_features/{cohort}/{age_band}/`.
 - **`outputs/global/drug_cpic_mapping_global.csv`**: Global drug-to-CPIC mapping (tracked in Git as shared resource)
 
 ### Legacy/Unused Files (Not Tracked)
