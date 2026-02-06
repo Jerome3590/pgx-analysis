@@ -13,12 +13,14 @@ Usage:
         --output-dir 10_results/outputs
 """
 
+import os
 import sys
 import argparse
 import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
+from concurrent.futures import ProcessPoolExecutor
 import json
 import ast
 import warnings
@@ -138,6 +140,58 @@ def extract_features_from_ffa_rules(rules: List) -> Set[str]:
     return features
 
 
+def _process_patient_chunk(
+    args: Tuple[int, pd.DataFrame, Optional[np.ndarray], List[str], Set[str]]
+) -> List[Dict]:
+    """Process a chunk of patients for parallel explanation generation (top-level for pickling)."""
+    start_offset, ffa_chunk, shap_values, feature_names, consensus_set = args
+    results = []
+    for local_i, (idx, row) in enumerate(ffa_chunk.iterrows()):
+        row_pos = start_offset + local_i
+        patient_explanation = {
+            "patient_index": idx,
+            "patient_id": row.get("instance_id", idx),
+        }
+        if "axp" in row:
+            matched_rules = row["axp"]
+            ffa_features = extract_features_from_ffa_rules(matched_rules)
+            patient_explanation["ffa_matched_rules"] = str(matched_rules)
+            patient_explanation["ffa_features"] = list(ffa_features)
+            patient_explanation["ffa_rule_count"] = (
+                len(matched_rules) if isinstance(matched_rules, list) else 1
+            )
+        else:
+            patient_explanation["ffa_features"] = []
+            patient_explanation["ffa_rule_count"] = 0
+        if shap_values is not None and row_pos < len(shap_values):
+            patient_shap = shap_values[row_pos]
+            shap_df = pd.DataFrame(
+                {
+                    "feature": feature_names[: len(patient_shap)],
+                    "shap_value": patient_shap,
+                }
+            ).sort_values("shap_value", ascending=False)
+            patient_explanation["shap_top_positive"] = shap_df.head(5)["feature"].tolist()
+            patient_explanation["shap_top_negative"] = shap_df.tail(5)["feature"].tolist()
+            patient_explanation["shap_total"] = float(patient_shap.sum())
+            shap_top_set = set(shap_df.head(10)["feature"].values)
+            ffa_features_set = set(patient_explanation.get("ffa_features", []))
+            patient_feature_set = shap_top_set | ffa_features_set
+            patient_explanation["consensus_features"] = sorted(
+                consensus_set & patient_feature_set
+            )
+        else:
+            patient_explanation["shap_top_positive"] = []
+            patient_explanation["shap_top_negative"] = []
+            patient_explanation["shap_total"] = None
+            ffa_features_set = set(patient_explanation.get("ffa_features", []))
+            patient_explanation["consensus_features"] = sorted(
+                consensus_set & ffa_features_set
+            )
+        results.append(patient_explanation)
+    return results
+
+
 def calculate_consensus_features(
     shap_importance: pd.DataFrame,
     ffa_importance: pd.DataFrame,
@@ -240,60 +294,43 @@ def generate_patient_explanations(
     shap_values: Optional[np.ndarray],
     ffa_explanations: pd.DataFrame,
     feature_names: List[str],
-    n_samples: int = 100
+    n_samples: int = 0,
+    global_consensus_features: Optional[List[str]] = None,
+    n_workers: int = 0,
 ) -> pd.DataFrame:
-    """Generate comprehensive patient-level explanations combining SHAP and FFA."""
-    results = []
-    
-    # Limit to sample size
-    sample_size = min(n_samples, len(ffa_explanations))
+    """Generate comprehensive patient-level explanations combining SHAP and FFA.
+
+    For each patient, consensus_features is the set of global consensus features
+    that appear in this patient's explanation (SHAP top-10 or FFA rules), so the
+    report metric 'Patients with consensus features' counts patients who have
+    at least one high-confidence (global consensus) feature.
+
+    n_workers: 0 = auto (CPU count - 1, min 1), 1 = sequential, >1 = parallel chunks.
+    """
+    consensus_set = set(global_consensus_features or [])
+    sample_size = len(ffa_explanations) if n_samples <= 0 else min(n_samples, len(ffa_explanations))
     ffa_sample = ffa_explanations.head(sample_size)
-    
-    for idx, row in ffa_sample.iterrows():
-        patient_explanation = {
-            'patient_index': idx,
-            'patient_id': row.get('instance_id', idx),
-        }
-        
-        # FFA analysis
-        if 'axp' in row:
-            matched_rules = row['axp']
-            ffa_features = extract_features_from_ffa_rules(matched_rules)
-            patient_explanation['ffa_matched_rules'] = str(matched_rules)
-            patient_explanation['ffa_features'] = list(ffa_features)
-            patient_explanation['ffa_rule_count'] = len(matched_rules) if isinstance(matched_rules, list) else 1
-        else:
-            patient_explanation['ffa_features'] = []
-            patient_explanation['ffa_rule_count'] = 0
-        
-        # SHAP analysis
-        if shap_values is not None and idx < len(shap_values):
-            patient_shap = shap_values[idx]
-            shap_df = pd.DataFrame({
-                'feature': feature_names[:len(patient_shap)],
-                'shap_value': patient_shap
-            }).sort_values('shap_value', ascending=False)
-            
-            top_positive = shap_df.head(5)['feature'].tolist()
-            top_negative = shap_df.tail(5)['feature'].tolist()
-            
-            patient_explanation['shap_top_positive'] = top_positive
-            patient_explanation['shap_top_negative'] = top_negative
-            patient_explanation['shap_total'] = float(patient_shap.sum())
-            
-            # Consensus
-            shap_top_set = set(shap_df.head(10)['feature'].values)
-            ffa_features_set = set(patient_explanation.get('ffa_features', []))
-            consensus = shap_top_set.intersection(ffa_features_set)
-            patient_explanation['consensus_features'] = list(consensus)
-        else:
-            patient_explanation['shap_top_positive'] = []
-            patient_explanation['shap_top_negative'] = []
-            patient_explanation['shap_total'] = None
-            patient_explanation['consensus_features'] = []
-        
-        results.append(patient_explanation)
-    
+
+    workers = n_workers if n_workers > 0 else max(1, (os.cpu_count() or 2) - 1)
+    use_parallel = workers > 1 and sample_size > 0
+
+    if not use_parallel:
+        chunks_args = [(0, ffa_sample, shap_values, feature_names, consensus_set)]
+        results = _process_patient_chunk(chunks_args[0])
+    else:
+        chunk_size = max(1, (sample_size + workers - 1) // workers)
+        chunks_args = []
+        for start in range(0, sample_size, chunk_size):
+            end = min(start + chunk_size, sample_size)
+            chunks_args.append(
+                (start, ffa_sample.iloc[start:end].copy(), shap_values, feature_names, consensus_set)
+            )
+        logger.info(f"Patient explanations: {sample_size} patients, {len(chunks_args)} chunks, {workers} workers")
+        results = []
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            for chunk_results in executor.map(_process_patient_chunk, chunks_args):
+                results.extend(chunk_results)
+
     return pd.DataFrame(results)
 
 
@@ -426,7 +463,13 @@ def main():
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
     parser.add_argument("--weight-shap", type=float, default=0.5, help="Weight for SHAP (0-1)")
     parser.add_argument("--weight-ffa", type=float, default=0.5, help="Weight for FFA (0-1)")
-    parser.add_argument("--n-patients", type=int, default=100, help="Number of patients to analyze")
+    parser.add_argument("--n-patients", type=int, default=0, help="Number of patients to analyze (0 = all)")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Parallel workers for patient explanations (0=auto from CPU count, 1=sequential)",
+    )
     parser.add_argument("--all-cohorts", action="store_true", help="Process all cohorts")
     
     args = parser.parse_args()
@@ -462,19 +505,32 @@ def main():
         if str(ffa_explanations_path).endswith(".parquet"):
             con = duckdb.connect()
             try:
-                # Limit rows for EC2 memory (we only need n_patients for patient_explanations)
-                limit = max(args.n_patients * 2, 5000)
-                ffa_explanations = con.execute(
-                    f"SELECT * FROM read_parquet('{str(ffa_explanations_path)}') LIMIT {int(limit)}"
-                ).df()
+                # Limit rows only when n_patients > 0 (for memory); 0 = load all
+                path_esc = str(ffa_explanations_path).replace("'", "''")
+                if args.n_patients > 0:
+                    limit = max(args.n_patients * 2, 5000)
+                    ffa_explanations = con.execute(
+                        f"SELECT * FROM read_parquet('{path_esc}') LIMIT {int(limit)}"
+                    ).df()
+                else:
+                    ffa_explanations = con.execute(
+                        f"SELECT * FROM read_parquet('{path_esc}')"
+                    ).df()
             finally:
                 con.close()
         else:
             con = duckdb.connect()
             try:
-                ffa_explanations = con.execute(
-                    f"SELECT * FROM read_csv_auto('{str(ffa_explanations_path)}') LIMIT 5000"
-                ).df()
+                path_esc = str(ffa_explanations_path).replace("'", "''")
+                if args.n_patients > 0:
+                    limit = max(args.n_patients * 2, 5000)
+                    ffa_explanations = con.execute(
+                        f"SELECT * FROM read_csv_auto('{path_esc}') LIMIT {int(limit)}"
+                    ).df()
+                else:
+                    ffa_explanations = con.execute(
+                        f"SELECT * FROM read_csv_auto('{path_esc}')"
+                    ).df()
             finally:
                 con.close()
     if ffa_importance_path:
@@ -522,11 +578,16 @@ def main():
         shap_importance, ffa_importance, args.weight_shap, args.weight_ffa
     )
     
-    # Generate patient explanations
+    # Generate patient explanations (use global consensus set for "consensus_features" per patient)
     patient_explanations = None
     if ffa_explanations is not None:
         patient_explanations = generate_patient_explanations(
-            shap_values, ffa_explanations, feature_names, args.n_patients
+            shap_values,
+            ffa_explanations,
+            feature_names,
+            args.n_patients,
+            global_consensus_features=consensus_data.get("consensus_features"),
+            n_workers=args.workers,
         )
     
     # Save results

@@ -226,6 +226,12 @@ def main() -> None:
         default=2000,
         help="Max train feature rows to load for FFA (DuckDB LIMIT). Default 2000 to reduce memory.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Combine step: parallel workers for patient explanations (0=auto from CPU count, 1=sequential). Always passed to combine.",
+    )
     args = parser.parse_args()
     age_band_fname = _age_band_fname(args.age_band)
 
@@ -264,19 +270,19 @@ def main() -> None:
     if not args.skip_combine:
         combine_script = Path(__file__).parent / "combine_shap_ffa_results.py"
         dashboard_out = PROJECT_ROOT / "9_risk_dashboard" / "outputs"
-        r = subprocess.run(
-            [
-                sys.executable,
-                str(combine_script),
-                "--cohort",
-                args.cohort,
-                "--age-band",
-                args.age_band,
-                "--output-dir",
-                str(dashboard_out),
-            ],
-            cwd=Path(__file__).parent,
-        )
+        combine_cmd = [
+            sys.executable,
+            str(combine_script),
+            "--cohort",
+            args.cohort,
+            "--age-band",
+            args.age_band,
+            "--output-dir",
+            str(dashboard_out),
+            "--workers",
+            str(args.workers),
+        ]
+        r = subprocess.run(combine_cmd, cwd=Path(__file__).parent)
         if r.returncode != 0:
             raise SystemExit(r.returncode)
     logger.info("SHAP + FFA workflow done.")
