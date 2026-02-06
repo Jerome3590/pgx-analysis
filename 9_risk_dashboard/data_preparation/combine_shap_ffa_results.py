@@ -22,7 +22,7 @@ from typing import Dict, List, Set, Optional, Tuple
 import json
 import ast
 import warnings
-from collections import defaultdict
+from datetime import datetime
 warnings.filterwarnings("ignore")
 
 # Add project root to path
@@ -38,80 +38,75 @@ logger = logging.getLogger(__name__)
 
 
 def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optional[Path]:
-    """Find SHAP results from Step 7."""
+    """Find SHAP results from Step 7 (7_shap_analysis). Prefer global importance CSV for combine."""
     age_band_fname = age_band.replace("-", "_")
-    
-    # Check common locations
+    base = f"{cohort}_{age_band_fname}"
+    # PGx Step 7 writes to 7_shap_analysis/outputs/{cohort}/{age_band_fname}/
+    shap_dir = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     possible_paths = [
-        project_root / '8_final_model' / 'outputs' / cohort / age_band_fname / 'shap_values.npy',
-        project_root / '8_final_model' / 'outputs' / cohort / age_band_fname / 'shap' / 'shap_values.npy',
-        project_root / '8_final_model' / 'outputs' / cohort / age_band_fname / 'shap_feature_importance.csv',
+        shap_dir / f"{base}_shap_global_importance_xgboost.csv",
+        shap_dir / f"{base}_shap_global_importance_catboost.csv",
+        # Legacy / other layouts
+        project_root / "8_final_model" / "outputs" / cohort / age_band_fname / "shap_values.npy",
+        project_root / "8_final_model" / "outputs" / cohort / age_band_fname / "shap_feature_importance.csv",
     ]
-    
     for path in possible_paths:
         if path.exists():
             logger.info(f"Found SHAP results: {path}")
             return path
-    
     logger.warning("SHAP results not found - will skip SHAP analysis")
     return None
 
 
 def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Optional[Path], Optional[Path]]:
-    """Find FFA results from the FFA step (8_ffa_analysis)."""
+    """Find FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/ or catboost/."""
     age_band_fname = age_band.replace("-", "_")
-    
-    explanations_path = (
-        project_root
-        / "8_ffa_analysis"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / "catboost"
-        / "axp_explanations.csv"
-    )
-    importance_path = (
-        project_root
-        / "8_ffa_analysis"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / "catboost"
-        / "feature_importance_axp.csv"
-    )
-    
-    if explanations_path.exists():
-        logger.info(f"Found FFA explanations: {explanations_path}")
-    else:
+    ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_band_fname
+    explanations_path = None
+    importance_path = None
+    for model in ("xgboost", "catboost"):
+        model_dir = ffa_base / model
+        exp_p = model_dir / "axp_explanations.parquet"
+        if not exp_p.exists():
+            exp_p = model_dir / "axp_explanations.csv"
+        imp_p = model_dir / "feature_importance_axp.parquet"
+        if not imp_p.exists():
+            imp_p = model_dir / "feature_importance_axp.csv"
+        if exp_p.exists():
+            explanations_path = exp_p
+            logger.info(f"Found FFA explanations: {explanations_path}")
+            break
+    if explanations_path is None:
         logger.warning("FFA explanations not found")
-        explanations_path = None
-    
-    if importance_path.exists():
-        logger.info(f"Found FFA importance: {importance_path}")
-    else:
+    for model in ("xgboost", "catboost"):
+        model_dir = ffa_base / model
+        imp_p = model_dir / "feature_importance_axp.parquet"
+        if not imp_p.exists():
+            imp_p = model_dir / "feature_importance_axp.csv"
+        if imp_p.exists():
+            importance_path = imp_p
+            logger.info(f"Found FFA importance: {importance_path}")
+            break
+    if importance_path is None:
         logger.warning("FFA importance not found")
-        importance_path = None
-    
     return explanations_path, importance_path
 
 
-def load_shap_data(shap_path: Path) -> Tuple[np.ndarray, Optional[pd.DataFrame]]:
-    """Load SHAP values and importance."""
+def load_shap_data(shap_path: Path) -> Tuple[Optional[np.ndarray], Optional[pd.DataFrame]]:
+    """Load SHAP values and/or importance. Step 7 global importance CSV has feature, mean_abs_shap, mean_shap."""
     if shap_path.suffix == '.npy':
         shap_values = np.load(shap_path)
-        importance = None
-    elif shap_path.suffix == '.csv':
+        return shap_values, None
+    if shap_path.suffix == '.csv':
         df = pd.read_csv(shap_path)
-        if 'shap_value' in df.columns or 'importance' in df.columns:
-            importance = df
-            shap_values = None  # Will need to reconstruct from importance
-        else:
-            shap_values = df.values
-            importance = None
-    else:
-        raise ValueError(f"Unsupported SHAP file format: {shap_path.suffix}")
-    
-    return shap_values, importance
+        # Importance table (feature + importance column) — use as importance, no row-level SHAP
+        if any(c in df.columns for c in ('feature', 'shap_value', 'importance', 'mean_abs_shap')):
+            if 'feature' not in df.columns and 'mean_abs_shap' in df.columns:
+                df = df.rename(columns={df.columns[0]: 'feature'})
+            return None, df
+        shap_values = df.values
+        return shap_values, None
+    raise ValueError(f"Unsupported SHAP file format: {shap_path.suffix}")
 
 
 def extract_features_from_ffa_rules(rules: List) -> Set[str]:
@@ -183,13 +178,25 @@ def combine_importance_scores(
     """Combine SHAP and FFA importance scores."""
     if shap_importance is None and ffa_importance is None:
         return pd.DataFrame()
-    
+
+    # Single source: still produce combined_importance, shap_norm, ffa_norm for report
     if shap_importance is None:
-        return ffa_importance.copy()
-    
+        df = ffa_importance.copy()
+        col = 'importance' if 'importance' in df.columns else df.columns[1]
+        norm = (df[col] - df[col].min()) / (df[col].max() - df[col].min() + 1e-10)
+        df['shap_norm'] = 0.0
+        df['ffa_norm'] = norm.values
+        df['combined_importance'] = weight_ffa * df['ffa_norm']
+        return df.sort_values('combined_importance', ascending=False)
     if ffa_importance is None:
-        return shap_importance.copy()
-    
+        df = shap_importance.copy()
+        col = 'importance' if 'importance' in df.columns else df.columns[1]
+        norm = (df[col] - df[col].min()) / (df[col].max() - df[col].min() + 1e-10)
+        df['shap_norm'] = norm.values
+        df['ffa_norm'] = 0.0
+        df['combined_importance'] = weight_shap * df['shap_norm']
+        return df.sort_values('combined_importance', ascending=False)
+
     # Normalize both to [0, 1]
     shap_col = 'importance' if 'importance' in shap_importance.columns else shap_importance.columns[1]
     ffa_col = 'importance' if 'importance' in ffa_importance.columns else ffa_importance.columns[1]
@@ -315,9 +322,12 @@ def generate_summary_report(
     if not combined_importance.empty:
         report.append("COMBINED FEATURE IMPORTANCE (Top 10):")
         top_features = combined_importance.head(10)
-        for idx, row in top_features.iterrows():
-            report.append(f"  {idx+1}. {row['feature']}: {row['combined_importance']:.4f} "
-                         f"(SHAP: {row['shap_norm']:.3f}, FFA: {row['ffa_norm']:.3f})")
+        for i, (_, row) in enumerate(top_features.iterrows(), 1):
+            feat = row.get('feature', '')
+            comb = row.get('combined_importance', 0.0)
+            sn = row.get('shap_norm', 0.0)
+            fn = row.get('ffa_norm', 0.0)
+            report.append(f"  {i}. {feat}: {comb:.4f} (SHAP: {sn:.3f}, FFA: {fn:.3f})")
         report.append("")
     
     # Patient explanation summary
@@ -336,6 +346,71 @@ def generate_summary_report(
     report.append("="*80)
     
     return "\n".join(report)
+
+
+def generate_dashboard_outputs_phts_style(
+    combined_importance: pd.DataFrame,
+    output_dir: Path,
+    cohort: str,
+    age_band: str,
+    top_k: int = 20,
+) -> Dict:
+    """
+    Generate PHTS-style dashboard_data.json and top_causal_factors.csv
+    so dashboard and Lambda can consume the same structure as PHTS.
+    """
+    if combined_importance.empty:
+        logger.warning("No combined importance; skipping PHTS-style dashboard outputs")
+        return {}
+    # Normalize combined_importance for summary stats (like PHTS combined_importance_norm)
+    col = "combined_importance" if "combined_importance" in combined_importance.columns else combined_importance.columns[1]
+    vals = combined_importance[col].fillna(0)
+    mn, mx = vals.min(), vals.max()
+    combined_importance = combined_importance.copy()
+    combined_importance["combined_importance_norm"] = (vals - mn) / (mx - mn + 1e-10)
+    # Top K causal table (PHTS columns: feature, causal_responsibility, shap_importance, rule_frequency, total_rules)
+    top_causal = combined_importance.head(top_k).copy()
+    top_causal = top_causal.rename(columns={"combined_importance_norm": "causal_responsibility"})
+    if "causal_responsibility" not in top_causal.columns:
+        top_causal["causal_responsibility"] = top_causal.get("combined_importance", top_causal.iloc[:, 1])
+    top_causal["shap_importance"] = top_causal.get("shap_norm", top_causal["causal_responsibility"])
+    top_causal["rule_frequency"] = 0
+    top_causal["total_rules"] = 0
+    # Summary (PHTS format)
+    combined_filtered = combined_importance
+    summary = {
+        "total_features": len(combined_filtered),
+        "top_k": top_k,
+        "mean_importance": float(combined_filtered["combined_importance_norm"].mean()),
+        "max_importance": float(combined_filtered["combined_importance_norm"].max()),
+        "top_feature": top_causal.iloc[0]["feature"] if len(top_causal) > 0 else None,
+        "top_feature_importance": float(top_causal.iloc[0]["causal_responsibility"]) if len(top_causal) > 0 else None,
+    }
+    dashboard_data = {
+        "cohort": cohort,
+        "age_band": age_band,
+        "timestamp": datetime.now().isoformat(),
+        "ffa_method": "shap_ffa_combined",
+        "top_causal_factors": top_causal.to_dict("records"),
+        "summary": summary,
+        "feature_importance": combined_filtered.head(50).to_dict("records"),
+        "notes": {
+            "source": "combine_shap_ffa_results (PGx)",
+            "shap_source": "7_shap_analysis",
+            "ffa_source": "8_ffa_analysis",
+        },
+    }
+    json_path = output_dir / "dashboard_data.json"
+    with open(json_path, "w") as f:
+        json.dump(dashboard_data, f, indent=2)
+    logger.info(f"Saved dashboard_data.json (PHTS-style) to {json_path}")
+    csv_path = output_dir / "top_causal_factors.csv"
+    top_causal.to_csv(csv_path, index=False)
+    logger.info(f"Saved top_causal_factors.csv to {csv_path}")
+    combined_shap_path = output_dir / "combined_shap_importance.csv"
+    combined_importance.to_csv(combined_shap_path, index=False)
+    logger.info(f"Saved combined_shap_importance.csv to {combined_shap_path}")
+    return dashboard_data
 
 
 def main():
@@ -378,9 +453,27 @@ def main():
     ffa_explanations = None
     ffa_importance = None
     if ffa_explanations_path:
-        ffa_explanations = pd.read_csv(ffa_explanations_path)
+        if str(ffa_explanations_path).endswith(".parquet"):
+            ffa_explanations = pd.read_parquet(ffa_explanations_path)
+        else:
+            ffa_explanations = pd.read_csv(ffa_explanations_path)
     if ffa_importance_path:
-        ffa_importance = pd.read_csv(ffa_importance_path)
+        if str(ffa_importance_path).endswith(".parquet"):
+            ffa_importance = pd.read_parquet(ffa_importance_path)
+        else:
+            ffa_importance = pd.read_csv(ffa_importance_path)
+        # Normalize to 'feature' + 'importance' for downstream (consensus/combine expect 'feature' + importance col)
+        if ffa_importance is not None and 'feature' in ffa_importance.columns:
+            cand = ['importance', 'normalized_importance', 'mean_abs_shap', 'causal_importance', 'raw_count']
+            imp_col = next((c for c in cand if c in ffa_importance.columns), None)
+            if imp_col is None and len(ffa_importance.columns) > 1:
+                # First non-feature numeric column
+                for c in ffa_importance.columns:
+                    if c != 'feature' and pd.api.types.is_numeric_dtype(ffa_importance[c]):
+                        imp_col = c
+                        break
+            if imp_col and imp_col != 'importance':
+                ffa_importance = ffa_importance.rename(columns={imp_col: 'importance'})
     
     # Get feature names
     if shap_importance is not None:
@@ -418,6 +511,10 @@ def main():
         combined_path = output_dir / 'combined_importance.csv'
         combined_importance.to_csv(combined_path, index=False)
         logger.info(f"Saved combined importance to {combined_path}")
+        # PHTS-style outputs for dashboard/Lambda compatibility
+        generate_dashboard_outputs_phts_style(
+            combined_importance, output_dir, args.cohort, args.age_band.replace("-", "_"), args.top_k
+        )
     
     if patient_explanations is not None:
         explanations_path = output_dir / 'patient_explanations.csv'
