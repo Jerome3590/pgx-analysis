@@ -368,9 +368,9 @@ def prepare_train_test_s3(
     }
     
     import json
-    # Save metadata in primary location
-    metadata_train_path = primary_train_dir / "metadata.json"
-    metadata_test_path = primary_test_dir / "metadata.json"
+    # Save metadata in primary location (same as train_dir / test_dir)
+    metadata_train_path = train_dir / "metadata.json"
+    metadata_test_path = test_dir / "metadata.json"
     
     with open(metadata_train_path, 'w') as f:
         json.dump(metadata_train, f, indent=2)
