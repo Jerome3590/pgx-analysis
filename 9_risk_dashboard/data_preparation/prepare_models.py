@@ -76,7 +76,10 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
         if json_path.exists():
             return json_path
     elif model_type == 'xgboost_rf':
-        # RF variant may not exist in new pipeline; keep legacy behavior
+        # Step 6 saves only the best XGBoost variant as xgboost.joblib; xgboost_rf is not saved when best is xgb
+        joblib_path = model_dir / 'xgboost_rf.joblib'
+        if joblib_path.exists():
+            return joblib.load(joblib_path)
         json_path = FINAL_MODEL_DIR / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_final_model_xgboost_rf.json'
         if json_path.exists():
             return json_path
@@ -275,7 +278,9 @@ def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
             model = load_model(cohort, age_band, model_type)
             
             if model is None:
-                print(f"    Warning: {model_type} model not found, skipping")
+                # Step 6 saves only the best XGBoost variant; xgboost_rf is expected missing when best is xgb
+                msg = "skipping (optional; pipeline saves only best XGBoost variant)" if model_type == "xgboost_rf" else "not found, skipping"
+                print(f"    {model_type} {msg}")
                 continue
             
             model_path = output_dir / f'{model_type}.joblib'
