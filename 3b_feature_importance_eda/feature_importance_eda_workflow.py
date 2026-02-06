@@ -195,6 +195,8 @@ except ModuleNotFoundError as e:
 # but we refer to this as "polypharmacy cohort" throughout
 COHORT = "non_opioid_ed"  # Data partition name (must match S3/parquet partitions)
 AGE_BAND = "85-94"
+# User-facing target name (no F1120 reference for polypharmacy)
+TARGET_LABEL = "F1120" if COHORT == "opioid_ed" else "target"
 
 # First, try command-line arguments
 # Only parse if running as script (not in Jupyter/interactive mode)
@@ -253,7 +255,7 @@ print(f"   - Manual: Edit COHORT and AGE_BAND variables above\n")
 # 
 # 1. **Load aggregated feature importances** from Step 3 for the specified cohort
 # 2. **Administrative/Non-informative code filtering** → Remove non-informative ICD/CPT codes (from lookup table)
-# 3. **BupaR post-target analysis** → Identifies pre/post F1120 ICD/CPT events (target leakage detection) with automated ratio-based detection
+# 3. **BupaR post-target analysis** → Identifies pre/post target events (target leakage detection; F1120 for opioid_ed, ED visit for polypharmacy) with automated ratio-based detection
 # 4. **Interactive review** → Validate and manually add/remove codes to filter
 # 5. **Filter & refine** → Generate final `cohort_feature_importance.csv` with filtered features for Step 4a
 
@@ -267,7 +269,7 @@ print(f"   - Manual: Edit COHORT and AGE_BAND variables above\n")
 #          ↓
 #     [Admin Code Filtering] → Remove non-informative ICD/CPT codes (from lookup table)
 #          ↓
-#     [BupaR Analysis] → Identify pre/post F1120 ICD/CPT events (target leakage) with automated detection
+#     [BupaR Analysis] → Identify pre/post target events (target leakage) with automated detection
 #          ↓
 #     [Interactive Review] → Manually validate and update filtering codes ← YOU ARE HERE
 #          ↓
@@ -281,7 +283,7 @@ print(f"   - Manual: Edit COHORT and AGE_BAND variables above\n")
 # 
 # - **Section A**: Configuration and Setup
 # - **Section B**: Administrative/Non-Informative Code Filtering
-# - **Section C**: BupaR Post-Target Analysis (Pre/Post F1120 Events with Automated Leakage Detection)
+# - **Section C**: BupaR Post-Target Analysis (Pre/Post Target Events with Automated Leakage Detection)
 # - **Section D**: Interactive Code Review and Filtering
 # - **Section E**: Generate Final Refined Feature Importances
 
@@ -470,9 +472,11 @@ print(f"\n✅ Administrative code filtering ready")
 print(f"   These codes will be filtered in the 'Filter and Refine' step")
 
 # %% [markdown]
-# ## C. BupaR Post-Target Analysis (Pre/Post F1120 Events)
+# ## C. BupaR Post-Target Analysis (Pre/Post Target Events)
 # 
-# BupaR analysis identifies pre vs post-F1120 ICD/CPT events. Codes that appear primarily after the target event (F1120) are post-target leakage and should be filtered.
+# BupaR analysis identifies pre vs post-target events. Codes that appear primarily after the target event are post-target leakage and should be filtered.
+# 
+# **Polypharmacy (non_opioid_ed):** Model events are built with drug events only up to the windowed HCG/ED visit, so post-target leakage is expected to be zero by construction.
 
 # %% [markdown]
 # ### 1. Verify Rscript is Available
@@ -628,18 +632,18 @@ if bupar_results_path.exists():
     print(f"   Total features analyzed: {len(bupar_results)}")
     print(f"   Post-target leakage features: {len(post_target_leakage)}")
     
-    # Check for critical finding: no pre-F1120 events
+    # Check for critical finding: no pre-target events
     if 'pre_count' in bupar_results.columns and 'post_count' in bupar_results.columns:
         total_pre = bupar_results['pre_count'].sum()
         total_post = bupar_results['post_count'].sum()
         
         if total_pre == 0 and total_post > 0:
-            print(f"\n   ⚠️  CRITICAL FINDING: No pre-F1120 events found!")
-            print(f"   All {total_post:,} events occur AFTER the target event (F1120).")
+            print(f"\n   ⚠️  CRITICAL FINDING: No pre-{TARGET_LABEL} events found!")
+            print(f"   All {total_post:,} events occur AFTER the target event.")
             print(f"   This means ALL features are post-target leakage and should be filtered.")
             print(f"   Consider checking:")
             print(f"     - Data filtering in Step 4a (model_events.parquet)")
-            print(f"     - Whether events before F1120 were filtered out")
+            print(f"     - Whether events before the target were filtered out")
             print(f"     - Cohort definition and target event identification")
     
     if len(post_target_leakage) > 0:
@@ -647,6 +651,8 @@ if bupar_results_path.exists():
         display(post_target_leakage[['feature', 'is_post_target_leakage']].head(20))
     else:
         print(f"\n   ✅ No post-target leakage features identified")
+        if COHORT == "non_opioid_ed":
+            print(f"   ℹ️  (Expected for polypharmacy: model_events are built with drug events only up to the windowed HCG/ED visit, so no post-target leakage by construction.)")
     
     # Display full results
     print(f"\n   Full BupaR results:")
@@ -656,42 +662,44 @@ else:
     bupar_results = pd.DataFrame()
 
 # %% [markdown]
-# ### 4. Visualize Post-F1120 Leakage Candidates
+# ### 4. Visualize Post-Target Leakage Candidates
 #
-# Visualize the post-target leakage analysis results to identify features that occur primarily after F1120.
+# Visualize the post-target leakage analysis results to identify features that occur primarily after the target event.
 
 # %%
-# Create visualizations for post-F1120 leakage candidates
-if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
+# Create visualizations for post-target leakage candidates (ratio column: post_target_ratio or post_f1120_ratio)
+post_ratio_col = 'post_target_ratio' if 'post_target_ratio' in bupar_results.columns else ('post_f1120_ratio' if 'post_f1120_ratio' in bupar_results.columns else None)
+pre_ratio_col = 'pre_target_ratio' if 'pre_target_ratio' in bupar_results.columns else ('pre_f1120_ratio' if 'pre_f1120_ratio' in bupar_results.columns else None)
+if not bupar_results.empty and post_ratio_col:
     # Set up the plotting style
     plt.style.use('default')
     sns.set_palette("husl")
     
     # Filter out features with no ratio data (from BupaR fallback)
-    bupar_results_viz = bupar_results[bupar_results['post_f1120_ratio'] > 0].copy()
+    bupar_results_viz = bupar_results[bupar_results[post_ratio_col] > 0].copy()
     
     if len(bupar_results_viz) > 0:
-        # Figure 1: Distribution of Post-F1120 Ratios
+        # Figure 1: Distribution of Post-Target Ratios
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        fig.suptitle(f'Post-F1120 Leakage Analysis: {COHORT} / {AGE_BAND}', fontsize=16, fontweight='bold')
+        fig.suptitle(f'Post-{TARGET_LABEL.capitalize()} Leakage Analysis: {COHORT} / {AGE_BAND}', fontsize=16, fontweight='bold')
         
-        # 1. Histogram of post-F1120 ratios
+        # 1. Histogram of post-target ratios
         ax1 = axes[0, 0]
-        ax1.hist(bupar_results_viz['post_f1120_ratio'], bins=50, edgecolor='black', alpha=0.7)
+        ax1.hist(bupar_results_viz[post_ratio_col], bins=50, edgecolor='black', alpha=0.7)
         ax1.axvline(x=0.8, color='r', linestyle='--', linewidth=2, label='Threshold (80%)')
-        ax1.set_xlabel('Post-F1120 Ratio', fontsize=12)
+        ax1.set_xlabel(f'Post-{TARGET_LABEL.capitalize()} Ratio', fontsize=12)
         ax1.set_ylabel('Number of Features', fontsize=12)
-        ax1.set_title('Distribution of Post-F1120 Ratios', fontsize=13, fontweight='bold')
+        ax1.set_title(f'Distribution of Post-{TARGET_LABEL.capitalize()} Ratios', fontsize=13, fontweight='bold')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
         # 2. Pre vs Post ratio comparison (scatter plot)
         ax2 = axes[0, 1]
-        if 'pre_f1120_ratio' in bupar_results_viz.columns:
-            # Scatter plot: Pre-F1120 ratio vs Post-F1120 ratio
+        if pre_ratio_col and pre_ratio_col in bupar_results_viz.columns:
+            # Scatter plot: Pre-target ratio vs Post-target ratio
             ax2.scatter(
-                bupar_results_viz['pre_f1120_ratio'], 
-                bupar_results_viz['post_f1120_ratio'],
+                bupar_results_viz[pre_ratio_col],
+                bupar_results_viz[post_ratio_col],
                 alpha=0.6,
                 s=50,
                 c=['red' if row.get('is_post_target_leakage', 0) == 1 else 
@@ -701,26 +709,26 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
             )
             ax2.axhline(y=0.8, color='r', linestyle='--', linewidth=2, label='Post Leakage Threshold (80%)')
             ax2.axvline(x=0.8, color='g', linestyle='--', linewidth=2, label='Pre Predictive Threshold (80%)')
-            ax2.set_xlabel('Pre-F1120 Ratio (Predictive)', fontsize=12)
-            ax2.set_ylabel('Post-F1120 Ratio (Leakage)', fontsize=12)
-            ax2.set_title('Pre vs Post-F1120 Ratios', fontsize=13, fontweight='bold')
+            ax2.set_xlabel(f'Pre-{TARGET_LABEL.capitalize()} Ratio (Predictive)', fontsize=12)
+            ax2.set_ylabel(f'Post-{TARGET_LABEL.capitalize()} Ratio (Leakage)', fontsize=12)
+            ax2.set_title(f'Pre vs Post-{TARGET_LABEL.capitalize()} Ratios', fontsize=13, fontweight='bold')
             ax2.legend(fontsize=9)
             ax2.grid(True, alpha=0.3)
             ax2.set_xlim(-0.05, 1.05)
             ax2.set_ylim(-0.05, 1.05)
         else:
-            # Fallback: Top leakage candidates if pre_f1120_ratio not available
-            leakage_candidates = bupar_results_viz.nlargest(20, 'post_f1120_ratio')
+            # Fallback: Top leakage candidates if pre ratio not available
+            leakage_candidates = bupar_results_viz.nlargest(20, post_ratio_col)
             if len(leakage_candidates) > 0:
                 y_pos = range(len(leakage_candidates))
                 colors = ['red' if ratio >= 0.8 else 'orange' if ratio >= 0.5 else 'yellow' 
-                         for ratio in leakage_candidates['post_f1120_ratio']]
-                ax2.barh(y_pos, leakage_candidates['post_f1120_ratio'], color=colors, alpha=0.7)
+                         for ratio in leakage_candidates[post_ratio_col]]
+                ax2.barh(y_pos, leakage_candidates[post_ratio_col], color=colors, alpha=0.7)
                 ax2.set_yticks(y_pos)
                 feature_labels = [f[:40] + '...' if len(f) > 40 else f for f in leakage_candidates['feature']]
                 ax2.set_yticklabels(feature_labels, fontsize=9)
-                ax2.set_xlabel('Post-F1120 Ratio', fontsize=12)
-                ax2.set_title('Top 20 Features by Post-F1120 Ratio', fontsize=13, fontweight='bold')
+                ax2.set_xlabel(f'Post-{TARGET_LABEL.capitalize()} Ratio', fontsize=12)
+                ax2.set_title(f'Top 20 Features by Post-{TARGET_LABEL.capitalize()} Ratio', fontsize=13, fontweight='bold')
                 ax2.axvline(x=0.8, color='r', linestyle='--', linewidth=2, label='Threshold (80%)')
                 ax2.legend()
                 ax2.grid(True, alpha=0.3, axis='x')
@@ -731,7 +739,7 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
         if len(leakage_features) > 0 and 'pre_count' in leakage_features.columns and 'post_count' in leakage_features.columns:
             # Sample up to 20 features for clarity
             sample_size = min(20, len(leakage_features))
-            leakage_sample = leakage_features.nlargest(sample_size, 'post_f1120_ratio')
+            leakage_sample = leakage_features.nlargest(sample_size, post_ratio_col)
             
             x_pos = range(len(leakage_sample))
             width = 0.35
@@ -739,12 +747,12 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
             pre_counts = leakage_sample['pre_count'].values
             post_counts = leakage_sample['post_count'].values
             
-            ax3.bar([x - width/2 for x in x_pos], pre_counts, width, label='Pre-F1120', alpha=0.7, color='blue')
-            ax3.bar([x + width/2 for x in x_pos], post_counts, width, label='Post-F1120', alpha=0.7, color='red')
+            ax3.bar([x - width/2 for x in x_pos], pre_counts, width, label=f'Pre-{TARGET_LABEL.capitalize()}', alpha=0.7, color='blue')
+            ax3.bar([x + width/2 for x in x_pos], post_counts, width, label=f'Post-{TARGET_LABEL.capitalize()}', alpha=0.7, color='red')
             
             ax3.set_xlabel('Feature Index', fontsize=12)
             ax3.set_ylabel('Event Count', fontsize=12)
-            ax3.set_title(f'Pre vs Post-F1120 Event Counts (Top {sample_size} Leakage Features)', 
+            ax3.set_title(f'Pre vs Post-{TARGET_LABEL.capitalize()} Event Counts (Top {sample_size} Leakage Features)', 
                          fontsize=13, fontweight='bold')
             ax3.legend()
             ax3.grid(True, alpha=0.3, axis='y')
@@ -753,34 +761,35 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
         else:
             ax3.text(0.5, 0.5, 'No leakage features with event count data', 
                     ha='center', va='center', transform=ax3.transAxes, fontsize=12)
-            ax3.set_title('Pre vs Post-F1120 Event Counts', fontsize=13, fontweight='bold')
+            ax3.set_title(f'Pre vs Post-{TARGET_LABEL.capitalize()} Event Counts', fontsize=13, fontweight='bold')
         
         # 4. Summary statistics
         ax4 = axes[1, 1]
         ax4.axis('off')
         
+        pre_col = bupar_results_viz.get(pre_ratio_col, pd.Series([0]*len(bupar_results_viz)))
         summary_text = f"""
         Summary Statistics
         
         Total Features Analyzed: {len(bupar_results_viz):,}
         
-        Post-Target Leakage (≥80%): {len(bupar_results_viz[bupar_results_viz['post_f1120_ratio'] >= 0.8]):,}
-        Pre-Target Predictive (≥80%): {len(bupar_results_viz[bupar_results_viz.get('pre_f1120_ratio', pd.Series([0]*len(bupar_results_viz))) >= 0.8]):,}
-        High Risk Post (50-80%): {len(bupar_results_viz[(bupar_results_viz['post_f1120_ratio'] >= 0.5) & 
-                                                      (bupar_results_viz['post_f1120_ratio'] < 0.8)]):,}
-        Low Risk (<50% post): {len(bupar_results_viz[bupar_results_viz['post_f1120_ratio'] < 0.5]):,}
+        Post-Target Leakage (≥80%): {len(bupar_results_viz[bupar_results_viz[post_ratio_col] >= 0.8]):,}
+        Pre-Target Predictive (≥80%): {len(bupar_results_viz[pre_col >= 0.8]):,}
+        High Risk Post (50-80%): {len(bupar_results_viz[(bupar_results_viz[post_ratio_col] >= 0.5) & 
+                                                      (bupar_results_viz[post_ratio_col] < 0.8)]):,}
+        Low Risk (<50% post): {len(bupar_results_viz[bupar_results_viz[post_ratio_col] < 0.5]):,}
         
-        Mean Pre-F1120 Ratio: {bupar_results_viz.get('pre_f1120_ratio', pd.Series([0]*len(bupar_results_viz))).mean():.2%}
-        Mean Post-F1120 Ratio: {bupar_results_viz['post_f1120_ratio'].mean():.2%}
-        Median Post-F1120 Ratio: {bupar_results_viz['post_f1120_ratio'].median():.2%}
+        Mean Pre-{TARGET_LABEL.capitalize()} Ratio: {pre_col.mean():.2%}
+        Mean Post-{TARGET_LABEL.capitalize()} Ratio: {bupar_results_viz[post_ratio_col].mean():.2%}
+        Median Post-{TARGET_LABEL.capitalize()} Ratio: {bupar_results_viz[post_ratio_col].median():.2%}
         
         Total Events (All Features):
         """
         
         if 'total_count' in bupar_results_viz.columns:
             summary_text += f"""
-        Pre-F1120: {bupar_results_viz.get('pre_count', pd.Series([0]*len(bupar_results_viz))).sum():,}
-        Post-F1120: {bupar_results_viz.get('post_count', pd.Series([0]*len(bupar_results_viz))).sum():,}
+        Pre-{TARGET_LABEL.capitalize()}: {bupar_results_viz.get('pre_count', pd.Series([0]*len(bupar_results_viz))).sum():,}
+        Post-{TARGET_LABEL.capitalize()}: {bupar_results_viz.get('post_count', pd.Series([0]*len(bupar_results_viz))).sum():,}
         Total: {bupar_results_viz['total_count'].sum():,}
         """
         
@@ -791,7 +800,7 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
         plt.tight_layout()
         
         # Save the plot
-        plot_path = PLOTS_DIR / f"{COHORT}_{AGE_BAND_FNAME}_post_f1120_leakage_analysis.png"
+        plot_path = PLOTS_DIR / f"{COHORT}_{AGE_BAND_FNAME}_post_target_leakage_analysis.png"
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         print(f"✅ Saved leakage analysis plot: {plot_path}")
         
@@ -801,54 +810,53 @@ if not bupar_results.empty and 'post_f1120_ratio' in bupar_results.columns:
         
         # Create a detailed table of top leakage candidates
         if len(leakage_features) > 0:
-            print(f"\n📋 Top 20 Post-F1120 Leakage Candidates:")
+            print(f"\n📋 Top 20 Post-{TARGET_LABEL.capitalize()} Leakage Candidates:")
             print(f"{'='*100}")
-            top_leakage = leakage_features.nlargest(20, 'post_f1120_ratio')
+            top_leakage = leakage_features.nlargest(20, post_ratio_col)
             
-            # Include pre_f1120_ratio if available
-            cols_to_show = ['feature', 'post_f1120_ratio']
-            if 'pre_f1120_ratio' in top_leakage.columns:
-                cols_to_show.insert(1, 'pre_f1120_ratio')
+            cols_to_show = ['feature', post_ratio_col]
+            if pre_ratio_col and pre_ratio_col in top_leakage.columns:
+                cols_to_show.insert(1, pre_ratio_col)
             cols_to_show.extend(['pre_count', 'post_count', 'total_count'])
             
             display_df = top_leakage[[c for c in cols_to_show if c in top_leakage.columns]].copy()
-            display_df['post_f1120_ratio'] = display_df['post_f1120_ratio'].apply(lambda x: f"{x:.1%}")
-            if 'pre_f1120_ratio' in display_df.columns:
-                display_df['pre_f1120_ratio'] = display_df['pre_f1120_ratio'].apply(lambda x: f"{x:.1%}")
+            display_df[post_ratio_col] = display_df[post_ratio_col].apply(lambda x: f"{x:.1%}")
+            if pre_ratio_col and pre_ratio_col in display_df.columns:
+                display_df[pre_ratio_col] = display_df[pre_ratio_col].apply(lambda x: f"{x:.1%}")
             
-            col_names = ['Feature', 'Post-F1120 Ratio']
-            if 'pre_f1120_ratio' in display_df.columns:
-                col_names.insert(1, 'Pre-F1120 Ratio')
+            col_names = ['Feature', f'Post-{TARGET_LABEL.capitalize()} Ratio']
+            if pre_ratio_col and pre_ratio_col in display_df.columns:
+                col_names.insert(1, f'Pre-{TARGET_LABEL.capitalize()} Ratio')
             col_names.extend(['Pre Count', 'Post Count', 'Total Count'])
             display_df.columns = col_names
             
             display(display_df)
             
             # Save detailed leakage candidates to CSV
-            leakage_csv = OUTPUT_DIR / f"{COHORT}_{AGE_BAND_FNAME}_post_f1120_leakage_candidates.csv"
-            leakage_features_sorted = leakage_features.sort_values('post_f1120_ratio', ascending=False)
+            leakage_csv = OUTPUT_DIR / f"{COHORT}_{AGE_BAND_FNAME}_post_target_leakage_candidates.csv"
+            leakage_features_sorted = leakage_features.sort_values(post_ratio_col, ascending=False)
             leakage_features_sorted.to_csv(leakage_csv, index=False)
             print(f"\n💾 Saved detailed leakage candidates to: {leakage_csv}")
         
         # Also show pre-target predictive features
-        if 'is_pre_target_predictive' in bupar_results_viz.columns:
+        if 'is_pre_target_predictive' in bupar_results_viz.columns and pre_ratio_col and pre_ratio_col in bupar_results_viz.columns:
             predictive_features = bupar_results_viz[bupar_results_viz['is_pre_target_predictive'] == 1]
             if len(predictive_features) > 0:
-                print(f"\n✅ Top 20 Pre-F1120 Predictive Features (safe to use):")
+                print(f"\n✅ Top 20 Pre-{TARGET_LABEL.capitalize()} Predictive Features (safe to use):")
                 print(f"{'='*100}")
-                top_predictive = predictive_features.nlargest(20, 'pre_f1120_ratio')
+                top_predictive = predictive_features.nlargest(20, pre_ratio_col)
                 
-                cols_to_show = ['feature', 'pre_f1120_ratio', 'post_f1120_ratio', 'pre_count', 'post_count', 'total_count']
+                cols_to_show = ['feature', pre_ratio_col, post_ratio_col, 'pre_count', 'post_count', 'total_count']
                 display_df = top_predictive[[c for c in cols_to_show if c in top_predictive.columns]].copy()
-                display_df['pre_f1120_ratio'] = display_df['pre_f1120_ratio'].apply(lambda x: f"{x:.1%}")
-                display_df['post_f1120_ratio'] = display_df['post_f1120_ratio'].apply(lambda x: f"{x:.1%}")
-                display_df.columns = ['Feature', 'Pre-F1120 Ratio', 'Post-F1120 Ratio', 'Pre Count', 'Post Count', 'Total Count']
+                display_df[pre_ratio_col] = display_df[pre_ratio_col].apply(lambda x: f"{x:.1%}")
+                display_df[post_ratio_col] = display_df[post_ratio_col].apply(lambda x: f"{x:.1%}")
+                display_df.columns = ['Feature', f'Pre-{TARGET_LABEL.capitalize()} Ratio', f'Post-{TARGET_LABEL.capitalize()} Ratio', 'Pre Count', 'Post Count', 'Total Count']
                 
                 display(display_df)
     else:
-        print("⚠️  No features with post-F1120 ratio data available for visualization")
+        print(f"⚠️  No features with post-{TARGET_LABEL} ratio data available for visualization")
 elif not bupar_results.empty:
-    print("ℹ️  Post-F1120 ratio data not available (using BupaR fallback mode)")
+    print("ℹ️  Post-target ratio data not available (using BupaR fallback mode)")
     print("   Run with event-level data to get detailed ratio visualizations")
 else:
     print("⚠️  No BupaR results available for visualization")
@@ -857,14 +865,17 @@ else:
 # ### 5. View BupaR Visualizations
 
 # %%
-# Display BupaR visualizations
+# Display BupaR visualizations (F1120 pre/post plots only for opioid_ed; polypharmacy uses HCG target)
 bupar_plots = [
     f"{COHORT}_{AGE_BAND_FNAME}_overall_activity_frequency.png",
     f"{COHORT}_{AGE_BAND_FNAME}_activity_milestones_gantt.png",
     f"{COHORT}_{AGE_BAND_FNAME}_activity_sequence_top.png",
-    f"{COHORT}_{AGE_BAND_FNAME}_pre_f1120_activity_frequency.png",
-    f"{COHORT}_{AGE_BAND_FNAME}_post_f1120_activity_frequency.png",
 ]
+if COHORT == "opioid_ed":
+    bupar_plots.extend([
+        f"{COHORT}_{AGE_BAND_FNAME}_pre_f1120_activity_frequency.png",
+        f"{COHORT}_{AGE_BAND_FNAME}_post_f1120_activity_frequency.png",
+    ])
 
 # Check if plots directory exists and list available plots
 if PLOTS_DIR.exists():
@@ -913,7 +924,7 @@ for plot_name in bupar_plots:
 # Combine filtering recommendations
 filtering_recommendations = {
     'administrative_codes': set(),  # Administrative/non-informative codes from lookup table
-    'bupar_post_target': set(),     # Post-F1120 leakage features
+    'bupar_post_target': set(),     # Post-target leakage features
     'manual_additional': set()       # Add codes manually here
 }
 
@@ -1196,7 +1207,7 @@ except s3_client.exceptions.ClientError as e:
 # **Outputs Generated:**
 # - ✅ Administrative code filtering (from lookup table)
 # - ✅ BupaR post-target analysis results with automated leakage detection
-# - ✅ Post-F1120 leakage visualizations
+# - ✅ Post-target leakage visualizations
 # - ✅ Refined `cohort_feature_importance.csv` for Step 4a
 # - ✅ Filtering summary JSON
 # 
