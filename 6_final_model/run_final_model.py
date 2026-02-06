@@ -559,36 +559,40 @@ def _create_aggregated_feature_importance_visualizations(
 ) -> None:
     """
     Create bar chart and heatmap visualizations from aggregated feature importance CSV.
-    
-    Args:
-        cohort: Cohort name
-        age_band: Age band
-        out_base: Output directory base path
+    Resolves path via shared logic (3a outputs, gold/feature_importance, S3).
     """
     age_band_fname = age_band.replace("-", "_")
-    
-    # Try to load aggregated feature importance CSV from Step 3
-    agg_csv_path = (
-        PROJECT_ROOT
-        / "3_feature_importance"
-        / "outputs"
-        / cohort
-        / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    
-    # Fallback: try S3 download location
-    if not agg_csv_path.exists():
-        agg_csv_path = (
-            PROJECT_ROOT
-            / "3_feature_importance"
-            / "from_s3"
-            / "by_cohort"
-            / cohort
-            / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        )
-    
-    if not agg_csv_path.exists():
-        print(f"[WARNING] Aggregated feature importance CSV not found: {agg_csv_path}")
+    filename = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+
+    # Resolve aggregated FI path: same order as Step 3b / workflow (3a outputs, from_s3, gold, S3)
+    agg_csv_path = None
+    try:
+        from py_helpers.feature_importance_eda_utils import resolve_aggregated_fi_path
+        agg_csv_path = resolve_aggregated_fi_path(cohort, age_band, PROJECT_ROOT)
+    except Exception:
+        pass
+    if agg_csv_path is None:
+        # Local sync location (workflow syncs S3 gold/feature_importance here)
+        data_root = get_data_root()
+        gold_fi = data_root / "gold" / "feature_importance" / cohort / age_band / filename
+        if gold_fi.exists():
+            agg_csv_path = gold_fi
+    if agg_csv_path is None:
+        # Legacy: 3a outputs and 3_feature_importance paths
+        candidates = [
+            PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort / filename,
+            PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort / age_band_fname / filename,
+            PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort" / cohort / age_band_fname / filename,
+            PROJECT_ROOT / "3_feature_importance" / "outputs" / cohort / filename,
+            PROJECT_ROOT / "3_feature_importance" / "from_s3" / "by_cohort" / cohort / filename,
+        ]
+        for p in candidates:
+            if p.exists():
+                agg_csv_path = p
+                break
+
+    if agg_csv_path is None or not agg_csv_path.exists():
+        print(f"[WARNING] Aggregated feature importance CSV not found (checked 3a outputs, gold/feature_importance, S3).")
         print("Skipping visualization generation.")
         return
     
