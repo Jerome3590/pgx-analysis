@@ -75,7 +75,6 @@ from py_helpers.constants import (
     OPIOID_ICD_CODES,
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
-    get_cohort_slug,
 )
 from py_helpers.env_utils import get_data_root, is_linux
 
@@ -476,25 +475,20 @@ def filter_cohort_events_for_items(
             f"using {len(important_items)} important items."
         )
 
-    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
-    cohort_slug = get_cohort_slug(age_band)
-    
-    # New structure: cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/
+    # Write to flat path so Step 5 (PGx) and Step 6 (final model) find it:
+    # 4_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
     out_dir = (
         output_root
-        / "cohorts"
-        / "input_model_data"
-        / f"cohort_name={cohort_slug}"
+        / f"cohort_name={cohort_name}"
         / f"age_band={age_band}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
 
-    # Check S3 first for idempotency
-    # New format: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/
+    # S3 path aligned with Step 6 download candidates (gold/cohorts_model_data/...)
     s3_output_path = (
-        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
-        f"cohort_name={cohort_slug}/age_band={age_band}/model_events.parquet"
+        f"s3://pgxdatalake/gold/cohorts_model_data/"
+        f"cohort_name={cohort_name}/age_band={age_band}/model_events.parquet"
     )
 
     # Idempotency / Windows-friendly: if the file already exists locally, assume this
@@ -522,12 +516,6 @@ def filter_cohort_events_for_items(
                 )
                 aws_cli = shutil.which("aws")
                 if aws_cli:
-                    # Get cohort slug based on age band
-                    cohort_slug = get_cohort_slug(age_band)
-                    s3_dir_path = (
-                        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
-                        f"cohort_name={cohort_slug}/age_band={age_band}/"
-                    )
                     result = subprocess.run(
                         [aws_cli, "s3", "cp", s3_output_path, str(out_path), "--no-progress"],
                         capture_output=True,
@@ -911,22 +899,16 @@ def filter_cohort_events_for_items(
 def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str) -> None:
     """
     Sync model_events.parquet to S3 using aws s3 sync.
-    
-    S3 path: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet
-    where slug is "opioid" or "polypharmacy" based on age band.
+    S3 path aligned with Step 6: gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/
     """
     aws_cli = shutil.which("aws")
     if not aws_cli:
         print("[WARN] AWS CLI not found, skipping S3 sync")
         return
-    
-    # Get cohort slug based on age band: "opioid" for < 65, "polypharmacy" for >= 65
-    cohort_slug = get_cohort_slug(age_band)
-    
-    # New format: s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name={slug}/
+
     s3_path = (
-        f"s3://pgxdatalake/gold/cohorts/input_model_data/"
-        f"cohort_name={cohort_slug}/age_band={age_band}/"
+        f"s3://pgxdatalake/gold/cohorts_model_data/"
+        f"cohort_name={cohort_name}/age_band={age_band}/"
     )
     
     # Use s3 sync to upload the file (syncs the directory)
