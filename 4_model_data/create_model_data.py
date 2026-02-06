@@ -484,6 +484,7 @@ def filter_cohort_events_for_items(
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
+    print(f"[INFO] Model data output (4_model_data): {out_path.resolve()}")
 
     # S3 path aligned with Step 6 download candidates (gold/cohorts_model_data/...)
     s3_output_path = (
@@ -496,8 +497,8 @@ def filter_cohort_events_for_items(
     # avoids DuckDB attempting to delete an open file and throwing WinError 32.
     if out_path.exists():
         print(
-            f"[INFO] model_events.parquet already exists locally for {cohort_name}/{age_band}; "
-            f"skipping rebuild of this partition."
+            f"[INFO] model_events.parquet already exists at {out_path.resolve()}; "
+            f"skipping rebuild for {cohort_name}/{age_band}."
         )
         con.close()
         return
