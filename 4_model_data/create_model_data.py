@@ -123,28 +123,29 @@ def resolve_local_cohort_root() -> Path:
 
     Priority:
       1. LOCAL_DATA_PATH environment variable (if set)
-      2. PROJECT_ROOT/data/gold_cohorts
+      2. get_data_root()/gold/cohorts, then data/gold_cohorts alternatives
+      3. PROJECT_ROOT/data/gold_cohorts (default)
     """
     env_path = os.getenv("LOCAL_DATA_PATH")
     if env_path:
         root = Path(env_path)
+        print(f"[INFO] Cohort root: LOCAL_DATA_PATH={root}  exists={root.exists()}")
         if root.exists():
             return root
 
-    # OS-aware path resolution
     data_root = get_data_root()
     candidates = [
         data_root / "gold" / "cohorts",  # Linux/EC2: /mnt/nvme/gold/cohorts
-        data_root / "data" / "gold_cohorts",  # Alternative Linux path
-        PROJECT_ROOT / "data" / "gold_cohorts",  # Windows/local dev
+        data_root / "data" / "gold_cohorts",
+        PROJECT_ROOT / "data" / "gold_cohorts",
     ]
-    
-    # Return first existing path, or default to project root if neither exists
     for path in candidates:
         if path.exists():
+            print(f"[INFO] Cohort root: tried {[str(c) for c in candidates]} -> using {path} (first existing)")
             return path
-    
-    return candidates[2]  # Default to project root
+    chosen = candidates[2]
+    print(f"[INFO] Cohort root: tried {[str(c) for c in candidates]} (none existed) -> using default {chosen}")
+    return chosen
 
 
 def resolve_local_medical_root() -> Path:
@@ -153,29 +154,29 @@ def resolve_local_medical_root() -> Path:
 
     Priority:
       1. LOCAL_MEDICAL_PATH environment variable
-      2. get_data_root()/data/gold_medical (Linux/EC2: /mnt/nvme/data/gold_medical)
-      3. PROJECT_ROOT/data/gold_medical (Windows/local dev)
+      2. get_data_root()/gold/medical, then data/gold_medical
+      3. PROJECT_ROOT/data/gold_medical (default)
     """
     env_path = os.getenv("LOCAL_MEDICAL_PATH")
     if env_path:
         root = Path(env_path)
+        print(f"[INFO] Medical root: LOCAL_MEDICAL_PATH={root}  exists={root.exists()}")
         if root.exists():
             return root
 
-    # OS-aware path resolution
     data_root = get_data_root()
     candidates = [
-        data_root / "gold" / "medical",  # Linux/EC2: /mnt/nvme/gold/medical
-        data_root / "data" / "gold_medical",  # Alternative Linux path
-        PROJECT_ROOT / "data" / "gold_medical",  # Windows/local dev
+        data_root / "gold" / "medical",
+        data_root / "data" / "gold_medical",
+        PROJECT_ROOT / "data" / "gold_medical",
     ]
-    
-    # Return first existing path, or default to project root if neither exists
     for path in candidates:
         if path.exists():
+            print(f"[INFO] Medical root: tried {[str(c) for c in candidates]} -> using {path} (first existing)")
             return path
-    
-    return candidates[2]  # Default to project root
+    chosen = candidates[2]
+    print(f"[INFO] Medical root: tried {[str(c) for c in candidates]} (none existed) -> using default {chosen}")
+    return chosen
 
 
 def resolve_local_pharmacy_root() -> Path:
@@ -184,29 +185,29 @@ def resolve_local_pharmacy_root() -> Path:
 
     Priority:
       1. LOCAL_PHARMACY_PATH environment variable
-      2. get_data_root()/data/gold_pharmacy (Linux/EC2: /mnt/nvme/data/gold_pharmacy)
-      3. PROJECT_ROOT/data/gold_pharmacy (Windows/local dev)
+      2. get_data_root()/gold/pharmacy, then data/gold_pharmacy
+      3. PROJECT_ROOT/data/gold_pharmacy (default)
     """
     env_path = os.getenv("LOCAL_PHARMACY_PATH")
     if env_path:
         root = Path(env_path)
+        print(f"[INFO] Pharmacy root: LOCAL_PHARMACY_PATH={root}  exists={root.exists()}")
         if root.exists():
             return root
 
-    # OS-aware path resolution
     data_root = get_data_root()
     candidates = [
-        data_root / "gold" / "pharmacy",  # Linux/EC2: /mnt/nvme/gold/pharmacy
-        data_root / "data" / "gold_pharmacy",  # Alternative Linux path
-        PROJECT_ROOT / "data" / "gold_pharmacy",  # Windows/local dev
+        data_root / "gold" / "pharmacy",
+        data_root / "data" / "gold_pharmacy",
+        PROJECT_ROOT / "data" / "gold_pharmacy",
     ]
-    
-    # Return first existing path, or default to project root if neither exists
     for path in candidates:
         if path.exists():
+            print(f"[INFO] Pharmacy root: tried {[str(c) for c in candidates]} -> using {path} (first existing)")
             return path
-    
-    return candidates[2]  # Default to project root
+    chosen = candidates[2]
+    print(f"[INFO] Pharmacy root: tried {[str(c) for c in candidates]} (none existed) -> using default {chosen}")
+    return chosen
 
 
 def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
@@ -372,20 +373,23 @@ def filter_cohort_events_for_items(
 
     # Build list of local cohort parquet paths for this cohort/age_band across years
     cohort_parquet_paths: List[str] = []
-    for year in years:
-        p = (
+    cohort_paths_checked = [
+        (
             local_cohort_root
             / f"cohort_name={cohort_name}"
             / f"event_year={year}"
             / f"age_band={age_band}"
             / "cohort.parquet"
         )
-        if p.exists():
+        for year in years
+    ]
+    print(f"[INFO] Cohort parquet search: root={local_cohort_root}")
+    for p in cohort_paths_checked:
+        exists = p.exists()
+        status = "found" if exists else "MISSING"
+        print(f"[INFO]   {p}  -> {status}")
+        if exists:
             cohort_parquet_paths.append(str(p))
-        else:
-            print(
-                f"[INFO] Local cohort parquet not found for {cohort_name}/{age_band}/{year}: {p}"
-            )
 
     if not cohort_parquet_paths:
         msg = (
@@ -401,6 +405,8 @@ def filter_cohort_events_for_items(
     medical_parquet_paths: List[str] = []
     pharmacy_parquet_paths: List[str] = []
 
+    print(f"[INFO] Gold medical search: root={local_medical_root}  (expect age_band={age_band}/event_year={{year}}/*.parquet)")
+    print(f"[INFO] Gold pharmacy search: root={local_pharmacy_root}  (expect age_band={age_band}/event_year={{year}}/*.parquet)")
     for year in years:
         medical_parent = (
             local_medical_root
@@ -416,19 +422,15 @@ def filter_cohort_events_for_items(
         medical_glob = medical_parent / "*.parquet"
         pharmacy_glob = pharmacy_parent / "*.parquet"
 
-        if medical_parent.exists():
-            medical_parquet_paths.append(str(medical_glob))
-        else:
-            print(
-                f"[INFO] Gold medical not found for age_band={age_band}, year={year}: {medical_parent}"
-            )
+        med_exists = medical_parent.exists()
+        pharm_exists = pharmacy_parent.exists()
+        print(f"[INFO]   medical   {medical_parent}  -> {'found' if med_exists else 'MISSING'}")
+        print(f"[INFO]   pharmacy  {pharmacy_parent}  -> {'found' if pharm_exists else 'MISSING'}")
 
-        if pharmacy_parent.exists():
+        if med_exists:
+            medical_parquet_paths.append(str(medical_glob))
+        if pharm_exists:
             pharmacy_parquet_paths.append(str(pharmacy_glob))
-        else:
-            print(
-                f"[INFO] Gold pharmacy not found for age_band={age_band}, year={year}: {pharmacy_parent}"
-            )
 
     if not medical_parquet_paths:
         msg = (
@@ -1175,6 +1177,10 @@ def main() -> None:
     local_cohort_root = resolve_local_cohort_root()
     local_medical_root = resolve_local_medical_root()
     local_pharmacy_root = resolve_local_pharmacy_root()
+
+    print(f"[INFO] Step 4 data roots: cohorts={local_cohort_root}, medical={local_medical_root}, pharmacy={local_pharmacy_root}")
+    example_cohort = local_cohort_root / "cohort_name=opioid_ed" / "event_year=2016" / "age_band=13-24" / "cohort.parquet"
+    print(f"[INFO] Example cohort path (must exist for build to run): {example_cohort}  exists={example_cohort.exists()}")
 
     for agg_path in aggregated_files:
         try:
