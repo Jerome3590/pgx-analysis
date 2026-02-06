@@ -75,9 +75,21 @@ class PathConfig:
     def axp_output_dir(self) -> str:
         return os.path.join(self.output_dir, 'axp')
     
-    def read_parquet(self, path: str) -> pd.DataFrame:
-        """Read parquet file from S3."""
-        return pd.read_parquet(path)
+    def read_parquet(self, path: str, max_rows: Optional[int] = None) -> pd.DataFrame:
+        """Read parquet file; use DuckDB for memory-efficient read with optional row limit."""
+        try:
+            import duckdb
+            con = duckdb.connect()
+            try:
+                if max_rows is not None and max_rows > 0:
+                    return con.execute("SELECT * FROM read_parquet(?) LIMIT ?", [path, max_rows]).df()
+                return con.execute("SELECT * FROM read_parquet(?)", [path]).df()
+            finally:
+                con.close()
+        except Exception:
+            if max_rows is not None and max_rows > 0:
+                return pd.read_parquet(path).head(max_rows)
+            return pd.read_parquet(path)
     
     def write_parquet(self, df: pd.DataFrame, path: str) -> None:
         """Write parquet file to S3."""
@@ -1118,7 +1130,7 @@ class CatBoostSymbolicExplainer(BaseSymbolicExplainer):
             level=level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file) if log_file else logging.StreamHandler()
+                logging.FileHandler(log_file, encoding="utf-8") if log_file else logging.StreamHandler()
             ]
         )
         self.logger = logging.getLogger(__name__)

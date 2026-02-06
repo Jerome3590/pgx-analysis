@@ -93,12 +93,17 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Op
 
 
 def load_shap_data(shap_path: Path) -> Tuple[Optional[np.ndarray], Optional[pd.DataFrame]]:
-    """Load SHAP values and/or importance. Step 7 global importance CSV has feature, mean_abs_shap, mean_shap."""
+    """Load SHAP values and/or importance. Step 7 global importance CSV has feature, mean_abs_shap. Uses DuckDB for CSV."""
     if shap_path.suffix == '.npy':
         shap_values = np.load(shap_path)
         return shap_values, None
     if shap_path.suffix == '.csv':
-        df = pd.read_csv(shap_path)
+        import duckdb
+        con = duckdb.connect()
+        try:
+            df = con.execute(f"SELECT * FROM read_csv_auto('{str(shap_path)}')").df()
+        finally:
+            con.close()
         # Importance table (feature + importance column) — use as importance, no row-level SHAP
         if any(c in df.columns for c in ('feature', 'shap_value', 'importance', 'mean_abs_shap')):
             if 'feature' not in df.columns and 'mean_abs_shap' in df.columns:
@@ -452,16 +457,39 @@ def main():
     
     ffa_explanations = None
     ffa_importance = None
+    import duckdb
     if ffa_explanations_path:
         if str(ffa_explanations_path).endswith(".parquet"):
-            ffa_explanations = pd.read_parquet(ffa_explanations_path)
+            con = duckdb.connect()
+            try:
+                # Limit rows for EC2 memory (we only need n_patients for patient_explanations)
+                limit = max(args.n_patients * 2, 5000)
+                ffa_explanations = con.execute(
+                    f"SELECT * FROM read_parquet('{str(ffa_explanations_path)}') LIMIT {int(limit)}"
+                ).df()
+            finally:
+                con.close()
         else:
-            ffa_explanations = pd.read_csv(ffa_explanations_path)
+            con = duckdb.connect()
+            try:
+                ffa_explanations = con.execute(
+                    f"SELECT * FROM read_csv_auto('{str(ffa_explanations_path)}') LIMIT 5000"
+                ).df()
+            finally:
+                con.close()
     if ffa_importance_path:
-        if str(ffa_importance_path).endswith(".parquet"):
-            ffa_importance = pd.read_parquet(ffa_importance_path)
-        else:
-            ffa_importance = pd.read_csv(ffa_importance_path)
+        con_imp = duckdb.connect()
+        try:
+            if str(ffa_importance_path).endswith(".parquet"):
+                ffa_importance = con_imp.execute(
+                    f"SELECT * FROM read_parquet('{str(ffa_importance_path)}')"
+                ).df()
+            else:
+                ffa_importance = con_imp.execute(
+                    f"SELECT * FROM read_csv_auto('{str(ffa_importance_path)}')"
+                ).df()
+        finally:
+            con_imp.close()
         # Normalize to 'feature' + 'importance' for downstream (consensus/combine expect 'feature' + importance col)
         if ffa_importance is not None and 'feature' in ffa_importance.columns:
             cand = ['importance', 'normalized_importance', 'mean_abs_shap', 'causal_importance', 'raw_count']
