@@ -224,7 +224,17 @@ def filter_and_refine_features(
                 print(f"  [DIAG] Filtered=0: aggregated 'feature' sample (raw): {agg_raw_sample}")
                 print(f"  [DIAG] Filtered=0: BupaR leakage feature sample (raw): {sorted(post_target_features_raw)[:15]}")
         else:
-            print(f"[WARN] BupaR CSV has no leakage features identified (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
+            has_leakage_cols = any(
+                c.lower() == "is_post_target_leakage"
+                or c.lower() in ("post_target_ratio", "post_f1120_ratio")
+                for c in bupar_results.columns
+            )
+            if has_leakage_cols:
+                print(f"[INFO] No post-target leakage features in BupaR results (0 flagged).")
+                if cohort and str(cohort).strip().lower() == "non_opioid_ed":
+                    print(f"[INFO] Expected for polypharmacy: model_events are built with drug events only up to the windowed HCG/ED visit, so no post-target leakage by construction.")
+            else:
+                print(f"[WARN] BupaR CSV has no leakage columns (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
     
     # Exclude target-family codes (F10/F11/F19 substance use disorder) for opioid_ed — they are outcome, not predictors
     if cohort and (str(cohort).strip().lower() == "opioid_ed"):
