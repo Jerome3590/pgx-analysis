@@ -49,16 +49,16 @@ def download_file_from_s3(s3_key: str, local_path: Path, bucket: str = "pgxdatal
     try:
         local_path.parent.mkdir(parents=True, exist_ok=True)
         s3_client.download_file(bucket, s3_key, str(local_path))
-        logger.info(f"✓ Downloaded from {bucket}: {s3_key} -> {local_path}")
+        logger.info(f"[OK] Downloaded from {bucket}: {s3_key} -> {local_path}")
         return True
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
-            logger.warning(f"✗ Not found in {bucket}: {s3_key}")
+            logger.warning(f"[X] Not found in {bucket}: {s3_key}")
         else:
-            logger.error(f"✗ Error downloading from {bucket} {s3_key}: {e}")
+            logger.error(f"[X] Error downloading from {bucket} {s3_key}: {e}")
         return False
     except Exception as e:
-        logger.error(f"✗ Error downloading from {bucket} {s3_key}: {e}")
+        logger.error(f"[X] Error downloading from {bucket} {s3_key}: {e}")
         return False
 
 
@@ -200,7 +200,7 @@ def download_data_artifacts():
     # Check if data exists locally
     for data_path, location_desc in data_paths_to_check:
         if data_path.exists():
-            logger.info(f"✓ Data file exists locally at {location_desc}: {data_path}")
+            logger.info(f"[OK] Data file exists locally at {location_desc}: {data_path}")
             return True
     
     # Try to download from S3 to primary location

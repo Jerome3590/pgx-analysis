@@ -288,7 +288,7 @@ class BaseSymbolicExplainer(ABC):
             level=level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file) if log_file else logging.StreamHandler()
+                logging.FileHandler(log_file, encoding="utf-8") if log_file else logging.StreamHandler()
             ]
         )
         self.logger = logging.getLogger(self.__class__.__name__)

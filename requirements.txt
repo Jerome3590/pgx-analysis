@@ -1,0 +1,25 @@
+# Python 3.12
+# Core data and SHAP/FFA workflow (DuckDB for memory-efficient CSV/parquet)
+duckdb>=1.4.0
+
+# Data processing
+pandas>=3.0.0
+numpy>=2.0.0
+pyarrow>=23.0.0
+
+# AWS
+boto3>=1.28.0
+
+# Models and explainability (Steps 6–8)
+scikit-learn>=1.8.0
+joblib>=1.3.0
+catboost>=1.2.0
+xgboost>=2.0.0
+
+# Plotting and FFA
+matplotlib>=3.6.0
+seaborn>=0.12.0
+
+# Utilities
+tenacity>=8.0.0
+certifi>=2023.0.0

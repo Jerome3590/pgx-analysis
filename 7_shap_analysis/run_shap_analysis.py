@@ -215,39 +215,47 @@ def write_row_shap_for_selected_features(
     
     print(f"Writing row-level SHAP for {len(sel)} selected features ({len(X)} rows)...")
     
-    # Collect chunks in memory (for single parquet file output)
-    chunks = []
-    for start in range(0, len(X), chunk_rows):
-        stop = min(start + chunk_rows, len(X))
-        d = xgb.DMatrix(X.iloc[start:stop], feature_names=expected)
-        contrib = booster.predict(d, pred_contribs=True)  # (rows, n_features+1)
-        
-        shap_sel = contrib[:, sel_idx]  # only selected features
-        bias = contrib[:, -1].reshape(-1, 1)  # bias
-        
-        df_chunk = pd.DataFrame(shap_sel, columns=sel)
-        df_chunk["bias"] = bias
-        df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
-        chunks.append(df_chunk)
-        
-        if (start // chunk_rows + 1) % 50 == 0:
-            print(f"  Processed {stop}/{len(X)} rows...")
-    
-    # Combine and write to single parquet file
-    result_df = pd.concat(chunks, ignore_index=True)
-    
-    # Use DuckDB for efficient parquet writing
+    # Stream chunks to DuckDB then write parquet (avoids holding full result in memory)
     import duckdb
     con_parquet = duckdb.connect()
     try:
-        con_parquet.register('shap_df', result_df)
-        con_parquet.execute(f"COPY shap_df TO '{str(out_path)}' (FORMAT PARQUET)")
+        first = True
+        for start in range(0, len(X), chunk_rows):
+            stop = min(start + chunk_rows, len(X))
+            d = xgb.DMatrix(X.iloc[start:stop], feature_names=expected)
+            contrib = booster.predict(d, pred_contribs=True)  # (rows, n_features+1)
+            shap_sel = contrib[:, sel_idx]
+            bias = contrib[:, -1].reshape(-1, 1)
+            df_chunk = pd.DataFrame(shap_sel, columns=sel)
+            df_chunk["bias"] = bias
+            df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+            if first:
+                con_parquet.register("shap_chunk", df_chunk)
+                con_parquet.execute("CREATE TABLE shap_accum AS SELECT * FROM shap_chunk")
+                first = False
+            else:
+                con_parquet.register("shap_chunk", df_chunk)
+                con_parquet.execute("INSERT INTO shap_accum SELECT * FROM shap_chunk")
+            if (start // chunk_rows + 1) % 50 == 0:
+                print(f"  Processed {stop}/{len(X)} rows...")
+        con_parquet.execute(f"COPY shap_accum TO '{str(out_path)}' (FORMAT PARQUET)")
     except Exception as e:
-        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
-        result_df.to_parquet(out_path, index=False, engine='pyarrow')
+        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas chunked write")
+        # Fallback: write chunks to parquet one by one (pyarrow can append to same file with proper API)
+        chunks = []
+        for start in range(0, len(X), chunk_rows):
+            stop = min(start + chunk_rows, len(X))
+            d = xgb.DMatrix(X.iloc[start:stop], feature_names=expected)
+            contrib = booster.predict(d, pred_contribs=True)
+            shap_sel = contrib[:, sel_idx]
+            bias = contrib[:, -1].reshape(-1, 1)
+            df_chunk = pd.DataFrame(shap_sel, columns=sel)
+            df_chunk["bias"] = bias
+            df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+            chunks.append(df_chunk)
+        pd.concat(chunks, ignore_index=True).to_parquet(out_path, index=False, engine="pyarrow")
     finally:
         con_parquet.close()
-    
     print(f"Saved row-level SHAP values to {out_path}")
 
 
@@ -370,59 +378,72 @@ def write_row_shap_for_selected_features_catboost(
     
     print(f"Writing row-level SHAP for {len(sel)} selected features ({len(X)} rows)...")
     
-    # Collect chunks in memory (for single parquet file output)
-    chunks = []
-    for start in range(0, len(X), chunk_rows):
-        stop = min(start + chunk_rows, len(X))
-        X_chunk = X.iloc[start:stop]
-        y_chunk = y.iloc[start:stop]
-        
-        # Create Pool for this chunk
-        if cat_feature_indices:
-            pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
-        else:
-            pool_chunk = Pool(X_chunk, y_chunk)
-        
-        # Get SHAP values for this chunk
-        shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
-        shap_chunk = np.array(shap_chunk)
-        
-        # Extract feature SHAP values (exclude expected value)
-        if shap_chunk.ndim == 2:
-            shap_feat = shap_chunk[:, :-1]  # drop expected value column
-            bias = shap_chunk[:, -1].reshape(-1, 1)  # expected value (bias)
-        elif shap_chunk.ndim == 3:
-            shap_feat = shap_chunk[:, :, :-1].mean(axis=1)  # collapse classes
-            bias = shap_chunk[:, :, -1].mean(axis=1).reshape(-1, 1)  # expected value
-        else:
-            raise ValueError(f"Unexpected CatBoost SHAP array shape: {shap_chunk.shape}")
-        
-        # Select only the features we want
-        shap_sel = shap_feat[:, sel_idx]
-        
-        df_chunk = pd.DataFrame(shap_sel, columns=sel)
-        df_chunk["bias"] = bias
-        df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
-        chunks.append(df_chunk)
-        
-        if (start // chunk_rows + 1) % 50 == 0:
-            print(f"  Processed {stop}/{len(X)} rows...")
-    
-    # Combine and write to single parquet file
-    result_df = pd.concat(chunks, ignore_index=True)
-    
-    # Use DuckDB for efficient parquet writing
+    # Stream chunks to DuckDB then write parquet (avoids holding full result in memory)
     import duckdb
     con_parquet = duckdb.connect()
     try:
-        con_parquet.register('shap_df', result_df)
-        con_parquet.execute(f"COPY shap_df TO '{str(out_path)}' (FORMAT PARQUET)")
+        first = True
+        for start in range(0, len(X), chunk_rows):
+            stop = min(start + chunk_rows, len(X))
+            X_chunk = X.iloc[start:stop]
+            y_chunk = y.iloc[start:stop]
+            if cat_feature_indices:
+                pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+            else:
+                pool_chunk = Pool(X_chunk, y_chunk)
+            shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
+            shap_chunk = np.array(shap_chunk)
+            if shap_chunk.ndim == 2:
+                shap_feat = shap_chunk[:, :-1]
+                bias = shap_chunk[:, -1].reshape(-1, 1)
+            elif shap_chunk.ndim == 3:
+                shap_feat = shap_chunk[:, :, :-1].mean(axis=1)
+                bias = shap_chunk[:, :, -1].mean(axis=1).reshape(-1, 1)
+            else:
+                raise ValueError(f"Unexpected CatBoost SHAP array shape: {shap_chunk.shape}")
+            shap_sel = shap_feat[:, sel_idx]
+            df_chunk = pd.DataFrame(shap_sel, columns=sel)
+            df_chunk["bias"] = bias
+            df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+            if first:
+                con_parquet.register("shap_chunk", df_chunk)
+                con_parquet.execute("CREATE TABLE shap_accum AS SELECT * FROM shap_chunk")
+                first = False
+            else:
+                con_parquet.register("shap_chunk", df_chunk)
+                con_parquet.execute("INSERT INTO shap_accum SELECT * FROM shap_chunk")
+            if (start // chunk_rows + 1) % 50 == 0:
+                print(f"  Processed {stop}/{len(X)} rows...")
+        con_parquet.execute(f"COPY shap_accum TO '{str(out_path)}' (FORMAT PARQUET)")
     except Exception as e:
-        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas")
-        result_df.to_parquet(out_path, index=False, engine='pyarrow')
+        print(f"Warning: DuckDB Parquet write failed ({e}), falling back to pandas chunked write")
+        chunks = []
+        for start in range(0, len(X), chunk_rows):
+            stop = min(start + chunk_rows, len(X))
+            X_chunk = X.iloc[start:stop]
+            y_chunk = y.iloc[start:stop]
+            if cat_feature_indices:
+                pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+            else:
+                pool_chunk = Pool(X_chunk, y_chunk)
+            shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
+            shap_chunk = np.array(shap_chunk)
+            if shap_chunk.ndim == 2:
+                shap_feat = shap_chunk[:, :-1]
+                bias = shap_chunk[:, -1].reshape(-1, 1)
+            elif shap_chunk.ndim == 3:
+                shap_feat = shap_chunk[:, :, :-1].mean(axis=1)
+                bias = shap_chunk[:, :, -1].mean(axis=1).reshape(-1, 1)
+            else:
+                raise ValueError(f"Unexpected CatBoost SHAP array shape: {shap_chunk.shape}")
+            shap_sel = shap_feat[:, sel_idx]
+            df_chunk = pd.DataFrame(shap_sel, columns=sel)
+            df_chunk["bias"] = bias
+            df_chunk.insert(0, row_id.name, row_id.iloc[start:stop].values)
+            chunks.append(df_chunk)
+        pd.concat(chunks, ignore_index=True).to_parquet(out_path, index=False, engine="pyarrow")
     finally:
         con_parquet.close()
-    
     print(f"Saved row-level SHAP values to {out_path}")
 
 
@@ -726,6 +747,7 @@ def run_shap_analysis(
     age_band: str,
     n_background: int = 1000,
     n_eval: int = 2000,
+    max_rows: int | None = None,
 ) -> bool:
     """
     Run SHAP analysis for XGBoost and CatBoost models.
@@ -766,7 +788,14 @@ def run_shap_analysis(
     
     con = duckdb.connect()
     try:
-        df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}')").df()
+        # Use DuckDB to limit rows when max_rows set (EC2 memory); otherwise full read
+        if max_rows and max_rows > 0:
+            df_full = con.execute(
+                f"SELECT * FROM read_csv_auto('{str(features_path)}') LIMIT {int(max_rows)}"
+            ).df()
+            print(f"Loaded sample of {len(df_full)} rows (max_rows={max_rows}) for SHAP.")
+        else:
+            df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}')").df()
         if "target" not in df_full.columns:
             raise ValueError(f"'target' column not found in {features_path}")
         
@@ -839,12 +868,16 @@ def run_shap_analysis(
         )
         
         # Create summary plots using selected features
-        # Load a sample from parquet file for plotting (limit to n_eval rows for memory efficiency)
+        # Load a sample from parquet via DuckDB (limit rows for EC2 memory)
         print("\n[Plots] Creating summary plots...")
-        shap_sample_df = pd.read_parquet(xgb_shap_sample_path)
-        # Limit to n_eval rows for plotting to avoid memory issues
-        plot_sample_size = min(n_eval, len(shap_sample_df))
-        shap_sample_df_plot = shap_sample_df.head(plot_sample_size)
+        con_plot = duckdb.connect()
+        try:
+            shap_sample_df_plot = con_plot.execute(
+                f"SELECT * FROM read_parquet('{str(xgb_shap_sample_path)}') LIMIT {n_eval}"
+            ).df()
+        finally:
+            con_plot.close()
+        plot_sample_size = len(shap_sample_df_plot)
         
         # Extract SHAP values (exclude row_id and bias columns)
         shap_cols = [c for c in selected_features if c in shap_sample_df_plot.columns]
@@ -977,13 +1010,16 @@ def run_shap_analysis(
                 row_id=row_id,
             )
             
-            # Create summary plots using selected features
-            # Load a sample from parquet file for plotting (limit to n_eval rows for memory efficiency)
+            # Load parquet sample via DuckDB (limit rows for EC2 memory)
             print("\n[Plots] Creating summary plots...")
-            shap_cb_sample_df = pd.read_parquet(cb_shap_sample_path)
-            # Limit to n_eval rows for plotting to avoid memory issues
-            plot_sample_size_cb = min(n_eval, len(shap_cb_sample_df))
-            shap_cb_sample_df_plot = shap_cb_sample_df.head(plot_sample_size_cb)
+            con_cb = duckdb.connect()
+            try:
+                shap_cb_sample_df_plot = con_cb.execute(
+                    f"SELECT * FROM read_parquet('{str(cb_shap_sample_path)}') LIMIT {n_eval}"
+                ).df()
+            finally:
+                con_cb.close()
+            plot_sample_size_cb = len(shap_cb_sample_df_plot)
             
             # Extract SHAP values (exclude row_id and bias columns)
             shap_cols_cb = [c for c in selected_features_cb if c in shap_cb_sample_df_plot.columns]
@@ -1092,6 +1128,12 @@ def main() -> None:
         type=int,
         default=2000,
         help="Number of evaluation samples for SHAP (default: 2000).",
+    )
+    parser.add_argument(
+        "--max_rows",
+        type=int,
+        default=None,
+        help="Max training rows to load for SHAP (default: all). Set e.g. 50000 on EC2 to reduce memory.",
     )
     args = parser.parse_args()
 
@@ -1221,6 +1263,7 @@ def main() -> None:
         age_band=args.age_band,
         n_background=args.n_background,
         n_eval=args.n_eval,
+        max_rows=args.max_rows,
     )
     
     if not success:

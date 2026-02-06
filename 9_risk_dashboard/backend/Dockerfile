@@ -1,7 +1,7 @@
-# Dockerfile for Lambda Container Image
+# Dockerfile for Lambda Container Image (Python 3.12)
 # Supports up to 10GB container size for model storage
 
-FROM public.ecr.aws/lambda/python:3.10
+FROM public.ecr.aws/lambda/python:3.12
 
 # Install system dependencies
 RUN yum install -y gcc g++ && \

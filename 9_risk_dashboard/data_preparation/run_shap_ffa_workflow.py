@@ -61,15 +61,22 @@ def _ensure_shap_artifacts(cohort: str, age_band: str) -> None:
         raise SystemExit(r.returncode)
 
 
-def _load_shap_for_ffa(cohort: str, age_band: str) -> Tuple[dict, Optional[pd.DataFrame]]:
-    """Load SHAP global importance (map) and sample values (DataFrame) from Step 7."""
+def _load_shap_for_ffa(
+    cohort: str, age_band: str, max_shap_rows: int = 5000
+) -> Tuple[dict, Optional[pd.DataFrame]]:
+    """Load SHAP global importance (map) and sample values from Step 7. Uses DuckDB to limit parquet rows on EC2."""
+    import duckdb
     age_band_fname = _age_band_fname(age_band)
     base = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     csv_path = base / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
     parquet_path = base / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
     if not csv_path.exists():
         raise FileNotFoundError(f"SHAP global importance not found: {csv_path}")
-    df_global = pd.read_csv(csv_path)
+    con = duckdb.connect()
+    try:
+        df_global = con.execute(f"SELECT feature, mean_abs_shap FROM read_csv_auto('{str(csv_path)}')").df()
+    finally:
+        con.close()
     if "feature" not in df_global.columns or "mean_abs_shap" not in df_global.columns:
         raise ValueError(f"Expected columns feature, mean_abs_shap in {csv_path}")
     shap_map = dict(zip(df_global["feature"], df_global["mean_abs_shap"].astype(float), strict=False))
@@ -78,8 +85,14 @@ def _load_shap_for_ffa(cohort: str, age_band: str) -> Tuple[dict, Optional[pd.Da
         shap_map = {k: v / max_shap for k, v in shap_map.items()}
     shap_values_df = None
     if parquet_path.exists():
-        shap_values_df = pd.read_parquet(parquet_path)
-        # Drop row id / bias if present so columns = feature SHAP values
+        con = duckdb.connect()
+        try:
+            # Limit rows for EC2 memory; exclude row_id/bias in SQL if possible
+            shap_values_df = con.execute(
+                f"SELECT * FROM read_parquet('{str(parquet_path)}') LIMIT {int(max_shap_rows)}"
+            ).df()
+        finally:
+            con.close()
         for drop in ("row_id", "bias", "mi_person_key"):
             if drop in shap_values_df.columns:
                 shap_values_df = shap_values_df.drop(columns=[drop])
@@ -102,8 +115,9 @@ def _find_xgboost_json(cohort: str, age_band: str) -> Path:
     raise FileNotFoundError(f"XGBoost JSON not found; tried: {candidates}")
 
 
-def _load_test_data(cohort: str, age_band: str) -> Optional[pd.DataFrame]:
-    """Load training (or test) features for rule application; optional."""
+def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000) -> Optional[pd.DataFrame]:
+    """Load a sample of training features via DuckDB (avoids loading full CSV on EC2)."""
+    import duckdb
     age_band_fname = _age_band_fname(age_band)
     csv_path = (
         PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
@@ -111,7 +125,14 @@ def _load_test_data(cohort: str, age_band: str) -> Optional[pd.DataFrame]:
     )
     if not csv_path.exists():
         return None
-    df = pd.read_csv(csv_path, nrows=2000)
+    con = duckdb.connect()
+    try:
+        # Exclude mi_person_key, target and non-numeric in SQL to reduce memory
+        df = con.execute(
+            f"SELECT * FROM read_csv_auto('{str(csv_path)}') LIMIT {int(max_rows)}"
+        ).df()
+    finally:
+        con.close()
     drop = ["mi_person_key", "target"]
     df = df.drop(columns=[c for c in drop if c in df.columns], errors="ignore")
     numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
@@ -193,15 +214,29 @@ def main() -> None:
     parser.add_argument("--age-band", required=True, help="Age band (e.g. 13-24)")
     parser.add_argument("--skip-shap", action="store_true", help="Do not run Step 7 if SHAP missing (fail instead)")
     parser.add_argument("--skip-combine", action="store_true", help="Do not run combine step after FFA")
+    parser.add_argument(
+        "--max-shap-rows",
+        type=int,
+        default=5000,
+        help="Max SHAP sample rows to load from parquet (DuckDB LIMIT). Default 5000 to reduce memory.",
+    )
+    parser.add_argument(
+        "--max-test-rows",
+        type=int,
+        default=2000,
+        help="Max train feature rows to load for FFA (DuckDB LIMIT). Default 2000 to reduce memory.",
+    )
     args = parser.parse_args()
     age_band_fname = _age_band_fname(args.age_band)
 
     if not args.skip_shap:
         _ensure_shap_artifacts(args.cohort, args.age_band)
 
-    shap_map, shap_values_df = _load_shap_for_ffa(args.cohort, args.age_band)
+    shap_map, shap_values_df = _load_shap_for_ffa(
+        args.cohort, args.age_band, max_shap_rows=args.max_shap_rows
+    )
     xgboost_json = _find_xgboost_json(args.cohort, args.age_band)
-    X_test = _load_test_data(args.cohort, args.age_band)
+    X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows)
 
     ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "xgboost"
     ffa_out_base.mkdir(parents=True, exist_ok=True)
