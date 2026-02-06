@@ -250,14 +250,12 @@ def run_pgx_analysis(
         age_band_fname = age_band.replace("-", "_")
         s3_outputs = []
 
-        # Upload PGx features
+        # PGx added-features path: same location add_pgx_features_to_model_data.py writes to
         pgx_features_path = (
             PROJECT_ROOT
-            / "5_feature_engineering"
-            / "feature_engineering_outputs"
             / "5_pgx_analysis"
-            / cohort_name
-            / age_band
+            / "outputs"
+            / "feature_engineering"
             / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
         )
         if pgx_features_path.exists():
