@@ -216,32 +216,26 @@ def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
 
     Expected pattern (from 3b_feature_importance_eda/outputs):
         {cohort_name}_{age_band_fname}_cohort_feature_importance.csv
-    
-    REQUIRED: Step 3b must run before Step 4a (no fallback to aggregated_feature_importance).
+    where age_band_fname is two numeric parts, e.g. 13_24 or 0_12.
 
     Example:
-        opioid_ed_0_12_cohort_feature_importance.csv
-        -> cohort_name = opioid_ed
-        -> age_band    = 0-12
+        opioid_ed_13_24_cohort_feature_importance.csv -> cohort_name=opioid_ed, age_band=13-24
+        opioid_ed_0_12_cohort_feature_importance.csv  -> cohort_name=opioid_ed, age_band=0-12
     """
-    stem = path.stem  # e.g. opioid_ed_0_12_cohort_feature_importance
-    parts = stem.split("_")
-
-    # Check for cohort_feature_importance pattern (Step 3b refined - REQUIRED)
+    stem = path.stem
     if not stem.endswith("_cohort_feature_importance"):
         raise ValueError(f"Unexpected feature importance filename format: {path.name}. Expected *_cohort_feature_importance.csv")
-    
-    # Pattern: {cohort_name}_{age_band_fname}_cohort_feature_importance
-    if len(parts) < 4:
-        raise ValueError(f"Unexpected refined filename format: {path.name}")
-    
-    cohort_name_tokens = parts[:-4]
-    age_band_tokens = parts[-4:-2]
 
-    cohort_name = "_".join(cohort_name_tokens)
+    prefix = stem[: -len("_cohort_feature_importance")]
+    parts = prefix.split("_")
+    if len(parts) < 3:
+        raise ValueError(f"Unexpected refined filename format: {path.name} (prefix {prefix!r})")
+
+    # Age band is always last two parts (e.g. 13_24, 0_12, 65_74)
+    age_band_tokens = parts[-2:]
+    cohort_name_tokens = parts[:-2]
     age_band_fname = "_".join(age_band_tokens)
-
-    # Convert age_band_fname (e.g., 13_24) back to canonical age_band (13-24)
+    cohort_name = "_".join(cohort_name_tokens)
     age_band = age_band_fname.replace("_", "-")
     return cohort_name, age_band
 
