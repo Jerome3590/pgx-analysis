@@ -351,9 +351,8 @@ def main():
     
     args = parser.parse_args()
     
-    # This script is in 9_risk_dashboard/data_preparation/
-# Project root is 3 levels up
-project_root = Path(__file__).parent.parent.parent
+    # This script is in 9_risk_dashboard/data_preparation/; project root is 3 levels up
+    project_root = Path(__file__).parent.parent.parent
     
     if args.all_cohorts:
         # Process all cohorts (implement as needed)
