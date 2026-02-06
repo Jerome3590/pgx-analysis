@@ -238,7 +238,7 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
 
         if model_data_path.exists():
             try:
-                # Determine target date field
+                # Determine target date field (must exist in model_events.parquet)
                 if "opioid" in cohort.lower():
                     target_date_field = "first_opioid_ed_date"
                 else:
@@ -247,98 +247,114 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
                 con = duckdb.connect()
                 model_data_path_str = str(model_data_path).replace("\\", "/")
 
-                # Check each item feature for post-target events
-                for feature_name in item_drug_features + item_icd_features + item_cpt_features:
-                    # Extract the code/drug name from feature name
-                    if feature_name.startswith("item_drug_"):
-                        code_name = feature_name.replace("item_drug_", "")
-                        code_column = "drug_name"
-                    elif feature_name.startswith("item_icd_"):
-                        code_name = feature_name.replace("item_icd_", "")
-                        code_column = None  # Will check all ICD columns
-                    elif feature_name.startswith("item_cpt_"):
-                        code_name = feature_name.replace("item_cpt_", "")
-                        code_column = "procedure_code"
-                    else:
-                        continue
-
-                    # Get patients who have this feature = 1
-                    patients_with_feature = df_clean[df_clean[feature_name] == 1]["mi_person_key"].astype(str).unique().tolist()
-
-                    if not patients_with_feature or len(patients_with_feature) == 0:
-                        continue
-
-                    # Sanitize code_name for SQL (escape single quotes)
-                    sanitized_code_name = code_name.replace("'", "''")
-
-                    # Limit to reasonable batch size for query
-                    max_batch_size = 1000
-                    post_target_found = False
-
-                    for i in range(0, len(patients_with_feature), max_batch_size):
-                        batch = patients_with_feature[i:i + max_batch_size]
-                        # Sanitize patient IDs for SQL (escape single quotes)
-                        sanitized_patients = [p.replace("'", "''") for p in batch]
-                        patient_list = ",".join([f"'{p}'" for p in sanitized_patients])
-
-                        # Check if any of these patients have this code/drug AFTER target event
-                        if code_column == "drug_name":
-                            query = f"""
-                            SELECT COUNT(*) as post_target_count
-                            FROM read_parquet('{model_data_path_str}')
-                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
-                              AND drug_name = '{sanitized_code_name}'
-                              AND {target_date_field} IS NOT NULL
-                              AND event_date IS NOT NULL
-                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
-                            """
-                        elif code_column == "procedure_code":
-                            query = f"""
-                            SELECT COUNT(*) as post_target_count
-                            FROM read_parquet('{model_data_path_str}')
-                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
-                              AND procedure_code = '{sanitized_code_name}'
-                              AND {target_date_field} IS NOT NULL
-                              AND event_date IS NOT NULL
-                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
-                            """
+                # model_events.parquet only has columns common to cohort + gold medical/pharmacy;
+                # target date (first_opioid_ed_date / first_ed_non_opioid_date) is cohort-only, so missing here.
+                # Step 2 already constrains target events to a 21-day window; temporal filtering is done there.
+                parquet_cols = [
+                    row[0]
+                    for row in con.execute(
+                        f"DESCRIBE SELECT * FROM read_parquet('{model_data_path_str}')"
+                    ).fetchall()
+                ]
+                if target_date_field not in parquet_cols:
+                    print(
+                        f"  [INFO] model_events.parquet has no column '{target_date_field}'; "
+                        "skipping post-target leakage validation (best-effort)."
+                    )
+                    con.close()
+                else:
+                    # Check each item feature for post-target events
+                    for feature_name in item_drug_features + item_icd_features + item_cpt_features:
+                        # Extract the code/drug name from feature name
+                        if feature_name.startswith("item_drug_"):
+                            code_name = feature_name.replace("item_drug_", "")
+                            code_column = "drug_name"
+                        elif feature_name.startswith("item_icd_"):
+                            code_name = feature_name.replace("item_icd_", "")
+                            code_column = None  # Will check all ICD columns
+                        elif feature_name.startswith("item_cpt_"):
+                            code_name = feature_name.replace("item_cpt_", "")
+                            code_column = "procedure_code"
                         else:
-                            # Check all ICD diagnosis columns
-                            query = f"""
-                            SELECT COUNT(*) as post_target_count
-                            FROM read_parquet('{model_data_path_str}')
-                            WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
-                              AND (
-                                primary_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR two_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR three_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR four_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR five_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR six_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR seven_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR eight_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR nine_icd_diagnosis_code = '{sanitized_code_name}'
-                                OR ten_icd_diagnosis_code = '{sanitized_code_name}'
-                              )
-                              AND {target_date_field} IS NOT NULL
-                              AND event_date IS NOT NULL
-                              AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
-                            """
+                            continue
 
-                        result = con.execute(query).df()
-                        post_target_count = result.iloc[0]["post_target_count"] if len(result) > 0 else 0
+                        # Get patients who have this feature = 1
+                        patients_with_feature = df_clean[df_clean[feature_name] == 1]["mi_person_key"].astype(str).unique().tolist()
 
-                        if post_target_count > 0:
-                            post_target_found = True
-                            if feature_name not in post_target_item_features:
-                                post_target_item_features.append(feature_name)
-                                print(f"  [WARNING] {feature_name}: {post_target_count} post-target events found (TARGET LEAKAGE)")
-                            break  # Found leakage, no need to check more batches
+                        if not patients_with_feature or len(patients_with_feature) == 0:
+                            continue
 
-                    if post_target_found:
-                        continue  # Move to next feature
+                        # Sanitize code_name for SQL (escape single quotes)
+                        sanitized_code_name = code_name.replace("'", "''")
 
-                con.close()
+                        # Limit to reasonable batch size for query
+                        max_batch_size = 1000
+                        post_target_found = False
+
+                        for i in range(0, len(patients_with_feature), max_batch_size):
+                            batch = patients_with_feature[i:i + max_batch_size]
+                            # Sanitize patient IDs for SQL (escape single quotes)
+                            sanitized_patients = [p.replace("'", "''") for p in batch]
+                            patient_list = ",".join([f"'{p}'" for p in sanitized_patients])
+
+                            # Check if any of these patients have this code/drug AFTER target event
+                            if code_column == "drug_name":
+                                query = f"""
+                                SELECT COUNT(*) as post_target_count
+                                FROM read_parquet('{model_data_path_str}')
+                                WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                                  AND drug_name = '{sanitized_code_name}'
+                                  AND {target_date_field} IS NOT NULL
+                                  AND event_date IS NOT NULL
+                                  AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                                """
+                            elif code_column == "procedure_code":
+                                query = f"""
+                                SELECT COUNT(*) as post_target_count
+                                FROM read_parquet('{model_data_path_str}')
+                                WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                                  AND procedure_code = '{sanitized_code_name}'
+                                  AND {target_date_field} IS NOT NULL
+                                  AND event_date IS NOT NULL
+                                  AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                                """
+                            else:
+                                # Check all ICD diagnosis columns
+                                query = f"""
+                                SELECT COUNT(*) as post_target_count
+                                FROM read_parquet('{model_data_path_str}')
+                                WHERE CAST(mi_person_key AS VARCHAR) IN ({patient_list})
+                                  AND (
+                                    primary_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR two_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR three_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR four_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR five_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR six_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR seven_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR eight_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR nine_icd_diagnosis_code = '{sanitized_code_name}'
+                                    OR ten_icd_diagnosis_code = '{sanitized_code_name}'
+                                  )
+                                  AND {target_date_field} IS NOT NULL
+                                  AND event_date IS NOT NULL
+                                  AND CAST(event_date AS TIMESTAMP) >= CAST({target_date_field} AS TIMESTAMP)
+                                """
+
+                            result = con.execute(query).df()
+                            post_target_count = result.iloc[0]["post_target_count"] if len(result) > 0 else 0
+
+                            if post_target_count > 0:
+                                post_target_found = True
+                                if feature_name not in post_target_item_features:
+                                    post_target_item_features.append(feature_name)
+                                    print(f"  [WARNING] {feature_name}: {post_target_count} post-target events found (TARGET LEAKAGE)")
+                                break  # Found leakage, no need to check more batches
+
+                        if post_target_found:
+                            continue  # Move to next feature
+
+                    con.close()
 
             except Exception as e:
                 print(f"  [WARNING] Could not validate item_* features against event data: {e}")
