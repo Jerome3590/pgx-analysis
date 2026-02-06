@@ -191,12 +191,14 @@ def run_pgx_analysis(
     cohort_name: str,
     age_band: str,
     skip_feature_engineering: bool = False,
+    force: bool = False,
 ) -> bool:
     """
     Run complete PGx analysis workflow as a module-style function.
 
     This function is idempotent with respect to its outputs: rerunning will
     regenerate the same CSVs, and downstream code reads the most recent files.
+    Use force=True to re-run even when S3 outputs or checkpoints exist.
     """
     logger, log_path = _get_logger(cohort_name, age_band)
 
@@ -209,20 +211,23 @@ def run_pgx_analysis(
         env.fast_root,
     )
 
-    # Check S3 for existing outputs (idempotency)
-    try:
-        from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
+    # Check S3 for existing outputs (idempotency); skip if --force
+    if not force:
+        try:
+            from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
 
-        age_band_fname = age_band.replace("-", "_")
-        s3_output_paths = [
-            f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv",
-        ]
+            age_band_fname = age_band.replace("-", "_")
+            s3_output_paths = [
+                f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv",
+            ]
 
-        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("5_pgx_analysis", cohort_name, age_band, logger):
-            logger.info(f"Step 5 outputs already exist in S3 for {cohort_name}/{age_band}; skipping.")
-            return True
-    except ImportError:
-        pass  # Fallback to local-only if checkpoint_utils not available
+            if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("5_pgx_analysis", cohort_name, age_band, logger):
+                logger.info(f"Step 5 outputs already exist in S3 for {cohort_name}/{age_band}; skipping.")
+                return True
+        except ImportError:
+            pass  # Fallback to local-only if checkpoint_utils not available
+    else:
+        logger.info("Force re-run: ignoring existing S3 outputs and checkpoints.")
 
     with function_block("5_pgx_analysis", "run_pgx_analysis", logger=logger):
         logger.info("Starting PGx analysis for %s / %s", cohort_name, age_band)
@@ -300,6 +305,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip PGx feature engineering steps",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even when S3 outputs or checkpoints exist (ignore idempotency skip).",
+    )
 
     args = parser.parse_args()
 
@@ -308,6 +318,7 @@ if __name__ == "__main__":
             cohort_name=args.cohort_name,
             age_band=args.age_band,
             skip_feature_engineering=args.skip_feature_engineering,
+            force=args.force,
         )
 
     sys.exit(0 if success else 1)
