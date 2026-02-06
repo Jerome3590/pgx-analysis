@@ -15,17 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import duckdb
-from py_helpers.env_utils import get_data_root, is_linux
+from py_helpers.env_utils import get_data_root
 from py_helpers.constants import get_opioid_icd_sql_condition
-
-
-def get_model_data_root() -> Path:
-    """Get the root directory for model data output (OS-aware)."""
-    data_root = get_data_root()
-    if is_linux():
-        return data_root / "4_model_data"
-    else:
-        return PROJECT_ROOT / "4_model_data"
 
 
 def resolve_local_medical_root() -> Path:

@@ -88,34 +88,13 @@ def create_patient_pgx_features(
     if not cpic_drug_set:
         logger.warning("No CPIC drug mapping found. Will count all drugs as non-CPIC.")
     
-    # Model data path resolution (same logic as Step 4b)
-    # Prefer protocol-filtered version, check multiple locations (NVMe, EBS, S3)
-    from py_helpers.env_utils import get_data_root, is_linux
+    # Model data path resolution: single canonical location (get_model_data_root())
+    from py_helpers.env_utils import get_model_data_root
     
-    data_root = get_data_root()
-    is_linux_system = is_linux()
-    
-    # Build candidate paths - prioritize data root on Linux, project root on Windows
-    if is_linux_system:
-        # On Linux/EC2: prioritize /mnt/nvme
-        candidates_filtered = [
-            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-        ]
-        candidates_unfiltered = [
-            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-    else:
-        # On Windows: prioritize project root
-        candidates_filtered = [
-            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events_no_protocols.parquet",
-        ]
-        candidates_unfiltered = [
-            project_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort_name}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
+    model_data_root = get_model_data_root()
+    base_dir = model_data_root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
+    candidates_filtered = [base_dir / "model_events_no_protocols.parquet"]
+    candidates_unfiltered = [base_dir / "model_events.parquet"]
     
     # First try filtered version (preferred)
     model_data_path = None
@@ -148,7 +127,7 @@ def create_patient_pgx_features(
             f"gold/cohorts_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet",
         ]
         
-        download_dest = candidates_filtered[0] if is_linux_system else candidates_unfiltered[0]
+        download_dest = candidates_filtered[0]  # prefer filtered path for S3 download
         download_dest.parent.mkdir(parents=True, exist_ok=True)
         
         for s3_key in s3_key_candidates:

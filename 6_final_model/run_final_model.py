@@ -52,7 +52,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     mirror_log_to_s3,
 )
 from py_helpers.constants import age_band_to_fname
-from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, is_linux
+from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, get_model_data_root, is_linux
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
@@ -220,20 +220,17 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
     post_target_item_features = []
 
     if item_drug_features or item_icd_features or item_cpt_features:
-        # Check underlying event data for post-target leakage
+        # Check underlying event data for post-target leakage (canonical location only)
+        model_data_root = get_model_data_root()
         model_data_path = (
-            PROJECT_ROOT
-            / "model_data"
+            model_data_root
             / f"cohort_name={cohort}"
             / f"age_band={age_band}"
             / "model_events.parquet"
         )
-
-        # Also try alternative location
         if not model_data_path.exists():
             model_data_path = (
-                PROJECT_ROOT
-                / "4_model_data"
+                model_data_root
                 / f"cohort_name={cohort}"
                 / f"age_band={age_band}"
                 / "model_events_no_protocols.parquet"
@@ -421,44 +418,23 @@ def _validate_s3_file_has_controls(s3_path: str) -> dict:
 
 def _resolve_model_events_path(cohort: str, age_band: str) -> Path:
     """
-    Resolve the path to model_events.parquet, checking multiple locations.
+    Resolve the path to model_events.parquet using the single canonical location.
 
-    Priority on Linux/EC2:
-    1. PROJECT_ROOT/4_model_data/... (EBS-backed, persists across reboots)
-    2. get_data_root()/4_model_data/... (/mnt/nvme/4_model_data/..., fast but ephemeral)
-    3. Try downloading from S3 to PROJECT_ROOT if not found locally
-
-    Priority on Windows:
-    1. PROJECT_ROOT/4_model_data/... (Windows/local dev)
-    2. get_data_root()/4_model_data/... (fallback)
-    3. Try downloading from S3 to PROJECT_ROOT if not found locally
-
-    Returns:
-        Path to model_events.parquet file
+    Uses py_helpers.env_utils.get_model_data_root() (one location for efficiency).
+    If not found locally, tries S3 gold/cohorts_model_data/ and downloads to the
+    canonical path.
     """
-    data_root = get_data_root()
-    is_linux_system = is_linux()
+    model_data_root = get_model_data_root()
+    canonical_path = (
+        model_data_root
+        / f"cohort_name={cohort}"
+        / f"age_band={age_band}"
+        / "model_events.parquet"
+    )
+    candidates = [canonical_path]
+    download_dest = canonical_path
 
-    # Build candidate paths - prioritize EBS-backed storage (PROJECT_ROOT) to persist across reboots
-    # NVMe is fast but ephemeral, so we check it second as a fallback
-    if is_linux_system:
-        # On Linux/EC2: prioritize EBS-backed PROJECT_ROOT (persists), then NVMe (fast but ephemeral)
-        candidates = [
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer EBS-backed PROJECT_ROOT on Linux (persists across reboots)
-        download_dest = candidates[0]
-    else:
-        # On Windows: prioritize project root
-        candidates = [
-            PROJECT_ROOT / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-            data_root / "4_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
-        ]
-        # Download destination: prefer project root on Windows
-        download_dest = candidates[0]
-
-    # Check each candidate
+    # Check canonical location
     for path in candidates:
         if path.exists():
             print(f"Found model_events.parquet at: {path}")

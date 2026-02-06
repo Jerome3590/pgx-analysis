@@ -174,6 +174,23 @@ def get_data_root() -> Path:
     return project_root / "data"
 
 
+def get_model_data_root() -> Path:
+    """
+    Single canonical root for model data (model_events.parquet per cohort/age_band).
+
+    Use this one location for efficiency; do not use gold/model_training_data or
+    other duplicate paths. S3 mirror: gold/cohorts_model_data/.
+
+    - Linux/EC2: get_data_root() / "4_model_data" (e.g. /mnt/nvme/4_model_data)
+    - Windows: PROJECT_ROOT / "4_model_data"
+    """
+    project_root = Path(__file__).resolve().parents[1]
+    data_root = get_data_root()
+    if is_linux():
+        return data_root / "4_model_data"
+    return project_root / "4_model_data"
+
+
 def ensure_output_dir(*parts: str, use_data_root: bool = True) -> Path:
     """
     Build and create an output directory, with OS-aware root selection.
