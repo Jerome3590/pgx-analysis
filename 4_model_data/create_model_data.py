@@ -6,13 +6,14 @@ Create model-ready event-level data filtered to important features, with
 This script is intentionally DuckDB + Parquet only for event-level data
 to avoid pandas memory pressure on large cohorts:
 
-1. Reads cohort_feature_importance CSVs from Step 3b:
-     - 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv
+1. Reads cohort_feature_importance CSVs from Step 3b/3c (refined feature list — the *filters*;
+   these are not from Step 2; Step 2 is cohort creation only):
+     - 3b_feature_importance_eda/outputs or DATA_ROOT/gold/feature_importance
    REQUIRED: Step 3b must run before Step 4a (will error if files not found)
 2. Extracts the `feature` column (e.g., `item_99284`, `item_AMOXICILLIN`) and
    strips the `item_` prefix to get raw item codes.
 3. For each (cohort_name, age_band) combination in those files, it:
-   - reads Step-2 cohort parquet files for the target cohort from local disk,
+   - reads Step 2 cohort parquet files (case/control membership, target dates) from local disk,
      typically under:
        PROJECT_ROOT/data/gold_cohorts/
          cohort_name={cohort_name}/event_year={year}/age_band={age_band}/cohort.parquet
