@@ -2105,6 +2105,45 @@ def train_and_evaluate(
             xgb_final.set_params(device="cpu")
         xgb_final.fit(X, y)
 
+    # Train the other XGBoost variant so we can save both for the dashboard (catboost + xgboost + xgboost_rf)
+    if best_xgb_variant == "xgb":
+        xgb_tree_final = xgb_final
+        xgb_rf_final = xgb.XGBRFClassifier(
+            n_estimators=500,
+            max_depth=6,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=1997,
+        )
+    else:
+        xgb_rf_final = xgb_final
+        xgb_tree_final = xgb.XGBClassifier(
+            n_estimators=500,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=1997,
+        )
+    for other_model in (xgb_rf_final if best_xgb_variant == "xgb" else xgb_tree_final,):
+        try:
+            other_model.fit(X, y)
+        except Exception:
+            other_model.set_params(tree_method="hist")
+            if "device" in other_model.get_params():
+                other_model.set_params(device="cpu")
+            other_model.fit(X, y)
+
     # Export BEST XGBoost model JSON (FFA-friendly: trees + feature_names)
     model_json_dir = out_base / "final_model_json"
     model_json_dir.mkdir(parents=True, exist_ok=True)
