@@ -47,13 +47,13 @@ This output is then used as input for:
  - Final models (Step 6)
 """
 
+import logging
 import os
 import shutil
 import subprocess
 import sys
-import io
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import duckdb
 import pandas as pd
@@ -78,8 +78,32 @@ from py_helpers.constants import (
 )
 from py_helpers.env_utils import get_data_root, is_linux
 
+try:
+    from py_helpers.fe_monitor import mirror_log_to_s3
+except ImportError:
+    mirror_log_to_s3 = None  # best-effort S3 upload
 
 STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
+
+
+def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
+    """Create logger with file and console handlers; log file under logs/4_model_data/."""
+    logs_dir = PROJECT_ROOT / "logs" / "4_model_data"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    age_band_fname = age_band.replace("-", "_")
+    log_path = logs_dir / f"create_model_data_{cohort_name}_{age_band_fname}.log"
+    logger = logging.getLogger(f"4_model_data.{cohort_name}.{age_band_fname}")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    logger.propagate = False
+    return logger, log_path
 
 
 def get_step3b_fi_roots() -> list:
@@ -326,6 +350,7 @@ def filter_cohort_events_for_items(
     control_exclusions: Optional[List[str]] = None,
     time_window_days: Optional[int] = None,  # Deprecated - time window now handled in Step 2
     skip_s3_download: bool = False,  # When True (e.g. 3b BupaR input), build locally only, no S3
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """
     Build model-ready event data for a single cohort/age-band and write to 4_model_data/.
@@ -373,10 +398,13 @@ def filter_cohort_events_for_items(
             )
 
     if not cohort_parquet_paths:
-        print(
+        msg = (
             f"[WARN] No local cohort parquet files found for {cohort_name}/{age_band} "
             f"across years {years}. Did you run aws s3 sync into {local_cohort_root}?"
         )
+        print(msg)
+        if logger:
+            logger.warning(msg)
         return
 
     # Build lists of gold medical and pharmacy parquet paths (globs) for this age_band across years
@@ -413,17 +441,23 @@ def filter_cohort_events_for_items(
             )
 
     if not medical_parquet_paths:
-        print(
+        msg = (
             f"[WARN] No gold medical parquet files found for age_band={age_band} "
             f"across years {years}. Controls cannot be constructed; skipping."
         )
+        print(msg)
+        if logger:
+            logger.warning(msg)
         return
 
     if not pharmacy_parquet_paths:
-        print(
+        msg = (
             f"[WARN] No gold pharmacy parquet files found for age_band={age_band} "
             f"across years {years}. Controls cannot be fully constructed; skipping."
         )
+        print(msg)
+        if logger:
+            logger.warning(msg)
         return
 
     # Use DuckDB to read and filter in one pass
@@ -484,7 +518,10 @@ def filter_cohort_events_for_items(
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
-    print(f"[INFO] Model data output (4_model_data): {out_path.resolve()}")
+    out_path_msg = f"[INFO] Model data output (4_model_data): {out_path.resolve()}"
+    print(out_path_msg)
+    if logger:
+        logger.info(out_path_msg)
 
     # S3 path aligned with Step 6 download candidates (gold/cohorts_model_data/...)
     s3_output_path = (
@@ -496,10 +533,13 @@ def filter_cohort_events_for_items(
     # cohort/age_band has been built successfully and skip overwriting. This
     # avoids DuckDB attempting to delete an open file and throwing WinError 32.
     if out_path.exists():
-        print(
+        msg = (
             f"[INFO] model_events.parquet already exists at {out_path.resolve()}; "
             f"skipping rebuild for {cohort_name}/{age_band}."
         )
+        print(msg)
+        if logger:
+            logger.info(msg)
         con.close()
         return
 
@@ -837,7 +877,10 @@ def filter_cohort_events_for_items(
     con.execute(final_query)
     con.close()
 
-    print(f"[INFO] Wrote model_events.parquet for {cohort_name}/{age_band}: {out_path}")
+    write_msg = f"[INFO] Wrote model_events.parquet for {cohort_name}/{age_band}: {out_path}"
+    print(write_msg)
+    if logger:
+        logger.info(write_msg)
     
     # Validate that controls are present and ratio is approximately correct
     validation_result = _validate_model_events_has_controls(out_path)
@@ -1174,6 +1217,9 @@ def main() -> None:
         if control_exclusions:
             print(f"[INFO] Loaded {len(control_exclusions)} control exclusions for {cohort_name}/{age_band}")
 
+        step4_logger, log_path = _get_logger(cohort_name, age_band)
+        step4_logger.info(f"Processing cohort={cohort_name}, age_band={age_band}")
+
         filter_cohort_events_for_items(
             cohort_name=cohort_name,
             age_band=age_band,
@@ -1185,7 +1231,20 @@ def main() -> None:
             local_pharmacy_root=local_pharmacy_root,
             sample_ratio=DEFAULT_SAMPLE_RATIO,
             control_exclusions=control_exclusions,
+            logger=step4_logger,
         )
+
+        if mirror_log_to_s3 and log_path.exists():
+            try:
+                mirror_log_to_s3(
+                    feature_step="4_model_data",
+                    cohort=cohort_name,
+                    age_band=age_band,
+                    log_path=log_path,
+                    logger=step4_logger,
+                )
+            except Exception:
+                pass  # best-effort; log remains local
 
 
 if __name__ == "__main__":
