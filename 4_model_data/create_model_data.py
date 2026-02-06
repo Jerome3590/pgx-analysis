@@ -80,6 +80,15 @@ from py_helpers.env_utils import get_data_root, is_linux
 
 
 STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
+
+
+def get_step3b_fi_roots() -> list:
+    """Roots for Step 3b cohort_feature_importance (NVMe/project). Prefer DATA_ROOT/gold/feature_importance."""
+    data_root = get_data_root()
+    return [
+        data_root / "gold" / "feature_importance",
+        STEP3B_OUTPUTS_DIR,
+    ]
 # Use OS-aware path resolution: /mnt/nvme/4_model_data on Linux, PROJECT_ROOT/4_model_data on Windows
 def get_model_data_root() -> Path:
     """Get the root directory for model data output (OS-aware)."""
@@ -944,15 +953,24 @@ def _sync_model_events_to_s3(parquet_path: Path, cohort_name: str, age_band: str
         print(f"[WARN] Error syncing to S3: {e}")
 
 
+def _step3b_download_root() -> Path:
+    """Prefer first existing Step 3b root (NVMe then project) for downloads."""
+    for root in get_step3b_fi_roots():
+        return root
+    return STEP3B_OUTPUTS_DIR
+
+
 def download_cohort_feature_importance_from_s3(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
     """
     Download cohort_feature_importance files from S3 (Step 3b outputs).
     
     If cohort and age_band are specified, downloads only that file.
     Otherwise, lists all available files in S3.
+    Writes to first Step 3b root (DATA_ROOT/gold/feature_importance when used).
     """
     downloaded_files = []
-    
+    download_root = _step3b_download_root()
+
     if cohort and age_band:
         # Download specific file
         age_band_fname = age_band.replace("-", "_")
@@ -960,7 +978,7 @@ def download_cohort_feature_importance_from_s3(cohort: Optional[str] = None, age
             f"gold/feature_importance/{cohort}/{age_band}/"
             f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         )
-        local_path = STEP3B_OUTPUTS_DIR / cohort / age_band_fname / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
+        local_path = download_root / cohort / age_band_fname / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
         
         try:
             s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -991,7 +1009,7 @@ def download_cohort_feature_importance_from_s3(cohort: Optional[str] = None, age
                             age_band_fname = age_band.replace("-", "_")
                             
                             s3_key = f"{age_prefix_info['Prefix']}{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
-                            local_path = STEP3B_OUTPUTS_DIR / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
+                            local_path = download_root / cohort_name / age_band_fname / f"{cohort_name}_{age_band_fname}_cohort_feature_importance.csv"
                             
                             try:
                                 s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
@@ -1048,10 +1066,15 @@ def main() -> None:
     # If both cohort and age_band are specified, look for specific file
     if args.cohort and args.age_band:
         age_band_fname = args.age_band.replace("-", "_")
-        
-        # Check for Step 3b refined feature importance (REQUIRED)
-        refined_file = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
-        if refined_file.exists():
+        fname = f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
+        # Check for Step 3b refined feature importance (REQUIRED): NVMe then project
+        refined_file = None
+        for root in get_step3b_fi_roots():
+            candidate = root / args.cohort / age_band_fname / fname
+            if candidate.exists():
+                refined_file = candidate
+                break
+        if refined_file is not None:
             aggregated_files.append(refined_file)
             print(f"[INFO] Found Step 3b refined feature importance: {refined_file}")
         else:
@@ -1065,48 +1088,49 @@ def main() -> None:
             else:
                 # Error out - file not found locally or in S3
                 print(f"[ERROR] Step 3b refined feature importance not found locally or in S3")
-                print(f"[ERROR] Expected: {refined_file}")
-                print(f"[ERROR] S3 path: s3://{S3_BUCKET}/gold/feature_importance/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_cohort_feature_importance.csv")
+                expected_path = STEP3B_OUTPUTS_DIR / args.cohort / age_band_fname / fname
+                print(f"[ERROR] Expected (check NVMe and project): {expected_path}")
+                print(f"[ERROR] S3 path: s3://{S3_BUCKET}/gold/feature_importance/{args.cohort}/{args.age_band}/{fname}")
                 print(f"[ERROR] Step 3b must run before Step 4a to produce cohort_feature_importance files")
                 print(f"[ERROR] Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort {args.cohort} --age-band {args.age_band}")
                 sys.exit(1)
     else:
-        # Check Step 3b refined files for all cohorts
-        if not STEP3B_OUTPUTS_DIR.exists():
-            print(f"[ERROR] Step 3b outputs directory not found: {STEP3B_OUTPUTS_DIR}")
-            print(f"[ERROR] Step 3b must run before Step 4a")
-            sys.exit(1)
-        
-        for cohort_dir in STEP3B_OUTPUTS_DIR.iterdir():
-            if not cohort_dir.is_dir():
+        # Discover Step 3b refined files from NVMe then project roots (dedupe by cohort/age_band)
+        seen = set()
+        for root in get_step3b_fi_roots():
+            if not root.exists():
                 continue
-            # Filter by cohort if specified
-            if args.cohort and cohort_dir.name != args.cohort:
-                continue
-            
-            # Check each age_band subdirectory
-            for age_band_dir in cohort_dir.iterdir():
-                if not age_band_dir.is_dir():
+            for cohort_dir in root.iterdir():
+                if not cohort_dir.is_dir():
                     continue
-                refined_files = sorted(
-                    age_band_dir.glob("*_cohort_feature_importance.csv")
-                )
-                if not refined_files:
-                    # Try downloading from S3 if not found locally
-                    cohort_name = cohort_dir.name
-                    age_band = age_band_dir.name.replace("_", "-")
-                    print(f"[INFO] No cohort_feature_importance.csv found locally in {age_band_dir}")
-                    print(f"[INFO] Attempting to download from S3 for {cohort_name}/{age_band}...")
-                    downloaded = download_cohort_feature_importance_from_s3(cohort_name, age_band)
-                    if downloaded:
-                        refined_files = downloaded
-                        print(f"[INFO] Successfully downloaded from S3: {refined_files[0]}")
+                if args.cohort and cohort_dir.name != args.cohort:
+                    continue
+                for age_band_dir in cohort_dir.iterdir():
+                    if not age_band_dir.is_dir():
+                        continue
+                    key = (cohort_dir.name, age_band_dir.name)
+                    if key in seen:
+                        continue
+                    refined_files = sorted(
+                        age_band_dir.glob("*_cohort_feature_importance.csv")
+                    )
+                    if refined_files:
+                        seen.add(key)
+                        aggregated_files.append(refined_files[0])
                     else:
-                        print(f"[WARN] Could not download from S3. Step 3b must run for this cohort/age_band before Step 4a")
-                aggregated_files.extend(refined_files)
-        
+                        cohort_name = cohort_dir.name
+                        age_band = age_band_dir.name.replace("_", "-")
+                        print(f"[INFO] No cohort_feature_importance.csv in {age_band_dir}")
+                        print(f"[INFO] Attempting download from S3 for {cohort_name}/{age_band}...")
+                        downloaded = download_cohort_feature_importance_from_s3(cohort_name, age_band)
+                        if downloaded:
+                            seen.add(key)
+                            aggregated_files.append(downloaded[0])
+                            print(f"[INFO] Downloaded from S3: {downloaded[0]}")
+                        else:
+                            print(f"[WARN] Could not download. Step 3b required for {cohort_name}/{age_band}")
         if not aggregated_files:
-            print(f"[ERROR] No cohort_feature_importance files found in {STEP3B_OUTPUTS_DIR}")
+            print(f"[ERROR] No cohort_feature_importance files found in Step 3b roots (NVMe or project)")
             print(f"[ERROR] Step 3b must run before Step 4a")
             sys.exit(1)
     
@@ -1160,8 +1184,9 @@ def main() -> None:
             )
             continue
 
-        # Load control exclusions (blacklist for controls)
-        control_exclusions = load_control_exclusions(cohort_name, age_band, STEP3B_OUTPUTS_DIR)
+        # Load control exclusions (blacklist for controls); use same root as cohort_feature_importance
+        step3b_root = agg_path.parent.parent.parent
+        control_exclusions = load_control_exclusions(cohort_name, age_band, step3b_root)
         if control_exclusions:
             print(f"[INFO] Loaded {len(control_exclusions)} control exclusions for {cohort_name}/{age_band}")
 

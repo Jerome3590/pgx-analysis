@@ -24,11 +24,27 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Configuration
-# Use Step 3b cohort_feature_importance files (refined features)
+from py_helpers.env_utils import get_data_root
+
+# Configuration: prefer DATA_ROOT/gold/feature_importance (NVMe), then project outputs
+def _fi_roots():
+    """Roots for feature importance (Step 3b then Step 3a), NVMe first."""
+    data_root = get_data_root()
+    return [
+        data_root / "gold" / "feature_importance",
+        PROJECT_ROOT / "3b_feature_importance_eda" / "outputs",
+    ]
+
+def _aggregated_fi_roots():
+    """Roots for aggregated feature importance (Step 3a), NVMe first."""
+    data_root = get_data_root()
+    return [
+        data_root / "gold" / "feature_importance",
+        PROJECT_ROOT / "3a_feature_importance" / "outputs",
+    ]
+
 FEATURE_IMPORTANCE_DIR = PROJECT_ROOT / '3b_feature_importance_eda' / 'outputs'
-# Fallback to Step 3 aggregated feature importance if Step 3b files not available
-AGGREGATED_FEATURE_IMPORTANCE_DIR = PROJECT_ROOT / '3_feature_importance' / 'outputs'
+AGGREGATED_FEATURE_IMPORTANCE_DIR = PROJECT_ROOT / '3a_feature_importance' / 'outputs'
 FINAL_MODEL_DIR = PROJECT_ROOT / '6_final_model' / 'outputs'
 OUTPUT_DIR = PROJECT_ROOT / '9_risk_dashboard' / 'outputs' / 'metadata'
 
@@ -79,30 +95,28 @@ def parse_feature_name(feature: str) -> tuple[str, str]:
 def load_feature_importance(cohort: str, age_band: str) -> pd.DataFrame:
     """Load feature importance CSV for a cohort/age_band.
     
-    Prioritizes Step 3b cohort_feature_importance files (refined features).
-    Falls back to Step 3 aggregated_feature_importance if Step 3b files not available.
+    Prioritizes Step 3b cohort_feature_importance (refined). Checks NVMe then project.
+    Falls back to Step 3 aggregated_feature_importance (same order).
     """
     age_band_fname = age_band.replace("-", "_")
-    
-    # Try Step 3b cohort_feature_importance first (refined features)
     step3b_filename = f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
-    step3b_filepath = FEATURE_IMPORTANCE_DIR / cohort / age_band_fname / step3b_filename
-    
-    if step3b_filepath.exists():
-        print(f"Loading Step 3b refined features: {step3b_filepath}")
-        df = pd.read_csv(step3b_filepath)
-        return df
-    
-    # Fallback to Step 3 aggregated_feature_importance
     aggregated_filename = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    aggregated_filepath = AGGREGATED_FEATURE_IMPORTANCE_DIR / cohort / age_band_fname / aggregated_filename
-    
-    if aggregated_filepath.exists():
-        print(f"Loading Step 3 aggregated features (fallback): {aggregated_filepath}")
-        df = pd.read_csv(aggregated_filepath)
-        return df
-    
-    print(f"Warning: Feature importance file not found in Step 3b or Step 3: {step3b_filepath} or {aggregated_filepath}")
+
+    # Step 3b refined: try each root (NVMe then project)
+    for base in _fi_roots():
+        step3b_filepath = base / cohort / age_band_fname / step3b_filename
+        if step3b_filepath.exists():
+            print(f"Loading Step 3b refined features: {step3b_filepath}")
+            return pd.read_csv(step3b_filepath)
+
+    # Fallback: Step 3 aggregated
+    for base in _aggregated_fi_roots():
+        aggregated_filepath = base / cohort / age_band_fname / aggregated_filename
+        if aggregated_filepath.exists():
+            print(f"Loading Step 3 aggregated features (fallback): {aggregated_filepath}")
+            return pd.read_csv(aggregated_filepath)
+
+    print(f"Warning: Feature importance not found for {cohort}/{age_band} in Step 3b or Step 3 roots")
     return pd.DataFrame()
 
 

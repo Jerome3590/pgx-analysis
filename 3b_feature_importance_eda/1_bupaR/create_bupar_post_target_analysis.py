@@ -185,11 +185,10 @@ def analyze_post_target_leakage_from_events(
     WITH target_patients AS (
         SELECT
             mi_person_key,
-            MIN(CAST(TRIM(first_ed_non_opioid_date) AS DATE)) as target_date
+            MIN(CAST(first_ed_non_opioid_date AS DATE)) as target_date
         FROM read_parquet([{cohort_paths_literal}])
         WHERE is_target_case = 1
           AND first_ed_non_opioid_date IS NOT NULL
-          AND TRIM(first_ed_non_opioid_date) <> ''
         GROUP BY mi_person_key
         HAVING target_date IS NOT NULL
     ),
