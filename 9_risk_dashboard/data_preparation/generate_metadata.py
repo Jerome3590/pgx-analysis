@@ -183,6 +183,9 @@ def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str,
         print("Warning: No 'feature' column found")
         return codes
 
+    # Use code_type from CSV when present (Step 3b writes it); else infer from feature name
+    use_csv_code_type = 'code_type' in df_sorted.columns
+
     for _, row in df_sorted.iterrows():
         feature = row['feature']
         try:
@@ -191,18 +194,27 @@ def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str,
             importance = 0.0
         if pd.isna(importance):
             importance = 0.0
-        
-        code_type, code = parse_feature_name(feature)
-        if not code or code_type == 'other':
-            continue
+        if use_csv_code_type:
+            code_type = str(row.get('code_type', '')).strip().lower()
+            code = str(feature).strip()
+            if code.startswith("item_"):
+                code = code[5:].strip()
+            if not code or code_type not in ('drug', 'icd', 'cpt'):
+                continue
+        else:
+            code_type, code = parse_feature_name(feature)
+            if not code or code_type == 'other':
+                continue
         # Exclude F1120 from ICD codes (it's the target, not an input)
         if code_type == 'icd' and code.upper() == 'F1120':
             continue
-        if code_type in codes:
+        # codes keys are plural ('drugs', 'icds', 'cpts'); code_type is singular
+        list_key = code_type if code_type in codes else {'drug': 'drugs', 'icd': 'icds', 'cpt': 'cpts'}.get(code_type)
+        if list_key and list_key in codes:
             # Create display name (clean up code)
             display = code.replace('_', ' ').title()
             
-            codes[code_type].append({
+            codes[list_key].append({
                 'code': code,
                 'display': display,
                 'importance': importance,
