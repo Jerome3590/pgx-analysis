@@ -60,35 +60,65 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optiona
     return None
 
 
-def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Optional[Path], Optional[Path]]:
-    """Find FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/ or catboost/."""
+def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path) -> Optional[Path]:
+    """Find SHAP sample values parquet from Step 7 (same layout as global importance). Used for row-level SHAP in patient explanations."""
     age_band_fname = age_band.replace("-", "_")
-    ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_band_fname
+    base = f"{cohort}_{age_band_fname}"
+    shap_dir = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    for name in (f"{base}_shap_sample_values_xgboost.parquet", f"{base}_shap_sample_values_catboost.parquet"):
+        p = shap_dir / name
+        if p.exists():
+            return p
+    return None
+
+
+def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Optional[Path], Optional[Path]]:
+    """Find FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/ or catboost/.
+    Tries both age_band dir names: underscore (65_74) and hyphen (65-74) for cohort naming consistency."""
+    age_band_fname = age_band.replace("-", "_")
+    # Try underscore first (what run_shap_ffa_workflow uses), then hyphen (some S3/other scripts use it)
+    candidates = [age_band_fname, age_band]
+    if age_band_fname == age_band:
+        candidates = [age_band_fname]
     explanations_path = None
     importance_path = None
-    for model in ("xgboost", "catboost"):
-        model_dir = ffa_base / model
-        exp_p = model_dir / "axp_explanations.parquet"
-        if not exp_p.exists():
-            exp_p = model_dir / "axp_explanations.csv"
-        imp_p = model_dir / "feature_importance_axp.parquet"
-        if not imp_p.exists():
-            imp_p = model_dir / "feature_importance_axp.csv"
-        if exp_p.exists():
-            explanations_path = exp_p
-            logger.info(f"Found FFA explanations: {explanations_path}")
+    for age_dir in candidates:
+        ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+        for model in ("xgboost", "catboost"):
+            model_dir = ffa_base / model
+            exp_p = model_dir / "axp_explanations.parquet"
+            if not exp_p.exists():
+                exp_p = model_dir / "axp_explanations.csv"
+            imp_p = model_dir / "feature_importance_axp.parquet"
+            if not imp_p.exists():
+                imp_p = model_dir / "feature_importance_axp.csv"
+            if exp_p.exists():
+                explanations_path = exp_p
+                logger.info(f"Found FFA explanations: {explanations_path}")
+                break
+            if imp_p.exists() and importance_path is None:
+                importance_path = imp_p
+        if explanations_path is not None:
             break
     if explanations_path is None:
-        logger.warning("FFA explanations not found")
-    for model in ("xgboost", "catboost"):
-        model_dir = ffa_base / model
-        imp_p = model_dir / "feature_importance_axp.parquet"
-        if not imp_p.exists():
-            imp_p = model_dir / "feature_importance_axp.csv"
-        if imp_p.exists():
-            importance_path = imp_p
-            logger.info(f"Found FFA importance: {importance_path}")
-            break
+        logger.warning(
+            "FFA explanations not found (looked under 8_ffa_analysis/outputs/%s/{%s|%s}/xgboost|catboost/axp_explanations.*). "
+            "Patient explanations will be skipped. Run Step 1b (SHAP+FFA workflow) or full 8_ffa_analysis for this cohort/age_band to generate them.",
+            cohort, age_band_fname, age_band,
+        )
+    if importance_path is None:
+        for age_dir in candidates:
+            ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+            for model in ("xgboost", "catboost"):
+                imp_p = ffa_base / model / "feature_importance_axp.parquet"
+                if not imp_p.exists():
+                    imp_p = ffa_base / model / "feature_importance_axp.csv"
+                if imp_p.exists():
+                    importance_path = imp_p
+                    logger.info(f"Found FFA importance: {importance_path}")
+                    break
+            if importance_path is not None:
+                break
     if importance_path is None:
         logger.warning("FFA importance not found")
     return explanations_path, importance_path
@@ -114,6 +144,28 @@ def load_shap_data(shap_path: Path) -> Tuple[Optional[np.ndarray], Optional[pd.D
         shap_values = df.values
         return shap_values, None
     raise ValueError(f"Unsupported SHAP file format: {shap_path.suffix}")
+
+
+def load_shap_sample_parquet(parquet_path: Path, feature_names: Optional[List[str]] = None) -> Optional[np.ndarray]:
+    """Load row-level SHAP values from Step 7 sample parquet. Drops row_id, bias, mi_person_key. Returns (n_samples, n_features) array."""
+    import duckdb
+    con = duckdb.connect()
+    try:
+        path_esc = str(parquet_path).replace("'", "''")
+        df = con.execute(f"SELECT * FROM read_parquet('{path_esc}')").df()
+    finally:
+        con.close()
+    drop = ["row_id", "bias", "mi_person_key"]
+    df = df.drop(columns=[c for c in drop if c in df.columns], errors="ignore")
+    if feature_names:
+        cols = [c for c in feature_names if c in df.columns]
+        if cols:
+            df = df[cols]
+    # Ensure numeric and consistent column order
+    numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    if not numeric:
+        return None
+    return df[numeric].values
 
 
 def extract_features_from_ffa_rules(rules: List) -> Set[str]:
@@ -372,18 +424,20 @@ def generate_summary_report(
             report.append(f"  {i}. {feat}: {comb:.4f} (SHAP: {sn:.3f}, FFA: {fn:.3f})")
         report.append("")
     
-    # Patient explanation summary
-    if not patient_explanations.empty:
-        report.append("PATIENT EXPLANATIONS:")
-        report.append(f"  - Total patients analyzed: {len(patient_explanations)}")
-        
-        if 'consensus_features' in patient_explanations.columns:
-            patients_with_consensus = patient_explanations[
-                patient_explanations['consensus_features'].apply(lambda x: len(x) > 0)
-            ]
-            report.append(f"  - Patients with consensus features: {len(patients_with_consensus)} "
-                         f"({len(patients_with_consensus)/len(patient_explanations):.1%})")
-        report.append("")
+    # Patient explanation summary (patient_explanations is None when FFA explanations are missing)
+    if patient_explanations is not None:
+        if not patient_explanations.empty:
+            report.append("PATIENT EXPLANATIONS:")
+            report.append(f"  - Total patients analyzed: {len(patient_explanations)}")
+            if 'consensus_features' in patient_explanations.columns:
+                patients_with_consensus = patient_explanations[
+                    patient_explanations['consensus_features'].apply(lambda x: len(x) > 0)
+                ]
+                report.append(f"  - Patients with consensus features: {len(patients_with_consensus)} "
+                             f"({len(patients_with_consensus)/len(patient_explanations):.1%})")
+            report.append("")
+        # else: empty DataFrame, skip section
+    # else: None (FFA explanations not produced), skip section
     
     report.append("="*80)
     
@@ -488,10 +542,32 @@ def main():
     
     logger.info(f"Combining SHAP and FFA results for {args.cohort} / {args.age_band}")
     
-    # Find results
+    # Find results (same path layout for opioid_ed and non_opioid_ed: 7_shap_analysis/outputs/{cohort}/{age_band_fname}/)
     shap_path = find_shap_results(args.cohort, args.age_band, project_root)
+    shap_sample_path = find_shap_sample_parquet(args.cohort, args.age_band, project_root)
     ffa_explanations_path, ffa_importance_path = find_ffa_results(args.cohort, args.age_band, project_root)
     
+    # All inputs are required; log errors and exit if any missing
+    age_band_fname = args.age_band.replace("-", "_")
+    missing = []
+    if not shap_path:
+        missing.append("SHAP importance")
+        logger.error("Required input missing: SHAP importance. Expected under 7_shap_analysis/outputs/%s/%s/", args.cohort, age_band_fname)
+    if not shap_sample_path:
+        missing.append("SHAP sample values (parquet)")
+        logger.error("Required input missing: SHAP sample values. Expected 7_shap_analysis/outputs/%s/%s/*_shap_sample_values_xgboost.parquet", args.cohort, age_band_fname)
+    if not ffa_explanations_path:
+        missing.append("FFA explanations (axp_explanations.parquet)")
+        logger.error("Required input missing: FFA explanations. Expected 8_ffa_analysis/outputs/%s/%s/xgboost/axp_explanations.parquet (run Step 1b to generate)", args.cohort, age_band_fname)
+    if not ffa_importance_path:
+        missing.append("FFA importance")
+        logger.error("Required input missing: FFA importance. Expected 8_ffa_analysis/outputs/%s/%s/xgboost/feature_importance_axp.parquet", args.cohort, age_band_fname)
+    if missing:
+        logger.error("Cannot combine: missing required inputs: %s. Fix the above and re-run.", ", ".join(missing))
+        sys.exit(1)
+
+    logger.info("All required inputs found: SHAP importance, SHAP sample, FFA explanations, FFA importance")
+
     # Load data
     shap_values = None
     shap_importance = None
@@ -569,6 +645,12 @@ def main():
     else:
         logger.error("Cannot determine feature names - need SHAP or FFA importance")
         return
+    
+    # Optionally load SHAP sample parquet for row-level values (patient explanations)
+    if shap_values is None and shap_sample_path is not None and feature_names:
+        shap_values = load_shap_sample_parquet(shap_sample_path, feature_names)
+        if shap_values is not None:
+            logger.info("Loaded SHAP sample values for patient explanations: shape %s", shap_values.shape)
     
     # Calculate consensus
     consensus_data = calculate_consensus_features(shap_importance, ffa_importance, args.top_k)
