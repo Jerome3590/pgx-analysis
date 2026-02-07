@@ -267,6 +267,8 @@ def main():
         parser.print_help()
         return
     
+    # OUTPUT_DIR is 9_risk_dashboard/outputs/metadata (created on first save)
+    print(f"Output directory: {OUTPUT_DIR.resolve()}")
     for cohort, age_bands in cohorts:
         print(f"\n{'='*60}")
         print(f"Generating metadata for {cohort}")
