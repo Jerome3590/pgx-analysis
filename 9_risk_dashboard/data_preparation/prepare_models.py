@@ -17,6 +17,7 @@ Usage:
 import sys
 import json
 import argparse
+import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import joblib
@@ -346,9 +347,20 @@ def main():
                        help='Process all cohorts')
     parser.add_argument('--upload-s3', action='store_true',
                        help='Also upload to S3 as backup/fallback (optional)')
+    parser.add_argument('--force', action='store_true',
+                       help='Clear S3 checkpoint (9_dashboard_models) so workflow Step 3 will re-run')
     
     args = parser.parse_args()
     
+    if args.force:
+        try:
+            from py_helpers.checkpoint_utils import delete_step_checkpoint
+            logger = logging.getLogger(__name__)
+            if delete_step_checkpoint("9_dashboard_models", "all", "all", logger=logger):
+                print("Cleared checkpoint: 9_dashboard_models (workflow Step 3 will re-run)")
+        except Exception as e:
+            print(f"Warning: could not clear checkpoint: {e}")
+
     if args.all:
         cohorts = [
             ('opioid_ed', OPIOID_ED_AGE_BANDS),
