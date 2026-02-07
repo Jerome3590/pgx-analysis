@@ -6,6 +6,7 @@ duckdb>=1.4.0
 pandas>=3.0.0
 numpy>=2.0.0
 pyarrow>=23.0.0
+openpyxl>=3.1.0
 
 # AWS
 boto3>=1.28.0
