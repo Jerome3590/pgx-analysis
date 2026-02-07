@@ -249,7 +249,8 @@ def _run_ffa_with_shap(
                         e, cohort, _age_band_fname(age_band),
                     )
                     raise
-            y_pred = (booster.predict(xgb.DMatrix(X_mat)) > 0.5).astype(int)
+            dmat = xgb.DMatrix(X_mat, feature_names=feature_names)
+            y_pred = (booster.predict(dmat) > 0.5).astype(int)
             df_axps = explainer.explain_dataset(X_mat, predictions=y_pred, show_progress=True)
             out_path = output_dir / "axp_explanations.parquet"
             df_axps.to_parquet(out_path, index=False)
