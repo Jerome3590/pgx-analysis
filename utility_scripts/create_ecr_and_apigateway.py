@@ -23,8 +23,9 @@ if _creds.exists() and not os.environ.get("AWS_SHARED_CREDENTIALS_FILE"):
     os.environ["AWS_SHARED_CREDENTIALS_FILE"] = str(_creds)
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
-ECR_REPO = "pgx-risk-dashboard"
-API_NAME = "pgx-calculator-api"
+# Match notebook verification: ECR_REPOSITORY and PGX_API_GATEWAY_NAME
+ECR_REPO = os.environ.get("ECR_REPOSITORY", "pgx-risk-calculator")
+API_NAME = os.environ.get("PGX_API_GATEWAY_NAME", "pgx-risk-calculator")
 
 
 def main():
