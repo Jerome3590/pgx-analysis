@@ -1,0 +1,1682 @@
+<!-- PGx dashboard: template derived from PHTS-style risk calculator (frontend/index.html). Deploy to S3 vcu/pgx-risk-calculator. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PGx Risk Assessment Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #f8fafc;
+      color: #0f172a;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin-top: 0;
+      color: #0f172a;
+      font-size: 2rem;
+    }
+    .subtitle {
+      color: #64748b;
+      margin-bottom: 2rem;
+    }
+    .model-indicator {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-left: 1rem;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .model-indicator.polypharmacy {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .control-group {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+    }
+    .control-group.full-width {
+      grid-column: 1 / -1;
+    }
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.5rem;
+    }
+    input[type="number"], select, button {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9rem;
+      border-radius: 0.375rem;
+      border: 1px solid #cbd5e1;
+      box-sizing: border-box;
+    }
+    select[multiple] {
+      min-height: 120px;
+      overflow-y: auto;
+    }
+    input[type="number"]:focus, select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    button {
+      cursor: pointer;
+      background: #0f766e;
+      border-color: #0f766e;
+      color: #ffffff;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background: #115e59;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .button-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .button-row button {
+      flex: 1;
+    }
+    .button-secondary {
+      background: #475569;
+      border-color: #475569;
+    }
+    .button-secondary:hover:not(:disabled) {
+      background: #334155;
+    }
+    .risk-display {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 2rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+    .risk-score {
+      font-size: 4rem;
+      font-weight: 700;
+      margin: 1rem 0;
+      color: #0f172a;
+    }
+    .risk-score.low { color: #16a34a; }
+    .risk-score.medium { color: #ca8a04; }
+    .risk-score.high { color: #dc2626; }
+    .risk-band {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.5rem;
+    }
+    .risk-band.low {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .risk-band.medium {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+    .risk-band.high {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .panels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .panel {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      min-height: 300px;
+    }
+    .panel h2 {
+      font-size: 1.25rem;
+      margin: 0 0 1rem;
+      color: #0f172a;
+    }
+    #status {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #f1f5f9;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      color: #475569;
+    }
+    #status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    #status.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .comparison-mode {
+      display: none;
+      margin-top: 2rem;
+    }
+    .comparison-mode.active {
+      display: block;
+    }
+    .comparison-scenarios {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .scenario-card {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      border: 2px solid transparent;
+    }
+    .scenario-card.selected {
+      border-color: #3b82f6;
+    }
+    .scenario-name {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .scenario-risk {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0.5rem 0;
+    }
+    .scenario-delta {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .scenario-delta.positive {
+      color: #dc2626;
+    }
+    .scenario-delta.negative {
+      color: #16a34a;
+    }
+    .code-search {
+      margin-bottom: 0.5rem;
+    }
+    .code-search input {
+      width: 100%;
+      padding: 0.375rem 0.5rem;
+      font-size: 0.875rem;
+      border-radius: 0.25rem;
+      border: 1px solid #cbd5e1;
+    }
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .tab-button {
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab-button:hover {
+      color: #0f172a;
+      background: #f1f5f9;
+    }
+    .tab-button.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+    }
+    .tab-content {
+      display: block;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    /* PGx Card Styles */
+    .pgx-input-section {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      margin-bottom: 2rem;
+    }
+    .pgx-input-section textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.25rem;
+      font-family: monospace;
+      font-size: 0.875rem;
+      resize: vertical;
+    }
+    .pgx-input-section input[type="file"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.25rem;
+    }
+    .pgx-card {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 2rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+      margin-bottom: 2rem;
+    }
+    .pgx-card-header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+    }
+    .pgx-card-header h2 {
+      margin: 0 0 0.5rem 0;
+      color: #0f172a;
+    }
+    .pgx-card-section {
+      margin-bottom: 2rem;
+    }
+    .pgx-card-section h3 {
+      color: #3b82f6;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    .pgx-gene-item, .pgx-drug-item {
+      background: #f8fafc;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border-radius: 0.25rem;
+    }
+    .pgx-gene-name {
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 0.5rem;
+    }
+    .pgx-variants {
+      color: #64748b;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .pgx-drug-name {
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 0.25rem;
+    }
+    .pgx-drug-gene {
+      color: #64748b;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .pgx-drug-guideline {
+      color: #3b82f6;
+      font-size: 0.875rem;
+    }
+    .pgx-drug-guideline a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+    .pgx-drug-guideline a:hover {
+      text-decoration: underline;
+    }
+    .status-message {
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      background: #f1f5f9;
+      color: #64748b;
+    }
+    .status-message.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status-message.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status-message.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    @media (max-width: 768px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+      .panels {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PGx Risk Assessment Dashboard</h1>
+    
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-button active" data-tab="risk-assessment">Risk Assessment</button>
+      <button class="tab-button" data-tab="causal-analysis">Causal Analysis</button>
+      <button class="tab-button" data-tab="dtw-visualizations">DTW Trajectories</button>
+      <button class="tab-button" data-tab="fpgrowth-visualizations">FP-Growth Patterns</button>
+      <button class="tab-button" data-tab="bupar-visualizations">BupaR Process Mining</button>
+      <button class="tab-button" data-tab="pgx-card">PGx Patient Card</button>
+    </div>
+
+    <!-- Risk Assessment Tab -->
+    <div id="risk-assessment-tab" class="tab-content active">
+      <p class="subtitle">
+        Assess risk for <strong>F1120 Opioid ED Visit</strong> (ages 13-64) or 
+        <strong>Polypharmacy</strong> (ages 65-114). Model selection is automatic based on age.
+        <br>
+        <small style="color: #64748b;">Uses robust ensemble of CatBoost, XGBoost, and XGBoost RF models.</small>
+        <br>
+        <small style="color: #ca8a04; font-weight: 600;">⚠️ Note: Ages 95-114 are treated as age band 85-94 due to small cohort size. Age band 0-12 is excluded.</small>
+        <span id="model-indicator" class="model-indicator"></span>
+      </p>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="age">Age</label>
+        <input type="number" id="age" min="13" max="114" value="35" />
+        <small style="color: #64748b; font-size: 0.75rem;">
+          Ages 13-64: Opioid ED Risk | Ages 65-114: Polypharmacy Risk<br>
+          <em style="color: #ca8a04;">Note: Ages 95-114 are treated as age band 85-94 due to small cohort size</em><br>
+          <em>Age band 0-12 excluded due to small cohort size</em>
+        </small>
+      </div>
+
+      <div class="control-group" id="drug-group">
+        <label for="drugs">Drug Names</label>
+        <div class="code-search">
+          <input type="text" id="drug-search" placeholder="Search drugs..." />
+        </div>
+        <select id="drugs" multiple></select>
+      </div>
+
+      <div class="control-group" id="icd-group">
+        <label for="icds">ICD Codes</label>
+        <div class="code-search">
+          <input type="text" id="icd-search" placeholder="Search ICD codes..." />
+        </div>
+        <select id="icds" multiple></select>
+      </div>
+
+      <div class="control-group" id="cpt-group">
+        <label for="cpts">CPT Codes</label>
+        <div class="code-search">
+          <input type="text" id="cpt-search" placeholder="Search CPT codes..." />
+        </div>
+        <select id="cpts" multiple></select>
+      </div>
+
+      <div class="control-group full-width">
+        <div class="button-row">
+          <button id="btnRisk">Calculate Risk Score</button>
+          <button id="btnComparison" class="button-secondary">Compare Scenarios</button>
+          <button id="btnReset" class="button-secondary">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status">Enter age and select codes, then click 'Calculate Risk Score'</div>
+
+    <div class="risk-display" id="risk-display" style="display: none;">
+      <div class="risk-score" id="risk-score">--</div>
+      <div class="risk-band" id="risk-band"></div>
+      <div style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">
+        Using: <strong id="model-info"></strong>
+      </div>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <h2>Model Breakdown</h2>
+        <div id="model-chart"></div>
+      </div>
+      <div class="panel">
+        <h2>Risk Distribution</h2>
+        <div id="risk-dist-chart"></div>
+      </div>
+    </div>
+
+    <div class="comparison-mode" id="comparison-mode">
+      <div class="panel">
+        <h2>Scenario Comparison</h2>
+        <div class="comparison-scenarios" id="comparison-scenarios"></div>
+      </div>
+    </div>
+
+    <!-- Feature Interactions Tab -->
+    <div id="interactions-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Analyze multi-feature interactions to identify synergies and antagonisms between features.
+        <br>
+        <small style="color: #64748b;">Shows how combinations of features interact beyond their individual effects.</small>
+      </p>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="max-interaction-size">Max Interaction Size:</label>
+          <select id="max-interaction-size">
+            <option value="2">Pairs (2 features)</option>
+            <option value="3">Triplets (3 features)</option>
+            <option value="4">Quadruplets (4 features)</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="synergy-filter">Filter by Synergy:</label>
+          <select id="synergy-filter">
+            <option value="all">All Interactions</option>
+            <option value="positive">Positive Synergies</option>
+            <option value="negative">Antagonisms</option>
+            <option value="neutral">Neutral</option>
+          </select>
+        </div>
+
+        <div class="control-group full-width">
+          <button id="btnAnalyzeInteractions">Analyze Interactions</button>
+          <button id="btnResetInteractions" class="button-secondary">Reset</button>
+        </div>
+      </div>
+
+      <div id="interactions-status" class="status-message">Click 'Analyze Interactions' to view feature interactions</div>
+
+      <div class="panels">
+        <div class="panel">
+          <h2>Interaction Matrix</h2>
+          <div id="interaction-matrix-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>Top Interactions</h2>
+          <div id="top-interactions-table"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Interaction Network</h2>
+        <div id="interaction-network-chart"></div>
+      </div>
+    </div>
+
+    <!-- PGx Patient Card Tab -->
+    <div id="pgx-card-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Enter your ancestry report with SNPs to generate a generic, anonymous PGx Patient Card.
+        <br>
+        <small style="color: #64748b;">The card shows potential drug interactions based on your genetic variants using CPIC guidelines.</small>
+        <br>
+        <small style="color: #ca8a04; font-weight: 600;">🔒 Privacy Note: This card is anonymous and generic. Patient ID is optional and not necessary - you can leave it blank. Only timestamp and IP address are recorded for tracking purposes.</small>
+      </p>
+
+      <div class="pgx-input-section">
+        <div class="control-group">
+          <label for="patient-id">Patient ID (Optional - Not Necessary)</label>
+          <input type="text" id="patient-id" placeholder="Optional: Add identification if desired (not required)" />
+          <small style="color: #64748b; font-size: 0.75rem;">
+            <strong>Not required:</strong> This card is anonymous and generic. Patient ID is completely optional and not necessary. 
+            You can leave this blank for full privacy. Only timestamp and IP address are recorded.
+          </small>
+        </div>
+
+        <div class="control-group">
+          <label for="snp-input">SNP Data Input</label>
+          <small style="color: #64748b; font-size: 0.75rem; display: block; margin-bottom: 0.5rem;">
+            Enter gene variants in format: Gene,Variant1,Variant2,Variant3 (one per line)<br>
+            Example: CYP2D6,*1,*2 or CYP2C19,*1,*17
+          </small>
+          <textarea id="snp-input" rows="10" placeholder="CYP2D6,*1,*2&#10;CYP2C19,*1,*17&#10;CYP2C9,*1,*2"></textarea>
+        </div>
+
+        <div class="control-group">
+          <label for="snp-file">Or Upload File</label>
+          <input type="file" id="snp-file" accept=".csv,.xlsx,.txt" />
+          <small style="color: #64748b; font-size: 0.75rem;">
+            Supports CSV, Excel, or text files with gene variant data
+          </small>
+        </div>
+
+        <div class="control-group full-width">
+          <button id="btnGenerateCard">Generate PGx Card</button>
+          <button id="btnResetCard" class="button-secondary">Reset</button>
+        </div>
+      </div>
+
+      <div id="pgx-status" class="status-message">Enter SNP data and click 'Generate PGx Card'</div>
+
+      <div id="pgx-card-display" style="display: none;">
+        <div class="pgx-card">
+          <div class="pgx-card-header">
+            <h2>PGx Patient Card</h2>
+            <div id="pgx-patient-id" style="margin-top: 0.5rem;"></div>
+            <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">
+              <strong>Privacy Protected:</strong> This card is anonymous and generic. Patient ID is optional and not necessary - 
+              you can leave it blank for full privacy. Add your own identification information to the printed/saved card as needed.
+            </p>
+          </div>
+          
+          <div class="pgx-card-section">
+            <h3>Genes Tested</h3>
+            <div id="pgx-genes-list"></div>
+          </div>
+
+          <div class="pgx-card-section">
+            <h3>Drugs Requiring Dosing Modifications</h3>
+            <div id="pgx-drugs-list"></div>
+          </div>
+
+          <div class="pgx-card-section">
+            <h3>Gene Details</h3>
+            <div id="pgx-gene-details"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Causal Analysis Tab -->
+    <div id="causal-analysis-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Explore causal factors from FFA analysis and SHAP values to understand feature importance and interactions.
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="causal-cohort">Cohort:</label>
+          <select id="causal-cohort">
+            <option value="opioid_ed">Opioid ED (13-64)</option>
+            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="causal-age-band">Age Band:</label>
+          <select id="causal-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadCausal">Load Causal Analysis</button>
+        </div>
+      </div>
+      <div id="causal-status" class="status-message">Select cohort and age band, then click 'Load Causal Analysis'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Top Causal Factors (FFA)</h2>
+          <div id="causal-factors-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>SHAP Feature Importance</h2>
+          <div id="shap-importance-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>Feature Interactions</h2>
+          <div id="interactions-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DTW Visualizations Tab -->
+    <div id="dtw-visualizations-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Explore patient trajectory patterns using Dynamic Time Warping (DTW) analysis.
+        <br>
+        <small style="color: #64748b;">Visualize trajectory similarities, temporal patterns, and trajectory characteristics.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="dtw-cohort">Cohort:</label>
+          <select id="dtw-cohort">
+            <option value="opioid_ed">Opioid ED (13-64)</option>
+            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="dtw-age-band">Age Band:</label>
+          <select id="dtw-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadDTW">Load DTW Visualizations</button>
+        </div>
+      </div>
+      <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Trajectory Analysis Overview</h2>
+          <div id="dtw-overview-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Sample Trajectories</h2>
+          <div id="dtw-sample-trajectories-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Trajectory Metrics</h2>
+          <div id="dtw-metrics-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FP-Growth Visualizations Tab -->
+    <div id="fpgrowth-visualizations-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Explore frequent pattern mining results from FP-Growth analysis.
+        <br>
+        <small style="color: #64748b;">Visualize itemsets, association rules, and co-occurrence networks.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="fpgrowth-cohort">Cohort:</label>
+          <select id="fpgrowth-cohort">
+            <option value="opioid_ed">Opioid ED (13-64)</option>
+            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="fpgrowth-age-band">Age Band:</label>
+          <select id="fpgrowth-age-band"></select>
+        </div>
+        <div class="control-group">
+          <label for="fpgrowth-item-type">Item Type:</label>
+          <select id="fpgrowth-item-type">
+            <option value="drug_name">Drug Names</option>
+            <option value="icd_code">ICD Codes</option>
+            <option value="cpt_code">CPT Codes</option>
+            <option value="medical_code">Medical Codes</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadFPGrowth">Load FP-Growth Visualizations</button>
+        </div>
+      </div>
+      <div id="fpgrowth-status" class="status-message">Select cohort, age band, and item type, then click 'Load FP-Growth Visualizations'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Top Itemsets</h2>
+          <div id="fpgrowth-itemsets-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Itemset Support Distribution</h2>
+          <div id="fpgrowth-support-image"></div>
+        </div>
+        <div class="panel full-width">
+          <h2>Co-occurrence Network</h2>
+          <div id="fpgrowth-network-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BupaR Visualizations Tab -->
+    <div id="bupar-visualizations-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Explore process mining results from BupaR analysis.
+        <br>
+        <small style="color: #64748b;">Visualize process flows, activity sequences, and temporal patterns.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="bupar-cohort">Cohort:</label>
+          <select id="bupar-cohort">
+            <option value="opioid_ed">Opioid ED (13-64)</option>
+            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="bupar-age-band">Age Band:</label>
+          <select id="bupar-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadBupaR">Load BupaR Visualizations</button>
+        </div>
+      </div>
+      <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Overall Activity Frequency</h2>
+          <div id="bupar-activity-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Pre-Target Activity Frequency</h2>
+          <div id="bupar-pre-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Post-Target Activity Frequency</h2>
+          <div id="bupar-post-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Gantt Chart (Overall)</h2>
+          <div id="bupar-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Gantt Chart (Pre-Target)</h2>
+          <div id="bupar-pre-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Gantt Chart (Post-Target)</h2>
+          <div id="bupar-post-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Activity Sequence (Top)</h2>
+          <div id="bupar-sequence-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Activity Milestones Gantt</h2>
+          <div id="bupar-milestones-image"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ==============================
+  // CONFIGURATION
+  // ==============================
+  // API Base URL - Update this with your actual API Gateway endpoint
+  // Format: https://{api-id}.execute-api.{region}.amazonaws.com/{stage}
+  const API_BASE = window.API_BASE_URL || "https://YOUR_API.execute-api.REGION.amazonaws.com/prod";
+
+  // DOM Elements
+  const ageEl = document.getElementById("age");
+  const drugsEl = document.getElementById("drugs");
+  const icdsEl = document.getElementById("icds");
+  const cptsEl = document.getElementById("cpts");
+  
+  // PGx Card Elements
+  const patientIdEl = document.getElementById("patient-id");
+  const snpInputEl = document.getElementById("snp-input");
+  const snpFileEl = document.getElementById("snp-file");
+  const btnGenerateCard = document.getElementById("btnGenerateCard");
+  const btnResetCard = document.getElementById("btnResetCard");
+  const pgxStatusEl = document.getElementById("pgx-status");
+  const pgxCardDisplayEl = document.getElementById("pgx-card-display");
+  
+  // Tab Elements
+  const tabButtons = document.querySelectorAll(".tab-button");
+  const tabContents = document.querySelectorAll(".tab-content");
+  const drugSearchEl = document.getElementById("drug-search");
+  const icdSearchEl = document.getElementById("icd-search");
+  const cptSearchEl = document.getElementById("cpt-search");
+  const statusEl = document.getElementById("status");
+  const modelIndicatorEl = document.getElementById("model-indicator");
+  const riskDisplayEl = document.getElementById("risk-display");
+  const riskScoreEl = document.getElementById("risk-score");
+  const riskBandEl = document.getElementById("risk-band");
+  const modelInfoEl = document.getElementById("model-info");
+
+  let currentMetadata = null;
+  let currentCohort = null;
+  let currentAgeBand = null;
+
+  // ==============================
+  // UTILITY FUNCTIONS
+  // ==============================
+  function setStatus(msg, type = "info") {
+    statusEl.textContent = msg;
+    statusEl.className = type;
+  }
+
+  function getMultiSelectValues(selectEl) {
+    return Array.from(selectEl.selectedOptions).map(o => o.value);
+  }
+
+  function clearOptions(selectEl) {
+    while (selectEl.firstChild) {
+      selectEl.removeChild(selectEl.firstChild);
+    }
+  }
+
+  function determineCohort(age) {
+    if (age >= 13 && age <= 64) {
+      return "opioid_ed";
+    } else if (age >= 65 && age <= 114) {
+      return "non_opioid_ed";
+    }
+    return null;
+  }
+
+  function determineAgeBand(age) {
+    // Opioid ED age bands (13-64)
+    if (age >= 13 && age <= 24) return "13-24";
+    if (age >= 25 && age <= 44) return "25-44";
+    if (age >= 45 && age <= 54) return "45-54";
+    if (age >= 55 && age <= 64) return "55-64";
+    // Polypharmacy age bands (65-114)
+    if (age >= 65 && age <= 74) return "65-74";
+    if (age >= 75 && age <= 84) return "75-84";
+    if (age >= 85 && age <= 114) return "85-94"; // Ages 95-114 mapped to 85-94
+    // Age band 0-12 excluded due to small cohort size
+    return null;
+  }
+
+  function updateModelIndicator(age) {
+    const cohort = determineCohort(age);
+    if (!cohort) {
+      modelIndicatorEl.textContent = "";
+      modelIndicatorEl.className = "model-indicator";
+      return;
+    }
+
+    if (cohort === "opioid_ed") {
+      modelIndicatorEl.textContent = "Opioid ED Risk Model";
+      modelIndicatorEl.className = "model-indicator";
+    } else {
+      const ageBand = determineAgeBand(age);
+      let indicatorText = "Polypharmacy Risk Model";
+      if (age >= 95 && age <= 114) {
+        indicatorText += " (using 85-94 model)";
+      }
+      modelIndicatorEl.textContent = indicatorText;
+      modelIndicatorEl.className = "model-indicator polypharmacy";
+    }
+  }
+
+  function filterOptions(selectEl, searchEl) {
+    const filter = searchEl.value.toLowerCase();
+    const options = selectEl.options;
+    
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      const text = option.text.toLowerCase();
+      option.style.display = text.includes(filter) ? "" : "none";
+    }
+  }
+
+  // ==============================
+  // METADATA LOADING
+  // ==============================
+  async function loadMetadata(cohort) {
+    setStatus(`Loading metadata for ${cohort}...`, "info");
+    
+    try {
+      const resp = await fetch(`${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      
+      const data = await resp.json();
+      currentMetadata = data;
+      currentCohort = cohort;
+      
+      updateCodeLists();
+      setStatus("Metadata loaded successfully", "success");
+      
+      return data;
+    } catch (err) {
+      console.error("Error loading metadata:", err);
+      setStatus(`Error loading metadata: ${err.message}`, "error");
+      return null;
+    }
+  }
+
+  function updateCodeLists() {
+    if (!currentMetadata || !currentAgeBand) return;
+    
+    const codes = currentMetadata.codes[currentAgeBand] || { drugs: [], icds: [], cpts: [] };
+    
+    populateSelect(drugsEl, codes.drugs.map(d => ({ value: d.code, text: `${d.display} (${d.importance.toFixed(3)})` })));
+    populateSelect(icdsEl, codes.icds.map(i => ({ value: i.code, text: `${i.display} (${i.importance.toFixed(3)})` })));
+    populateSelect(cptsEl, codes.cpts.map(c => ({ value: c.code, text: `${c.display} (${c.importance.toFixed(3)})` })));
+  }
+
+  function populateSelect(selectEl, options) {
+    clearOptions(selectEl);
+    options.forEach(opt => {
+      const option = document.createElement("option");
+      option.value = typeof opt === "string" ? opt : opt.value;
+      option.textContent = typeof opt === "string" ? opt : opt.text;
+      selectEl.appendChild(option);
+    });
+  }
+
+  // ==============================
+  // RISK CALCULATION
+  // ==============================
+  async function calculateRisk() {
+    const age = parseInt(ageEl.value);
+    
+    if (!age || age < 13) {
+      setStatus("Please enter a valid age (13 or older). Age band 0-12 is not supported.", "error");
+      return;
+    }
+
+    if (age > 114) {
+      setStatus("Please enter a valid age (114 or younger).", "error");
+      return;
+    }
+
+    const cohort = determineCohort(age);
+    const ageBand = determineAgeBand(age);
+    
+    if (!cohort || !ageBand) {
+      setStatus("Invalid age range. Supported: 13-64 (Opioid ED) or 65-114 (Polypharmacy)", "error");
+      return;
+    }
+    
+    // Show note if age is 95-114 (mapped to 85-94)
+    if (age >= 95 && age <= 114) {
+      setStatus(`Note: Age ${age} is treated as age band 85-94 due to small cohort size.`, "info");
+    }
+
+    // Load metadata if needed
+    if (!currentMetadata || currentCohort !== cohort) {
+      await loadMetadata(cohort);
+    }
+    
+    currentAgeBand = ageBand;
+    updateCodeLists();
+
+    const drugs = getMultiSelectValues(drugsEl);
+    const icds = getMultiSelectValues(icdsEl);
+    const cpts = getMultiSelectValues(cptsEl);
+
+    setStatus("Calculating risk score...", "info");
+
+    try {
+      const resp = await fetch(`${API_BASE}/risk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          age: age,
+          cohort: cohort,
+          drugs: drugs,
+          icds: icds,
+          cpts: cpts
+        })
+      });
+
+      if (!resp.ok) {
+        const error = await resp.json();
+        throw new Error(error.error || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      displayRiskResults(data, cohort, ageBand);
+      
+      // Show note if age was mapped
+      if (age >= 95 && age <= 114) {
+        setStatus(`Risk calculated successfully. Note: Age ${age} was treated as age band 85-94.`, "success");
+      } else {
+        setStatus("Risk calculated successfully", "success");
+      }
+      
+      // Log ensemble info
+      if (data.ensemble_info) {
+        console.log("Ensemble Info:", {
+          method: data.ensemble_info.method,
+          modelsUsed: data.ensemble_info.models_used,
+          modelsFailed: data.ensemble_info.models_failed
+        });
+      }
+      
+    } catch (err) {
+      console.error("Error calculating risk:", err);
+      setStatus(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function displayRiskResults(data, cohort, ageBand) {
+    const riskScore = (data.risk_score * 100).toFixed(1);
+    const riskBand = data.risk_band;
+
+    riskScoreEl.textContent = `${riskScore}%`;
+    riskScoreEl.className = `risk-score ${riskBand}`;
+    
+    riskBandEl.textContent = riskBand.toUpperCase();
+    riskBandEl.className = `risk-band ${riskBand}`;
+    
+    let modelInfoText = `${cohort} / ${ageBand}`;
+    if (data.age_mapped && data.age_mapping_note) {
+      modelInfoText += ` (${data.age_mapping_note})`;
+    }
+    modelInfoEl.textContent = modelInfoText;
+    
+    riskDisplayEl.style.display = "block";
+
+    // Render model breakdown chart
+    renderModelBreakdown(data.model_breakdown || {});
+    
+    // Render risk distribution (placeholder)
+    renderRiskDistribution();
+  }
+
+  function renderModelBreakdown(modelBreakdown) {
+    const models = Object.keys(modelBreakdown);
+    const scores = models.map(m => modelBreakdown[m] * 100);
+
+    const trace = {
+      x: models,
+      y: scores,
+      type: 'bar',
+      marker: {
+        color: ['#0f766e', '#3b82f6', '#8b5cf6']
+      }
+    };
+
+    const layout = {
+      title: 'Risk Score by Model',
+      xaxis: { title: 'Model' },
+      yaxis: { title: 'Risk Score (%)', range: [0, 100] },
+      margin: { t: 40, r: 20, b: 40, l: 60 }
+    };
+
+    Plotly.newPlot('model-chart', [trace], layout, { responsive: true });
+  }
+
+  function renderRiskDistribution() {
+    // Placeholder - would need distribution data from backend
+    const trace = {
+      x: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+      y: [100, 200, 300, 250, 200, 150, 100, 50, 25, 10, 5],
+      type: 'bar',
+      marker: { color: '#64748b' }
+    };
+
+    const layout = {
+      title: 'Risk Distribution (Example)',
+      xaxis: { title: 'Risk Score (%)' },
+      yaxis: { title: 'Frequency' },
+      margin: { t: 40, r: 20, b: 40, l: 60 }
+    };
+
+    Plotly.newPlot('risk-dist-chart', [trace], layout, { responsive: true });
+  }
+
+  // ==============================
+  // COMPARISON MODE
+  // ==============================
+  async function compareScenarios() {
+    const age = parseInt(ageEl.value);
+    const cohort = determineCohort(age);
+    const ageBand = determineAgeBand(age);
+
+    if (!cohort || !ageBand) {
+      setStatus("Please enter a valid age first", "error");
+      return;
+    }
+
+    const baseDrugs = getMultiSelectValues(drugsEl);
+    const baseIcds = getMultiSelectValues(icdsEl);
+    const baseCpts = getMultiSelectValues(cptsEl);
+
+    // Create scenarios
+    const scenarios = [
+      {
+        name: "Current Selection",
+        drugs: baseDrugs,
+        icds: baseIcds,
+        cpts: baseCpts
+      },
+    ];
+
+    setStatus("Comparing scenarios...", "info");
+
+    try {
+      const resp = await fetch(`${API_BASE}/risk/comparison`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base: {
+            age: age,
+            drugs: baseDrugs,
+            icds: baseIcds,
+            cpts: baseCpts
+          },
+          scenarios: scenarios.slice(1) // Exclude base from scenarios
+        })
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      const data = await resp.json();
+      displayComparison(data, scenarios);
+      setStatus("Comparison complete", "success");
+      
+    } catch (err) {
+      console.error("Error comparing scenarios:", err);
+      setStatus(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function displayComparison(data, scenarios) {
+    const container = document.getElementById("comparison-scenarios");
+    container.innerHTML = "";
+
+    // Add base scenario
+    const baseCard = createScenarioCard("Base", data.base_risk, 0);
+    container.appendChild(baseCard);
+
+    // Add comparison scenarios
+    data.scenarios.forEach((scenario, idx) => {
+      const card = createScenarioCard(
+        scenario.name,
+        scenario.risk_score,
+        scenario.delta,
+        idx === 0
+      );
+      container.appendChild(card);
+    });
+
+    document.getElementById("comparison-mode").classList.add("active");
+  }
+
+  function createScenarioCard(name, riskScore, delta, selected = false) {
+    const card = document.createElement("div");
+    card.className = `scenario-card ${selected ? "selected" : ""}`;
+    
+    const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "";
+    const deltaSign = delta > 0 ? "+" : "";
+    
+    card.innerHTML = `
+      <div class="scenario-name">${name}</div>
+      <div class="scenario-risk" style="color: ${getRiskColor(riskScore)}">
+        ${(riskScore * 100).toFixed(1)}%
+      </div>
+      <div class="scenario-delta ${deltaClass}">
+        ${deltaSign}${(delta * 100).toFixed(1)}% vs base
+      </div>
+    `;
+    
+    return card;
+  }
+
+  function getRiskColor(score) {
+    if (score < 0.2) return "#16a34a";
+    if (score < 0.5) return "#ca8a04";
+    return "#dc2626";
+  }
+
+  function resetForm() {
+    ageEl.value = 35;
+    drugsEl.selectedIndex = -1;
+    icdsEl.selectedIndex = -1;
+    cptsEl.selectedIndex = -1;
+    riskDisplayEl.style.display = "none";
+    document.getElementById("comparison-mode").classList.remove("active");
+    setStatus("Form reset", "info");
+    updateModelIndicator(35);
+  }
+
+  // ==============================
+  // EVENT LISTENERS
+  // ==============================
+  ageEl.addEventListener("input", () => {
+    const age = parseInt(ageEl.value);
+    updateModelIndicator(age);
+    
+    const cohort = determineCohort(age);
+    if (cohort && cohort !== currentCohort) {
+      loadMetadata(cohort);
+    }
+    
+    currentAgeBand = determineAgeBand(age);
+    if (currentMetadata && currentAgeBand) {
+      updateCodeLists();
+    }
+  });
+
+  drugSearchEl.addEventListener("input", () => filterOptions(drugsEl, drugSearchEl));
+  icdSearchEl.addEventListener("input", () => filterOptions(icdsEl, icdSearchEl));
+  cptSearchEl.addEventListener("input", () => filterOptions(cptsEl, cptSearchEl));
+
+  document.getElementById("btnRisk").addEventListener("click", calculateRisk);
+  document.getElementById("btnComparison").addEventListener("click", compareScenarios);
+  document.getElementById("btnReset").addEventListener("click", resetForm);
+
+  // Hide CPT/ICD groups for polypharmacy (ages 65-114)
+  // Validate age range (13-114)
+  ageEl.addEventListener("input", () => {
+    const age = parseInt(ageEl.value);
+    
+    // Validate age range
+    if (age < 13) {
+      setStatus("Age must be 13 or older. Age band 0-12 is not supported.", "error");
+    } else if (age > 114) {
+      setStatus("Age must be 114 or younger.", "error");
+    } else if (age >= 95 && age <= 114) {
+      setStatus(`Note: Age ${age} will be treated as age band 85-94 due to small cohort size.`, "info");
+    } else {
+      setStatus("Enter age and select codes, then click 'Calculate Risk Score'", "info");
+    }
+    
+    const isPolypharmacy = age >= 65 && age <= 114;
+    document.getElementById("icd-group").style.display = isPolypharmacy ? "none" : "block";
+    document.getElementById("cpt-group").style.display = isPolypharmacy ? "none" : "block";
+  });
+
+  // ==============================
+  // PGX CARD FUNCTIONALITY
+  // ==============================
+  
+  // Tab Switching
+  tabButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const targetTab = button.getAttribute("data-tab");
+      
+      // Update active tab button
+      tabButtons.forEach(btn => btn.classList.remove("active"));
+      button.classList.add("active");
+      
+      // Show/hide tab content
+      tabContents.forEach(content => {
+        if (content.id === `${targetTab}-tab`) {
+          content.classList.add("active");
+          content.style.display = "block";
+        } else {
+          content.classList.remove("active");
+          content.style.display = "none";
+        }
+      });
+    });
+  });
+
+  // PGx Card File Upload Handler
+  snpFileEl.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      snpInputEl.value = text;
+      setPGxStatus("File loaded successfully", "success");
+    } catch (err) {
+      setPGxStatus(`Error reading file: ${err.message}`, "error");
+    }
+  });
+
+  // Generate PGx Card
+  btnGenerateCard.addEventListener("click", async () => {
+    await generatePGxCard();
+  });
+
+  // Reset PGx Card
+  btnResetCard.addEventListener("click", () => {
+    patientIdEl.value = "";
+    snpInputEl.value = "";
+    snpFileEl.value = "";
+    pgxCardDisplayEl.style.display = "none";
+    setPGxStatus("Enter SNP data and click 'Generate PGx Card'", "info");
+  });
+
+  async function generatePGxCard() {
+    const patientId = patientIdEl.value.trim(); // Optional, can be empty
+    const snpData = snpInputEl.value.trim();
+    
+    if (!snpData) {
+      setPGxStatus("Please enter SNP data", "error");
+      return;
+    }
+    
+    setPGxStatus("Generating PGx Card...", "info");
+    
+    try {
+      // Parse SNP data
+      const snpLines = snpData.split("\n").filter(line => line.trim());
+      const variants = [];
+      
+      for (const line of snpLines) {
+        const parts = line.split(",").map(p => p.trim());
+        if (parts.length >= 2) {
+          variants.push({
+            gene: parts[0],
+            variants: parts.slice(1).filter(v => v && v !== "0")
+          });
+        }
+      }
+      
+      if (variants.length === 0) {
+        setPGxStatus("No valid variants found. Format: Gene,Variant1,Variant2", "error");
+        return;
+      }
+      
+      // Call Lambda API
+      const resp = await fetch(`${API_BASE}/pgx/card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: patientId || null, // Optional, send null if empty
+          variants: variants
+        })
+      });
+      
+      if (!resp.ok) {
+        const error = await resp.json();
+        throw new Error(error.error || `HTTP ${resp.status}`);
+      }
+      
+      const data = await resp.json();
+      displayPGxCard(data);
+      setPGxStatus("PGx Card generated successfully", "success");
+      
+    } catch (err) {
+      console.error("Error generating PGx card:", err);
+      setPGxStatus(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function displayPGxCard(data) {
+    // Display card metadata (timestamp, IP, and optional patient ID)
+    const patientIdDisplay = document.getElementById("pgx-patient-id");
+    let metadataParts = [`Generated: ${data.timestamp || "Unknown"}`];
+    
+    if (data.ip_address) {
+      metadataParts.push(`IP: ${data.ip_address}`);
+    }
+    
+    // Only show patient ID if provided (optional)
+    if (data.patient_id) {
+      metadataParts.push(`ID: ${data.patient_id}`);
+    }
+    
+    patientIdDisplay.textContent = metadataParts.join(" | ");
+    patientIdDisplay.style.fontSize = "0.875rem";
+    patientIdDisplay.style.color = "#64748b";
+    
+    // Display genes
+    const genesListEl = document.getElementById("pgx-genes-list");
+    genesListEl.innerHTML = "";
+    data.genes.forEach(gene => {
+      const geneEl = document.createElement("div");
+      geneEl.className = "pgx-gene-item";
+      geneEl.innerHTML = `
+        <div class="pgx-gene-name">${gene.gene}</div>
+        <div class="pgx-variants">Variants: ${gene.variants.join(", ")}</div>
+      `;
+      genesListEl.appendChild(geneEl);
+    });
+    
+    // Display drugs
+    const drugsListEl = document.getElementById("pgx-drugs-list");
+    drugsListEl.innerHTML = "";
+    if (data.drugs && data.drugs.length > 0) {
+      data.drugs.forEach(drug => {
+        const drugEl = document.createElement("div");
+        drugEl.className = "pgx-drug-item";
+        drugEl.innerHTML = `
+          <div class="pgx-drug-name">${drug.drug}</div>
+          <div class="pgx-drug-gene">Gene: ${drug.gene}</div>
+          <div class="pgx-drug-guideline">
+            <a href="${drug.guideline_url}" target="_blank">CPIC Guideline</a>
+            ${drug.cpic_level ? ` | CPIC Level: ${drug.cpic_level}` : ""}
+            ${drug.fda_label ? ` | FDA Label: ${drug.fda_label}` : ""}
+          </div>
+        `;
+        drugsListEl.appendChild(drugEl);
+      });
+    } else {
+      drugsListEl.innerHTML = "<p style='color: #64748b;'>No drugs requiring dosing modifications found.</p>";
+    }
+    
+    // Display gene details
+    const geneDetailsEl = document.getElementById("pgx-gene-details");
+    geneDetailsEl.innerHTML = "";
+    data.genes.forEach(gene => {
+      const detailEl = document.createElement("div");
+      detailEl.className = "pgx-gene-item";
+      detailEl.innerHTML = `
+        <div class="pgx-gene-name">${gene.gene}</div>
+        <div class="pgx-variants">Variants: ${gene.variants.join(", ")}</div>
+        ${gene.allele_count ? `<div style='margin-top: 0.5rem; color: #64748b;'>Allele Count: ${gene.allele_count}</div>` : ""}
+      `;
+      geneDetailsEl.appendChild(detailEl);
+    });
+    
+    pgxCardDisplayEl.style.display = "block";
+  }
+
+  function setPGxStatus(message, type = "info") {
+    pgxStatusEl.textContent = message;
+    pgxStatusEl.className = `status-message ${type}`;
+  }
+
+  // ==============================
+  // VISUALIZATION TAB HANDLERS
+  // ==============================
+  
+  // Causal Analysis Tab
+  document.getElementById("btnLoadCausal")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("causal-cohort").value;
+    const ageBand = document.getElementById("causal-age-band").value;
+    if (!cohort || !ageBand) {
+      document.getElementById("causal-status").textContent = "Please select cohort and age band";
+      document.getElementById("causal-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("causal-status").textContent = "Loading causal analysis...";
+    document.getElementById("causal-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/causal?cohort=${cohort}&age_band=${ageBand}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      // Render causal analysis charts
+      renderCausalCharts(data);
+      document.getElementById("causal-status").textContent = "Causal analysis loaded successfully";
+      document.getElementById("causal-status").className = "status-message success";
+    } catch (err) {
+      document.getElementById("causal-status").textContent = `Error: ${err.message}`;
+      document.getElementById("causal-status").className = "status-message error";
+    }
+  });
+
+  // DTW Visualizations Tab
+  document.getElementById("btnLoadDTW")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("dtw-cohort").value;
+    const ageBand = document.getElementById("dtw-age-band").value;
+    if (!cohort || !ageBand) {
+      document.getElementById("dtw-status").textContent = "Please select cohort and age band";
+      document.getElementById("dtw-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("dtw-status").textContent = "Loading DTW visualizations...";
+    document.getElementById("dtw-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      renderDTWVisualizations(data);
+      document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
+      document.getElementById("dtw-status").className = "status-message success";
+    } catch (err) {
+      document.getElementById("dtw-status").textContent = `Error: ${err.message}`;
+      document.getElementById("dtw-status").className = "status-message error";
+    }
+  });
+
+  // FP-Growth Visualizations Tab
+  document.getElementById("btnLoadFPGrowth")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("fpgrowth-cohort").value;
+    const ageBand = document.getElementById("fpgrowth-age-band").value;
+    const itemType = document.getElementById("fpgrowth-item-type").value;
+    if (!cohort || !ageBand || !itemType) {
+      document.getElementById("fpgrowth-status").textContent = "Please select cohort, age band, and item type";
+      document.getElementById("fpgrowth-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("fpgrowth-status").textContent = "Loading FP-Growth visualizations...";
+    document.getElementById("fpgrowth-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=${itemType}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      renderFPGrowthVisualizations(data);
+      document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
+      document.getElementById("fpgrowth-status").className = "status-message success";
+    } catch (err) {
+      document.getElementById("fpgrowth-status").textContent = `Error: ${err.message}`;
+      document.getElementById("fpgrowth-status").className = "status-message error";
+    }
+  });
+
+  // BupaR Visualizations Tab
+  document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("bupar-cohort").value;
+    const ageBand = document.getElementById("bupar-age-band").value;
+    if (!cohort || !ageBand) {
+      document.getElementById("bupar-status").textContent = "Please select cohort and age band";
+      document.getElementById("bupar-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("bupar-status").textContent = "Loading BupaR visualizations...";
+    document.getElementById("bupar-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      renderBupaRVisualizations(data);
+      document.getElementById("bupar-status").textContent = "BupaR visualizations loaded successfully";
+      document.getElementById("bupar-status").className = "status-message success";
+    } catch (err) {
+      document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
+      document.getElementById("bupar-status").className = "status-message error";
+    }
+  });
+
+  // Helper functions to render visualizations
+  function renderCausalCharts(data) {
+    // Render causal factors chart
+    if (data.causal_factors && data.causal_factors.length > 0) {
+      const trace = {
+        x: data.causal_factors.map(f => f.feature),
+        y: data.causal_factors.map(f => f.importance),
+        type: 'bar',
+        marker: { color: '#3b82f6' }
+      };
+      Plotly.newPlot('causal-factors-chart', [trace], {
+        title: 'Top Causal Factors',
+        xaxis: { title: 'Feature' },
+        yaxis: { title: 'Causal Importance' }
+      }, { responsive: true });
+    }
+    // Render SHAP importance chart
+    if (data.shap_importance && data.shap_importance.length > 0) {
+      const trace = {
+        x: data.shap_importance.map(f => f.feature),
+        y: data.shap_importance.map(f => f.importance),
+        type: 'bar',
+        marker: { color: '#0f766e' }
+      };
+      Plotly.newPlot('shap-importance-chart', [trace], {
+        title: 'SHAP Feature Importance',
+        xaxis: { title: 'Feature' },
+        yaxis: { title: 'SHAP Importance' }
+      }, { responsive: true });
+    }
+  }
+
+  function renderDTWVisualizations(data) {
+    // Render DTW overview image
+    if (data.overview_image) {
+      document.getElementById("dtw-overview-image").innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" />`;
+    }
+    // Render sample trajectories image
+    if (data.sample_trajectories_image) {
+      document.getElementById("dtw-sample-trajectories-image").innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" />`;
+    }
+    // Render trajectory metrics chart
+    if (data.metrics) {
+      const trace = {
+        x: Object.keys(data.metrics),
+        y: Object.values(data.metrics),
+        type: 'bar',
+        marker: { color: '#8b5cf6' }
+      };
+      Plotly.newPlot('dtw-metrics-chart', [trace], {
+        title: 'Trajectory Metrics',
+        xaxis: { title: 'Metric' },
+        yaxis: { title: 'Value' }
+      }, { responsive: true });
+    }
+  }
+
+  function renderFPGrowthVisualizations(data) {
+    // Render itemsets image
+    if (data.itemsets_image) {
+      document.getElementById("fpgrowth-itemsets-image").innerHTML = `<img src="${data.itemsets_image}" style="max-width: 100%;" />`;
+    }
+    // Render support distribution image
+    if (data.support_image) {
+      document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" />`;
+    }
+    // Render network (if HTML)
+    if (data.network_html) {
+      document.getElementById("fpgrowth-network-container").innerHTML = data.network_html;
+    }
+  }
+
+  function renderBupaRVisualizations(data) {
+    // Render all BupaR images
+    const imageMap = {
+      'bupar-activity-freq-image': data.activity_frequency_image,
+      'bupar-pre-freq-image': data.pre_target_frequency_image,
+      'bupar-post-freq-image': data.post_target_frequency_image,
+      'bupar-gantt-image': data.gantt_image,
+      'bupar-pre-gantt-image': data.pre_target_gantt_image,
+      'bupar-post-gantt-image': data.post_target_gantt_image,
+      'bupar-sequence-image': data.sequence_image,
+      'bupar-milestones-image': data.milestones_image
+    };
+    for (const [elementId, imageUrl] of Object.entries(imageMap)) {
+      if (imageUrl) {
+        document.getElementById(elementId).innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
+      }
+    }
+  }
+
+  // Populate age band dropdowns based on cohort
+  function populateAgeBands(cohort, selectElement) {
+    const ageBands = cohort === 'opioid_ed' 
+      ? ['13-24', '25-44', '45-54', '55-64']
+      : ['65-74', '75-84', '85-94'];
+    selectElement.innerHTML = ageBands.map(ab => `<option value="${ab}">${ab}</option>`).join('');
+  }
+
+  // Update age bands when cohort changes
+  ['causal', 'dtw', 'fpgrowth', 'bupar'].forEach(prefix => {
+    const cohortSelect = document.getElementById(`${prefix}-cohort`);
+    const ageBandSelect = document.getElementById(`${prefix}-age-band`);
+    if (cohortSelect && ageBandSelect) {
+      cohortSelect.addEventListener('change', () => {
+        populateAgeBands(cohortSelect.value, ageBandSelect);
+      });
+      // Initialize
+      populateAgeBands(cohortSelect.value, ageBandSelect);
+    }
+  });
+
+  // Initialize
+  updateModelIndicator(35);
+  loadMetadata("opioid_ed");
+</script>
+</body>
+</html>
+
