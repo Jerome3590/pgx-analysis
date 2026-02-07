@@ -61,34 +61,41 @@ CPT_PREFIX = "item_"
 def parse_feature_name(feature: str) -> tuple[str, str]:
     """
     Parse feature name to extract code type and code.
-    
-    Returns: (code_type, code)
-    code_type: 'drug', 'icd', 'cpt', or 'other'
+    Handles both "item_<code>" format and raw code (no prefix).
+    Returns: (code_type, code); code_type is 'drug', 'icd', 'cpt', or 'other'.
     """
-    # Remove item_ prefix
+    if feature is None or (isinstance(feature, float) and pd.isna(feature)):
+        return ('other', '')
+    feature = str(feature).strip()
+    if not feature:
+        return ('other', '')
+
+    # Remove item_ prefix if present (Step 3a/4 model data convention)
     if feature.startswith("item_"):
-        code = feature[5:]  # Remove "item_"
+        code = feature[5:].strip()
     else:
+        code = feature
+
+    if not code:
         return ('other', feature)
-    
-    # Try to determine code type
-    # ICD codes typically start with letters (F1120, R51, etc.)
-    # CPT codes are typically numeric (80305, 99213, etc.)
-    # Drug names are typically uppercase letters/numbers
-    
-    # Check if it's an ICD code (starts with letter)
-    if code and code[0].isalpha():
-        # Common ICD patterns: F1120, R51, G9012, etc.
-        if len(code) >= 3 and (code[0].isalpha() and code[1:].replace('.', '').isdigit()):
-            return ('icd', code)
-        # Could also be a drug name
-        return ('drug', code)
-    
-    # Check if it's a CPT code (numeric)
+
+    # CPT: all digits (e.g. 99284, 80305)
     if code.isdigit():
         return ('cpt', code)
-    
-    # Default to drug name
+    # ICD: starts with letter, then digits/dots (e.g. F1120, R51, G89.12)
+    if code[0].isalpha() and len(code) >= 2:
+        rest = code[1:].replace('.', '').replace('-', '')
+        if rest.isdigit():
+            return ('icd', code)
+        # Letter + alphanumeric could be ICD or drug; short codes like R51 -> icd
+        if len(code) <= 5 and code.isalnum():
+            return ('icd', code)
+        # Longer or mixed -> treat as drug (e.g. AMOXICILLIN, SUBOXONE)
+        return ('drug', code)
+    # Numeric with possible suffix -> cpt
+    if code.replace('.', '').isdigit():
+        return ('cpt', code)
+    # Default: treat as drug (e.g. drug names, mixed alphanumeric)
     return ('drug', code)
 
 
@@ -140,8 +147,11 @@ def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str,
     if df.empty:
         return codes
 
-    # Ensure 'feature' column exists (Step 3b may use first column)
-    if 'feature' not in df.columns and len(df.columns) >= 1:
+    # Ensure 'feature' column exists (Step 3b may use first column or "Feature" with capital F)
+    feature_col_name = next((c for c in df.columns if c.strip().lower() == 'feature'), None)
+    if feature_col_name and feature_col_name != 'feature':
+        df = df.rename(columns={feature_col_name: 'feature'})
+    elif 'feature' not in df.columns and len(df.columns) >= 1:
         df = df.rename(columns={df.columns[0]: 'feature'})
 
     # Resolve importance column (Step 3b: importance_scaled_by_model_sum, importance_mean; Step 3a: scaled_importance_mean, etc.)
@@ -183,11 +193,11 @@ def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str,
             importance = 0.0
         
         code_type, code = parse_feature_name(feature)
-        
+        if not code or code_type == 'other':
+            continue
         # Exclude F1120 from ICD codes (it's the target, not an input)
         if code_type == 'icd' and code.upper() == 'F1120':
             continue
-        
         if code_type in codes:
             # Create display name (clean up code)
             display = code.replace('_', ' ').title()
