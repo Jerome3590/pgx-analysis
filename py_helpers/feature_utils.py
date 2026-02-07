@@ -105,6 +105,49 @@ def feature_to_code(feature: str) -> str:
     return s
 
 
+def feature_to_code_type(feature: str) -> str:
+    """
+    Classify feature as 'drug', 'icd', 'cpt', or 'other'.
+    Single source of truth for code type when the pipeline does not store it.
+    - Prefixed forms (item_icd_X, item_cpt_X, item_drug_X) are classified by prefix.
+    - Raw codes: all digits -> cpt; letter then digits/dots -> icd; else -> drug.
+    """
+    if feature is None or (isinstance(feature, float) and str(feature) == 'nan'):
+        return 'other'
+    s = str(feature).strip()
+    if not s:
+        return 'other'
+    # Explicit prefix (from BupaR/activity-style normalization)
+    if s.upper().startswith("ICD:"):
+        return 'icd'
+    if s.upper().startswith("CPT:"):
+        return 'cpt'
+    if s.upper().startswith("DRUG:"):
+        return 'drug'
+    if s.startswith("item_icd_"):
+        return 'icd'
+    if s.startswith("item_cpt_"):
+        return 'cpt'
+    if s.startswith("item_drug_"):
+        return 'drug'
+    # Raw code (with or without item_ prefix)
+    code = s[5:].strip() if s.startswith("item_") else s
+    if not code:
+        return 'other'
+    if code.isdigit():
+        return 'cpt'
+    if code[0].isalpha() and len(code) >= 2:
+        rest = code[1:].replace('.', '').replace('-', '')
+        if rest.isdigit():
+            return 'icd'
+        if len(code) <= 5 and code.isalnum():
+            return 'icd'
+        return 'drug'
+    if code.replace('.', '').isdigit():
+        return 'cpt'
+    return 'drug'
+
+
 def is_opioid_use_disorder_code(code: str) -> bool:
     """True if code is in the F11.x opioid use disorder family (target-family for opioid_ed)."""
     return is_substance_use_disorder_code(code)

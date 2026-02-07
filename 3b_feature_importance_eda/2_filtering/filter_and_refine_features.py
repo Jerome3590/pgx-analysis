@@ -41,6 +41,7 @@ from py_helpers.feature_utils import (
     sanitize_feature_names,
     sanitize_column_names,
     feature_to_code,
+    feature_to_code_type,
     is_substance_use_disorder_code,
 )
 from py_helpers.feature_importance_eda_utils import (
@@ -363,7 +364,9 @@ def main():
         cohort=args.cohort,
     )
     
-    # Save refined feature importance
+    # Save refined feature importance (add code_type so downstream e.g. generate_metadata knows drug/icd/cpt)
+    refined_fi = refined_fi.copy()
+    refined_fi["code_type"] = refined_fi["feature"].astype(str).map(lambda f: feature_to_code_type(f))
     output_path = output_dir / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
     refined_fi.to_csv(output_path, index=False)
     print(f"\nSaved refined feature importance to: {output_path}")
