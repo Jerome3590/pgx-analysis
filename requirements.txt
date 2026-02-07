@@ -1,4 +1,4 @@
-# Python 3.12
+# Python 3.11
 # Core data and SHAP/FFA workflow (DuckDB for memory-efficient CSV/parquet)
 duckdb>=1.4.0
 

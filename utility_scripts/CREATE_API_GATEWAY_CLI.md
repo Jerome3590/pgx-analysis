@@ -8,18 +8,19 @@ Use these commands to create a new REST API named **pgx-risk-calculator** and co
 
 ## Option A: Run the script (recommended)
 
-From repo root (Git Bash or WSL):
+From repo root:
 
-```bash
-cd c:/Projects/pgx-analysis
-bash utility_scripts/create_api_gateway_pgx_risk_calculator.sh
-```
+- **Windows (PowerShell):**
+  ```powershell
+  .\utility_scripts\create_api_gateway_pgx_risk_calculator.ps1
+  ```
+  With profile: `.\utility_scripts\create_api_gateway_pgx_risk_calculator.ps1 -Profile your_profile`
 
-With profile:
-
-```bash
-AWS_PROFILE=your_profile bash utility_scripts/create_api_gateway_pgx_risk_calculator.sh
-```
+- **Linux / macOS (bash):**
+  ```bash
+  bash utility_scripts/create_api_gateway_pgx_risk_calculator.sh
+  ```
+  With profile: `AWS_PROFILE=your_profile bash utility_scripts/create_api_gateway_pgx_risk_calculator.sh`
 
 ---
 
@@ -124,3 +125,22 @@ https://<API_ID>.execute-api.<REGION>.amazonaws.com/prod
 Example: `https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod`
 
 Update your frontend `API_BASE` (e.g. in `9_risk_dashboard/frontend/index.html`) to this URL.
+
+---
+
+## Add PHTS-style resources (per-tab paths)
+
+The create script above only adds `/` and `/{proxy+}`. To match the PHTS calculator API layout with explicit resources per tab:
+
+- **/metadata** – GET, OPTIONS  
+- **/risk** – POST, OPTIONS  
+- **/risk/comparison** – POST, OPTIONS  
+- **/causal/importance** – POST, OPTIONS  
+- **/causal/interactions** – POST, OPTIONS  
+
+Run **after** the API exists (same Lambda; these paths take precedence over `{proxy+}`):
+
+- **Windows (PowerShell):** `.\utility_scripts\add_api_gateway_resources_phts_style.ps1`
+- **Linux / macOS (bash):** `bash utility_scripts/add_api_gateway_resources_phts_style.sh`
+
+Then redeploy the API (the script deploys to `prod` automatically).
