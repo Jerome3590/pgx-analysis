@@ -6,7 +6,7 @@ set -e
 # Configuration
 AWS_REGION=${AWS_REGION:-us-east-1}
 AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID:-YOUR_ACCOUNT_ID}
-ECR_REPOSITORY=${ECR_REPOSITORY:-pgx-risk-dashboard}
+ECR_REPOSITORY=${ECR_REPOSITORY:-pgx-risk-calculator}
 IMAGE_TAG=${IMAGE_TAG:-latest}
 
 # Colors for output
