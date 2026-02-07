@@ -115,6 +115,20 @@ def _find_xgboost_json(cohort: str, age_band: str) -> Path:
     raise FileNotFoundError(f"XGBoost JSON not found; tried: {candidates}")
 
 
+def _find_xgboost_binary(cohort: str, age_band: str) -> Optional[Path]:
+    """Path to native binary (e.g. .ubj) for Booster.load_model; avoids JSON parse errors."""
+    age_band_fname = _age_band_fname(age_band)
+    candidates = [
+        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "models" / "xgboost_model.ubj",
+        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "models" / "xgboost_model.model",
+        PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname / "models" / "xgboost_model.ubj",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
 def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000) -> Optional[pd.DataFrame]:
     """Load a sample of training features via DuckDB (avoids loading full CSV on EC2)."""
     import duckdb
@@ -219,8 +233,22 @@ def _run_ffa_with_shap(
             if missing_f:
                 logger.warning("X_test missing %d model features (e.g. %s); filled with 0", len(missing_f), missing_f[:5])
             X_mat = np.asarray(X_aligned, dtype=np.float32)
+            # Prefer native binary (.ubj) for Booster; JSON can fail with "Invalid cast, from Null to Object"
             booster = xgb.Booster()
-            booster.load_model(str(xgboost_json))
+            xgb_binary = _find_xgboost_binary(cohort, age_band)
+            if xgb_binary is not None:
+                booster.load_model(str(xgb_binary))
+                logger.debug("Loaded XGBoost from binary: %s", xgb_binary)
+            else:
+                try:
+                    booster.load_model(str(xgboost_json))
+                except Exception as e:
+                    logger.error(
+                        "XGBoost failed to load from JSON (%s). Use native binary: "
+                        "6_final_model/outputs/%s/%s/models/xgboost_model.ubj",
+                        e, cohort, _age_band_fname(age_band),
+                    )
+                    raise
             y_pred = (booster.predict(xgb.DMatrix(X_mat)) > 0.5).astype(int)
             df_axps = explainer.explain_dataset(X_mat, predictions=y_pred, show_progress=True)
             out_path = output_dir / "axp_explanations.parquet"
