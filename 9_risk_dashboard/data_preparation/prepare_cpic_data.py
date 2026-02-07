@@ -28,16 +28,37 @@ CPIC_XLSX_URL = "https://files.cpicpgx.org/data/report/current/pair/cpic_gene-dr
 
 def _download_cpic_excel() -> bool:
     """Download official CPIC Excel (more recent and accurate) to 5_pgx_analysis/cpic/."""
+    import ssl
+    import urllib.request
+    import urllib.error
+
+    SOURCE_EXCEL.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading official CPIC Excel (recommended source): {CPIC_XLSX_URL}")
+    req = urllib.request.Request(CPIC_XLSX_URL)
+    ctx = ssl.create_default_context()
     try:
-        import urllib.request
-        SOURCE_EXCEL.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Downloading official CPIC Excel (recommended source): {CPIC_XLSX_URL}")
-        urllib.request.urlretrieve(CPIC_XLSX_URL, SOURCE_EXCEL)
-        if SOURCE_EXCEL.exists() and SOURCE_EXCEL.stat().st_size > 0:
-            print(f"  Saved to {SOURCE_EXCEL} ({SOURCE_EXCEL.stat().st_size / 1024:.1f} KB)")
-            return True
+        with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
+            with open(SOURCE_EXCEL, "wb") as f:
+                f.write(resp.read())
+    except urllib.error.URLError as ue:
+        if "CERTIFICATE_VERIFY_FAILED" in str(ue.reason) or "SSL" in str(ue.reason):
+            ctx = ssl._create_unverified_context()
+            try:
+                with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
+                    with open(SOURCE_EXCEL, "wb") as f:
+                        f.write(resp.read())
+            except Exception as e2:
+                print(f"  Download failed: {e2}")
+                return False
+        else:
+            print(f"  Download failed: {ue}")
+            return False
     except Exception as e:
         print(f"  Download failed: {e}")
+        return False
+    if SOURCE_EXCEL.exists() and SOURCE_EXCEL.stat().st_size > 0:
+        print(f"  Saved to {SOURCE_EXCEL} ({SOURCE_EXCEL.stat().st_size / 1024:.1f} KB)")
+        return True
     return False
 
 
@@ -57,9 +78,17 @@ def prepare_cpic_data():
         return
 
     # 2) Fallback: CSV from 5_pgx_analysis/data/ -> convert to .xlsx for Lambda (less preferred)
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        openpyxl = None
     for csv_path in (SOURCE_CSV_PAIRS, SOURCE_CSV):
         if not csv_path.exists():
             continue
+        if openpyxl is None:
+            print("WARNING: openpyxl not installed; cannot convert CSV to Excel.")
+            print("  Install with: pip install openpyxl")
+            break
         try:
             import pandas as pd
             print(f"Using CSV fallback (Excel is preferred when available): {csv_path}")
@@ -79,7 +108,7 @@ def prepare_cpic_data():
     print("WARNING: CPIC source not found. Excel is preferred (more recent and accurate).")
     print(f"  Download Excel: {CPIC_XLSX_URL}")
     print(f"  Save as: {SOURCE_EXCEL}")
-    print(f"  Or ensure 5_pgx_analysis/data/cpicPairs.csv (or cpic.csv) exists as fallback.")
+    print("  Or ensure 5_pgx_analysis/data/cpicPairs.csv (or cpic.csv) exists and install: pip install openpyxl")
     sys.exit(1)
 
 

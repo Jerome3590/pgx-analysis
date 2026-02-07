@@ -12,6 +12,7 @@ Usage:
 import sys
 import argparse
 import shutil
+import subprocess
 import json
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -207,13 +208,34 @@ def prepare_data(download_s3: bool = False) -> bool:
                 log(f"    ✓ Copied {cpic_file} from local")
                 return True
     
-    # Copy from local
+    # Copy from local; if missing, try to run prepare_cpic_data once
     if not source_path.exists():
-        error(f"  CPIC data not found: {source_path}")
-        error("  Run: python 9_risk_dashboard/data_preparation/prepare_cpic_data.py")
-        return False
-    
-    log(f"  Copying CPIC data...")
+        log("  CPIC file missing; running prepare_cpic_data.py...")
+        try:
+            r = subprocess.run(
+                [sys.executable, str(PROJECT_ROOT / "9_risk_dashboard" / "data_preparation" / "prepare_cpic_data.py")],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if r.returncode != 0:
+                error(f"  CPIC data not found: {source_path}")
+                if r.stderr:
+                    error(f"  prepare_cpic_data: {r.stderr.strip()[:200]}")
+                error("  Run: python 9_risk_dashboard/data_preparation/prepare_cpic_data.py")
+                return False
+            if not source_path.exists():
+                error(f"  CPIC data still not found after prepare_cpic_data: {source_path}")
+                return False
+            log("  ✓ prepare_cpic_data produced CPIC file")
+        except Exception as e:
+            error(f"  CPIC data not found: {source_path}")
+            error(f"  Failed to run prepare_cpic_data: {e}")
+            error("  Run: python 9_risk_dashboard/data_preparation/prepare_cpic_data.py")
+            return False
+
+    log("  Copying CPIC data...")
     if copy_file(source_path, dest_path):
         log(f"    ✓ Copied {cpic_file}")
         return True
