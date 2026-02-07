@@ -431,13 +431,13 @@ class BaseSymbolicExplainer(ABC):
         if hasattr(self, 'logger'):
             self.logger.info(f"_satisfied_rules: Starting check of {total_rules_for_class} rules for class {target_class}")
         
-        # Only iterate through rules for this class; log first 5 progress points then only errors
+        # Only iterate through rules for this class; log first 10 progress points then only errors
         progress_log_count = [0]  # use list so inner scope can mutate
         for check_idx, idx in enumerate(rule_indices, 1):
             clause = self.rule_clauses[idx]
             
-            # Log progress at first 5 milestones (500, 1000, 1500, 2000, 2500) only
-            if hasattr(self, 'logger') and check_idx % 500 == 0 and progress_log_count[0] < 5:
+            # Log progress at first 10 milestones (every 500 rules) only
+            if hasattr(self, 'logger') and check_idx % 500 == 0 and progress_log_count[0] < 10:
                 progress_log_count[0] += 1
                 elapsed = time.time() - start_time
                 self.logger.info(f"_satisfied_rules: Checked {check_idx}/{total_rules_for_class} rules, matched {len(matched)}, elapsed {elapsed:.2f}s")
