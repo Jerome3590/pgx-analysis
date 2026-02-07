@@ -205,6 +205,28 @@ def _run_ffa_with_shap(
             "total_rules": len(explainer.rule_clauses),
         })
     causal_df = pd.DataFrame(causal_results).sort_values("causal_responsibility", ascending=False)
+
+    # Generate and write per-instance AXP explanations when test data is available (required by combine)
+    if X_test is not None and len(X_test) > 0:
+        import xgboost as xgb
+        feature_names = model_json.get("feature_names") or []
+        if not feature_names:
+            logger.warning("Model has no feature_names; cannot align X_test for AXP explanations.")
+        else:
+            # Align X_test to model feature order; fill missing columns with 0
+            X_aligned = X_test.reindex(columns=feature_names, fill_value=0.0)
+            missing_f = [c for c in feature_names if c not in X_test.columns]
+            if missing_f:
+                logger.warning("X_test missing %d model features (e.g. %s); filled with 0", len(missing_f), missing_f[:5])
+            X_mat = np.asarray(X_aligned, dtype=np.float32)
+            booster = xgb.Booster()
+            booster.load_model(str(xgboost_json))
+            y_pred = (booster.predict(xgb.DMatrix(X_mat)) > 0.5).astype(int)
+            df_axps = explainer.explain_dataset(X_mat, predictions=y_pred, show_progress=True)
+            out_path = output_dir / "axp_explanations.parquet"
+            df_axps.to_parquet(out_path, index=False)
+            logger.info("Wrote %s (%d rows)", out_path, len(df_axps))
+
     return causal_df
 
 
@@ -243,6 +265,13 @@ def main() -> None:
     )
     xgboost_json = _find_xgboost_json(args.cohort, args.age_band)
     X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows)
+    if X_test is None or len(X_test) == 0:
+        logger.error(
+            "Required test data missing: cannot generate axp_explanations.parquet. "
+            "Expected 6_final_model/outputs/%s/%s/%s_%s_train_final_features_no_leakage.csv",
+            args.cohort, age_band_fname, args.cohort, age_band_fname,
+        )
+        sys.exit(1)
 
     ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "xgboost"
     ffa_out_base.mkdir(parents=True, exist_ok=True)
