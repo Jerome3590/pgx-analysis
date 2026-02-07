@@ -199,6 +199,7 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
         if "trees" in model_json:
             trees_processed = 0
             total_trees = len(model_json["trees"])
+            self._fallback_warn_count = 0  # Cap fallback warnings to first 5
             self.logger.info(f"Processing {total_trees} trees from model JSON")
             
             for tree_idx, tree in enumerate(model_json["trees"]):
@@ -248,23 +249,29 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
                                     trees_processed += 1
                                     self.logger.debug(f"Tree {tree_idx}: Added {rules_added} rules via dataframe method")
                                 else:
-                                    self.logger.warning(f"Tree {tree_idx}: DataFrame method created no rules, "
-                                                      f"falling back to traversal")
+                                    if getattr(self, "_fallback_warn_count", 0) < 5:
+                                        self.logger.warning(f"Tree {tree_idx}: DataFrame method created no rules, "
+                                                          f"falling back to traversal")
+                                        self._fallback_warn_count = getattr(self, "_fallback_warn_count", 0) + 1
                                     # Fallback to traversal method
                                     self._traverse_xgboost_tree(parsed_tree, conditions=[])
                                     rules_added = len(self.rule_clauses) - initial_rule_count
                                     if rules_added > 0:
                                         trees_processed += 1
                             else:
-                                self.logger.warning(f"Tree {tree_idx}: DataFrame explosion returned empty, "
-                                                  f"falling back to traversal")
+                                if getattr(self, "_fallback_warn_count", 0) < 5:
+                                    self.logger.warning(f"Tree {tree_idx}: DataFrame explosion returned empty, "
+                                                      f"falling back to traversal")
+                                    self._fallback_warn_count = getattr(self, "_fallback_warn_count", 0) + 1
                                 self._traverse_xgboost_tree(parsed_tree, conditions=[])
                                 rules_added = len(self.rule_clauses) - initial_rule_count
                                 if rules_added > 0:
                                     trees_processed += 1
                         except Exception as e:
-                            self.logger.warning(f"Tree {tree_idx}: DataFrame method failed: {e}, "
-                                              f"falling back to traversal")
+                            if getattr(self, "_fallback_warn_count", 0) < 5:
+                                self.logger.warning(f"Tree {tree_idx}: DataFrame method failed: {e}, "
+                                                  f"falling back to traversal")
+                                self._fallback_warn_count = getattr(self, "_fallback_warn_count", 0) + 1
                             import traceback
                             self.logger.debug(traceback.format_exc())
                             # Fallback to traversal method
@@ -273,12 +280,16 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
                             if rules_added > 0:
                                 trees_processed += 1
                     else:
-                        self.logger.warning(f"Tree {tree_idx}: Parsed tree is empty")
+                        if self._fallback_warn_count < 5:
+                            self.logger.warning(f"Tree {tree_idx}: Parsed tree is empty")
+                            self._fallback_warn_count += 1
                 else:
-                    self.logger.warning(f"Tree {tree_idx}: Failed to parse tree dump")
+                    if self._fallback_warn_count < 5:
+                        self.logger.warning(f"Tree {tree_idx}: Failed to parse tree dump")
+                        self._fallback_warn_count += 1
                 
-                # Print progress for first few trees and every 50th tree
-                if tree_idx < 3 or (tree_idx + 1) % 50 == 0:
+                # Log progress for first 5 trees only; then only errors
+                if tree_idx < 5:
                     self.logger.info(f"Tree {tree_idx+1}/{total_trees}: "
                                    f"Total rules so far: {len(self.rule_clauses)}")
             
