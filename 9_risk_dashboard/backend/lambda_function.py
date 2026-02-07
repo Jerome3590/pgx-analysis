@@ -69,13 +69,21 @@ _cache_timestamps: Dict[str, float] = {}
 s3_client = boto3.client("s3")
 
 
-def _response(status_code: int, body: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-    """Standard API Gateway proxy response."""
-    default_headers = {
-        "Content-Type": "application/json",
+def _cors_headers() -> Dict[str, str]:
+    """CORS headers so browser allows fetch from S3/dashboard origin."""
+    return {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Access-Control-Max-Age": "86400",
+    }
+
+
+def _response(status_code: int, body: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """Standard API Gateway proxy response with CORS."""
+    default_headers = {
+        "Content-Type": "application/json",
+        **_cors_headers(),
     }
     if headers:
         default_headers.update(headers)
@@ -461,11 +469,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     try:
         method = event.get("httpMethod", "GET")
-        path = event.get("path", "/").rstrip("/")
-        
+        path = (event.get("path") or "/").rstrip("/")
+        # Strip stage prefix if present (e.g. /prod/metadata -> /metadata)
+        if path.startswith("/prod/"):
+            path = path[5:]
+        if not path.startswith("/"):
+            path = "/" + path
+
         if method == "OPTIONS":
             return _response(200, {"message": "OK"})
-        
+
         if method == "GET" and path.endswith("/metadata"):
             return handle_metadata(event)
         elif method == "POST" and path.endswith("/pgx/card"):
