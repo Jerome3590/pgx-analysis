@@ -123,6 +123,7 @@ def load_feature_importance(cohort: str, age_band: str) -> pd.DataFrame:
 def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str, List[Dict[str, Any]]]:
     """
     Extract codes from feature importance DataFrame.
+    Supports Step 3b cohort_feature_importance and Step 3 aggregated CSVs (various column names).
     
     Returns:
         {
@@ -136,23 +137,50 @@ def extract_codes_from_features(df: pd.DataFrame, top_n: int = 100) -> Dict[str,
         'icds': [],
         'cpts': []
     }
-    
-    # Sort by importance and take top N
-    if 'importance_scaled' in df.columns:
-        sort_col = 'importance_scaled'
-    elif 'importance_normalized' in df.columns:
-        sort_col = 'importance_normalized'
-    elif 'importance' in df.columns:
-        sort_col = 'importance'
-    else:
+    if df.empty:
+        return codes
+
+    # Ensure 'feature' column exists (Step 3b may use first column)
+    if 'feature' not in df.columns and len(df.columns) >= 1:
+        df = df.rename(columns={df.columns[0]: 'feature'})
+
+    # Resolve importance column (Step 3b: importance_scaled_by_model_sum, importance_mean; Step 3a: scaled_importance_mean, etc.)
+    sort_col = None
+    for col in (
+        'importance_scaled_by_model_sum',
+        'importance_mean',
+        'scaled_importance_mean',
+        'importance_scaled',
+        'importance_normalized',
+        'importance',
+    ):
+        if col in df.columns:
+            sort_col = col
+            break
+    if sort_col is None:
+        # Fallback: any column with 'importance' in the name, or second column
+        imp_cols = [c for c in df.columns if 'importance' in c.lower()]
+        if imp_cols:
+            sort_col = imp_cols[0]
+        elif len(df.columns) >= 2:
+            sort_col = df.columns[1]
+    if sort_col is None:
         print("Warning: No importance column found")
         return codes
-    
+
     df_sorted = df.nlargest(top_n, sort_col)
-    
+    if 'feature' not in df_sorted.columns:
+        print("Warning: No 'feature' column found")
+        return codes
+
     for _, row in df_sorted.iterrows():
         feature = row['feature']
-        importance = float(row[sort_col])
+        try:
+            importance = float(row[sort_col])
+        except (TypeError, ValueError):
+            importance = 0.0
+        if pd.isna(importance):
+            importance = 0.0
         
         code_type, code = parse_feature_name(feature)
         
