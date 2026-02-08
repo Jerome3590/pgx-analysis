@@ -1,7 +1,9 @@
 #!/bin/bash
-# Quick script to find and display the most recent cleanup log file
+# Quick script to find and display the most recent cleanup log file.
+# Run from repo root or any directory; PROJECT_ROOT = repo root (parent of utility_scripts).
 
-PROJECT_ROOT="${HOME}/pgx-analysis"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Find the most recent log file
 LATEST_LOG=$(ls -t "${PROJECT_ROOT}"/cleanup_cohort_data_*.log 2>/dev/null | head -1)

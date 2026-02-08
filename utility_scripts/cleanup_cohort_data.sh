@@ -95,9 +95,10 @@ fi
 S3_BUCKET="pgxdatalake"
 S3_REPO_BUCKET="pgx-repository"
 
-# Local paths (EC2)
+# Local paths (EC2). PROJECT_ROOT = repo root (parent of utility_scripts).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # NEVER delete gold/medical or gold/pharmacy (only gold/cohorts and other step outputs).
-PROJECT_ROOT="${HOME}/pgx-analysis"
 NVME_ROOT="/mnt/nvme"
 DATA_ROOT="${NVME_ROOT}/gold"
 LOCAL_COHORT_ROOT="${DATA_ROOT}/cohorts"  # Only gold/cohorts; never ${DATA_ROOT}/medical or ${DATA_ROOT}/pharmacy
