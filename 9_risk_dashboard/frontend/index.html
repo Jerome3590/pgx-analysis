@@ -609,12 +609,12 @@
       <button class="tab-button" data-tab="documentation" onclick="switchTab('documentation')">Documentation</button>
     </div>
 
-    <!-- Data visualization tabs -->
+    <!-- Data visualization tabs (order: Causal, BupaR, DTW, FPGrowth per plan) -->
     <div class="tabs tabs-secondary">
       <button class="tab-button" data-tab="causal-analysis" onclick="switchTab('causal-analysis')">Causal Analysis</button>
+      <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
-      <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
     </div>
 
     <!-- Risk Assessment Tab -->
@@ -876,7 +876,9 @@
     <!-- Causal Analysis Tab -->
     <div id="causal-analysis-tab" class="tab-content">
       <p class="subtitle">
-        Explore causal factors from FFA analysis and SHAP values to understand feature importance and interactions.
+        <strong>Research focus:</strong> What features drive the target outcome and how do they relate? What drug combinations drive polypharmacy ED visit?
+        <br>
+        <small style="color: #64748b;">FFA causal importance, SHAP feature importance, and feature interactions. Radar chart for feature relations. <strong>Filterable by your selected drugs, ICD, and CPT codes</strong> from the Drugs/ICD/CPT tabs—load with codes selected to see causal/SHAP for those only.</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -908,15 +910,79 @@
           <h2>Feature Interactions</h2>
           <div id="interactions-chart"></div>
         </div>
+        <div class="panel">
+          <h2>Feature Relations (Radar)</h2>
+          <div id="causal-radar-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BupaR Visualizations Tab (before DTW per plan order) -->
+    <div id="bupar-visualizations-tab" class="tab-content">
+      <p class="subtitle">
+        <strong>Research focus:</strong> What are the sequences that lead to target outcomes? What are the times between sequences that lead to target outcomes?
+        <br>
+        <small style="color: #64748b;">Process mining: activity frequencies, Gantt charts, top sequences, and milestones. Use for sequences-to-target and time-between-sequences.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="bupar-cohort">Cohort:</label>
+          <select id="bupar-cohort">
+            <option value="opioid_ed">Opioid ED (13-64)</option>
+            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="bupar-age-band">Age Band:</label>
+          <select id="bupar-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadBupaR">Load BupaR Visualizations</button>
+        </div>
+      </div>
+      <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Sequences to Target Outcomes</h2>
+          <div id="bupar-sequence-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Times Between Sequences (Pre-Target Gantt)</h2>
+          <div id="bupar-pre-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Overall Activity Frequency</h2>
+          <div id="bupar-activity-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Pre-Target Activity Frequency</h2>
+          <div id="bupar-pre-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Post-Target Activity Frequency</h2>
+          <div id="bupar-post-freq-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Gantt Chart (Overall)</h2>
+          <div id="bupar-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Gantt Chart (Post-Target)</h2>
+          <div id="bupar-post-gantt-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Activity Milestones Gantt</h2>
+          <div id="bupar-milestones-image"></div>
+        </div>
       </div>
     </div>
 
     <!-- DTW Visualizations Tab -->
     <div id="dtw-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        Explore patient trajectory patterns using Dynamic Time Warping (DTW) analysis.
+        <strong>Research focus:</strong> Is there a difference in outcomes for patients without routine appointments vs those with routine care? (Admin ICDs vs number of ICD events.)
         <br>
-        <small style="color: #64748b;">Visualize trajectory similarities, temporal patterns, and trajectory characteristics.</small>
+        <small style="color: #64748b;">Dynamic Time Warping: trajectory overview, sample trajectories, and trajectory metrics. Use for routine vs non-routine comparison.</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -948,15 +1014,29 @@
           <h2>Trajectory Metrics</h2>
           <div id="dtw-metrics-chart"></div>
         </div>
+        <div class="panel full-width">
+          <h2>Routine vs No Routine (Outcomes)</h2>
+          <p class="subtitle" style="margin-bottom: 0.75rem;">
+            <small style="color: #64748b;">Is there a difference in outcomes for patients without routine appointments vs those with routine care? (Admin ICDs vs number of ICD events.)</small>
+          </p>
+          <div id="dtw-routine-comparison-container"></div>
+        </div>
+        <div class="panel full-width">
+          <h2>High-Risk vs Low-Risk Trajectories</h2>
+          <p class="subtitle" style="margin-bottom: 0.75rem;">
+            <small style="color: #64748b;">Identify trajectory archetypes stratified by outcome/risk (high-risk vs low-risk).</small>
+          </p>
+          <div id="dtw-high-risk-trajectories-container"></div>
+        </div>
       </div>
     </div>
 
     <!-- FP-Growth Visualizations Tab -->
     <div id="fpgrowth-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        Explore frequent pattern mining results from FP-Growth analysis.
+        <strong>Research focus:</strong> What are the connections/relationships between ICD, CPT, and Drugs that lead to target outcome?
         <br>
-        <small style="color: #64748b;">Visualize itemsets, association rules, and co-occurrence networks.</small>
+        <small style="color: #64748b;">Frequent pattern mining: itemsets, support distribution, and co-occurrence network. Filter by item type (Drug / ICD / CPT). Exploratory use only—not model features.</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -994,68 +1074,8 @@
           <div id="fpgrowth-support-image"></div>
         </div>
         <div class="panel full-width">
-          <h2>Co-occurrence Network</h2>
+          <h2>ICD / CPT / Drug Connections (Co-occurrence Network)</h2>
           <div id="fpgrowth-network-container"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- BupaR Visualizations Tab -->
-    <div id="bupar-visualizations-tab" class="tab-content">
-      <p class="subtitle">
-        Explore process mining results from BupaR analysis.
-        <br>
-        <small style="color: #64748b;">Visualize process flows, activity sequences, and temporal patterns.</small>
-      </p>
-      <div class="controls">
-        <div class="control-group">
-          <label for="bupar-cohort">Cohort:</label>
-          <select id="bupar-cohort">
-            <option value="opioid_ed">Opioid ED (13-64)</option>
-            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label for="bupar-age-band">Age Band:</label>
-          <select id="bupar-age-band"></select>
-        </div>
-        <div class="control-group full-width">
-          <button id="btnLoadBupaR">Load BupaR Visualizations</button>
-        </div>
-      </div>
-      <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
-      <div class="panels">
-        <div class="panel">
-          <h2>Overall Activity Frequency</h2>
-          <div id="bupar-activity-freq-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Pre-Target Activity Frequency</h2>
-          <div id="bupar-pre-freq-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Post-Target Activity Frequency</h2>
-          <div id="bupar-post-freq-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Gantt Chart (Overall)</h2>
-          <div id="bupar-gantt-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Gantt Chart (Pre-Target)</h2>
-          <div id="bupar-pre-gantt-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Gantt Chart (Post-Target)</h2>
-          <div id="bupar-post-gantt-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Activity Sequence (Top)</h2>
-          <div id="bupar-sequence-image"></div>
-        </div>
-        <div class="panel">
-          <h2>Activity Milestones Gantt</h2>
-          <div id="bupar-milestones-image"></div>
         </div>
       </div>
     </div>
@@ -2002,7 +2022,7 @@
   // VISUALIZATION TAB HANDLERS
   // ==============================
   
-  // Causal Analysis Tab
+  // Causal Analysis Tab (filterable by user-selected drugs/ICD/CPT)
   document.getElementById("btnLoadCausal")?.addEventListener("click", async () => {
     const cohort = document.getElementById("causal-cohort").value;
     const ageBand = document.getElementById("causal-age-band").value;
@@ -2011,15 +2031,22 @@
       document.getElementById("causal-status").className = "status-message error";
       return;
     }
+    const selectedDrugs = getMultiSelectValues(drugsEl);
+    const selectedIcds = getMultiSelectValues(icdsEl);
+    const selectedCpts = getMultiSelectValues(cptsEl);
+    const params = new URLSearchParams({ cohort, age_band: ageBand });
+    if (selectedDrugs.length) params.set("drugs", selectedDrugs.join(","));
+    if (selectedIcds.length) params.set("icds", selectedIcds.join(","));
+    if (selectedCpts.length) params.set("cpts", selectedCpts.join(","));
     document.getElementById("causal-status").textContent = "Loading causal analysis...";
     document.getElementById("causal-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/causal?cohort=${cohort}&age_band=${ageBand}`);
+      const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      // Render causal analysis charts
       renderCausalCharts(data);
-      document.getElementById("causal-status").textContent = "Causal analysis loaded successfully";
+      const filterNote = data.filtered_by_codes ? " (filtered to your selected codes)" : "";
+      document.getElementById("causal-status").textContent = "Causal analysis loaded successfully" + filterNote;
       document.getElementById("causal-status").className = "status-message success";
     } catch (err) {
       document.getElementById("causal-status").textContent = `Error: ${err.message}`;
@@ -2130,6 +2157,25 @@
         yaxis: { title: 'SHAP Importance' }
       }, { responsive: true });
     }
+    // Radar chart: feature relations (top features, normalized importance)
+    const radarEl = document.getElementById('causal-radar-chart');
+    if (radarEl && data.causal_factors && data.causal_factors.length > 0) {
+      const topN = Math.min(8, data.causal_factors.length);
+      const factors = data.causal_factors.slice(0, topN);
+      const maxVal = Math.max(...factors.map(f => f.importance), 1e-9);
+      const trace = {
+        type: 'scatterpolar',
+        r: factors.map(f => f.importance / maxVal),
+        theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
+        fill: 'toself',
+        name: 'Causal importance (normalized)'
+      };
+      Plotly.newPlot('causal-radar-chart', [trace], {
+        title: 'Feature Relations (Top ' + topN + ')',
+        polar: { radialaxis: { range: [0, 1], tickvals: [0.25, 0.5, 0.75, 1] } },
+        showlegend: false
+      }, { responsive: true });
+    }
   }
 
   function renderDTWVisualizations(data) {
@@ -2154,6 +2200,54 @@
         xaxis: { title: 'Metric' },
         yaxis: { title: 'Value' }
       }, { responsive: true });
+    }
+
+    // Gap 1: Routine vs no routine (outcomes)
+    const routineEl = document.getElementById("dtw-routine-comparison-container");
+    if (routineEl) {
+      if (data.routine_comparison_image) {
+        routineEl.innerHTML = `<img src="${data.routine_comparison_image}" style="max-width: 100%;" />`;
+      } else if (data.routine_comparison && data.routine_comparison.x && data.routine_comparison.y) {
+        const trace = {
+          x: data.routine_comparison.x,
+          y: data.routine_comparison.y,
+          type: data.routine_comparison.type || 'bar',
+          name: data.routine_comparison.name,
+          marker: { color: '#0ea5e9' }
+        };
+        routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
+        Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
+          title: 'Outcome by routine vs non-routine (e.g. admin ICDs vs # events)',
+          xaxis: { title: data.routine_comparison.x_label || 'Category' },
+          yaxis: { title: data.routine_comparison.y_label || 'Value' }
+        }, { responsive: true });
+      } else {
+        routineEl.innerHTML = '<p class="status-message info">Routine vs non-routine comparison will appear here when the pipeline provides this view (e.g. outcome by admin ICD count or protocol flag).</p>';
+      }
+    }
+
+    // Gap 2: High-risk vs low-risk trajectories
+    const highRiskEl = document.getElementById("dtw-high-risk-trajectories-container");
+    if (highRiskEl) {
+      if (data.high_risk_trajectories_image) {
+        highRiskEl.innerHTML = `<img src="${data.high_risk_trajectories_image}" style="max-width: 100%;" />`;
+      } else if (data.high_risk_trajectories && data.high_risk_trajectories.x && data.high_risk_trajectories.y) {
+        const trace = {
+          x: data.high_risk_trajectories.x,
+          y: data.high_risk_trajectories.y,
+          type: data.high_risk_trajectories.type || 'bar',
+          name: data.high_risk_trajectories.name,
+          marker: { color: '#8b5cf6' }
+        };
+        highRiskEl.innerHTML = '<div id="dtw-high-risk-chart"></div>';
+        Plotly.newPlot('dtw-high-risk-chart', [trace], {
+          title: 'Trajectory archetypes by risk / outcome',
+          xaxis: { title: data.high_risk_trajectories.x_label || 'Archetype' },
+          yaxis: { title: data.high_risk_trajectories.y_label || 'Value' }
+        }, { responsive: true });
+      } else {
+        highRiskEl.innerHTML = '<p class="status-message info">High-risk vs low-risk trajectory stratification will appear here when the pipeline provides this view (e.g. trajectory archetypes by target status or risk band).</p>';
+      }
     }
   }
 

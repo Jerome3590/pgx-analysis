@@ -34,8 +34,12 @@ except ImportError:
     DTW_AVAILABLE = False
 
 PROJECT_ROOT = Path(__file__).parent.parent
+# Repo root (pgx-analysis) for SHAP/FFA paths
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 # Setup logging
 logging.basicConfig(
@@ -234,10 +238,12 @@ def extract_patient_trajectories(
     if df.empty:
         logger.warning("No trajectory data extracted")
         return {}
-    
-    # No filtering needed - model_data is already filtered by feature importances
-    # (allowed_codes is None, meaning use all events in model_data)
-    
+
+    # Filter to allowed codes (e.g. SHAP/FFA important) when provided
+    if allowed_codes is not None:
+        df["_code"] = df["activity"].str.split(":", n=1).str.get(1)
+        df = df[df["_code"].isin(allowed_codes)].drop(columns=["_code"])
+
     # Exclude F1120 from trajectories (for final model)
     df = df[~df['activity'].str.contains('F1120', case=False, na=False)]
     
@@ -648,10 +654,26 @@ def create_all_dtw_features(
         logger.error(f"Model data not found: {model_data_path}")
         return pd.DataFrame()
     
-    # No need to filter by itemsets - model_data is already filtered by feature importances
-    # Use all events in model_data for trajectory construction
-    allowed_codes = None  # None means use all codes in model_data
-    logger.info("Using all events from model_data (already filtered by feature importances in Step 4a)")
+    # Prefer SHAP/FFA important codes for trajectory construction (same as BupaR/FP-Growth)
+    allowed_codes = None
+    try:
+        from py_helpers.shap_ffa_fpgrowth_utils import get_shap_ffa_allowed_codes_combined
+
+        allowed_codes = get_shap_ffa_allowed_codes_combined(
+            cohort_name, age_band, top_n=500, project_root=REPO_ROOT
+        )
+        if allowed_codes:
+            logger.info(
+                "Using SHAP/FFA important codes for DTW trajectories (%s codes)",
+                len(allowed_codes),
+            )
+        else:
+            allowed_codes = None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not load SHAP/FFA codes for DTW: %s", exc)
+        allowed_codes = None
+    if allowed_codes is None:
+        logger.info("Using all events from model_data for DTW (no SHAP/FFA filter)")
     
     # Get cutoff dates using the same logic as BupaR analysis
     # For target patients: use first_opioid_ed_date or first_ed_non_opioid_date (cohort-specific)

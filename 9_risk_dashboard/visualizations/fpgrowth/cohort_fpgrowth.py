@@ -4,8 +4,12 @@ Cohort-Specific FPGrowth Feature Importance Analysis
 
 Processes each cohort separately to find cohort-specific patterns across:
 - drug_name (pharmacy events)
-- icd_code (medical diagnosis codes  
+- icd_code (medical diagnosis codes)
 - cpt_code (medical procedure codes)
+
+When USE_SHAP_FFA_FOR_FPGROWTH is True (default), FP-Growth runs on the original dataset
+but is restricted to items identified as important by SHAP and/or FFA analysis (Step 7 / Step 8).
+This drives the visualization from model importance instead of mining over all codes.
 
 Outputs to: s3://pgxdatalake/gold/fpgrowth/cohort/{item_type}/cohort_name={cohort}/age_band={age}/event_year={year}/
 """
@@ -25,9 +29,17 @@ import duckdb
 from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 
+try:
+    from py_helpers.shap_ffa_fpgrowth_utils import get_shap_ffa_important_codes
+except ImportError:
+    get_shap_ffa_important_codes = None
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
+# Repo root (pgx-analysis) for 7_shap_analysis, 8_ffa_analysis, 4_model_data
+REPO_ROOT = PROJECT_ROOT.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(REPO_ROOT))
 
 # =============================================================================
 # CONFIGURATION
@@ -79,19 +91,16 @@ LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fa
 # Optional model_data root (filtered to important features + 5:1 control ratio).
 # If a model_data file exists for a given (cohort, age_band), FP-Growth will
 # prefer it over the raw GOLD cohorts parquet.
-#
 # NOTE: The canonical location for model_data in this project is now 4_model_data.
-MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
+MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
 USE_MODEL_DATA_IF_AVAILABLE = True
+
+# Restrict FP-Growth to items identified by SHAP/FFA (run on original dataset; items from model importance).
+USE_SHAP_FFA_FOR_FPGROWTH = True
+SHAP_FFA_TOP_N = 500  # Max features to take from combined SHAP + FFA
 
 # Local FP-Growth outputs (mirrors feature-importance naming with cohort + age_band)
 LOCAL_OUTPUT_ROOT = PROJECT_ROOT / "10b_fpgrowth_dashboard_visual" / "outputs"
-
-# Optional model_data root (filtered to important features + 5:1 control ratio).
-# If a model_data file exists for a given (cohort, age_band), FP-Growth will
-# prefer it over the raw GOLD cohorts parquet.
-MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
-USE_MODEL_DATA_IF_AVAILABLE = True
 
 # =============================================================================
 # SETUP LOGGING
@@ -556,6 +565,45 @@ def process_single_cohort(
                 'event_year': event_year,
                 'error': 'No data'
             }
+        
+        # Restrict to SHAP/FFA-identified features (run FP-Growth on original dataset, items from model importance)
+        if USE_SHAP_FFA_FOR_FPGROWTH and get_shap_ffa_important_codes is not None:
+            try:
+                data_root = None
+                try:
+                    from py_helpers.env_utils import get_data_root
+                    data_root = get_data_root()
+                    if data_root is not None:
+                        data_root = Path(data_root)
+                except Exception:
+                    pass
+                allowed = get_shap_ffa_important_codes(
+                    cohort_name,
+                    age_band,
+                    item_type,
+                    top_n=SHAP_FFA_TOP_N,
+                    project_root=REPO_ROOT,
+                    data_root=data_root,
+                )
+                if allowed:
+                    item_upper = df["item"].astype(str).str.strip().str.upper()
+                    allowed_upper = {c.strip().upper() for c in allowed}
+                    before = len(df)
+                    df = df[item_upper.isin(allowed_upper)].copy()
+                    logger.info(f"Filtered to SHAP/FFA important items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
+                    if len(df) == 0:
+                        logger.warning(f"✗ No rows left for {cohort_id} after SHAP/FFA filter")
+                        return {
+                            'item_type': item_type,
+                            'cohort_name': cohort_name,
+                            'age_band': age_band,
+                            'event_year': event_year,
+                            'error': 'No data after SHAP/FFA filter'
+                        }
+                else:
+                    logger.warning("SHAP/FFA returned no codes; using all items (run Step 7 SHAP and Step 8 FFA for filtering)")
+            except Exception as e:
+                logger.warning(f"SHAP/FFA filter failed: {e}; using all items")
         
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")

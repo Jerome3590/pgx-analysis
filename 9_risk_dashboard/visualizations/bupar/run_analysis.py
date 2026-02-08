@@ -19,8 +19,12 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
+# Repo root (pgx-analysis) for SHAP/FFA paths (7_shap_analysis, 8_ffa_analysis)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from py_helpers.fe_monitor import (  # noqa: E402
     detect_runtime_environment,
@@ -67,26 +71,48 @@ def create_bupar_outputs(
     """Step 1: Run the R script that builds BupaR event logs, features, and plots."""
     with step_block("5_bupar", "create_bupar_outputs", logger=logger):
         age_band_arg = age_band
+        age_band_fname = age_band.replace("-", "_")
 
+        # Write SHAP/FFA allowed codes for BupaR (filter original data to model-important items)
+        try:
+            from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
+
+            # Prefer repo-root 10c (e.g. symlink) so R can run with cwd=REPO_ROOT
+            base_10c = REPO_ROOT / "10c_bupaR_dashboard_visual" if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT / "10c_bupaR_dashboard_visual"
+            out_dir = base_10c / "outputs"
+            allowed_path = out_dir / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
+            if write_shap_ffa_allowed_codes_for_bupar(
+                cohort_name, age_band, allowed_path, top_n=500, project_root=REPO_ROOT
+            ):
+                logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
+            else:
+                logger.info("No SHAP/FFA codes found; BupaR will use FP-Growth itemsets if present")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
+
+        # Prefer repo-root 10c so R getwd() is repo root (finds 4a_model_data, etc.)
+        base_10c = REPO_ROOT / "10c_bupaR_dashboard_visual" if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT / "10c_bupaR_dashboard_visual"
         if cohort_name == "opioid_ed":
-            r_script = PROJECT_ROOT / "10c_bupaR_dashboard_visual" / "create_bupar_outputs_opioid_ed.R"
+            r_script = base_10c / "create_bupar_outputs_opioid_ed.R"
         elif cohort_name == "non_opioid_ed":
-            r_script = PROJECT_ROOT / "10c_bupaR_dashboard_visual" / "create_bupar_outputs_non_opioid_ed.R"
+            r_script = base_10c / "create_bupar_outputs_non_opioid_ed.R"
         else:
             logger.error("Unsupported cohort for BupaR: %s", cohort_name)
             return False
 
+        cwd_for_r = REPO_ROOT if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT
         logger.info(
-            "Running BupaR outputs script %s for %s / %s",
+            "Running BupaR outputs script %s for %s / %s (cwd=%s)",
             r_script,
             cohort_name,
             age_band_arg,
+            cwd_for_r,
         )
 
         try:
             result = subprocess.run(
                 ["Rscript", str(r_script), age_band_arg],
-                cwd=PROJECT_ROOT,
+                cwd=str(cwd_for_r),
                 capture_output=True,
                 text=True,
                 check=True,
@@ -114,7 +140,8 @@ def merge_bupar_features(
 ) -> bool:
     """Step 2: Merge per-patient BupaR features into a final feature table."""
     with step_block("5_bupar", "add_bupar_features_to_model_data", logger=logger):
-        r_script = PROJECT_ROOT / "10c_bupaR_dashboard_visual" / "add_bupar_features_to_model_data.R"
+        base_10c = REPO_ROOT / "10c_bupaR_dashboard_visual" if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT / "10c_bupaR_dashboard_visual"
+        r_script = base_10c / "add_bupar_features_to_model_data.R"
 
         logger.info(
             "Merging BupaR features for %s / %s using %s",
@@ -123,19 +150,20 @@ def merge_bupar_features(
             r_script,
         )
 
+        cwd_for_r = REPO_ROOT if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT
         try:
             result = subprocess.run(
                 [
                     "Rscript",
                     str(r_script),
                     "--project-root",
-                    str(PROJECT_ROOT),
+                    str(cwd_for_r),
                     "--cohort-name",
                     cohort_name,
                     "--age-band",
                     age_band,
                 ],
-                cwd=PROJECT_ROOT,
+                cwd=str(cwd_for_r),
                 capture_output=True,
                 text=True,
                 check=True,
