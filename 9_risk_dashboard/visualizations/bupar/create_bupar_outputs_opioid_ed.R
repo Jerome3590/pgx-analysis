@@ -152,43 +152,53 @@ pgx_df_target1 <- pgx_df %>%
 cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
 
 # -------------------------------------------------------------------
-# Load FP-Growth target-only itemsets and build allowed code set
+# Load allowed code set: prefer SHAP/FFA (model-important), else FP-Growth itemsets
 # -------------------------------------------------------------------
+
+allowed_codes_shap_ffa_path <- file.path(
+  bup_ar_output_root,
+  sprintf("allowed_codes_shap_ffa_%s_%s.json", cohort_name, age_band_fname)
+)
 
 allowed_codes <- character(0)
 
-if (file.exists(itemsets_drug_target_path)) {
-  drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
-  drug_codes <- unique(unlist(drug_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, drug_codes)
-  cat("Loaded ", length(drug_codes), " unique drug codes from target-only itemsets.\n", sep = "")
+if (file.exists(allowed_codes_shap_ffa_path)) {
+  allowed_codes <- fromJSON(allowed_codes_shap_ffa_path)
+  if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
+  cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA (model-important items).\n", sep = "")
 } else {
-  warning("Drug target-only itemsets not found at ", itemsets_drug_target_path)
-}
+  if (file.exists(itemsets_drug_target_path)) {
+    drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
+    drug_codes <- unique(unlist(drug_itemsets_target$itemsets))
+    allowed_codes <- union(allowed_codes, drug_codes)
+    cat("Loaded ", length(drug_codes), " unique drug codes from target-only itemsets.\n", sep = "")
+  } else {
+    warning("Drug target-only itemsets not found at ", itemsets_drug_target_path)
+  }
 
-if (file.exists(itemsets_icd_target_path)) {
-  icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
-  icd_codes <- unique(unlist(icd_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, icd_codes)
-  cat("Loaded ", length(icd_codes), " unique ICD codes from target-only itemsets.\n", sep = "")
-} else {
-  warning("ICD target-only itemsets not found at ", itemsets_icd_target_path)
-}
+  if (file.exists(itemsets_icd_target_path)) {
+    icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
+    icd_codes <- unique(unlist(icd_itemsets_target$itemsets))
+    allowed_codes <- union(allowed_codes, icd_codes)
+    cat("Loaded ", length(icd_codes), " unique ICD codes from target-only itemsets.\n", sep = "")
+  } else {
+    warning("ICD target-only itemsets not found at ", itemsets_icd_target_path)
+  }
 
-if (file.exists(itemsets_medical_target_path)) {
-  medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
-  medical_codes <- unique(unlist(medical_itemsets_target$itemsets))
-  allowed_codes <- union(allowed_codes, medical_codes)
-  cat("Loaded ", length(medical_codes), " unique medical (ICD+CPT) codes from target-only itemsets.\n", sep = "")
-} else {
-  warning("Medical target-only itemsets not found at ", itemsets_medical_target_path)
+  if (file.exists(itemsets_medical_target_path)) {
+    medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
+    medical_codes <- unique(unlist(medical_itemsets_target$itemsets))
+    allowed_codes <- union(allowed_codes, medical_codes)
+    cat("Loaded ", length(medical_codes), " unique medical (ICD+CPT) codes from target-only itemsets.\n", sep = "")
+  } else {
+    warning("Medical target-only itemsets not found at ", itemsets_medical_target_path)
+  }
 }
 
 # Always ensure F1120 is included in the activity alphabet
 allowed_codes <- union(allowed_codes, "F1120")
 
-cat("Total unique allowed codes from FP-Growth itemsets (incl. F1120): ",
-    length(allowed_codes), "\n\n", sep = "")
+cat("Total unique allowed codes (incl. F1120): ", length(allowed_codes), "\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Build DRUG/ICD/CPT activities and target_eventlog

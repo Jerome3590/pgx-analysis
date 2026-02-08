@@ -46,7 +46,7 @@ The dashboard provides multiple capabilities:
 │   ├── combine_shap_ffa_results.py    # Combine SHAP and FFA results
 │   └── README.md                      # Data preparation documentation
 │
-├── visualizations/                    # Visualization generation scripts
+├── visualizations/                    # Visualization generation scripts (also orchestrated from repo root)
 │   ├── dtw/                           # DTW trajectory visualizations
 │   │   ├── create_dtw_features.py
 │   │   ├── create_dtw_visualizations.py
@@ -91,7 +91,9 @@ The dashboard provides multiple capabilities:
 └── docs/                              # Additional documentation
     ├── API.md                         # API endpoint documentation
     ├── DEPLOYMENT.md                  # Deployment guide
-    └── VISUALIZATIONS.md              # Visualization guide
+    ├── VISUALIZATIONS.md              # Visualization guide
+    ├── VISUALIZATION_PLAN.md          # Research questions → tabs and visuals
+    └── README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md  # Per-tab implementation plan for data visuals
 ```
 
 ### Organizational Rationale
@@ -208,6 +210,7 @@ The dashboard includes the following visualization tabs:
 For the **full risk calculator dashboard deployment workflow** (from cohorts with aggregated feature importances through Lambda/Docker), use:
 
 - **Notebook:** [3_pgx_calculator_workflow.ipynb](../3_pgx_calculator_workflow.ipynb) (project root) – interactive steps (verify inputs → metadata → models → Lambda dir → verify → deploy).
+- **Dashboard visuals:** [4_pgx_dashboard_visuals.ipynb](../4_pgx_dashboard_visuals.ipynb) and [pgx_dashboard_visuals.py](../pgx_dashboard_visuals.py) (project root) – generate BupaR, DTW, and FP-Growth visualization artifacts (SHAP/FFA-driven); run from repo root.
 - **Docs:** [README_calculator_workflow.md](README_calculator_workflow.md) – Cohort/model mapping and workflow overview.
 
 ## Quick Start
@@ -245,6 +248,7 @@ cd ../deployment
 - **Deployment**: `deployment/README.md`
 - **Data Preparation**: `data_preparation/README.md`
 - **Visualizations**: `visualizations/README.md`
+- **Tab visualizations implementation plan**: `docs/README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md` – per-tab data sources, API, visuals, and checklists
 
 ## Architecture
 

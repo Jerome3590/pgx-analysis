@@ -26,7 +26,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from io import BytesIO
 
 import boto3
@@ -1246,63 +1246,124 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/causal?cohort=...&age_band=..."""
+    """
+    GET /visualizations/causal?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...]
+
+    Optional filter by user-selected codes: drugs, icds, cpts (each comma-separated).
+    When provided, causal and SHAP results are restricted to features matching those codes (item_<CODE>).
+    """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        
+        drugs_param = params.get("drugs", "")
+        icds_param = params.get("icds", "")
+        cpts_param = params.get("cpts", "")
+
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
-        
+
+        # Build optional feature filter from user-selected codes (same naming as risk model: item_<CODE>)
+        selected_features: Optional[Set[str]] = None
+        if drugs_param or icds_param or cpts_param:
+            selected_features = set()
+            for code in (c.strip() for c in drugs_param.split(",") if c.strip()):
+                selected_features.add(f"item_{code.upper()}")
+            for code in (c.strip() for c in icds_param.split(",") if c.strip()):
+                selected_features.add(f"item_{code.upper()}")
+            for code in (c.strip() for c in cpts_param.split(",") if c.strip()):
+                selected_features.add(f"item_{code.upper()}")
+            if not selected_features:
+                selected_features = None  # no valid codes; don't filter
+
         # Load causal importance and SHAP data
         causal_df = load_causal_importance(cohort, age_band)
         shap_df = load_shap_importance(cohort, age_band)
-        
-        # Format for frontend
+
+        # When no user selection, restrict to SHAP/FFA important features (top 500 by combined importance)
+        if selected_features is None and (not causal_df.empty or not shap_df.empty):
+            causal_col = "causal_importance" if "causal_importance" in (causal_df.columns if not causal_df.empty else []) else causal_df.columns[1] if not causal_df.empty and len(causal_df.columns) > 1 else None
+            shap_col = "shap_importance" if not shap_df.empty and "shap_importance" in shap_df.columns else (shap_df.columns[1] if not shap_df.empty and len(shap_df.columns) > 1 else None)
+            merged = []
+            if not causal_df.empty and causal_col:
+                merged.append(causal_df[["feature", causal_col]].rename(columns={causal_col: "importance"}))
+            if not shap_df.empty and shap_col:
+                merged.append(shap_df[["feature", shap_col]].rename(columns={shap_col: "importance"}))
+            if merged:
+                combined = pd.concat(merged, ignore_index=True)
+                combined = combined.groupby("feature", as_index=False)["importance"].max()
+                combined = combined.sort_values("importance", ascending=False).head(500)
+                selected_features = set(combined["feature"].astype(str).tolist())
+
+        if selected_features and not causal_df.empty:
+            causal_df = causal_df[causal_df["feature"].isin(selected_features)].copy()
+        if selected_features and not shap_df.empty:
+            shap_df = shap_df[shap_df["feature"].isin(selected_features)].copy()
+
+        # Format for frontend (top 20 each)
         causal_factors = []
         if not causal_df.empty:
-            causal_factors = causal_df.head(20).apply(
+            causal_df = causal_df.sort_values("causal_importance", ascending=False).head(20)
+            causal_factors = causal_df.apply(
                 lambda row: {"feature": row["feature"], "importance": float(row["causal_importance"])},
                 axis=1
             ).tolist()
-        
+
         shap_importance = []
         if not shap_df.empty:
-            shap_importance = shap_df.head(20).apply(
+            shap_df = shap_df.sort_values("shap_importance", ascending=False).head(20)
+            shap_importance = shap_df.apply(
                 lambda row: {"feature": row["feature"], "importance": float(row["shap_importance"])},
                 axis=1
             ).tolist()
-        
+
         return _response(200, {
             "causal_factors": causal_factors,
             "shap_importance": shap_importance,
-            "interactions": []  # Could load interaction data here
+            "interactions": [],
+            "filtered_by_codes": bool(selected_features),
         })
     except Exception as e:
         return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/dtw?cohort=...&age_band=..."""
+    """
+    GET /visualizations/dtw?cohort=...&age_band=...
+
+    Returns DTW image paths and, when DTW feature data exists in S3, chart data for:
+    - routine_comparison: outcome rate by trajectory intensity (proxy for routine vs non-routine)
+    - high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
+    """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        
+
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
-        
+
         age_band_fname = age_band.replace("-", "_")
-        
+
         # Construct S3 paths for DTW visualization images
         base_s3_path = f"gold/feature_importance/{cohort}/{age_band}/plots"
-        
-        return _response(200, {
+        payload = {
             "overview_image": f"s3://{S3_BUCKET}/{base_s3_path}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png",
             "sample_trajectories_image": f"s3://{S3_BUCKET}/{base_s3_path}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
-            "metrics": {}  # Could load metrics from CSV
-        })
+            "metrics": {},
+        }
+
+        # Load DTW features from S3 to prepopulate routine vs non-routine and high-risk trajectory visuals
+        dtw_df = load_dtw_features(cohort, age_band)
+        if not dtw_df.empty:
+            routine = _compute_dtw_routine_comparison(dtw_df)
+            if routine:
+                payload["routine_comparison"] = routine
+            high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
+            if high_risk:
+                payload["high_risk_trajectories"] = high_risk
+
+        return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 
@@ -1375,6 +1436,87 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str = "xgboost"
         if code in ("NoSuchKey", "404", "NotFound"):
             return pd.DataFrame()
         raise
+
+
+def load_dtw_features(cohort: str, age_band: str) -> pd.DataFrame:
+    """Load DTW feature CSV from S3 (gold/feature_engineering/6_dtw)."""
+    age_band_fname = age_band.replace("-", "_")
+    s3_key = f"gold/feature_engineering/6_dtw/{cohort}/{age_band}/dtw_features_{cohort}_{age_band_fname}.csv"
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        df = pd.read_csv(BytesIO(obj["Body"].read()))
+        return df
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404", "NotFound"):
+            return pd.DataFrame()
+        raise
+
+
+def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """
+    Outcome rate by trajectory intensity (event count) as proxy for routine vs non-routine.
+    Buckets: Low / Medium / High by trajectory_length tertiles.
+    """
+    if df.empty or "target" not in df.columns or "trajectory_length" not in df.columns:
+        return None
+    col = "trajectory_length"
+    df = df[[col, "target"]].dropna()
+    if len(df) < 10:
+        return None
+    q1, q2 = df[col].quantile(0.33), df[col].quantile(0.67)
+
+    def bucket(x):
+        if x <= q1:
+            return "Low (fewer events)"
+        if x <= q2:
+            return "Medium"
+        return "High (more events)"
+
+    df = df.copy()
+    df["bucket"] = df[col].apply(bucket)
+    agg = df.groupby("bucket", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    order = ["Low (fewer events)", "Medium", "High (more events)"]
+    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+    agg = agg.dropna(subset=["target_rate"])
+    if agg.empty or agg["n"].sum() == 0:
+        return None
+    return {
+        "x": agg["bucket"].astype(str).tolist(),
+        "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "type": "bar",
+        "x_label": "Trajectory intensity (event count)",
+        "y_label": "Target outcome rate",
+    }
+
+
+def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """
+    Target outcome rate by trajectory archetype (quartiles of DTW min distance or trajectory length).
+    """
+    if df.empty or "target" not in df.columns:
+        return None
+    col = "dtw_min_distance" if "dtw_min_distance" in df.columns else "trajectory_length"
+    if col not in df.columns:
+        return None
+    df = df[["target", col]].dropna()
+    if len(df) < 10:
+        return None
+    df = df.copy()
+    try:
+        df["q"] = pd.qcut(df[col], q=4, labels=["Q1 (closest)", "Q2", "Q3", "Q4 (furthest)"], duplicates="drop")
+    except (ValueError, TypeError):
+        return None
+    agg = df.groupby("q", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    if agg.empty or agg["n"].sum() == 0:
+        return None
+    return {
+        "x": [str(v) for v in agg["q"]],
+        "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "type": "bar",
+        "x_label": "Trajectory archetype (by DTW distance)" if col == "dtw_min_distance" else "Trajectory archetype (by length)",
+        "y_label": "Target outcome rate",
+    }
 
 
 if __name__ == "__main__":

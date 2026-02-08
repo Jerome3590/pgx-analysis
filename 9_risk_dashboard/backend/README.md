@@ -34,12 +34,14 @@ AWS Lambda function that provides the API backend for the risk dashboard. Handle
 ### Visualization Endpoints
 
 - **`GET /visualizations/causal`** - Get causal analysis data
-  - Query params: `cohort`, `age_band`
-  - Returns: Causal factors and SHAP importance
+  - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts` (each comma-separated) to filter to user-selected codes
+  - Returns: Causal factors and SHAP importance (filtered to selected codes when provided), plus `filtered_by_codes`: boolean
 
-- **`GET /visualizations/dtw`** - Get DTW visualization paths
+- **`GET /visualizations/dtw`** - Get DTW visualization data
   - Query params: `cohort`, `age_band`
-  - Returns: S3 paths to DTW visualization images
+  - Returns: S3 paths to DTW images (`overview_image`, `sample_trajectories_image`), `metrics`, and when DTW feature data exists in S3 (`gold/feature_engineering/6_dtw/{cohort}/{age_band}/`):
+    - **`routine_comparison`** – Chart data: outcome rate by trajectory intensity (Low/Medium/High event count), proxy for routine vs non-routine care
+    - **`high_risk_trajectories`** – Chart data: outcome rate by trajectory archetype (quartiles of DTW distance or length)
 
 - **`GET /visualizations/fpgrowth`** - Get FP-Growth visualization paths
   - Query params: `cohort`, `age_band`, `item_type`
@@ -61,6 +63,15 @@ Models are loaded from:
 - `MODEL_BASE_PATH` - Path to models in container (default: `/var/task/models`)
 - `MODEL_CACHE_TTL` - Model cache TTL in seconds (default: `3600`)
 
+## Generating visualization artifacts
+
+Visualization **artifacts** (BupaR plots, DTW features/plots, FP-Growth itemsets/plots) are produced by pipeline scripts, not by Lambda. To (re)generate them from repo root, use:
+
+- **Notebook:** `4_pgx_dashboard_visuals.ipynb` (run from repo root)
+- **Script (VS Code Jupyter format):** `pgx_dashboard_visuals.py` (run as script or by cell with `# %%`)
+
+Both run BupaR, DTW, and FP-Growth for configured cohorts/age bands and document Lambda/API Gateway endpoints. Upload outputs to S3 so Lambda can serve paths (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`).
+
 ## Deployment
 
-See `../deployment/README.md` for deployment instructions.
+See `../deployment/README.md` for deployment instructions. To (re)create the API Gateway REST API and wire it to Lambda: `utility_scripts/create_api_gateway_pgx_risk_calculator.sh` (or `.ps1` on Windows).
