@@ -8,7 +8,7 @@ This document summarizes the major updates made to align the workflow with the n
 
 ### 1. Workflow Script Updates ✅
 
-**File**: Workflow runs via the three primary notebooks (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/` if needed.
+**File**: Workflow runs via the five notebooks: `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_model_train_shap_ffa.ipynb`, `4_dashboard_visuals.ipynb`, `5_build_and_deploy.ipynb`. Legacy notebooks and scripts are in `archived/`.
 
 **Changes**:
 - Removed steps 5a (BupaR), 5b (FP-Growth), 5d (DTW) from main pipeline

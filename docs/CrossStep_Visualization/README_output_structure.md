@@ -3,7 +3,7 @@
 **Date:** December 9, 2025  
 **Purpose:** Standardize output directory structure and sequential workflow across all analysis steps.
 
-**Project alignment:** Step numbering and folder names match the main workflow: **1a_apcd_input_data**, **1b_apcd_event_filter**, **2_create_cohort**, **3a_feature_importance**, **3b_feature_importance_eda**, **4_model_data**, **5_pgx_analysis**, **6_final_model**, **7_shap_analysis**, **8_ffa_analysis**, **9_risk_dashboard**. Three workflow notebooks: 1_cohort_workflow.ipynb (1–2), 2_feature_importance.ipynb (3a–3c), 3_pgx_calculator_workflow.ipynb (4–9).
+**Project alignment:** Step numbering and folder names match the main workflow. Five workflow notebooks: 1_cohort_workflow.ipynb (1–2), 2_feature_importance.ipynb (3a–3c), 3_model_train_shap_ffa.ipynb (4–8 + combine), 4_dashboard_visuals.ipynb (BupaR, DTW, FP-Growth), 5_build_and_deploy.ipynb (9).
 
 ---
 

@@ -27,7 +27,7 @@ Model performance and step details are preserved below but superseded by the ref
 **As of:** 2026-01-07  
 **Status:** ✅ Final production workflow definition
 
-**Workflow Execution:** Run via the three workflow notebooks (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/`:
+**Workflow Execution:** Run via the five workflow notebooks: `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`. Legacy notebooks and scripts are in `archived/`.
 ```bash
 # Single cohort/age band (legacy)
 bash archived/utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band>
@@ -253,7 +253,7 @@ Legend (same as above):
 ## Execution Log
 
 ### 2026-01-07 – Final Production Workflow Established
-- ✅ Final workflow steps: 3 → 4 → 5 → 6 → 7 → 8 → 9 (notebooks: 1_cohort_workflow, 2_feature_importance, 3_pgx_calculator_workflow)
+- ✅ Final workflow steps: 1 → 2 → 3 → 4 → 5 (notebooks: 1_cohort_workflow, 2_feature_importance, 3_model_train_shap_ffa, 4_dashboard_visuals, 5_build_and_deploy)
 - ✅ Event filtering in Step 1b (`1b_apcd_event_filter`); model data in `4_model_data/`
 - ✅ CatBoost FFA removed (not performed); CatBoost SHAP used for feature importance filtering in XGBoost FFA
 - ✅ Rule selection logic: first 100 + random 100 + top 300 SHAP-filtered rules

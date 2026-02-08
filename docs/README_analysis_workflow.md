@@ -238,7 +238,7 @@ These paired `model_events.parquet` files provide a consistent, size-controlled 
 
 ## Analysis Pipeline Overview
 
-Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3c** (2_feature_importance.ipynb) → **Steps 4-9** (3_pgx_calculator_workflow.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. Step 1b: aggregated FI + ICD/administrative filtering. Step 3c: final update to features passed into Step 4. Step 4: model data and target leakage removal (case events before target date only).
+Full pipeline: **Steps 1-2** (1_cohort_workflow.ipynb) → **Steps 3a-3c** (2_feature_importance.ipynb) → **Steps 4-8 + combine** (3_model_train_shap_ffa.ipynb) → **Dashboard visuals** (4_dashboard_visuals.ipynb) → **Step 9** (5_build_and_deploy.ipynb). Each notebook uses **S3 sync to NVMe** for inputs and **S3 checkpoints** for idempotency. Step 1b: aggregated FI + ICD/administrative filtering. Step 3c: final update to features passed into Step 4. Step 4: model data and target leakage removal (case events before target date only).
 
 ```mermaid
 flowchart TD
@@ -258,15 +258,21 @@ flowchart TD
         B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
-    subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data + Leakage Removal]
-        C1 --> D1[5: PGx Feature Engineering]
+    subgraph W3["3_model_train_shap_ffa.ipynb"]
+        B6 --> C1[4: Model Data]
+        C1 --> D1[5: PGx]
         D1 --> E1[6: Final Model]
-        E1 --> E4[Model Selection]
-        E4 --> F1[7: SHAP]
+        E1 --> E4[7: SHAP]
         E4 --> F2[8: FFA]
-        F1 --> G1[9: Risk Dashboard]
-        F2 --> G1
+        F2 --> F1[Combine SHAP/FFA]
+    end
+
+    subgraph W4["4_dashboard_visuals.ipynb"]
+        F1 --> G0[BupaR, DTW, FP-Growth]
+    end
+
+    subgraph W5["5_build_and_deploy.ipynb"]
+        G0 --> G1[9: Risk Dashboard]
         G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
 
@@ -440,7 +446,7 @@ s3://{S3_BUCKET}/{artifact_type}/cohort_name={cohort}/age_band={band}/event_year
 - [`README_data_visualizations.md`](README_data_visualizations.md) - Visualization approaches
 - [`docs/README_feature_importance.md`](docs/README_feature_importance.md) - Feature importance analysis
 - [`docs/README_fpgrowth.md`](docs/README_fpgrowth.md) - FP-Growth pattern mining
-- [`docs/README_bupaR.md`](docs/README_bupaR.md) - Process mining with BupaR
+- [`3b_feature_importance_eda/1_bupaR/README_bupaR.md`](../3b_feature_importance_eda/1_bupaR/README_bupaR.md) - Process mining with BupaR
 - [`docs/README_dtw_feature_extraction.md`](docs/README_dtw_feature_extraction.md) - DTW trajectory analysis
 - [`docs/README_final_model.md`](docs/README_final_model.md) - Final model development
 

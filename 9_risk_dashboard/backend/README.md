@@ -67,7 +67,7 @@ Models are loaded from:
 
 Visualization **artifacts** (BupaR plots, DTW features/plots, FP-Growth itemsets/plots) are produced by pipeline scripts, not by Lambda. To (re)generate them from repo root, use:
 
-- **Notebook:** `4_pgx_dashboard_visuals.ipynb` (run from repo root)
+- **Notebook:** `4_dashboard_visuals.ipynb` (run from repo root)
 - **Script (VS Code Jupyter format):** `pgx_dashboard_visuals.py` (run as script or by cell with `# %%`)
 
 Both run BupaR, DTW, and FP-Growth for configured cohorts/age bands and document Lambda/API Gateway endpoints. Upload outputs to S3 so Lambda can serve paths (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`). **Redeploy the Lambda image** only when backend code changes (e.g. Causal tab now defaults to top 500 SHAP/FFA features when no user selection—redeploy to get that in production).

@@ -23,7 +23,7 @@ def create_nav_bar(current_notebook=None):
         current_notebook (str): Name of the current notebook to highlight
     """
     notebooks = {
-        'Main Pipeline': 'pgx_cohort_pipeline.ipynb',
+        'Main Pipeline': '../1_cohort_workflow.ipynb',  # legacy: pgx_cohort_pipeline.ipynb moved to archived/2_create_cohort/
         'bupaR Analysis': 'bupaR_analysis/bupaR_pipeline.ipynb',
         'CatBoost R Analysis': 'catboost_analysis/catboost_r.ipynb'
     }
