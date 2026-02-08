@@ -6,8 +6,8 @@ Use this when you want to run the workflow **all the way through** from a clean 
 
 ```bash
 cd ~/pgx-analysis   # or your project root
-chmod +x 2_create_cohort/cleanup_cohort_data.sh
-./2_create_cohort/cleanup_cohort_data.sh
+chmod +x utility_scripts/cleanup_cohort_data.sh
+./utility_scripts/cleanup_cohort_data.sh
 # Confirm when prompted, or use --yes to skip confirmation
 ```
 

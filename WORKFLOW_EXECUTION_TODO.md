@@ -5,11 +5,13 @@ This document provides a step-by-step checklist for executing the complete workf
 ## Prerequisites
 
 - EC2 instance with access to S3 (`pgxdatalake` and `pgx-repository` buckets)
-- **Full reset:** To run the workflow from scratch (no checkpoints, no S3/EC2 artifacts), run `./2_create_cohort/cleanup_cohort_data.sh` first. See [docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md](docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md).
+- **Full reset:** To run the workflow from scratch (no checkpoints, no S3/EC2 artifacts), run `./utility_scripts/cleanup_cohort_data.sh` first. See [docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md](docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md).
 - Python 3.11+ with jupyter-env activated
 - R with required packages (bupaR, edeaR, etc.)
 - AWS CLI configured
 - Project cloned: `~/pgx-analysis`
+
+**Optional:** [0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb) — env checks (Python/R/Docker), run cleanup script, and pipeline instructions. Not required for the workflow below.
 
 ### Key notebooks (run from repo root)
 
@@ -18,15 +20,15 @@ This document provides a step-by-step checklist for executing the complete workf
 | 1 | [1_cohort_workflow.ipynb](1_cohort_workflow.ipynb) | Step 2: Create cohorts (OPIOID_ED, POLYPHARMACY) |
 | 2 | [2_feature_importance.ipynb](2_feature_importance.ipynb) | Steps 3a–3c: Feature importance, BupaR leakage, refine features |
 | 3 | [3_pgx_calculator_workflow.ipynb](3_pgx_calculator_workflow.ipynb) | Steps 4–6 + dashboard prep: model data → PGx → final model → metadata/SHAP/FFA → Lambda deploy |
-| 4 | [4_pgx_dashboard_visuals.ipynb](4_pgx_dashboard_visuals.ipynb) | Step 5.1: Generate BupaR, DTW, FP-Growth dashboard visuals (SHAP/FFA-driven). Run after Steps 7 and 8. |
+| 4 | [4_pgx_dashboard_visuals.ipynb](4_pgx_dashboard_visuals.ipynb) | Step 5: Generate dashboard visuals (BupaR, DTW, FP-Growth; SHAP/FFA-driven). Run after Steps 7 and 8. |
 
 Alternative to notebook 4: run `pgx_dashboard_visuals.py` (same steps, VS Code Jupyter `# %%` or CLI).
 
 ---
 
-## Step 1: Clear Cohort Data ✅
+## Step 1: Clear Cohort Data (utility – full reset only) ✅
 
-**Purpose**: Remove old cohort data that doesn't have the new time-windowed logic.
+**Purpose**: Utility script to remove old cohort data (e.g. before the time-windowed logic migration). Only run when you need a full reset; not part of the normal pipeline.
 
 ### 1.1 Run Cleanup Script
 
@@ -34,13 +36,12 @@ Alternative to notebook 4: run `pgx_dashboard_visuals.py` (same steps, VS Code J
 cd ~/pgx-analysis
 
 # Make script executable (if not already)
-chmod +x 2_create_cohort/cleanup_cohort_data.sh
+chmod +x utility_scripts/cleanup_cohort_data.sh
 
 # Run cleanup (will scan and log all existing data, then delete)
-./2_create_cohort/cleanup_cohort_data.sh
+./utility_scripts/cleanup_cohort_data.sh
 
-# Review the log file created:
-# ~/pgx-analysis/cleanup_cohort_data_YYYYMMDD_HHMMSS.log
+# Review the log: ./utility_scripts/check_cleanup_log.sh  (or see repo root for cleanup_cohort_data_YYYYMMDD_HHMMSS.log)
 ```
 
 **What gets cleared:**
@@ -271,20 +272,18 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 
 ---
 
-## Step 5: Build Risk Dashboard ✅
+## Step 5: Generate Dashboard Visuals ✅
 
-**Purpose**: Deploy production dashboard with frontend, backend API, and visualizations.
+**Purpose**: Generate all dashboard visualization artifacts (BupaR, DTW, FP-Growth). Distinct step before building and deploying the dashboard.
 
-### 5.1 Generate Dashboard Visualization Artifacts
-
-**Run from repo root.** Produces BupaR, DTW, and FP-Growth artifacts; all are **SHAP/FFA-driven** (filter original data to model-important features from Step 7 / Step 8). Causal tab uses the same importance data.
+**Run from repo root.** Produces BupaR, DTW, and FP-Growth artifacts; all are **SHAP/FFA-driven** (filter original data to model-important features from Step 7 / Step 8). Causal tab uses the same importance data. The notebook/script also includes Deploy Lambda and Deploy frontend cells (idempotent; run to refresh live backend and S3 frontend).
 
 **Option A – Notebook:**
 
 ```bash
 cd ~/pgx-analysis
 jupyter notebook 4_pgx_dashboard_visuals.ipynb
-# Run cells: Setup → Symlinks (optional) → Config → BupaR → DTW → FP-Growth
+# Run cells: Setup → Symlinks → Config → BupaR → DTW → FP-Growth → Deploy Lambda → Deploy frontend
 ```
 
 **Option B – Python script (VS Code Jupyter `# %%` or CLI):**
@@ -292,9 +291,10 @@ jupyter notebook 4_pgx_dashboard_visuals.ipynb
 ```bash
 cd ~/pgx-analysis
 python pgx_dashboard_visuals.py
+# Set SKIP_DEPLOY_LAMBDA=1 / SKIP_DEPLOY_FRONTEND=1 to skip deploy when needed
 ```
 
-**Optional symlinks:** If R or scripts expect `10c_bupaR_dashboard_visual`, `10b_fpgrowth_dashboard_visual`, `10d_dtw_dashboard_visual` at repo root, the notebook/script can create them (or create junctions on Windows). See `pgx_dashboard_visuals.py` setup cell.
+**Symlinks:** If R or scripts expect `10c_bupaR_dashboard_visual`, `10b_fpgrowth_dashboard_visual`, `10d_dtw_dashboard_visual` at repo root, the notebook/script create them (idempotent). See `pgx_dashboard_visuals.py` setup cell.
 
 **Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR.
 
@@ -303,15 +303,21 @@ python pgx_dashboard_visuals.py
 - DTW: `gold/feature_engineering/6_dtw/{cohort}/{age_band}/` and feature_importance plots
 - FP-Growth: `9_risk_dashboard/visualizations/fpgrowth` outputs (or `10b_fpgrowth_dashboard_visual/outputs`) and S3 `gold/fpgrowth/`
 
-### 5.2 Prepare Dashboard Data
+---
+
+## Step 6: Build Risk Dashboard ✅
+
+**Purpose**: Deploy production dashboard with frontend, backend API, and visualizations.
+
+### 6.1 Prepare Dashboard Data
 
 **Ensure all required data is available:**
-- Model artifacts from Step 6
+- Model artifacts from Step 4.4 (final model)
 - SHAP values from Step 7
 - FFA results from Step 8
-- Dashboard visuals from Step 5.1 (BupaR, DTW, FP-Growth) and Causal (served from SHAP/FFA by Lambda)
+- Dashboard visuals from **Step 5** (BupaR, DTW, FP-Growth) and Causal (served from SHAP/FFA by Lambda)
 
-### 5.3 Build and Deploy Dashboard
+### 6.2 Build and Deploy Dashboard
 
 ```bash
 cd ~/pgx-analysis/9_risk_dashboard
@@ -338,7 +344,7 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 - All visualization tabs working (Causal Analysis, BupaR, DTW, FP-Growth)
 
 **Do you need to update the Lambda image for dashboard visuals?**
-- **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run `4_pgx_dashboard_visuals.ipynb` (or `pgx_dashboard_visuals.py`), upload outputs to S3 (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`), and the existing Lambda will serve them.
+- **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run **Step 5** (`4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`), upload outputs to S3 (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`), and the existing Lambda will serve them. Step 5 notebook/script can also run Deploy Lambda and Deploy frontend.
 - **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `9_risk_dashboard/backend/lambda_function.py`). See `9_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
 
 ---
@@ -370,7 +376,7 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 **Note**: After automated Steps 3–8, you still need to:
 1. Run Step 1 (cleanup) manually
 2. Run Step 2 (cohort creation) manually (polypharmacy uses fixed 21-day window)
-3. Run Step 5.1 (dashboard visuals: `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`) and Step 5.2–5.3 (build and deploy dashboard) manually
+3. Run **Step 5** (dashboard visuals: `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`) and **Step 6** (build and deploy dashboard) manually
 
 ---
 
@@ -383,27 +389,27 @@ The canonical end-to-end workflow is documented in these notebooks (run from rep
 | 1 | **`1_cohort_workflow.ipynb`** | Step 2: Cohort creation (OPIOID_ED and POLYPHARMACY). Configuration → OPIOID_ED series → POLYPHARMACY series → status. |
 | 2 | **`2_feature_importance.ipynb`** | Steps 3a–3c: Sync inputs, Step 3a (MC-CV feature importance), Step 3b (BupaR target leakage + filter_and_refine), Step 3c (final feature list for Step 4). |
 | 3 | **`3_pgx_calculator_workflow.ipynb`** | Steps 4–6 in pipeline, then dashboard prep: model data → PGx analysis → final model training; sync → metadata → SHAP/FFA combine → prepare models → Lambda dir → verify → build/deploy. |
-| 4 | **`4_pgx_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | Step 5.1: Generate BupaR, DTW, and FP-Growth visualization artifacts (SHAP/FFA-driven). Run after Steps 7 and 8. |
+| 4 | **`4_pgx_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | **Step 5:** Generate dashboard visuals (BupaR, DTW, FP-Growth; SHAP/FFA-driven). Run after Steps 7 and 8. |
 
 **Prerequisites before notebook 1:** Step 1 (cleanup) and Step 1a/1b data as needed.  
-**After notebook 3:** Run Steps 7 (SHAP) and 8 (FFA) per cohort/age_band if not already done; then run notebook 4 (or script) for dashboard visuals before building/deploying the frontend.
+**After notebook 3:** Run Steps 7 (SHAP) and 8 (FFA) per cohort/age_band if not already done; then run **Step 5** (notebook 4 or script) for dashboard visuals before **Step 6** (build/deploy frontend).
 
 ---
 
 ## Checklist
 
-- [ ] **Step 1**: Clear cohort data using cleanup script
-- [ ] **Step 2**: Create cohorts with time-windowed logic for polypharmacy cohort
-- [ ] **Step 2**: Create cohorts for opioid ED cohort
-- [ ] **Step 3**: Run Feature Importance EDA (BupaR post-target analysis) for all cohorts
-- [ ] **Step 4a**: Create model data for all cohorts
-- [ ] **Step 4b**: Filter protocols for all cohorts
-- [ ] **Step 4.3**: Add PGx features for all cohorts
-- [ ] **Step 6**: Train models for all cohorts
-- [ ] **Step 7**: Run SHAP analysis for all cohorts
-- [ ] **Step 8**: Run FFA analysis for all cohorts
-- [ ] **Step 5.1**: Generate dashboard visualization artifacts (BupaR, DTW, FP-Growth) via `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`
-- [ ] **Step 5.2–5.3**: Build and deploy Risk Dashboard (frontend, Lambda, API Gateway, S3)
+- [ ] **Step 1 (utility)**: Clear cohort data for full reset only — `utility_scripts/cleanup_cohort_data.sh`
+- [ ] **Step 2**: Create cohorts with time-windowed logic for polypharmacy cohort (`1_cohort_workflow.ipynb`)
+- [ ] **Step 2**: Create cohorts for opioid ED cohort (`1_cohort_workflow.ipynb`)
+- [ ] **Step 3**: Run Feature Importance EDA (BupaR post-target analysis) for all cohorts (`2_feature_importance.ipynb` or `3b_feature_importance_eda/step3b_interactive_analysis_cohort*.ipynb`)
+- [ ] **Step 4a**: Create model data for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 4b**: Filter protocols for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 4.3**: Add PGx features for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 4.4**: Train models for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 7**: Run SHAP analysis for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 8**: Run FFA analysis for all cohorts (`3_pgx_calculator_workflow.ipynb`)
+- [ ] **Step 5**: Generate dashboard visuals (BupaR, DTW, FP-Growth); run Deploy Lambda / Deploy frontend as needed (`4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`)
+- [ ] **Step 6**: Build and deploy Risk Dashboard (frontend, Lambda, API Gateway, S3) — see `9_risk_dashboard/deployment/README.md` and `3_pgx_calculator_workflow.ipynb` deploy cells
 
 ---
 
