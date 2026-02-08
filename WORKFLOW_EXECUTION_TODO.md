@@ -11,11 +11,22 @@ This document provides a step-by-step checklist for executing the complete workf
 - AWS CLI configured
 - Project cloned: `~/pgx-analysis`
 
+### Key notebooks (run from repo root)
+
+| # | Notebook | Purpose |
+|---|----------|---------|
+| 1 | [1_cohort_workflow.ipynb](1_cohort_workflow.ipynb) | Step 2: Create cohorts (OPIOID_ED, POLYPHARMACY) |
+| 2 | [2_feature_importance.ipynb](2_feature_importance.ipynb) | Steps 3a–3c: Feature importance, BupaR leakage, refine features |
+| 3 | [3_pgx_calculator_workflow.ipynb](3_pgx_calculator_workflow.ipynb) | Steps 4–6 + dashboard prep: model data → PGx → final model → metadata/SHAP/FFA → Lambda deploy |
+| 4 | [4_pgx_dashboard_visuals.ipynb](4_pgx_dashboard_visuals.ipynb) | Step 5.1: Generate BupaR, DTW, FP-Growth dashboard visuals (SHAP/FFA-driven). Run after Steps 7 and 8. |
+
+Alternative to notebook 4: run `pgx_dashboard_visuals.py` (same steps, VS Code Jupyter `# %%` or CLI).
+
 ---
 
 ## Step 1: Clear Cohort Data ✅
 
-**Purpose**: Remove old cohort data that doesn't have the new time-windowed logic and multiclass target columns.
+**Purpose**: Remove old cohort data that doesn't have the new time-windowed logic.
 
 ### 1.1 Run Cleanup Script
 
@@ -48,7 +59,7 @@ chmod +x 2_create_cohort/cleanup_cohort_data.sh
 
 ## Step 2: Create Cohorts ✅
 
-**Purpose**: Create cohorts with new time-windowed HCG event logic and multiclass target columns.
+**Purpose**: Create cohorts with new time-windowed HCG event logic.
 
 ### 2.1 Create Cohorts for Each Age Band
 
@@ -58,12 +69,11 @@ chmod +x 2_create_cohort/cleanup_cohort_data.sh
 # Age bands: 65-74, 75-84, 85-94
 # Years: 2016, 2017, 2018, 2019
 
-# Example for 65-74:
+# Example for 65-74 (polypharmacy uses fixed 21-day window; --time-window-days is deprecated and ignored):
 python 2_create_cohort/0_create_cohort.py \
     --age-band 65-74 \
     --event-year 2016 \
-    --cohort ed_non_opioid \
-    --time-window-days 14
+    --cohort ed_non_opioid
 
 # Repeat for each year (2016, 2017, 2018, 2019)
 # Repeat for each age band (65-74, 75-84, 85-94)
@@ -74,7 +84,7 @@ python 2_create_cohort/0_create_cohort.py \
 ```bash
 # Age bands: 13-24, 25-44, 45-54, 55-64
 # Years: 2016, 2017, 2018, 2019
-# Note: time-window-days doesn't apply to opioid_ed (only uses F11.20 target)
+# Note: opioid_ed uses F11.20 target only (no time window). Polypharmacy (ed_non_opioid) uses fixed 21-day window.
 
 # Example for 13-24:
 python 2_create_cohort/0_create_cohort.py \
@@ -92,13 +102,10 @@ python 2_create_cohort/0_create_cohort.py \
 aws s3 ls s3://pgxdatalake/gold/cohorts/cohort_name=ed_non_opioid/ --recursive
 aws s3 ls s3://pgxdatalake/gold/cohorts/cohort_name=opioid_ed/ --recursive
 
-# Verify multiclass columns exist (for polypharmacy cohort)
-# Check that parquet files have: is_target_case_7d, is_target_case_14d, is_target_case_21d, is_target_case_30d, is_target_case_45d
 ```
 
 **Expected Output:**
 - `s3://pgxdatalake/gold/cohorts/cohort_name={cohort}/age_band={age_band}/event_year={year}/cohort.parquet`
-- Each polypharmacy cohort should have multiclass target columns
 
 ---
 
@@ -268,20 +275,46 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 
 **Purpose**: Deploy production dashboard with frontend, backend API, and visualizations.
 
-### 5.1 Prepare Dashboard Data
+### 5.1 Generate Dashboard Visualization Artifacts
+
+**Run from repo root.** Produces BupaR, DTW, and FP-Growth artifacts; all are **SHAP/FFA-driven** (filter original data to model-important features from Step 7 / Step 8). Causal tab uses the same importance data.
+
+**Option A – Notebook:**
+
+```bash
+cd ~/pgx-analysis
+jupyter notebook 4_pgx_dashboard_visuals.ipynb
+# Run cells: Setup → Symlinks (optional) → Config → BupaR → DTW → FP-Growth
+```
+
+**Option B – Python script (VS Code Jupyter `# %%` or CLI):**
+
+```bash
+cd ~/pgx-analysis
+python pgx_dashboard_visuals.py
+```
+
+**Optional symlinks:** If R or scripts expect `10c_bupaR_dashboard_visual`, `10b_fpgrowth_dashboard_visual`, `10d_dtw_dashboard_visual` at repo root, the notebook/script can create them (or create junctions on Windows). See `pgx_dashboard_visuals.py` setup cell.
+
+**Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR.
+
+**Verify:**
+- BupaR: `9_risk_dashboard/visualizations/bupar` outputs (or `10c_bupaR_dashboard_visual/outputs`) and S3 `gold/bupar/`
+- DTW: `gold/feature_engineering/6_dtw/{cohort}/{age_band}/` and feature_importance plots
+- FP-Growth: `9_risk_dashboard/visualizations/fpgrowth` outputs (or `10b_fpgrowth_dashboard_visual/outputs`) and S3 `gold/fpgrowth/`
+
+### 5.2 Prepare Dashboard Data
 
 **Ensure all required data is available:**
 - Model artifacts from Step 6
 - SHAP values from Step 7
 - FFA results from Step 8
-- BupaR visualizations from Step 3b
-- FP-Growth patterns (if available)
-- DTW trajectories (if available)
+- Dashboard visuals from Step 5.1 (BupaR, DTW, FP-Growth) and Causal (served from SHAP/FFA by Lambda)
 
-### 5.2 Build and Deploy Dashboard
+### 5.3 Build and Deploy Dashboard
 
 ```bash
-cd 9_risk_dashboard
+cd ~/pgx-analysis/9_risk_dashboard
 
 # Build frontend
 cd frontend
@@ -289,19 +322,24 @@ npm install
 npm run build
 
 # Deploy backend (Lambda function)
-# Follow instructions in 9_risk_dashboard/README.md
+# Follow 9_risk_dashboard/deployment/README.md
 
 # Deploy to S3
 aws s3 sync dist/ s3://{your-dashboard-bucket}/
 
-# Configure API Gateway
-# Follow instructions in 9_risk_dashboard/README.md
+# Configure API Gateway (if not already)
+# utility_scripts/create_api_gateway_pgx_risk_calculator.sh or .ps1
+# See 9_risk_dashboard/backend/README.md
 ```
 
 **Verify:**
 - Frontend accessible via S3/CloudFront
 - Backend API responding via API Gateway
-- All visualization tabs working (Causal Analysis, DTW, FP-Growth, BupaR)
+- All visualization tabs working (Causal Analysis, BupaR, DTW, FP-Growth)
+
+**Do you need to update the Lambda image for dashboard visuals?**
+- **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run `4_pgx_dashboard_visuals.ipynb` (or `pgx_dashboard_visuals.py`), upload outputs to S3 (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`), and the existing Lambda will serve them.
+- **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `9_risk_dashboard/backend/lambda_function.py`). See `9_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
 
 ---
 
@@ -313,32 +351,42 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 ### Polypharmacy Cohorts (Time-windowed HCG target)
 - `non_opioid_ed`: 65-74, 75-84, 85-94
 
-**Note**: Polypharmacy cohorts have multiclass target columns (7d, 14d, 21d, 30d, 45d) for analysis.
-
 ---
 
 ## Automation Option
 
-**Run via the three workflow notebooks** (`1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`). Legacy shell scripts are in `archived/utility_scripts/`:
+**Run via the workflow notebooks:**
+- Cohorts / feature importance / model pipeline: `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`
+- **Dashboard visuals:** `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py` (from repo root; generates BupaR, DTW, FP-Growth artifacts)
+
+Legacy shell scripts are in `archived/utility_scripts/` (if present):
 
 ```bash
 # For a single cohort/age band (legacy):
 bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
-
-# For all polypharmacy cohorts (legacy):
-bash archived/utility_scripts/run_non_opioid_ed_workflow.sh
-
-# For all opioid ED cohorts (legacy):
-bash archived/utility_scripts/run_opioid_ed_workflow.sh
-
-# For all cohorts (legacy):
-bash archived/utility_scripts/run_all_cohorts_workflow.sh
+# ... etc.
 ```
 
-**Note**: The workflow script will automatically run Steps 3-8 in sequence. You still need to:
+**Note**: After automated Steps 3–8, you still need to:
 1. Run Step 1 (cleanup) manually
-2. Run Step 2 (cohort creation) manually with `--time-window-days` parameter
-3. Run Step 9 (dashboard) manually
+2. Run Step 2 (cohort creation) manually (polypharmacy uses fixed 21-day window)
+3. Run Step 5.1 (dashboard visuals: `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`) and Step 5.2–5.3 (build and deploy dashboard) manually
+
+---
+
+## Final documented workflow (notebooks)
+
+The canonical end-to-end workflow is documented in these notebooks (run from repo root):
+
+| Order | Notebook | Covers |
+|-------|----------|--------|
+| 1 | **`1_cohort_workflow.ipynb`** | Step 2: Cohort creation (OPIOID_ED and POLYPHARMACY). Configuration → OPIOID_ED series → POLYPHARMACY series → status. |
+| 2 | **`2_feature_importance.ipynb`** | Steps 3a–3c: Sync inputs, Step 3a (MC-CV feature importance), Step 3b (BupaR target leakage + filter_and_refine), Step 3c (final feature list for Step 4). |
+| 3 | **`3_pgx_calculator_workflow.ipynb`** | Steps 4–6 in pipeline, then dashboard prep: model data → PGx analysis → final model training; sync → metadata → SHAP/FFA combine → prepare models → Lambda dir → verify → build/deploy. |
+| 4 | **`4_pgx_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | Step 5.1: Generate BupaR, DTW, and FP-Growth visualization artifacts (SHAP/FFA-driven). Run after Steps 7 and 8. |
+
+**Prerequisites before notebook 1:** Step 1 (cleanup) and Step 1a/1b data as needed.  
+**After notebook 3:** Run Steps 7 (SHAP) and 8 (FFA) per cohort/age_band if not already done; then run notebook 4 (or script) for dashboard visuals before building/deploying the frontend.
 
 ---
 
@@ -350,18 +398,19 @@ bash archived/utility_scripts/run_all_cohorts_workflow.sh
 - [ ] **Step 3**: Run Feature Importance EDA (BupaR post-target analysis) for all cohorts
 - [ ] **Step 4a**: Create model data for all cohorts
 - [ ] **Step 4b**: Filter protocols for all cohorts
-- [ ] **Step 5**: Add PGx features for all cohorts
+- [ ] **Step 4.3**: Add PGx features for all cohorts
 - [ ] **Step 6**: Train models for all cohorts
 - [ ] **Step 7**: Run SHAP analysis for all cohorts
 - [ ] **Step 8**: Run FFA analysis for all cohorts
-- [ ] **Step 9**: Build and deploy Risk Dashboard
+- [ ] **Step 5.1**: Generate dashboard visualization artifacts (BupaR, DTW, FP-Growth) via `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`
+- [ ] **Step 5.2–5.3**: Build and deploy Risk Dashboard (frontend, Lambda, API Gateway, S3)
 
 ---
 
 ## Notes
 
-- **Time Windows**: Polypharmacy cohorts support 7, 14, 21, 30, 45 day windows (default: 14)
-- **Multiclass Analysis**: Polypharmacy cohorts have `is_target_case_7d`, `is_target_case_14d`, etc. for multiclass analysis
+- **Time Windows**: Polypharmacy (ed_non_opioid) uses a **fixed 21-day window** for adverse drug event identification (~90.5% capture). See `2_create_cohort/README.md`. Opioid_ed has no time window (F11.20 target only).
+- **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Causal dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
 - **Idempotent**: All scripts are idempotent and will skip completed steps
 - **Checkpoints**: Pipeline uses S3 checkpoints to track progress
 - **Logs**: Check log files in each step's output directory for detailed execution logs
