@@ -11,6 +11,8 @@ Steps:
 3. DTW: trajectory features and plots (SHAP/FFA-filtered)
 4. FP-Growth: itemsets, rules, network plots (SHAP/FFA-filtered)
 5. Lambda/API: document endpoints and deployment
+6. Deploy Lambda: build image, push to ECR, update Lambda function (set SKIP_DEPLOY_LAMBDA=1 to skip)
+7. Deploy frontend: sync 9_risk_dashboard/frontend to S3 (set SKIP_DEPLOY_FRONTEND=1 to skip)
 
 Run from repo root (pgx-analysis). Prerequisites: 4_model_data, 7_shap_analysis,
 8_ffa_analysis for SHAP/FFA-driven filtering; R and bupaR for BupaR step.
@@ -39,7 +41,7 @@ print(f"Repo root: {REPO_ROOT}")
 print(f"Visualizations: {VISUAL_ROOT}")
 
 # %%
-# --- Optional: create symlinks 10b, 10c, 10d (for R cwd=repo root and for scripts under visualizations) ---
+# --- Create symlinks 10b, 10c, 10d (idempotent: no-op if present) ---
 def ensure_dashboard_symlinks():
     """Create 10b/10c/10d at repo root and under visualizations so R and Python scripts find them."""
     # At repo root: so R (cwd=REPO_ROOT) finds 10c_bupaR_dashboard_visual/outputs, 4a_model_data, etc.
@@ -169,6 +171,64 @@ for cohort_name, age_band in combinations:
 # and 9_risk_dashboard/backend/README.md. Lambda reads from S3 bucket (PGX_RESULTS_BUCKET).
 print("Dashboard visualization endpoints are documented in 9_risk_dashboard/backend/README.md")
 print("To update API Gateway: utility_scripts/create_api_gateway_pgx_risk_calculator.sh")
+
+# %%
+# --- Deploy Lambda: build image, push ECR, update function (idempotent) ---
+# Set SKIP_DEPLOY_LAMBDA=1 to skip (e.g. no Docker/AWS). On Windows, bash may not be in PATH (use Git Bash/WSL).
+DASHBOARD_DIR = REPO_ROOT / "9_risk_dashboard"
+SKIP_DEPLOY_LAMBDA = os.environ.get("SKIP_DEPLOY_LAMBDA", "").strip() in ("1", "true", "yes")
+docker_script = DASHBOARD_DIR / "deployment" / "docker_build.sh"
+LAMBDA_NAME = "pgx-risk-calculator"
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+if not SKIP_DEPLOY_LAMBDA and docker_script.exists():
+    print("Deploy Lambda: building image and pushing to ECR...")
+    r = subprocess.run(["bash", str(docker_script)], cwd=str(DASHBOARD_DIR))
+    if r.returncode != 0:
+        print("Docker build/push failed.")
+    else:
+        acc = subprocess.run(
+            ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],
+            capture_output=True, text=True
+        )
+        if acc.returncode == 0:
+            ecr_uri = f"{acc.stdout.strip()}.dkr.ecr.{AWS_REGION}.amazonaws.com/pgx-risk-calculator:latest"
+            print("Updating Lambda function...")
+            r2 = subprocess.run(
+                ["aws", "lambda", "update-function-code", "--function-name", LAMBDA_NAME,
+                 "--image-uri", ecr_uri, "--region", AWS_REGION]
+            )
+            if r2.returncode == 0:
+                subprocess.run(
+                    ["aws", "lambda", "wait", "function-updated", "--function-name", LAMBDA_NAME, "--region", AWS_REGION],
+                    capture_output=True
+                )
+                print("Lambda updated.")
+            else:
+                print("Lambda update failed.")
+        else:
+            print("Could not get AWS account ID.")
+elif not SKIP_DEPLOY_LAMBDA:
+    print("Docker script not found:", docker_script)
+
+# %%
+# --- Deploy frontend: sync frontend to S3 (idempotent) ---
+# Set SKIP_DEPLOY_FRONTEND=1 to skip. Bucket/prefix: S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX.
+SKIP_DEPLOY_FRONTEND = os.environ.get("SKIP_DEPLOY_FRONTEND", "").strip() in ("1", "true", "yes")
+frontend_dir = DASHBOARD_DIR / "frontend"
+s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+s3_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+s3_uri = f"s3://{s3_bucket}/{s3_prefix}/"
+
+if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
+    print(f"Syncing frontend to {s3_uri}")
+    r = subprocess.run(["aws", "s3", "sync", str(frontend_dir), s3_uri, "--region", "us-east-1"])
+    if r.returncode == 0:
+        print("Frontend synced.")
+    else:
+        print("S3 sync failed.")
+elif not SKIP_DEPLOY_FRONTEND:
+    print("Frontend dir not found:", frontend_dir)
 
 # %%
 # When run as script (python pgx_dashboard_visuals.py), the full file runs top-to-bottom
