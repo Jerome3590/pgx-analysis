@@ -1008,7 +1008,7 @@ N_SPLITS <- 50  # instead of 100
 - **Visualization Script:** `py_helpers/create_feature_importance_visualizations.py` (Python, recommended)
 - **Legacy Visualization Script:** `r_helpers/create_visualizations.R` (R, maintained for backward compatibility)
 - **Cross-Age-Band Analysis (optional):** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md)
-- **Workflow Testing:** [`docs/README_workflow_testing.md`](README_workflow_testing.md)
+- **Workflow Testing (QA):** [archived/qa/README_workflow_testing.md](../../archived/qa/README_workflow_testing.md)
 - **S3 Output Structure:** `S3_OUTPUT_STRUCTURE.md`
 - **rsample Bug:** `docs/RSAMPLE_BUG_WORKAROUND.md`
 

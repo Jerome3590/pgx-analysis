@@ -27,9 +27,9 @@ aws configure
 
 ## Running the Workflow
 
-The **three workflow notebooks** are the primary way to run the pipeline. They sync required inputs from S3 to local and use S3 checkpoints so steps are skipped when already completed. Run in order: **1_cohort_workflow.ipynb** → **2_feature_importance.ipynb** → **3_pgx_calculator_workflow.ipynb**.
+The **workflow notebooks** are the primary way to run the pipeline. They sync required inputs from S3 to local and use S3 checkpoints so steps are skipped when already completed. Run in order: **1_cohort_workflow.ipynb** → **2_feature_importance.ipynb** → **3_model_train_shap_ffa.ipynb** → **4_dashboard_visuals.ipynb** → **5_build_and_deploy.ipynb**.
 
-Shell scripts that ran the full pipeline (e.g. `run_cohort_workflow.sh`) are in **archived/utility_scripts/**; use the notebooks instead.
+Legacy shell scripts and the former combined notebooks (3, 4) are in **archived/**; use the five notebooks above.
 
 ### Available Cohorts and Age Bands
 
@@ -53,15 +53,17 @@ Shell scripts that ran the full pipeline (e.g. `run_cohort_workflow.sh`) are in 
 
 The scripts are idempotent and will skip completed steps automatically.
 
-## Workflow Notebooks (Three Pipelines)
+## Workflow Notebooks
 
-The pipeline is split into three workflow notebooks for clarity and rerun control:
+The pipeline is split into five workflow notebooks. Run in order:
 
-| Notebook | Scope | Purpose |
-|----------|--------|---------|
-| **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Steps 1–2 | Build cohorts: APCD input (1a), event filter (1b), cohort creation (2). Run first; then rerun feature importance after cohorts exist. |
-| **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Steps 3a–3c | Feature importance (3a MC-CV), Feature Importance EDA (3b BupaR, code research), and final update to features (3c). Step 3c ensures the feature list passed to Step 4 is leakage-free. Run after cohorts. |
-| **[3_pgx_calculator_workflow.ipynb](3_pgx_calculator_workflow.ipynb)** | Steps 4–9 | Model data, training, SHAP/FFA, and risk dashboard deployment. |
+| Notebook | Purpose |
+|----------|--------|
+| **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Steps 1–2: Cohorts (APCD input, event filter, cohort creation). |
+| **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Steps 3a–3c: Feature importance (3a MC-CV), EDA (3b BupaR), final feature update (3c). |
+| **[3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb)** | Model data → PGx → final model → SHAP/FFA → combine. No deploy. |
+| **[4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb)** | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven). |
+| **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once. |
 
 **ICD filtering moved earlier:** Administrative/ICD code filtering runs in **1b_apcd_event_filter** (before cohort creation). That reduces downstream data volume and ensures feature importance (Step 3a/3b) is computed on the same filtered event set, capturing true predictive features. After moving ICD filtering earlier, feature importances must be rerun once cohorts are rebuilt.
 
@@ -83,9 +85,13 @@ pgx-analysis/
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
 ├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)
-├── 3_pgx_calculator_workflow.ipynb  # Workflow notebook: Steps 4–9 (dashboard deployment)
-├── archived/                   # Code not called by the three notebooks (see archived/README.md)
-│   ├── utility_scripts/        # Old workflow shell scripts, sync/download/run scripts
+├── 3_model_train_shap_ffa.ipynb    # Workflow: model data, PGx, final model, SHAP/FFA
+├── 4_dashboard_visuals.ipynb       # Workflow: BupaR, DTW, FP-Growth visuals
+├── 5_build_and_deploy.ipynb       # Workflow: build and deploy (Lambda, S3)
+├── archived/                   # Legacy notebooks (3, 4) and scripts (see archived/README.md if present)
+│   ├── 3_pgx_calculator_workflow.ipynb
+│   ├── 4_pgx_dashboard_visuals.ipynb
+│   ├── utility_scripts/        # Old workflow shell scripts
 │   ├── qa/                     # Check/validate/clear/diagnose scripts
 │   └── testing/                # Test scripts
 ├── py_helpers/                 # Shared Python helper utilities
@@ -95,7 +101,7 @@ pgx-analysis/
 
 ## High-Level Workflow
 
-**Execution model:** Each workflow notebook syncs required inputs from **S3 to NVMe** (or local) via `aws s3 sync` (idempotent) and uses **S3 checkpoints** so steps are skipped when already completed. Run order: **1_cohort_workflow.ipynb** → **2_feature_importance.ipynb** → **3_pgx_calculator_workflow.ipynb**.
+**Execution model:** Each workflow notebook syncs required inputs from **S3 to NVMe** (or local) via `aws s3 sync` (idempotent) and uses **S3 checkpoints** so steps are skipped when already completed. Run order: **1** → **2** → **3** → **4** → **5**.
 
 ```mermaid
 flowchart TD
@@ -115,15 +121,21 @@ flowchart TD
         B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
-    subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data + Leakage Removal]
-        C1 --> D1[5: PGx Feature Engineering]
+    subgraph W3["3_model_train_shap_ffa.ipynb"]
+        B6 --> C1[4: Model Data]
+        C1 --> D1[5: PGx]
         D1 --> E1[6: Final Model]
-        E1 --> E4[Model Selection]
-        E4 --> F1[7: SHAP]
+        E1 --> E4[7: SHAP]
         E4 --> F2[8: FFA]
-        F1 --> G1[9: Risk Dashboard]
-        F2 --> G1
+        F2 --> F1[Combine SHAP/FFA]
+    end
+
+    subgraph W4["4_dashboard_visuals.ipynb"]
+        F1 --> G0[BupaR, DTW, FP-Growth]
+    end
+
+    subgraph W5["5_build_and_deploy.ipynb"]
+        G0 --> G1[9: Risk Dashboard]
         G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
 

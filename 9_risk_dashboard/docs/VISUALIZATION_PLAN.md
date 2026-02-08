@@ -20,7 +20,7 @@ This document maps **research questions** to **dashboard tabs** and **data visua
 ## Data Pattern
 
 - **Preferred:** Full dataset prepared upfront; dashboard filters to selected features (cohort, age band, item type). Minimal Lambda processing.
-- **SHAP/FFA-driven:** BupaR, DTW, FP-Growth, and Causal use **SHAP/FFA important features** (Step 7 / Step 8) to filter the original dataset or to define the feature set. Event logs, trajectories, itemsets, and causal/SHAP charts are restricted to model-important items, so **visuals stay aligned with what drives model results** (see `README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md`).
+- **SHAP/FFA-driven:** BupaR, DTW, FP-Growth, and Causal use **SHAP/FFA important features** (Step 7 / Step 8) to filter the original dataset or to define the feature set. Event logs, trajectories, itemsets, and causal/SHAP charts are restricted to model-important items, so **visuals stay aligned with what drives model results** (see `README_implementation_plan_tab_visualizations.md`).
 - **Fallback:** Run analysis based on selected features only if full-dataset approach is not feasible with current data.
 
 ---
@@ -37,7 +37,7 @@ Visuals are **not all** filterable by the user’s selected drug/ICD/CPT codes f
 | **DTW** | ❌ No | Cohort and age band only. |
 | **FP-Growth** | ✅ By cohort, age band, item type | Filtered by **cohort**, **age band**, and **item type** (Drug / ICD / CPT). Not by the specific selected code list; optional future: filter or highlight by selected codes. |
 
-See `README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md` for API details (query params and response fields).
+See `README_implementation_plan_tab_visualizations.md` for API details (query params and response fields).
 
 ---
 

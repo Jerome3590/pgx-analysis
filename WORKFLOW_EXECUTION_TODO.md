@@ -13,16 +13,17 @@ This document provides a step-by-step checklist for executing the complete workf
 
 **Optional:** [0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb) — env checks (Python/R/Docker), run cleanup script, and pipeline instructions. Not required for the workflow below.
 
-### Key notebooks (run from repo root)
+### Key notebooks (run from repo root) — efficient flow: 1 → 2 → 3 → 4 → 5
 
 | # | Notebook | Purpose |
 |---|----------|---------|
 | 1 | [1_cohort_workflow.ipynb](1_cohort_workflow.ipynb) | Step 2: Create cohorts (OPIOID_ED, POLYPHARMACY) |
 | 2 | [2_feature_importance.ipynb](2_feature_importance.ipynb) | Steps 3a–3c: Feature importance, BupaR leakage, refine features |
-| 3 | [3_pgx_calculator_workflow.ipynb](3_pgx_calculator_workflow.ipynb) | Steps 4–6 + dashboard prep: model data → PGx → final model → metadata/SHAP/FFA → Lambda deploy |
-| 4 | [4_pgx_dashboard_visuals.ipynb](4_pgx_dashboard_visuals.ipynb) | Step 5: Generate dashboard visuals (BupaR, DTW, FP-Growth; SHAP/FFA-driven). Run after Steps 7 and 8. |
+| 3 | [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb) | Model data → PGx → final model → SHAP/FFA → combine (no deploy) |
+| 4 | [4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb) | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven) |
+| 5 | [5_build_and_deploy.ipynb](5_build_and_deploy.ipynb) | Build and deploy: prepare Lambda → Docker → ECR → Lambda → S3 frontend |
 
-Alternative to notebook 4: run `pgx_dashboard_visuals.py` (same steps, VS Code Jupyter `# %%` or CLI).
+Alternative to notebook 4: run `pgx_dashboard_visuals.py` (same steps, VS Code `# %%` or CLI).
 
 ---
 
@@ -282,7 +283,7 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 
 ```bash
 cd ~/pgx-analysis
-jupyter notebook 4_pgx_dashboard_visuals.ipynb
+jupyter notebook 4_dashboard_visuals.ipynb
 # Run cells: Setup → Symlinks → Config → BupaR → DTW → FP-Growth → Deploy Lambda → Deploy frontend
 ```
 
@@ -344,7 +345,7 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 - All visualization tabs working (Causal Analysis, BupaR, DTW, FP-Growth)
 
 **Do you need to update the Lambda image for dashboard visuals?**
-- **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run **Step 5** (`4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`), upload outputs to S3 (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`), and the existing Lambda will serve them. Step 5 notebook/script can also run Deploy Lambda and Deploy frontend.
+- **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run **notebook 6** (or `pgx_dashboard_visuals.py`); upload outputs to S3. Build and deploy run in **notebook 7** only.
 - **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `9_risk_dashboard/backend/lambda_function.py`). See `9_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
 
 ---
@@ -362,8 +363,8 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 ## Automation Option
 
 **Run via the workflow notebooks:**
-- Cohorts / feature importance / model pipeline: `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`
-- **Dashboard visuals:** `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py` (from repo root; generates BupaR, DTW, FP-Growth artifacts)
+- Workflow: `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`
+- Dashboard visuals (alternative to notebook 4): `pgx_dashboard_visuals.py` (from repo root)
 
 Legacy shell scripts are in `archived/utility_scripts/` (if present):
 
@@ -376,23 +377,23 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 **Note**: After automated Steps 3–8, you still need to:
 1. Run Step 1 (cleanup) manually
 2. Run Step 2 (cohort creation) manually (polypharmacy uses fixed 21-day window)
-3. Run **Step 5** (dashboard visuals: `4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`) and **Step 6** (build and deploy dashboard) manually
+3. Run **3** → **4** → **5** (model train/SHAP/FFA → dashboard visuals → build and deploy)
 
 ---
 
 ## Final documented workflow (notebooks)
 
-The canonical end-to-end workflow is documented in these notebooks (run from repo root):
+**Most efficient flow:** 1 → 2 → **3** → **4** → **5** (one notebook per stage; build and deploy once in 5).
 
 | Order | Notebook | Covers |
 |-------|----------|--------|
-| 1 | **`1_cohort_workflow.ipynb`** | Step 2: Cohort creation (OPIOID_ED and POLYPHARMACY). Configuration → OPIOID_ED series → POLYPHARMACY series → status. |
-| 2 | **`2_feature_importance.ipynb`** | Steps 3a–3c: Sync inputs, Step 3a (MC-CV feature importance), Step 3b (BupaR target leakage + filter_and_refine), Step 3c (final feature list for Step 4). |
-| 3 | **`3_pgx_calculator_workflow.ipynb`** | Steps 4–6 in pipeline, then dashboard prep: model data → PGx analysis → final model training; sync → metadata → SHAP/FFA combine → prepare models → Lambda dir → verify → build/deploy. |
-| 4 | **`4_pgx_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | **Step 5:** Generate dashboard visuals (BupaR, DTW, FP-Growth; SHAP/FFA-driven). Run after Steps 7 and 8. |
+| 1 | **`1_cohort_workflow.ipynb`** | Step 2: Cohort creation (OPIOID_ED and POLYPHARMACY). |
+| 2 | **`2_feature_importance.ipynb`** | Steps 3a–3c: Feature importance, BupaR leakage, refine features. |
+| 3 | **`3_model_train_shap_ffa.ipynb`** | Model data → PGx → final model → SHAP/FFA → combine. No deploy. |
+| 4 | **`4_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven). |
+| 5 | **`5_build_and_deploy.ipynb`** | Prepare models/Lambda → Docker → ECR → update Lambda → S3 frontend. Run once. |
 
-**Prerequisites before notebook 1:** Step 1 (cleanup) and Step 1a/1b data as needed.  
-**After notebook 3:** Run Steps 7 (SHAP) and 8 (FFA) per cohort/age_band if not already done; then run **Step 5** (notebook 4 or script) for dashboard visuals before **Step 6** (build/deploy frontend).
+**Prerequisites before notebook 1:** Step 1 (cleanup) and Step 1a/1b data as needed.
 
 ---
 
@@ -402,14 +403,9 @@ The canonical end-to-end workflow is documented in these notebooks (run from rep
 - [ ] **Step 2**: Create cohorts with time-windowed logic for polypharmacy cohort (`1_cohort_workflow.ipynb`)
 - [ ] **Step 2**: Create cohorts for opioid ED cohort (`1_cohort_workflow.ipynb`)
 - [ ] **Step 3**: Run Feature Importance EDA (BupaR post-target analysis) for all cohorts (`2_feature_importance.ipynb` or `3b_feature_importance_eda/step3b_interactive_analysis_cohort*.ipynb`)
-- [ ] **Step 4a**: Create model data for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 4b**: Filter protocols for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 4.3**: Add PGx features for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 4.4**: Train models for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 7**: Run SHAP analysis for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 8**: Run FFA analysis for all cohorts (`3_pgx_calculator_workflow.ipynb`)
-- [ ] **Step 5**: Generate dashboard visuals (BupaR, DTW, FP-Growth); run Deploy Lambda / Deploy frontend as needed (`4_pgx_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py`)
-- [ ] **Step 6**: Build and deploy Risk Dashboard (frontend, Lambda, API Gateway, S3) — see `9_risk_dashboard/deployment/README.md` and `3_pgx_calculator_workflow.ipynb` deploy cells
+- [ ] **Notebook 3**: Model train + SHAP/FFA — `3_model_train_shap_ffa.ipynb` (model data, PGx, final model, SHAP, FFA, combine)
+- [ ] **Notebook 4**: Dashboard visuals — `4_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py` (BupaR, DTW, FP-Growth)
+- [ ] **Notebook 5**: Build and deploy — `5_build_and_deploy.ipynb` (Lambda, ECR, S3 frontend) — run once
 
 ---
 

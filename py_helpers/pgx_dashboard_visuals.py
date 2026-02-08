@@ -11,8 +11,7 @@ Steps:
 3. DTW: trajectory features and plots (SHAP/FFA-filtered)
 4. FP-Growth: itemsets, rules, network plots (SHAP/FFA-filtered)
 5. Lambda/API: document endpoints and deployment
-6. Deploy Lambda: build image, push to ECR, update Lambda function (set SKIP_DEPLOY_LAMBDA=1 to skip)
-7. Deploy frontend: sync 9_risk_dashboard/frontend to S3 (set SKIP_DEPLOY_FRONTEND=1 to skip)
+6. Deploy Lambda / frontend: skipped by default; run once in 5_build_and_deploy.ipynb (set DEPLOY_LAMBDA=1 / DEPLOY_FRONTEND=1 to run from this script)
 
 Run from repo root (pgx-analysis). Prerequisites: 4_model_data, 7_shap_analysis,
 8_ffa_analysis for SHAP/FFA-driven filtering; R and bupaR for BupaR step.
@@ -173,10 +172,10 @@ print("Dashboard visualization endpoints are documented in 9_risk_dashboard/back
 print("To update API Gateway: utility_scripts/create_api_gateway_pgx_risk_calculator.sh")
 
 # %%
-# --- Deploy Lambda: build image, push ECR, update function (idempotent) ---
-# Set SKIP_DEPLOY_LAMBDA=1 to skip (e.g. no Docker/AWS). On Windows, bash may not be in PATH (use Git Bash/WSL).
+# --- Deploy Lambda: build image, push ECR, update function ---
+# Build and deploy run once in 5_build_and_deploy.ipynb. This script skips deploy by default; set DEPLOY_LAMBDA=1 to run from here.
 DASHBOARD_DIR = REPO_ROOT / "9_risk_dashboard"
-SKIP_DEPLOY_LAMBDA = os.environ.get("SKIP_DEPLOY_LAMBDA", "").strip() in ("1", "true", "yes")
+SKIP_DEPLOY_LAMBDA = os.environ.get("DEPLOY_LAMBDA", "").strip() not in ("1", "true", "yes")
 docker_script = DASHBOARD_DIR / "deployment" / "docker_build.sh"
 LAMBDA_NAME = "pgx-risk-calculator"
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -212,9 +211,9 @@ elif not SKIP_DEPLOY_LAMBDA:
     print("Docker script not found:", docker_script)
 
 # %%
-# --- Deploy frontend: sync frontend to S3 (idempotent) ---
-# Set SKIP_DEPLOY_FRONTEND=1 to skip. Bucket/prefix: S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX.
-SKIP_DEPLOY_FRONTEND = os.environ.get("SKIP_DEPLOY_FRONTEND", "").strip() in ("1", "true", "yes")
+# --- Deploy frontend: sync frontend to S3 ---
+# Build and deploy run once in 5_build_and_deploy.ipynb. This script skips by default; set DEPLOY_FRONTEND=1 to run from here.
+SKIP_DEPLOY_FRONTEND = os.environ.get("DEPLOY_FRONTEND", "").strip() not in ("1", "true", "yes")
 frontend_dir = DASHBOARD_DIR / "frontend"
 s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
 s3_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")

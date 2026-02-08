@@ -101,7 +101,7 @@ modeling plan** focuses on a fixed grid where we train a **separate final model 
 - **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
   - Age bands modeled: **65–74**, **75–84**, **85–94**
 
-**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3c), `3_pgx_calculator_workflow.ipynb` (Steps 4–9). Step 1b (event filter: aggregated FI + ICD/administrative codes) runs before cohort creation; Step 3c is the final update to features before Step 4; Step 4 builds model data and removes target leakage for case events.
+**Workflow notebooks:** `1_cohort_workflow.ipynb` (Steps 1–2), `2_feature_importance.ipynb` (Steps 3a–3c), `3_model_train_shap_ffa.ipynb` (4–8 + combine), `4_dashboard_visuals.ipynb` (BupaR, DTW, FP-Growth), `5_build_and_deploy.ipynb` (Step 9). Step 1b (event filter: aggregated FI + ICD/administrative codes) runs before cohort creation; Step 3c is the final update to features before Step 4; Step 4 builds model data and removes target leakage for case events.
 
 For every `(cohort, age_band)` above we run:
 - MC‑CV feature importance (`3a_feature_importance/`) producing aggregated feature importances
@@ -114,13 +114,13 @@ For every `(cohort, age_band)` above we run:
 
 ### Workflow Pipeline
 
-Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for idempotency. Three notebooks: **1_cohort_workflow.ipynb** (Steps 1-2), **2_feature_importance.ipynb** (Steps 3a-3c), **3_pgx_calculator_workflow.ipynb** (Steps 4-9).
+Workflows use **S3 sync to NVMe** for required inputs and **S3 checkpoints** for idempotency. Five notebooks: **1** (1-2), **2** (3a-3c), **3** (4-8 + combine), **4** (dashboard visuals), **5** (build and deploy).
 
 ```mermaid
 flowchart TD
     subgraph W1["1_cohort_workflow.ipynb (Steps 1-2)"]
         A1[1a: APCD Input Data] --> A2[Data Cleaning]
-        A2 --> A1b[1b: Event Filter FI + ICD/Admin]
+        A2 --> A1b[1b: Event Filter ICD/Admin]
         A1b --> A3[2: Cohort Creation]
         A3 --> A4[Quality Assurance]
     end
@@ -134,15 +134,21 @@ flowchart TD
         B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
-    subgraph W3["3_pgx_calculator_workflow.ipynb (Steps 4-9)"]
-        B6 --> C1[4: Model Data + Leakage Removal]
-        C1 --> D1[5: PGx Feature Engineering]
+    subgraph W3["3_model_train_shap_ffa.ipynb"]
+        B6 --> C1[4: Model Data]
+        C1 --> D1[5: PGx]
         D1 --> E1[6: Final Model]
-        E1 --> E4[Model Selection]
-        E4 --> F1[7: SHAP]
+        E1 --> E4[7: SHAP]
         E4 --> F2[8: FFA]
-        F1 --> G1[9: Risk Dashboard]
-        F2 --> G1
+        F2 --> F1[Combine SHAP/FFA]
+    end
+
+    subgraph W4["4_dashboard_visuals.ipynb"]
+        F1 --> G0[BupaR, DTW, FP-Growth]
+    end
+
+    subgraph W5["5_build_and_deploy.ipynb"]
+        G0 --> G1[9: Risk Dashboard]
         G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
 
@@ -172,8 +178,10 @@ pgx-analysis/
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, Python/R deps, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
 ├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)
-├── 3_pgx_calculator_workflow.ipynb  # Workflow notebook: Steps 4–9 (dashboard deployment)
-├── archived/                   # Code not called by the three notebooks (see archived/README.md)
+├── 3_model_train_shap_ffa.ipynb    # Workflow: model train + SHAP/FFA
+├── 4_dashboard_visuals.ipynb       # Workflow: BupaR, DTW, FP-Growth
+├── 5_build_and_deploy.ipynb        # Workflow: build and deploy (Step 9)
+├── archived/                   # Legacy notebooks (3, 4) and scripts (see archived/README.md)
 ├── py_helpers/                 # Shared Python helper utilities
 ├── r_helpers/                  # Shared R helper utilities
 └── docs/                       # Documentation
@@ -226,7 +234,7 @@ pgx-analysis/
 
 The cohort analysis pipeline uses a **modular orchestrator/executor design** on top of a **partition‑first DuckDB layer**:
 
-- `2_create_cohort/create_cohort.py` orchestrates phases; individual step modules and SQL files implement the work.  
+- `2_create_cohort/0_create_cohort.py` orchestrates phases; individual step modules and SQL files implement the work.  
 - All heavy work runs per `(age_band, event_year)` partition with S3‑backed checkpoints, so jobs are resumable and easy to parallelize.
 
 For full operator‑level details (worker counts, DuckDB configuration, checkpoint layout, and performance tuning), see:

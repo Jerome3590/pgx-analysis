@@ -4,11 +4,15 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ## 📚 Documentation by Workflow Step
 
-### Final Workflow (Three Notebooks)
+### Final Workflow (Five Notebooks)
+
+Run in order: **1** → **2** → **3** → **4** → **5**.
 
 - **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
 - **2_feature_importance.ipynb** (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
-- **3_pgx_calculator_workflow.ipynb** (Steps 4-9): Model data, PGx, final model, SHAP, FFA, risk dashboard deployment. Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
+- **3_model_train_shap_ffa.ipynb**: Model data → PGx → final model → SHAP → FFA → combine (no deploy). Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
+- **4_dashboard_visuals.ipynb**: BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
+- **5_build_and_deploy.ipynb**: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
 
 ### Step 1-2: Data Pipeline & Cohort Creation
 **Location**: [`Step1-2_DataPipeline/`](Step1-2_DataPipeline/), **Code**: `1a_apcd_input_data/`, `1b_apcd_event_filter/`, `2_create_cohort/`
@@ -121,7 +125,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 ### Workflow & Analysis
 **Location**: [`CrossStep_Workflow/`](CrossStep_Workflow/)
 
-- **[README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** - Pointer to canonical analysis workflow (Steps 3a–9; three notebooks)
+- **[README_analysis_workflow.md](README_analysis_workflow.md)** - Canonical analysis workflow (Steps 1–9; five notebooks 1→2→3→4→5)
 - **[README_research_questions_mapping.md](CrossStep_Workflow/README_research_questions_mapping.md)** - Research questions to analysis methods mapping
 - **[README_healthcare_outcomes.md](CrossStep_Workflow/README_healthcare_outcomes.md)** - Healthcare outcomes rationale for cohort design
 - **[docs/archived/README_cross_ageband_analysis.md](archived/README_cross_ageband_analysis.md)** - Cross-age band analysis (optional; archived)
@@ -135,7 +139,7 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 ### Development & Testing
 **Location**: [`CrossStep_Development/`](CrossStep_Development/)
 
-- **[README_workflow_testing.md](CrossStep_Development/README_workflow_testing.md)** - Workflow testing and validation framework
+- **Workflow testing** (QA): moved to [archived/qa/README_workflow_testing.md](../archived/qa/README_workflow_testing.md)
 - **[README_parallelization_pipeline.md](CrossStep_Development/README_parallelization_pipeline.md)** - Parallelization strategies
 - **[README_local_notebook.md](CrossStep_Development/README_local_notebook.md)** - Local notebook development
 - **[README_duckdb_dev.md](CrossStep_Development/README_duckdb_dev.md)** - DuckDB development notes
@@ -182,6 +186,13 @@ docs/
 ├── CrossStep_Development/     # Development & testing docs
 └── Presentations/             # Presentation materials
 ```
+
+## Documentation and file naming conventions
+
+- **READMEs**: `README.md` or `README_<lowercase_with_underscores>.md` (e.g. `README_model_data_overview.md`). No numbered suffixes (e.g. avoid `README2.md`). Exception: proper nouns such as `README_bupaR.md` (BupaR) may keep their capitalization.
+- **Standalone / technical docs**: `UPPERCASE_WITH_UNDERSCORES.md` (e.g. `WORKFLOW_UPDATES.md`, `TIME_ESTIMATES.md`).
+- **No spaces** in filenames; use underscores. Exceptions (e.g. `Presentations/`) may use Title_Case where needed.
+- **References**: Use the exact filename case in links so they work on case-sensitive systems. See project root `.cursorrules` for full conventions.
 
 ## 🔍 Finding Documentation
 

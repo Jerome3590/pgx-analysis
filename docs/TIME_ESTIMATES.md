@@ -137,7 +137,7 @@ Use the checkpoint status script (if available):
 ```bash
 python py_helpers/checkpoint_utils.py  # or archived/utility_scripts/check_s3_checkpoints.py if present
 ```
-Or run workflow via the three notebooks: `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_pgx_calculator_workflow.ipynb`.
+Or run workflow via the five notebooks: `1_cohort_workflow.ipynb`, `2_feature_importance.ipynb`, `3_model_train_shap_ffa.ipynb`, `4_dashboard_visuals.ipynb`, `5_build_and_deploy.ipynb`.
 
 This shows which steps are complete for each cohort.
 

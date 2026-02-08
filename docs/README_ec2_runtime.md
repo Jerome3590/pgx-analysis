@@ -4,7 +4,7 @@
 **Strategy:** Maximum parallelization (all cohorts + optimized DuckDB threading)
 
 **Last Updated:** 2026-01-07
-**Workflow:** 3a/3b → 4 → 5 → 6 → 7 → 8 → 9 (run via **1_cohort_workflow.ipynb**, **2_feature_importance.ipynb**, **3_pgx_calculator_workflow.ipynb**)
+**Workflow:** Run **1_cohort_workflow.ipynb** → **2_feature_importance.ipynb** → **3_model_train_shap_ffa.ipynb** → **4_dashboard_visuals.ipynb** → **5_build_and_deploy.ipynb**
 
 ---
 
@@ -62,7 +62,7 @@ Based on final production workflow with DuckDB optimizations (4 threads per conn
 
 ### Strategy 1: All Cohorts in Parallel (Maximum Throughput)
 
-**Run the three workflow notebooks in order** (1_cohort_workflow.ipynb → 2_feature_importance.ipynb → 3_pgx_calculator_workflow.ipynb). For parallel cohort execution within a notebook, run cells for multiple (cohort, age_band) in separate kernels or use the notebook’s loop over cohorts/age bands.
+**Run the five workflow notebooks in order** (1 → 2 → 5 → 6 → 7). For parallel cohort execution within a notebook, run cells for multiple (cohort, age_band) in separate kernels or use the notebook’s loop over cohorts/age bands.
 
 Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.sh`) are in **archived/utility_scripts/**; use the notebooks as the primary entry point.
 
@@ -116,7 +116,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 **Batch 1: Opioid ED cohorts (4 cohorts in parallel)**
 ```bash
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 ```
 - Cohorts: 13-24, 25-44, 45-54, 55-64
 - **Time:** ~6 hours (bottleneck: 55-64)
@@ -144,7 +144,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Single command runs all cohorts
-# Use 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
+# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Expected:** All complete in ~6 hours (bottleneck: 55-64 or 65-74)
@@ -159,7 +159,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Day 1: Opioid ED cohorts (4 cohorts in parallel)
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 # Expected: ~6 hours
 
 # Day 2: Non-Opioid ED cohorts (3 cohorts in parallel)
@@ -239,7 +239,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 **Best Strategy: Run all 7 cohorts in parallel**
 
 ```bash
-# Use 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
+# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Why:**
@@ -262,7 +262,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 ### Run All Cohorts in Parallel (Recommended)
 
 ```bash
-# Run 3_pgx_calculator_workflow.ipynb for Steps 4-9 (or archived/utility_scripts/run_all_cohorts_workflow.sh)
+# Run 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb for Steps 4-9 (or archived/utility_scripts/run_all_cohorts_workflow.sh)
 ```
 
 **Expected:** All cohorts complete in ~6 hours
@@ -271,7 +271,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Opioid ED cohorts (4 cohorts in parallel)
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_pgx_calculator_workflow.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
 
 # Non-Opioid ED cohorts (3 cohorts in parallel)
 # Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)

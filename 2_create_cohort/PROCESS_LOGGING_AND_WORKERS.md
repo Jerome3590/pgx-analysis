@@ -140,7 +140,7 @@ When running cohort creation, check logs for:
 
 The following notebook functions need to pass `--concurrent-workers`:
 
-### `pgx_cohort_pipeline.ipynb`
+### `pgx_cohort_pipeline.ipynb` (legacy; moved to archived/2_create_cohort/)
 
 **Location 1** (around line 1216):
 ```python

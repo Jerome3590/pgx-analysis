@@ -29,8 +29,7 @@ Following the October 2025 refactor, the pipeline has been fully modularized int
 
 ```
 2_create_cohort/
-├── create_cohort.py
-├── pipeline_steps.py (legacy, deprecated)
+├── 0_create_cohort.py
 └── phases/
     ├── __init__.py
     ├── common.py
