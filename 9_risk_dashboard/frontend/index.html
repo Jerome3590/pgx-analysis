@@ -77,8 +77,36 @@
       box-sizing: border-box;
     }
     select[multiple] {
-      min-height: 120px;
+      min-height: 220px;
+      max-height: 400px;
       overflow-y: auto;
+      background: #ffffff;
+      padding: 0.5rem;
+    }
+    select[multiple] option {
+      padding: 0.4rem 0.5rem;
+      margin-bottom: 0.2rem;
+      cursor: pointer;
+    }
+    select[multiple] option:hover {
+      background: #e0e7ff;
+    }
+    select[multiple] option:checked {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+    /* Specific styling for code selection dropdowns */
+    #drugs, #icds, #cpts {
+      width: 100% !important;
+      min-height: 250px !important;
+      max-height: 400px !important;
+      display: block !important;
+      font-size: 0.875rem !important;
+      line-height: 1.5 !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      border: 2px solid #cbd5e1 !important;
+      background: #ffffff !important;
     }
     input[type="number"]:focus, select:focus {
       outline: none;
@@ -283,10 +311,13 @@
     }
     /* Only the active tab panel is visible; JS toggles .active on switch */
     .tab-content {
-      display: none !important;
+      display: none;
+      min-height: 400px;
+      overflow: visible;
     }
     .tab-content.active {
-      display: block !important;
+      display: block;
+      min-height: 400px;
     }
     /* PGx Card Styles */
     .pgx-input-section {
@@ -568,22 +599,22 @@
   <div class="container">
     <h1>PGx Risk Assessment Dashboard</h1>
     
-    <!-- Top-level tabs: Risk Assessment, Drugs, CPT, ICD Codes -->
+    <!-- Primary pipeline tabs -->
     <div class="tabs tabs-primary">
       <button class="tab-button active" data-tab="risk-assessment" onclick="switchTab('risk-assessment')">Risk Assessment</button>
-      <button class="tab-button" data-tab="patient-codes" data-code-subtab="drugs" onclick="switchTab('patient-codes', 'drugs')">Drugs</button>
-      <button class="tab-button" data-tab="patient-codes" data-code-subtab="cpt" onclick="switchTab('patient-codes', 'cpt')">CPT Codes</button>
-      <button class="tab-button" data-tab="patient-codes" data-code-subtab="icd" onclick="switchTab('patient-codes', 'icd')">ICD Codes</button>
+      <button class="tab-button" data-tab="drugs" onclick="switchTab('drugs')">Drugs</button>
+      <button class="tab-button" data-tab="icd-codes" onclick="switchTab('icd-codes')">ICD Codes</button>
+      <button class="tab-button" data-tab="cpt-codes" onclick="switchTab('cpt-codes')">CPT Codes</button>
+      <button class="tab-button" data-tab="pgx-card" onclick="switchTab('pgx-card')">PGx Card</button>
+      <button class="tab-button" data-tab="documentation" onclick="switchTab('documentation')">Documentation</button>
     </div>
-    <!-- Lower-level tabs: Visualizations, PGx Card, Documentation -->
+
+    <!-- Data visualization tabs -->
     <div class="tabs tabs-secondary">
-      <button class="tab-button" data-tab="drugs-on-drugs" onclick="switchTab('drugs-on-drugs')">Drugs on Drugs</button>
       <button class="tab-button" data-tab="causal-analysis" onclick="switchTab('causal-analysis')">Causal Analysis</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
-      <button class="tab-button" data-tab="pgx-card" onclick="switchTab('pgx-card')">PGx Patient Card</button>
-      <button class="tab-button" data-tab="documentation" onclick="switchTab('documentation')">Documentation</button>
     </div>
 
     <!-- Risk Assessment Tab -->
@@ -612,7 +643,7 @@
       <div class="control-group" id="codes-summary-group">
         <div class="patient-codes-summary">
           <span id="codes-summary-text">No codes selected. Go to <strong>Drugs</strong>, <strong>CPT Codes</strong>, or <strong>ICD Codes</strong> tab to add codes; selections are used for the risk calculation below.</span>
-          <button type="button" class="button-secondary btn-edit-codes" id="btnEditCodes" onclick="switchTab('patient-codes', 'drugs')">Edit codes</button>
+          <button type="button" class="button-secondary btn-edit-codes" id="btnEditCodes" onclick="switchTab('drugs')">Edit codes</button>
         </div>
       </div>
 
@@ -652,66 +683,64 @@
         <div class="comparison-scenarios" id="comparison-scenarios"></div>
       </div>
     </div>
+    </div>
+    <!-- END risk-assessment-tab -->
 
-    <!-- Drugs, ICD & CPT Codes Tab -->
-    <div id="patient-codes-tab" class="tab-content">
+    <!-- Drugs Tab -->
+    <div id="drugs-tab" class="tab-content">
       <p class="subtitle">
-        Select <strong>Drugs</strong>, <strong>ICD codes</strong>, or <strong>CPT codes</strong> below. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. Codes are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+        Select <strong>Drugs</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. Drugs are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
       </p>
-      <div class="tab-content-inner">
-      <div class="code-subtabs" role="tablist" aria-label="Code type">
-        <button type="button" class="code-subtab active" data-code-subtab="drugs" role="tab" aria-selected="true" aria-controls="code-subpanel-drugs" id="code-subtab-drugs" onclick="switchCodeSubTab('drugs')">Drugs</button>
-        <button type="button" class="code-subtab" data-code-subtab="icd" role="tab" aria-selected="false" aria-controls="code-subpanel-icd" id="code-subtab-icd" onclick="switchCodeSubTab('icd')">ICD Codes</button>
-        <button type="button" class="code-subtab" data-code-subtab="cpt" role="tab" aria-selected="false" aria-controls="code-subpanel-cpt" id="code-subtab-cpt" onclick="switchCodeSubTab('cpt')">CPT Codes</button>
-      </div>
-      <div class="code-subpanel active" id="code-subpanel-drugs" role="tabpanel" aria-labelledby="code-subtab-drugs">
-        <h3 class="panel-heading">Drugs</h3>
-        <div class="control-group" id="patient-codes-drugs-section">
+      <div class="tab-content-inner" style="padding: 1.5rem;">
+        <div class="control-group">
           <label for="drugs">Drug Names (search below, then select from list)</label>
           <div class="code-search">
             <input type="text" id="drug-search" placeholder="Search drugs..." aria-label="Filter drug list" />
           </div>
           <select id="drugs" multiple aria-label="Selected drugs for model"></select>
+          <div style="margin-top: 1rem;">
+            <strong>Selected Drugs:</strong>
+            <div id="selected-drugs-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
+          </div>
         </div>
       </div>
-      <div class="code-subpanel" id="code-subpanel-icd" role="tabpanel" aria-labelledby="code-subtab-icd" hidden>
-        <h3 class="panel-heading">ICD Codes</h3>
-        <div class="control-group" id="patient-codes-icd-section">
+    </div>
+
+    <!-- ICD Codes Tab -->
+    <div id="icd-codes-tab" class="tab-content">
+      <p class="subtitle">
+        Select <strong>ICD codes</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. ICD codes are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+      </p>
+      <div class="tab-content-inner">
+        <div class="control-group">
           <label for="icds">ICD Codes (search below, then select from list)</label>
           <div class="code-search">
             <input type="text" id="icd-search" placeholder="Search ICD codes..." aria-label="Filter ICD list" />
           </div>
           <select id="icds" multiple aria-label="Selected ICD codes for model"></select>
+          <div style="margin-top: 1rem;">
+            <strong>Selected ICD Codes:</strong>
+            <div id="selected-icds-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
+          </div>
         </div>
       </div>
-      <div class="code-subpanel" id="code-subpanel-cpt" role="tabpanel" aria-labelledby="code-subtab-cpt" hidden>
-        <h3 class="panel-heading">CPT Codes</h3>
-        <div class="control-group" id="patient-codes-cpt-section">
+    </div>
+
+    <!-- CPT Codes Tab -->
+    <div id="cpt-codes-tab" class="tab-content">
+      <p class="subtitle">
+        Select <strong>CPT codes</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. CPT codes are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+      </p>
+      <div class="tab-content-inner">
+        <div class="control-group">
           <label for="cpts">CPT Codes (search below, then select from list)</label>
           <div class="code-search">
             <input type="text" id="cpt-search" placeholder="Search CPT codes..." aria-label="Filter CPT list" />
           </div>
           <select id="cpts" multiple aria-label="Selected CPT codes for model"></select>
-        </div>
-      </div>
-      </div>
-    </div>
-
-    <!-- Drugs on Drugs Tab -->
-    <div id="drugs-on-drugs-tab" class="tab-content">
-      <p class="subtitle">
-        View drug–drug interaction (DDI) information for selected drugs.
-        <br>
-        <small style="color: #64748b;">Select drugs on the <strong>Drugs</strong> tab first; interactions are shown here based on CPIC and clinical guidelines.</small>
-      </p>
-      <div class="tab-content-inner">
-        <div id="drugs-on-drugs-status" class="status-message">
-          Select drugs on the <strong>Drugs</strong> tab, then return here to view drug–drug interactions.
-        </div>
-        <div class="panels" id="drugs-on-drugs-panels" style="display: none;">
-          <div class="panel">
-            <h2>Drug–Drug Interactions</h2>
-            <div id="drugs-on-drugs-table"></div>
+          <div style="margin-top: 1rem;">
+            <strong>Selected CPT Codes:</strong>
+            <div id="selected-cpts-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
           </div>
         </div>
       </div>
@@ -1044,12 +1073,12 @@
         </p>
 
         <h2>Tabs</h2>
-        <p><strong>Top level:</strong> Risk Assessment | Drugs | CPT Codes | ICD Codes</p>
-        <p><strong>Lower level:</strong> Drugs on Drugs | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Patient Card | Documentation</p>
+        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Patient Card | Documentation</p>
         <ul>
-          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / CPT / ICD tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
-          <li><strong>Drugs, CPT Codes, ICD Codes</strong> — Search and add drugs, CPT, or ICD codes. Selections are used for the risk calculation. For Polypharmacy (65–114), only drugs are used.</li>
-          <li><strong>Drugs on Drugs</strong> — View drug–drug interaction (DDI) information for drugs selected on the Drugs tab.</li>
+          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
+          <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
+          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. For Opioid ED patients only (ages 13-64). Selections are used for the risk calculation.</li>
+          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. For Opioid ED patients only (ages 13-64). Selections are used for the risk calculation.</li>
           <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort and age band.</li>
           <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations.</li>
           <li><strong>FP-Growth Patterns</strong> — Frequent itemset and network visualizations.</li>
@@ -1060,15 +1089,20 @@
         <h2>Workflow</h2>
         <ol>
           <li>Set <strong>Age</strong> on Risk Assessment (this loads metadata and determines cohort/age band).</li>
-          <li>Open <strong>Drugs</strong>, <strong>CPT Codes</strong>, or <strong>ICD Codes</strong> tab, search and add the codes you need.</li>
+          <li>Open <strong>Drugs</strong> tab, search and add the drugs you need. View selected drugs in the display area.</li>
+          <li>For Opioid ED patients (ages 13-64), also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
           <li>Return to <strong>Risk Assessment</strong> and click <em>Calculate Risk Score</em>.</li>
           <li>Use <em>Compare Scenarios</em> to compare different code sets.</li>
+          <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
         </ol>
 
         <h2>Technical notes</h2>
         <p>
           The backend uses an ensemble of CatBoost, XGBoost, and XGBoost RF models. Metadata (drugs, ICD, CPT) is filtered by cohort and age band. 
           All tabs use the same page; nothing here navigates you away to a separate doc page.
+        </p>
+        <p>
+          <strong>Note for Polypharmacy patients (ages 65-114):</strong> Only drugs are used for risk calculation. ICD and CPT code tabs are hidden for these patients.
         </p>
       </div>
     </div>
@@ -1233,13 +1267,27 @@
   }
 
   function updateCodeLists() {
-    if (!currentMetadata || !currentAgeBand) return;
+    if (!currentMetadata || !currentAgeBand) {
+      console.log("updateCodeLists: metadata or age band not available", {
+        hasMetadata: !!currentMetadata,
+        currentAgeBand: currentAgeBand
+      });
+      return;
+    }
     
     const codes = currentMetadata.codes[currentAgeBand] || { drugs: [], icds: [], cpts: [] };
+    
+    console.log("updateCodeLists: populating lists", {
+      ageBand: currentAgeBand,
+      drugCount: codes.drugs.length,
+      icdCount: codes.icds.length,
+      cptCount: codes.cpts.length
+    });
     
     populateSelect(drugsEl, codes.drugs.map(d => ({ value: d.code, text: `${d.display} (${d.importance.toFixed(3)})` })));
     populateSelect(icdsEl, codes.icds.map(i => ({ value: i.code, text: `${i.display} (${i.importance.toFixed(3)})` })));
     populateSelect(cptsEl, codes.cpts.map(c => ({ value: c.code, text: `${c.display} (${c.importance.toFixed(3)})` })));
+    
     // Preserve selected values that still exist in new list
     [drugsEl, icdsEl, cptsEl].forEach(sel => {
       const selected = getMultiSelectValues(sel);
@@ -1248,8 +1296,10 @@
         if (opt) opt.selected = true;
       });
     });
+    
     renderPatientCodesTab();
     updateCodesSummary();
+    updateSelectionDisplays();
   }
 
   function updateCodesSummary() {
@@ -1279,19 +1329,19 @@
     try {
       const age = parseInt(ageEl.value, 10) || 35;
       const isPolypharmacy = age >= 65 && age <= 114;
-      const icdSection = document.getElementById("patient-codes-icd-section");
-      const cptSection = document.getElementById("patient-codes-cpt-section");
-      if (icdSection) icdSection.style.display = isPolypharmacy ? "none" : "block";
-      if (cptSection) cptSection.style.display = isPolypharmacy ? "none" : "block";
-      const icdSubTab = document.querySelector(".code-subtab[data-code-subtab='icd']");
-      const cptSubTab = document.querySelector(".code-subtab[data-code-subtab='cpt']");
-      const icdPanel = document.getElementById("code-subpanel-icd");
-      const cptPanel = document.getElementById("code-subpanel-cpt");
-      if (icdSubTab) icdSubTab.style.display = isPolypharmacy ? "none" : "inline-block";
-      if (cptSubTab) cptSubTab.style.display = isPolypharmacy ? "none" : "inline-block";
-      const drugsSubTab = document.querySelector(".code-subtab[data-code-subtab='drugs']");
-      if (isPolypharmacy && icdPanel && icdPanel.classList.contains("active") && drugsSubTab) drugsSubTab.click();
-      else if (isPolypharmacy && cptPanel && cptPanel.classList.contains("active") && drugsSubTab) drugsSubTab.click();
+      
+      // Show/hide ICD and CPT tabs for polypharmacy patients
+      const icdTabBtn = document.querySelector(".tab-button[data-tab='icd-codes']");
+      const cptTabBtn = document.querySelector(".tab-button[data-tab='cpt-codes']");
+      
+      if (icdTabBtn) icdTabBtn.style.display = isPolypharmacy ? "none" : "inline-block";
+      if (cptTabBtn) cptTabBtn.style.display = isPolypharmacy ? "none" : "inline-block";
+      
+      // If currently on ICD or CPT tab and patient is polypharmacy, switch to Drugs tab
+      const currentTab = document.querySelector(".tab-content.active");
+      if (isPolypharmacy && currentTab && (currentTab.id === "icd-codes-tab" || currentTab.id === "cpt-codes-tab")) {
+        switchTab('drugs');
+      }
     } catch (e) {
       console.error("renderPatientCodesTab error:", e);
     }
@@ -1613,53 +1663,144 @@
   icdSearchEl.addEventListener("input", () => filterOptions(icdsEl, icdSearchEl));
   cptSearchEl.addEventListener("input", () => filterOptions(cptsEl, cptSearchEl));
 
-  window.switchTab = function(tabName, codeSubTab) {
+  // Update selection displays when codes are selected/deselected
+  drugsEl.addEventListener("change", () => {
+    updateDrugDisplay();
+    updateCodesSummary();
+  });
+  icdsEl.addEventListener("change", () => {
+    updateIcdDisplay();
+    updateCodesSummary();
+  });
+  cptsEl.addEventListener("change", () => {
+    updateCptDisplay();
+    updateCodesSummary();
+  });
+
+  window.switchTab = function(tabName) {
+    console.log("switchTab called with:", tabName);
+    
+    // Remove active class from all tab buttons
     document.querySelectorAll(".tab-button").forEach(btn => btn.classList.remove("active"));
+    
+    // Hide all tab content
     document.querySelectorAll(".tab-content").forEach(content => {
-      const isActive = content.id === tabName + "-tab";
-      content.classList.toggle("active", isActive);
-      content.style.display = isActive ? "block" : "none";
+      content.classList.remove("active");
+      content.style.display = "none";
     });
-    var activeBtn = null;
-    if (tabName === "patient-codes" && codeSubTab) {
-      activeBtn = document.querySelector(".tabs .tab-button[data-tab='patient-codes'][data-code-subtab='" + codeSubTab + "']");
+    
+    // Show selected tab content
+    const tabId = tabName + "-tab";
+    console.log("Looking for tab with id:", tabId);
+    const activeContent = document.getElementById(tabId);
+    console.log("Found tab element:", activeContent);
+    
+    if (activeContent) {
+      activeContent.classList.add("active");
+      activeContent.style.display = "block";
+      console.log("Tab activated:", tabId, "Display:", activeContent.style.display);
+    } else {
+      console.error("Tab element not found:", tabId);
     }
-    if (!activeBtn) {
-      activeBtn = document.querySelector(".tabs .tab-button[data-tab='" + tabName + "']");
+    
+    // Set active class on clicked tab button
+    const activeBtn = document.querySelector(".tab-button[data-tab='" + tabName + "']");
+    console.log("Found button:", activeBtn);
+    if (activeBtn) {
+      activeBtn.classList.add("active");
     }
-    if (activeBtn) activeBtn.classList.add("active");
-    if (tabName === "risk-assessment") updateCodesSummary();
-    if (tabName === "patient-codes") {
-      renderPatientCodesTab();
-      switchCodeSubTab(codeSubTab || "drugs");
+    
+    // Update displays if needed
+    if (tabName === "risk-assessment") {
+      updateCodesSummary();
+    } else if (tabName === "drugs" || tabName === "icd-codes" || tabName === "cpt-codes") {
+      // When switching to code selection tabs, ensure metadata is loaded
+      if (!currentMetadata) {
+        console.log("Metadata not loaded, loading now...");
+        const age = parseInt(ageEl.value) || 35;
+        const cohort = determineCohort(age);
+        if (cohort) {
+          loadMetadata(cohort);
+        }
+      } else {
+        console.log("Metadata already loaded, updating displays");
+        updateSelectionDisplays();
+      }
     }
   };
 
-  window.switchCodeSubTab = function(subTabName) {
-    const panelId = "code-subpanel-" + subTabName;
-    document.querySelectorAll(".code-subtab").forEach(b => {
-      b.classList.remove("active");
-      b.setAttribute("aria-selected", "false");
-    });
-    document.querySelectorAll(".code-subpanel").forEach(p => {
-      p.classList.remove("active");
-      p.style.display = "none";
-      p.setAttribute("hidden", "");
-    });
-    const panel = document.getElementById(panelId);
-    const btn = document.getElementById("code-subtab-" + subTabName);
-    if (panel) {
-      panel.classList.add("active");
-      panel.style.display = "block";
-      panel.removeAttribute("hidden");
+  // Update selection displays for drugs, ICD, and CPT codes
+  function updateSelectionDisplays() {
+    updateDrugDisplay();
+    updateIcdDisplay();
+    updateCptDisplay();
+  }
+
+  function updateDrugDisplay() {
+    const container = document.getElementById("selected-drugs-display");
+    if (!container) return;
+    const selected = getMultiSelectValues(drugsEl);
+    if (selected.length === 0) {
+      container.innerHTML = '<span style="color: #64748b; font-style: italic;">No drugs selected</span>';
+      return;
     }
-    if (btn) {
-      btn.classList.add("active");
-      btn.setAttribute("aria-selected", "true");
+    container.innerHTML = selected.map(code => {
+      const option = Array.from(drugsEl.options).find(o => o.value === code);
+      const display = option ? option.text : code;
+      return `<span class="code-chip">${display} <button onclick="removeDrugCode('${code}')">×</button></span>`;
+    }).join(' ');
+  }
+
+  function updateIcdDisplay() {
+    const container = document.getElementById("selected-icds-display");
+    if (!container) return;
+    const selected = getMultiSelectValues(icdsEl);
+    if (selected.length === 0) {
+      container.innerHTML = '<span style="color: #64748b; font-style: italic;">No ICD codes selected</span>';
+      return;
     }
-    document.querySelectorAll(".tabs-primary .tab-button[data-tab='patient-codes']").forEach(b => b.classList.remove("active"));
-    const primaryBtn = document.querySelector(".tabs-primary .tab-button[data-code-subtab='" + subTabName + "']");
-    if (primaryBtn) primaryBtn.classList.add("active");
+    container.innerHTML = selected.map(code => {
+      const option = Array.from(icdsEl.options).find(o => o.value === code);
+      const display = option ? option.text : code;
+      return `<span class="code-chip">${display} <button onclick="removeIcdCode('${code}')">×</button></span>`;
+    }).join(' ');
+  }
+
+  function updateCptDisplay() {
+    const container = document.getElementById("selected-cpts-display");
+    if (!container) return;
+    const selected = getMultiSelectValues(cptsEl);
+    if (selected.length === 0) {
+      container.innerHTML = '<span style="color: #64748b; font-style: italic;">No CPT codes selected</span>';
+      return;
+    }
+    container.innerHTML = selected.map(code => {
+      const option = Array.from(cptsEl.options).find(o => o.value === code);
+      const display = option ? option.text : code;
+      return `<span class="code-chip">${display} <button onclick="removeCptCode('${code}')">×</button></span>`;
+    }).join(' ');
+  }
+
+  // Functions to remove codes from selection
+  window.removeDrugCode = function(code) {
+    const option = Array.from(drugsEl.options).find(o => o.value === code);
+    if (option) option.selected = false;
+    updateDrugDisplay();
+    updateCodesSummary();
+  };
+
+  window.removeIcdCode = function(code) {
+    const option = Array.from(icdsEl.options).find(o => o.value === code);
+    if (option) option.selected = false;
+    updateIcdDisplay();
+    updateCodesSummary();
+  };
+
+  window.removeCptCode = function(code) {
+    const option = Array.from(cptsEl.options).find(o => o.value === code);
+    if (option) option.selected = false;
+    updateCptDisplay();
+    updateCodesSummary();
   };
 
   (function initTabVisibility() {
@@ -2071,8 +2212,18 @@
     }
   });
 
+  // Initialize the dashboard
+  console.log("Initializing PGx Risk Dashboard...");
   updateModelIndicator(35);
-  loadMetadata("opioid_ed");
+  
+  // Load metadata for default cohort
+  console.log("Loading metadata for opioid_ed cohort...");
+  loadMetadata("opioid_ed").then(() => {
+    console.log("Metadata loaded successfully");
+    console.log("Drug options count:", drugsEl.options.length);
+    console.log("ICD options count:", icdsEl.options.length);
+    console.log("CPT options count:", cptsEl.options.length);
+  });
 </script>
 </body>
 </html>
