@@ -89,14 +89,33 @@ if __name__ == "__main__":
         action='store_true',
         help='Skip S3 upload'
     )
+    parser.add_argument(
+        '--s3-bucket',
+        type=str,
+        default=None,
+        help='S3 bucket for uploads (default: from env S3_DASHBOARD_BUCKET or jerome-dixon.io)'
+    )
+    parser.add_argument(
+        '--s3-prefix',
+        type=str,
+        default=None,
+        help='S3 key prefix (default: {S3_DASHBOARD_PREFIX}/fpgrowth, e.g. vcu/pgx-risk-calculator/fpgrowth)'
+    )
     
     args = parser.parse_args()
     
     if args.output_dir is None:
         args.output_dir = Path(args.base_dir) / "plots"
     
-    # Create visualizations for all item types
-    all_plots = create_all_fpgrowth_plots(
+    # Use dashboard bucket/prefix so FP-Growth assets are where the dashboard is rendered from
+    s3_bucket = args.s3_bucket or os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    s3_prefix = args.s3_prefix
+    if s3_prefix is None:
+        dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+        s3_prefix = f"{dashboard_prefix.rstrip('/')}/fpgrowth"
+    
+    # Create visualizations for all item types; upload to S3 when not --no-s3-upload
+    result = create_all_fpgrowth_plots(
         base_dir=args.base_dir,
         cohort_name=args.cohort_name,
         age_band=args.age_band,
@@ -105,16 +124,21 @@ if __name__ == "__main__":
         item_types=args.item_types,
         output_dir=str(args.output_dir),
         s3_upload=not args.no_s3_upload,
+        s3_bucket=s3_bucket,
+        s3_prefix=s3_prefix,
         top_n=args.top_n,
     )
+    all_plots = result.get("plots", result) if isinstance(result, dict) else result
+    total_plots = sum(len(plots) for plots in all_plots.values())
     
     print(f"\n{'=' * 70}")
     print("Visualization Summary")
     print(f"{'=' * 70}")
-    total_plots = sum(len(plots) for plots in all_plots.values())
     print(f"Total plots created: {total_plots}")
     for item_type, plots in all_plots.items():
         print(f"\n{item_type}: {len(plots)} plots")
         for plot_name in plots.keys():
             print(f"  - {plot_name}")
+    if result.get("s3_urls"):
+        print(f"\nUploaded to dashboard bucket: s3://{s3_bucket}/{s3_prefix}/<cohort>/<age_band>/plots/")
 

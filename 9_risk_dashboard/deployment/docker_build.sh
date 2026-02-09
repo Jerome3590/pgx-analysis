@@ -32,9 +32,9 @@ if [ ! -d "outputs/models" ]; then
     python prepare_cpic_data.py
     cd ..
 fi
-# Ensure metrics are in outputs/metadata for ECR bundle (even if models already existed)
+# Optional: metrics in ECR bundle (Lambda prefers S3 gold/dashboard/metadata/model_performance_metrics.json)
 if [ ! -f "outputs/metadata/model_performance_metrics.json" ]; then
-    echo -e "${YELLOW}Generating model performance metrics for Documentation tab...${NC}"
+    echo -e "${YELLOW}Generating model performance metrics (fallback for Documentation tab)...${NC}"
     cd data_preparation && python generate_metrics.py && cd ..
 fi
 
@@ -64,6 +64,8 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Create Lambda function from container image"
 echo "  2. Set environment variables:"
 echo "     - PGX_RESULTS_BUCKET=pgxdatalake"
+echo "     - S3_DASHBOARD_BUCKET=jerome-dixon.io   (bucket where frontend is deployed; FP-Growth URLs)"
+echo "     - S3_DASHBOARD_PREFIX=vcu/pgx-risk-calculator"
 echo "     - MODEL_CACHE_TTL=3600"
 echo "  3. Configure API Gateway to use this Lambda"
 

@@ -3,17 +3,17 @@
 Create patient-level DTW trajectory features.
 
 This script extracts DTW-based trajectory features from patient sequences:
-- Builds patient trajectories from model_data (already filtered by aggregated feature importances in Step 4a)
+- Builds patient trajectories from model_data, restricted to **SHAP/FFA important codes**
+  when available (same as BupaR/FP-Growth). Uses get_shap_ffa_allowed_codes_combined();
+  if that fails or returns empty, falls back to all events in model_data.
 - Computes DTW distances to prototype trajectories
 - Creates patient-level features for model training
 
 Output:
 - Saves to: outputs/feature_engineering/dtw_features_{cohort}_{age_band}.csv
 - This intermediate file is then merged with other features by add_dtw_features_to_model_data.py
-
-NOTE: This script no longer requires FP-Growth itemsets. The model_data is already filtered
-by aggregated feature importances from Step 3, so all events in model_data are used for
-trajectory construction.
+- Adds admin_icd_event_count (from 1b_apcd_event_filter/administrative_codes_lookup.json) for
+  Routine vs No Routine (appointments) comparison in the dashboard.
 """
 
 import sys
@@ -52,6 +52,72 @@ logger = logging.getLogger(__name__)
 # NOTE: load_fpgrowth_itemsets function removed - no longer needed
 # model_data is already filtered by aggregated feature importances (Step 4a),
 # so we don't need to filter again using FP-Growth itemsets.
+
+# ICD diagnosis columns in model_events (must match 4_model_data)
+ICD_DIAGNOSIS_COLUMNS = [
+    "primary_icd_diagnosis_code",
+    "two_icd_diagnosis_code",
+    "three_icd_diagnosis_code",
+    "four_icd_diagnosis_code",
+    "five_icd_diagnosis_code",
+    "six_icd_diagnosis_code",
+    "seven_icd_diagnosis_code",
+    "eight_icd_diagnosis_code",
+    "nine_icd_diagnosis_code",
+    "ten_icd_diagnosis_code",
+]
+
+
+def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
+    """Load administrative ICD codes from 1b_apcd_event_filter/administrative_codes_lookup.json."""
+    path = project_root / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
+    if not path.exists():
+        logger.warning("Administrative codes lookup not found at %s; routine vs no routine will use trajectory intensity", path)
+        return set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        codes = data.get("administrative_codes", {}).get("icd", [])
+        return set(str(c) for c in codes)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not load administrative ICD codes: %s", exc)
+        return set()
+
+
+def _compute_admin_icd_event_count(
+    model_data_path: Path,
+    project_root: Path,
+) -> pd.DataFrame:
+    """
+    Compute per-patient count of events that have at least one administrative ICD code
+    (routine appointment / admin visit). Used for Routine vs No Routine comparison.
+    """
+    admin_icd = _load_administrative_icd_codes(project_root)
+    if not admin_icd:
+        return pd.DataFrame(columns=["mi_person_key", "admin_icd_event_count"])
+
+    con = duckdb.connect()
+    # Build condition: row has admin ICD if any of the ICD columns is in the admin set
+    admin_list = ", ".join(f"'{c}'" for c in sorted(admin_icd))
+    icd_conditions = " OR ".join(f"{col} IN ({admin_list})" for col in ICD_DIAGNOSIS_COLUMNS)
+    query = f"""
+        WITH events_with_admin_icd AS (
+            SELECT mi_person_key
+            FROM read_parquet('{str(model_data_path).replace(chr(92), "/")}')
+            WHERE {icd_conditions}
+        )
+        SELECT mi_person_key, COUNT(*)::INTEGER as admin_icd_event_count
+        FROM events_with_admin_icd
+        GROUP BY mi_person_key
+    """
+    try:
+        df = con.execute(query).df()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not compute admin ICD event count: %s", exc)
+        con.close()
+        return pd.DataFrame(columns=["mi_person_key", "admin_icd_event_count"])
+    con.close()
+    return df
 
 
 def extract_patient_trajectories(
@@ -826,6 +892,17 @@ def create_all_dtw_features(
         logger.info(f"Added {len(sequence_features.columns) - 1} sequence + time window features")
     else:
         logger.warning("No sequence + time window features created")
+
+    # Add admin ICD event count for Routine vs No Routine (appointments) comparison
+    admin_icd_df = _compute_admin_icd_event_count(model_data_path, REPO_ROOT)
+    if not admin_icd_df.empty:
+        combined_features = combined_features.merge(
+            admin_icd_df,
+            on='mi_person_key',
+            how='left'
+        )
+        combined_features["admin_icd_event_count"] = combined_features["admin_icd_event_count"].fillna(0).astype(int)
+        logger.info("Added admin_icd_event_count for routine vs no routine comparison (from administrative_codes_lookup.json)")
     
     logger.info(f"\nTotal features created: {len(combined_features.columns) - 2} (including sequence + time window features)")
     

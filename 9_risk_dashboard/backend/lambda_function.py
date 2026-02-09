@@ -1,20 +1,19 @@
 """
 AWS Lambda function for PGx Risk Dashboard API.
 
-This function implements a robust ensemble approach using all three models:
-1. CatBoost
-2. XGBoost
-3. XGBoost RF (Random Forest mode)
-
-The ensemble combines predictions from all three models using weighted averaging
-for improved robustness and reliability.
+Lambda receives user input (cohort, model/feature selections) and **filters** only—it does not
+process or generate visualization data. All visuals are prebuilt on EC2 and saved to S3; Lambda
+returns URLs to those prebuilt assets. Risk inference uses the ensemble (CatBoost, XGBoost,
+XGBoost RF) with user-provided features; causal/visualization endpoints return prebuilt or
+pre-indexed data filtered by cohort/age_band/features.
 
 Handles:
-- GET /metadata - Returns valid codes for cohorts/age_bands
-- POST /risk - Calculates risk score using ensemble of all three models
-- POST /risk/comparison - Compares risk scores for different scenarios
-- POST /causal/importance - Returns causal importance for features (optionally filtered by selected drugs)
-- POST /causal/interactions - Returns multi-feature interaction analysis results
+- GET /metadata - Returns valid codes for cohorts/age_bands (filter by cohort)
+- POST /risk - Risk score from ensemble, filtered by user-selected cohort and features
+- POST /risk/comparison - Compares risk scores for user-provided scenarios
+- POST /causal/importance - Returns causal importance filtered by selected drugs/features (prebuilt data)
+- POST /causal/interactions - Returns interaction results filtered by selection (prebuilt data)
+- GET /visualizations/* - Returns URLs to prebuilt S3 assets only (no processing)
 
 Environment Variables:
 - PGX_RESULTS_BUCKET: S3 bucket name (default: pgxdatalake)
@@ -54,6 +53,9 @@ except ImportError:
 
 # Configuration
 S3_BUCKET = os.environ.get("PGX_RESULTS_BUCKET", "pgxdatalake")
+# Dashboard frontend bucket/prefix (where FP-Growth assets are uploaded so they render with the app)
+S3_DASHBOARD_BUCKET = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+S3_DASHBOARD_PREFIX = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
 MODEL_CACHE_TTL = int(os.environ.get("MODEL_CACHE_TTL", "3600"))
 METADATA_PREFIX = "gold/dashboard/metadata"
 MODEL_PREFIX = "gold/dashboard/models"
@@ -165,17 +167,37 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
 
 
 def handle_metrics(_event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /metrics — return model performance metrics from container (bundled in ECR at build time)."""
-    container_path = Path("/var/task/metadata/model_performance_metrics.json")
-    if not container_path.exists():
-        return _response(200, {"by_cohort": {}, "source": "none"})
+    """GET /metrics — return prebuilt model performance metrics from S3 (no recomputation). Fallback to container bundle."""
+    key = f"{METADATA_PREFIX}/model_performance_metrics.json"
     try:
-        with open(container_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return _response(200, data if isinstance(data, dict) else {"by_cohort": {}, "payload": data})
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        data = json.loads(obj["Body"].read().decode("utf-8"))
+        if isinstance(data, dict):
+            if "source" not in data:
+                data["source"] = "s3"
+            return _response(200, data)
+        return _response(200, {"by_cohort": {}, "payload": data, "source": "s3"})
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404", "NotFound"):
+            pass
+        else:
+            print(f"Metrics S3 load failed: {e}")
     except Exception as e:
-        print(f"Metrics load failed: {e}")
-        return _response(200, {"by_cohort": {}, "source": "none", "error": str(e)})
+        print(f"Metrics S3 load failed: {e}")
+    # Fallback: container bundle (optional at build time)
+    container_path = Path("/var/task/metadata/model_performance_metrics.json")
+    if container_path.exists():
+        try:
+            with open(container_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            out = data if isinstance(data, dict) else {"by_cohort": {}, "payload": data}
+            if "source" not in out:
+                out["source"] = "container"
+            return _response(200, out)
+        except Exception as e:
+            print(f"Metrics container load failed: {e}")
+    return _response(200, {"by_cohort": {}, "source": "none"})
 
 
 def load_model(cohort: str, age_band: str, model_type: str) -> Any:
@@ -1347,9 +1369,9 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     GET /visualizations/dtw?cohort=...&age_band=...
 
-    Returns DTW image paths and, when DTW feature data exists in S3, chart data for:
-    - routine_comparison: outcome rate by trajectory intensity (proxy for routine vs non-routine)
-    - high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
+    Returns only URLs to prebuilt DTW assets. All DTW visuals are prebuilt on EC2 and saved to the
+    dashboard bucket (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/ for
+    direct dashboard integration. No computation at request time.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1360,32 +1382,26 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-
-        # Construct S3 paths for DTW visualization images
-        base_s3_path = f"gold/feature_importance/{cohort}/{age_band}/plots"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/dtw/{cohort}/{age_band}"
+        plots_key = f"{prefix}/plots"
         payload = {
-            "overview_image": f"s3://{S3_BUCKET}/{base_s3_path}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png",
-            "sample_trajectories_image": f"s3://{S3_BUCKET}/{base_s3_path}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
+            "overview_image": f"{base_url}/{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png",
+            "sample_trajectories_image": f"{base_url}/{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
+            "chart_data_url": f"{base_url}/{prefix}/chart_data.json",
             "metrics": {},
         }
-
-        # Load DTW features from S3 to prepopulate routine vs non-routine and high-risk trajectory visuals
-        dtw_df = load_dtw_features(cohort, age_band)
-        if not dtw_df.empty:
-            routine = _compute_dtw_routine_comparison(dtw_df)
-            if routine:
-                payload["routine_comparison"] = routine
-            high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
-            if high_risk:
-                payload["high_risk_trajectories"] = high_risk
-
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/fpgrowth?cohort=...&age_band=...&item_type=..."""
+    """GET /visualizations/fpgrowth?cohort=...&age_band=...&item_type=...
+    Returns HTTPS URLs for dashboard: itemsets PNG, network Plotly HTML (iframe by cohort).
+    Files are built by 4_dashboard_visuals / create_plots and uploaded to the dashboard bucket
+    (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/.
+    """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
@@ -1396,21 +1412,28 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
         
         age_band_fname = age_band.replace("-", "_")
-        
-        # Construct S3 paths for FP-Growth visualization images
-        base_s3_path = f"gold/fpgrowth/{cohort}/{age_band}/plots"
-        
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
+        base_key = f"{prefix}/{cohort}/{age_band}/plots"
+        # Filenames produced by py_helpers.create_fpgrowth_visualizations
+        itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
+        network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"
+        network_png_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.png"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         return _response(200, {
-            "itemsets_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_train_{item_type}_top20_itemsets.png",
-            "support_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_train_{item_type}_itemset_support.png",
-            "network_html": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_train_{item_type}_network.html"
+            "itemsets_image": f"{base_url}/{itemsets_key}",
+            "support_image": f"{base_url}/{itemsets_key}",
+            "network_html": f"{base_url}/{network_html_key}",
+            "network_png": f"{base_url}/{network_png_key}",
         })
     except Exception as e:
         return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/bupar?cohort=...&age_band=..."""
+    """GET /visualizations/bupar?cohort=...&age_band=...
+    Returns HTTPS URLs for BupaR plots from the dashboard bucket (S3_DASHBOARD_BUCKET)
+    under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/. Uploaded by run_analysis.py.
+    """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
@@ -1420,19 +1443,19 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
         
         age_band_fname = age_band.replace("-", "_")
-        
-        # Construct S3 paths for BupaR visualization images
-        base_s3_path = f"gold/feature_importance/{cohort}/{age_band}/plots"
-        
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
+        base_key = f"{prefix}/{cohort}/{age_band}/plots"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
+        # Filenames produced by R (create_bupar_outputs_*.R)
         return _response(200, {
-            "activity_frequency_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_overall_activity_frequency.png",
-            "pre_target_frequency_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png",
-            "post_target_frequency_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_post_f1120_activity_frequency.png",
-            "gantt_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_gantt.png",
-            "pre_target_gantt_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_pre_f1120_gantt.png",
-            "post_target_gantt_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_post_f1120_gantt.png",
-            "sequence_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_activity_sequence_top.png",
-            "milestones_image": f"s3://{S3_BUCKET}/{base_s3_path}/{cohort}_{age_band_fname}_activity_milestones_gantt.png"
+            "activity_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_overall_activity_frequency.png",
+            "pre_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png",
+            "post_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_post_f1120_activity_frequency.png",
+            "gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_milestones_gantt.png",
+            "pre_target_gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_pre_f1120_gantt.png",
+            "post_target_gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_post_f1120_gantt.png",
+            "sequence_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_sequence_top.png",
+            "milestones_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_milestones_gantt.png"
         })
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1452,87 +1475,6 @@ def load_shap_importance(cohort: str, age_band: str, model_type: str = "xgboost"
         if code in ("NoSuchKey", "404", "NotFound"):
             return pd.DataFrame()
         raise
-
-
-def load_dtw_features(cohort: str, age_band: str) -> pd.DataFrame:
-    """Load DTW feature CSV from S3 (gold/feature_engineering/6_dtw)."""
-    age_band_fname = age_band.replace("-", "_")
-    s3_key = f"gold/feature_engineering/6_dtw/{cohort}/{age_band}/dtw_features_{cohort}_{age_band_fname}.csv"
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-        df = pd.read_csv(BytesIO(obj["Body"].read()))
-        return df
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
-            return pd.DataFrame()
-        raise
-
-
-def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """
-    Outcome rate by trajectory intensity (event count) as proxy for routine vs non-routine.
-    Buckets: Low / Medium / High by trajectory_length tertiles.
-    """
-    if df.empty or "target" not in df.columns or "trajectory_length" not in df.columns:
-        return None
-    col = "trajectory_length"
-    df = df[[col, "target"]].dropna()
-    if len(df) < 10:
-        return None
-    q1, q2 = df[col].quantile(0.33), df[col].quantile(0.67)
-
-    def bucket(x):
-        if x <= q1:
-            return "Low (fewer events)"
-        if x <= q2:
-            return "Medium"
-        return "High (more events)"
-
-    df = df.copy()
-    df["bucket"] = df[col].apply(bucket)
-    agg = df.groupby("bucket", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
-    order = ["Low (fewer events)", "Medium", "High (more events)"]
-    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
-    agg = agg.dropna(subset=["target_rate"])
-    if agg.empty or agg["n"].sum() == 0:
-        return None
-    return {
-        "x": agg["bucket"].astype(str).tolist(),
-        "y": [float(round(v, 4)) for v in agg["target_rate"]],
-        "type": "bar",
-        "x_label": "Trajectory intensity (event count)",
-        "y_label": "Target outcome rate",
-    }
-
-
-def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """
-    Target outcome rate by trajectory archetype (quartiles of DTW min distance or trajectory length).
-    """
-    if df.empty or "target" not in df.columns:
-        return None
-    col = "dtw_min_distance" if "dtw_min_distance" in df.columns else "trajectory_length"
-    if col not in df.columns:
-        return None
-    df = df[["target", col]].dropna()
-    if len(df) < 10:
-        return None
-    df = df.copy()
-    try:
-        df["q"] = pd.qcut(df[col], q=4, labels=["Q1 (closest)", "Q2", "Q3", "Q4 (furthest)"], duplicates="drop")
-    except (ValueError, TypeError):
-        return None
-    agg = df.groupby("q", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
-    if agg.empty or agg["n"].sum() == 0:
-        return None
-    return {
-        "x": [str(v) for v in agg["q"]],
-        "y": [float(round(v, 4)) for v in agg["target_rate"]],
-        "type": "bar",
-        "x_label": "Trajectory archetype (by DTW distance)" if col == "dtw_min_distance" else "Trajectory archetype (by length)",
-        "y_label": "Target outcome rate",
-    }
 
 
 if __name__ == "__main__":

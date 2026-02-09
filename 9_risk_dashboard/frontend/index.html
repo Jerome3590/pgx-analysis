@@ -989,7 +989,7 @@
       <p class="subtitle">
         <strong>Research focus:</strong> Is there a difference in outcomes for patients without routine appointments vs those with routine care? (Admin ICDs vs number of ICD events.)
         <br>
-        <small style="color: #64748b;">Dynamic Time Warping: trajectory overview, sample trajectories, and trajectory metrics. Use for routine vs non-routine comparison.</small>
+        <small style="color: #64748b;">Dynamic Time Warping: trajectory overview, sample trajectories, and trajectory metrics. Use for routine vs non-routine comparison. Data: full pipeline (2016–2019).</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -1024,7 +1024,7 @@
         <div class="panel full-width">
           <h2>Routine vs No Routine (Outcomes)</h2>
           <p class="subtitle" style="margin-bottom: 0.75rem;">
-            <small style="color: #64748b;">Is there a difference in outcomes for patients without routine appointments vs those with routine care? (Admin ICDs vs number of ICD events.)</small>
+            <small style="color: #64748b;">Is there a difference in outcomes for patients without routine appointments vs those with routine care? (Admin ICDs vs number of ICD events.) Shown over full pipeline (2016–2019).</small>
           </p>
           <div id="dtw-routine-comparison-container"></div>
         </div>
@@ -1112,6 +1112,28 @@
           <li><strong>BupaR Process Mining</strong> — Process mining and activity frequency charts.</li>
           <li><strong>PGx Patient Card</strong> — Generate a PGx card from SNP/phenotype input.</li>
         </ul>
+
+        <h2>Research questions and visualizations</h2>
+        <p>Each research question is answered by one or more dashboard tabs and their visuals.</p>
+        <p><strong>Original research questions</strong></p>
+        <ul>
+          <li><strong>RQ1 (Polypharmacy)</strong> — Does drug window influence target outcome? Which drugs are involved? Is there a temporal/ordering aspect? → <strong>Risk Assessment</strong>, <strong>Causal Analysis</strong> (risk score, FFA + SHAP), <strong>FP-Growth</strong> (drug itemsets, network), <strong>BupaR</strong> (sequences to target, Gantt).</li>
+          <li><strong>RQ2 (Opioid ED)</strong> — What CPT/ICD codes and drugs predict OPIOID_ED? Predictive sequences? Feature importance? High-risk trajectories? Formal causality? → <strong>FP-Growth</strong> + <strong>Causal Analysis</strong> (itemsets, network, FFA, SHAP), <strong>BupaR</strong> (top sequences, pre-target frequency), <strong>DTW Trajectories</strong> (trajectory overview, high-risk vs low-risk), <strong>Causal Analysis</strong> (FFA, interactions).</li>
+        </ul>
+        <p><strong>Additional research questions (N1–N6)</strong></p>
+        <table class="doc-metrics">
+          <thead>
+            <tr><th>Question</th><th>Tab(s)</th><th>Visuals</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>N1: Routine vs no routine appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs No Routine (Outcomes), trajectory overview, sample trajectories, metrics</td></tr>
+            <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
+            <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
+            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Co-occurrence network, top itemsets (filter by item type)</td></tr>
+            <tr><td>N5: What features drive outcome and how do they relate?</td><td>Causal Analysis</td><td>Top Causal Factors (FFA), SHAP Feature Importance, Feature Interactions</td></tr>
+            <tr><td>N6: What drug combinations drive polypharmacy ED visit?</td><td>Causal Analysis, BupaR</td><td>Causal factors (drugs), BupaR sequences / pre-target activity</td></tr>
+          </tbody>
+        </table>
 
         <h2>Workflow</h2>
         <ol>
@@ -1269,27 +1291,33 @@
   // ==============================
   // METADATA LOADING
   // ==============================
+  // Prefer same-origin static asset (no API call); fallback to GET /metadata if missing
   async function loadMetadata(cohort) {
-    const metadataUrl = `${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`;
     setStatus(`Loading metadata for ${cohort}...`, "info");
-    
+    const staticUrl = `metadata/${cohort}.json`;
     try {
-      const resp = await fetch(metadataUrl);
-      if (!resp.ok) {
-        const text = await resp.text();
-        let detail = text;
-        try { const j = JSON.parse(text); detail = j.error || j.message || text; } catch (_) {}
-        throw new Error(`HTTP ${resp.status}: ${detail}`);
+      let data = null;
+      const staticResp = await fetch(staticUrl);
+      if (staticResp.ok) {
+        data = await staticResp.json();
       }
-      
-      const data = await resp.json();
+      if (!data) {
+        const metadataUrl = `${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`;
+        const resp = await fetch(metadataUrl);
+        if (!resp.ok) {
+          const text = await resp.text();
+          let detail = text;
+          try { const j = JSON.parse(text); detail = j.error || j.message || text; } catch (_) {}
+          throw new Error(`HTTP ${resp.status}: ${detail}`);
+        }
+        data = await resp.json();
+      }
       currentMetadata = data;
       currentCohort = cohort;
       const age = parseInt(ageEl.value) || 35;
       currentAgeBand = determineAgeBand(age) || (cohort === "opioid_ed" ? "25-44" : "65-74");
       updateCodeLists();
       setStatus("Metadata loaded successfully", "success");
-      
       return data;
     } catch (err) {
       console.error("Error loading metadata:", err);
@@ -1770,11 +1798,10 @@
   function loadDocMetrics() {
     const container = document.getElementById("doc-metrics-container");
     if (!container) return;
-    const apiBase = window.API_BASE_URL || (typeof API_BASE !== "undefined" ? API_BASE : "");
-    const url = (apiBase.replace(/\/$/, "") || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod") + "/metrics";
     container.innerHTML = "<p class=\"doc-metrics-loading\">Loading metrics…</p>";
-    fetch(url).then(function(res) { return res.ok ? res.json() : Promise.reject(new Error(res.statusText)); })
-      .then(function(data) {
+    // Prefer same-origin static asset (no API call); fallback to GET /metrics if missing
+    var staticUrl = "metadata/model_performance_metrics.json";
+    function renderMetrics(data) {
         const byCohort = data && data.by_cohort ? data.by_cohort : {};
         const cohortLabels = { opioid_ed: "Opioid ED visit (F11.20)", non_opioid_ed: "Polypharmacy" };
         let html = "";
@@ -1809,10 +1836,19 @@
           html += "<p style=\"margin-top:0.75rem;font-size:0.85rem;color:#64748b;\">Source: " + data.source + "</p>";
         }
         container.innerHTML = html;
-      })
-      .catch(function(err) {
-        container.innerHTML = "<p class=\"doc-metrics-loading\">Could not load metrics (" + (err && err.message ? err.message : "error") + "). Metrics are stored in S3 at <code>gold/final_model/{cohort}/{age_band}/*_model_metrics_summary.csv</code>.</p>";
-      });
+    }
+    function onError(err) {
+      container.innerHTML = "<p class=\"doc-metrics-loading\">Could not load metrics (" + (err && err.message ? err.message : "error") + "). Metrics are stored in S3 at <code>gold/final_model/{cohort}/{age_band}/*_model_metrics_summary.csv</code>.</p>";
+    }
+    fetch(staticUrl).then(function(res) {
+      if (res.ok) return res.json();
+      if (res.status === 404) return Promise.reject(new Error("not found"));
+      return Promise.reject(new Error(res.statusText));
+    }).then(renderMetrics).catch(function() {
+      var apiBase = window.API_BASE_URL || (typeof API_BASE !== "undefined" ? API_BASE : "");
+      var apiUrl = (apiBase.replace(/\/$/, "") || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod") + "/metrics";
+      fetch(apiUrl).then(function(r) { return r.ok ? r.json() : Promise.reject(new Error(r.statusText)); }).then(renderMetrics).catch(onError);
+    });
   }
 
   // Update selection displays for drugs, ICD, and CPT codes
@@ -2135,6 +2171,17 @@
       const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      // Chart data is prebuilt on EC2 and saved to S3; fetch from chart_data_url for direct integration
+      if (data.chart_data_url) {
+        try {
+          const chartResp = await fetch(data.chart_data_url);
+          if (chartResp.ok) {
+            const chartData = await chartResp.json();
+            if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+            if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+          }
+        } catch (_) { /* chart_data.json optional */ }
+      }
       renderDTWVisualizations(data);
       document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = "status-message success";
@@ -2318,17 +2365,22 @@
   }
 
   function renderFPGrowthVisualizations(data) {
-    // Render itemsets image
+    // Render itemsets image (HTTPS URL from API)
     if (data.itemsets_image) {
-      document.getElementById("fpgrowth-itemsets-image").innerHTML = `<img src="${data.itemsets_image}" style="max-width: 100%;" />`;
+      document.getElementById("fpgrowth-itemsets-image").innerHTML = `<img src="${data.itemsets_image}" style="max-width: 100%;" alt="Top itemsets" onerror="this.parentElement.innerHTML='<p class=\'status-message info\'>Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'" />`;
     }
-    // Render support distribution image
+    // Render support distribution image (same as itemsets or separate)
     if (data.support_image) {
-      document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" />`;
+      document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" alt="Itemset support" onerror="this.parentElement.innerHTML=''" />`;
     }
-    // Render network (if HTML)
-    if (data.network_html) {
-      document.getElementById("fpgrowth-network-container").innerHTML = data.network_html;
+    // Render network: Plotly HTML from S3 — show in iframe by selected cohort
+    const networkEl = document.getElementById("fpgrowth-network-container");
+    if (networkEl && data.network_html) {
+      if (data.network_html.startsWith("http://") || data.network_html.startsWith("https://")) {
+        networkEl.innerHTML = `<iframe src="${data.network_html}" style="width: 100%; height: 620px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>`;
+      } else {
+        networkEl.innerHTML = data.network_html;
+      }
     }
   }
 

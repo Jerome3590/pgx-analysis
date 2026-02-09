@@ -2,7 +2,7 @@
 
 ## Overview
 
-AWS Lambda function that provides the API backend for the risk dashboard. Handles model inference, metadata retrieval, and visualization data serving.
+Lambda receives **user input** (cohort, age_band, model/feature selections) and **filters** only—it does not process or generate visualization data. All visuals are prebuilt on EC2 and saved to S3; Lambda returns URLs to those prebuilt assets. Risk inference uses the ensemble with user-provided features; visualization endpoints return prebuilt S3 URLs filtered by cohort/age_band. No analytics or chart building runs in Lambda.
 
 ## Files
 
@@ -15,15 +15,15 @@ AWS Lambda function that provides the API backend for the risk dashboard. Handle
 
 ### Core Endpoints
 
-- **`GET /metadata`** - Get valid codes for dropdowns
+- **`GET /metadata`** - Get valid codes for dropdowns (filter by cohort). **Fallback only:** the frontend loads from same-origin `metadata/{cohort}.json` (deployed with the dashboard). If missing, the frontend calls this endpoint.
   - Query params: `cohort` (opioid_ed | non_opioid_ed)
   - Returns: Age bands and code lists (drugs, ICDs, CPTs)
 
-- **`POST /risk`** - Calculate risk score
+- **`POST /risk`** - Risk score from ensemble, filtered by user-selected cohort and features
   - Body: `{cohort, age_band, drugs[], icds[], cpts[]}`
   - Returns: Risk score, risk band, model breakdown
 
-- **`POST /risk/comparison`** - Compare risk scenarios
+- **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
   - Body: `{base: {...}, scenarios: [...]}`
   - Returns: Risk scores for base and scenarios
 
@@ -31,25 +31,25 @@ AWS Lambda function that provides the API backend for the risk dashboard. Handle
   - Body: `{patient_id?, variants: [{gene, variants[]}]}`
   - Returns: PGx card data with drug-gene interactions
 
-### Visualization Endpoints
+- **`GET /metrics`** - Return prebuilt model performance metrics (Documentation tab). **Fallback only:** the frontend loads metrics from the same-origin static asset `metadata/model_performance_metrics.json` (deployed with the dashboard to the dashboard bucket). If that file is missing (e.g. local dev), the frontend calls this endpoint. Lambda reads from S3 (`gold/dashboard/metadata/model_performance_metrics.json`) or container bundle; no recomputation.
 
-- **`GET /visualizations/causal`** - Get causal analysis data
-  - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts` (each comma-separated) to filter to user-selected codes
-  - Returns: Causal factors and SHAP importance (filtered to selected codes when provided), plus `filtered_by_codes`: boolean
+### Visualization Endpoints (filter only; return prebuilt S3 URLs)
 
-- **`GET /visualizations/dtw`** - Get DTW visualization data
+- **`GET /visualizations/causal`** - Return causal/SHAP data filtered by user selection
+  - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts` to filter to selected codes
+  - Returns: Prebuilt causal factors and SHAP importance (filtered when codes provided)
+
+- **`GET /visualizations/dtw`** - Return URLs to prebuilt DTW assets (no processing)
   - Query params: `cohort`, `age_band`
-  - Returns: S3 paths to DTW images (`overview_image`, `sample_trajectories_image`), `metrics`, and when DTW feature data exists in S3 (`gold/feature_engineering/6_dtw/{cohort}/{age_band}/`):
-    - **`routine_comparison`** – Chart data: outcome rate by trajectory intensity (Low/Medium/High event count), proxy for routine vs non-routine care
-    - **`high_risk_trajectories`** – Chart data: outcome rate by trajectory archetype (quartiles of DTW distance or length)
+  - Returns: `overview_image`, `sample_trajectories_image`, `chart_data_url` (all S3 URLs)
 
-- **`GET /visualizations/fpgrowth`** - Get FP-Growth visualization paths
+- **`GET /visualizations/fpgrowth`** - Return URLs to prebuilt FP-Growth assets
   - Query params: `cohort`, `age_band`, `item_type`
-  - Returns: S3 paths to FP-Growth visualization images
+  - Returns: S3 URLs to itemsets/network images and HTML
 
-- **`GET /visualizations/bupar`** - Get BupaR visualization paths
+- **`GET /visualizations/bupar`** - Return URLs to prebuilt BupaR assets
   - Query params: `cohort`, `age_band`
-  - Returns: S3 paths to BupaR visualization images
+  - Returns: S3 URLs to BupaR plot images
 
 ## Model Loading
 
@@ -59,18 +59,20 @@ Models are loaded from:
 
 ## Environment Variables
 
-- `PGX_RESULTS_BUCKET` - S3 bucket name (default: `pgxdatalake`)
+- `PGX_RESULTS_BUCKET` - S3 bucket for data/models (default: `pgxdatalake`)
+- `S3_DASHBOARD_BUCKET` - Bucket where the dashboard frontend is deployed; FP-Growth assets are uploaded here (default: `jerome-dixon.io`)
+- `S3_DASHBOARD_PREFIX` - Key prefix for the dashboard app in that bucket (default: `vcu/pgx-risk-calculator`). FP-Growth, BupaR, and DTW URLs use `{prefix}/fpgrowth/`, `{prefix}/bupar/`, and `{prefix}/dtw/{cohort}/{age_band}/plots/`.
 - `MODEL_BASE_PATH` - Path to models in container (default: `/var/task/models`)
 - `MODEL_CACHE_TTL` - Model cache TTL in seconds (default: `3600`)
 
 ## Generating visualization artifacts
 
-Visualization **artifacts** (BupaR plots, DTW features/plots, FP-Growth itemsets/plots) are produced by pipeline scripts, not by Lambda. To (re)generate them from repo root, use:
+All visualization **artifacts** (BupaR plots, DTW images and chart data, FP-Growth itemsets/plots) are **prebuilt on EC2** and **saved to S3** for **direct dashboard integration**. The API returns only URLs to these prebuilt assets (no computation at request time). To (re)generate from repo root:
 
 - **Notebook:** `4_dashboard_visuals.ipynb` (run from repo root)
 - **Script (VS Code Jupyter format):** `pgx_dashboard_visuals.py` (run as script or by cell with `# %%`)
 
-Both run BupaR, DTW, and FP-Growth for configured cohorts/age bands and document Lambda/API Gateway endpoints. Upload outputs to S3 so Lambda can serve paths (e.g. `gold/feature_importance/`, `gold/fpgrowth/`, `gold/feature_engineering/6_dtw/`). **Redeploy the Lambda image** only when backend code changes (e.g. Causal tab now defaults to top 500 SHAP/FFA features when no user selection—redeploy to get that in production).
+Both run BupaR, DTW, and FP-Growth for configured cohorts/age bands. **FP-Growth**, **BupaR**, and **DTW** assets are uploaded to the **dashboard bucket** (e.g. `jerome-dixon.io`) under `{S3_DASHBOARD_PREFIX}/fpgrowth/`, `{S3_DASHBOARD_PREFIX}/bupar/`, and `{S3_DASHBOARD_PREFIX}/dtw/`; the dashboard loads them directly from S3 (or via API URL responses). **Redeploy the Lambda image** only when backend code changes.
 
 ## Deployment
 

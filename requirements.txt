@@ -20,6 +20,8 @@ xgboost>=2.0.0
 # Plotting and FFA
 matplotlib>=3.6.0
 seaborn>=0.12.0
+plotly>=5.18.0
+networkx>=3.0
 
 # Utilities
 tenacity>=8.0.0
