@@ -558,6 +558,13 @@
     #documentation-tab .doc-content p { margin: 0.5rem 0 1rem 0; }
     #documentation-tab .doc-content ul, #documentation-tab .doc-content ol { margin: 0.5rem 0 1rem 1.25rem; }
     #documentation-tab .doc-content li { margin-bottom: 0.35rem; }
+    #documentation-tab .doc-metrics { margin: 1rem 0; }
+    #documentation-tab .doc-metrics-loading { color: #64748b; font-style: italic; }
+    #documentation-tab .doc-metrics table { border-collapse: collapse; width: 100%; max-width: 720px; margin: 0.75rem 0; font-size: 0.9rem; }
+    #documentation-tab .doc-metrics th, #documentation-tab .doc-metrics td { border: 1px solid #e2e8f0; padding: 0.4rem 0.6rem; text-align: left; }
+    #documentation-tab .doc-metrics th { background: #f1f5f9; font-weight: 600; }
+    #documentation-tab .doc-metrics .metrics-cohort { font-weight: 600; margin-top: 1rem; color: #0f172a; }
+    #documentation-tab .doc-metrics .metrics-age-band { font-weight: 500; margin-top: 0.5rem; color: #334155; }
 
     #patient-codes-tab .tab-content-inner {
       min-height: 360px;
@@ -1115,6 +1122,15 @@
           <li>Use <em>Compare Scenarios</em> to compare different code sets.</li>
           <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
         </ol>
+
+        <h2>Model performance and at-risk identification</h2>
+        <p>
+          Below are model performance metrics by <strong>cohort</strong> and <strong>age band</strong>. Metrics are from Monte Carlo cross-validation (2016–2018 train / 2019 holdout). 
+          <strong>Recall (sensitivity)</strong> indicates how well the model identifies at-risk patients who had the outcome; <strong>PR-AUC</strong> (average precision) is suited to imbalanced outcomes.
+        </p>
+        <div id="doc-metrics-container" class="doc-metrics">
+          <p class="doc-metrics-loading">Loading metrics…</p>
+        </div>
 
         <h2>Technical notes</h2>
         <p>
@@ -1733,6 +1749,8 @@
     // Update displays if needed
     if (tabName === "risk-assessment") {
       updateCodesSummary();
+    } else if (tabName === "documentation") {
+      loadDocMetrics();
     } else if (tabName === "drugs" || tabName === "icd-codes" || tabName === "cpt-codes") {
       // When switching to code selection tabs, ensure metadata is loaded
       if (!currentMetadata) {
@@ -1748,6 +1766,54 @@
       }
     }
   };
+
+  function loadDocMetrics() {
+    const container = document.getElementById("doc-metrics-container");
+    if (!container) return;
+    const apiBase = window.API_BASE_URL || (typeof API_BASE !== "undefined" ? API_BASE : "");
+    const url = (apiBase.replace(/\/$/, "") || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod") + "/metrics";
+    container.innerHTML = "<p class=\"doc-metrics-loading\">Loading metrics…</p>";
+    fetch(url).then(function(res) { return res.ok ? res.json() : Promise.reject(new Error(res.statusText)); })
+      .then(function(data) {
+        const byCohort = data && data.by_cohort ? data.by_cohort : {};
+        const cohortLabels = { opioid_ed: "Opioid ED visit (F11.20)", non_opioid_ed: "Polypharmacy" };
+        let html = "";
+        for (const cohort of ["opioid_ed", "non_opioid_ed"]) {
+          const bands = byCohort[cohort];
+          if (!bands || typeof bands !== "object") continue;
+          html += "<div class=\"metrics-cohort\">" + (cohortLabels[cohort] || cohort) + "</div>";
+          for (const ageBand of Object.keys(bands).sort()) {
+            const rows = bands[ageBand];
+            if (!Array.isArray(rows) || rows.length === 0) {
+              html += "<div class=\"metrics-age-band\">Age band " + ageBand + ": no metrics</div>";
+              continue;
+            }
+            html += "<div class=\"metrics-age-band\">Age band " + ageBand + "</div>";
+            html += "<table><thead><tr><th>Model</th><th>Recall (sensitivity)</th><th>PR-AUC</th><th>AUC-ROC</th><th>Log loss</th><th>MC runs</th><th>Selected</th></tr></thead><tbody>";
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              const recall = r.recall_mean != null ? (Number(r.recall_mean) * 100).toFixed(1) + "%" : "—";
+              const prAuc = r.pr_auc_mean != null ? Number(r.pr_auc_mean).toFixed(3) : "—";
+              const auc = r.auc_mean != null ? Number(r.auc_mean).toFixed(3) : "—";
+              const logloss = r.logloss_mean != null ? Number(r.logloss_mean).toFixed(4) : "—";
+              const nRuns = r.n_runs != null ? r.n_runs : "—";
+              const sel = r.selected ? "Yes" : "";
+              html += "<tr><td>" + (r.model || "—") + "</td><td>" + recall + "</td><td>" + prAuc + "</td><td>" + auc + "</td><td>" + logloss + "</td><td>" + nRuns + "</td><td>" + sel + "</td></tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+        if (!html) {
+          html = "<p class=\"doc-metrics-loading\">No metrics available. Metrics are generated by the pipeline (6_final_model) and stored in S3 (<code>gold/final_model/{cohort}/{age_band}/*_model_metrics_summary.csv</code>).</p>";
+        } else if (data.source) {
+          html += "<p style=\"margin-top:0.75rem;font-size:0.85rem;color:#64748b;\">Source: " + data.source + "</p>";
+        }
+        container.innerHTML = html;
+      })
+      .catch(function(err) {
+        container.innerHTML = "<p class=\"doc-metrics-loading\">Could not load metrics (" + (err && err.message ? err.message : "error") + "). Metrics are stored in S3 at <code>gold/final_model/{cohort}/{age_band}/*_model_metrics_summary.csv</code>.</p>";
+      });
+  }
 
   // Update selection displays for drugs, ICD, and CPT codes
   function updateSelectionDisplays() {

@@ -139,6 +139,30 @@ def prepare_models(download_s3: bool = False) -> bool:
     return success
 
 
+def run_generate_metrics(download_s3: bool = False) -> bool:
+    """Run generate_metrics.py so outputs/metadata/model_performance_metrics.json exists (for ECR bundle)."""
+    log("Generating model performance metrics...")
+    metrics_script = PROJECT_ROOT / "9_risk_dashboard" / "data_preparation" / "generate_metrics.py"
+    if not metrics_script.exists():
+        log("  generate_metrics.py not found; skipping metrics bundle.")
+        return True
+    cmd = [sys.executable, str(metrics_script)]
+    if download_s3:
+        cmd.append("--download-s3")
+    try:
+        r = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            log(f"  Warning: generate_metrics.py exited {r.returncode} (metrics may be missing in image).")
+            if r.stderr:
+                log(f"  {r.stderr.strip()[:200]}")
+            return True  # non-fatal
+        log("  ✓ model_performance_metrics.json written to outputs/metadata/")
+        return True
+    except Exception as e:
+        log(f"  Warning: could not run generate_metrics.py: {e}")
+        return True  # non-fatal
+
+
 def prepare_metadata(download_s3: bool = False) -> bool:
     """Prepare metadata directory."""
     log("Preparing metadata...")
@@ -179,6 +203,13 @@ def prepare_metadata(download_s3: bool = False) -> bool:
                 log(f"    ✓ Copied {metadata_file}")
             else:
                 success = False
+    
+    # Copy model performance metrics (for Documentation tab; bundled in ECR)
+    metrics_file = "model_performance_metrics.json"
+    metrics_source = METADATA_SOURCE / metrics_file
+    if metrics_source.exists():
+        if copy_file(metrics_source, metadata_dest / metrics_file):
+            log(f"  ✓ Copied {metrics_file}")
     
     return success
 
@@ -354,9 +385,9 @@ def main():
     # Create lambda_dir
     LAMBDA_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Prepare all components
+    # Prepare all components (generate metrics first so outputs/metadata has it for Docker COPY)
     success = True
-    
+    run_generate_metrics(download_s3=args.download_s3)
     success &= prepare_models(download_s3=args.download_s3)
     success &= prepare_metadata(download_s3=args.download_s3)
     success &= prepare_data(download_s3=args.download_s3)
@@ -376,7 +407,8 @@ def main():
         log("  │       └── {age_band}/")
         log("  ├── metadata/")
         log("  │   ├── metadata_opioid_ed.json")
-        log("  │   └── metadata_non_opioid_ed.json")
+        log("  │   ├── metadata_non_opioid_ed.json")
+        log("  │   └── model_performance_metrics.json")
         log("  └── data/")
         log("      └── cpic_gene-drug_pairs.xlsx")
         log("")

@@ -27,9 +27,15 @@ if [ ! -d "outputs/models" ]; then
     echo -e "${YELLOW}Outputs not found. Preparing data...${NC}"
     cd data_preparation
     python generate_metadata.py --all
+    python generate_metrics.py
     python prepare_models.py --all
     python prepare_cpic_data.py
     cd ..
+fi
+# Ensure metrics are in outputs/metadata for ECR bundle (even if models already existed)
+if [ ! -f "outputs/metadata/model_performance_metrics.json" ]; then
+    echo -e "${YELLOW}Generating model performance metrics for Documentation tab...${NC}"
+    cd data_preparation && python generate_metrics.py && cd ..
 fi
 
 # Step 2: Build Docker image (Dockerfile is in backend/, build from dashboard root)
