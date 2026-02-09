@@ -556,7 +556,9 @@ high_risk_patients = flag_high_risk_patients(feature_df, 'opioid_ed', '0-12')
    - Post-target drug/ICD/CPT events (validates against event data)
    - Non-predictive markers (SUBOXONE, BUPRENORPHINE, F1123)
 
-6. **Cohort-Specific Feature Filtering**:
+6. **Drug name column exclusions**: The following values are excluded from the drug name feature set for model training (see `DRUG_NAMES_EXCLUDED_MODEL_TRAINING` in `py_helpers.constants` and `1b_apcd_event_filter/README_administrative_codes_lookup.md`): **Narcan**, **Unknown**, **Fentanyl**, **1036F**, **T401XA1**. 1036F is a CPT Category II tracking code (tobacco non-user), not a drug; T401XA1 is an ICD-10-CM poisoning diagnosis code (4-aminophenol/acetaminophen, initial encounter), not a drug.
+
+7. **Cohort-Specific Feature Filtering**:
    - **non_opioid_ed (Polypharmacy) Cohort**: Only drug events are included as item features
      - Excludes ICD codes (`item_icd_*`)
      - Excludes CPT codes (`item_cpt_*`)

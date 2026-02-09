@@ -34,7 +34,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING
 from py_helpers.feature_utils import (
     normalize_feature_name,
     normalize_feature_set,
@@ -160,8 +160,18 @@ def filter_and_refine_features(
         'filtered_by_target_family': 0,
         'filtered_by_threshold': 0,
         'filtered_by_safe_filter': 0,
+        'filtered_by_drug_name_exclusion': 0,
         'final_count': 0
     }
+
+    # Exclude drug-name values that are not drugs or not used as features (see DRUG_NAMES_EXCLUDED_MODEL_TRAINING)
+    code_col = refined_fi["feature"].astype(str).str.replace("^item_", "", regex=True)
+    drug_excluded_mask = code_col.isin(DRUG_NAMES_EXCLUDED_MODEL_TRAINING)
+    if drug_excluded_mask.any():
+        n_drug_excluded = int(drug_excluded_mask.sum())
+        filtering_summary["filtered_by_drug_name_exclusion"] = n_drug_excluded
+        refined_fi = refined_fi[~drug_excluded_mask].copy()
+        print(f"Excluded {n_drug_excluded} drug-name feature(s) (not drugs or excluded from model training): {sorted(code_col[drug_excluded_mask].unique().tolist())}")
     
     # Use safe feature filter if available
     # safe_feature_filter is a tuple: (features_to_keep_for_cases, features_to_exclude_for_controls)
