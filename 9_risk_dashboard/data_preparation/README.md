@@ -50,6 +50,24 @@ python generate_metadata.py --all
 - `metadata_opioid_ed.json`
 - `metadata_non_opioid_ed.json`
 
+### `generate_metrics.py`
+
+Generates `model_performance_metrics.json` for the Documentation tab (model performance and at-risk identification by cohort/age band). The file is written to `../outputs/metadata/` and bundled into the Lambda/ECR image so the dashboard serves it without S3 calls.
+
+**Usage:**
+```bash
+python generate_metrics.py
+python generate_metrics.py --download-s3   # Fallback to S3 if local CSVs missing
+```
+
+**What it does:**
+1. Reads `model_metrics_summary.csv` from `6_final_model/outputs/{cohort}/{age_band}/` (or S3)
+2. Aggregates into a single JSON
+3. Writes `model_performance_metrics.json` to `../outputs/metadata/`
+
+**Outputs:**
+- `model_performance_metrics.json` (bundled at `/var/task/metadata/` in the Lambda container)
+
 ### `prepare_cpic_data.py`
 
 Prepares CPIC (Clinical Pharmacogenomics Implementation Consortium) data for PGx cards.

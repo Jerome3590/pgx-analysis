@@ -164,6 +164,20 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
         raise
 
 
+def handle_metrics(_event: Dict[str, Any]) -> Dict[str, Any]:
+    """GET /metrics — return model performance metrics from container (bundled in ECR at build time)."""
+    container_path = Path("/var/task/metadata/model_performance_metrics.json")
+    if not container_path.exists():
+        return _response(200, {"by_cohort": {}, "source": "none"})
+    try:
+        with open(container_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return _response(200, data if isinstance(data, dict) else {"by_cohort": {}, "payload": data})
+    except Exception as e:
+        print(f"Metrics load failed: {e}")
+        return _response(200, {"by_cohort": {}, "source": "none", "error": str(e)})
+
+
 def load_model(cohort: str, age_band: str, model_type: str) -> Any:
     """
     Load model from container filesystem (ECR) or S3 with caching.
@@ -481,6 +495,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if method == "GET" and path.endswith("/metadata"):
             return handle_metadata(event)
+        elif method == "GET" and path.endswith("/metrics"):
+            return handle_metrics(event)
         elif method == "POST" and path.endswith("/pgx/card"):
             return handle_pgx_card(event)
         elif method == "POST" and path.endswith("/risk"):
