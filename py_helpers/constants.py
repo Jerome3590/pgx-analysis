@@ -22,6 +22,18 @@ RICHMOND_ZIP_CODES = {
     '23285', '23298'
 }
 
+# Drug-name column: values to exclude from model training (not drugs or not useful as features).
+# 1036F = CPT Category II tracking code (tobacco non-user), not a drug.
+# T401XA1 = ICD-10-CM poisoning diagnosis code (4-aminophenol/acetaminophen), not a drug.
+# Narcan, Unknown, Fentanyl: excluded per model-training requirements.
+DRUG_NAMES_EXCLUDED_MODEL_TRAINING = frozenset({
+    "Narcan",
+    "Unknown",
+    "Fentanyl",
+    "1036F",
+    "T401XA1",
+})
+
 # Codes to exclude (lagging variables)
 EXCLUDED_CODES = {
     'F11',    # All F11 codes (opioid use disorder)

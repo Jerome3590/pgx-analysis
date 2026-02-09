@@ -72,6 +72,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import (
     ALL_ICD_DIAGNOSIS_COLUMNS,
+    DRUG_NAMES_EXCLUDED_MODEL_TRAINING,
     OPIOID_ICD_CODES,
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
@@ -241,7 +242,9 @@ def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
 
 
 def get_important_items(agg_csv: Path) -> List[str]:
-    """Read aggregated feature-importance CSV and return item codes (no 'item_' prefix)."""
+    """Read aggregated feature-importance CSV and return item codes (no 'item_' prefix).
+    Excludes drug names in DRUG_NAMES_EXCLUDED_MODEL_TRAINING (Narcan, Unknown, Fentanyl,
+    1036F, T401XA1) so they are not used as features in model training."""
     df = pd.read_csv(agg_csv)
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {agg_csv}")
@@ -253,7 +256,15 @@ def get_important_items(agg_csv: Path) -> List[str]:
         .unique()
         .tolist()
     )
-    return items
+    excluded = DRUG_NAMES_EXCLUDED_MODEL_TRAINING
+    filtered = [x for x in items if x not in excluded]
+    if len(filtered) < len(items):
+        n_removed = len(items) - len(filtered)
+        removed = [x for x in items if x in excluded]
+        logging.getLogger(__name__).info(
+            "Excluded %s drug-name item(s) from important_items: %s", n_removed, removed
+        )
+    return filtered
 
 
 def _validate_model_events_has_controls(parquet_path: Path) -> dict:

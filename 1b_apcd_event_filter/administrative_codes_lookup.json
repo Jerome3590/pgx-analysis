@@ -16,12 +16,18 @@
       "99026",
       "99027"
     ],
-    "drug": []
+    "drug": [
+      "Narcan",
+      "Unknown",
+      "Fentanyl",
+      "1036F",
+      "T401XA1"
+    ]
   },
   "notes": {
     "icd": "ICD codes for administrative/billing purposes (e.g., routine health checks, administrative visits)",
     "cpt": "CPT codes for administrative procedures (e.g., post-operative follow-up, administrative services)",
-    "drug": "Drug codes that are administrative (e.g., placebo, administrative medications). Usually empty - most drugs are clinical."
+    "drug": "Excluded from drug_name column for model training: Narcan, Unknown, Fentanyl; 1036F (CPT Category II tobacco non-user); T401XA1 (ICD-10-CM poisoning/acetaminophen, not a drug). See README_administrative_codes_lookup.md."
   },
   "research_guidelines": {
     "how_to_identify_administrative_codes": [
