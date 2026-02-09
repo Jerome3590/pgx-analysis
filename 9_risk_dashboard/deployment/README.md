@@ -33,6 +33,12 @@ Scripts and configurations for deploying the dashboard to AWS.
 4. **Deploy Frontend**:
    - **S3 location:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
    - Upload `../frontend/index.html` and assets to that prefix (e.g. `aws s3 sync ../frontend/ s3://jerome-dixon.io/vcu/pgx-risk-calculator/`)
+   - Upload model performance metrics:  
+     `aws s3 cp ../outputs/metadata/model_performance_metrics.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/model_performance_metrics.json --content-type application/json`
+   - Upload cohort metadata for dropdowns (same-origin, no API call):  
+     `aws s3 cp ../outputs/metadata/metadata_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json --content-type application/json`  
+     `aws s3 cp ../outputs/metadata/metadata_non_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/non_opioid_ed.json --content-type application/json`  
+     (The 5_build_and_deploy notebook uploads metrics and metadata automatically after frontend sync.)
    - Configure the bucket for static website hosting (or use CloudFront with that origin)
    - (Optional) Set up CloudFront distribution
 

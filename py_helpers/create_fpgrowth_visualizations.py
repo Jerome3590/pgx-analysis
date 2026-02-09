@@ -2,22 +2,28 @@
 FP-Growth visualization helpers.
 
 This module reads FP-Growth JSON outputs (itemsets and rules) and creates:
-- Top-N itemset support bar charts (combined cohort)
-- Network-style graphs from target-only rules (targets only)
+- Top-N itemset support bar charts (combined cohort) — PNG and optional Plotly HTML
+- Network-style graphs from target-only rules (targets only) — PNG and Plotly HTML
 
-Outputs are written to a local output directory (typically
-feature_engineering_outputs/4_fpgrowth/{cohort}/{age_band}/plots).
+Outputs are written to a local output directory and can be uploaded to S3
+(same bucket as dashboard, under fpgrowth/{cohort}/{age_band}/plots/) for the dashboard to serve by cohort.
 """
 
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 import seaborn as sns
+
+try:
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
 
 def _ensure_output_dir(path: Path) -> None:
@@ -172,6 +178,111 @@ def _network_from_rules(
     return out_path
 
 
+def _network_from_rules_plotly(
+    df_rules: pd.DataFrame,
+    cohort_name: str,
+    age_band: str,
+    item_type: str,
+    min_rules: int,
+    output_dir: Path,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """
+    Build an interactive Plotly directed network from association rules and save as HTML.
+    Same data contract as _network_from_rules; returns path to HTML file.
+    """
+    if not PLOTLY_AVAILABLE:
+        if logger:
+            logger.warning("Plotly not available; skipping network HTML")
+        return None
+    if df_rules.empty or "antecedents" not in df_rules.columns or "consequents" not in df_rules.columns:
+        return None
+    if len(df_rules) < min_rules:
+        return None
+
+    G = nx.DiGraph()
+    for _, row in df_rules.iterrows():
+        ants = row["antecedents"]
+        cons = row["consequents"]
+        support = float(row.get("support", 0.0) or 0.0)
+        confidence = float(row.get("confidence", 0.0) or 0.0)
+        if not isinstance(ants, list) or not isinstance(cons, list):
+            continue
+        for a in ants:
+            for c in cons:
+                if not a or not c:
+                    continue
+                if G.has_edge(a, c):
+                    data = G[a][c]
+                    data["support"] = (data["support"] + support) / 2.0
+                    data["confidence"] = (data["confidence"] + confidence) / 2.0
+                else:
+                    G.add_edge(a, c, support=support, confidence=confidence)
+
+    if G.number_of_edges() == 0:
+        return None
+
+    pos = nx.spring_layout(G, seed=42, k=0.5)
+    centrality = nx.degree_centrality(G)
+
+    node_x = [pos[n][0] for n in G.nodes()]
+    node_y = [pos[n][1] for n in G.nodes()]
+    node_sizes = [15 + 35 * centrality.get(n, 0.0) for n in G.nodes()]
+    node_text = list(G.nodes())
+
+    edge_x, edge_y = [], []
+    for u, v in G.edges():
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        line=dict(width=1.5, color="#888"),
+        hoverinfo="none",
+        mode="lines",
+    )
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        text=node_text,
+        textposition="top center",
+        textfont=dict(size=10),
+        marker=dict(size=node_sizes, color="lightblue", line=dict(width=1, color="darkblue")),
+        hoverinfo="text",
+        hovertext=node_text,
+    )
+
+    fig = go.Figure(
+        data=[edge_trace, node_trace],
+        layout=go.Layout(
+            title=f"{cohort_name} {age_band} {item_type} — target rules network",
+            showlegend=False,
+            hovermode="closest",
+            margin=dict(b=20, l=20, r=20, t=40),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            height=600,
+        ),
+    )
+
+    fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_target_rules_network.html"
+    out_path = output_dir / fname
+    _ensure_output_dir(output_dir)
+    fig.write_html(str(out_path), config={"responsive": True})
+    if logger:
+        logger.info("Saved Plotly network HTML to %s", out_path)
+    return out_path
+
+
+def _s3_public_url(bucket: str, key: str, region: Optional[str] = None) -> str:
+    """Return HTTPS URL for an S3 object (public-read style)."""
+    if region:
+        return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+    return f"https://{bucket}.s3.amazonaws.com/{key}"
+
+
 def create_all_fpgrowth_plots(
     base_dir: str,
     cohort_name: str,
@@ -181,17 +292,22 @@ def create_all_fpgrowth_plots(
     item_types: Optional[List[str]] = None,
     output_dir: str = "",
     s3_upload: bool = False,
+    s3_bucket: Optional[str] = None,
+    s3_prefix: str = "fpgrowth",
     top_n: int = 30,
-) -> Dict[str, Dict[str, Path]]:
+) -> Dict[str, Any]:
     """
     Create standard FP-Growth plots for a cohort / age_band.
+    Writes PNG and Plotly HTML (network) to output_dir; optionally uploads to S3.
 
-    Currently implemented:
-      - Combined itemsets: top-N itemset support bar chart
-      - Target-only rules: static network PNG from association rules
+    Implemented:
+      - Combined itemsets: top-N itemset support bar chart (PNG)
+      - Target-only rules: network PNG and Plotly interactive HTML
 
     Returns:
-      Mapping item_type -> dict of {plot_name: Path}
+      Dict with:
+        "plots": mapping item_type -> { plot_name: Path }
+        "s3_urls": (if s3_upload) mapping item_type -> { plot_name: str URL }
     """
     # Logging is optional; use a basic logger so messages can be seen when run via CLI.
     logger = logging.getLogger("fpgrowth_plots")
@@ -257,12 +373,51 @@ def create_all_fpgrowth_plots(
         if net_plot is not None:
             item_results["target_rules_network"] = net_plot
 
+        # Plotly interactive network HTML (for dashboard iframe by cohort)
+        net_html = _network_from_rules_plotly(
+            df_rules=df_rules,
+            cohort_name=cohort_name,
+            age_band=age_band,
+            item_type=item_type,
+            min_rules=5,
+            output_dir=plots_root,
+            logger=logger,
+        )
+        if net_html is not None:
+            item_results["target_rules_network_html"] = net_html
+
         if item_results:
             results[item_type] = item_results
 
-    # Note: s3_upload is intentionally ignored here to keep FP-Growth visuals local-first.
-    # If needed, we can later extend this to mirror PNGs to S3 using existing utilities.
+    out: Dict[str, Any] = {"plots": results}
 
-    return results
+    # Upload to S3 when requested (same bucket as dashboard; prefix e.g. fpgrowth -> cohort/age_band/plots/)
+    if s3_upload and s3_bucket and results:
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+        except ImportError:
+            logger = logging.getLogger("fpgrowth_plots")
+            if logger.handlers:
+                logger.warning("checkpoint_utils not available; skipping S3 upload")
+            s3_upload = False
+    if s3_upload and s3_bucket and results:
+        age_band_fname = age_band.replace("-", "_")
+        s3_plot_prefix = f"{s3_prefix.rstrip('/')}/{cohort_name}/{age_band}/plots"
+        s3_urls: Dict[str, Dict[str, str]] = {}
+        logger = logging.getLogger("fpgrowth_plots")
+        for itype, paths in results.items():
+            s3_urls[itype] = {}
+            for plot_name, local_path in paths.items():
+                if not isinstance(local_path, Path) or not local_path.exists():
+                    continue
+                key = f"{s3_plot_prefix}/{local_path.name}"
+                s3_path = f"s3://{s3_bucket}/{key}"
+                if upload_file_to_s3(local_path, s3_path, logger=logger, check_exists=True):
+                    s3_urls[itype][plot_name] = _s3_public_url(s3_bucket, key)
+            if not s3_urls[itype]:
+                del s3_urls[itype]
+        out["s3_urls"] = s3_urls
+
+    return out
 
 

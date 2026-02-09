@@ -152,7 +152,7 @@ See `README_implementation_plan_tab_visualizations.md` for API details (query pa
 | **RQ2** | **OPIOID_ED** | What CPT/ICD codes and drugs predict OPIOID_ED? | **FP-Growth** + **Causal Analysis** | Itemsets + network (ICD, CPT, Drug); FFA + SHAP | ✅ Yes |
 | | | Predictive patterns (sequences)? | **BupaR** | Top sequences, pre-target frequency, Gantt | ✅ Yes |
 | | | Feature importance? | **Causal Analysis** | Top Causal Factors, SHAP, Feature Relations (radar) | ✅ Yes |
-| | | Can we identify high-risk trajectories? | **DTW Trajectories** | Trajectory overview, sample trajectories, trajectory metrics | ⚠️ Partial* |
+| | | Can we identify high-risk trajectories? | **DTW Trajectories** | Trajectory overview, sample trajectories, metrics; **High-Risk vs Low-Risk Trajectories** (outcome rate by trajectory archetype quartiles) | ✅ Yes |
 | | | Formal causality assessment? | **Causal Analysis** | FFA causal importance, SHAP, interactions | ✅ Yes |
 
 \* **Partial:** Current DTW panels show trajectory patterns and metrics but do not yet explicitly stratify or label “high-risk” vs “low-risk” trajectory archetypes (e.g. by target status or risk band). Adding a routine-vs-non-routine or risk-stratified view would fully answer “high-risk trajectories.”
@@ -163,7 +163,7 @@ See `README_implementation_plan_tab_visualizations.md` for API details (query pa
 
 | # | Question | Tab(s) | Visual(s) | Covered? |
 |---|----------|--------|-----------|-----------|
-| N1 | Routine vs no routine appointments → outcomes? (admin ICDs vs # ICD events) | **DTW** | Trajectory overview, sample trajectories, metrics | ⚠️ Partial** |
+| N1 | Routine vs no routine appointments → outcomes? (admin ICDs vs # ICD events) | **DTW** | Trajectory overview, sample trajectories, metrics; **Routine vs No Routine (Outcomes)** (outcome rate by trajectory intensity: Low/Medium/High) | ✅ Yes* |
 | N2 | What sequences lead to target outcomes? | **BupaR** | “Sequences to Target Outcomes”, pre-target frequency, Gantt | ✅ Yes |
 | N3 | What times between sequences lead to target outcomes? | **BupaR** | “Times Between Sequences (Pre-Target Gantt)”, milestones Gantt | ✅ Yes |
 | N4 | What connections between ICD, CPT, Drugs → target outcome? | **FP-Growth** | Co-occurrence network, itemsets (filter by item type) | ✅ Yes |
@@ -181,7 +181,7 @@ See `README_implementation_plan_tab_visualizations.md` for API details (query pa
 | **Original (RQ1 + RQ2)** | Which drugs/ICD/CPT involved; temporal/ordering; drug window influence; predictive patterns; feature importance; formal causality | **High-risk trajectories:** DTW shows trajectories but not yet an explicit “high-risk” stratification. |
 | **New (N1–N6)** | Sequences to target (N2); times between sequences (N3); ICD/CPT/Drug connections (N4); features & relations (N5); drug combinations → polypharmacy ED (N6) | **Routine vs no routine (N1):** Needs a dedicated comparison plot (admin ICDs vs # events or protocol flag). |
 
-**Conclusion:** The dashboard **answers almost all** original and new research questions. Remaining gaps:
+**Conclusion:** The dashboard **answers all** original and new research questions. N1 is answered via outcome rate by trajectory intensity (Low/Medium/High) as a proxy for routine vs non-routine care; optional future enhancement: direct admin ICD or protocol-flag comparison if data is available. (Previously noted gaps—Routine vs no routine comparison and High-risk trajectories—are now implemented.)
 
 1. **DTW: “Routine vs no routine” (N1)** – Add one comparison visual (e.g. outcome or risk by routine vs non-routine / admin ICD count) from existing DTW or protocol-filtered data.
 2. **DTW: “High-risk trajectories” (RQ2)** – Optionally add stratification or labeling of trajectory archetypes by outcome/risk so “high-risk” trajectories are explicitly visible.

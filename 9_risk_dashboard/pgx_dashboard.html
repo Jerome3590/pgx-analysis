@@ -1627,9 +1627,14 @@
     if (data.support_image) {
       document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" />`;
     }
-    // Render network (if HTML)
-    if (data.network_html) {
-      document.getElementById("fpgrowth-network-container").innerHTML = data.network_html;
+    // Render network: Plotly HTML from S3 (iframe by cohort)
+    const networkEl = document.getElementById("fpgrowth-network-container");
+    if (networkEl && data.network_html) {
+      if (data.network_html.startsWith("http://") || data.network_html.startsWith("https://")) {
+        networkEl.innerHTML = `<iframe src="${data.network_html}" style="width: 100%; height: 620px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>`;
+      } else {
+        networkEl.innerHTML = data.network_html;
+      }
     }
   }
 

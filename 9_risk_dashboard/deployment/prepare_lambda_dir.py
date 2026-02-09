@@ -204,12 +204,12 @@ def prepare_metadata(download_s3: bool = False) -> bool:
             else:
                 success = False
     
-    # Copy model performance metrics (for Documentation tab; bundled in ECR)
+    # Copy model performance metrics (optional; Lambda prefers S3 at gold/dashboard/metadata/model_performance_metrics.json)
     metrics_file = "model_performance_metrics.json"
     metrics_source = METADATA_SOURCE / metrics_file
     if metrics_source.exists():
         if copy_file(metrics_source, metadata_dest / metrics_file):
-            log(f"  ✓ Copied {metrics_file}")
+            log(f"  ✓ Copied {metrics_file} (fallback; Lambda serves from S3 when available)")
     
     return success
 

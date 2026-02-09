@@ -47,12 +47,12 @@ python generate_metadata.py --all
 4. Saves to `../outputs/metadata/`
 
 **Outputs:**
-- `metadata_opioid_ed.json`
-- `metadata_non_opioid_ed.json`
+- Local: `../outputs/metadata/metadata_opioid_ed.json`, `metadata_non_opioid_ed.json`
+- Dashboard deploy (5_build_and_deploy) uploads these to the dashboard bucket as `{prefix}/metadata/opioid_ed.json` and `{prefix}/metadata/non_opioid_ed.json` so the frontend can fetch them same-origin (no API call).
 
 ### `generate_metrics.py`
 
-Generates `model_performance_metrics.json` for the Documentation tab (model performance and at-risk identification by cohort/age band). The file is written to `../outputs/metadata/` and bundled into the Lambda/ECR image so the dashboard serves it without S3 calls.
+Generates `model_performance_metrics.json` for the Documentation tab from **existing** 6_final_model artifacts (no recomputation). Writes to `../outputs/metadata/` and uploads to S3 at `gold/dashboard/metadata/model_performance_metrics.json`. Lambda GET /metrics returns this prebuilt artifact from S3 (same pattern as other visuals); container bundle is an optional fallback.
 
 **Usage:**
 ```bash
@@ -61,12 +61,14 @@ python generate_metrics.py --download-s3   # Fallback to S3 if local CSVs missin
 ```
 
 **What it does:**
-1. Reads `model_metrics_summary.csv` from `6_final_model/outputs/{cohort}/{age_band}/` (or S3)
-2. Aggregates into a single JSON
-3. Writes `model_performance_metrics.json` to `../outputs/metadata/`
+1. Reads existing `model_metrics_summary.csv` from `6_final_model/outputs/{cohort}/{age_band}/` (or S3)
+2. Aggregates into a single JSON (no recomputation)
+3. Writes `model_performance_metrics.json` to `../outputs/metadata/` and uploads to S3 at `gold/dashboard/metadata/model_performance_metrics.json`
 
 **Outputs:**
-- `model_performance_metrics.json` (bundled at `/var/task/metadata/` in the Lambda container)
+- Local: `../outputs/metadata/model_performance_metrics.json`
+- S3 (pgxdatalake): `gold/dashboard/metadata/model_performance_metrics.json` (Lambda fallback)
+- Dashboard deploy (5_build_and_deploy) uploads this file to the **dashboard bucket** at `{S3_DASHBOARD_PREFIX}/metadata/model_performance_metrics.json` so the frontend can fetch it same-origin (no API call; better performance).
 
 ### `prepare_cpic_data.py`
 

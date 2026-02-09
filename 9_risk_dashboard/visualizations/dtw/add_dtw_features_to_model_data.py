@@ -11,8 +11,13 @@ Output:
 """
 
 import argparse
+import json
+import os
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any, Dict, Optional
+
 import pandas as pd
 import subprocess
 import shutil
@@ -124,9 +129,163 @@ def add_dtw_features(
     except Exception as exc:  # pragma: no cover - best-effort
         print(f"[WARNING] Could not mirror DTW checkpoint to S3: {exc}")
 
+    # Upload DTW plot PNGs to dashboard bucket (same pattern as FP-Growth/BupaR)
+    _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band)
+
+    # Prebuild chart data (routine vs no routine, high-risk trajectories) and upload to dashboard S3 for direct dashboard integration
+    chart_data = _build_dtw_chart_data(dtw_df)
+    if chart_data:
+        _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data)
+
     print("[INFO] Done.")
     print(f"\nFinal output: {out_path}")
     print("Ready for joining with model_data using mi_person_key")
+
+
+def _upload_dtw_plots_to_dashboard_s3(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+) -> None:
+    """Upload DTW plot PNGs to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
+    age_band_fname = age_band.replace("-", "_")
+    plots_dir_10d = project_root / "10d_dtw_dashboard_visual" / "outputs" / cohort_name / age_band_fname / "plots"
+    fe_plots_dir = project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band / "plots"
+    plots_dir = plots_dir_10d if plots_dir_10d.exists() else (fe_plots_dir if fe_plots_dir.exists() else None)
+    if plots_dir is None or not list(plots_dir.glob("*.png")):
+        return
+
+    s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+    s3_prefix = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}/plots"
+
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        return
+
+    uploaded = 0
+    for p in plots_dir.glob("*.png"):
+        key = f"{s3_prefix}/{p.name}"
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(p, s3_path, logger=None, check_exists=True):
+            uploaded += 1
+    if uploaded:
+        print(f"[INFO] Uploaded {uploaded} DTW plot(s) to dashboard S3 s3://{s3_bucket}/{s3_prefix}/")
+
+
+def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Outcome rate by routine vs no routine (admin ICD filter) or by trajectory intensity. Prebuilt on EC2."""
+    if df.empty or "target" not in df.columns:
+        return None
+    if "admin_icd_event_count" in df.columns:
+        use_df = df[["admin_icd_event_count", "target"]].copy()
+        use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+            lambda x: "No routine appointments (0 admin ICD events)" if x == 0 else "Routine appointments (1+ admin ICD events)"
+        )
+        x_label = "Routine vs no routine (admin ICD filter)"
+    elif "trajectory_length" in df.columns:
+        col = "trajectory_length"
+        use_df = df[[col, "target"]].dropna()
+        if len(use_df) < 10:
+            return None
+        q1, q2 = use_df[col].quantile(0.33), use_df[col].quantile(0.67)
+        use_df = use_df.copy()
+        use_df["bucket"] = use_df[col].apply(
+            lambda x: "Low (fewer events)" if x <= q1 else ("Medium" if x <= q2 else "High (more events)")
+        )
+        x_label = "Trajectory intensity (event count)"
+    else:
+        return None
+    use_df = use_df.dropna(subset=["bucket"])
+    if len(use_df) < 10:
+        return None
+    agg = use_df.groupby("bucket", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    order = (
+        ["No routine appointments (0 admin ICD events)", "Routine appointments (1+ admin ICD events)"]
+        if "admin_icd_event_count" in df.columns
+        else ["Low (fewer events)", "Medium", "High (more events)"]
+    )
+    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+    agg = agg.dropna(subset=["target_rate"])
+    if agg.empty or agg["n"].sum() == 0:
+        return None
+    return {
+        "x": agg["bucket"].astype(str).tolist(),
+        "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "type": "bar",
+        "x_label": x_label,
+        "y_label": "Target outcome rate",
+    }
+
+
+def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Target outcome rate by trajectory archetype (quartiles). Prebuilt on EC2."""
+    if df.empty or "target" not in df.columns:
+        return None
+    col = "dtw_min_distance" if "dtw_min_distance" in df.columns else "trajectory_length"
+    if col not in df.columns:
+        return None
+    use_df = df[["target", col]].dropna()
+    if len(use_df) < 10:
+        return None
+    try:
+        use_df = use_df.copy()
+        use_df["q"] = pd.qcut(
+            use_df[col], q=4, labels=["Q1 (closest)", "Q2", "Q3", "Q4 (furthest)"], duplicates="drop"
+        )
+    except (ValueError, TypeError):
+        return None
+    agg = use_df.groupby("q", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    if agg.empty or agg["n"].sum() == 0:
+        return None
+    return {
+        "x": [str(v) for v in agg["q"]],
+        "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "type": "bar",
+        "x_label": "Trajectory archetype (by DTW distance)" if col == "dtw_min_distance" else "Trajectory archetype (by length)",
+        "y_label": "Target outcome rate",
+    }
+
+
+def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Build routine_comparison and high_risk_trajectories chart payloads for dashboard. Prebuilt on EC2."""
+    if dtw_df.empty:
+        return None
+    out = {}
+    routine = _compute_dtw_routine_comparison(dtw_df)
+    if routine:
+        out["routine_comparison"] = routine
+    high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
+    if high_risk:
+        out["high_risk_trajectories"] = high_risk
+    return out if out else None
+
+
+def _upload_dtw_chart_data_to_dashboard_s3(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+    chart_data: Dict[str, Any],
+) -> None:
+    """Upload prebuilt DTW chart_data.json to dashboard bucket for direct dashboard integration."""
+    s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+    base_key = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}"
+    key = f"{base_key}/chart_data.json"
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        return
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump(chart_data, f, indent=0)
+        path = Path(f.name)
+    try:
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(path, s3_path, logger=None, check_exists=False):
+            print(f"[INFO] Uploaded DTW chart_data.json to dashboard S3 {s3_path}")
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def main() -> None:

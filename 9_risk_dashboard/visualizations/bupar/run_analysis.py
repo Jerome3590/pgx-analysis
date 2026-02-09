@@ -14,6 +14,7 @@ Outputs:
 
 import argparse
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -186,6 +187,42 @@ def merge_bupar_features(
             return False
 
 
+def upload_bupar_plots_to_dashboard_s3(
+    cohort_name: str,
+    age_band: str,
+    logger: logging.Logger,
+) -> bool:
+    """Upload BupaR plot PNGs to the dashboard bucket (same as FP-Growth) under bupar/{cohort}/{age_band}/plots/."""
+    age_band_fname = age_band.replace("-", "_")
+    base_10c = REPO_ROOT / "10c_bupaR_dashboard_visual" if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT / "10c_bupaR_dashboard_visual"
+    plots_dir_10c = base_10c / "outputs" / cohort_name / age_band_fname / "plots"
+    fe_plots_dir = REPO_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "5_bupar" / cohort_name / age_band_fname / "plots"
+    plots_dir = plots_dir_10c if plots_dir_10c.exists() else fe_plots_dir
+    if not plots_dir.exists() or not list(plots_dir.glob("*.png")):
+        logger.warning("No BupaR plots directory or no PNGs at %s or %s; skipping S3 upload", plots_dir_10c, fe_plots_dir)
+        return True
+
+    s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+    s3_prefix = f"{dashboard_prefix.rstrip('/')}/bupar/{cohort_name}/{age_band}/plots"
+
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        logger.warning("checkpoint_utils not available; skipping BupaR plot upload to dashboard S3")
+        return True
+
+    uploaded = 0
+    for p in plots_dir.glob("*.png"):
+        key = f"{s3_prefix}/{p.name}"
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
+            uploaded += 1
+    if uploaded:
+        logger.info("Uploaded %s BupaR plot(s) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
+    return True
+
+
 def run_bupar_analysis(
     cohort_name: str,
     age_band: str,
@@ -216,6 +253,8 @@ def run_bupar_analysis(
             logger.error("BupaR merge step failed; aborting module")
             mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
+
+        upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
 
         logger.info("BupaR analysis completed for %s / %s", cohort_name, age_band)
 
