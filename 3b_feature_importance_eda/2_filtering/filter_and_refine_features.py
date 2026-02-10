@@ -42,6 +42,7 @@ from py_helpers.feature_utils import (
     sanitize_column_names,
     feature_to_code,
     feature_to_code_type,
+    code_to_canonical_feature_name,
     is_substance_use_disorder_code,
 )
 from py_helpers.feature_importance_eda_utils import (
@@ -374,9 +375,17 @@ def main():
         cohort=args.cohort,
     )
     
-    # Save refined feature importance (add code_type so downstream e.g. generate_metadata knows drug/icd/cpt)
+    # Save refined feature importance: add code_type and raw_code, and normalize "feature" to canonical
+    # form (item_icd_X, item_cpt_X, item_drug_X) so Step 4 and Step 6 read ICD/CPT/drug correctly.
     refined_fi = refined_fi.copy()
     refined_fi["code_type"] = refined_fi["feature"].astype(str).map(lambda f: feature_to_code_type(f))
+    refined_fi["raw_code"] = refined_fi["feature"].astype(str).map(lambda f: feature_to_code(f))
+    # Canonical feature name so downstream never see item_80307 (ambiguous); they get item_cpt_80307
+    def _canonical(row):
+        ctype, raw = row["code_type"], row["raw_code"]
+        canonical = code_to_canonical_feature_name(ctype, raw)
+        return canonical if canonical else row["feature"]
+    refined_fi["feature"] = refined_fi.apply(_canonical, axis=1)
     output_path = output_dir / f"{args.cohort}_{age_band_fname}_cohort_feature_importance.csv"
     refined_fi.to_csv(output_path, index=False)
     print(f"\nSaved refined feature importance to: {output_path}")
