@@ -825,10 +825,19 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         if len(potential_leakage) > 10:
             print(f"[WARN]   ... and {len(potential_leakage) - 10} more")
     
-    # Filter out features with zero or negative importance (no signal)
-    importance_col = "importance_scaled" if "importance_scaled" in df.columns else ("importance_normalized" if "importance_normalized" in df.columns else None)
+    # Resolve importance column (Step 3b may use importance_scaled_by_model_sum or importance_mean)
+    importance_col = None
+    for col in (
+        "importance_scaled",
+        "importance_normalized",
+        "importance_scaled_by_model_sum",
+        "importance_mean",
+    ):
+        if col in df.columns:
+            importance_col = col
+            break
     if importance_col:
-        # Filter to only features with importance > 0 (or > small epsilon to handle floating point)
+        # Filter to only features with importance > 0 (or > small epsilon)
         initial_count = len(df)
         df = df[df[importance_col] > 1e-10].copy()
         filtered_count = len(df)
@@ -836,7 +845,14 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
             print(f"[INFO] Filtered out {initial_count - filtered_count} features with zero/negative importance")
             print(f"[INFO] Keeping {filtered_count} features with importance > 0")
     else:
-        print(f"[WARNING] No importance_scaled or importance_normalized column found. Cannot filter by importance.")
+        print(f"[WARNING] No importance column found (tried importance_scaled, importance_normalized, importance_scaled_by_model_sum, importance_mean). Not filtering by importance.")
+
+    # For non_opioid_ed we only use drug features; when Step 3b provides code_type, keep only drug
+    if ("non_opioid" in cohort.lower() or "ed_non_opioid" in cohort.lower()) and "code_type" in df.columns:
+        before = len(df)
+        df = df[df["code_type"].astype(str).str.strip().str.lower() == "drug"].copy()
+        if len(df) < before:
+            print(f"[INFO] For non_opioid_ed (drug only): kept {len(df)} drug features, dropped {before - len(df)} non-drug from Step 3b.")
     
     # Remove duplicate features (keep first occurrence, which should be highest importance after sorting)
     initial_count = len(df)
@@ -844,14 +860,11 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     if len(df) < initial_count:
         print(f"[INFO] Removed {initial_count - len(df)} duplicate features")
     
-    # Sort by importance_scaled if available, otherwise by importance_normalized
-    if "importance_scaled" in df.columns:
-        df = df.sort_values("importance_scaled", ascending=False)
-    elif "importance_normalized" in df.columns:
-        df = df.sort_values("importance_normalized", ascending=False)
+    # Sort by importance (use first available column)
+    if importance_col:
+        df = df.sort_values(importance_col, ascending=False)
     else:
-        # If no importance column, just take first N unique features
-        print(f"[WARNING] No importance_scaled or importance_normalized column found. Using first {top_n} features.")
+        print(f"[WARNING] No importance column found. Using row order.")
     
     # Create a mapping of feature -> importance for sorting
     if importance_col:
@@ -859,39 +872,49 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     else:
         # No importance column - use row order (df is already sorted)
         feature_importance_map = {feat: -idx for idx, feat in enumerate(df["feature"])}
+
+    # Use code_type from Step 3b when present (single source of truth for drug/icd/cpt)
+    use_csv_code_type = "code_type" in df.columns
+    if use_csv_code_type:
+        df["_code_type_lower"] = df["code_type"].astype(str).str.strip().str.lower()
+        print(f"[INFO] Using code_type from Step 3b for feature classification (drug/icd/cpt)")
     
     # Parse features to extract code and type, preserving importance for sorting
-    # Format: item_{type}_{code} or just {code} (fallback)
+    # Format: item_{type}_{code} or item_{code} (Step 3a); Step 3b may add code_type column
     parsed_features = []
-    for feature in df["feature"]:
-        feature_str = str(feature)
+    for _, row in df.iterrows():
+        feature_str = str(row["feature"])
         importance = feature_importance_map.get(feature_str, 0)
+        if use_csv_code_type:
+            ctype = row.get("_code_type_lower", "drug")
+            if ctype not in ("drug", "icd", "cpt"):
+                continue
+        else:
+            ctype = None
         
         if feature_str.startswith("item_drug_"):
             code = feature_str.replace("item_drug_", "", 1)
-            parsed_features.append(("drug", code, importance))
+            ftype = ctype if ctype else "drug"
         elif feature_str.startswith("item_icd_"):
             code = feature_str.replace("item_icd_", "", 1)
-            parsed_features.append(("icd", code, importance))
+            ftype = ctype if ctype else "icd"
         elif feature_str.startswith("item_cpt_"):
             code = feature_str.replace("item_cpt_", "", 1)
-            parsed_features.append(("cpt", code, importance))
+            ftype = ctype if ctype else "cpt"
         elif feature_str.startswith("item_"):
-            # Generic item_ prefix without type - extract code
             code = feature_str.replace("item_", "", 1)
-            # Try to infer type from code format (heuristic)
-            if any(c.isalpha() for c in code[:3]) and len(code) > 5:
-                # Likely a drug name (longer, alphabetic)
-                parsed_features.append(("drug", code, importance))
+            if ctype:
+                ftype = ctype
+            elif any(c.isalpha() for c in code[:3]) and len(code) > 5:
+                ftype = "drug"
             elif code.replace(".", "").replace("-", "").isdigit() or (len(code) <= 10 and any(c.isdigit() for c in code)):
-                # Likely ICD or CPT (shorter, contains digits)
-                parsed_features.append(("icd", code, importance))
+                ftype = "icd"
             else:
-                # Unknown type - default to drug
-                parsed_features.append(("drug", code, importance))
+                ftype = "drug"
         else:
-            # No prefix - assume drug by default
-            parsed_features.append(("drug", feature_str, importance))
+            code = feature_str
+            ftype = ctype if ctype else "drug"
+        parsed_features.append((ftype, code, importance))
     
     # Sort by importance (descending)
     parsed_features.sort(key=lambda x: x[2], reverse=True)
@@ -1057,6 +1080,33 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
                 elif code_type == "cpt" and "procedure_code" in available_cols:
                     cpt_codes.append((code_str, f"item_cpt_{code_safe}"))
             
+            # Fallback for non_opioid_ed: if Step 3b yielded no drug codes, use distinct drugs from model_events
+            # so we do not end up with only n_events + PGx (e.g. non_opioid_ed 75-84 with 3 features)
+            if (
+                ("non_opioid" in cohort.lower() or "ed_non_opioid" in cohort.lower())
+                and not drug_codes
+                and "drug_name" in available_cols
+            ):
+                print(
+                    "[WARN] Step 3b yielded no drug codes for this cohort/age_band; "
+                    "using distinct drug_name from model_events as fallback."
+                )
+                distinct_drugs_df = con.execute(
+                    """
+                    SELECT DISTINCT drug_name
+                    FROM events_view
+                    WHERE drug_name IS NOT NULL AND TRIM(CAST(drug_name AS VARCHAR)) <> ''
+                    """
+                ).df()
+                for drug in distinct_drugs_df["drug_name"].unique():
+                    drug_str = str(drug).strip()
+                    if not drug_str:
+                        continue
+                    code_safe = drug_str.replace(" ", "_").replace("-", "_").replace(".", "_").replace("/", "_").replace("&", "_").replace("(", "_").replace(")", "_").replace("[", "_").replace("]", "_").replace("{", "_").replace("}", "_").replace("*", "_").replace("+", "_").replace("=", "_").replace("|", "_").replace("^", "_").replace("%", "_").replace('"', "_").replace("'", "_").replace("\\", "_")
+                    drug_codes.append((drug_str, f"item_drug_{code_safe}"))
+                if drug_codes:
+                    print(f"[INFO] Fallback: added {len(drug_codes)} drug features from model_events.")
+
             # Create temporary lookup tables using executemany (parameterized, safe)
             if drug_codes:
                 con.execute("CREATE TEMP TABLE IF NOT EXISTS drug_code_lookup(code_value VARCHAR, feature_name VARCHAR)")

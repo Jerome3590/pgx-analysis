@@ -386,18 +386,66 @@ def generate_patient_explanations(
     return pd.DataFrame(results)
 
 
+def _feature_type_counts(combined_importance: pd.DataFrame) -> Dict[str, int]:
+    """Count features by prefix: item_drug_, item_icd_, item_cpt_, other."""
+    counts = {"drug": 0, "icd": 0, "cpt": 0, "other": 0}
+    if combined_importance.empty or "feature" not in combined_importance.columns:
+        return counts
+    for f in combined_importance["feature"].astype(str):
+        if f.startswith("item_drug_"):
+            counts["drug"] += 1
+        elif f.startswith("item_icd_"):
+            counts["icd"] += 1
+        elif f.startswith("item_cpt_"):
+            counts["cpt"] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
 def generate_summary_report(
     consensus_data: Dict,
     combined_importance: pd.DataFrame,
-    patient_explanations: pd.DataFrame
+    patient_explanations: pd.DataFrame,
+    cohort: Optional[str] = None,
+    age_band: Optional[str] = None,
 ) -> str:
-    """Generate a human-readable summary report."""
+    """Generate a human-readable summary report. If cohort/age_band given, include feature-type check by design."""
     report = []
     report.append("="*80)
     report.append("SHAP + FFA COMBINED ANALYSIS SUMMARY")
+    if cohort and age_band:
+        report.append(f"  Cohort: {cohort} / {age_band}")
     report.append("="*80)
     report.append("")
     
+    # Feature types by cohort (design: opioid_ed = Drug+ICD+CPT, non_opioid_ed = Drug only)
+    if not combined_importance.empty and cohort:
+        counts = _feature_type_counts(combined_importance)
+        report.append("FEATURE TYPES (combined importance):")
+        report.append(f"  drug: {counts['drug']}, icd: {counts['icd']}, cpt: {counts['cpt']}, other: {counts['other']}")
+        if cohort == "opioid_ed":
+            expect = "Drug + ICD + CPT"
+            ok = counts["drug"] > 0 and counts["icd"] > 0 and counts["cpt"] > 0
+        elif cohort == "non_opioid_ed":
+            expect = "Drug only"
+            ok = counts["drug"] > 0 and counts["icd"] == 0 and counts["cpt"] == 0
+        else:
+            expect = ""
+            ok = True
+        if expect:
+            status = "OK" if ok else "CHECK (expected " + expect + ")"
+            report.append(f"  Expected: {expect}  [{status}]")
+        total_feats = counts["drug"] + counts["icd"] + counts["cpt"] + counts["other"]
+        if total_feats <= 5 or (cohort == "non_opioid_ed" and counts["drug"] == 0):
+            report.append("")
+            report.append(
+                "  *** WARNING: Very few or no item features (model may have only n_events + PGx). "
+                "Re-run Step 3b and Step 6 for this cohort/age_band; Step 6 will fall back to "
+                "distinct drugs from model_events if Step 3b yields no drug codes."
+            )
+        report.append("")
+
     # Consensus summary
     report.append("CONSENSUS FEATURES:")
     report.append(f"  - Consensus features: {consensus_data['consensus_count']}")
@@ -422,6 +470,16 @@ def generate_summary_report(
             sn = row.get('shap_norm', 0.0)
             fn = row.get('ffa_norm', 0.0)
             report.append(f"  {i}. {feat}: {comb:.4f} (SHAP: {sn:.3f}, FFA: {fn:.3f})")
+        # For opioid_ed, show top ICD and CPT so output clearly shows Drug+ICD+CPT
+        if cohort == "opioid_ed" and "feature" in combined_importance.columns:
+            icd_rows = combined_importance[combined_importance["feature"].astype(str).str.startswith("item_icd_")].head(3)
+            cpt_rows = combined_importance[combined_importance["feature"].astype(str).str.startswith("item_cpt_")].head(3)
+            if not icd_rows.empty or not cpt_rows.empty:
+                report.append("  Top ICD/CPT in combined importance:")
+                for _, row in icd_rows.iterrows():
+                    report.append(f"    - {row.get('feature', '')}: {row.get('combined_importance', 0):.4f}")
+                for _, row in cpt_rows.iterrows():
+                    report.append(f"    - {row.get('feature', '')}: {row.get('combined_importance', 0):.4f}")
         report.append("")
     
     # Patient explanation summary (patient_explanations is None when FFA explanations are missing)
@@ -692,8 +750,11 @@ def main():
         patient_explanations.to_csv(explanations_path, index=False)
         logger.info(f"Saved patient explanations to {explanations_path}")
     
-    # Generate summary report
-    summary = generate_summary_report(consensus_data, combined_importance, patient_explanations)
+    # Generate summary report (include cohort/age_band so report shows feature-type check by design)
+    summary = generate_summary_report(
+        consensus_data, combined_importance, patient_explanations,
+        cohort=args.cohort, age_band=args.age_band,
+    )
     summary_path = output_dir / 'summary_report.txt'
     with open(summary_path, 'w') as f:
         f.write(summary)
