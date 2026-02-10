@@ -2480,8 +2480,12 @@ def train_and_evaluate(
             )
         except ImportError:
             pass  # Checkpoint saving is optional
+    except ImportError as e:
+        print(f"CatBoost not installed; skipping CatBoost model save. {e}")
     except Exception as e:
-        print(f"CatBoost not available or failed to train final model; skipping JSON export. {e}")
+        print(f"CatBoost failed to train or save; skipping CatBoost model export. Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def main() -> None:
