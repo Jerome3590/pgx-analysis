@@ -20,6 +20,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING
+
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
     """
@@ -133,6 +135,20 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         # Filter to item_* features only
         important_items = [f.replace('item_', '') for f in important_features if f.startswith('item_')]
         
+        # Exclude drug-name values not used in model training (Narcan, Unknown, Fentanyl, 1036F, T401XA1)
+        def _drug_name_excluded(item: str) -> bool:
+            if item in DRUG_NAMES_EXCLUDED_MODEL_TRAINING:
+                return True
+            if item.startswith("drug_"):
+                suffix = item.split("_", 1)[-1]
+                if suffix in DRUG_NAMES_EXCLUDED_MODEL_TRAINING:
+                    return True
+            return False
+        before_drug_excl = len(important_items)
+        important_items = [x for x in important_items if not _drug_name_excluded(x)]
+        if len(important_items) < before_drug_excl:
+            print(f"[INFO] Excluded {before_drug_excl - len(important_items)} drug-name feature(s) (DRUG_NAMES_EXCLUDED_MODEL_TRAINING)")
+
         # For non_opioid_ed cohort: only include drug events (exclude ICD and CPT codes)
         if "non_opioid" in cohort_name.lower() or "ed_non_opioid" in cohort_name.lower():
             original_count = len(important_items)

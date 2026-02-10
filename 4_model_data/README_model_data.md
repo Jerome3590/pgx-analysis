@@ -54,7 +54,15 @@ Refined feature-importance CSVs (from Step 3b) drive the case-side event filteri
   - The resulting item list is used in the DuckDB query that filters **case events**:
     - keep only events where `drug_name`, any ICD diagnosis column, or `procedure_code` matches one of the important items.
   - Control events are never filtered by this list; they remain a neutral reference.
-- **Drug name exclusions**: The following are never used as drug-name features and are stripped from the important-items list when building model data: **Narcan**, **Unknown**, **Fentanyl**, **1036F**, **T401XA1**. 1036F is a CPT Category II tracking code (tobacco non-user), not a drug; T401XA1 is an ICD-10-CM poisoning diagnosis code (4-aminophenol/acetaminophen), not a drug. See `1b_apcd_event_filter/README_administrative_codes_lookup.md` and `py_helpers.constants.DRUG_NAMES_EXCLUDED_MODEL_TRAINING`.
+- **Drug name exclusions (model training)**: The following values are removed from the drug-name feature set when building model data and final features. They are defined in `py_helpers.constants.DRUG_NAMES_EXCLUDED_MODEL_TRAINING` and applied in Step 3b, Step 4 (`get_important_items`), and Step 6 (`build_final_cohort_model_features`). See `1b_apcd_event_filter/README_administrative_codes_lookup.md` for the lookup table.
+
+  | Value     | Reason |
+  |-----------|--------|
+  | **Narcan**   | Excluded per model-training requirements. |
+  | **Unknown**  | Placeholder, not a drug. |
+  | **Fentanyl** | Excluded per model-training requirements. |
+  | **1036F**    | Not a drug. CPT Category II tracking code used to document that a patient (18+) is a current tobacco non-user, usually during preventive screenings; part of quality measures for tobacco use assessment and preventive care. |
+  | **T401XA1**  | Not a drug. ICD-10-CM diagnosis code for *Poisoning by 4-aminophenol derivatives, accidental (unintentional), initial encounter* — in practice usually unintentional overdose or poisoning with acetaminophen (paracetamol) or closely related compounds, at the patient's initial encounter. |
 - **Note**: Step 4a requires `cohort_feature_importance` files from Step 3b. There is no fallback to `aggregated_feature_importance` files from Step 3. Step 3b must run before Step 4a.
 
 ### Idempotency and Rebuilds

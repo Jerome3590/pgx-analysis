@@ -95,7 +95,7 @@ The following values are excluded from the **drug name column** for model traini
 | **1036F**    | Not a drug. CPT Category II tracking code used to document that a patient (18+) is a current tobacco non-user, typically during preventive screenings; part of quality measures for tobacco use assessment and preventive care. |
 | **T401XA1**  | Not a drug. ICD-10-CM diagnosis code for *Poisoning by 4-aminophenol derivatives, accidental (unintentional), initial encounter* — in practice usually unintentional overdose or poisoning with acetaminophen (paracetamol) or closely related compounds, at the patient’s initial encounter. |
 
-These are filtered in Step 1b (event filter), Step 3a (aggregated feature importance), Step 3b (`filter_and_refine_features.py`), and Step 4 (`get_important_items` in `create_model_data.py`).
+These are filtered in Step 1b (event filter), Step 3a (aggregated feature importance), Step 3b (`filter_and_refine_features.py`), Step 4 (`get_important_items` in `create_model_data.py`), and Step 6 (`build_final_cohort_model_features.py`).
 
 ### Step 5: Re-run Filtering
 

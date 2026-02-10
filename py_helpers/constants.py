@@ -23,8 +23,16 @@ RICHMOND_ZIP_CODES = {
 }
 
 # Drug-name column: values to exclude from model training (not drugs or not useful as features).
-# 1036F = CPT Category II tracking code (tobacco non-user), not a drug.
-# T401XA1 = ICD-10-CM poisoning diagnosis code (4-aminophenol/acetaminophen), not a drug.
+# Used in Step 3b (filter_and_refine_features), Step 4 (create_model_data.get_important_items),
+# and Step 6 (build_final_cohort_model_features). See READMEs and docs for full rationale.
+#
+# 1036F: Not a drug. CPT Category II tracking code used to document that a patient (18+) is a
+#   current tobacco non-user, usually during preventive screenings; part of quality measures
+#   for tobacco use assessment and preventive care.
+# T401XA1: Not a drug. ICD-10-CM diagnosis code for "Poisoning by 4-aminophenol derivatives,
+#   accidental (unintentional), initial encounter" — in practice usually unintentional overdose
+#   or poisoning with acetaminophen (paracetamol) or closely related compounds, at the
+#   patient's initial encounter.
 # Narcan, Unknown, Fentanyl: excluded per model-training requirements.
 DRUG_NAMES_EXCLUDED_MODEL_TRAINING = frozenset({
     "Narcan",
