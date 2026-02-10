@@ -148,6 +148,37 @@ def feature_to_code_type(feature: str) -> str:
     return 'drug'
 
 
+def _sanitize_code_for_feature_name(code: str) -> str:
+    """Sanitize a raw code for use in item_* feature column names (match Step 6 convention)."""
+    if not code or not isinstance(code, str):
+        return str(code) if code else ""
+    s = str(code).strip()
+    for ch in ('.', '-', '/', ' ', '&', '(', ')', '[', ']', '{', '}', '*', '+', '=', '|', '^', '%', '"', "'", '\\'):
+        s = s.replace(ch, '_')
+    return s
+
+
+def code_to_canonical_feature_name(code_type: str, code: str) -> str:
+    """
+    Build canonical feature name for downstream (Step 4, Step 6): item_icd_X, item_cpt_X, item_drug_X.
+    Use when writing Step 3b cohort_feature_importance.csv so readers get consistent prefixed names.
+    """
+    if not code or not isinstance(code, str) or not code.strip():
+        return ""
+    safe = _sanitize_code_for_feature_name(code)
+    if not safe:
+        return ""
+    ctype = (code_type or "").strip().lower()
+    if ctype == "icd":
+        return f"item_icd_{safe}"
+    if ctype == "cpt":
+        return f"item_cpt_{safe}"
+    if ctype == "drug":
+        return f"item_drug_{safe}"
+    # Fallback: leave as item_{code} so downstream feature_to_code still works
+    return f"item_{safe}"
+
+
 def is_opioid_use_disorder_code(code: str) -> bool:
     """True if code is in the F11.x opioid use disorder family (target-family for opioid_ed)."""
     return is_substance_use_disorder_code(code)

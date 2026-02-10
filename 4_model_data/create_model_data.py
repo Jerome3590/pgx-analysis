@@ -78,6 +78,7 @@ from py_helpers.constants import (
     get_opioid_icd_sql_condition,
 )
 from py_helpers.env_utils import get_data_root, get_model_data_root
+from py_helpers.feature_utils import feature_to_code
 
 try:
     from py_helpers.fe_monitor import mirror_log_to_s3
@@ -242,20 +243,32 @@ def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
 
 
 def get_important_items(agg_csv: Path) -> List[str]:
-    """Read aggregated feature-importance CSV and return item codes (no 'item_' prefix).
+    """Read aggregated feature-importance CSV and return raw item codes for SQL matching.
+
+    Step 3b CSVs use feature names like item_icd_F1120, item_cpt_80307, item_drug_SUBOXONE,
+    and may include a raw_code column. Gold medical/pharmacy tables store raw codes:
+    primary_icd_diagnosis_code='F1120', procedure_code='80307', drug_name='SUBOXONE'.
+    We use raw_code when present (from 3b), else feature_to_code(feature), so that the
+    filter matches all three sources; otherwise only drugs would match and ICD/CPT would
+    never appear in model_events (opioid_ed would effectively get Drug-only features).
+
     Excludes drug names in DRUG_NAMES_EXCLUDED_MODEL_TRAINING (Narcan, Unknown, Fentanyl,
     1036F, T401XA1) so they are not used as features in model training."""
     df = pd.read_csv(agg_csv)
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {agg_csv}")
 
-    items = (
-        df["feature"]
-        .astype(str)
-        .str.replace("^item_", "", regex=True)
-        .unique()
-        .tolist()
-    )
+    # Prefer raw_code from Step 3b when present; else derive from feature column
+    if "raw_code" in df.columns:
+        raw_codes = df["raw_code"].astype(str).dropna().str.strip().replace("", pd.NA).dropna().unique().tolist()
+    else:
+        raw_codes = []
+        for f in df["feature"].astype(str).unique().tolist():
+            code = feature_to_code(f)
+            if code and code.strip():
+                raw_codes.append(code.strip())
+    items = list(dict.fromkeys(raw_codes))  # preserve order, dedupe
+
     excluded = DRUG_NAMES_EXCLUDED_MODEL_TRAINING
     filtered = [x for x in items if x not in excluded]
     if len(filtered) < len(items):
