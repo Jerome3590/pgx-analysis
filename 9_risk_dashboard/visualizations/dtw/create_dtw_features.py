@@ -757,38 +757,50 @@ def create_all_dtw_features(
     # For target patients: use first_opioid_ed_date or first_ed_non_opioid_date (cohort-specific)
     #   - Events before target date = no leakage (excludes target event itself, matching BupaR)
     # For control patients: NULL means no cutoff (use all events, matching BupaR logic)
-    # NOTE: Anything after target code date is leakage - use target event date field directly
+    # NOTE: 3b model_events may not have these columns; 4_model_data does. When column missing, use no cutoff.
     con = duckdb.connect()
     
-    # Determine which target date field to use based on cohort
-    # opioid_ed uses first_opioid_ed_date, non_opioid_ed uses first_ed_non_opioid_date
+    # Check if target date column exists (4_model_data has it; 3b may not)
+    schema_df = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{model_data_path}')").df()
+    schema_columns = set(schema_df["column_name"].astype(str).str.lower())
     if "opioid" in cohort_name.lower():
         target_date_field = "first_opioid_ed_date"
     else:
         target_date_field = "first_ed_non_opioid_date"
-    
-    cutoff_dates_df = con.execute(f"""
-        WITH patient_target_dates AS (
-            SELECT DISTINCT
+    has_target_date_col = target_date_field.lower() in schema_columns
+
+    if has_target_date_col:
+        cutoff_dates_df = con.execute(f"""
+            WITH patient_target_dates AS (
+                SELECT DISTINCT
+                    mi_person_key,
+                    target,
+                    CAST({target_date_field} AS DATE) as target_event_date
+                FROM read_parquet('{model_data_path}')
+                GROUP BY mi_person_key, target, {target_date_field}
+            )
+            SELECT
                 mi_person_key,
-                target,
-                CAST({target_date_field} AS DATE) as target_event_date
-            FROM read_parquet('{model_data_path}')
-            GROUP BY mi_person_key, target, {target_date_field}
+                CASE
+                    WHEN target = 1 AND target_event_date IS NOT NULL
+                    THEN target_event_date
+                    ELSE NULL
+                END as cutoff_date
+            FROM patient_target_dates
+        """).df()
+        logger.info("Using %s for target patients (events before target), NULL for controls", target_date_field)
+    else:
+        # 3b model_events has no first_*_date column; use no cutoff for anyone (all events included)
+        logger.warning(
+            "Column %s not in model_events (e.g. 3b schema); using no cutoff (all events). Use 4_model_data for leakage-safe cutoffs.",
+            target_date_field,
         )
-        SELECT 
-            mi_person_key,
-            -- For target patients: use target event date (events before target = no leakage, matching BupaR)
-            -- For control patients: NULL means no cutoff (use all events, matching BupaR logic)
-            CASE 
-                WHEN target = 1 AND target_event_date IS NOT NULL 
-                THEN target_event_date
-                ELSE NULL  -- Controls: no cutoff, use all events (same as BupaR)
-            END as cutoff_date
-        FROM patient_target_dates
-    """).df()
-    
-    logger.info(f"Using {target_date_field} for target patients (events before target), NULL for controls (all events, matching BupaR)")
+        cutoff_dates_df = con.execute("""
+            SELECT mi_person_key, CAST(NULL AS DATE) as cutoff_date
+            FROM (
+                SELECT DISTINCT mi_person_key FROM read_parquet('{path}') WHERE target IN (0, 1)
+            ) sub
+        """.format(path=str(model_data_path))).df()
     
     # Get base patient list (both target and control)
     base_df = con.execute(
