@@ -703,22 +703,34 @@ def create_all_dtw_features(
     
     age_band_fname = age_band.replace("-", "_")
 
-    # Model data path - use model_events.parquet directly (skip DTW filtering for now)
-    # Use canonical 4_model_data for all cohorts.
-    # NOTE: model_data is already filtered by aggregated feature importances (Step 4a),
-    # so we don't need to filter again using FP-Growth itemsets.
-    model_data_dir = (
-        project_root
-        / "4_model_data"
-        / f"cohort_name={cohort_name}"
-        / f"age_band={age_band}"
-    )
-    # Skip protocol filtering - use model_events.parquet directly
-    model_data_path = model_data_dir / "model_events.parquet"
-    
-    if not model_data_path.exists():
-        logger.error(f"Model data not found: {model_data_path}")
+    # Resolve model_events same as BupaR: 3b first, then 4_model_data (see py_helpers.model_data_paths)
+    try:
+        from py_helpers.model_data_paths import resolve_model_events_path
+        model_data_path = resolve_model_events_path(project_root, cohort_name, age_band)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not use shared model_events resolver: %s", exc)
+        model_data_path = None
+    if not model_data_path or not model_data_path.exists():
+        fallback_dir = (
+            project_root / "4_model_data"
+            / f"cohort_name={cohort_name}"
+            / f"age_band={age_band}"
+        )
+        fallback = fallback_dir / "model_events_no_protocols.parquet"
+        if not fallback.exists():
+            fallback = fallback_dir / "model_events.parquet"
+        if fallback.exists():
+            model_data_path = fallback
+    if not model_data_path or not model_data_path.exists():
+        from py_helpers.constants import get_cohort_slug_by_cohort
+        slug = get_cohort_slug_by_cohort(cohort_name)
+        logger.error(
+            "Model data not found for %s / %s. Checked 3b and 4_model_data (same as BupaR). "
+            "Paths: 3b .../input_model_data/cohort_name=%s/age_band=%s/, 4_model_data/cohort_name=%s/age_band=%s/",
+            cohort_name, age_band, slug, age_band, cohort_name, age_band,
+        )
         return pd.DataFrame()
+    logger.info("Using model_events: %s", model_data_path)
     
     # Prefer SHAP/FFA important codes for trajectory construction (same as BupaR/FP-Growth)
     allowed_codes = None
@@ -1233,22 +1245,26 @@ def main():
         logger.info("=" * 80)
         logger.info("RESEARCH MODE: Capturing ALL trajectories with time windows")
         logger.info("=" * 80)
-        
-        model_data_dir = (
-            project_root
-            / "4_model_data"
-            / f"cohort_name={args.cohort}"
-            / f"age_band={args.age_band}"
-        )
-        model_data_path = (
-            model_data_dir / "model_events_no_protocols.parquet"
-            if (model_data_dir / "model_events_no_protocols.parquet").exists()
-            else model_data_dir / "model_events.parquet"
-        )
-        
-        if not model_data_path.exists():
-            logger.error(f"Model data not found: {model_data_path}")
+        try:
+            from py_helpers.model_data_paths import resolve_model_events_path
+            model_data_path = resolve_model_events_path(project_root, args.cohort, args.age_band)
+        except Exception:
+            model_data_path = None
+        if not model_data_path or not model_data_path.exists():
+            model_data_dir = (
+                project_root / "4_model_data"
+                / f"cohort_name={args.cohort}"
+                / f"age_band={args.age_band}"
+            )
+            model_data_path = (
+                model_data_dir / "model_events_no_protocols.parquet"
+                if (model_data_dir / "model_events_no_protocols.parquet").exists()
+                else model_data_dir / "model_events.parquet"
+            )
+        if not model_data_path or not model_data_path.exists():
+            logger.error("Model data not found for %s / %s (same resolution as BupaR)", args.cohort, args.age_band)
             return
+        logger.info("Using model_events: %s", model_data_path)
         
         # Extract trajectories with time windows (no cutoff dates in research mode)
         for item_type in args.item_types:
