@@ -450,9 +450,10 @@ cat("\n--- Pre-HCG (before first ED visit within 21d of drug event) analysis ---
 target_date_map <- NULL
 if (has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
   target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines) %>%
+    filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines, !is.na(event_date)) %>%
     group_by(mi_person_key) %>%
     summarise(target_date = min(as.Date(event_date), na.rm = TRUE), .groups = "drop") %>%
+    filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
     rename(case_id = mi_person_key)
   cat("Target dates from hcg_line (ED visits): ", nrow(target_date_map), " cases.\n", sep = "")
 } else if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) {
@@ -460,6 +461,7 @@ if (has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
     filter(!is.na(first_ed_non_opioid_date)) %>%
     group_by(mi_person_key) %>%
     summarise(target_date = min(as.Date(first_ed_non_opioid_date), na.rm = TRUE), .groups = "drop") %>%
+    filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
     rename(case_id = mi_person_key)
   cat("Target dates from first_ed_non_opioid_date: ", nrow(target_date_map), " cases.\n", sep = "")
 }
@@ -558,24 +560,34 @@ save_bupar_csv(
 # -------------------------------------------------------------------
 
 # Use target_date_map (first ED within 21d of drug) for target_time; fallback to first event if no map
-if (!is.null(target_date_map) && nrow(target_date_map) > 0L) {
-  target_times <- as.data.frame(target_eventlog) %>%
+ev_df <- as.data.frame(target_eventlog)
+n_ev <- nrow(ev_df)
+if (n_ev == 0L) {
+  target_times <- data.frame(
+    case_id = character(0),
+    first_time = as.POSIXct(character(0)),
+    target_time = as.POSIXct(character(0))
+  )
+} else if (!is.null(target_date_map) && nrow(target_date_map) > 0L) {
+  target_times <- ev_df %>%
     arrange(case_id, timestamp) %>%
     group_by(case_id) %>%
-    summarise(first_time = min(timestamp), .groups = "drop") %>%
+    summarise(first_time = min(timestamp, na.rm = TRUE), .groups = "drop") %>%
+    filter(is.finite(as.numeric(first_time))) %>%
     inner_join(
       target_date_map %>% mutate(target_time = as.POSIXct(target_date)),
       by = "case_id"
     )
 } else {
-  target_times <- as.data.frame(target_eventlog) %>%
+  target_times <- ev_df %>%
     arrange(case_id, timestamp) %>%
     group_by(case_id) %>%
     summarise(
-      first_time  = min(timestamp),
-      target_time = min(timestamp),
+      first_time  = min(timestamp, na.rm = TRUE),
+      target_time = min(timestamp, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) %>%
+    filter(is.finite(as.numeric(first_time)))
 }
 
 pre_events_with_t <- as.data.frame(pre_target_eventlog) %>%
@@ -584,24 +596,37 @@ pre_events_with_t <- as.data.frame(pre_target_eventlog) %>%
     dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
   )
 
-hcg_time_features <- pre_events_with_t %>%
-  group_by(case_id, target_time, first_time) %>%
-  summarise(
-    time_to_HCG_days        = as.numeric(max(dt_days, na.rm = TRUE)),
-    n_events_30d            = sum(dt_days <= 30),
-    n_events_90d            = sum(dt_days <= 90),
-    n_events_180d           = sum(dt_days <= 180),
-    n_drug_events_30d       = sum(dt_days <= 30 & grepl("^DRUG:", activity)),
-    n_drug_events_90d       = sum(dt_days <= 90 & grepl("^DRUG:", activity)),
-    n_drug_events_180d      = sum(dt_days <= 180 & grepl("^DRUG:", activity)),
-    n_icd_events_30d        = sum(dt_days <= 30 & grepl("^ICD:", activity)),
-    n_icd_events_90d        = sum(dt_days <= 90 & grepl("^ICD:", activity)),
-    n_icd_events_180d       = sum(dt_days <= 180 & grepl("^ICD:", activity)),
-    n_cpt_events_30d        = sum(dt_days <= 30 & grepl("^CPT:", activity)),
-    n_cpt_events_90d        = sum(dt_days <= 90 & grepl("^CPT:", activity)),
-    n_cpt_events_180d       = sum(dt_days <= 180 & grepl("^CPT:", activity)),
-    .groups = "drop"
+if (nrow(pre_events_with_t) > 0L) {
+  hcg_time_features <- pre_events_with_t %>%
+    group_by(case_id, target_time, first_time) %>%
+    summarise(
+      time_to_HCG_days        = as.numeric(max(dt_days, na.rm = TRUE)),
+      n_events_30d            = sum(dt_days <= 30, na.rm = TRUE),
+      n_events_90d            = sum(dt_days <= 90, na.rm = TRUE),
+      n_events_180d           = sum(dt_days <= 180, na.rm = TRUE),
+      n_drug_events_30d       = sum(dt_days <= 30 & grepl("^DRUG:", activity), na.rm = TRUE),
+      n_drug_events_90d       = sum(dt_days <= 90 & grepl("^DRUG:", activity), na.rm = TRUE),
+      n_drug_events_180d      = sum(dt_days <= 180 & grepl("^DRUG:", activity), na.rm = TRUE),
+      n_icd_events_30d        = sum(dt_days <= 30 & grepl("^ICD:", activity), na.rm = TRUE),
+      n_icd_events_90d        = sum(dt_days <= 90 & grepl("^ICD:", activity), na.rm = TRUE),
+      n_icd_events_180d      = sum(dt_days <= 180 & grepl("^ICD:", activity), na.rm = TRUE),
+      n_cpt_events_30d       = sum(dt_days <= 30 & grepl("^CPT:", activity), na.rm = TRUE),
+      n_cpt_events_90d       = sum(dt_days <= 90 & grepl("^CPT:", activity), na.rm = TRUE),
+      n_cpt_events_180d      = sum(dt_days <= 180 & grepl("^CPT:", activity), na.rm = TRUE),
+      .groups = "drop"
+    )
+} else {
+  hcg_time_features <- data.frame(
+    case_id = character(0),
+    target_time = as.POSIXct(character(0)),
+    first_time = as.POSIXct(character(0)),
+    time_to_HCG_days = numeric(0),
+    n_events_30d = integer(0), n_events_90d = integer(0), n_events_180d = integer(0),
+    n_drug_events_30d = integer(0), n_drug_events_90d = integer(0), n_drug_events_180d = integer(0),
+    n_icd_events_30d = integer(0), n_icd_events_90d = integer(0), n_icd_events_180d = integer(0),
+    n_cpt_events_30d = integer(0), n_cpt_events_90d = integer(0), n_cpt_events_180d = integer(0)
   )
+}
 
 save_bupar_csv(
   hcg_time_features,
@@ -625,23 +650,32 @@ if (n_target > 0L) {
   cat(" [skip] trace_explorer(target): no events\n")
 }
 
-# Save trace summary as tabular output
-traces_target <- edeaR::traces(target_eventlog)
+# Save trace summary as tabular output (bupaR::traces; edeaR::traces not exported in some versions)
+traces_target <- tryCatch(
+  bupaR::traces(target_eventlog),
+  error = function(e) {
+    cat(" [skip] traces(target_eventlog):", conditionMessage(e), "\n")
+    data.frame(trace_id = character(0), trace = character(0), length = integer(0), first_activity = character(0), last_activity = character(0))
+  }
+)
 save_bupar_csv(
-  traces_target,
+  as.data.frame(traces_target),
   sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
 )
 
 # 2) Process Matrix and CSV export
-pm_target <- process_matrix(target_eventlog, type = "frequency")
-pm_target_df <- as.data.frame(pm_target)
-save_bupar_csv(
-  pm_target_df,
-  sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-)
-
-# 3) Process Map visualization
-process_map(target_eventlog, type = "frequency")
+if (n_target > 0L) {
+  pm_target <- process_matrix(target_eventlog, type = "frequency")
+  pm_target_df <- as.data.frame(pm_target)
+  save_bupar_csv(
+    pm_target_df,
+    sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+  )
+  tryCatch(
+    process_map(target_eventlog, type = "frequency"),
+    error = function(e) cat(" [skip] process_map(target):", conditionMessage(e), "\n")
+  )
+}
 
 # Close the cohort-specific PDF device if it is still open so that any
 # base graphics output is written under the correct cohort directory.
