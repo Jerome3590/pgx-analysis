@@ -444,13 +444,19 @@ ev_all <- as.data.frame(target_eventlog) %>%
 events_pre_target <- ev_all %>%
   filter(!is.na(first_target_index),
          event_index <= first_target_index) %>%
-  mutate(activity_instance_id = row_number())
+  mutate(
+    activity_instance_id = row_number(),
+    lifecycle_id         = "complete",
+    resource_id          = "Patient"
+  )
 
 pre_target_eventlog <- events_pre_target %>%
   eventlog(
     case_id              = "case_id",
     activity_id          = "activity",
     activity_instance_id = "activity_instance_id",
+    lifecycle_id         = "lifecycle_id",
+    resource_id          = "resource_id",
     timestamp            = "timestamp"
   )
 
