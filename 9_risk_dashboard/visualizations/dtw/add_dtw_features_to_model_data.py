@@ -58,10 +58,11 @@ def add_dtw_features(
     )
     
     if not dtw_features_csv.exists():
-        raise FileNotFoundError(
-            f"DTW features not found: {dtw_features_csv}\n"
-            f"Run create_dtw_features.py first to generate features."
+        print(
+            f"[WARN] DTW features not found: {dtw_features_csv}\n"
+            f"  Skipping (create_dtw_features.py did not produce output—often because 4_model_data for this cohort/age_band is missing)."
         )
+        return
     
     print(f"[INFO] Reading DTW features from {dtw_features_csv}")
     dtw_df = pd.read_csv(dtw_features_csv)

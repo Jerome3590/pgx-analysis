@@ -231,22 +231,25 @@ def create_predictive_time_features(
     
     age_band_fname = age_band.replace("-", "_")
     
-    # Prefer protocol-filtered 4_model_data (canonical model-ready cases + controls).
-    model_data_dir = (
-        project_root
-        / "4_model_data"
-        / f"cohort_name={cohort_name}"
-        / f"age_band={age_band}"
-    )
-    model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
-    model_data_path = (
-        model_data_filtered
-        if model_data_filtered.exists()
-        else model_data_dir / "model_events.parquet"
-    )
-    
-    if not model_data_path.exists():
-        raise FileNotFoundError(f"Model data not found: {model_data_path}")
+    # Resolve model_events same as BupaR: 3b first, then 4_model_data (see py_helpers.model_data_paths)
+    try:
+        from py_helpers.model_data_paths import resolve_model_events_path
+        model_data_path = resolve_model_events_path(project_root, cohort_name, age_band)
+    except Exception:
+        model_data_path = None
+    if not model_data_path or not model_data_path.exists():
+        model_data_dir = (
+            project_root / "4_model_data"
+            / f"cohort_name={cohort_name}"
+            / f"age_band={age_band}"
+        )
+        model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
+        model_data_path = (
+            model_data_filtered if model_data_filtered.exists()
+            else model_data_dir / "model_events.parquet"
+        )
+    if not model_data_path or not model_data_path.exists():
+        raise FileNotFoundError(f"Model data not found for {cohort_name}/{age_band}. Check 3b and 4_model_data (same as BupaR).")
     
     print(f"[INFO] Creating predictive time features from {model_data_path}")
     
