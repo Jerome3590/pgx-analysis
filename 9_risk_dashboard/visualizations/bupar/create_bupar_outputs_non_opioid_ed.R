@@ -59,7 +59,7 @@ use_3b_path <- FALSE
 if (file.exists(path_3b)) {
   model_data_path   <- path_3b
   model_data_dir    <- dirname(path_3b)
-  model_data_root   <- dirname(dirname(path_3b))  # input_model_data dir for control cohort path
+  model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
   use_3b_path       <- TRUE
   cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
 } else {
