@@ -774,6 +774,12 @@ def create_all_dtw_features(
                 "Using SHAP/FFA important codes for DTW trajectories (%s codes)",
                 len(allowed_codes),
             )
+            allowed_list = sorted(allowed_codes)
+            sample_raw = allowed_list[:15]
+            sample_norm = [_normalize_code_for_match(c) for c in sample_raw]
+            logger.info("  Filter sample (raw): %s", sample_raw)
+            logger.info("  Filter sample (normalized): %s", sample_norm)
+            logger.info("  Filter unique normalized: %s", len({_normalize_code_for_match(c) for c in allowed_codes}))
         else:
             allowed_codes = None
     except Exception as exc:  # noqa: BLE001
@@ -791,7 +797,34 @@ def create_all_dtw_features(
     
     # Check if target date column exists (4_model_data has it; 3b may not)
     schema_df = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{model_data_path}')").df()
+    logger.info(
+        "model_events columns (%s): %s",
+        len(schema_df),
+        list(schema_df["column_name"].astype(str)),
+    )
+    for _, row in schema_df.iterrows():
+        logger.info("  %s: %s", row["column_name"], row["type"])
     schema_columns = set(schema_df["column_name"].astype(str).str.lower())
+    # Sample of codes actually in model_events (for comparison with filter)
+    path_str = str(model_data_path).replace("\\", "/")
+    if "event_date" in schema_columns and "primary_icd_diagnosis_code" in schema_columns:
+        sample_icd = con.execute(
+            f"SELECT DISTINCT primary_icd_diagnosis_code FROM read_parquet('{path_str}') "
+            "WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' LIMIT 15"
+        ).df()["primary_icd_diagnosis_code"].tolist()
+        logger.info("  model_events sample primary_icd_diagnosis_code: %s", sample_icd)
+    if "drug_name" in schema_columns:
+        sample_drug = con.execute(
+            f"SELECT DISTINCT drug_name FROM read_parquet('{path_str}') "
+            "WHERE drug_name IS NOT NULL AND drug_name != '' LIMIT 15"
+        ).df()["drug_name"].tolist()
+        logger.info("  model_events sample drug_name: %s", sample_drug)
+    if "procedure_code" in schema_columns:
+        sample_cpt = con.execute(
+            f"SELECT DISTINCT procedure_code FROM read_parquet('{path_str}') "
+            "WHERE procedure_code IS NOT NULL AND procedure_code != '' LIMIT 15"
+        ).df()["procedure_code"].tolist()
+        logger.info("  model_events sample procedure_code: %s", sample_cpt)
     if "opioid" in cohort_name.lower():
         target_date_field = "first_opioid_ed_date"
     else:
