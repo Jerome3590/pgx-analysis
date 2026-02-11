@@ -463,8 +463,8 @@ pre_target_eventlog <- events_pre_target %>%
 cat("Pre-HCG eventlog summary:\n")
 print(pre_target_eventlog)
 
-# 1) Trace explorer (printed summary; visuals if running interactively)
-trace_explorer(pre_target_eventlog, coverage = 0.8)
+# 1) Trace explorer (use full coverage; data already filtered to important features)
+trace_explorer(pre_target_eventlog, coverage = 1.0)
 
 # 2) Drug-only sequences before HCG
 pre_drug_sequences <- as.data.frame(pre_target_eventlog) %>%
@@ -554,8 +554,8 @@ save_bupar_csv(
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer: most frequent target trajectories
-trace_explorer(target_eventlog, coverage = 0.8)
+# 1) Trace Explorer: use full coverage (data already filtered to important features)
+trace_explorer(target_eventlog, coverage = 1.0)
 
 # Save trace summary as tabular output
 traces_target <- edeaR::traces(target_eventlog)
