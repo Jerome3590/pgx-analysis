@@ -125,12 +125,7 @@ The data pipeline processes large-scale healthcare datasets from APCD (All-Payer
           in `drug_name`, ICD diagnosis columns 1–9, or `procedure_code`.
         - Writes filtered events to:
           - `4_model_data/cohort_name=opioid_ed/age_band={band}/model_events.parquet` (or equivalent Gold path)
-      - For the **control cohort** (`non_opioid_ed`):
-        - Loads full event-level cohorts for matching age bands and years.
-        - Randomly samples patients to maintain an approximate **5:1 control:target ratio**.
-        - Keeps all events for sampled control patients (no feature filtering).
-        - Writes control events to:
-          - `4_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet` (or equivalent Gold path)
+      - For **each cohort partition** (e.g. `non_opioid_ed`): builds that cohort’s `model_events` with within-cohort cases (target=1) and controls (target=0). Control = non-target for that cohort (not the opposite cohort). Writes to e.g. `4_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`.
       - Maintains temporal information, `mi_person_key`, and item codes required for FP-Growth,
         BupaR, and DTW analyses (dashboard visualizations in Step 9).
 

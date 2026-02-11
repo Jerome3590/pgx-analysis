@@ -39,8 +39,6 @@ cohort_name_extreme <- "opioid_ed_extreme_density"
 # Base cohort used for FP-Growth itemsets / activity alphabet
 base_fpgrowth_cohort <- "opioid_ed"
 
-control_cohort <- "non_opioid_ed"
-
 # Optional command line argument to set age band; default is 25-44
 args <- commandArgs(trailingOnly = TRUE)
 age_band <- if (length(args) >= 1) args[[1]] else "25-44"
@@ -49,10 +47,8 @@ age_band_fname <- gsub("-", "_", age_band)
 train_years    <- c(2016L, 2017L, 2018L)
 
 cat("=== bupaR Analysis: Extreme-Density Subset (OPIOID_ED) ===\n")
-cat("  Age band:          ", age_band, "\n", sep = "")
-cat("  Extreme cohort:    ", cohort_name_extreme, "\n", sep = "")
-cat("  Base FP-Growth:    ", base_fpgrowth_cohort, "\n", sep = "")
-cat("  Control cohort:    ", control_cohort, "\n\n", sep = "")
+cat("  Age band:       ", age_band, "\n", sep = "")
+cat("  Extreme cohort: ", cohort_name_extreme, " (control = within-cohort target=0)\n\n", sep = "")
 
 # Cohort-specific target ICD definition
 target_icd_patterns <- c("F1120")   # opioid ED

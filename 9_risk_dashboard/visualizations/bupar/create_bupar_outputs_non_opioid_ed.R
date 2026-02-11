@@ -28,8 +28,7 @@ suppressPackageStartupMessages({
 
 project_root <- getwd()  # assume you launched from project root
 
-cohort_name    <- "non_opioid_ed"
-control_cohort <- "opioid_ed"
+cohort_name <- "non_opioid_ed"
 
 # Optional command line argument to set age band; default is 65-74
 args <- commandArgs(trailingOnly = TRUE)
@@ -39,8 +38,7 @@ age_band_fname <- gsub("-", "_", age_band)
 train_years    <- c(2016L, 2017L, 2018L)
 
 cat("=== bupaR Analysis: Cohort 2 (POLYPHARMACY_ED, non_opioid_ed) ===\n")
-cat("  Age band:       ", age_band, "\n", sep = "")
-cat("  Control cohort: ", control_cohort, "\n\n", sep = "")
+cat("  Age band: ", age_band, " (control = within-cohort target=0, no HCG)\n\n", sep = "")
 
 # Cohort-specific target ICD definition (HCG* codes)
 target_icd_patterns <- c("HCG")
@@ -55,12 +53,10 @@ path_3b <- file.path(
   paste0("age_band=", age_band),
   "model_events.parquet"
 )
-use_3b_path <- FALSE
 if (file.exists(path_3b)) {
   model_data_path   <- path_3b
   model_data_dir    <- dirname(path_3b)
   model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
-  use_3b_path       <- TRUE
   cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
 } else {
   # Fallback: 4_model_data (PGX_DATA_ROOT, /mnt/nvme, project); then 4a_model_data (legacy). Prefer model_events_no_protocols if available.
@@ -94,8 +90,6 @@ if (file.exists(path_3b)) {
     model_data_path <- model_data_main
   }
 }
-# 3b uses partition slugs (opioid/polypharmacy); 4_model_data uses cohort names (opioid_ed/non_opioid_ed).
-control_cohort_partition <- if (use_3b_path && control_cohort == "opioid_ed") "opioid" else control_cohort
 
 fpgrowth_root <- file.path(
   project_root,
@@ -323,28 +317,12 @@ print(target_eventlog)
 
 # -------------------------------------------------------------------
 # Combined TARGET + CONTROL eventlog for Sankey
+# Control = within-cohort non-target (target=0): no windowed HCG for this cohort, not the opposite cohort.
 # -------------------------------------------------------------------
 
-control_model_data_path <- file.path(
-  model_data_root,
-  paste0("cohort_name=", control_cohort_partition),
-  paste0("age_band=", age_band),
-  "model_events.parquet"
-)
-
-if (file.exists(control_model_data_path)) {
-  query_control <- sprintf(
-    "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-    control_model_data_path,
-    paste(train_years, collapse = ",")
-  )
-  pgx_df_control <- dbGetQuery(con, query_control)
-  cat("Loaded ", nrow(pgx_df_control), " control events for ", control_cohort,
-      " age_band=", age_band, " across years ", paste(train_years, collapse=","), "\n", sep = "")
-} else {
-  warning("Control model_data parquet not found: ", control_model_data_path)
-  pgx_df_control <- pgx_df[0, ]
-}
+pgx_df_control <- pgx_df %>% filter(target == 0)
+cat("Loaded ", nrow(pgx_df_control), " within-cohort control events (target=0, no HCG) for ", cohort_name,
+    " age_band=", age_band, "\n", sep = "")
 
 pgx_df_all <- bind_rows(
   pgx_df_target1 %>% mutate(group = "target"),
@@ -465,13 +443,15 @@ ev_all <- as.data.frame(target_eventlog) %>%
 
 events_pre_target <- ev_all %>%
   filter(!is.na(first_target_index),
-         event_index <= first_target_index)
+         event_index <= first_target_index) %>%
+  mutate(activity_instance_id = row_number())
 
 pre_target_eventlog <- events_pre_target %>%
   eventlog(
-    case_id     = "case_id",
-    activity_id = "activity",
-    timestamp   = "timestamp"
+    case_id              = "case_id",
+    activity_id          = "activity",
+    activity_instance_id = "activity_instance_id",
+    timestamp            = "timestamp"
   )
 
 cat("Pre-HCG eventlog summary:\n")

@@ -25,28 +25,27 @@ suppressPackageStartupMessages({
 # Assume we run this from the project root (e.g., C:/Projects/pgx-analysis)
 project_root <- getwd()
 
-# Optional command-line arguments to configure cohort / age band / control / target ICDs
+# Optional command-line arguments: cohort, age band, target ICDs.
+# Control = within-cohort non-target (target=0 from same model_events), not the opposite cohort.
 # Usage (examples):
-#   Rscript build_bupar_eventlogs_opioid_ed_0_12.R opioid_ed 0-12 non_opioid_ed F1120
-#   Rscript build_bupar_eventlogs_opioid_ed_0_12.R non_opioid_ed 65-74 opioid_ed HCG
+#   Rscript build_bupar_eventlogs.R opioid_ed 0-12 F1120
+#   Rscript build_bupar_eventlogs.R non_opioid_ed 65-74 HCG
 
 args <- commandArgs(trailingOnly = TRUE)
 
 cohort_name  <- if (length(args) >= 1) args[[1]] else "opioid_ed"
 age_band     <- if (length(args) >= 2) args[[2]] else "0-12"
-control_cohort_name <- if (length(args) >= 3) args[[3]] else if (cohort_name == "opioid_ed") "non_opioid_ed" else "opioid_ed"
 
 # Comma-separated list of target ICD codes/patterns to always include in the alphabet
-target_icd_arg <- if (length(args) >= 4) args[[4]] else "F1120"
+target_icd_arg <- if (length(args) >= 3) args[[3]] else "F1120"
 target_icd_codes <- if (nzchar(target_icd_arg)) strsplit(target_icd_arg, ",")[[1]] else character(0)
 
 age_band_fname <- gsub("-", "_", age_band)
 train_years  <- c(2016L, 2017L, 2018L)
 
 cat("=== bupaR Event Log Builder ===\n")
-cat("  Cohort:          ", cohort_name, "\n", sep = "")
-cat("  Age band:        ", age_band, "\n", sep = "")
-cat("  Control cohort:  ", control_cohort_name, "\n", sep = "")
+cat("  Cohort:   ", cohort_name, "\n", sep = "")
+cat("  Age band: ", age_band, " (control = within-cohort target=0)\n", sep = "")
 if (length(target_icd_codes) > 0) {
   cat("  Target ICD codes:", paste(target_icd_codes, collapse = ", "), "\n", sep = " ")
 }
@@ -249,29 +248,12 @@ print(target_eventlog)
 
 # -------------------------------------------------------------------
 # Build combined TARGET + CONTROL eventlog for Sankey
+# Control = within-cohort non-target (target=0), not the opposite cohort.
 # -------------------------------------------------------------------
 
-control_model_data_path <- file.path(
-  project_root,
-  "model_data",
-  paste0("cohort_name=", control_cohort_name),
-  paste0("age_band=", age_band),
-  "model_events.parquet"
-)
-
-if (file.exists(control_model_data_path)) {
-  query_control <- sprintf(
-    "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-    control_model_data_path,
-    paste(train_years, collapse = ",")
-  )
-  pgx_df_control <- dbGetQuery(con, query_control)
-  cat("Loaded ", nrow(pgx_df_control), " control events for ", control_cohort_name,
-      " age_band=", age_band, " across years ", paste(train_years, collapse=","), "\n", sep = "")
-} else {
-  warning("Control model_data parquet not found: ", control_model_data_path)
-  pgx_df_control <- pgx_df[0, ]
-}
+pgx_df_control <- pgx_df %>% filter(target == 0L)
+cat("Loaded ", nrow(pgx_df_control), " within-cohort control events (target=0) for ", cohort_name,
+    " age_band=", age_band, "\n", sep = "")
 
 pgx_df_all <- bind_rows(
   pgx_df_target1 %>% mutate(group = "target"),
