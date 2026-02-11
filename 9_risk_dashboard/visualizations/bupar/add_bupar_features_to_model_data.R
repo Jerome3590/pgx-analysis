@@ -64,13 +64,42 @@ cat("  Age band:    ", age_band, "\n", sep = "")
 cat("  Train label: ", train_label, "\n\n", sep = "")
 
 # -------------------------------------------------------------------
-# Paths
+# Paths: resolve model_events same as create_bupar_outputs (3b first, then 4_model_data)
 # -------------------------------------------------------------------
 
-model_data_path <- file.path(project_root, "4a_model_data",
-                             paste0("cohort_name=", cohort_name),
-                             paste0("age_band=", age_band),
-                             "model_events.parquet")
+cohort_slug_3b <- if (cohort_name == "opioid_ed") "opioid" else "polypharmacy"
+path_3b <- file.path(project_root,
+                     "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data",
+                     paste0("cohort_name=", cohort_slug_3b),
+                     paste0("age_band=", age_band),
+                     "model_events.parquet")
+if (file.exists(path_3b)) {
+  model_data_path <- path_3b
+} else {
+  model_data_root <- NULL
+  data_root <- Sys.getenv("PGX_DATA_ROOT")
+  candidates <- c(
+    if (nzchar(data_root)) file.path(data_root, "4_model_data") else character(0),
+    "/mnt/nvme/4_model_data",
+    file.path(project_root, "4_model_data"),
+    file.path(project_root, "4a_model_data")
+  )
+  for (root_candidate in candidates) {
+    if (nzchar(root_candidate) && dir.exists(root_candidate)) {
+      model_data_root <- root_candidate
+      break
+    }
+  }
+  if (is.null(model_data_root)) {
+    model_data_root <- file.path(project_root, "4_model_data")
+  }
+  model_data_dir <- file.path(model_data_root,
+                              paste0("cohort_name=", cohort_name),
+                              paste0("age_band=", age_band))
+  model_data_no_protocols <- file.path(model_data_dir, "model_events_no_protocols.parquet")
+  model_data_main         <- file.path(model_data_dir, "model_events.parquet")
+  model_data_path <- if (file.exists(model_data_no_protocols)) model_data_no_protocols else model_data_main
+}
 
 bupar_output_dir <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs",
                                cohort_name, age_band_fname, "features")
