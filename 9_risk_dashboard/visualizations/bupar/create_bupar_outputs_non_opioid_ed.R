@@ -55,9 +55,12 @@ path_3b <- file.path(
   paste0("age_band=", age_band),
   "model_events.parquet"
 )
+use_3b_path <- FALSE
 if (file.exists(path_3b)) {
-  model_data_path <- path_3b
-  model_data_dir  <- dirname(path_3b)
+  model_data_path   <- path_3b
+  model_data_dir    <- dirname(path_3b)
+  model_data_root   <- dirname(dirname(path_3b))  # input_model_data dir for control cohort path
+  use_3b_path       <- TRUE
   cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
 } else {
   # Fallback: 4_model_data (PGX_DATA_ROOT, /mnt/nvme, project); then 4a_model_data (legacy). Prefer model_events_no_protocols if available.
@@ -91,6 +94,8 @@ if (file.exists(path_3b)) {
     model_data_path <- model_data_main
   }
 }
+# 3b uses partition slugs (opioid/polypharmacy); 4_model_data uses cohort names (opioid_ed/non_opioid_ed).
+control_cohort_partition <- if (use_3b_path && control_cohort == "opioid_ed") "opioid" else control_cohort
 
 fpgrowth_root <- file.path(
   project_root,
@@ -321,9 +326,8 @@ print(target_eventlog)
 # -------------------------------------------------------------------
 
 control_model_data_path <- file.path(
-  project_root,
-  "4a_model_data",
-  paste0("cohort_name=", control_cohort),
+  model_data_root,
+  paste0("cohort_name=", control_cohort_partition),
   paste0("age_band=", age_band),
   "model_events.parquet"
 )
