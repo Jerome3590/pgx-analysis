@@ -1,6 +1,6 @@
 # Workflow Execution TODO List
 
-This document provides a step-by-step checklist for executing the complete workflow after the time-windowed HCG event logic migration.
+This document provides a step-by-step checklist for executing the complete workflow after the first-ED-within-21d-of-drug (HCG) target logic migration.
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ chmod +x utility_scripts/cleanup_cohort_data.sh
 
 ## Step 2: Create Cohorts ✅
 
-**Purpose**: Create cohorts with new time-windowed HCG event logic.
+**Purpose**: Create cohorts with first ED visit (HCG Setting) within 21 days of a prescription drug event (polypharmacy target).
 
 ### 2.1 Create Cohorts for Each Age Band
 
@@ -86,7 +86,7 @@ python 2_create_cohort/0_create_cohort.py \
 ```bash
 # Age bands: 13-24, 25-44, 45-54, 55-64
 # Years: 2016, 2017, 2018, 2019
-# Note: opioid_ed uses F11.20 target only (no time window). Polypharmacy (ed_non_opioid) uses fixed 21-day window.
+# Note: opioid_ed uses F11.20 target only. Polypharmacy (ed_non_opioid) uses first ED (HCG) within 21 days of drug event.
 
 # Example for 13-24:
 python 2_create_cohort/0_create_cohort.py \
@@ -355,7 +355,7 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 ### Opioid ED Cohorts (F11.20 target)
 - `opioid_ed`: 13-24, 25-44, 45-54, 55-64
 
-### Polypharmacy Cohorts (Time-windowed HCG target)
+### Polypharmacy Cohorts (First ED within 21d of drug event)
 - `non_opioid_ed`: 65-74, 75-84, 85-94
 
 ---
@@ -411,7 +411,7 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
 ## Notes
 
-- **Time Windows**: Polypharmacy (ed_non_opioid) uses a **fixed 21-day window** for adverse drug event identification (~90.5% capture). See `2_create_cohort/README.md`. Opioid_ed has no time window (F11.20 target only).
+- **Time Windows**: Polypharmacy (ed_non_opioid) target = first ED visit (HCG Setting) within 21 days of a prescription drug event. See `2_create_cohort/README.md` and `py_helpers/constants.py` (NON_OPIOID_ED_TARGET_DESCRIPTION). Opioid_ed uses F11.20 target only.
 - **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Causal dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
 - **Idempotent**: All scripts are idempotent and will skip completed steps
 - **Checkpoints**: Pipeline uses S3 checkpoints to track progress

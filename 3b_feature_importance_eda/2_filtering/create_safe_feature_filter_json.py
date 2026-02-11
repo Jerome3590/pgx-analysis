@@ -2,7 +2,7 @@
 """
 Create safe feature filter JSON: Exclude post-target leakage, keep all pre-target features.
 
-Works for any target: F1120 (opioid use disorder) or HCG windowed (ED visit) target.
+Works for any target: F1120 (opioid use disorder) or first ED (HCG) within 21 days of drug (polypharmacy).
 
 This script:
 1. Loads bupar_post_target_analysis.csv
@@ -51,7 +51,7 @@ def create_safe_feature_filter_json(
     min_events: int = 1  # Keep features with at least 1 event
 ):
     """Create safe feature filter: exclude post-target leakage, keep all pre-target features.
-    Works for F1120 target (age < 65) or HCG windowed target (age >= 65)."""
+    Works for F1120 target (age < 65) or first ED (HCG) within 21d of drug (age >= 65)."""
     age_band_fname = age_band_to_fname(age_band)
     project_root = PROJECT_ROOT
     # Target by cohort: opioid_ed=F1120, non_opioid_ed=HCG (polypharmacy / 14-day window)

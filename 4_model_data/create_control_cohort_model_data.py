@@ -6,11 +6,11 @@ This script creates model_events.parquet for the control cohort used in BupaR an
 For POLYPHARMACY COHORT (cohort_name="non_opioid_ed" in data partitions), 
 the control cohort consists of patients who:
 - Have drug events (pharmacy events)
-- Have NO time-windowed HCG target events (no ED visits with specific HCG line values)
+- Have NO first ED visit (HCG Setting) within the time window of a drug event (no qualifying HCG line ED visits)
 - Have no opioid ICD codes (non-opioid)
 - Are in the same age band as the target cohort
 
-HCG target events are identified by hcg_line IN:
+Qualifying ED = first ED (HCG Setting) within 21 days of drug; hcg_line IN (same as 2_create_cohort):
   - 'P51 - ER Visits and Observation Care'
   - 'O11 - Emergency Room'
   - 'P33 - Urgent Care Visits'

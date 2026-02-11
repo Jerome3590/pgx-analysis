@@ -476,7 +476,7 @@ print(f"   These codes will be filtered in the 'Filter and Refine' step")
 # 
 # BupaR analysis identifies pre vs post-target events. Codes that appear primarily after the target event are post-target leakage and should be filtered.
 # 
-# **Polypharmacy (non_opioid_ed):** Model events are built with drug events only up to the windowed HCG/ED visit, so post-target leakage is expected to be zero by construction.
+# **Polypharmacy (non_opioid_ed):** Model events are built with drug events only up to the first ED visit (HCG Setting) within 21 days of drug event, so post-target leakage is expected to be zero by construction.
 
 # %% [markdown]
 # ### 1. Verify Rscript is Available
@@ -652,7 +652,7 @@ if bupar_results_path.exists():
     else:
         print(f"\n   ✅ No post-target leakage features identified")
         if COHORT == "non_opioid_ed":
-            print(f"   ℹ️  (Expected for polypharmacy: model_events are built with drug events only up to the windowed HCG/ED visit, so no post-target leakage by construction.)")
+            print(f"   ℹ️  (Expected for polypharmacy: model_events are built with drug events only up to the first ED visit [HCG] within 21d of drug, so no post-target leakage by construction.)")
     
     # Display full results
     print(f"\n   Full BupaR results:")
@@ -865,7 +865,7 @@ else:
 # ### 5. View BupaR Visualizations
 
 # %%
-# Display BupaR visualizations (F1120 pre/post plots only for opioid_ed; polypharmacy uses HCG target)
+# Display BupaR visualizations (F1120 pre/post for opioid_ed; polypharmacy uses first ED within 21d of drug)
 bupar_plots = [
     f"{COHORT}_{AGE_BAND_FNAME}_overall_activity_frequency.png",
     f"{COHORT}_{AGE_BAND_FNAME}_activity_milestones_gantt.png",

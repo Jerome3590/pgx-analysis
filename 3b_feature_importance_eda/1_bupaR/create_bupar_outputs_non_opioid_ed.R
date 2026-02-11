@@ -64,15 +64,14 @@ log_msg("bupaR Analysis: POLYPHARMACY COHORT", level = "INFO")
 log_msg(sprintf("  Data partition:  cohort_name=%s (non_opioid_ed)", cohort_name), level = "INFO")
 log_msg(sprintf("  Age band:       %s", age_band), level = "INFO")
 log_msg(sprintf("  Control cohort: %s (non_opioid_non_ed)", control_cohort), level = "INFO")
-log_msg("  Target: Time-windowed HCG events (ED visits)", level = "INFO")
+log_msg("  Target: First ED visit (HCG Setting) within 21 days of a prescription drug event", level = "INFO")
 log_msg("  Note: Polypharmacy cohort (cohorts 5, 6, 7 with age > 64)", level = "INFO")
 log_msg("=", level = "INFO")
 
-# POLYPHARMACY COHORT: Target definition
-# - Target: Time-windowed HCG events (ED visits), NOT F1120
-# - This applies to cohorts 5, 6, 7 with age band > 64
-# - HCG target events identified by specific hcg_line values (matching control exclusion)
-# - We'll identify target events by checking hcg_line values in the original data
+# POLYPHARMACY COHORT: Target definition (consistent with 2_create_cohort and 4_model_data)
+# - Target: First ED visit (identified by HCG Setting: P51/O11/P33) within 21 days of a prescription drug event
+# - NOT F1120; applies to cohorts 5, 6, 7 with age band >= 65
+# - Target events identified by hcg_line or first_ed_non_opioid_date in model_events
 
 # Cohort slug for paths: opioid (age < 65), polypharmacy (age >= 65) — matches Step 4 / 3b layout
 cohort_slug <- if (age_band %in% c("13-24", "25-44", "45-54", "55-64")) "opioid" else "polypharmacy"
@@ -504,22 +503,16 @@ cat("Combined eventlog summary:\n")
 print(sankey_eventlog)
 
 # -------------------------------------------------------------------
-# Pre-HCG (before first HCG ICD) sequences
+# Pre-HCG (before first ED visit within 21 days of drug event) sequences
+# Target = first ED visit (HCG Setting) within 21 days of a prescription drug event.
 # -------------------------------------------------------------------
 
 log_msg("=", level = "INFO")
-log_msg("Starting Pre-HCG (before first time-windowed HCG event) analysis", level = "INFO")
-log_msg("  Target: Time-windowed HCG events (ED visits), not F1120", level = "INFO")
+log_msg("Starting Pre-HCG (before first ED visit within 21d of drug event) analysis", level = "INFO")
+log_msg("  Target: First ED visit (HCG Setting) within 21 days of a prescription drug event", level = "INFO")
 log_msg("=", level = "INFO")
 
-# For non_opioid_ed (polypharmacy cohort), target is time-windowed HCG events
-# HCG ED visits are identified by specific hcg_line values (matching control exclusion logic):
-#   - 'P51 - ER Visits and Observation Care'
-#   - 'O11 - Emergency Room'
-#   - 'P33 - Urgent Care Visits'
-# This applies to cohorts 5, 6, 7 with age band > 64
-# We need to join back to pgx_df to get hcg_line information
-# First, create a mapping from (case_id, timestamp) to hcg_line
+# HCG ED visits identified by hcg_line (P51/O11/P33), consistent with 2_create_cohort
 ed_hcg_lines <- c('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
 
 if (has_hcg_line) {
@@ -671,7 +664,7 @@ save_bupar_csv(
 
 # -------------------------------------------------------------------
 # Time-to-HCG and time-window features (per patient)
-# For polypharmacy cohort: time-windowed HCG events (cohorts 5, 6, 7, age > 64)
+# For polypharmacy cohort: first ED visit (HCG Setting) within 21 days of drug event
 # -------------------------------------------------------------------
 log_msg("Calculating time-to-HCG and time-window features (per patient)...")
 
@@ -1113,7 +1106,7 @@ dev.off()
 cat("Closed PDF device. Base graphics saved to: ", rplots_path, "\n", sep = "")
 
 log_msg("=", level = "INFO")
-log_msg(sprintf("✓ bupaR analysis for POLYPHARMACY COHORT (HCG target) %s completed successfully", age_band), level = "INFO")
+log_msg(sprintf("✓ bupaR analysis for POLYPHARMACY COHORT (first ED within 21d of drug) %s completed successfully", age_band), level = "INFO")
 log_msg(sprintf("  Data partition: cohort_name=%s", cohort_name), level = "INFO")
 log_msg("=", level = "INFO")
 

@@ -633,10 +633,10 @@ def filter_cohort_events_for_items(
 
     # 1. Case patients from gold cohorts
     # NOTE: Time window filtering is now handled in Step 2 (2_create_cohort)
-    # Step 2 creates cohorts with time-windowed HCG events, so we just use all target cases from the cohort
+    # Step 2 creates cohorts with first ED visit (HCG Setting) within 21 days of drug event; we use all target cases from the cohort
     # No need to re-filter here - the cohort definition in Step 2 is the source of truth
     if False:  # Disabled - time window filtering moved to Step 2
-        # Filter target cases to only include those with HCG target events within time_window_days of drug events
+        # Filter target cases to only those with first ED (HCG) within time_window_days of drug events
         # Need to get gold medical/pharmacy paths for time window checking
         gold_medical_paths_literal = ", ".join(f"'{p}'" for p in medical_parquet_paths) if medical_parquet_paths else ""
         gold_pharmacy_paths_literal = ", ".join(f"'{p}'" for p in pharmacy_parquet_paths) if pharmacy_parquet_paths else ""
@@ -690,7 +690,7 @@ def filter_cohort_events_for_items(
                     WHERE me.hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
                 ),
                 drug_hcg_pairs AS (
-                    -- Check if ANY HCG target event occurs within time_window_days days of ANY drug event
+                    -- Check if ANY first ED (HCG) within time_window_days of drug event
                     SELECT DISTINCT
                         pe.mi_person_key
                     FROM pharmacy_events pe

@@ -7,7 +7,7 @@ appear primarily after the target event, indicating post-target leakage.
 
 Target is determined by age band:
 - Age bands < 65 (13-24, 25-44, 45-54, 55-64): F1120 (opioid dependence ICD code)
-- Age bands >= 65 (65-74, 75-84, 85-94): Time-windowed HCG events (ED visits, polypharmacy)
+- Age bands >= 65 (65-74, 75-84, 85-94): First ED visit (HCG Setting) within 21 days of a prescription drug event (polypharmacy)
 
 This script:
 1. Loads post-target traces/features from BupaR outputs

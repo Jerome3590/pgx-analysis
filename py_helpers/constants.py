@@ -212,11 +212,11 @@ REQUIRED_COHORTS = {
 # Helper function: convert age-band to filename-safe format
 def age_band_uses_f1120_target(age_band: str) -> bool:
     """
-    Determine if age band uses F11.20 target (opioid dependence) or HCG target (polypharmacy/ED visits).
+    Determine if age band uses F11.20 target (opioid dependence) or HCG target (polypharmacy).
     
     Rules:
-    - Age bands < 64 (13-24, 25-44, 45-54, 55-64): Use F11.20 target
-    - Age bands >= 65 (65-74, 75-84, 85-94): Use time-windowed HCG target (polypharmacy)
+    - Age bands < 65 (13-24, 25-44, 45-54, 55-64): Use F11.20 target
+    - Age bands >= 65 (65-74, 75-84, 85-94): Use first ED visit (HCG Setting) within 21 days of a prescription drug event (see NON_OPIOID_ED_TARGET_DESCRIPTION)
     
     Args:
         age_band: Age band string (e.g., "13-24", "65-74")
@@ -279,7 +279,7 @@ def cohort_uses_f1120_target(cohort: str) -> bool:
     """
     Determine target by cohort (Step 2 / 3b convention).
     - opioid_ed: F1120 (first opioid use disorder ED)
-    - non_opioid_ed: HCG (polypharmacy / ED visit, 14-day window after drug event)
+    - non_opioid_ed: First ED visit (HCG Setting) within 21 days of a prescription drug event (see NON_OPIOID_ED_TARGET_DESCRIPTION)
     """
     return (cohort or "").strip().lower() == "opioid_ed"
 
@@ -287,6 +287,14 @@ def cohort_uses_f1120_target(cohort: str) -> bool:
 def get_target_name_by_cohort(cohort: str) -> str:
     """Target name for display: opioid_ed -> F1120, non_opioid_ed -> ED visit (HCG)."""
     return "F1120" if cohort_uses_f1120_target(cohort) else "ED visit (HCG)"
+
+
+# Canonical definition for non_opioid_ed (polypharmacy) cohort target - must stay in sync with
+# 2_create_cohort (phase2 HCG classification, phase3 21-day window) and 4_model_data.
+NON_OPIOID_ED_TARGET_DESCRIPTION = (
+    "First ED visit (identified by HCG Setting: P51/O11/P33) within 21 days of a prescription drug event."
+)
+NON_OPIOID_ED_TIME_WINDOW_DAYS = 21
 
 
 def get_cohort_slug_by_cohort(cohort: str) -> str:
