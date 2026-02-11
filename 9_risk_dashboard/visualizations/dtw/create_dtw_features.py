@@ -78,6 +78,55 @@ def _normalize_code_for_match(code: str) -> str:
     return s.replace(".", "").replace("-", "")
 
 
+def _split_allowed_codes_by_type(allowed_codes: Set[str]) -> Tuple[Set[str], Set[str], Set[str]]:
+    """
+    Split SHAP/FFA allowed codes into drug, ICD, and CPT sets using raw (stripped) codes.
+    model_events has drug_name, primary_icd_*, procedure_code without type prefix, so we must
+    match on the raw code value. Handles prefixed codes (cpt_01967, icd_F1120, drug_XYZ)
+    and fallback for unprefixed codes via _parse_feature_name.
+    """
+    drug_set: Set[str] = set()
+    icd_set: Set[str] = set()
+    cpt_set: Set[str] = set()
+    try:
+        from py_helpers.shap_ffa_fpgrowth_utils import _parse_feature_name
+    except ImportError:
+        _parse_feature_name = None
+
+    for c in allowed_codes:
+        if not c or (isinstance(c, float) and pd.isna(c)):
+            continue
+        s = str(c).strip()
+        norm = _normalize_code_for_match(s)
+        if not norm:
+            continue
+        if s.startswith("cpt_"):
+            cpt_set.add(_normalize_code_for_match(s[4:]))
+        elif s.startswith("icd_"):
+            icd_set.add(_normalize_code_for_match(s[4:]))
+        elif s.startswith("drug_"):
+            drug_set.add(_normalize_code_for_match(s[5:]))
+        elif _parse_feature_name:
+            _type, code = _parse_feature_name(s)
+            raw_norm = _normalize_code_for_match(code) if code else norm
+            if _type == "cpt":
+                cpt_set.add(raw_norm)
+            elif _type == "icd":
+                icd_set.add(raw_norm)
+            elif _type == "drug":
+                drug_set.add(raw_norm)
+            else:
+                # Unknown: add to all three so we don't drop events
+                drug_set.add(norm)
+                icd_set.add(norm)
+                cpt_set.add(norm)
+        else:
+            drug_set.add(norm)
+            icd_set.add(norm)
+            cpt_set.add(norm)
+    return drug_set, icd_set, cpt_set
+
+
 def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
     """Load administrative ICD codes from 1b_apcd_event_filter/administrative_codes_lookup.json."""
     path = project_root / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
@@ -177,13 +226,20 @@ def extract_patient_trajectories(
     if target_filter is not None:
         target_clause = f"AND target = {target_filter}"
 
-    # Only events with feature importance: filter by allowed_codes in SQL with OR semantics
-    # (keep row if drug OR any ICD OR procedure is in allowed set; normalized match for dots/dashes)
-    allowed_sql_in = ""
+    # Only events with feature importance: filter by allowed_codes in SQL with OR semantics.
+    # SHAP/FFA codes may have cpt_/icd_/drug_ prefix; split by type and match raw column values.
+    allowed_drug_sql = ""
+    allowed_icd_sql = ""
+    allowed_cpt_sql = ""
     if allowed_codes and len(allowed_codes) > 0:
-        allowed_normalized = sorted({_normalize_code_for_match(c) for c in allowed_codes})
-        allowed_sql_in = ", ".join(repr(c) for c in allowed_normalized)
-    
+        drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
+        if drug_set:
+            allowed_drug_sql = ", ".join(repr(c) for c in sorted(drug_set))
+        if icd_set:
+            allowed_icd_sql = ", ".join(repr(c) for c in sorted(icd_set))
+        if cpt_set:
+            allowed_cpt_sql = ", ".join(repr(c) for c in sorted(cpt_set))
+
     # Register cutoff dates table if provided
     # For target patients: use cutoff date (events before target event = no leakage)
     # For control patients: cutoff_date is NULL, so no filtering (use all events, matching BupaR)
@@ -206,8 +262,8 @@ def extract_patient_trajectories(
             AND (cd.cutoff_date IS NULL OR e.event_date < CAST(cd.cutoff_date AS TIMESTAMP))
             """
     
-    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_drug_sql})" if allowed_drug_sql else ""
+    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_drug_sql})" if allowed_drug_sql else ""
     if item_type == "drug" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             drug_query = f"""
@@ -227,7 +283,7 @@ def extract_patient_trajectories(
     else:
         drug_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
-    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_icd_sql})" if allowed_icd_sql else ""
     if item_type == "icd" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             icd_query = f"""
@@ -283,8 +339,8 @@ def extract_patient_trajectories(
     else:
         icd_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
-    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_cpt_sql})" if allowed_cpt_sql else ""
+    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_cpt_sql})" if allowed_cpt_sql else ""
     if item_type == "cpt" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             cpt_query = f"""
@@ -391,16 +447,24 @@ def extract_trajectories_with_time_windows(
     con = duckdb.connect()
     path_str = str(model_data_path)
 
-    # Only events with feature importance (OR: drug OR any ICD OR procedure in allowed set)
-    allowed_sql_in = ""
+    # Only events with feature importance (OR: drug OR any ICD OR procedure in allowed set).
+    # SHAP/FFA codes may have cpt_/icd_/drug_ prefix; split by type and match raw column values.
+    allowed_drug_sql = ""
+    allowed_icd_sql = ""
+    allowed_cpt_sql = ""
     if allowed_codes and len(allowed_codes) > 0:
-        allowed_normalized = sorted({_normalize_code_for_match(c) for c in allowed_codes})
-        allowed_sql_in = ", ".join(repr(c) for c in allowed_normalized)
-    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
-    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+        drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
+        if drug_set:
+            allowed_drug_sql = ", ".join(repr(c) for c in sorted(drug_set))
+        if icd_set:
+            allowed_icd_sql = ", ".join(repr(c) for c in sorted(icd_set))
+        if cpt_set:
+            allowed_cpt_sql = ", ".join(repr(c) for c in sorted(cpt_set))
+    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_drug_sql})" if allowed_drug_sql else ""
+    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_drug_sql})" if allowed_drug_sql else ""
+    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_icd_sql})" if allowed_icd_sql else ""
+    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_cpt_sql})" if allowed_cpt_sql else ""
+    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_cpt_sql})" if allowed_cpt_sql else ""
 
     # Build target filter clause
     target_clause = ""
