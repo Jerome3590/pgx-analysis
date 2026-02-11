@@ -202,6 +202,13 @@ COHORT_NAMES = [
     'opioid_ed', 'non_opioid_ed'
 ]
 
+# Pipeline-supported (cohort, age_band): model_events and dashboard visuals only run for these.
+# Align with 3_model_train_shap_ffa.ipynb and 5_build_and_deploy.ipynb.
+REQUIRED_COHORTS = {
+    "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
+    "non_opioid_ed": ["65-74", "75-84", "85-94"],
+}
+
 # Helper function: convert age-band to filename-safe format
 def age_band_uses_f1120_target(age_band: str) -> bool:
     """
