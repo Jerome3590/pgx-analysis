@@ -1224,6 +1224,9 @@ def main():
         return
     
     project_root = PROJECT_ROOT
+    if not (project_root / "4_model_data").exists():
+        project_root = REPO_ROOT
+        logger.info("Using repo root for 4_model_data: %s", project_root)
     
     # Research mode: capture ALL trajectories with time windows for analysis
     if args.research_mode:

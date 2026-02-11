@@ -23,6 +23,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 PROJECT_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -346,6 +349,8 @@ def main():
     args = parser.parse_args()
     
     project_root = Path(args.project_root).resolve()
+    if not (project_root / "4_model_data").exists():
+        project_root = REPO_ROOT
     create_predictive_time_features(
         project_root=project_root,
         cohort_name=args.cohort_name,
