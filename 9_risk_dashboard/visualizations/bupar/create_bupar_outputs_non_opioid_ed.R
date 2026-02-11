@@ -450,7 +450,7 @@ print(sankey_eventlog)
 
 cat("\n--- Pre-HCG (before first HCG ICD) analysis ---\n")
 
-ev_all <- events(target_eventlog) %>%
+ev_all <- as.data.frame(target_eventlog) %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
@@ -481,7 +481,7 @@ print(pre_target_eventlog)
 trace_explorer(pre_target_eventlog, coverage = 0.8)
 
 # 2) Drug-only sequences before HCG
-pre_drug_sequences <- events(pre_target_eventlog) %>%
+pre_drug_sequences <- as.data.frame(pre_target_eventlog) %>%
   arrange(case_id, timestamp) %>%
   filter(grepl("^DRUG:", activity)) %>%
   group_by(case_id) %>%
@@ -497,7 +497,7 @@ print(head(pre_drug_sequences))
 process_map(pre_target_eventlog, type = "frequency")
 
 # 4) Per-patient pre-HCG features
-pre_patient_features <- events(pre_target_eventlog) %>%
+pre_patient_features <- as.data.frame(pre_target_eventlog) %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   summarise(
@@ -518,7 +518,7 @@ save_bupar_csv(
 # Time-to-HCG and time-window features (per patient)
 # -------------------------------------------------------------------
 
-target_times <- events(target_eventlog) %>%
+target_times <- as.data.frame(target_eventlog) %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
@@ -532,7 +532,7 @@ target_times <- events(target_eventlog) %>%
     .groups = "drop"
   )
 
-pre_events_with_t <- events(pre_target_eventlog) %>%
+pre_events_with_t <- as.data.frame(pre_target_eventlog) %>%
   inner_join(target_times, by = "case_id") %>%
   mutate(
     dt_days = as.numeric(difftime(target_time, timestamp, units = "days"))
