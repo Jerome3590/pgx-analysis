@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Merge DTW features into a final tabular dataset.
+Create and publish DTW visuals for the dashboard (we do not add DTW features to model data).
 
-This script combines DTW features (created by create_dtw_features.py) 
-into a final feature file ready for model training.
-
-Output:
-- Saves final merged features to: outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv
-- This is the final file ready for joining with model_data in the final model step.
+Takes the DTW features CSV produced by create_dtw_features.py and:
+- Copies to outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv
+- Mirrors to 5_feature_engineering/feature_engineering_outputs/6_dtw/
+- Uploads to S3 gold/feature_engineering and dashboard bucket (plots, chart_data.json)
+DTW features remain a standalone artifact for dashboard visuals; they are not merged into model_events or model data.
 """
 
 import argparse
@@ -30,24 +29,19 @@ if str(REPO_ROOT) not in sys.path:
 from py_helpers.fe_monitor import mirror_checkpoint_to_s3  # noqa: E402
 
 
-def add_dtw_features(
+def create_dtw_visuals(
     project_root: Path,
     cohort_name: str,
     age_band: str,
 ) -> None:
     """
-    Merge DTW features into a final tabular dataset.
-    
-    This script loads DTW features (created by create_dtw_features.py)
-    and saves them as the final feature file ready for model training.
-    
-    Output:
-    - Saves final merged features to: outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv
-    - This is the final file ready for joining with model_data in the final model step.
+    Create and publish DTW visuals for the dashboard. Does not add DTW features to model data.
+    Loads the DTW features CSV from create_dtw_features.py, writes a copy to
+    outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv,
+    mirrors to feature_engineering_outputs, uploads to S3, and uploads plots + chart_data to the dashboard bucket.
     """
-    
     age_band_fname = age_band.replace("-", "_")
-    
+
     # Load DTW features (created by create_dtw_features.py)
     dtw_features_csv = (
         project_root
@@ -56,37 +50,44 @@ def add_dtw_features(
         / "feature_engineering"
         / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
     )
-    
+
     if not dtw_features_csv.exists():
         print(
             f"[WARN] DTW features not found: {dtw_features_csv}\n"
             f"  Skipping (create_dtw_features.py did not produce output—often because 4_model_data for this cohort/age_band is missing)."
         )
         return
-    
+
     print(f"[INFO] Reading DTW features from {dtw_features_csv}")
     dtw_df = pd.read_csv(dtw_features_csv)
-    
+
     # Ensure mi_person_key column exists
-    if 'mi_person_key' not in dtw_df.columns:
+    if "mi_person_key" not in dtw_df.columns:
         raise ValueError("DTW features CSV must contain 'mi_person_key' column")
-    
+
     # Ensure mi_person_key is string type for consistent merging
-    dtw_df['mi_person_key'] = dtw_df['mi_person_key'].astype(str)
-    
+    dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
+
     print(f"[INFO] Loaded {len(dtw_df)} patients with {len(dtw_df.columns) - 1} DTW features")
-    
+
     # Output to feature_engineering directory
     out_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     out_path = out_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
     print(f"[INFO] Writing final DTW features to {out_path} ({len(dtw_df)} rows)")
     dtw_df.to_csv(out_path, index=False)
 
     # Mirror DTW features and added-features to central 5_feature_engineering/feature_engineering_outputs directory
     try:
-        fe_root = project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band
+        fe_root = (
+            project_root
+            / "5_feature_engineering"
+            / "feature_engineering_outputs"
+            / "6_dtw"
+            / cohort_name
+            / age_band
+        )
         fe_root.mkdir(parents=True, exist_ok=True)
 
         # Copy raw DTW features
@@ -100,10 +101,10 @@ def add_dtw_features(
         shutil.copy2(out_path, added_mirror)
     except Exception as e:  # pragma: no cover - best-effort mirror
         print(f"[WARNING] Could not mirror DTW features to feature_engineering_outputs: {e}")
-    
+
     # Upload to S3 gold location (legacy feature_engineering path)
     s3_path = f"s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort_name}/{age_band}/dtw_added_features_{cohort_name}_{age_band_fname}.csv"
-    
+
     aws_cli = shutil.which("aws")
     if aws_cli:
         try:
@@ -111,14 +112,14 @@ def add_dtw_features(
             subprocess.run(
                 [aws_cli, "s3", "cp", str(out_path), s3_path],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
             print("[INFO] S3 upload successful")
         except subprocess.CalledProcessError as e:
             print(f"[WARNING] S3 upload failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
     else:
         print("[INFO] AWS CLI not found, skipping S3 upload")
-    
+
     # Mirror checkpoint CSV to pgx-repository/6_dtw_checkpoint (best-effort)
     try:
         mirror_checkpoint_to_s3(
@@ -140,8 +141,7 @@ def add_dtw_features(
         _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data)
 
     print("[INFO] Done.")
-    print(f"\nFinal output: {out_path}")
-    print("Ready for joining with model_data using mi_person_key")
+    print(f"\nFinal output: {out_path} (standalone DTW features for dashboard; not added to model data)")
 
 
 def _upload_dtw_plots_to_dashboard_s3(
@@ -152,7 +152,9 @@ def _upload_dtw_plots_to_dashboard_s3(
     """Upload DTW plot PNGs to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir_10d = project_root / "10d_dtw_dashboard_visual" / "outputs" / cohort_name / age_band_fname / "plots"
-    fe_plots_dir = project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band / "plots"
+    fe_plots_dir = (
+        project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band / "plots"
+    )
     plots_dir = plots_dir_10d if plots_dir_10d.exists() else (fe_plots_dir if fe_plots_dir.exists() else None)
     if plots_dir is None or not list(plots_dir.glob("*.png")):
         return
@@ -261,7 +263,7 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:
         out["high_risk_trajectories"] = high_risk
-    return out if out else None
+    return out or None
 
 
 def _upload_dtw_chart_data_to_dashboard_s3(
@@ -293,8 +295,8 @@ def _upload_dtw_chart_data_to_dashboard_s3(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Merge DTW features into a final tabular dataset ready for model training. "
-            "This is the final aggregation step after create_dtw_features.py."
+            "Create and publish DTW visuals for the dashboard (copy CSV, upload plots and chart_data). "
+            "Does not add DTW features to model data. Run after create_dtw_features.py."
         )
     )
     parser.add_argument(
@@ -313,7 +315,7 @@ def main() -> None:
         "--age-band",
         type=str,
         required=True,
-        help="Age band (e.g., 0-12)",
+        help="Age band (e.g., 13-24)",
     )
 
     args = parser.parse_args()
@@ -322,7 +324,7 @@ def main() -> None:
     # If 4_model_data is not under project_root (e.g. cwd was visualizations), use repo root
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
-    add_dtw_features(
+    create_dtw_visuals(
         project_root=project_root,
         cohort_name=args.cohort_name,
         age_band=args.age_band,
@@ -331,4 +333,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

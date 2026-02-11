@@ -46,8 +46,8 @@ BupaR visualizations help clinicians understand:
 
 ### Main Analysis Scripts
 
-**`run_analysis.py`** - Python orchestrator
-- Runs BupaR analysis for specified cohort/age band
+**`create_bupar_visuals.py`** - Python orchestrator
+- Creates BupaR visuals for specified cohort/age band
 - Generates all visualization outputs
 - Uploads to S3
 
@@ -113,7 +113,7 @@ Rscript create_bupar_outputs_non_opioid_ed.R {age_band}
 **Using Python orchestrator:**
 ```bash
 cd 9_risk_dashboard/visualizations/bupar
-python run_analysis.py --cohort-name {cohort} --age-band {age_band}
+python create_bupar_visuals.py --cohort-name {cohort} --age-band {age_band}
 ```
 
 ### Required Inputs

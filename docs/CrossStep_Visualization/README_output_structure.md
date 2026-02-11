@@ -254,15 +254,15 @@ ggsave(
 
 ### ✅ 9_risk_dashboard (Visualizations)
 - **BupaR Visualizations**: `9_risk_dashboard/visualizations/bupar/`
-  - **Scripts**: `run_analysis.py`, `create_bupar_outputs_*.R`, `create_plots.R`
+  - **Scripts**: `create_bupar_visuals.py`, `create_bupar_outputs_*.R`, `create_plots.R`
   - **Output Directory**: `9_risk_dashboard/visualizations/bupar/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
 - **FP-Growth Visualizations**: `9_risk_dashboard/visualizations/fpgrowth/`
-  - **Scripts**: `run_analysis.py`, `create_plots.py`, `create_fpgrowth_features.py`
+  - **Scripts**: `create_fpgrowth_visuals.py`, `create_plots.py`, `create_fpgrowth_features.py`
   - **Output Directory**: `9_risk_dashboard/visualizations/fpgrowth/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
 - **DTW Visualizations**: `9_risk_dashboard/visualizations/dtw/`
-  - **Scripts**: `create_dtw_visualizations.py`, `create_dtw_features.py`
+  - **Scripts**: `create_dtw_visuals.py`, `create_dtw_features.py`
   - **Output Directory**: `9_risk_dashboard/visualizations/dtw/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
 

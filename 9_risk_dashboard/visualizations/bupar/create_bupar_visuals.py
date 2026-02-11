@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Module-style orchestration script for BupaR process-mining features.
+Create BupaR visuals for the dashboard.
 
-This script runs the BupaR workflow for a given cohort and age band:
+Runs the BupaR workflow for a given cohort and age band:
 1. Create BupaR outputs and plots via R scripts
 2. Merge BupaR features into a final feature table
+3. Upload plot PNGs to the dashboard bucket
 
 Outputs:
 - Features: 10c_bupaR_dashboard_visual/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
@@ -223,12 +224,12 @@ def upload_bupar_plots_to_dashboard_s3(
     return True
 
 
-def run_bupar_analysis(
+def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
 ) -> bool:
     """
-    Run complete BupaR analysis workflow as a module-style function.
+    Create BupaR visuals for the dashboard: outputs, feature merge, and plot upload.
     """
     logger, log_path = _get_logger(cohort_name, age_band)
 
@@ -241,22 +242,22 @@ def run_bupar_analysis(
         env.fast_root,
     )
 
-    with function_block("5_bupar", "run_bupar_analysis", logger=logger):
-        logger.info("Starting BupaR analysis for %s / %s", cohort_name, age_band)
+    with function_block("5_bupar", "create_bupar_visuals", logger=logger):
+        logger.info("Starting BupaR visuals for %s / %s", cohort_name, age_band)
 
         if not create_bupar_outputs(cohort_name, age_band, logger=logger):
-            logger.error("BupaR outputs step failed; aborting module")
+            logger.error("BupaR outputs step failed; aborting")
             mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
 
         if not merge_bupar_features(cohort_name, age_band, logger=logger):
-            logger.error("BupaR merge step failed; aborting module")
+            logger.error("BupaR merge step failed; aborting")
             mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
 
         upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
 
-        logger.info("BupaR analysis completed for %s / %s", cohort_name, age_band)
+        logger.info("BupaR visuals completed for %s / %s", cohort_name, age_band)
 
     mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
     return True
@@ -264,7 +265,7 @@ def run_bupar_analysis(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run complete BupaR analysis workflow"
+        description="Create BupaR visuals for the dashboard"
     )
     parser.add_argument(
         "--cohort-name",
@@ -282,10 +283,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with module_block("5_bupar"):
-        success = run_bupar_analysis(
+        success = create_bupar_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
         )
 
     sys.exit(0 if success else 1)
-

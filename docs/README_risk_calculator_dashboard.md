@@ -46,21 +46,20 @@ The dashboard provides multiple capabilities:
 ├── visualizations/                    # Visualization generation scripts
 │   ├── dtw/                           # DTW trajectory visualizations
 │   │   ├── create_dtw_features.py
-│   │   ├── create_dtw_visualizations.py
+│   │   ├── create_dtw_visuals.py
 │   │   ├── create_predictive_time_features.py
-│   │   ├── add_dtw_features_to_model_data.py
 │   │   ├── dtw_cohort_runner.ipynb
 │   │   ├── DTW_FEATURE_ANALYSIS.md
 │   │   └── outputs/                   # DTW visualization outputs
 │   ├── fpgrowth/                      # FP-Growth pattern visualizations
-│   │   ├── run_analysis.py
+│   │   ├── create_fpgrowth_visuals.py
 │   │   ├── create_plots.py
 │   │   ├── create_fpgrowth_features.py
 │   │   ├── cohort_fpgrowth.py
 │   │   ├── global_fpgrowth.py
 │   │   └── outputs/                   # FP-Growth visualization outputs
 │   ├── bupar/                         # BupaR process mining visualizations
-│   │   ├── run_analysis.py
+│   │   ├── create_bupar_visuals.py
 │   │   ├── create_bupar_outputs_opioid_ed.R
 │   │   ├── create_bupar_outputs_non_opioid_ed.R
 │   │   ├── create_plots.R

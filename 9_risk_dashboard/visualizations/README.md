@@ -32,7 +32,7 @@ visualizations/
 **Purpose**: Generate frequent pattern mining visualizations.
 
 **Scripts:**
-- `run_analysis.py` - Run FP-Growth analysis
+- `create_fpgrowth_visuals.py` - Create FP-Growth visuals for dashboard
 - `create_plots.py` - Generate visualization images and HTML networks
 
 **Outputs:**
@@ -47,7 +47,7 @@ visualizations/
 **Purpose**: Generate process mining visualizations.
 
 **Scripts:**
-- `run_analysis.py` - Run BupaR analysis
+- `create_bupar_visuals.py` - Create BupaR visuals for dashboard
 - `create_bupar_outputs_opioid_ed.R` - Generate visualizations for opioid_ed
 - `create_bupar_outputs_non_opioid_ed.R` - Generate visualizations for non_opioid_ed
 

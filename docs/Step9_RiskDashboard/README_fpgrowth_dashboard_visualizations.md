@@ -55,8 +55,8 @@ FP-Growth visualizations help clinicians understand:
 
 ### Main Analysis Scripts
 
-**`run_analysis.py`** - Main orchestrator
-- Runs FP-Growth analysis for specified cohort/age band/item type
+**`create_fpgrowth_visuals.py`** - Main orchestrator
+- Creates FP-Growth visuals for specified cohort/age band
 - Generates itemsets and rules JSON files
 - Calls visualization generation scripts
 
@@ -105,14 +105,12 @@ All visualization files (PNG and HTML) are uploaded to S3 for dashboard access v
 **Basic usage:**
 ```bash
 cd 9_risk_dashboard/visualizations/fpgrowth
-python run_analysis.py --cohort-name {cohort} --age-band {age_band} --item-type {item_type}
+python create_fpgrowth_visuals.py --cohort-name {cohort} --age-band {age_band}
 ```
-
-**Item types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`
 
 **Example:**
 ```bash
-python run_analysis.py --cohort-name opioid_ed --age-band 25-44 --item-type drug_name
+python create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 25-44
 ```
 
 **Generate visualizations only (if data already exists):**
