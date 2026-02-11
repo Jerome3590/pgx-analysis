@@ -227,10 +227,22 @@ def upload_bupar_plots_to_dashboard_s3(
 def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
+    force: bool = False,
 ) -> bool:
     """
     Create BupaR visuals for the dashboard: outputs, feature merge, and plot upload.
+    If force is False and the output CSV already exists, skips (idempotent).
     """
+    age_band_fname = age_band.replace("-", "_")
+    base_10c = REPO_ROOT / "10c_bupaR_dashboard_visual" if (REPO_ROOT / "10c_bupaR_dashboard_visual").exists() else PROJECT_ROOT / "10c_bupaR_dashboard_visual"
+    out_csv = base_10c / "outputs" / "feature_engineering" / f"bupaR_added_features_{cohort_name}_{age_band_fname}.csv"
+    if not force and out_csv.exists():
+        logger_bupar = logging.getLogger(f"bupar.{cohort_name}.{age_band_fname}")
+        if not logger_bupar.handlers:
+            logger_bupar.addHandler(logging.StreamHandler(sys.stdout))
+        logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", out_csv)
+        return True
+
     logger, log_path = _get_logger(cohort_name, age_band)
 
     env = detect_runtime_environment(PROJECT_ROOT)
@@ -279,6 +291,11 @@ if __name__ == "__main__":
         required=True,
         help="Age band (e.g., 0-12)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if output already exists (default: skip when idempotent)",
+    )
 
     args = parser.parse_args()
 
@@ -286,6 +303,7 @@ if __name__ == "__main__":
         success = create_bupar_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
+            force=args.force,
         )
 
     sys.exit(0 if success else 1)

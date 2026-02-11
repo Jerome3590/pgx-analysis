@@ -101,47 +101,69 @@ print(f"Age bands: {AGE_BANDS_TO_RUN}")
 combinations = [(c, ab) for c in COHORTS_TO_RUN for ab in AGE_BANDS_TO_RUN]
 print(f"Total combinations: {len(combinations)}")
 
+# Idempotent: skip when output exists. Set FORCE_RERUN=True to re-run all.
+FORCE_RERUN = False
+# Parallel workers for BupaR and DTW (FP-Growth stays sequential for memory).
+PARALLEL_WORKERS = 32
+
 # %%
 # --- Run BupaR process mining (event logs, traces, plots; SHAP/FFA-filtered when available) ---
+# Parallel; idempotent unless FORCE_RERUN.
 FAIL_FAST = True  # set False to continue on first failure
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-for cohort_name, age_band in combinations:
-    print(f"\n[BupaR] {cohort_name} / {age_band}")
-    result = subprocess.run(
-        [sys.executable, str(BUPAR_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+force_flag = ["--force"] if FORCE_RERUN else []
+
+def _run_bupar_one(cohort_name, age_band):
+    return (cohort_name, age_band, subprocess.run(
+        [sys.executable, str(BUPAR_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
-    )
-    if result.returncode != 0 and FAIL_FAST:
-        raise RuntimeError(f"BupaR failed: {cohort_name} / {age_band}")
-    print(f"  -> exit code {result.returncode}")
+    ).returncode)
+
+with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
+    futures = {ex.submit(_run_bupar_one, c, ab): (c, ab) for c, ab in combinations}
+    for fut in as_completed(futures):
+        cohort_name, age_band, code = fut.result()
+        print(f"  [BupaR] {cohort_name} / {age_band} -> exit {code}")
+        if code != 0 and FAIL_FAST:
+            raise RuntimeError(f"BupaR failed: {cohort_name} / {age_band}")
+print("BupaR done.")
 
 # %%
-# --- Run DTW trajectory features and add to model data ---
-for cohort_name, age_band in combinations:
-    print(f"\n[DTW] {cohort_name} / {age_band}")
+# --- Run DTW trajectory features and publish (parallel; idempotent unless FORCE_RERUN) ---
+def _run_dtw_one(cohort_name, age_band):
     r1 = subprocess.run(
-        [sys.executable, str(DTW_FEATURES_SCRIPT), "--cohort", cohort_name, "--age_band", age_band],
+        [sys.executable, str(DTW_FEATURES_SCRIPT), "--cohort", cohort_name, "--age_band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
-    if r1.returncode != 0 and FAIL_FAST:
-        raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name} / {age_band}")
+    if r1.returncode != 0:
+        return (cohort_name, age_band, r1.returncode, None)
     r2 = subprocess.run(
-        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
-    if r2.returncode != 0 and FAIL_FAST:
-        raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
-    print(f"  -> DTW exit codes {r1.returncode}, {r2.returncode}")
+    return (cohort_name, age_band, r1.returncode, r2.returncode)
+
+with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
+    futures = {ex.submit(_run_dtw_one, c, ab): (c, ab) for c, ab in combinations}
+    for fut in as_completed(futures):
+        cohort_name, age_band, c1, c2 = fut.result()
+        print(f"  [DTW] {cohort_name} / {age_band} -> exit {c1}, {c2}")
+        if c2 is None and FAIL_FAST:
+            raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name} / {age_band}")
+        if c2 is not None and c2 != 0 and FAIL_FAST:
+            raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
+print("DTW done.")
 
 # %%
-# --- Run FP-Growth (itemsets, rules, plots; SHAP/FFA-filtered when available) ---
+# --- Run FP-Growth (itemsets, rules, plots; sequential for memory; idempotent unless FORCE_RERUN) ---
 for cohort_name, age_band in combinations:
     print(f"\n[FP-Growth] {cohort_name} / {age_band}")
     result = subprocess.run(
-        [sys.executable, str(FPGROWTH_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [sys.executable, str(FPGROWTH_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )

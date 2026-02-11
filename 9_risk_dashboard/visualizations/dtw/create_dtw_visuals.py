@@ -33,14 +33,21 @@ def create_dtw_visuals(
     project_root: Path,
     cohort_name: str,
     age_band: str,
+    force: bool = False,
 ) -> None:
     """
     Create and publish DTW visuals for the dashboard. Does not add DTW features to model data.
     Loads the DTW features CSV from create_dtw_features.py, writes a copy to
     outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv,
     mirrors to feature_engineering_outputs, uploads to S3, and uploads plots + chart_data to the dashboard bucket.
+    If force is False and the output CSV already exists, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")
+    out_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
+    out_path = out_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
+    if not force and out_path.exists():
+        print(f"[INFO] Output exists at {out_path}; skipping (use --force to re-run)")
+        return
 
     # Load DTW features (created by create_dtw_features.py)
     dtw_features_csv = (
@@ -71,10 +78,7 @@ def create_dtw_visuals(
     print(f"[INFO] Loaded {len(dtw_df)} patients with {len(dtw_df.columns) - 1} DTW features")
 
     # Output to feature_engineering directory
-    out_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    out_path = out_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
     print(f"[INFO] Writing final DTW features to {out_path} ({len(dtw_df)} rows)")
     dtw_df.to_csv(out_path, index=False)
 
@@ -317,6 +321,11 @@ def main() -> None:
         required=True,
         help="Age band (e.g., 13-24)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if output already exists (default: skip when idempotent)",
+    )
 
     args = parser.parse_args()
 
@@ -328,6 +337,7 @@ def main() -> None:
         project_root=project_root,
         cohort_name=args.cohort_name,
         age_band=args.age_band,
+        force=args.force,
     )
 
 
