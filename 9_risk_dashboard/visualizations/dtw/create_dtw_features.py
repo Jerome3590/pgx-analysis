@@ -1131,20 +1131,20 @@ def create_sequence_time_window_features(
     # Register trajectory_df as a table
     con.register('trajectory_data', trajectory_df)
     
-    # Calculate features
+    # Calculate features (all time intervals in days)
     features_query = """
     WITH patient_stats AS (
         SELECT 
             mi_person_key,
             COUNT(*) as seq_length,
             COUNT(DISTINCT activity) as seq_diversity,
-            AVG(days_since_previous) as time_window_mean,
-            MEDIAN(days_since_previous) as time_window_median,
-            STDDEV(days_since_previous) as time_window_std,
-            MIN(days_since_previous) as time_window_min,
-            MAX(days_since_previous) as time_window_max,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY days_since_previous) as time_window_q25,
-            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY days_since_previous) as time_window_q75
+            AVG(days_since_previous) as time_window_mean_days,
+            MEDIAN(days_since_previous) as time_window_median_days,
+            STDDEV(days_since_previous) as time_window_std_days,
+            MIN(days_since_previous) as time_window_min_days,
+            MAX(days_since_previous) as time_window_max_days,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY days_since_previous) as time_window_q25_days,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY days_since_previous) as time_window_q75_days
         FROM trajectory_data
         WHERE days_since_previous IS NOT NULL
         GROUP BY mi_person_key
@@ -1152,8 +1152,8 @@ def create_sequence_time_window_features(
     early_intervals AS (
         SELECT 
             mi_person_key,
-            AVG(days_since_previous) as time_window_early_mean,
-            MEDIAN(days_since_previous) as time_window_early_median
+            AVG(days_since_previous) as time_window_early_mean_days,
+            MEDIAN(days_since_previous) as time_window_early_median_days
         FROM (
             SELECT 
                 mi_person_key,
@@ -1168,8 +1168,8 @@ def create_sequence_time_window_features(
     late_intervals AS (
         SELECT 
             mi_person_key,
-            AVG(days_since_previous) as time_window_late_mean,
-            MEDIAN(days_since_previous) as time_window_late_median
+            AVG(days_since_previous) as time_window_late_mean_days,
+            MEDIAN(days_since_previous) as time_window_late_median_days
         FROM (
             SELECT 
                 mi_person_key,
@@ -1182,32 +1182,28 @@ def create_sequence_time_window_features(
         GROUP BY mi_person_key
     ),
     sequence_patterns AS (
-        SELECT 
+        SELECT
             mi_person_key,
-            -- First 3 activities as a pattern
-            LIST(activity ORDER BY sequence_position LIMIT 3) as seq_pattern_start,
-            -- Last 3 activities as a pattern
-            LIST(activity ORDER BY sequence_position DESC LIMIT 3) as seq_pattern_end
+            LIST(activity ORDER BY sequence_position) as seq_pattern
         FROM trajectory_data
         GROUP BY mi_person_key
     )
-    SELECT 
+    SELECT
         ps.mi_person_key,
         ps.seq_length,
         ps.seq_diversity,
-        ps.time_window_mean,
-        ps.time_window_median,
-        ps.time_window_std,
-        ps.time_window_min,
-        ps.time_window_max,
-        ps.time_window_q25,
-        ps.time_window_q75,
-        COALESCE(ei.time_window_early_mean, 0) as time_window_early_mean,
-        COALESCE(ei.time_window_early_median, 0) as time_window_early_median,
-        COALESCE(li.time_window_late_mean, 0) as time_window_late_mean,
-        COALESCE(li.time_window_late_median, 0) as time_window_late_median,
-        sp.seq_pattern_start,
-        sp.seq_pattern_end
+        ps.time_window_mean_days,
+        ps.time_window_median_days,
+        ps.time_window_std_days,
+        ps.time_window_min_days,
+        ps.time_window_max_days,
+        ps.time_window_q25_days,
+        ps.time_window_q75_days,
+        COALESCE(ei.time_window_early_mean_days, 0) as time_window_early_mean_days,
+        COALESCE(ei.time_window_early_median_days, 0) as time_window_early_median_days,
+        COALESCE(li.time_window_late_mean_days, 0) as time_window_late_mean_days,
+        COALESCE(li.time_window_late_median_days, 0) as time_window_late_median_days,
+        sp.seq_pattern
     FROM patient_stats ps
     LEFT JOIN early_intervals ei ON ps.mi_person_key = ei.mi_person_key
     LEFT JOIN late_intervals li ON ps.mi_person_key = li.mi_person_key
@@ -1225,16 +1221,13 @@ def create_sequence_time_window_features(
     if features_df.empty:
         return pd.DataFrame()
     
-    # Convert sequence patterns to string features (for easier handling)
-    if 'seq_pattern_start' in features_df.columns:
-        features_df['seq_pattern_start_str'] = features_df['seq_pattern_start'].apply(
-            lambda x: '_'.join(x) if isinstance(x, list) and x else ''
+    # Convert full sequence pattern (all activities per patient) to string feature
+    if 'seq_pattern' in features_df.columns:
+        features_df['seq_pattern_str'] = features_df['seq_pattern'].apply(
+            lambda x: '_'.join(str(a) for a in x) if isinstance(x, list) and x else ''
         )
-        features_df['seq_pattern_end_str'] = features_df['seq_pattern_end'].apply(
-            lambda x: '_'.join(x) if isinstance(x, list) and x else ''
-        )
-        # Drop list columns (keep string versions)
-        features_df = features_df.drop(columns=['seq_pattern_start', 'seq_pattern_end'], errors='ignore')
+        # Drop list column (keep string version for tabular use)
+        features_df = features_df.drop(columns=['seq_pattern'], errors='ignore')
     
     # Fill NaN values
     numeric_cols = features_df.select_dtypes(include=[np.number]).columns

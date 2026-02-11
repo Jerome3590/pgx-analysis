@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd
 import subprocess
 import shutil
@@ -208,7 +209,7 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
     use_df = use_df.dropna(subset=["bucket"])
     if len(use_df) < 10:
         return None
-    agg = use_df.groupby("bucket", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(target_rate=("target", "mean"), n=("target", "count"))
     order = (
         ["No routine appointments (0 admin ICD events)", "Routine appointments (1+ admin ICD events)"]
         if "admin_icd_event_count" in df.columns
@@ -234,8 +235,8 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
     col = "dtw_min_distance" if "dtw_min_distance" in df.columns else "trajectory_length"
     if col not in df.columns:
         return None
-    use_df = df[["target", col]].dropna()
-    if len(use_df) < 10:
+    use_df = df[["target", col]].replace([np.inf, -np.inf], np.nan).dropna()
+    if len(use_df) < 10 or use_df[col].nunique() < 2:
         return None
     try:
         use_df = use_df.copy()
@@ -244,7 +245,7 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
         )
     except (ValueError, TypeError):
         return None
-    agg = use_df.groupby("q", as_index=False).agg(target_rate=("target", "mean"), n=("target", "count"))
+    agg = use_df.groupby("q", as_index=False, observed=True).agg(target_rate=("target", "mean"), n=("target", "count"))
     if agg.empty or agg["n"].sum() == 0:
         return None
     return {
