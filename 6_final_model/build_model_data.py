@@ -161,15 +161,15 @@ def build_model_data(
             if not success:
                 logger.warning("DTW feature creation failed, continuing...")
         
-        dtw_add = PROJECT_ROOT / "6_dtw_analysis" / "add_dtw_features_to_model_data.py"
-        if dtw_add.exists():
+        dtw_visuals = PROJECT_ROOT / "9_risk_dashboard" / "visualizations" / "dtw" / "create_dtw_visuals.py"
+        if dtw_visuals.exists():
             success = run_script(
-                dtw_add,
+                dtw_visuals,
                 ["--cohort-name", cohort_name, "--age-band", age_band],
-                "Add DTW features to model data"
+                "Create DTW visuals (publish for dashboard)"
             )
             if not success:
-                logger.warning("DTW feature addition failed, continuing...")
+                logger.warning("DTW visuals creation failed, continuing...")
         
         # 1.4 Predictive Time Features (with target and control)
         logger.info("\n--- Predictive Time Features ---")

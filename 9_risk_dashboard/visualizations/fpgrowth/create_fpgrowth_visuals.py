@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """
-Module-style orchestration script for FP-Growth feature engineering.
+Create FP-Growth visuals for the dashboard.
 
-This script runs the complete FP-Growth workflow:
+Runs the complete FP-Growth workflow:
 1. Ensure FP-Growth itemsets exist (target split, TRAIN years)
 2. Create FP-Growth patient-level features
-3. Add FP-Growth features to model data
-4. Create visualizations
-
-Each major step is wrapped in a resource-monitoring block that logs:
-- start / end times
-- memory at start / end / max
-- CPU at start / end / max
+3. Add FP-Growth features to model data (merge, mirror, S3)
+4. Create visualizations (plots, network HTML)
 
 Usage (Windows or Linux, from project root):
-    python 10b_fpgrowth_dashboard_visual/run_analysis.py --cohort-name opioid_ed --age-band 0-12
+    python 10b_fpgrowth_dashboard_visual/create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 0-12
 """
 
 import argparse
@@ -271,17 +266,16 @@ def create_visualizations(
             return False
 
 
-def run_fpgrowth_analysis(
+def create_fpgrowth_visuals(
     cohort_name: str,
     age_band: str,
     skip_feature_engineering: bool = False,
     skip_visualizations: bool = False,
 ) -> bool:
     """
-    Run complete FP-Growth analysis workflow as a module-style function.
+    Create FP-Growth visuals for the dashboard: itemsets, features, merge, and plots.
 
-    This function is idempotent with respect to itemset creation and can be safely
-    re-run; downstream scripts handle overwriting their CSV outputs.
+    Idempotent with respect to itemset creation; downstream scripts overwrite CSV outputs.
     """
     logger, log_path = _get_logger(cohort_name, age_band)
 
@@ -294,19 +288,19 @@ def run_fpgrowth_analysis(
         env.fast_root,
     )
 
-    with function_block("4_fpgrowth", "run_fpgrowth_analysis", logger=logger):
-        logger.info("Starting FP-Growth analysis for %s / %s", cohort_name, age_band)
+    with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger):
+        logger.info("Starting FP-Growth visuals for %s / %s", cohort_name, age_band)
 
         ensure_itemsets(cohort_name, age_band, logger=logger)
 
         if not skip_feature_engineering:
             if not create_features(cohort_name, age_band, logger=logger):
-                logger.error("FP-Growth feature creation failed; aborting module")
+                logger.error("FP-Growth feature creation failed; aborting")
                 mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
                 return False
 
             if not add_features_to_model_data(cohort_name, age_band, logger=logger):
-                logger.error("FP-Growth feature merge failed; aborting module")
+                logger.error("FP-Growth feature merge failed; aborting")
                 mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
                 return False
         else:
@@ -319,16 +313,15 @@ def run_fpgrowth_analysis(
         else:
             logger.info("Skipping visualization creation")
 
-        logger.info("FP-Growth analysis completed for %s / %s", cohort_name, age_band)
+        logger.info("FP-Growth visuals completed for %s / %s", cohort_name, age_band)
 
-    # Module-level logging mirrored to S3 (best-effort)
     mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
     return True
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run complete FP-Growth analysis workflow"
+        description="Create FP-Growth visuals for the dashboard"
     )
     parser.add_argument(
         "--cohort-name",
@@ -355,9 +348,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Module-level resource block wraps the entire CLI invocation
     with module_block("4_fpgrowth"):
-        success = run_fpgrowth_analysis(
+        success = create_fpgrowth_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
             skip_feature_engineering=args.skip_feature_engineering,

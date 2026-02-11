@@ -31,10 +31,10 @@ if str(REPO_ROOT) not in sys.path:
 from py_helpers.constants import AGE_BANDS, COHORT_NAMES  # noqa: E402
 
 VISUAL_ROOT = REPO_ROOT / "9_risk_dashboard" / "visualizations"
-BUPAR_SCRIPT = VISUAL_ROOT / "bupar" / "run_analysis.py"
+BUPAR_VISUALS_SCRIPT = VISUAL_ROOT / "bupar" / "create_bupar_visuals.py"
 DTW_FEATURES_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_features.py"
-DTW_ADD_SCRIPT = VISUAL_ROOT / "dtw" / "add_dtw_features_to_model_data.py"
-FPGROWTH_SCRIPT = VISUAL_ROOT / "fpgrowth" / "run_analysis.py"
+DTW_VISUALS_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_visuals.py"
+FPGROWTH_VISUALS_SCRIPT = VISUAL_ROOT / "fpgrowth" / "create_fpgrowth_visuals.py"
 
 print(f"Repo root: {REPO_ROOT}")
 print(f"Visualizations: {VISUAL_ROOT}")
@@ -66,7 +66,7 @@ def ensure_dashboard_symlinks():
                 print(f"  [repo] Windows: create junction: mklink /J \"{path}\" \"{target_path}\"")
             else:
                 print(f"  [repo] {name}: {e}")
-    # Under visualizations: so run_analysis.py (PROJECT_ROOT=visualizations) finds 10c/10b/10d
+    # Under visualizations: so create_*_visuals.py (PROJECT_ROOT=visualizations) finds 10c/10b/10d
     for name, subdir in [("10c_bupaR_dashboard_visual", "bupar"), ("10b_fpgrowth_dashboard_visual", "fpgrowth"), ("10d_dtw_dashboard_visual", "dtw")]:
         path = VISUAL_ROOT / name
         if path.exists():
@@ -108,7 +108,7 @@ FAIL_FAST = True  # set False to continue on first failure
 for cohort_name, age_band in combinations:
     print(f"\n[BupaR] {cohort_name} / {age_band}")
     result = subprocess.run(
-        [sys.executable, str(BUPAR_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [sys.executable, str(BUPAR_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
@@ -128,12 +128,12 @@ for cohort_name, age_band in combinations:
     if r1.returncode != 0 and FAIL_FAST:
         raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name} / {age_band}")
     r2 = subprocess.run(
-        [sys.executable, str(DTW_ADD_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
     if r2.returncode != 0 and FAIL_FAST:
-        raise RuntimeError(f"DTW add_dtw_features failed: {cohort_name} / {age_band}")
+        raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
     print(f"  -> DTW exit codes {r1.returncode}, {r2.returncode}")
 
 # %%
@@ -141,7 +141,7 @@ for cohort_name, age_band in combinations:
 for cohort_name, age_band in combinations:
     print(f"\n[FP-Growth] {cohort_name} / {age_band}")
     result = subprocess.run(
-        [sys.executable, str(FPGROWTH_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [sys.executable, str(FPGROWTH_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
         cwd=str(REPO_ROOT),
         capture_output=False,
     )

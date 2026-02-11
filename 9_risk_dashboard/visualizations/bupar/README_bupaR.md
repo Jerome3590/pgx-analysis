@@ -15,7 +15,7 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 - `create_bupar_outputs_opioid_ed.R` / `create_bupar_outputs_non_opioid_ed.R`  
   - Run full pre-/post-target sequence analyses for each cohort and age band.  
-  - **Allowed codes:** If `10c_bupaR_dashboard_visual/outputs/allowed_codes_shap_ffa_{cohort}_{age_band_fname}.json` exists (written by `run_analysis.py` from SHAP/FFA), the event log is restricted to those model-important items; otherwise FP-Growth target-only itemsets are used.  
+  - **Allowed codes:** If `10c_bupaR_dashboard_visual/outputs/allowed_codes_shap_ffa_{cohort}_{age_band_fname}.json` exists (written by `create_bupar_visuals.py` from SHAP/FFA), the event log is restricted to those model-important items; otherwise FP-Growth target-only itemsets are used.  
   - Generate:
     - Trace tables (overall, pre-target, post-target; top and rare sequences).
     - Process matrices and Gantt-style visualizations.

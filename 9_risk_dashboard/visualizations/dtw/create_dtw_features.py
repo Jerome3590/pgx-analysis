@@ -12,7 +12,7 @@ This script extracts DTW-based trajectory features from patient sequences:
 
 Output:
 - Saves to: outputs/feature_engineering/dtw_features_{cohort}_{age_band}.csv
-- This intermediate file is then merged with other features by add_dtw_features_to_model_data.py
+- create_dtw_visuals.py publishes it (copy, S3, dashboard plots); DTW features are not added to model data
 - Adds admin_icd_event_count (from 1b_apcd_event_filter/administrative_codes_lookup.json) for
   Routine vs No Routine (appointments) comparison in the dashboard.
 """
@@ -797,14 +797,17 @@ def create_all_dtw_features(
     
     # Check if target date column exists (4_model_data has it; 3b may not)
     schema_df = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{model_data_path}')").df()
+    col_name_col = schema_df.columns[0]
+    type_col = schema_df.columns[1] if len(schema_df.columns) > 1 else None
     logger.info(
         "model_events columns (%s): %s",
         len(schema_df),
-        list(schema_df["column_name"].astype(str)),
+        list(schema_df[col_name_col].astype(str)),
     )
     for _, row in schema_df.iterrows():
-        logger.info("  %s: %s", row["column_name"], row["type"])
-    schema_columns = set(schema_df["column_name"].astype(str).str.lower())
+        type_val = row[type_col] if type_col else "?"
+        logger.info("  %s: %s", row[col_name_col], type_val)
+    schema_columns = set(schema_df[col_name_col].astype(str).str.lower())
     # Sample of codes actually in model_events (for comparison with filter)
     path_str = str(model_data_path).replace("\\", "/")
     if "event_date" in schema_columns and "primary_icd_diagnosis_code" in schema_columns:

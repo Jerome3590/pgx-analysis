@@ -1432,7 +1432,7 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
     Returns HTTPS URLs for BupaR plots from the dashboard bucket (S3_DASHBOARD_BUCKET)
-    under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/. Uploaded by run_analysis.py.
+    under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/. Uploaded by create_bupar_visuals.py.
     """
     try:
         params = event.get("queryStringParameters") or {}
