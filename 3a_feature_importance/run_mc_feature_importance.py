@@ -1015,7 +1015,8 @@ def run_mc_feature_importance(
 
         if len(all_results) >= 1:
             # Use cross-model aggregation with normalization and best-model weighting when we have multiple models
-            if len(all_results) >= 2:
+            is_multi_model_aggregated = len(all_results) >= 2
+            if is_multi_model_aggregated:
                 agg_combined = aggregate_feature_importance(
                     all_results, scaling_metric="recall", logger=None
                 )
@@ -1071,6 +1072,15 @@ def run_mc_feature_importance(
             agg_df.to_csv(agg_path, index=False)
             print(f"Saved aggregated feature importance to {agg_path}")
             print(f"[INFO] Final aggregated CSV contains {len(agg_df)} unique features with signal")
+            # Print top 20 aggregated feature importances after final MC CV run
+            imp_col = "scaled_importance_mean" if "scaled_importance_mean" in agg_df.columns else "importance_mean"
+            top20 = agg_df.head(20)[["feature", imp_col]]
+            if is_multi_model_aggregated:
+                print(f"\nTop 20 aggregated feature importances (all models, normalized by best-model recall weight, MC n_runs={n_runs}):")
+            else:
+                single_label = list(all_results.keys())[0] if all_results else "single model"
+                print(f"\nTop 20 feature importances (single model: {single_label}, MC n_runs={n_runs}):")
+            print(top20.to_string(index=False))
 
             # Second-pass aggregated FI is always saved to pgxdatalake and used for final model train features (Step 4 / Step 6).
             # Do not write to pgx-repository so historical baseline is never overwritten.

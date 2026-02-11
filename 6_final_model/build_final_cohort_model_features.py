@@ -20,7 +20,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING
+from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
 
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
@@ -148,6 +148,11 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         important_items = [x for x in important_items if not _drug_name_excluded(x)]
         if len(important_items) < before_drug_excl:
             print(f"[INFO] Excluded {before_drug_excl - len(important_items)} drug-name feature(s) (DRUG_NAMES_EXCLUDED_MODEL_TRAINING)")
+        # Exclude any feature whose name contains FEATURE_SUBSTRINGS_EXCLUDED (e.g. syringe)
+        before_sub = len(important_items)
+        important_items = [x for x in important_items if not any(sub.lower() in (x or "").lower() for sub in FEATURE_SUBSTRINGS_EXCLUDED)]
+        if len(important_items) < before_sub:
+            print(f"[INFO] Excluded {before_sub - len(important_items)} feature(s) containing excluded substrings (e.g. syringe)")
 
         # For non_opioid_ed cohort: only include drug events (exclude ICD and CPT codes)
         if "non_opioid" in cohort_name.lower() or "ed_non_opioid" in cohort_name.lower():

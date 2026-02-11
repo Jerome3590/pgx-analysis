@@ -51,7 +51,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     step_block,
     mirror_log_to_s3,
 )
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
 from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, get_model_data_root, is_linux
 
 try:
@@ -881,7 +881,10 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
     
     # Parse features to extract code and type, preserving importance for sorting
     # Format: item_{type}_{code} or item_{code} (Step 3a); Step 3b may add code_type column
+    # Exclude drugs in DRUG_NAMES_EXCLUDED_MODEL_TRAINING (Narcan, etc.) case-insensitively
+    excluded_drugs_lower = {z.lower() for z in DRUG_NAMES_EXCLUDED_MODEL_TRAINING}
     parsed_features = []
+    n_excluded_drugs = 0
     for _, row in df.iterrows():
         feature_str = str(row["feature"])
         importance = feature_importance_map.get(feature_str, 0)
@@ -914,7 +917,15 @@ def _load_aggregated_feature_importance_codes(cohort: str, age_band: str, top_n:
         else:
             code = feature_str
             ftype = ctype if ctype else "drug"
+        if ftype == "drug" and (code or "").strip().lower() in excluded_drugs_lower:
+            n_excluded_drugs += 1
+            continue
+        if any((sub.lower() in (code or "").lower()) for sub in FEATURE_SUBSTRINGS_EXCLUDED):
+            n_excluded_drugs += 1
+            continue
         parsed_features.append((ftype, code, importance))
+    if n_excluded_drugs:
+        print(f"[INFO] Excluded {n_excluded_drugs} feature(s) (excluded drugs + substrings e.g. syringe)")
     
     # Sort by importance (descending)
     parsed_features.sort(key=lambda x: x[2], reverse=True)
@@ -1064,6 +1075,8 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
             drug_codes = []
             icd_codes = []
             cpt_codes = []
+            excluded_drugs_lower = {z.lower() for z in DRUG_NAMES_EXCLUDED_MODEL_TRAINING}
+            excluded_substrings_lower = [z.lower() for z in FEATURE_SUBSTRINGS_EXCLUDED]
             
             for code_type, code in important_codes:
                 code_str = str(code)
@@ -1072,6 +1085,8 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
                 
                 # Only create features for the code type specified
                 if code_type == "drug" and "drug_name" in available_cols:
+                    if any(sub in (code_str or "").lower() for sub in excluded_substrings_lower):
+                        continue
                     drug_codes.append((code_str, f"item_drug_{code_safe}"))
                 elif code_type == "icd":
                     icd_cols = [c for c in available_cols if 'icd_diagnosis_code' in c.lower()]
@@ -1100,7 +1115,9 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
                 ).df()
                 for drug in distinct_drugs_df["drug_name"].unique():
                     drug_str = str(drug).strip()
-                    if not drug_str:
+                    if not drug_str or drug_str.lower() in excluded_drugs_lower:
+                        continue
+                    if any(sub in drug_str.lower() for sub in excluded_substrings_lower):
                         continue
                     code_safe = drug_str.replace(" ", "_").replace("-", "_").replace(".", "_").replace("/", "_").replace("&", "_").replace("(", "_").replace(")", "_").replace("[", "_").replace("]", "_").replace("{", "_").replace("}", "_").replace("*", "_").replace("+", "_").replace("=", "_").replace("|", "_").replace("^", "_").replace("%", "_").replace('"', "_").replace("'", "_").replace("\\", "_")
                     drug_codes.append((drug_str, f"item_drug_{code_safe}"))
@@ -1135,6 +1152,8 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
         else:
             # Fallback: create binary features for all distinct codes
             print("Creating binary features for all distinct codes in data...")
+            excluded_drugs_lower = {z.lower() for z in DRUG_NAMES_EXCLUDED_MODEL_TRAINING}
+            excluded_substrings_lower = [z.lower() for z in FEATURE_SUBSTRINGS_EXCLUDED]
             
             if "drug_name" in available_cols:
                 distinct_drugs = con.execute(
@@ -1146,6 +1165,10 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
                 ).df()
                 for drug in distinct_drugs["drug_name"].unique():
                     drug_str = str(drug)
+                    if drug_str.strip().lower() in excluded_drugs_lower:
+                        continue
+                    if any(sub in drug_str.lower() for sub in excluded_substrings_lower):
+                        continue
                     drug_escaped = drug_str.replace("\\", "\\\\").replace("'", "''")
                     drug_safe = drug_str.replace(' ', '_').replace('-', '_').replace('.', '_').replace('/', '_').replace('&', '_').replace('(', '_').replace(')', '_').replace('[', '_').replace(']', '_').replace('{', '_').replace('}', '_').replace('*', '_').replace('+', '_').replace('=', '_').replace('|', '_').replace('^', '_').replace('%', '_').replace('"', '_').replace("'", '_').replace('\\', '_')
                     feature_name = f"item_drug_{drug_safe}"
