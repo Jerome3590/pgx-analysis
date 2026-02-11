@@ -73,6 +73,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from py_helpers.constants import (
     ALL_ICD_DIAGNOSIS_COLUMNS,
     DRUG_NAMES_EXCLUDED_MODEL_TRAINING,
+    FEATURE_SUBSTRINGS_EXCLUDED,
     OPIOID_ICD_CODES,
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
@@ -269,13 +270,16 @@ def get_important_items(agg_csv: Path) -> List[str]:
                 raw_codes.append(code.strip())
     items = list(dict.fromkeys(raw_codes))  # preserve order, dedupe
 
-    excluded = DRUG_NAMES_EXCLUDED_MODEL_TRAINING
-    filtered = [x for x in items if x not in excluded]
+    # Match case-insensitively so "NARCAN" / "Narcan" are both excluded; also exclude any item containing FEATURE_SUBSTRINGS_EXCLUDED (e.g. syringe)
+    excluded_lower = {z.lower() for z in DRUG_NAMES_EXCLUDED_MODEL_TRAINING}
+    filtered = [x for x in items if (x.strip().lower() if x else "") not in excluded_lower]
+    before_substring = len(filtered)
+    filtered = [x for x in filtered if not any((sub.lower() in (x or "").lower()) for sub in FEATURE_SUBSTRINGS_EXCLUDED)]
     if len(filtered) < len(items):
         n_removed = len(items) - len(filtered)
-        removed = [x for x in items if x in excluded]
+        removed = [x for x in items if (x.strip().lower() if x else "") in excluded_lower or any((sub.lower() in (x or "").lower()) for sub in FEATURE_SUBSTRINGS_EXCLUDED)]
         logging.getLogger(__name__).info(
-            "Excluded %s drug-name item(s) from important_items: %s", n_removed, removed
+            "Excluded %s item(s) from important_items (drug-name + substrings): %s", n_removed, removed[:15]
         )
     return filtered
 

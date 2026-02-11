@@ -34,7 +34,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING
+from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
 from py_helpers.feature_utils import (
     normalize_feature_name,
     normalize_feature_set,
@@ -165,14 +165,25 @@ def filter_and_refine_features(
         'final_count': 0
     }
 
-    # Exclude drug-name values that are not drugs or not used as features (see DRUG_NAMES_EXCLUDED_MODEL_TRAINING)
+    # Exclude drug-name values that are not drugs or not used as features (see DRUG_NAMES_EXCLUDED_MODEL_TRAINING).
+    # Match case-insensitively so "NARCAN" / "Narcan" are both excluded.
+    # Also exclude any feature whose name contains FEATURE_SUBSTRINGS_EXCLUDED (e.g. "syringe").
     code_col = refined_fi["feature"].astype(str).str.replace("^item_", "", regex=True)
-    drug_excluded_mask = code_col.isin(DRUG_NAMES_EXCLUDED_MODEL_TRAINING)
-    if drug_excluded_mask.any():
-        n_drug_excluded = int(drug_excluded_mask.sum())
-        filtering_summary["filtered_by_drug_name_exclusion"] = n_drug_excluded
-        refined_fi = refined_fi[~drug_excluded_mask].copy()
-        print(f"Excluded {n_drug_excluded} drug-name feature(s) (not drugs or excluded from model training): {sorted(code_col[drug_excluded_mask].unique().tolist())}")
+    code_col_normalized = code_col.str.replace("^drug_", "", regex=True).str.strip().str.lower()
+    excluded_lower = {z.lower() for z in DRUG_NAMES_EXCLUDED_MODEL_TRAINING}
+    drug_excluded_mask = code_col_normalized.isin(excluded_lower)
+    substring_excluded_mask = pd.Series(False, index=refined_fi.index)
+    for sub in FEATURE_SUBSTRINGS_EXCLUDED:
+        substring_excluded_mask = substring_excluded_mask | code_col_normalized.str.contains(sub.lower(), case=False, na=False)
+    combined_excluded = drug_excluded_mask | substring_excluded_mask
+    if combined_excluded.any():
+        n_excluded = int(combined_excluded.sum())
+        filtering_summary["filtered_by_drug_name_exclusion"] = n_excluded
+        refined_fi = refined_fi[~combined_excluded].copy()
+        if drug_excluded_mask.any():
+            print(f"Excluded {n_excluded} feature(s) (drug-name exclusion + substrings like 'syringe'): {sorted(code_col[combined_excluded].unique().tolist())[:20]}{'...' if combined_excluded.sum() > 20 else ''}")
+        else:
+            print(f"Excluded {n_excluded} feature(s) containing excluded substrings (e.g. syringe): {sorted(code_col[combined_excluded].unique().tolist())}")
     
     # Use safe feature filter if available
     # safe_feature_filter is a tuple: (features_to_keep_for_cases, features_to_exclude_for_controls)
