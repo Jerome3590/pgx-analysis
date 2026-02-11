@@ -95,9 +95,8 @@ The training data file (`final_features.parquet` or `{cohort}_{age_band}_train_f
    - May be in: `gold/cohorts_model_data/{cohort}/{age_band}/` (checked - not found)
 
 3. **Create training data from raw cohort data**:
-   - Combine `opioid_ed` (target) and `non_opioid_ed` (control) cohorts
-   - Apply feature engineering pipeline
-   - Save to expected location
+   - Use each cohort’s `model_events` (each has within-cohort target and control; control = target=0, not the other cohort).
+   - Apply feature engineering pipeline and save to expected location.
 
 ## Code Configuration
 

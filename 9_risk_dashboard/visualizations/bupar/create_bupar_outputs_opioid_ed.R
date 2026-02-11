@@ -33,8 +33,7 @@ suppressPackageStartupMessages({
 
 project_root <- getwd()  # assume you launched from project root
 
-cohort_name    <- "opioid_ed"
-control_cohort <- "non_opioid_ed"
+cohort_name <- "opioid_ed"
 
 # Optional command line argument to set age band; default is 0-12
 args <- commandArgs(trailingOnly = TRUE)
@@ -44,8 +43,7 @@ age_band_fname <- gsub("-", "_", age_band)
 train_years    <- c(2016L, 2017L, 2018L)
 
 cat("=== bupaR Analysis: Cohort 1 (OPIOID_ED) ===\n")
-cat("  Age band:       ", age_band, "\n", sep = "")
-cat("  Control cohort: ", control_cohort, "\n\n", sep = "")
+cat("  Age band: ", age_band, " (control = within-cohort target=0, no F1120)\n\n", sep = "")
 
 # Cohort-specific target ICD definition
 target_icd_patterns <- c("F1120")   # opioid ED
@@ -61,12 +59,10 @@ path_3b <- file.path(
   paste0("age_band=", age_band),
   "model_events.parquet"
 )
-use_3b_path <- FALSE
 if (file.exists(path_3b)) {
   model_data_path   <- path_3b
   model_data_dir    <- dirname(path_3b)
   model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
-  use_3b_path       <- TRUE
   cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
 } else {
   # Fallback: 4_model_data (PGX_DATA_ROOT/4_model_data on EC2, or project 4_model_data); fallback 4a_model_data (legacy).
@@ -100,8 +96,6 @@ if (file.exists(path_3b)) {
     model_data_path <- model_data_main
   }
 }
-# 3b uses partition slugs (opioid/polypharmacy); 4_model_data uses cohort names (opioid_ed/non_opioid_ed).
-control_cohort_partition <- if (use_3b_path && control_cohort == "non_opioid_ed") "polypharmacy" else control_cohort
 
 fpgrowth_root <- file.path(
   project_root,
@@ -333,70 +327,12 @@ print(target_eventlog)
 
 # -------------------------------------------------------------------
 # Combined TARGET + CONTROL eventlog for Sankey
+# Control = within-cohort non-target (target=0): no F1120 for this cohort, not the opposite cohort.
 # -------------------------------------------------------------------
 
-control_model_data_path <- file.path(
-  model_data_root,
-  paste0("cohort_name=", control_cohort_partition),
-  paste0("age_band=", age_band),
-  "model_events.parquet"
-)
-
-if (file.exists(control_model_data_path)) {
-  query_control <- sprintf(
-    "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-    control_model_data_path,
-    paste(train_years, collapse = ",")
-  )
-  pgx_df_control <- dbGetQuery(con, query_control)
-  cat("Loaded ", nrow(pgx_df_control), " control events for ", control_cohort,
-      " age_band=", age_band, " across years ", paste(train_years, collapse=","), "\n", sep = "")
-  
-} else {
-  warning("Control model_data parquet not found: ", control_model_data_path)
-  pgx_df_control <- pgx_df[0, ]
-}
-
-# Ensure consistent data types before binding rows
-# Find common columns and convert to same types
-common_cols <- intersect(names(pgx_df_target1), names(pgx_df_control))
-
-if (length(common_cols) > 0 && nrow(pgx_df_control) > 0) {
-  # For each common column, check types and harmonize
-  for (col in common_cols) {
-    target_type <- class(pgx_df_target1[[col]])[1]
-    control_type <- class(pgx_df_control[[col]])[1]
-    
-    # Skip if types already match
-    if (target_type == control_type) next
-    
-    # Handle date/datetime columns - convert to POSIXct if one is date
-    if (grepl("date|time", col, ignore.case = TRUE)) {
-      if (inherits(pgx_df_target1[[col]], "POSIXct") || inherits(pgx_df_target1[[col]], "Date")) {
-        pgx_df_control[[col]] <- as.POSIXct(pgx_df_control[[col]], origin = "1970-01-01", tz = "UTC")
-      } else if (inherits(pgx_df_control[[col]], "POSIXct") || inherits(pgx_df_control[[col]], "Date")) {
-        pgx_df_target1[[col]] <- as.POSIXct(pgx_df_target1[[col]], origin = "1970-01-01", tz = "UTC")
-      } else {
-        # Both are numeric/integer - convert to POSIXct
-        pgx_df_target1[[col]] <- as.POSIXct(as.numeric(pgx_df_target1[[col]]), origin = "1970-01-01", tz = "UTC")
-        pgx_df_control[[col]] <- as.POSIXct(as.numeric(pgx_df_control[[col]]), origin = "1970-01-01", tz = "UTC")
-      }
-    } else if (target_type == "character" || control_type == "character") {
-      # If one is character, convert both to character
-      pgx_df_target1[[col]] <- as.character(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.character(pgx_df_control[[col]])
-    } else if ((target_type == "integer" && control_type == "numeric") ||
-               (target_type == "numeric" && control_type == "integer")) {
-      # Convert both to numeric
-      pgx_df_target1[[col]] <- as.numeric(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.numeric(pgx_df_control[[col]])
-    } else {
-      # Fallback: convert both to character for safety
-      pgx_df_target1[[col]] <- as.character(pgx_df_target1[[col]])
-      pgx_df_control[[col]] <- as.character(pgx_df_control[[col]])
-    }
-  }
-}
+pgx_df_control <- pgx_df %>% filter(target == 0)
+cat("Loaded ", nrow(pgx_df_control), " within-cohort control events (target=0, no F1120) for ", cohort_name,
+    " age_band=", age_band, "\n", sep = "")
 
 pgx_df_all <- bind_rows(
   pgx_df_target1 %>% mutate(group = "target"),
