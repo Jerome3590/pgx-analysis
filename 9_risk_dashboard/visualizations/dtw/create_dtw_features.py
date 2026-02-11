@@ -850,20 +850,20 @@ def create_all_dtw_features(
         return pd.DataFrame()
     
     logger.info(f"Creating DTW features for {len(base_df)} patients ({len(base_df[base_df['target']==1])} target, {len(base_df[base_df['target']==0])} control)")
-    
+
+    # Always try SHAP/FFA first (they are a subset of model data; should yield rows when present).
+    # Only fall back to all events if extraction actually returns 0 rows (format or set mismatch).
+    # Convert cutoff_dates_df to dict format (includes NULL for controls, matching BupaR)
+    cutoff_dates_dict = cutoff_dates_df.set_index('mi_person_key')['cutoff_date'].to_dict()
+    cutoff_dates_dict = {str(k): str(v) if pd.notna(v) else None for k, v in cutoff_dates_dict.items()}
+
     # Collect all trajectories for prototype creation
     all_trajectories_combined = {}
-    
+
     # Process each item type
     for item_type in item_types:
         logger.info(f"\nProcessing {item_type} trajectories...")
-        
-        # Extract trajectories using cutoff dates (matching BupaR logic)
-        # Convert cutoff_dates_df to dict format (includes NULL for controls, matching BupaR)
-        cutoff_dates_dict = cutoff_dates_df.set_index('mi_person_key')['cutoff_date'].to_dict()
-        # Convert dates to strings if needed, preserve None for controls
-        cutoff_dates_dict = {str(k): str(v) if pd.notna(v) else None for k, v in cutoff_dates_dict.items()}
-        
+
         patient_trajectories = extract_patient_trajectories(
             model_data_path=model_data_path,
             allowed_codes=allowed_codes,
@@ -872,7 +872,23 @@ def create_all_dtw_features(
             target_filter=None,  # Include both target and control
             cutoff_dates=cutoff_dates_dict
         )
-        
+
+        # If SHAP/FFA filter yielded 0 rows (e.g. code format or 3a vs SHAP set mismatch), retry with all events
+        if not patient_trajectories and allowed_codes:
+            logger.warning(
+                "SHAP/FFA filter yielded 0 trajectories; retrying with all events (code format or set mismatch)."
+            )
+            patient_trajectories = extract_patient_trajectories(
+                model_data_path=model_data_path,
+                allowed_codes=None,
+                cohort_name=cohort_name,
+                item_type=item_type,
+                target_filter=None,
+                cutoff_dates=cutoff_dates_dict
+            )
+            if patient_trajectories:
+                logger.info("Using all events for trajectories (3a important items in 3b data).")
+
         if not patient_trajectories:
             logger.warning(f"No patient trajectories for {item_type}, skipping")
             continue
