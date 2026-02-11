@@ -30,12 +30,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-PROJECT_ROOT = Path(__file__).parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+# Repo root so 4_model_data is at repo root (same as other dtw scripts)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-
-MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
+MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
 TRAIN_YEARS = [2016, 2017, 2018]
 
 
@@ -518,4 +518,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
