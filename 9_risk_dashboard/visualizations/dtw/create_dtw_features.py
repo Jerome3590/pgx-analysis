@@ -4,8 +4,9 @@ Create patient-level DTW trajectory features.
 
 This script extracts DTW-based trajectory features from patient sequences:
 - Builds patient trajectories from model_data, restricted to **SHAP/FFA important codes**
-  when available (same as BupaR/FP-Growth). Uses get_shap_ffa_allowed_codes_combined();
-  if that fails or returns empty, falls back to all events in model_data.
+  when available (same as BupaR/FP-Growth). Uses get_shap_ffa_allowed_codes_combined().
+  Filter is applied in SQL with **OR semantics**: keep event if drug OR any ICD OR procedure
+  is in the allowed set (normalized match for dots/dashes). Only feature-importance events.
 - Computes DTW distances to prototype trajectories
 - Creates patient-level features for model training
 
@@ -66,6 +67,15 @@ ICD_DIAGNOSIS_COLUMNS = [
     "nine_icd_diagnosis_code",
     "ten_icd_diagnosis_code",
 ]
+
+
+def _normalize_code_for_match(code: str) -> str:
+    """Normalize code for set membership (e.g. F11.20 and F1120 match)."""
+    if not code or (isinstance(code, float) and pd.isna(code)):
+        return ""
+    s = str(code).strip()
+    # Remove dots so ICD F11.20 matches F1120; leave drugs/CPT otherwise unchanged
+    return s.replace(".", "").replace("-", "")
 
 
 def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
@@ -166,6 +176,13 @@ def extract_patient_trajectories(
     target_clause = ""
     if target_filter is not None:
         target_clause = f"AND target = {target_filter}"
+
+    # Only events with feature importance: filter by allowed_codes in SQL with OR semantics
+    # (keep row if drug OR any ICD OR procedure is in allowed set; normalized match for dots/dashes)
+    allowed_sql_in = ""
+    if allowed_codes and len(allowed_codes) > 0:
+        allowed_normalized = sorted({_normalize_code_for_match(c) for c in allowed_codes})
+        allowed_sql_in = ", ".join(repr(c) for c in allowed_normalized)
     
     # Register cutoff dates table if provided
     # For target patients: use cutoff date (events before target event = no leakage)
@@ -189,6 +206,8 @@ def extract_patient_trajectories(
             AND (cd.cutoff_date IS NULL OR e.event_date < CAST(cd.cutoff_date AS TIMESTAMP))
             """
     
+    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
     if item_type == "drug" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             drug_query = f"""
@@ -196,18 +215,19 @@ def extract_patient_trajectories(
                    'DRUG:' || e.drug_name as activity
             FROM read_parquet('{path_str}') e
             {cutoff_join}
-            WHERE e.drug_name IS NOT NULL AND e.drug_name != '' {cutoff_where} {target_clause}
+            WHERE e.drug_name IS NOT NULL AND e.drug_name != ''{_drug_allowed} {cutoff_where} {target_clause}
             """
         else:
             drug_query = f"""
             SELECT mi_person_key, event_date, 
                    'DRUG:' || drug_name as activity
             FROM read_parquet('{path_str}')
-            WHERE drug_name IS NOT NULL AND drug_name != '' {target_clause}
+            WHERE drug_name IS NOT NULL AND drug_name != ''{_drug_allowed_no_e} {target_clause}
             """
     else:
         drug_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
+    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
     if item_type == "icd" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             icd_query = f"""
@@ -240,7 +260,7 @@ def extract_patient_trajectories(
             SELECT mi_person_key, event_date, 
                    'ICD:' || icd as activity
             FROM all_icds
-            WHERE icd IS NOT NULL AND icd != ''
+            WHERE icd IS NOT NULL AND icd != ''{_icd_allowed}
             """
         else:
             icd_query = f"""
@@ -258,11 +278,13 @@ def extract_patient_trajectories(
             SELECT mi_person_key, event_date, 
                    'ICD:' || icd as activity
             FROM all_icds
-            WHERE icd IS NOT NULL AND icd != '' {target_clause}
+            WHERE icd IS NOT NULL AND icd != ''{_icd_allowed} {target_clause}
             """
     else:
         icd_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
+    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
     if item_type == "cpt" or item_type == "combined":
         if cutoff_dates and cutoff_join:
             cpt_query = f"""
@@ -270,14 +292,14 @@ def extract_patient_trajectories(
                    'CPT:' || e.procedure_code as activity
             FROM read_parquet('{path_str}') e
             {cutoff_join}
-            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != '' {cutoff_where} {target_clause}
+            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != ''{_cpt_allowed} {cutoff_where} {target_clause}
             """
         else:
             cpt_query = f"""
             SELECT mi_person_key, event_date,
                    'CPT:' || procedure_code as activity
             FROM read_parquet('{path_str}')
-            WHERE procedure_code IS NOT NULL AND procedure_code != '' {target_clause}
+            WHERE procedure_code IS NOT NULL AND procedure_code != ''{_cpt_allowed_no_e} {target_clause}
             """
     else:
         cpt_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
@@ -305,14 +327,10 @@ def extract_patient_trajectories(
         logger.warning("No trajectory data extracted")
         return {}
 
-    # Filter to allowed codes (e.g. SHAP/FFA important) when provided
-    if allowed_codes is not None:
-        df["_code"] = df["activity"].str.split(":", n=1).str.get(1)
-        df = df[df["_code"].isin(allowed_codes)].drop(columns=["_code"])
-
+    # Only feature-importance events (filter applied in SQL with OR: drug OR any ICD OR procedure in allowed set)
     # Exclude F1120 from trajectories (for final model)
     df = df[~df['activity'].str.contains('F1120', case=False, na=False)]
-    
+
     # Group by patient to create trajectories
     trajectories = {}
     for patient_id in df['mi_person_key'].unique():
@@ -320,7 +338,7 @@ def extract_patient_trajectories(
         trajectory = patient_data['activity'].tolist()
         if trajectory:
             trajectories[patient_id] = trajectory
-    
+
     logger.info(f"Extracted trajectories for {len(trajectories)} patients ({item_type})")
     
     return trajectories
@@ -372,12 +390,23 @@ def extract_trajectories_with_time_windows(
     
     con = duckdb.connect()
     path_str = str(model_data_path)
-    
+
+    # Only events with feature importance (OR: drug OR any ICD OR procedure in allowed set)
+    allowed_sql_in = ""
+    if allowed_codes and len(allowed_codes) > 0:
+        allowed_normalized = sorted({_normalize_code_for_match(c) for c in allowed_codes})
+        allowed_sql_in = ", ".join(repr(c) for c in allowed_normalized)
+    _drug_allowed = f" AND REPLACE(REPLACE(COALESCE(e.drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _drug_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(drug_name,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _icd_allowed = f" AND REPLACE(REPLACE(icd, '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _cpt_allowed = f" AND REPLACE(REPLACE(COALESCE(e.procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+    _cpt_allowed_no_e = f" AND REPLACE(REPLACE(COALESCE(procedure_code,''), '.', ''), '-', '') IN ({allowed_sql_in})" if allowed_sql_in else ""
+
     # Build target filter clause
     target_clause = ""
     if target_filter is not None:
         target_clause = f"AND target = {target_filter}"
-    
+
     # In research mode, ignore cutoff dates to capture ALL trajectories
     cutoff_join = ""
     cutoff_where = ""
@@ -395,7 +424,7 @@ def extract_trajectories_with_time_windows(
             AND (cd.cutoff_date IS NULL OR e.event_date < CAST(cd.cutoff_date AS TIMESTAMP))
             """
     
-    # Build queries for each item type (same as extract_patient_trajectories)
+    # Build queries for each item type (same as extract_patient_trajectories; OR semantics for allowed codes)
     if item_type == "drug" or item_type == "combined":
         if cutoff_join:
             drug_query = f"""
@@ -403,18 +432,18 @@ def extract_trajectories_with_time_windows(
                    'DRUG:' || e.drug_name as activity
             FROM read_parquet('{path_str}') e
             {cutoff_join}
-            WHERE e.drug_name IS NOT NULL AND e.drug_name != '' {cutoff_where} {target_clause}
+            WHERE e.drug_name IS NOT NULL AND e.drug_name != ''{_drug_allowed} {cutoff_where} {target_clause}
             """
         else:
             drug_query = f"""
             SELECT mi_person_key, event_date, 
                    'DRUG:' || drug_name as activity
             FROM read_parquet('{path_str}')
-            WHERE drug_name IS NOT NULL AND drug_name != '' {target_clause}
+            WHERE drug_name IS NOT NULL AND drug_name != ''{_drug_allowed_no_e} {target_clause}
             """
     else:
         drug_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
-    
+
     if item_type == "icd" or item_type == "combined":
         if cutoff_join:
             icd_query = f"""
@@ -447,7 +476,7 @@ def extract_trajectories_with_time_windows(
             SELECT mi_person_key, event_date, 
                    'ICD:' || icd as activity
             FROM all_icds
-            WHERE icd IS NOT NULL AND icd != ''
+            WHERE icd IS NOT NULL AND icd != ''{_icd_allowed}
             """
         else:
             icd_query = f"""
@@ -465,11 +494,11 @@ def extract_trajectories_with_time_windows(
             SELECT mi_person_key, event_date, 
                    'ICD:' || icd as activity
             FROM all_icds
-            WHERE icd IS NOT NULL AND icd != '' {target_clause}
+            WHERE icd IS NOT NULL AND icd != ''{_icd_allowed} {target_clause}
             """
     else:
         icd_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
-    
+
     if item_type == "cpt" or item_type == "combined":
         if cutoff_join:
             cpt_query = f"""
@@ -477,18 +506,18 @@ def extract_trajectories_with_time_windows(
                    'CPT:' || e.procedure_code as activity
             FROM read_parquet('{path_str}') e
             {cutoff_join}
-            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != '' {cutoff_where} {target_clause}
+            WHERE e.procedure_code IS NOT NULL AND e.procedure_code != ''{_cpt_allowed} {cutoff_where} {target_clause}
             """
         else:
             cpt_query = f"""
             SELECT mi_person_key, event_date,
                    'CPT:' || procedure_code as activity
             FROM read_parquet('{path_str}')
-            WHERE procedure_code IS NOT NULL AND procedure_code != '' {target_clause}
+            WHERE procedure_code IS NOT NULL AND procedure_code != ''{_cpt_allowed_no_e} {target_clause}
             """
     else:
         cpt_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
-    
+
     # Query to get all events with time windows
     query = f"""
     WITH drug_events AS ({drug_query}),
