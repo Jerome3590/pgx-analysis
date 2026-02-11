@@ -472,8 +472,8 @@ print(pre_target_eventlog)
 if (nrow(as.data.frame(pre_target_eventlog)) == 0) {
   cat("No pre-F1120 events found; skipping pre-F1120 trace and feature analysis for this cohort/age band.\n")
 } else {
-# 1) Trace explorer (printed summary; visuals if running interactively)
-trace_explorer(pre_target_eventlog, coverage = 0.8)
+# 1) Trace explorer (use full coverage; data already filtered to important features)
+trace_explorer(pre_target_eventlog, coverage = 1.0)
 
 # Save pre-F1120 traces and categorize into top/rare
 traces_pre <- bupaR::traces(pre_target_eventlog)
@@ -778,8 +778,8 @@ if (include_post_target) {
   cat("Post-F1120 eventlog summary:\n")
   print(post_target_eventlog)
 
-  # 1) Trace explorer: post-F1120 trajectories (descriptive)
-  trace_explorer(post_target_eventlog, coverage = 0.8)
+  # 1) Trace explorer: post-F1120 trajectories (use full coverage; data already filtered to important features)
+  trace_explorer(post_target_eventlog, coverage = 1.0)
   
   # Save post-F1120 traces and categorize into top/rare
   traces_post <- bupaR::traces(post_target_eventlog)
@@ -1001,8 +1001,8 @@ if (include_post_target) {
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer: most frequent target trajectories
-trace_explorer(target_eventlog, coverage = 0.8)
+# 1) Trace Explorer: use full coverage (data already filtered to important features)
+trace_explorer(target_eventlog, coverage = 1.0)
 
 # Save trace summary as tabular output
 traces_target <- bupaR::traces(target_eventlog)
