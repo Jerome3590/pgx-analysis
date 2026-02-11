@@ -271,12 +271,29 @@ def create_fpgrowth_visuals(
     age_band: str,
     skip_feature_engineering: bool = False,
     skip_visualizations: bool = False,
+    force: bool = False,
 ) -> bool:
     """
     Create FP-Growth visuals for the dashboard: itemsets, features, merge, and plots.
 
     Idempotent with respect to itemset creation; downstream scripts overwrite CSV outputs.
+    If force is False and the output CSV already exists, skips (idempotent).
     """
+    age_band_fname = age_band.replace("-", "_")
+    out_csv = (
+        PROJECT_ROOT
+        / "10b_fpgrowth_dashboard_visual"
+        / "outputs"
+        / "feature_engineering"
+        / f"fpgrowth_added_features_{cohort_name}_{age_band_fname}.csv"
+    )
+    if not force and out_csv.exists():
+        logger_skip = logging.getLogger(f"fpgrowth.{cohort_name}.{age_band_fname}")
+        if not logger_skip.handlers:
+            logger_skip.addHandler(logging.StreamHandler(sys.stdout))
+        logger_skip.info("Output exists at %s; skipping (use --force to re-run)", out_csv)
+        return True
+
     logger, log_path = _get_logger(cohort_name, age_band)
 
     env = detect_runtime_environment(PROJECT_ROOT)
@@ -345,6 +362,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip visualization creation",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if output already exists (default: skip when idempotent)",
+    )
 
     args = parser.parse_args()
 
@@ -354,6 +376,7 @@ if __name__ == "__main__":
             age_band=args.age_band,
             skip_feature_engineering=args.skip_feature_engineering,
             skip_visualizations=args.skip_visualizations,
+            force=args.force,
         )
 
     sys.exit(0 if success else 1)

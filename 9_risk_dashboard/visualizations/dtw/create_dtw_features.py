@@ -1383,6 +1383,7 @@ def main():
     parser.add_argument("--item_types", nargs="+", default=["combined"], 
                        help="Item types to process (drug, icd, cpt, combined)")
     parser.add_argument("--output", help="Output CSV path (optional)")
+    parser.add_argument("--force", action="store_true", help="Re-run even if output already exists (default: skip when idempotent)")
     parser.add_argument("--research_mode", action="store_true", 
                        help="Research mode: capture ALL trajectories with time windows (no cutoff dates)")
     
@@ -1396,6 +1397,20 @@ def main():
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
         logger.info("Using repo root for 4_model_data: %s", project_root)
+
+    # Idempotent: skip if output exists and not --force (normal mode only)
+    if not args.research_mode:
+        age_band_fname = args.age_band.replace("-", "_")
+        default_output = (
+            project_root
+            / "10d_dtw_dashboard_visual"
+            / "outputs"
+            / "feature_engineering"
+            / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
+        )
+        if not args.force and default_output.exists():
+            logger.info("Output exists at %s; skipping (use --force to re-run)", default_output)
+            return
     
     # Research mode: capture ALL trajectories with time windows for analysis
     if args.research_mode:
