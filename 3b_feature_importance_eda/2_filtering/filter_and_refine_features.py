@@ -255,7 +255,7 @@ def filter_and_refine_features(
             if has_leakage_cols:
                 print(f"[INFO] No post-target leakage features in BupaR results (0 flagged).")
                 if cohort and str(cohort).strip().lower() == "non_opioid_ed":
-                    print(f"[INFO] Expected for polypharmacy: model_events are built with drug events only up to the windowed HCG/ED visit, so no post-target leakage by construction.")
+                    print(f"[INFO] Expected for polypharmacy: model_events are built with drug events only up to the first ED visit (HCG) within 21d of drug, so no post-target leakage by construction.")
             else:
                 print(f"[WARN] BupaR CSV has no leakage columns (is_post_target_leakage or post_*_ratio). Check create_bupar_post_target_analysis was run for this cohort/age_band.")
     

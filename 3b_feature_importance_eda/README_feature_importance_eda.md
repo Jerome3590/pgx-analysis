@@ -84,7 +84,7 @@ All outputs are automatically uploaded to S3 for checkpointing and downstream co
 4. **Create Safe Feature Filter**:
    - Exclude features with >=80% post-target ratio (pure post-target leakage)
    - Keep ALL features with ANY pre-target presence (maximize information)
-   - For opioid_ed, explicitly include F1120 for target creation; polypharmacy uses HCG target
+   - For opioid_ed, explicitly include F1120 for target creation; polypharmacy uses first ED (HCG) within 21 days of drug event
    - Output: `{cohort}_{age_band}_safe_feature_filter.json`
 5. **Filter and Update Feature Importances**:
    - Apply safe feature filter (whitelist for cases, blacklist for controls)

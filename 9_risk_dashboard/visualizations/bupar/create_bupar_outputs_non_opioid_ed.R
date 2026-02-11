@@ -7,6 +7,11 @@
 # - Runs pre-HCG sequence analyses (no post-target to avoid leakage)
 # - Exports pre-HCG, time-to-HCG per-patient features, trace tables, and process matrices
 #
+# Target event: The first ED visit (identified by HCG Setting) within 21 days of a
+# prescription drug event. Identified in model_events by hcg_line (P51/O11/P33) or
+# first_ed_non_opioid_date. BupaR pre-sequences are events before that ED visit;
+# post-sequences are not used to avoid target leakage.
+#
 
 suppressPackageStartupMessages({
   library(duckdb)
@@ -40,8 +45,12 @@ train_years    <- c(2016L, 2017L, 2018L)
 cat("=== bupaR Analysis: Cohort 2 (POLYPHARMACY_ED, non_opioid_ed) ===\n")
 cat("  Age band: ", age_band, " (control = within-cohort target=0, no HCG)\n\n", sep = "")
 
-# Cohort-specific target ICD definition (HCG* codes)
+# Cohort-specific target: first ED visit (HCG Setting) within 21 days of a drug event.
+# Identified by hcg_line or first_ed_non_opioid_date in model_events, NOT by an ICD code "HCG".
+# target_date_map below uses those columns; target_icd_patterns is only for allowed_codes.
 target_icd_patterns <- c("HCG")
+# HCG line values that identify ED visits (match cohort creation / 4_model_data)
+ed_hcg_lines <- c("P51 - ER Visits and Observation Care", "O11 - Emergency Room", "P33 - Urgent Care Visits")
 
 # Resolve model_events path: Step 2/3 (3b) builds model_events first; Step 4 (4_model_data) may also have them.
 # Check Step 2/3 location first (3b_feature_importance_eda/outputs/cohorts/input_model_data, cohort slug by cohort).
@@ -154,6 +163,13 @@ if (!file.exists(model_data_path)) {
 }
 
 con <- dbConnect(duckdb::duckdb())
+
+# Detect if model_events has HCG target columns (needed for pre-HCG split)
+schema_info <- dbGetQuery(con, sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path))
+has_hcg_line <- "hcg_line" %in% schema_info$column_name
+has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
+if (has_hcg_line) cat("Model data has hcg_line column (first ED visit within 21d of drug event).\n")
+if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date column.\n")
 
 query <- sprintf(
   "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
@@ -317,7 +333,7 @@ print(target_eventlog)
 
 # -------------------------------------------------------------------
 # Combined TARGET + CONTROL eventlog for Sankey
-# Control = within-cohort non-target (target=0): no windowed HCG for this cohort, not the opposite cohort.
+# Control = within-cohort non-target (target=0): no first ED (HCG) within 21d of drug for this cohort.
 # -------------------------------------------------------------------
 
 pgx_df_control <- pgx_df %>% filter(target == 0)
@@ -423,27 +439,51 @@ cat("Combined TARGET + CONTROL sankey_eventlog created.\n")
 print(sankey_eventlog)
 
 # -------------------------------------------------------------------
-# Pre-HCG (before first HCG ICD) sequences
+# Pre-HCG (before first ED visit within 21 days of drug event) sequences
+# Target = first ED visit (HCG Setting) within 21 days of a prescription drug event;
+# identified by hcg_line or first_ed_non_opioid_date in model_events.
 # -------------------------------------------------------------------
 
-cat("\n--- Pre-HCG (before first HCG ICD) analysis ---\n")
+cat("\n--- Pre-HCG (before first ED visit within 21d of drug event) analysis ---\n")
+
+# Build target date per case from model_events (hcg_line or first_ed_non_opioid_date)
+target_date_map <- NULL
+if (has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
+  target_date_map <- pgx_df_target1 %>%
+    filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines) %>%
+    group_by(mi_person_key) %>%
+    summarise(target_date = min(as.Date(event_date), na.rm = TRUE), .groups = "drop") %>%
+    rename(case_id = mi_person_key)
+  cat("Target dates from hcg_line (ED visits): ", nrow(target_date_map), " cases.\n", sep = "")
+} else if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) {
+  target_date_map <- pgx_df_target1 %>%
+    filter(!is.na(first_ed_non_opioid_date)) %>%
+    group_by(mi_person_key) %>%
+    summarise(target_date = min(as.Date(first_ed_non_opioid_date), na.rm = TRUE), .groups = "drop") %>%
+    rename(case_id = mi_person_key)
+  cat("Target dates from first_ed_non_opioid_date: ", nrow(target_date_map), " cases.\n", sep = "")
+}
+if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
+  target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
+  cat("WARNING: No hcg_line or first_ed_non_opioid_date in model_events; pre-HCG events will be empty.\n")
+  cat("  Ensure model_events includes HCG target columns (e.g. from 4_model_data or 3b with HCG).\n")
+}
 
 ev_all <- as.data.frame(target_eventlog) %>%
+  left_join(target_date_map, by = "case_id") %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
     event_index = row_number(),
-    is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target   = any(is_target_icd),
-    first_target_index = ifelse(has_target,
-                                min(event_index[is_target_icd]),
-                                NA_integer_)
+    is_target_event = !is.na(target_date) & as.Date(timestamp) >= target_date,
+    has_target = any(!is.na(target_date)),
+    first_target_index = ifelse(has_target, min(event_index[is_target_event], na.rm = TRUE), NA_integer_)
   ) %>%
   ungroup()
 
+# Pre-target = events strictly before the first HCG (exclude the HCG event itself)
 events_pre_target <- ev_all %>%
-  filter(!is.na(first_target_index),
-         event_index <= first_target_index) %>%
+  filter(!is.na(first_target_index), event_index < first_target_index) %>%
   mutate(
     activity_instance_id = row_number(),
     lifecycle_id         = "complete",
@@ -463,8 +503,16 @@ pre_target_eventlog <- events_pre_target %>%
 cat("Pre-HCG eventlog summary:\n")
 print(pre_target_eventlog)
 
-# 1) Trace explorer (use full coverage; data already filtered to important features)
-trace_explorer(pre_target_eventlog, coverage = 1.0)
+n_pre <- nrow(events_pre_target)
+# 1) Trace explorer: use coverage (fraction) to avoid "No traces were selected" when trace set is empty or small
+if (n_pre > 0L) {
+  tryCatch(
+    trace_explorer(pre_target_eventlog, coverage = 0.8),
+    error = function(e) cat(" [skip] trace_explorer(pre-HCG):", conditionMessage(e), "\n")
+  )
+} else {
+  cat(" [skip] trace_explorer(pre-HCG): no pre-HCG events\n")
+}
 
 # 2) Drug-only sequences before HCG
 pre_drug_sequences <- as.data.frame(pre_target_eventlog) %>%
@@ -479,8 +527,13 @@ pre_drug_sequences <- as.data.frame(pre_target_eventlog) %>%
 cat("Sample pre-HCG drug-only sequences:\n")
 print(head(pre_drug_sequences))
 
-# 3) Process map for pre-HCG trajectories
-process_map(pre_target_eventlog, type = "frequency")
+# 3) Process map for pre-HCG trajectories (skip if empty to avoid errors)
+if (n_pre > 0L) {
+  tryCatch(
+    process_map(pre_target_eventlog, type = "frequency"),
+    error = function(e) cat(" [skip] process_map(pre-HCG):", conditionMessage(e), "\n")
+  )
+}
 
 # 4) Per-patient pre-HCG features
 pre_patient_features <- as.data.frame(pre_target_eventlog) %>%
@@ -504,19 +557,26 @@ save_bupar_csv(
 # Time-to-HCG and time-window features (per patient)
 # -------------------------------------------------------------------
 
-target_times <- as.data.frame(target_eventlog) %>%
-  arrange(case_id, timestamp) %>%
-  group_by(case_id) %>%
-  mutate(
-    is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target    = any(is_target_icd)
-  ) %>%
-  filter(has_target) %>%
-  summarise(
-    target_time = min(timestamp[is_target_icd]),
-    first_time  = min(timestamp),
-    .groups = "drop"
-  )
+# Use target_date_map (first ED within 21d of drug) for target_time; fallback to first event if no map
+if (!is.null(target_date_map) && nrow(target_date_map) > 0L) {
+  target_times <- as.data.frame(target_eventlog) %>%
+    arrange(case_id, timestamp) %>%
+    group_by(case_id) %>%
+    summarise(first_time = min(timestamp), .groups = "drop") %>%
+    inner_join(
+      target_date_map %>% mutate(target_time = as.POSIXct(target_date)),
+      by = "case_id"
+    )
+} else {
+  target_times <- as.data.frame(target_eventlog) %>%
+    arrange(case_id, timestamp) %>%
+    group_by(case_id) %>%
+    summarise(
+      first_time  = min(timestamp),
+      target_time = min(timestamp),
+      .groups = "drop"
+    )
+}
 
 pre_events_with_t <- as.data.frame(pre_target_eventlog) %>%
   inner_join(target_times, by = "case_id") %>%
@@ -554,8 +614,16 @@ save_bupar_csv(
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer: use full coverage (data already filtered to important features)
-trace_explorer(target_eventlog, coverage = 1.0)
+# 1) Trace Explorer (use coverage to avoid "No traces were selected" when trace set is small)
+n_target <- nrow(as.data.frame(target_eventlog))
+if (n_target > 0L) {
+  tryCatch(
+    trace_explorer(target_eventlog, coverage = 0.8),
+    error = function(e) cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n")
+  )
+} else {
+  cat(" [skip] trace_explorer(target): no events\n")
+}
 
 # Save trace summary as tabular output
 traces_target <- edeaR::traces(target_eventlog)

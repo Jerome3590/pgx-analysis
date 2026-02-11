@@ -115,7 +115,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
 
 - **Second cohort partition (e.g. non_opioid_ed)**:
   - Each cohort partition has its own `model_events.parquet` with **within-cohort** cases (target=1) and controls (target=0).
-  - Control = non-target for that cohort (no F1120 for opioid_ed; no windowed HCG for non_opioid_ed). Do **not** use the opposite cohort as "control."
+  - Control = non-target for that cohort (no F1120 for opioid_ed; no first ED [HCG] within 21 days of drug for non_opioid_ed). Do **not** use the opposite cohort as "control."
   - Load full, unfiltered events for the same age band and years; sample to maintain ~**5:1 control:target**; write to e.g. `4_model_data/cohort_name=non_opioid_ed/age_band={band}/model_events.parquet`.
 
 **BupaR / dashboard**: Control is always **within-cohort** (target=0 from the same `model_events` file), not the other cohort partition. These `model_events.parquet` files provide the input for BupaR and downstream feature engineering.

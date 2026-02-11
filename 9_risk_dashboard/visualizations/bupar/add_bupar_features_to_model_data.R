@@ -104,7 +104,7 @@ if (file.exists(path_3b)) {
 bupar_output_dir <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs",
                                cohort_name, age_band_fname, "features")
 
-# Cohort-specific BupaR output names: opioid_ed uses F1120; non_opioid_ed uses HCG (no post-target).
+# Cohort-specific BupaR output names: opioid_ed uses F1120; non_opioid_ed uses first ED (HCG) within 21d of drug (no post-target).
 if (cohort_name == "opioid_ed") {
   pre_features_csv   <- file.path(bupar_output_dir, paste0(cohort_name, "_", age_band_fname, "_", train_label, "_target_pre_f1120_patient_features_bupar.csv"))
   post_features_csv  <- file.path(bupar_output_dir, paste0(cohort_name, "_", age_band_fname, "_", train_label, "_target_post_f1120_patient_features_bupar.csv"))
