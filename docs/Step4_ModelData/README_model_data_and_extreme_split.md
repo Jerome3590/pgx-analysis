@@ -18,7 +18,7 @@ These `model_events.parquet` files are the **canonical inputs** for Step 5 (PGx)
 
 **Goal**: For exploratory dashboard analysis only, extreme-density patients can be split out so they do not dominate main models.
 
-- **Scripts** (if present): `9_risk_dashboard/visualizations/fpgrowth/extract_extreme_density_cohort.py`, `summarize_extreme_density_cohort.py`
+- **Scripts** (if present): `9_risk_dashboard/visualizations/dtw/extract_extreme_density_cohort.py`, `summarize_extreme_density_cohort.py`
 - **Input**: `4_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet`
 - **Outputs**: Optional extreme-density cohort parquets and summaries under `9_risk_dashboard/visualizations/` or project data paths. **Not required** for the main pipeline (Steps 5–9).
 
