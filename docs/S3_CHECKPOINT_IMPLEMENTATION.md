@@ -51,6 +51,12 @@ All pipeline steps (4-9) now support S3-based checkpointing and idempotency chec
 - **TODO**: Add S3 checks and uploads for combined analysis outputs
 - **Location**: `s3://pgxdatalake/gold/combined_analysis/{cohort}/{age_band}/`
 
+### ✅ Step 10: Dashboard visuals (`10_dashboard_visuals`)
+- **Run by:** 4_dashboard_visuals.ipynb (see `10_dashboard_visuals/README.md`)
+- **Checkpoint:** `pipeline_checkpoints/10_dashboard_visuals/{cohort}/{age_band}/checkpoint.json`
+- **Status:** DTW writes this checkpoint via `create_dtw_visuals.py`; BupaR and FP-Growth use local-output idempotency
+- **Location (DTW outputs):** `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/`
+
 ## Helper Module: `py_helpers/checkpoint_utils.py`
 
 Provides utilities for S3 checkpoint management:

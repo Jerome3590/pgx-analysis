@@ -10,6 +10,9 @@ Usage:
 
   # Dry run (show what would be deleted)
   python utility_scripts/clear_step_checkpoints.py --step 3b_feature_importance_eda --cohort opioid_ed --dry-run
+
+  # Clear dashboard visuals (pipeline step 10) for one cohort/age_band
+  python utility_scripts/clear_step_checkpoints.py --step 10_dashboard_visuals --cohort opioid_ed --age-band 13-24
 """
 
 import argparse

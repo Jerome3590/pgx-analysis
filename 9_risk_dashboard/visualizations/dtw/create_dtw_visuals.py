@@ -31,6 +31,7 @@ if str(DTW_VIZ_DIR) not in sys.path:
     sys.path.insert(0, str(DTW_VIZ_DIR))  # noqa: E402 — so create_dtw_plots can be imported
 
 from py_helpers.fe_monitor import mirror_checkpoint_to_s3  # noqa: E402
+from py_helpers.checkpoint_utils import check_step_checkpoint_exists, save_step_checkpoint  # noqa: E402
 
 
 def create_dtw_visuals(
@@ -49,8 +50,12 @@ def create_dtw_visuals(
     age_band_fname = age_band.replace("-", "_")
     out_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
     out_path = out_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
+    # Idempotency: skip if local output exists or pipeline checkpoint exists (aligns with pipeline_checkpoints)
     if not force and out_path.exists():
         print(f"[INFO] Output exists at {out_path}; skipping (use --force to re-run)")
+        return
+    if not force and check_step_checkpoint_exists("10_dashboard_visuals", cohort_name, age_band, logger=None):
+        print(f"[INFO] Pipeline checkpoint exists for 10_dashboard_visuals {cohort_name}/{age_band}; skipping (use --force to re-run)")
         return
 
     # Load DTW features (created by create_dtw_features.py)
@@ -128,7 +133,23 @@ def create_dtw_visuals(
     else:
         print("[INFO] AWS CLI not found, skipping S3 upload")
 
-    # Mirror checkpoint CSV to pgx-repository/6_dtw_checkpoint (best-effort)
+    # Pipeline checkpoint (pipeline_checkpoints/10_dashboard_visuals/) — used for idempotency and status
+    s3_output_paths = [
+        f"s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort_name}/{age_band}/dtw_added_features_{cohort_name}_{age_band_fname}.csv",
+    ]
+    try:
+        save_step_checkpoint(
+            "10_dashboard_visuals",
+            cohort_name,
+            age_band,
+            metadata={"output_csv": out_path.name},
+            output_paths=s3_output_paths,
+            logger=None,
+        )
+    except Exception as exc:  # pragma: no cover
+        print(f"[WARNING] Could not save pipeline checkpoint: {exc}")
+
+    # Optional: mirror CSV to 6_dtw_checkpoint (legacy/observability; see README_DTW_S3_CHECKPOINTS.md)
     try:
         mirror_checkpoint_to_s3(
             feature_step="6_dtw",
