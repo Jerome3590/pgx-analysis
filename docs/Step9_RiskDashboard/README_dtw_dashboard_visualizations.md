@@ -16,17 +16,25 @@ DTW visualizations help clinicians understand:
 
 ## Visualization Types
 
-### 1. Trajectory Analysis Overview
+### 1. Trajectory Cluster Plots (Plotly 3D / 1D)
+- **File Patterns**:
+  - **3D** (multi-axis cohorts, e.g. opioid_ed): `dtw_trajectory_cluster_3d_{cohort}_{age_band}.html` (and optional `.png`)
+  - **1D** (polypharmacy cohort `non_opioid_ed` only): `dtw_trajectory_cluster_1d_{cohort}_{age_band}.html` (and optional `.png`)
+- **Description**: Interactive Plotly scatter plots of trajectories. Each axis is the count of a code in the patient’s sequence (from `seq_pattern_str`). Points are colored by KMeans cluster. For 3D, axes are the top 3 codes by frequency; for polypharmacy, a single axis (top code count) is used.
+- **Use Case**: Explore trajectory clusters by code counts; same pattern as FP-Growth visuals (HTML written to plots dir, uploaded to dashboard S3).
+- **Script**: `create_dtw_plots.py` (invoked by `create_dtw_visuals.py`).
+
+### 2. Trajectory Analysis Overview
 - **File Pattern**: `dtw_trajectory_analysis_{cohort}_{age_band}.png`
 - **Description**: Overview visualization showing trajectory clustering and similarity patterns
 - **Use Case**: Understand overall trajectory structure and patient groupings
 
-### 2. Sample Trajectories
+### 3. Sample Trajectories
 - **File Pattern**: `dtw_sample_trajectories_{cohort}_{age_band}.png`
 - **Description**: Visualization of representative patient trajectories
 - **Use Case**: See examples of typical patient pathways
 
-### 3. Trajectory Metrics Chart
+### 4. Trajectory Metrics Chart
 - **Data Format**: JSON metrics file
 - **Description**: Bar chart showing trajectory metrics (cluster sizes, average distances, etc.)
 - **Use Case**: Understand trajectory statistics and cluster characteristics
@@ -38,12 +46,19 @@ DTW visualizations help clinicians understand:
 **`create_dtw_features.py`** - DTW feature extraction
 - Computes DTW distances between patient sequences
 - Performs trajectory clustering
-- Generates trajectory features (for reference, not used in model)
+- Generates trajectory features and `seq_pattern_str` (for reference, not used in model)
 
-**`create_dtw_visualizations.py`** - Visualization generator
-- Generates trajectory analysis plots
-- Creates sample trajectory visualizations
-- Uploads outputs to S3
+**`create_dtw_visuals.py`** - Publish DTW visuals for the dashboard
+- Copies DTW features to outputs, mirrors to feature_engineering_outputs, uploads to S3
+- Builds chart data (routine vs no routine, high-risk trajectories) and uploads to dashboard S3
+- Calls `create_dtw_plots.py` to generate 3D/1D trajectory cluster plots, then uploads plots (PNG and HTML) to the dashboard bucket
+
+**`create_dtw_plots.py`** - Plotly trajectory cluster plots
+- Builds per-patient code counts from `seq_pattern_str` in the DTW features CSV
+- For non–polypharmacy cohorts: 3D Plotly scatter (axes = top 3 code counts), KMeans clusters
+- For polypharmacy (`non_opioid_ed`): 1D plot (one axis = top code count)
+- Writes HTML (and optional PNG) to `10d_dtw_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- CLI: `python create_dtw_plots.py --cohort-name {cohort} --age-band {age_band} [--n-clusters 5] [--force]`
 
 **`create_predictive_time_features.py`** - Time-based features
 - Extracts temporal features from trajectories
@@ -53,13 +68,18 @@ DTW visualizations help clinicians understand:
 
 ### Local Outputs
 
+DTW visuals are written under `10d_dtw_dashboard_visual/outputs/` (and optionally mirrored to `5_feature_engineering/feature_engineering_outputs/6_dtw/`). Plots directory:
+
 ```
-9_risk_dashboard/visualizations/dtw/outputs/
-├── feature_engineering/          # Feature files (for reference, not used in model)
-│   └── predictive_time_features_{cohort}_{age_band}.csv
+10d_dtw_dashboard_visual/outputs/
+├── feature_engineering/          # DTW features CSV (create_dtw_features.py → create_dtw_visuals.py)
+│   ├── dtw_features_{cohort}_{age_band}.csv
+│   └── dtw_added_features_{cohort}_{age_band}.csv
 └── {cohort}/
     └── {age_band}/
         └── plots/                # Visualization files (for dashboard)
+            ├── dtw_trajectory_cluster_3d_{cohort}_{age_band}.html   # or 1d for non_opioid_ed
+            ├── dtw_trajectory_cluster_3d_{cohort}_{age_band}.png   # optional
             ├── dtw_trajectory_analysis_{cohort}_{age_band}.png
             ├── dtw_sample_trajectories_{cohort}_{age_band}.png
             └── dtw_metrics_{cohort}_{age_band}.json
@@ -67,9 +87,9 @@ DTW visualizations help clinicians understand:
 
 ### S3 Outputs
 
-**S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
+**S3 Location**: Dashboard bucket under `{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/plots/` (same pattern as FP-Growth/BupaR).
 
-All visualization files (PNG and JSON) are uploaded to S3 for dashboard access via Lambda API.
+All visualization files (PNG, HTML, and JSON) are uploaded to S3 for dashboard access via Lambda API.
 
 ## Usage
 
@@ -79,13 +99,19 @@ All visualization files (PNG and JSON) are uploaded to S3 for dashboard access v
 ```bash
 cd 9_risk_dashboard/visualizations/dtw
 python create_dtw_features.py --cohort-name {cohort} --age-band {age_band}
-python create_dtw_visualizations.py --cohort-name {cohort} --age-band {age_band}
+python create_dtw_visuals.py --cohort-name {cohort} --age-band {age_band}
+```
+
+`create_dtw_visuals.py` runs the full publish pipeline (copy features, mirror, S3 upload, chart data, and trajectory cluster plots). To generate only the 3D/1D cluster plots:
+
+```bash
+python create_dtw_plots.py --cohort-name {cohort} --age-band {age_band} [--n-clusters 5] [--force]
 ```
 
 **Example:**
 ```bash
 python create_dtw_features.py --cohort-name opioid_ed --age-band 25-44
-python create_dtw_visualizations.py --cohort-name opioid_ed --age-band 25-44
+python create_dtw_visuals.py --cohort-name opioid_ed --age-band 25-44
 ```
 
 ### Required Inputs
@@ -97,10 +123,11 @@ python create_dtw_visualizations.py --cohort-name opioid_ed --age-band 25-44
 ### Output Verification
 
 After running, verify:
-- [ ] PNG visualization files generated in `outputs/{cohort}/{age_band}/plots/`
-- [ ] JSON metrics file generated (if applicable)
+- [ ] Trajectory cluster plot(s) generated: `dtw_trajectory_cluster_3d_*.html` or `dtw_trajectory_cluster_1d_*.html` (polypharmacy) in `10d_dtw_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- [ ] PNG visualization files (and optional HTML) in plots dir
+- [ ] JSON metrics/chart data as applicable
 - [ ] Files follow naming convention: `dtw_{plot_type}_{cohort}_{age_band}.{ext}`
-- [ ] Files uploaded to S3 (if using orchestrator)
+- [ ] Files uploaded to S3 (if using create_dtw_visuals)
 
 ## Dashboard Integration
 
@@ -144,7 +171,7 @@ Visualizations can be filtered by user-selected codes:
 
 ## Dependencies
 
-- **Python**: `pandas`, `numpy`, `scipy` (for DTW algorithm), `scikit-learn` (for clustering), `matplotlib`, `seaborn`, `boto3`
+- **Python**: `pandas`, `numpy`, `scipy` (for DTW algorithm), `scikit-learn` (for clustering and trajectory cluster plots), `plotly` (for 3D/1D cluster HTML), `matplotlib`, `seaborn`, `boto3`
 - **Input Data**: Model events parquet files from Step 4 (model data) or event-filter outputs (Step 1b)
 
 ## Notes
