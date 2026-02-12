@@ -74,7 +74,7 @@ Clearing these forces steps to re-run (unless they also check for output files i
 | `6_final_model/models/` | 6 | Trained model files. |
 | `7_shap_analysis/` outputs | 7 | SHAP outputs. |
 | `8_ffa_analysis/` outputs | 8 | FFA outputs. |
-| `9_risk_dashboard/` outputs | 9 | Dashboard outputs. |
+| `10_risk_dashboard/` outputs | 9 | Dashboard outputs. |
 
 **Optional env (EC2):** If you set `PGX_FEATURE_IMPORTANCE_OUTPUTS` (e.g. `/mnt/nvme/feature_importance/outputs`), that directory is used for 3a outputs; the cleanup script does not delete it unless you add it. You can clear it manually: `rm -rf $PGX_FEATURE_IMPORTANCE_OUTPUTS/*`.
 

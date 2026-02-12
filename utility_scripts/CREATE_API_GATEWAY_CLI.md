@@ -124,7 +124,7 @@ https://<API_ID>.execute-api.<REGION>.amazonaws.com/prod
 
 Example: `https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod`
 
-Update your frontend `API_BASE` (e.g. in `9_risk_dashboard/frontend/index.html`) to this URL.
+Update your frontend `API_BASE` (e.g. in `10_risk_dashboard/frontend/index.html`) to this URL.
 
 ---
 

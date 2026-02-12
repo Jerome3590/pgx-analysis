@@ -1,0 +1,1537 @@
+[
+  {
+    "support":0.1272869838,
+    "itemsets":[
+      "LISINOPRIL",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0656037637,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "LISINOPRIL"
+    ]
+  },
+  {
+    "support":0.0585467852,
+    "itemsets":[
+      "LISINOPRIL",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.064819655,
+    "itemsets":[
+      "LISINOPRIL",
+      "OXYCODONE\/ACETAMINOPHEN"
+    ]
+  },
+  {
+    "support":0.0533193936,
+    "itemsets":[
+      "LISINOPRIL",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.1212754835,
+    "itemsets":[
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0899111343,
+    "itemsets":[
+      "PREDNISONE",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0854678515,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0601150026,
+    "itemsets":[
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0750130685,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0603763722,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0739675902,
+    "itemsets":[
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0687401986,
+    "itemsets":[
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.058024046,
+    "itemsets":[
+      "PREDNISONE",
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0541035024,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "CYCLOBENZAPRINE HYDROCHLO",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0645582854,
+    "itemsets":[
+      "SUBOXONE",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.1055933089,
+    "itemsets":[
+      "IBUPROFEN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.066649242,
+    "itemsets":[
+      "PREDNISONE",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0567171981,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0538421328,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0522739153,
+    "itemsets":[
+      "TRAZODONE HYDROCHLORIDE",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0520125457,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0624673288,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.053058024,
+    "itemsets":[
+      "IBUPROFEN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0982749608,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0627286984,
+    "itemsets":[
+      "PREDNISONE",
+      "SULFAMETHOXAZOLE\/TRIMETHO"
+    ]
+  },
+  {
+    "support":0.0603763722,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "SULFAMETHOXAZOLE\/TRIMETHO"
+    ]
+  },
+  {
+    "support":0.0564558285,
+    "itemsets":[
+      "CEPHALEXIN",
+      "SULFAMETHOXAZOLE\/TRIMETHO"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "SUBOXONE",
+      "SULFAMETHOXAZOLE\/TRIMETHO"
+    ]
+  },
+  {
+    "support":0.0538421328,
+    "itemsets":[
+      "SULFAMETHOXAZOLE\/TRIMETHO",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0614218505,
+    "itemsets":[
+      "SUBOXONE",
+      "QUETIAPINE FUMARATE"
+    ]
+  },
+  {
+    "support":0.0857292211,
+    "itemsets":[
+      "QUETIAPINE FUMARATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.051228437,
+    "itemsets":[
+      "MELOXICAM",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0901725039,
+    "itemsets":[
+      "MELOXICAM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0585467852,
+    "itemsets":[
+      "MELOXICAM",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0551489807,
+    "itemsets":[
+      "MELOXICAM",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.0776267642,
+    "itemsets":[
+      "BUPROPION HYDROCHLORIDE E",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0548876111,
+    "itemsets":[
+      "SUBOXONE",
+      "BUPROPION HYDROCHLORIDE E"
+    ]
+  },
+  {
+    "support":0.0789336121,
+    "itemsets":[
+      "HYDROXYZINE PAMOATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0653423941,
+    "itemsets":[
+      "METFORMIN HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.051228437,
+    "itemsets":[
+      "CITALOPRAM HYDROBROMIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0538421328,
+    "itemsets":[
+      "SUBOXONE",
+      "PREDNISONE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1479351803,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1016727653,
+    "itemsets":[
+      "PREDNISONE",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0661265029,
+    "itemsets":[
+      "PREDNISONE",
+      "HYDROCODONE BITARTRATE\/AC",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1497647674,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.093831678,
+    "itemsets":[
+      "PREDNISONE",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0585467852,
+    "itemsets":[
+      "PREDNISONE",
+      "OXYCODONE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1411395714,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0940930476,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0854678515,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0912179822,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.0575013068,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "HYDROCODONE BITARTRATE\/AC",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0527966545,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "OXYCODONE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0588081547,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "PREDNISONE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1050705698,
+    "itemsets":[
+      "NARCAN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0632514375,
+    "itemsets":[
+      "NARCAN",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0603763722,
+    "itemsets":[
+      "SUBOXONE",
+      "NARCAN"
+    ]
+  },
+  {
+    "support":0.0567171981,
+    "itemsets":[
+      "NARCAN",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0535807632,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "NARCAN"
+    ]
+  },
+  {
+    "support":0.0661265029,
+    "itemsets":[
+      "PREDNISONE",
+      "NARCAN"
+    ]
+  },
+  {
+    "support":0.0538421328,
+    "itemsets":[
+      "NARCAN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0541035024,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "NARCAN"
+    ]
+  },
+  {
+    "support":0.0846837428,
+    "itemsets":[
+      "TRAMADOL HCL",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0577626764,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "TRAMADOL HCL"
+    ]
+  },
+  {
+    "support":0.0509670674,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "TRAMADOL HCL"
+    ]
+  },
+  {
+    "support":0.0546262415,
+    "itemsets":[
+      "PREDNISONE",
+      "TRAMADOL HCL"
+    ]
+  },
+  {
+    "support":0.0755358076,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0507056979,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0548876111,
+    "itemsets":[
+      "ONDANSETRON ODT",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.0650810246,
+    "itemsets":[
+      "ONDANSETRON HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.053058024,
+    "itemsets":[
+      "DIAZEPAM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1745948772,
+    "itemsets":[
+      "PREDNISONE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1265028751,
+    "itemsets":[
+      "TRAZODONE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0778881338,
+    "itemsets":[
+      "PREDNISONE",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0700470465,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0656037637,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.058024046,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0773653947,
+    "itemsets":[
+      "SUBOXONE",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0577626764,
+    "itemsets":[
+      "TRAZODONE HYDROCHLORIDE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.051228437,
+    "itemsets":[
+      "PREDNISONE",
+      "TRAZODONE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0595922635,
+    "itemsets":[
+      "CLINDAMYCIN HCL",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.136434919,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.088865656,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.0713538944,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "OXYCODONE\/ACETAMINOPHEN"
+    ]
+  },
+  {
+    "support":0.0768426555,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0768426555,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0705697857,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0588081547,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "PREDNISONE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0514898066,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "AZITHROMYCIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1285938317,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1105593309,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.071615264,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "OXYCODONE\/ACETAMINOPHEN"
+    ]
+  },
+  {
+    "support":0.0692629378,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "VENTOLIN HFA"
+    ]
+  },
+  {
+    "support":0.0622059592,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "TRAZODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0606377418,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.0917407214,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0739675902,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0543648719,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "LISINOPRIL"
+    ]
+  },
+  {
+    "support":0.0742289597,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.071615264,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "PREDNISONE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0575013068,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "AZITHROMYCIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0627286984,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "PREDNISONE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.1001045478,
+    "itemsets":[
+      "AMOXICILLIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0729221119,
+    "itemsets":[
+      "PREDNISONE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0543648719,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.053058024,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.053058024,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "AMOXICILLIN"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "AMOXICILLIN",
+      "IBUPROFEN"
+    ]
+  },
+  {
+    "support":0.0619445896,
+    "itemsets":[
+      "AMOXICILLIN",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0501829587,
+    "itemsets":[
+      "AMOXICILLIN",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0569785677,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.1050705698,
+    "itemsets":[
+      "CLONAZEPAM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0567171981,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "CLONAZEPAM"
+    ]
+  },
+  {
+    "support":0.0564558285,
+    "itemsets":[
+      "PREDNISONE",
+      "CLONAZEPAM"
+    ]
+  },
+  {
+    "support":0.0572399373,
+    "itemsets":[
+      "SUBOXONE",
+      "CLONAZEPAM"
+    ]
+  },
+  {
+    "support":0.0522739153,
+    "itemsets":[
+      "CLONAZEPAM",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0974908521,
+    "itemsets":[
+      "FUROSEMIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0692629378,
+    "itemsets":[
+      "PREDNISONE",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.056194459,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.0546262415,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.0554103502,
+    "itemsets":[
+      "LISINOPRIL",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.0522739153,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.0551489807,
+    "itemsets":[
+      "FUROSEMIDE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0509670674,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "FUROSEMIDE"
+    ]
+  },
+  {
+    "support":0.0953998955,
+    "itemsets":[
+      "TIZANIDINE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0593308939,
+    "itemsets":[
+      "PREDNISONE",
+      "TIZANIDINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0546262415,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "TIZANIDINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0527966545,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "TIZANIDINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0632514375,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "TIZANIDINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0865133298,
+    "itemsets":[
+      "FLUTICASONE PROPIONATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0614218505,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "FLUTICASONE PROPIONATE"
+    ]
+  },
+  {
+    "support":0.0611604809,
+    "itemsets":[
+      "PREDNISONE",
+      "FLUTICASONE PROPIONATE"
+    ]
+  },
+  {
+    "support":0.0543648719,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "FLUTICASONE PROPIONATE"
+    ]
+  },
+  {
+    "support":0.0603763722,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "FLUTICASONE PROPIONATE"
+    ]
+  },
+  {
+    "support":0.0841610037,
+    "itemsets":[
+      "PANTOPRAZOLE SODIUM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0619445896,
+    "itemsets":[
+      "PREDNISONE",
+      "PANTOPRAZOLE SODIUM"
+    ]
+  },
+  {
+    "support":0.071615264,
+    "itemsets":[
+      "AMLODIPINE BESYLATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0765812859,
+    "itemsets":[
+      "METHYLPREDNISOLONE DOSE P",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0614218505,
+    "itemsets":[
+      "PREDNISONE",
+      "METHYLPREDNISOLONE DOSE P"
+    ]
+  },
+  {
+    "support":0.0504443283,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "METHYLPREDNISOLONE DOSE P"
+    ]
+  },
+  {
+    "support":0.0501829587,
+    "itemsets":[
+      "METHYLPREDNISOLONE DOSE P",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0682174595,
+    "itemsets":[
+      "BACLOFEN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0514898066,
+    "itemsets":[
+      "MONTELUKAST SODIUM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0514898066,
+    "itemsets":[
+      "MIRTAZAPINE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0507056979,
+    "itemsets":[
+      "METHOCARBAMOL",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1366962886,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0778881338,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.1283324621,
+    "itemsets":[
+      "PREDNISONE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0726607423,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0718766336,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0791949817,
+    "itemsets":[
+      "PREDNISONE",
+      "AZITHROMYCIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0993204391,
+    "itemsets":[
+      "PROAIR HFA",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0713538944,
+    "itemsets":[
+      "PROAIR HFA",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.064819655,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0527966545,
+    "itemsets":[
+      "PROAIR HFA",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.092002091,
+    "itemsets":[
+      "PREDNISONE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0569785677,
+    "itemsets":[
+      "SUBOXONE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0564558285,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0520125457,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "PROAIR HFA"
+    ]
+  },
+  {
+    "support":0.0551489807,
+    "itemsets":[
+      "PREDNISONE",
+      "PROAIR HFA",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0616832201,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "HYDROCODONE\/ACETAMINOPHEN"
+    ]
+  },
+  {
+    "support":0.059853633,
+    "itemsets":[
+      "HYDROCODONE\/ACETAMINOPHEN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.08024046,
+    "itemsets":[
+      "DOXYCYCLINE HYCLATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0750130685,
+    "itemsets":[
+      "PREDNISONE",
+      "DOXYCYCLINE HYCLATE"
+    ]
+  },
+  {
+    "support":0.051228437,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "DOXYCYCLINE HYCLATE"
+    ]
+  },
+  {
+    "support":0.0661265029,
+    "itemsets":[
+      "FLUCONAZOLE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.053058024,
+    "itemsets":[
+      "PREDNISONE",
+      "FLUCONAZOLE"
+    ]
+  },
+  {
+    "support":0.0974908521,
+    "itemsets":[
+      "ATORVASTATIN CALCIUM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.066649242,
+    "itemsets":[
+      "LISINOPRIL",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0590695243,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.059853633,
+    "itemsets":[
+      "PREDNISONE",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0533193936,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0554103502,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "ATORVASTATIN CALCIUM"
+    ]
+  },
+  {
+    "support":0.0577626764,
+    "itemsets":[
+      "DICLOFENAC SODIUM DR",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.051228437,
+    "itemsets":[
+      "METOPROLOL TARTRATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.095661265,
+    "itemsets":[
+      "AMOXICILLIN\/CLAVULANATE P",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0593308939,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0582854156,
+    "itemsets":[
+      "AZITHROMYCIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0533193936,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0522739153,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0501829587,
+    "itemsets":[
+      "AMOXICILLIN",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.0533193936,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.073444851,
+    "itemsets":[
+      "PREDNISONE",
+      "AMOXICILLIN\/CLAVULANATE P"
+    ]
+  },
+  {
+    "support":0.08024046,
+    "itemsets":[
+      "BUPRENORPHINE HCL\/NALOXON",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0705697857,
+    "itemsets":[
+      "SUBOXONE",
+      "BUPRENORPHINE HCL\/NALOXON"
+    ]
+  },
+  {
+    "support":0.0695243074,
+    "itemsets":[
+      "CIPROFLOXACIN HYDROCHLORI",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.1021955044,
+    "itemsets":[
+      "CEPHALEXIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0697856769,
+    "itemsets":[
+      "CEPHALEXIN",
+      "PREDNISONE"
+    ]
+  },
+  {
+    "support":0.0671719812,
+    "itemsets":[
+      "CEPHALEXIN",
+      "HYDROCODONE BITARTRATE\/AC"
+    ]
+  },
+  {
+    "support":0.0572399373,
+    "itemsets":[
+      "CEPHALEXIN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0546262415,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0611604809,
+    "itemsets":[
+      "CEPHALEXIN",
+      "OXYCODONE\/ACETAMINOPHEN"
+    ]
+  },
+  {
+    "support":0.0575013068,
+    "itemsets":[
+      "CEPHALEXIN",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0564558285,
+    "itemsets":[
+      "VENTOLIN HFA",
+      "CEPHALEXIN"
+    ]
+  },
+  {
+    "support":0.0517511762,
+    "itemsets":[
+      "CEPHALEXIN",
+      "CYCLOBENZAPRINE HYDROCHLO"
+    ]
+  },
+  {
+    "support":0.088865656,
+    "itemsets":[
+      "PROMETHAZINE HYDROCHLORID",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0601150026,
+    "itemsets":[
+      "PREDNISONE",
+      "PROMETHAZINE HYDROCHLORID"
+    ]
+  },
+  {
+    "support":0.0556717198,
+    "itemsets":[
+      "OMEPRAZOLE",
+      "PROMETHAZINE HYDROCHLORID"
+    ]
+  },
+  {
+    "support":0.0514898066,
+    "itemsets":[
+      "PROMETHAZINE HYDROCHLORID",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0514898066,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "PROMETHAZINE HYDROCHLORID"
+    ]
+  },
+  {
+    "support":0.0564558285,
+    "itemsets":[
+      "PROMETHAZINE HYDROCHLORID",
+      "OXYCODONE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0533193936,
+    "itemsets":[
+      "OXYCODONE\/ACETAMINOPHEN",
+      "ALPRAZOLAM"
+    ]
+  },
+  {
+    "support":0.0538421328,
+    "itemsets":[
+      "OXYCODONE HYDROCHLORIDE",
+      "ALPRAZOLAM"
+    ]
+  },
+  {
+    "support":0.0765812859,
+    "itemsets":[
+      "LEVOFLOXACIN",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0713538944,
+    "itemsets":[
+      "PREDNISONE",
+      "LEVOFLOXACIN"
+    ]
+  },
+  {
+    "support":0.0569785677,
+    "itemsets":[
+      "LEVOFLOXACIN",
+      "AZITHROMYCIN"
+    ]
+  },
+  {
+    "support":0.0585467852,
+    "itemsets":[
+      "HYDROCHLOROTHIAZIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0635128071,
+    "itemsets":[
+      "LEVOTHYROXINE SODIUM",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0940930476,
+    "itemsets":[
+      "DULOXETINE HYDROCHLORIDE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0541035024,
+    "itemsets":[
+      "PREDNISONE",
+      "DULOXETINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0501829587,
+    "itemsets":[
+      "HYDROCODONE BITARTRATE\/AC",
+      "DULOXETINE HYDROCHLORIDE"
+    ]
+  },
+  {
+    "support":0.0543648719,
+    "itemsets":[
+      "ZOLPIDEM TARTRATE",
+      "GABAPENTIN"
+    ]
+  },
+  {
+    "support":0.0504443283,
+    "itemsets":[
+      "TOPIRAMATE",
+      "GABAPENTIN"
+    ]
+  }
+]

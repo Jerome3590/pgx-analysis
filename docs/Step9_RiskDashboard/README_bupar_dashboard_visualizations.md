@@ -70,7 +70,7 @@ BupaR visualizations help clinicians understand:
 ### Local Outputs
 
 ```
-9_risk_dashboard/visualizations/bupar/outputs/
+10_risk_dashboard/visualizations/bupar/outputs/
 ├── {cohort}/
 │   └── {age_band}/
 │       ├── features/          # Feature files (for reference, not used in model)
@@ -100,19 +100,19 @@ All PNG visualization files are uploaded to S3 for dashboard access via Lambda A
 
 **For opioid_ed cohort:**
 ```bash
-cd 9_risk_dashboard/visualizations/bupar
+cd 10_risk_dashboard/visualizations/bupar
 Rscript create_bupar_outputs_opioid_ed.R {age_band}
 ```
 
 **For non_opioid_ed cohort:**
 ```bash
-cd 9_risk_dashboard/visualizations/bupar
+cd 10_risk_dashboard/visualizations/bupar
 Rscript create_bupar_outputs_non_opioid_ed.R {age_band}
 ```
 
 **Using Python orchestrator:**
 ```bash
-cd 9_risk_dashboard/visualizations/bupar
+cd 10_risk_dashboard/visualizations/bupar
 python create_bupar_visuals.py --cohort-name {cohort} --age-band {age_band}
 ```
 
@@ -169,6 +169,6 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 ## Related Documentation
 
-- **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
+- **[Dashboard Visualizations Overview](../../10_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
 - **[Feature Importance EDA](../../3b_feature_importance_eda/)** - BupaR post-target analysis

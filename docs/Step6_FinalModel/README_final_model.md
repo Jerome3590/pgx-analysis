@@ -237,7 +237,7 @@ This layout is aligned with the broader visualization and causal analysis output
 ## References
 
 - **Feature Schema**: `final_feature_schema.json` - Complete JSON Schema definition
-- **Model data**: `4_model_data/`; **FP-Growth (dashboard)**: `9_risk_dashboard/visualizations/fpgrowth/`
+- **Model data**: `4_model_data/`; **FP-Growth (dashboard)**: `10_risk_dashboard/visualizations/fpgrowth/`
 - **BupaR Analysis**: `../5_bupaR_analysis/`
 - **DTW Analysis**: `../6_dtw_analysis/DTW_FEATURE_EXTRACTION.md`
 - **Notebook Integration**: See `../docs/README_notebook_calls.md` for calls and patterns

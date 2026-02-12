@@ -46,7 +46,7 @@ The workflow has been streamlined to focus on PGx analysis as the primary featur
 
 ### Step 9: Risk Dashboard Preparation
 - **Purpose**: Integrate BupaR, DTW, and FP-Growth visualizations with causal analysis
-- **Location**: `9_risk_dashboard/`
+- **Location**: `10_risk_dashboard/`
 - **Note**: These methods are now used for visualization only, not as model features. Dashboard deployment is also handled here.
 
 ## Removed Steps

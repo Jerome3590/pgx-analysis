@@ -45,7 +45,7 @@ This folder contains all documentation for the production-ready risk assessment 
 
 ## 📚 Code Location
 
-- **Primary module**: `9_risk_dashboard/`
+- **Primary module**: `10_risk_dashboard/`
   - Frontend: `index.html` - Tab-based dashboard interface
   - Backend: `lambda_function.py` - AWS Lambda API handler
   - Scripts:

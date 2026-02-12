@@ -38,7 +38,7 @@ Step 7: SHAP Analysis (7_shap_analysis)
   ↓
 Step 8: Formal Feature Attribution – FFA (8_ffa_analysis); uses SHAP to prioritize rules
   ↓
-Step 9: Risk Dashboard (9_risk_dashboard)
+Step 9: Risk Dashboard (10_risk_dashboard)
   ↓ (Complete: outputs/ + visualizations/)
     - Frontend, Backend, Data Preparation, Deployment
     - Visualizations: BupaR, FP-Growth, DTW (dashboard-only, not used as model features)
@@ -118,7 +118,7 @@ Use this checklist to track progress:
   - [ ] Results uploaded to S3 (if applicable)
   - [ ] **READY FOR STEP 9** ✅
 
-- [ ] **Step 9: Risk Dashboard** (`9_risk_dashboard/`)
+- [ ] **Step 9: Risk Dashboard** (`10_risk_dashboard/`)
   - [ ] Models prepared for deployment (`outputs/models/`)
   - [ ] Metadata generated (`outputs/metadata/`)
   - [ ] CPIC data prepared (`outputs/cpic/`)
@@ -176,7 +176,7 @@ Each analytical step follows this consistent structure:
 1. **Output Directory**: Each analysis step folder should have an `outputs/` subdirectory
    - Example: `3a_feature_importance/outputs/`
    - Example: `6_final_model/outputs/`
-   - Example: `9_risk_dashboard/outputs/` (and `9_risk_dashboard/visualizations/{type}/outputs/` for dashboard visualizations)
+   - Example: `10_risk_dashboard/outputs/` (and `10_risk_dashboard/visualizations/{type}/outputs/` for dashboard visualizations)
 
 2. **Plots Subdirectory**: All visualization files should be saved to `outputs/plots/`
    - Plots include: PNG, JPG, PDF, SVG files
@@ -252,18 +252,18 @@ ggsave(
 - **Plots Directory**: `3a_feature_importance/outputs/plots/` (auto-created)
 - **Status**: Follows pattern ✅
 
-### ✅ 9_risk_dashboard (Visualizations)
-- **BupaR Visualizations**: `9_risk_dashboard/visualizations/bupar/`
+### ✅ 10_risk_dashboard (Visualizations)
+- **BupaR Visualizations**: `10_risk_dashboard/visualizations/bupar/`
   - **Scripts**: `create_bupar_visuals.py`, `create_bupar_outputs_*.R`, `create_plots.R`
-  - **Output Directory**: `9_risk_dashboard/visualizations/bupar/outputs/`
+  - **Output Directory**: `10_risk_dashboard/visualizations/bupar/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
-- **FP-Growth Visualizations**: `9_risk_dashboard/visualizations/fpgrowth/`
+- **FP-Growth Visualizations**: `10_risk_dashboard/visualizations/fpgrowth/`
   - **Scripts**: `create_fpgrowth_visuals.py`, `create_plots.py`, `create_fpgrowth_features.py`
-  - **Output Directory**: `9_risk_dashboard/visualizations/fpgrowth/outputs/`
+  - **Output Directory**: `10_risk_dashboard/visualizations/fpgrowth/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
-- **DTW Visualizations**: `9_risk_dashboard/visualizations/dtw/`
+- **DTW Visualizations**: `10_risk_dashboard/visualizations/dtw/`
   - **Scripts**: `create_dtw_visuals.py`, `create_dtw_features.py`
-  - **Output Directory**: `9_risk_dashboard/visualizations/dtw/outputs/`
+  - **Output Directory**: `10_risk_dashboard/visualizations/dtw/outputs/`
   - **Status**: Dashboard visualization only (not used as features) ✅
 
 ### ⚠️ 8_ffa_analysis
@@ -374,8 +374,8 @@ Each step may depend on outputs from previous steps:
 | **6_final_model** | Step 5 outputs | PGx features + model events |
 | **7_shap_analysis** | Step 6 outputs | Trained models, feature schema |
 | **8_ffa_analysis** | Step 7 outputs | SHAP results, trained models |
-| **9_risk_dashboard** | Steps 6–8 outputs | Models, SHAP, FFA, metadata |
-| **9_risk_dashboard/visualizations** | Step 4 outputs | Model events (for BupaR/FP-Growth/DTW dashboard-only visualizations) |
+| **10_risk_dashboard** | Steps 6–8 outputs | Models, SHAP, FFA, metadata |
+| **10_risk_dashboard/visualizations** | Step 4 outputs | Model events (for BupaR/FP-Growth/DTW dashboard-only visualizations) |
 
 **Important:** Always verify that prerequisite outputs exist before starting a new step.
 

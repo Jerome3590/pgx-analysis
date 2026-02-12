@@ -120,7 +120,7 @@ if ANALYSIS_CONFIG.get('enable_interaction_analysis', False):
 
 #### 2.1 Backend API Endpoint
 
-**Location**: `9_risk_dashboard/lambda_function.py`
+**Location**: `10_risk_dashboard/lambda_function.py`
 
 **New Endpoint**: `POST /causal/interactions`
 
@@ -214,7 +214,7 @@ def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
 
 #### 2.2 Frontend Dashboard Tab
 
-**Location**: `9_risk_dashboard/index.html` or `dashboard_index_template.html`
+**Location**: `10_risk_dashboard/index.html` or `dashboard_index_template.html`
 
 **New Section**: "Feature Interactions" tab or section
 

@@ -39,7 +39,7 @@ The dashboard deployment process supports incremental builds, allowing deploymen
 
 ```bash
 # Build with available cohorts
-See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
+See 10_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
 ```
 
 **What it does**:
@@ -51,7 +51,7 @@ See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
 #### Option B: Full Build
 
 ```bash
-cd 9_risk_dashboard
+cd 10_risk_dashboard
 
 # Prepare all models
 python prepare_models.py --all
@@ -63,7 +63,7 @@ python generate_metadata.py --all
 ### 2. Build Docker Container
 
 ```bash
-cd 9_risk_dashboard
+cd 10_risk_dashboard
 ./docker_build.sh
 ```
 
@@ -117,7 +117,7 @@ aws lambda update-function-code \
 
 ```bash
 # Upload dashboard HTML
-aws s3 cp 9_risk_dashboard/index.html s3://<BUCKET>/index.html
+aws s3 cp 10_risk_dashboard/index.html s3://<BUCKET>/index.html
 
 # Update API_BASE in index.html to point to your API Gateway URL
 ```
@@ -145,7 +145,7 @@ aws s3 cp 9_risk_dashboard/index.html s3://<BUCKET>/index.html
 - **Result**: Dashboard works for ages 13-44 only
 
 **After More Cohorts Complete**:
-- Rebuild: See `9_risk_dashboard/deployment/` or `archived/utility_scripts/build_dashboard.sh`
+- Rebuild: See `10_risk_dashboard/deployment/` or `archived/utility_scripts/build_dashboard.sh`
 - Redeploy: `./docker_build.sh` and update Lambda
 - **Result**: Dashboard now includes new cohorts
 

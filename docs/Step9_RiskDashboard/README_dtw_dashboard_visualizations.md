@@ -97,7 +97,7 @@ All visualization files (PNG, HTML, and JSON) are uploaded to S3 for dashboard a
 
 **Generate DTW features and visualizations:**
 ```bash
-cd 9_risk_dashboard/visualizations/dtw
+cd 10_risk_dashboard/visualizations/dtw
 python create_dtw_features.py --cohort-name {cohort} --age-band {age_band}
 python create_dtw_visuals.py --cohort-name {cohort} --age-band {age_band}
 ```
@@ -188,7 +188,7 @@ Visualizations can be filtered by user-selected codes:
 
 ## Related Documentation
 
-- **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
+- **[Dashboard Visualizations Overview](../../10_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
 - **[Event Filtering (Step 1b)](../../1b_apcd_event_filter/)** - ICD/administrative code filtering before cohort creation
 - **[Feature Importance EDA](../../3b_feature_importance_eda/)** - BupaR post-target analysis for feature refinement

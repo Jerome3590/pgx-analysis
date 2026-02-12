@@ -61,7 +61,7 @@ bash archived/utility_scripts/run_all_cohorts_workflow.sh
 - **Inputs/Outputs:** If used, extreme-density outputs live under `4_model_data/` or dashboard-specific paths.
 - **Status:** Optional; main pipeline uses `4_model_data/` only.
 
-**Note:** FP-Growth, BupaR, and DTW are used for dashboard visualizations only (Step 9, `9_risk_dashboard/`), not as pipeline steps. Main pipeline: 3a → 4 → 5 → 6 → 7 → 8 → 9.
+**Note:** FP-Growth, BupaR, and DTW are used for dashboard visualizations only (Step 9, `10_risk_dashboard/`), not as pipeline steps. Main pipeline: 3a → 4 → 5 → 6 → 7 → 8 → 9.
 
 ### Step 5: PGx Feature Engineering ✅
 - **Goal:** Build PGx patient-level features from drug-gene mappings and allele frequencies.
@@ -132,7 +132,7 @@ bash archived/utility_scripts/run_all_cohorts_workflow.sh
 
 ### Step 9: Risk Dashboard ✅
 - **Goal:** Generate risk dashboard with BupaR/DTW/FP-Growth visualizations and causal analysis.
-- **Script:** `9_risk_dashboard/...` (visualization scripts)
+- **Script:** `10_risk_dashboard/...` (visualization scripts)
 - **Inputs:**  
   - FFA analysis outputs (Step 8)
   - SHAP analysis outputs (Step 7)
