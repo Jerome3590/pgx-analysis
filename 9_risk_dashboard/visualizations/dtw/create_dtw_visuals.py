@@ -24,8 +24,11 @@ import shutil
 
 # Repo root (pgx-analysis) so py_helpers and 4_model_data are found when run from any cwd
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+DTW_VIZ_DIR = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))  # noqa: E402
+if str(DTW_VIZ_DIR) not in sys.path:
+    sys.path.insert(0, str(DTW_VIZ_DIR))  # noqa: E402 — so create_dtw_plots can be imported
 
 from py_helpers.fe_monitor import mirror_checkpoint_to_s3  # noqa: E402
 
@@ -137,7 +140,18 @@ def create_dtw_visuals(
     except Exception as exc:  # pragma: no cover - best-effort
         print(f"[WARNING] Could not mirror DTW checkpoint to S3: {exc}")
 
-    # Upload DTW plot PNGs to dashboard bucket (same pattern as FP-Growth/BupaR)
+    # Create 3D/1D trajectory cluster plots (Plotly) then upload plots to dashboard bucket
+    try:
+        from create_dtw_plots import create_trajectory_cluster_plots
+        create_trajectory_cluster_plots(
+            project_root=project_root,
+            cohort_name=cohort_name,
+            age_band=age_band,
+            dtw_df=dtw_df,
+            force=force,
+        )
+    except Exception as e:
+        print(f"[WARNING] DTW trajectory cluster plots failed: {e}")
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band)
 
     # Prebuild chart data (routine vs no routine, high-risk trajectories) and upload to dashboard S3 for direct dashboard integration
@@ -154,14 +168,17 @@ def _upload_dtw_plots_to_dashboard_s3(
     cohort_name: str,
     age_band: str,
 ) -> None:
-    """Upload DTW plot PNGs to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
+    """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir_10d = project_root / "10d_dtw_dashboard_visual" / "outputs" / cohort_name / age_band_fname / "plots"
     fe_plots_dir = (
         project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band / "plots"
     )
     plots_dir = plots_dir_10d if plots_dir_10d.exists() else (fe_plots_dir if fe_plots_dir.exists() else None)
-    if plots_dir is None or not list(plots_dir.glob("*.png")):
+    if plots_dir is None:
+        return
+    plot_files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html"))
+    if not plot_files:
         return
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
@@ -174,7 +191,7 @@ def _upload_dtw_plots_to_dashboard_s3(
         return
 
     uploaded = 0
-    for p in plots_dir.glob("*.png"):
+    for p in plot_files:
         key = f"{s3_prefix}/{p.name}"
         s3_path = f"s3://{s3_bucket}/{key}"
         if upload_file_to_s3(p, s3_path, logger=None, check_exists=True):
