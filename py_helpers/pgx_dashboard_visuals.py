@@ -9,9 +9,10 @@ Steps:
 1. Setup: resolve repo root, create symlinks 10b/10c/10d at repo root if needed
 2. BupaR: process mining sequences and plots (SHAP/FFA-filtered)
 3. DTW: trajectory features and plots (SHAP/FFA-filtered)
-4. FP-Growth: itemsets, rules, network plots (SHAP/FFA-filtered)
-5. Lambda/API: document endpoints and deployment
-6. Deploy Lambda / frontend: skipped by default; run once in 5_build_and_deploy.ipynb (set DEPLOY_LAMBDA=1 / DEPLOY_FRONTEND=1 to run from this script)
+4. Extreme-density: extract top ~5% by medical_code density, then DTW for subgroup (parallel; set EXTREME_COMBINATIONS=[] to skip)
+5. FP-Growth: itemsets, rules, network plots (SHAP/FFA-filtered)
+6. Lambda/API: document endpoints and deployment
+7. Deploy Lambda / frontend: skipped by default; run once in 5_build_and_deploy.ipynb (set DEPLOY_LAMBDA=1 / DEPLOY_FRONTEND=1 to run from this script)
 
 Run from repo root (pgx-analysis). Prerequisites: 4_model_data, 7_shap_analysis,
 8_ffa_analysis for SHAP/FFA-driven filtering; R and bupaR for BupaR step.
@@ -34,6 +35,7 @@ VISUAL_ROOT = REPO_ROOT / "9_risk_dashboard" / "visualizations"
 BUPAR_VISUALS_SCRIPT = VISUAL_ROOT / "bupar" / "create_bupar_visuals.py"
 DTW_FEATURES_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_features.py"
 DTW_VISUALS_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_visuals.py"
+EXTREME_EXTRACT_SCRIPT = VISUAL_ROOT / "dtw" / "extract_extreme_density_cohort.py"
 FPGROWTH_VISUALS_SCRIPT = VISUAL_ROOT / "fpgrowth" / "create_fpgrowth_visuals.py"
 
 print(f"Repo root: {REPO_ROOT}")
@@ -103,8 +105,10 @@ print(f"Total combinations: {len(combinations)}")
 
 # Idempotent: skip when output exists. Set FORCE_RERUN=True to re-run all.
 FORCE_RERUN = False
-# Parallel workers for BupaR and DTW (FP-Growth stays sequential for memory).
+# Parallel workers for BupaR, DTW, and extreme-density (FP-Growth stays sequential for memory).
 PARALLEL_WORKERS = 32
+# Extreme-density: same (cohort, age_band) as main pipeline, or [] to skip.
+EXTREME_COMBINATIONS = combinations.copy()
 
 # %%
 # --- Run BupaR process mining (event logs, traces, plots; SHAP/FFA-filtered when available) ---
@@ -157,6 +161,49 @@ with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
         if c2 is not None and c2 != 0 and FAIL_FAST:
             raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
 print("DTW done.")
+
+# %%
+# --- Run extreme-density extract + DTW (parallel; idempotent unless FORCE_RERUN) ---
+# Extract top ~5% by medical_code density into {cohort}_extreme_density, then run DTW for that subgroup.
+def _run_extreme_one(cohort_name, age_band):
+    r0 = subprocess.run(
+        [sys.executable, str(EXTREME_EXTRACT_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        cwd=str(REPO_ROOT),
+        capture_output=False,
+    )
+    if r0.returncode != 0:
+        return (cohort_name, age_band, r0.returncode, None, None)
+    extreme_name = f"{cohort_name}_extreme_density"
+    r1 = subprocess.run(
+        [sys.executable, str(DTW_FEATURES_SCRIPT), "--cohort", extreme_name, "--age_band", age_band] + force_flag,
+        cwd=str(REPO_ROOT),
+        capture_output=False,
+    )
+    if r1.returncode != 0:
+        return (cohort_name, age_band, r0.returncode, r1.returncode, None)
+    r2 = subprocess.run(
+        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", extreme_name, "--age-band", age_band,
+         "--project-root", str(REPO_ROOT)] + force_flag,
+        cwd=str(REPO_ROOT),
+        capture_output=False,
+    )
+    return (cohort_name, age_band, r0.returncode, r1.returncode, r2.returncode)
+
+if EXTREME_COMBINATIONS:
+    with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
+        futures = {ex.submit(_run_extreme_one, c, ab): (c, ab) for c, ab in EXTREME_COMBINATIONS}
+        for fut in as_completed(futures):
+            cohort_name, age_band, c0, c1, c2 = fut.result()
+            print(f"  [Extreme] {cohort_name} / {age_band} -> extract={c0}, dtw_feat={c1}, dtw_vis={c2}")
+            if c0 != 0 and FAIL_FAST:
+                raise RuntimeError(f"Extract extreme cohort failed: {cohort_name} / {age_band}")
+            if c1 is not None and c1 != 0 and FAIL_FAST:
+                raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name}_extreme_density / {age_band}")
+            if c2 is not None and c2 != 0 and FAIL_FAST:
+                raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name}_extreme_density / {age_band}")
+    print(f"Extreme-density done ({len(EXTREME_COMBINATIONS)} combinations).")
+else:
+    print("EXTREME_COMBINATIONS empty; skipping extreme-density.")
 
 # %%
 # --- Run FP-Growth (itemsets, rules, plots; sequential for memory; idempotent unless FORCE_RERUN) ---

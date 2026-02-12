@@ -16,6 +16,8 @@ For a given cohort / age_band (typically {source}_extreme_density), this script:
   - n_events_pharmacy
   - n_events_medical
   - transaction_size_medical (TRAIN years, combined ICD + CPT)
+  - admin_icd_event_count, routine_admin (Routine vs no routine from administrative_codes_lookup.json)
+- Writes histograms comparing routine admin vs no routine admin (transaction size distribution and outcome rate).
 - Writes a JSON file with aggregate summary statistics.
 """
 
@@ -24,33 +26,78 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Optional, Set, Tuple
 
 import duckdb
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
-# Repo root so 4_model_data is at repo root (same as other dtw scripts)
+# Repo root so 4_model_data and py_helpers are available (same as other dtw scripts)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+try:
+    from py_helpers.fe_monitor import mirror_log_to_s3
+except ImportError:
+    mirror_log_to_s3 = None
+
 MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
 TRAIN_YEARS = [2016, 2017, 2018]
 
+# ICD diagnosis columns in model_events (must match 4_model_data / create_dtw_features)
+ICD_DIAGNOSIS_COLUMNS = [
+    "primary_icd_diagnosis_code",
+    "two_icd_diagnosis_code",
+    "three_icd_diagnosis_code",
+    "four_icd_diagnosis_code",
+    "five_icd_diagnosis_code",
+    "six_icd_diagnosis_code",
+    "seven_icd_diagnosis_code",
+    "eight_icd_diagnosis_code",
+    "nine_icd_diagnosis_code",
+    "ten_icd_diagnosis_code",
+]
 
-def setup_logger(name: str = "summarize_extreme_density") -> logging.Logger:
-    """Setup a basic logger with console output."""
+
+def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
+    """Load administrative ICD codes from 1b_apcd_event_filter/administrative_codes_lookup.json."""
+    path = project_root / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
+    if not path.exists():
+        return set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        codes = data.get("administrative_codes", {}).get("icd", [])
+        return set(str(c) for c in codes)
+    except Exception:
+        return set()
+
+
+def setup_logger(
+    name: str = "summarize_extreme_density",
+    cohort_name: Optional[str] = None,
+    age_band: Optional[str] = None,
+) -> Tuple[logging.Logger, Optional[Path]]:
+    """Setup logger with console output; optional file handler and log path when cohort/age_band provided (for S3 mirror)."""
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    log_path: Optional[Path] = None
 
     if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-
-    return logger
+        if cohort_name is not None and age_band is not None:
+            logs_dir = REPO_ROOT / "logs" / "feature_engineering" / "extreme_density_summarize"
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            age_band_fname = age_band.replace("-", "_")
+            log_path = logs_dir / f"summarize_extreme_density_{cohort_name}_{age_band_fname}.log"
+            file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+    return logger, log_path
 
 
 def _get_model_events_path(cohort_name: str, age_band: str) -> Path:
@@ -62,8 +109,13 @@ def _get_model_events_path(cohort_name: str, age_band: str) -> Path:
     )
 
 
-def summarize_extreme_density_cohort(cohort_name: str, age_band: str) -> None:
-    logger = setup_logger()
+def summarize_extreme_density_cohort(
+    cohort_name: str,
+    age_band: str,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    if logger is None:
+        logger, _ = setup_logger()
     logger.info("Summarizing extreme-density cohort %s / %s", cohort_name, age_band)
 
     model_events_path = _get_model_events_path(cohort_name, age_band)
@@ -285,6 +337,47 @@ def summarize_extreme_density_cohort(cohort_name: str, age_band: str) -> None:
         tx_df, on="mi_person_key", how="left"
     )
 
+    # ------------------------------------------------------------------
+    # Admin ICD (routine appointments) count per patient for routine vs no routine
+    # ------------------------------------------------------------------
+    admin_icd = _load_administrative_icd_codes(REPO_ROOT)
+    if admin_icd:
+        # Escape single quotes for SQL; build IN list
+        admin_list = ", ".join("'" + str(c).replace("'", "''") + "'" for c in sorted(admin_icd))
+        icd_conditions = " OR ".join(f"{col} IN ({admin_list})" for col in ICD_DIAGNOSIS_COLUMNS)
+        path_str = model_events_str.replace("\\", "/")
+        try:
+            admin_df = con.execute(
+                f"""
+                WITH events_with_admin_icd AS (
+                    SELECT mi_person_key
+                    FROM read_parquet('{path_str}')
+                    WHERE {icd_conditions}
+                )
+                SELECT mi_person_key, COUNT(*)::INTEGER AS admin_icd_event_count
+                FROM events_with_admin_icd
+                GROUP BY mi_person_key
+                """
+            ).df()
+            patient_summary_df = patient_summary_df.merge(
+                admin_df, on="mi_person_key", how="left"
+            )
+            patient_summary_df["admin_icd_event_count"] = patient_summary_df["admin_icd_event_count"].fillna(0).astype(int)
+            patient_summary_df["routine_admin"] = patient_summary_df["admin_icd_event_count"].apply(
+                lambda x: "Routine (1+ admin ICD)" if x >= 1 else "No routine (0 admin ICD)"
+            )
+            logger.info(
+                "Routine vs no routine: %s with routine, %s without",
+                (patient_summary_df["routine_admin"] == "Routine (1+ admin ICD)").sum(),
+                (patient_summary_df["routine_admin"] == "No routine (0 admin ICD)").sum(),
+            )
+        except Exception as exc:
+            logger.warning("Could not compute admin ICD counts: %s", exc)
+            admin_icd = set()
+    if not admin_icd or "routine_admin" not in patient_summary_df.columns:
+        patient_summary_df["admin_icd_event_count"] = 0
+        patient_summary_df["routine_admin"] = "Unknown (no admin codes lookup)"
+
     out_dir = model_events_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -471,6 +564,58 @@ def summarize_extreme_density_cohort(cohort_name: str, age_band: str) -> None:
             logger.info("transaction_size_medical is empty; skipping histogram.")
 
     # ------------------------------------------------------------------
+    # Routine vs no routine: histograms and outcome comparison
+    # ------------------------------------------------------------------
+    if "routine_admin" in patient_summary_df.columns and patient_summary_df["routine_admin"].nunique() >= 2:
+        routine_labels = ["No routine (0 admin ICD)", "Routine (1+ admin ICD)"]
+        has_routine = patient_summary_df["routine_admin"].isin(routine_labels)
+        df_routine = patient_summary_df[has_routine]
+        if not df_routine.empty and "transaction_size_medical" in df_routine.columns:
+            tx_col = df_routine["transaction_size_medical"].dropna()
+            if not tx_col.empty:
+                no_routine_vals = df_routine.loc[df_routine["routine_admin"] == "No routine (0 admin ICD)", "transaction_size_medical"].dropna()
+                routine_vals = df_routine.loc[df_routine["routine_admin"] == "Routine (1+ admin ICD)", "transaction_size_medical"].dropna()
+                plt.figure(figsize=(9, 6))
+                if not no_routine_vals.empty:
+                    plt.hist(no_routine_vals, bins=30, alpha=0.6, label="No routine (0 admin ICD)", color="tab:orange", edgecolor="black")
+                if not routine_vals.empty:
+                    plt.hist(routine_vals, bins=30, alpha=0.6, label="Routine (1+ admin ICD)", color="tab:blue", edgecolor="black")
+                plt.xlabel("transaction_size_medical (TRAIN years, ICD + CPT)")
+                plt.ylabel("Number of patients")
+                plt.title(f"Extreme-density cohort {cohort_name} {age_band}: transaction size by routine vs no routine admin")
+                plt.legend()
+                plt.tight_layout()
+                routine_hist_path = out_dir / f"extreme_density_routine_vs_no_routine_hist_{age_band_fname}.png"
+                plt.savefig(routine_hist_path, dpi=200)
+                plt.close()
+                logger.info("Wrote routine vs no routine histogram to %s", routine_hist_path)
+
+        # Outcome rate by routine vs no routine
+        if "target" in df_routine.columns and not df_routine.empty:
+            outcome_by_routine = df_routine.groupby("routine_admin", observed=True).agg(
+                outcome_rate=("target", "mean"),
+                n_patients=("mi_person_key", "count"),
+            )
+            if len(outcome_by_routine) >= 1:
+                plt.figure(figsize=(7, 5))
+                x_pos = range(len(outcome_by_routine))
+                colors = ["tab:orange", "tab:blue"] if len(outcome_by_routine) == 2 else ["tab:blue"]
+                plt.bar(x_pos, outcome_by_routine["outcome_rate"], color=colors[: len(outcome_by_routine)], edgecolor="black")
+                plt.xticks(x_pos, outcome_by_routine.index.tolist(), rotation=15, ha="right")
+                plt.ylabel("Outcome rate (mean target)")
+                plt.xlabel("Routine vs no routine (admin ICD)")
+                plt.title(f"Extreme-density cohort {cohort_name} {age_band}: outcome rate by routine admin\n(Lower in Routine group = routine visits associated with fewer extreme events)")
+                for i, (_, row) in enumerate(outcome_by_routine.iterrows()):
+                    plt.text(i, float(row["outcome_rate"]) + 0.01, f"n={int(row['n_patients'])}", ha="center", fontsize=9)
+                plt.tight_layout()
+                routine_outcome_path = out_dir / f"extreme_density_routine_vs_no_routine_outcome_{age_band_fname}.png"
+                plt.savefig(routine_outcome_path, dpi=200)
+                plt.close()
+                logger.info("Wrote routine vs no routine outcome bar to %s", routine_outcome_path)
+    else:
+        logger.info("Skipping routine vs no routine histograms (single group or no admin codes).")
+
+    # ------------------------------------------------------------------
     # Aggregate JSON summary
     # ------------------------------------------------------------------
     summary = {
@@ -486,6 +631,9 @@ def summarize_extreme_density_cohort(cohort_name: str, age_band: str) -> None:
         "medical_transaction_size_stats": tx_stats,
         "train_years": TRAIN_YEARS,
     }
+    if "routine_admin" in patient_summary_df.columns:
+        routine_counts = patient_summary_df["routine_admin"].value_counts()
+        summary["routine_admin_counts"] = {str(k): int(v) for k, v in routine_counts.items()}
 
     summary_path = out_dir / f"extreme_density_summary_{age_band_fname}.json"
     summary_path.write_text(json.dumps(summary, indent=2))
@@ -509,11 +657,26 @@ def main() -> None:
         help="Age band (e.g., 25-44)",
     )
     args = parser.parse_args()
-
-    summarize_extreme_density_cohort(
+    logger, log_path = setup_logger(
+        "summarize_extreme_density",
         cohort_name=args.cohort_name,
         age_band=args.age_band,
     )
+    try:
+        summarize_extreme_density_cohort(
+            cohort_name=args.cohort_name,
+            age_band=args.age_band,
+            logger=logger,
+        )
+    finally:
+        if mirror_log_to_s3 and log_path and log_path.exists():
+            mirror_log_to_s3(
+                "extreme_density_summarize",
+                args.cohort_name,
+                args.age_band,
+                log_path,
+                logger,
+            )
 
 
 if __name__ == "__main__":
