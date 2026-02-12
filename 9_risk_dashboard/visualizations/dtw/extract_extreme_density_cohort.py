@@ -17,15 +17,21 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
 import duckdb
 import numpy as np
 import pandas as pd
 
-# Repo root so 4_model_data is at repo root (same as other dtw scripts)
+# Repo root so 4_model_data and py_helpers are available (same as other dtw scripts)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+try:
+    from py_helpers.fe_monitor import mirror_log_to_s3
+except ImportError:
+    mirror_log_to_s3 = None
 
 # Canonical 4_model_data event store (repo root)
 MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
@@ -33,18 +39,30 @@ TRAIN_YEARS = [2016, 2017, 2018]
 DENSITY_BINS = ["low", "medium", "high", "extreme"]
 
 
-def setup_logger(name: str = "extract_extreme_density") -> logging.Logger:
-    """Setup a basic logger with console output."""
+def setup_logger(
+    name: str = "extract_extreme_density",
+    cohort_name: Optional[str] = None,
+    age_band: Optional[str] = None,
+) -> Tuple[logging.Logger, Optional[Path]]:
+    """Setup logger with console output; optional file handler and log path when cohort/age_band provided (for S3 mirror)."""
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    log_path: Optional[Path] = None
 
     if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-
-    return logger
+        if cohort_name is not None and age_band is not None:
+            logs_dir = REPO_ROOT / "logs" / "feature_engineering" / "extreme_density_extract"
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            age_band_fname = age_band.replace("-", "_")
+            log_path = logs_dir / f"extract_extreme_density_{cohort_name}_{age_band_fname}.log"
+            file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+    return logger, log_path
 
 
 def assign_transaction_density(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
@@ -113,13 +131,15 @@ def extract_extreme_density_cohort(
     cohort_name: str,
     age_band: str,
     output_cohort_name: str | None = None,
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """
     Identify extreme-density patients (by medical_code) and:
     - write a new extreme-density cohort under 4_model_data
     - remove them from the source cohort's model_events in 4_model_data.
     """
-    logger: logging.Logger = setup_logger("extract_extreme_density")
+    if logger is None:
+        logger, _ = setup_logger("extract_extreme_density")
 
     if output_cohort_name is None:
         output_cohort_name = f"{cohort_name}_extreme_density"
@@ -352,11 +372,27 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    extract_extreme_density_cohort(
+    logger, log_path = setup_logger(
+        "extract_extreme_density",
         cohort_name=args.cohort_name,
         age_band=args.age_band,
-        output_cohort_name=args.output_cohort_name,
     )
+    try:
+        extract_extreme_density_cohort(
+            cohort_name=args.cohort_name,
+            age_band=args.age_band,
+            output_cohort_name=args.output_cohort_name,
+            logger=logger,
+        )
+    finally:
+        if mirror_log_to_s3 and log_path and log_path.exists():
+            mirror_log_to_s3(
+                "extreme_density_extract",
+                args.cohort_name,
+                args.age_band,
+                log_path,
+                logger,
+            )
 
 
 if __name__ == "__main__":
