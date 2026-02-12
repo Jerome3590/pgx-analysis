@@ -360,6 +360,7 @@ def extract_patient_trajectories(
     else:
         cpt_query = f"SELECT mi_person_key, event_date, NULL as activity FROM read_parquet('{path_str}') WHERE 1=0"
     
+    # Aggregate in DuckDB (one row per patient) to avoid materializing full event table in pandas
     query = f"""
     WITH drug_events AS ({drug_query}),
          icd_events AS ({icd_query}),
@@ -370,10 +371,16 @@ def extract_patient_trajectories(
              SELECT * FROM icd_events WHERE activity IS NOT NULL
              UNION ALL
              SELECT * FROM cpt_events WHERE activity IS NOT NULL
+         ),
+         filtered AS (
+             SELECT mi_person_key, event_date, activity
+             FROM all_events
+             WHERE activity IS NOT NULL AND TRIM(activity) != ''
+               AND LOWER(activity) NOT LIKE '%f1120%'
          )
-    SELECT mi_person_key, event_date, activity
-    FROM all_events
-    ORDER BY mi_person_key, event_date
+    SELECT mi_person_key, LIST(activity ORDER BY event_date) as trajectory
+    FROM filtered
+    GROUP BY mi_person_key
     """
     
     df = con.execute(query).df()
@@ -383,17 +390,12 @@ def extract_patient_trajectories(
         logger.warning("No trajectory data extracted")
         return {}
 
-    # Only feature-importance events (filter applied in SQL with OR: drug OR any ICD OR procedure in allowed set)
-    # Exclude F1120 from trajectories (for final model)
-    df = df[~df['activity'].str.contains('F1120', case=False, na=False)]
-
-    # Group by patient to create trajectories
+    # Build trajectories dict from one row per patient (trajectory column is a list from DuckDB LIST())
     trajectories = {}
-    for patient_id in df['mi_person_key'].unique():
-        patient_data = df[df['mi_person_key'] == patient_id].sort_values('event_date')
-        trajectory = patient_data['activity'].tolist()
-        if trajectory:
-            trajectories[patient_id] = trajectory
+    for _, row in df.iterrows():
+        traj = row["trajectory"]
+        if traj and len(traj) > 0:
+            trajectories[row["mi_person_key"]] = list(traj)
 
     logger.info(f"Extracted trajectories for {len(trajectories)} patients ({item_type})")
     

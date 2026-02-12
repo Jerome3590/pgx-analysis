@@ -172,30 +172,112 @@ def run(profile: str | None, show_logs: bool, show_outputs: bool) -> None:
         print()
 
     # ----- 4. DTW outputs in pgxdatalake -----
+    out_objs = _s3_list(s3, DATALAKE_BUCKET, DTW_OUTPUTS_PREFIX + "/", max_keys=300)
+    by_combo = {}
+    if out_objs:
+        for o in out_objs:
+            rest = o["Key"].replace(DTW_OUTPUTS_PREFIX + "/", "")
+            parts = rest.split("/", 2)
+            combo = "{} / {}".format(parts[0], parts[1]) if len(parts) >= 2 else rest
+            by_combo.setdefault(combo, []).append(o)
+
     if show_outputs:
         print("4. DTW outputs (s3://{}/{})".format(DATALAKE_BUCKET, DTW_OUTPUTS_PREFIX))
         print("-" * 60)
-        out_objs = _s3_list(s3, DATALAKE_BUCKET, DTW_OUTPUTS_PREFIX + "/", max_keys=300)
-        if not out_objs:
+        if not by_combo:
             print("  No objects under {}.".format(DTW_OUTPUTS_PREFIX))
         else:
-            by_combo = {}
-            for o in out_objs:
-                # gold/feature_engineering/6_dtw/{cohort}/{age_band}/file.csv
-                rest = o["Key"].replace(DTW_OUTPUTS_PREFIX + "/", "")
-                parts = rest.split("/", 2)
-                combo = "{} / {}".format(parts[0], parts[1]) if len(parts) >= 2 else rest
-                by_combo.setdefault(combo, []).append(o)
             for combo, objs in sorted(by_combo.items()):
                 mt = max((x.get("LastModified") or datetime.min.replace(tzinfo=timezone.utc) for x in objs), default=None)
                 mt_str = mt.strftime("%Y-%m-%d %H:%M UTC") if mt else "—"
                 print("  {}  {}  ({} file(s))".format(mt_str, combo, len(objs)))
             print("  Total: {} cohort/age_band combination(s)".format(len(by_combo)))
         print()
-    else:
-        print("4. DTW outputs in pgxdatalake: (use --outputs to list)")
-        print()
 
+    # ----- 5. DTW cohort completion times (when each finished; duration not stored in S3) -----
+    print("5. DTW cohort completion times (when each finished)")
+    print("-" * 60)
+    if not by_combo:
+        print("  No DTW outputs in pgxdatalake; no completion times.")
+    else:
+        now = datetime.now(timezone.utc)
+        rows = []
+        for combo, objs in sorted(by_combo.items()):
+            mt = max((x.get("LastModified") for x in objs if x.get("LastModified")), default=None)
+            if mt:
+                if mt.tzinfo is None:
+                    mt = mt.replace(tzinfo=timezone.utc)
+                ago_sec = (now - mt).total_seconds()
+                if ago_sec < 3600:
+                    ago_str = "{:.0f}m ago".format(ago_sec / 60)
+                elif ago_sec < 86400:
+                    ago_str = "{:.1f}h ago".format(ago_sec / 3600)
+                else:
+                    ago_str = "{:.1f}d ago".format(ago_sec / 86400)
+                mt_str = mt.strftime("%Y-%m-%d %H:%M UTC")
+                rows.append((mt, combo, mt_str, ago_str))
+            else:
+                rows.append((datetime.min.replace(tzinfo=timezone.utc), combo, "—", "—"))
+        rows.sort(key=lambda x: x[0], reverse=True)
+        print("  {:20}  {}  {}".format("Cohort / age_band", "Completed (UTC)", "Finished"))
+        for _, combo, mt_str, ago_str in rows:
+            print("  {:20}  {:19}  {}".format(combo, mt_str, ago_str))
+        print()
+        print("  Note: Processing duration (e.g. minutes per cohort) is not stored in S3.")
+        print("  Completion time is from output object LastModified.")
+
+    # ----- 6. Duration estimates from previous run gaps (same-day completions) -----
+    REQUIRED_DTW = [
+        ("opioid_ed", "13-24"), ("opioid_ed", "25-44"), ("opioid_ed", "45-54"), ("opioid_ed", "55-64"),
+        ("non_opioid_ed", "65-74"), ("non_opioid_ed", "75-84"), ("non_opioid_ed", "85-94"),
+    ]
+    combo_to_key = lambda c, ab: "{} / {}".format(c, ab)
+    required_keys = {combo_to_key(c, ab) for c, ab in REQUIRED_DTW}
+    # Completed required combos with completion time, sorted oldest first
+    completed_required = []
+    for combo, objs in (by_combo or {}).items():
+        if combo not in required_keys:
+            continue
+        mt = max((x.get("LastModified") for x in objs if x.get("LastModified")), default=None)
+        if mt:
+            if mt.tzinfo is None:
+                mt = mt.replace(tzinfo=timezone.utc)
+            completed_required.append((mt, combo))
+    completed_required.sort(key=lambda x: x[0])
+    print("6. Duration estimates (inferred from same-day completion gaps)")
+    print("-" * 60)
+    if len(completed_required) < 2:
+        print("  Need at least 2 completed required cohorts to infer duration from gaps.")
+        print("  Typical range from past runs: ~30 min to ~1.5 h per cohort (depends on cohort size).")
+    else:
+        max_gap_sec = 4 * 3600  # treat gaps > 4h as different sessions
+        gaps_min = []
+        print("  {:20}  {}  {}".format("Cohort / age_band", "Completed (UTC)", "Est. duration (from gap)"))
+        prev_mt = None
+        for mt, combo in completed_required:
+            mt_str = mt.strftime("%Y-%m-%d %H:%M UTC")
+            if prev_mt is not None:
+                gap_sec = (mt - prev_mt).total_seconds()
+                if gap_sec <= max_gap_sec and gap_sec >= 0:
+                    gap_min = gap_sec / 60
+                    gaps_min.append(gap_min)
+                    print("  {:20}  {:19}  ~{:.0f} min".format(combo, mt_str, gap_min))
+                else:
+                    print("  {:20}  {:19}  (session gap)".format(combo, mt_str))
+            else:
+                print("  {:20}  {:19}  —".format(combo, mt_str))
+            prev_mt = mt
+        if gaps_min:
+            print()
+            print("  Inferred range: {:.0f}-{:.0f} min per cohort (from same-day gaps).".format(min(gaps_min), max(gaps_min)))
+        completed_set = {x[1] for x in completed_required}
+        missing = [combo_to_key(c, ab) for c, ab in REQUIRED_DTW if combo_to_key(c, ab) not in completed_set]
+        if missing and gaps_min:
+            print("  Remaining ({}): est. ~{:.0f}-{:.0f} min each if run sequentially.".format(len(missing), min(gaps_min), max(gaps_min)))
+    print()
+    if not show_outputs:
+        print("(Use --outputs to list DTW output objects in pgxdatalake.)")
+        print()
     print("Done.")
 
 
