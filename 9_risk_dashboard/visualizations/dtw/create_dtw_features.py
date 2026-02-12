@@ -390,11 +390,11 @@ def extract_patient_trajectories(
         logger.warning("No trajectory data extracted")
         return {}
 
-    # Build trajectories dict from one row per patient (trajectory column is a list from DuckDB LIST())
+    # Build trajectories dict from one row per patient (trajectory column: DuckDB LIST() -> list or ndarray in .df())
     trajectories = {}
     for _, row in df.iterrows():
         traj = row["trajectory"]
-        if traj and len(traj) > 0:
+        if traj is not None and len(traj) > 0:
             trajectories[row["mi_person_key"]] = list(traj)
 
     logger.info(f"Extracted trajectories for {len(trajectories)} patients ({item_type})")
