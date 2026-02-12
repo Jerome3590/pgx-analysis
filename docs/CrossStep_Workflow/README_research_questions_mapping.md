@@ -450,7 +450,7 @@ This document maps the research questions to the analysis workflow, verifying th
 
 ## 📊 Additional Research Questions (Dashboard Visualizations)
 
-The following questions were added to support the risk dashboard visualization tabs and to extend insights from the original two research questions. They are answered using the same cohort configuration and analysis workflow, with results surfaced in the **PGx Risk Assessment Dashboard** (see `9_risk_dashboard/docs/VISUALIZATION_PLAN.md` and `README_implementation_plan_tab_visualizations.md`).
+The following questions were added to support the risk dashboard visualization tabs and to extend insights from the original two research questions. They are answered using the same cohort configuration and analysis workflow, with results surfaced in the **PGx Risk Assessment Dashboard** (see `10_risk_dashboard/docs/VISUALIZATION_PLAN.md` and `README_implementation_plan_tab_visualizations.md`).
 
 ### Additional Questions → Analysis Methods & Dashboard Tab
 

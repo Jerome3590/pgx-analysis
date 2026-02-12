@@ -731,7 +731,7 @@ export PGX_PERM_MAX_ROWS=50000  # Use 50K rows for permutation importance
 python 3a_feature_importance/run_cohort_2_65_74.py
 
 # Step 2: FPGrowth Pattern Mining (parallel)
-python 9_risk_dashboard/visualizations/fpgrowth/run_single_cohort_fpgrowth.py \
+python 10_risk_dashboard/visualizations/fpgrowth/run_single_cohort_fpgrowth.py \
     --cohort-name non_opioid_ed \
     --age-band 65-74
 

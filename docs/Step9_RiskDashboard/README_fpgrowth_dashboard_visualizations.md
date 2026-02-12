@@ -75,7 +75,7 @@ FP-Growth visualizations help clinicians understand:
 ### Local Outputs
 
 ```
-9_risk_dashboard/visualizations/fpgrowth/outputs/
+10_risk_dashboard/visualizations/fpgrowth/outputs/
 ├── {cohort}/
 │   ├── {split_type}/              # combined or target
 │   │   └── {age_band}/
@@ -104,7 +104,7 @@ All visualization files (PNG and HTML) are uploaded to S3 for dashboard access v
 
 **Basic usage:**
 ```bash
-cd 9_risk_dashboard/visualizations/fpgrowth
+cd 10_risk_dashboard/visualizations/fpgrowth
 python create_fpgrowth_visuals.py --cohort-name {cohort} --age-band {age_band}
 ```
 
@@ -176,7 +176,7 @@ The HTML network visualizations include:
 2. **Target Information Encoding**: Patterns can encode target-specific information
 3. **Direct Leakage Risk**: Rules may include target codes (e.g., F1120) as consequents
 
-See `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for detailed target leakage analysis.
+See `10_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for detailed target leakage analysis.
 
 ## Dependencies
 
@@ -202,6 +202,6 @@ See `9_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for 
 
 ## Related Documentation
 
-- **[Dashboard Visualizations Overview](../../9_risk_dashboard/visualizations/README.md)** - General visualization documentation
+- **[Dashboard Visualizations Overview](../../10_risk_dashboard/visualizations/README.md)** - General visualization documentation
 - **[Dashboard API Documentation](README_results_dashboard_visualizations.md)** - Complete dashboard visualization guide
-- **[FP-Growth Visualization Only](../../9_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md)** - Target leakage analysis and visualization-only rationale
+- **[FP-Growth Visualization Only](../../10_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md)** - Target leakage analysis and visualization-only rationale

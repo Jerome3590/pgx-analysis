@@ -16,7 +16,7 @@ graph TD
     A --> J[6_final_model]
     A --> K[7_shap_analysis]
     A --> L[8_ffa_analysis]
-    A --> N[9_risk_dashboard]
+    A --> N[10_risk_dashboard]
     A --> O[py_helpers]
     
     B --> B1[medical]
@@ -110,7 +110,7 @@ For every `(cohort, age_band)` above we run:
 - PGx feature engineering (`5_pgx_analysis/`) adding pharmacogenomics features
 - final model training and export (`6_final_model/`), producing **one model per cohort/age‑band**
 - post-model analysis: SHAP (`7_shap_analysis/`) followed by FFA (`8_ffa_analysis/`), which uses SHAP importance to filter rules. FFA rule selection: union of (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) all rules with SHAP > 0
-- risk dashboard (`9_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
+- risk dashboard (`10_risk_dashboard/`) with BupaR/FP-Growth/DTW visuals (these analyses are now dashboard-only, not separate workflow steps)
 
 ### Workflow Pipeline
 
@@ -174,7 +174,7 @@ pgx-analysis/
 ├── 6_final_model/             # Final model development and evaluation
 ├── 7_shap_analysis/            # Step 7: SHAP-based post‑model analysis
 ├── 8_ffa_analysis/             # Step 8: Formal feature attribution (FFA) analysis
-├── 9_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, deployment (Lambda + S3)
+├── 10_risk_dashboard/           # Step 9: Risk calculator + dashboard, API, deployment (Lambda + S3)
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, Python/R deps, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
 ├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)

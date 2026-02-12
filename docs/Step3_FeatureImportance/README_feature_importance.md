@@ -602,7 +602,7 @@ high_risk_patients = X_test[y_pred_proba > 0.8]
 #### 3. **FPGrowth Pattern Mining** (Already Available)
 
 Your codebase has FPGrowth analysis that finds **frequent drug combinations**:
-- FP-Growth (dashboard): `9_risk_dashboard/visualizations/fpgrowth/` - Finds frequent itemsets for visualizations
+- FP-Growth (dashboard): `10_risk_dashboard/visualizations/fpgrowth/` - Finds frequent itemsets for visualizations
 - Identifies which drug combinations are associated with outcomes
 - Preserves row-level associations
 

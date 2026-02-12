@@ -123,21 +123,21 @@ The dashboard build process (`build_dashboard.sh`) requires outputs from multipl
 
 1. **Prepare Models:**
    ```bash
-   python 9_risk_dashboard/prepare_models.py --cohort opioid_ed
+   python 10_risk_dashboard/prepare_models.py --cohort opioid_ed
    ```
    - Reads from: Step 6 outputs
    - Creates: `10_results/models/{cohort}/{age_band}/`
 
 2. **Generate Metadata:**
    ```bash
-   python 9_risk_dashboard/generate_metadata.py --cohort opioid_ed
+   python 10_risk_dashboard/generate_metadata.py --cohort opioid_ed
    ```
    - Reads from: Step 3 outputs
    - Creates: `10_results/metadata/metadata_{cohort}.json`
 
 3. **Build Dashboard:**
    ```bash
-   See `9_risk_dashboard/deployment/` for build/deploy; or use `archived/utility_scripts/build_dashboard.sh` if present
+   See `10_risk_dashboard/deployment/` for build/deploy; or use `archived/utility_scripts/build_dashboard.sh` if present
    ```
    - Processes all available cohorts
    - Skips missing cohorts gracefully

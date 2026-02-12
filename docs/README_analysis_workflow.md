@@ -21,7 +21,7 @@ The analysis workflow implements a multi-stage approach to feature discovery, no
    - **CatBoost FFA**: NOT performed due to CatBoost's complex hashing and CTR (Counter-based Target Statistics) for categorical variables
    - **CatBoost SHAP**: Used for feature importance filtering in XGBoost FFA (not for CatBoost FFA rule extraction)
    - **Rule Selection**: Uses SHAP importance from both XGBoost and CatBoost (from Step 7) to filter and prioritize rules for AXP computation. Rule selection uses a three-set union: (1) first 100 matched rules, (2) random sample of 100 matched rules, and (3) top 300 SHAP-filtered rules (or all rules above 10th percentile, whichever is larger). Causal analysis filters the final rule set based on causal importance scores.
-10. **Risk Calculator + Dashboard Deployment** via `9_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
+10. **Risk Calculator + Dashboard Deployment** via `10_risk_dashboard` (Lambda-ready model packages and S3-hosted UI).
 
 ## Phase 1: Monte Carlo CV + Feature Importance
 
@@ -213,7 +213,7 @@ After feature importance is computed for each `(cohort, age_band)` pair, we crea
 
 **Purpose**: Trajectory analysis and visualization for dashboard exploration
 
-**Location**: `9_risk_dashboard/visualizations/dtw/`
+**Location**: `10_risk_dashboard/visualizations/dtw/`
 
 **Use Cases:**
 1. **Patient Clustering**: Group patients with similar drug exposure histories

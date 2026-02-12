@@ -119,7 +119,7 @@ PROJECT_OUTPUT_DIRS=(
     "6_final_model/model_outputs"
     "7_shap_analysis/outputs"
     "8_ffa_analysis/results"
-    "9_risk_dashboard/outputs"
+    "10_risk_dashboard/outputs"
     "feature_encoding_outputs"
     "logs"
 )

@@ -49,7 +49,7 @@ Legacy shell scripts and the former combined notebooks (3, 4) are in **archived/
 10. **Step 6**: Final model (6_final_model) – training and selection (Recall / AUC-PR).
 11. **Step 7**: SHAP analysis (7_shap_analysis).
 12. **Step 8**: FFA analysis (8_ffa_analysis) – XGBoost only, SHAP-prioritized rules.
-13. **Step 9**: Risk dashboard (9_risk_dashboard) – deployment (Lambda, dashboard).
+13. **Step 9**: Risk dashboard (10_risk_dashboard) – deployment (Lambda, dashboard).
 
 The scripts are idempotent and will skip completed steps automatically.
 
@@ -81,7 +81,7 @@ pgx-analysis/
 ├── 6_final_model/             # Step 6: Final model training and selection
 ├── 7_shap_analysis/            # Step 7: SHAP post-model analysis (CatBoost + XGBoost)
 ├── 8_ffa_analysis/             # Step 8: Formal Feature Attribution (uses SHAP to prioritize rules)
-├── 9_risk_dashboard/           # Step 9: Risk dashboard deployment (Lambda, dashboard UI)
+├── 10_risk_dashboard/           # Step 9: Risk dashboard deployment (Lambda, dashboard UI)
 ├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, pipeline run instructions
 ├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
 ├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)

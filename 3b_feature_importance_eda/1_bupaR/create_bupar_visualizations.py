@@ -143,9 +143,9 @@ def copy_visualizations_to_feature_importance_eda(cohort: str, age_band: str) ->
     
     # Try multiple possible source locations (R script saves to different places)
     possible_sources = [
-        # Primary location: 10c_bupaR_dashboard_visual (or 9_risk_dashboard)
+        # Primary location: 10c_bupaR_dashboard_visual (or 10_risk_dashboard)
         PROJECT_ROOT / "10c_bupaR_dashboard_visual" / "outputs" / cohort / age_band_fname / "plots",
-        PROJECT_ROOT / "9_risk_dashboard" / "bupaR_dashboard_visual" / "outputs" / cohort / age_band_fname / "plots",
+        PROJECT_ROOT / "10_risk_dashboard" / "bupaR_dashboard_visual" / "outputs" / cohort / age_band_fname / "plots",
         # Secondary location: 5_feature_engineering (where R script copies plots)
         PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "5_bupar" / cohort / age_band / "plots",
     ]

@@ -161,7 +161,7 @@ def build_model_data(
             if not success:
                 logger.warning("DTW feature creation failed, continuing...")
         
-        dtw_visuals = PROJECT_ROOT / "9_risk_dashboard" / "visualizations" / "dtw" / "create_dtw_visuals.py"
+        dtw_visuals = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "dtw" / "create_dtw_visuals.py"
         if dtw_visuals.exists():
             success = run_script(
                 dtw_visuals,

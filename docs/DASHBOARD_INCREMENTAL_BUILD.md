@@ -25,7 +25,7 @@ python 10_risk_dashboard/generate_metadata.py --cohort opioid_ed --age-band 13-2
 When ready to build the dashboard (can be done anytime):
 
 ```bash
-See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
+See 10_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
 ```
 
 **What it does:**
@@ -111,7 +111,7 @@ The Lambda function (`lambda_function.py`) handles missing models gracefully:
 
 2. **Build dashboard** when ready (with available cohorts):
    ```bash
-   See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
+   See 10_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
    ```
 
 3. **Build Docker image**:
@@ -135,7 +135,7 @@ The Lambda function (`lambda_function.py`) handles missing models gracefully:
 1. **Wait for all cohorts** to complete Steps 3-9
 2. **Build dashboard** with all cohorts:
    ```bash
-   See 9_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
+   See 10_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
    ```
 3. **Build and deploy** Docker image
 

@@ -31,7 +31,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from py_helpers.constants import AGE_BANDS, COHORT_NAMES  # noqa: E402
 
-VISUAL_ROOT = REPO_ROOT / "9_risk_dashboard" / "visualizations"
+VISUAL_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations"
 BUPAR_VISUALS_SCRIPT = VISUAL_ROOT / "bupar" / "create_bupar_visuals.py"
 DTW_FEATURES_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_features.py"
 DTW_VISUALS_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_visuals.py"
@@ -47,9 +47,9 @@ def ensure_dashboard_symlinks():
     """Create 10b/10c/10d at repo root and under visualizations so R and Python scripts find them."""
     # At repo root: so R (cwd=REPO_ROOT) finds 10c_bupaR_dashboard_visual/outputs, 4a_model_data, etc.
     repo_links = [
-        ("10c_bupaR_dashboard_visual", "9_risk_dashboard/visualizations/bupar"),
-        ("10b_fpgrowth_dashboard_visual", "9_risk_dashboard/visualizations/fpgrowth"),
-        ("10d_dtw_dashboard_visual", "9_risk_dashboard/visualizations/dtw"),
+        ("10c_bupaR_dashboard_visual", "10_risk_dashboard/visualizations/bupar"),
+        ("10b_fpgrowth_dashboard_visual", "10_risk_dashboard/visualizations/fpgrowth"),
+        ("10d_dtw_dashboard_visual", "10_risk_dashboard/visualizations/dtw"),
     ]
     for name, target in repo_links:
         path = REPO_ROOT / name
@@ -236,14 +236,14 @@ for cohort_name, age_band in combinations:
 #   -> S3 paths to FP-Growth itemsets/support/network (gold/fpgrowth/{cohort}/{age_band}/plots/)
 #
 # To (re)deploy API: see utility_scripts/create_api_gateway_pgx_risk_calculator.sh
-# and 9_risk_dashboard/backend/README.md. Lambda reads from S3 bucket (PGX_RESULTS_BUCKET).
-print("Dashboard visualization endpoints are documented in 9_risk_dashboard/backend/README.md")
+# and 10_risk_dashboard/backend/README.md. Lambda reads from S3 bucket (PGX_RESULTS_BUCKET).
+print("Dashboard visualization endpoints are documented in 10_risk_dashboard/backend/README.md")
 print("To update API Gateway: utility_scripts/create_api_gateway_pgx_risk_calculator.sh")
 
 # %%
 # --- Deploy Lambda: build image, push ECR, update function ---
 # Build and deploy run once in 5_build_and_deploy.ipynb. This script skips deploy by default; set DEPLOY_LAMBDA=1 to run from here.
-DASHBOARD_DIR = REPO_ROOT / "9_risk_dashboard"
+DASHBOARD_DIR = REPO_ROOT / "10_risk_dashboard"
 SKIP_DEPLOY_LAMBDA = os.environ.get("DEPLOY_LAMBDA", "").strip() not in ("1", "true", "yes")
 docker_script = DASHBOARD_DIR / "deployment" / "docker_build.sh"
 LAMBDA_NAME = "pgx-risk-calculator"
@@ -302,4 +302,4 @@ elif not SKIP_DEPLOY_FRONTEND:
 # When run as script (python pgx_dashboard_visuals.py), the full file runs top-to-bottom
 # so the BupaR/DTW/FP-Growth cells above execute. In VS Code/Cursor, run by cell (# %%) instead.
 if __name__ == "__main__":
-    print("Pipeline complete. Upload outputs to S3 for Lambda (see 9_risk_dashboard/backend/README.md).")
+    print("Pipeline complete. Upload outputs to S3 for Lambda (see 10_risk_dashboard/backend/README.md).")

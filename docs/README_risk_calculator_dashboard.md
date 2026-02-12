@@ -16,7 +16,7 @@ The dashboard provides multiple capabilities:
 ## Directory Structure
 
 ```text
-9_risk_dashboard/
+10_risk_dashboard/
 ├── frontend/                          # Frontend dashboard (user-facing)
 │   ├── index.html                     # Main dashboard HTML with all tabs
 │   ├── assets/                        # Static assets (CSS, JS, images)
@@ -151,12 +151,12 @@ This organization provides:
 
 **Scripts**:
 - `prepare_models.py` - Package models from `6_final_model/outputs/{cohort}/{age_band}/` for Lambda deployment
-  - Output directory: `9_risk_dashboard/outputs/models`
+  - Output directory: `10_risk_dashboard/outputs/models`
   - Configured for PGx cohorts (`opioid_ed`, `non_opioid_ed`) with correct age bands
 - `generate_metadata.py` - Extract valid codes from Feature Importance EDA `cohort_feature_importance` files
   - Prioritizes Feature Importance EDA refined features from `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
   - Falls back to Step 3 aggregated features if Feature Importance EDA files not available
-  - Output directory: `9_risk_dashboard/outputs/metadata`
+  - Output directory: `10_risk_dashboard/outputs/metadata`
 - `prepare_cpic_data.py` - Prepare CPIC data for PGx cards
 - `combine_shap_ffa_results.py` - Combine SHAP and FFA analysis for consensus features
 
@@ -195,14 +195,14 @@ The dashboard includes the following visualization tabs:
 ### Data Preparation
 
 **Model Preparation (`prepare_models.py`)**:
-- Output directory: `9_risk_dashboard/outputs/models`
+- Output directory: `10_risk_dashboard/outputs/models`
 - Configured for PGx cohorts (`opioid_ed`, `non_opioid_ed`) with correct age bands
 - Loads models from `6_final_model/outputs/{cohort}/{age_band}/`
 
 **Metadata Generation (`generate_metadata.py`)**:
 - Prioritizes Feature Importance EDA `cohort_feature_importance` files (refined features)
 - Falls back to Step 3 `aggregated_feature_importance` files if Feature Importance EDA files not available
-- Output directory: `9_risk_dashboard/outputs/metadata`
+- Output directory: `10_risk_dashboard/outputs/metadata`
 - Uses directory structure: `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
 
 ## Quick Start
@@ -367,7 +367,7 @@ FP-Growth networks complement FFA/SHAP causal analysis by:
 ### Network Visualization Files
 
 **Location**:
-- Local: `9_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/`
+- Local: `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/`
 - S3: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
 
 **Files**:
@@ -459,8 +459,8 @@ function displayCausalAnalysis(patientData, ffaResults, shapResults) {
 
 ### Related Documentation
 
-- `9_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md`: Why FP-Growth is visualization-only
-- `9_risk_dashboard/visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
+- `10_risk_dashboard/visualizations/fpgrowth/README_visualization_only.md`: Why FP-Growth is visualization-only
+- `10_risk_dashboard/visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `8_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)
 
 ## Documentation

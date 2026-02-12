@@ -300,9 +300,9 @@ python pgx_dashboard_visuals.py
 **Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR.
 
 **Verify:**
-- BupaR: `9_risk_dashboard/visualizations/bupar` outputs (or `10c_bupaR_dashboard_visual/outputs`) and S3 `gold/bupar/`
+- BupaR: `10_risk_dashboard/visualizations/bupar` outputs (or `10c_bupaR_dashboard_visual/outputs`) and S3 `gold/bupar/`
 - DTW: `gold/feature_engineering/6_dtw/{cohort}/{age_band}/` and feature_importance plots
-- FP-Growth: `9_risk_dashboard/visualizations/fpgrowth` outputs (or `10b_fpgrowth_dashboard_visual/outputs`) and S3 `gold/fpgrowth/`
+- FP-Growth: `10_risk_dashboard/visualizations/fpgrowth` outputs (or `10b_fpgrowth_dashboard_visual/outputs`) and S3 `gold/fpgrowth/`
 
 ---
 
@@ -321,7 +321,7 @@ python pgx_dashboard_visuals.py
 ### 6.2 Build and Deploy Dashboard
 
 ```bash
-cd ~/pgx-analysis/9_risk_dashboard
+cd ~/pgx-analysis/10_risk_dashboard
 
 # Build frontend
 cd frontend
@@ -329,14 +329,14 @@ npm install
 npm run build
 
 # Deploy backend (Lambda function)
-# Follow 9_risk_dashboard/deployment/README.md
+# Follow 10_risk_dashboard/deployment/README.md
 
 # Deploy to S3
 aws s3 sync dist/ s3://{your-dashboard-bucket}/
 
 # Configure API Gateway (if not already)
 # utility_scripts/create_api_gateway_pgx_risk_calculator.sh or .ps1
-# See 9_risk_dashboard/backend/README.md
+# See 10_risk_dashboard/backend/README.md
 ```
 
 **Verify:**
@@ -346,7 +346,7 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 
 **Do you need to update the Lambda image for dashboard visuals?**
 - **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run **notebook 6** (or `pgx_dashboard_visuals.py`); upload outputs to S3. Build and deploy run in **notebook 7** only.
-- **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `9_risk_dashboard/backend/lambda_function.py`). See `9_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
+- **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `10_risk_dashboard/backend/lambda_function.py`). See `10_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
 
 ---
 
