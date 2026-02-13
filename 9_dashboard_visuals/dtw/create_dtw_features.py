@@ -1219,6 +1219,7 @@ def create_sequence_time_window_features(
             mi_person_key,
             LIST(activity ORDER BY sequence_position) as seq_pattern
         FROM trajectory_data
+        WHERE activity IS NOT NULL AND TRIM(CAST(activity AS VARCHAR)) != ''
         GROUP BY mi_person_key
     )
     SELECT
@@ -1254,11 +1255,24 @@ def create_sequence_time_window_features(
     if features_df.empty:
         return pd.DataFrame()
     
-    # Convert full sequence pattern (all activities per patient) to string feature
+    # Convert full sequence pattern (all activities per patient) to string feature.
+    # Skip None/nan so "nan" never becomes the top code in cluster plots.
+    def _seq_pattern_to_str(x):
+        if not isinstance(x, list) or not x:
+            return ''
+        parts = []
+        for a in x:
+            if a is None:
+                continue
+            if isinstance(a, float) and np.isnan(a):
+                continue
+            s = str(a).strip()
+            if s and s.lower() not in ('nan', 'none', 'null'):
+                parts.append(s)
+        return '_'.join(parts)
+
     if 'seq_pattern' in features_df.columns:
-        features_df['seq_pattern_str'] = features_df['seq_pattern'].apply(
-            lambda x: '_'.join(str(a) for a in x) if isinstance(x, list) and x else ''
-        )
+        features_df['seq_pattern_str'] = features_df['seq_pattern'].apply(_seq_pattern_to_str)
         # Drop list column (keep string version for tabular use)
         features_df = features_df.drop(columns=['seq_pattern'], errors='ignore')
     

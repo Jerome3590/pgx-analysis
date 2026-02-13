@@ -2,10 +2,13 @@
 """
 Create FP-Growth visuals for the dashboard.
 
+We do NOT add FP-Growth (or DTW) features to model data. This workflow is for
+dashboard visualization only.
+
 Runs the complete FP-Growth workflow:
 1. Ensure FP-Growth itemsets exist (target split, TRAIN years)
 2. Create FP-Growth patient-level features
-3. Add FP-Growth features to model data (merge, mirror, S3)
+3. Merge features into standalone CSV for dashboard (mirror, S3); not added to model data
 4. Create visualizations (plots, network HTML)
 
 Usage (Windows or Linux, from project root):
@@ -278,6 +281,7 @@ def create_fpgrowth_visuals(
 ) -> bool:
     """
     Create FP-Growth visuals for the dashboard: itemsets, features, merge, and plots.
+    FP-Growth features are not added to model data; they are for dashboard visualization only.
 
     Idempotent with respect to itemset creation; downstream scripts overwrite CSV outputs.
     If force is False and the output CSV already exists, skips (idempotent).

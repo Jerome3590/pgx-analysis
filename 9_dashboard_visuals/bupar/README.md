@@ -32,18 +32,18 @@ For each `(cohort, age_band)` combination, the following files should be generat
 | File Pattern | Description | Required | Created By |
 |--------------|-------------|----------|------------|
 | `sequence_features_{cohort}_{age_band}.csv` | Sequence features (top/rare indicators) | ✅ Yes | `create_sequence_features.R` |
-| `bupaR_added_features_{cohort}_{age_band}.csv` | **Final merged bupaR features ready for model training** | ✅ Yes | `add_bupar_features_to_model_data.R` |
+| `bupaR_added_features_{cohort}_{age_band}.csv` | **Final merged BupaR features for dashboard visualization only (not added to model data)** | ✅ Yes | `add_bupar_features_to_model_data.R` |
 
 **S3 Locations:**
 - Sequence features: `s3://pgxdatalake/gold/feature_engineering/5_bupar/{cohort}/{age_band}/sequence_features_{cohort}_{age_band}.csv`
 - Final merged features: `s3://pgxdatalake/gold/feature_engineering/5_bupar/{cohort}/{age_band}/bupaR_added_features_{cohort}_{age_band}.csv`
 
-**Format:** CSV with `mi_person_key` column for joining with `model_data` in final model step.
+**Format:** CSV with `mi_person_key`; used by dashboard visuals only. We do not add BupaR (or DTW or FP-Growth) features to model data.
 
 **Workflow (All R-based for consistency):**
 1. R script (`create_bupar_outputs_opioid_ed.R`) generates bupaR outputs (pre/post/time features, traces)
 2. `create_sequence_features.R` creates sequence features from top/rare traces → saves `sequence_features_{cohort}_{age_band}.csv`
-3. `add_bupar_features_to_model_data.R` merges all features (pre/post/time + sequence) → saves `bupaR_added_features_{cohort}_{age_band}.csv`
+3. `add_bupar_features_to_model_data.R` merges all features (pre/post/time + sequence) → saves `bupaR_added_features_{cohort}_{age_band}.csv` (dashboard only; not added to model data)
 
 **Note:** All scripts in this directory are R-based to ensure consistency and enable execution in a single R Jupyter notebook kernel without switching between languages.
 
