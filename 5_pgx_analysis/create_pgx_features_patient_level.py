@@ -39,11 +39,14 @@ def create_patient_pgx_features(
     """
     Create patient-level PGx features: simple drug counts.
     
-    This function:
-    1. Loads global drug-to-CPIC mapping to identify CPIC drugs
-    2. Loads patient drug exposure data from model_data
-    3. Counts total drugs and CPIC drugs per patient
-    
+    Uses DuckDB for the full pipeline: read parquet once, then base patient list,
+    total distinct drugs per patient, and CPIC drugs per patient are computed in SQL.
+    Only the small CPIC mapping CSV is loaded with pandas.
+
+    1. Loads global drug-to-CPIC mapping (pandas) to identify CPIC drugs
+    2. Single DuckDB query: read_parquet + CTEs for base, total counts, CPIC counts
+    3. Returns one row per patient with pgx_num_drugs, pgx_num_cpic_drugs
+
     Returns:
     --------
     pd.DataFrame
@@ -149,73 +152,51 @@ def create_patient_pgx_features(
             logger.error(f"  - {path} (exists: {path.exists()})")
         return pd.DataFrame()
     
-    # Get base patient list (both target and control)
+    # Single DuckDB query: read parquet once, aggregate in SQL (base, total drugs, CPIC drugs)
+    cpic_list = list(cpic_drug_set)
     con = duckdb.connect()
-    base_df = con.execute(
-        f"""
-        SELECT DISTINCT mi_person_key
-        FROM read_parquet('{model_data_path}')
-        WHERE target IN (0, 1)
+    features_df = con.execute(
         """
+        WITH data AS (
+            SELECT mi_person_key, drug_name
+            FROM read_parquet(?)
+            WHERE target IN (0, 1)
+        ),
+        base AS (
+            SELECT DISTINCT mi_person_key FROM data
+        ),
+        drugs AS (
+            SELECT mi_person_key, UPPER(TRIM(CAST(drug_name AS VARCHAR))) AS drug_norm
+            FROM data
+            WHERE drug_name IS NOT NULL AND TRIM(CAST(drug_name AS VARCHAR)) != ''
+        ),
+        total AS (
+            SELECT mi_person_key, COUNT(DISTINCT drug_norm) AS pgx_num_drugs
+            FROM drugs
+            GROUP BY mi_person_key
+        ),
+        cpic AS (
+            SELECT mi_person_key, COUNT(DISTINCT drug_norm) AS pgx_num_cpic_drugs
+            FROM drugs
+            WHERE drug_norm IN (SELECT unnest(?))
+            GROUP BY mi_person_key
+        )
+        SELECT base.mi_person_key,
+            COALESCE(total.pgx_num_drugs, 0)::INTEGER AS pgx_num_drugs,
+            COALESCE(cpic.pgx_num_cpic_drugs, 0)::INTEGER AS pgx_num_cpic_drugs
+        FROM base
+        LEFT JOIN total ON base.mi_person_key = total.mi_person_key
+        LEFT JOIN cpic ON base.mi_person_key = cpic.mi_person_key
+        """,
+        [str(model_data_path), cpic_list],
     ).df()
     con.close()
     
-    if base_df.empty:
+    if features_df.empty:
         logger.error("No target patients found in model_data")
         return pd.DataFrame()
     
-    logger.info(f"Creating PGx features for {len(base_df)} patients")
-    
-    # Extract patient drug exposures from model_data
-    con = duckdb.connect()
-    patient_drugs_query = f"""
-    SELECT DISTINCT mi_person_key, drug_name
-    FROM read_parquet('{model_data_path}')
-    WHERE target IN (0, 1) AND drug_name IS NOT NULL AND drug_name != ''
-    """
-    patient_drugs_df = con.execute(patient_drugs_query).df()
-    con.close()
-    
-    if patient_drugs_df.empty:
-        logger.warning("No patient drug exposures found")
-        features_df = base_df.copy()
-        features_df['pgx_num_drugs'] = 0
-        features_df['pgx_num_cpic_drugs'] = 0
-        return features_df
-    
-    # Count total drugs per patient
-    total_drugs = patient_drugs_df.groupby('mi_person_key')['drug_name'].nunique().reset_index()
-    total_drugs.columns = ['mi_person_key', 'pgx_num_drugs']
-    
-    # Count CPIC drugs per patient (drugs that are in the CPIC mapping)
-    if cpic_drug_set:
-        # Normalize drug names for comparison (uppercase, strip whitespace)
-        patient_drugs_df['drug_name_normalized'] = patient_drugs_df['drug_name'].str.upper().str.strip()
-        
-        # Check if each drug is a CPIC drug
-        patient_drugs_df['is_cpic_drug'] = patient_drugs_df['drug_name_normalized'].isin(cpic_drug_set)
-        
-        # Count CPIC drugs per patient
-        cpic_drugs = (
-            patient_drugs_df[patient_drugs_df['is_cpic_drug']]
-            .groupby('mi_person_key')['drug_name']
-            .nunique()
-            .reset_index()
-        )
-        cpic_drugs.columns = ['mi_person_key', 'pgx_num_cpic_drugs']
-    else:
-        # No CPIC mapping available, set all to 0
-        cpic_drugs = pd.DataFrame(columns=['mi_person_key', 'pgx_num_cpic_drugs'])
-    
-    # Merge counts with base patient list
-    features_df = base_df.merge(total_drugs, on='mi_person_key', how='left')
-    features_df = features_df.merge(cpic_drugs, on='mi_person_key', how='left')
-    
-    # Fill NaN with 0
-    features_df['pgx_num_drugs'] = features_df['pgx_num_drugs'].fillna(0).astype(int)
-    features_df['pgx_num_cpic_drugs'] = features_df['pgx_num_cpic_drugs'].fillna(0).astype(int)
-    
-    logger.info(f"Created PGx features for {len(features_df)} patients")
+    logger.info(f"Created PGx features for {len(features_df)} patients (DuckDB aggregation)")
     logger.info(f"  Total drugs: {features_df['pgx_num_drugs'].sum()}")
     logger.info(f"  CPIC drugs: {features_df['pgx_num_cpic_drugs'].sum()}")
     logger.info(f"  Patients with drugs: {(features_df['pgx_num_drugs'] > 0).sum()}")
