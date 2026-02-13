@@ -61,13 +61,13 @@ HTML network plots use Cytoscape.js and include:
 | File Pattern | Description | Required | Created By |
 |--------------|-------------|----------|------------|
 | `fpgrowth_features_{cohort}_{age_band}.csv` | FP-Growth features (itemset/rule indicators) | Yes | `create_fpgrowth_features.py` |
-| `fpgrowth_added_features_{cohort}_{age_band}.csv` | Final merged FP-Growth features ready for model training | Yes | `add_fpgrowth_features_to_model_data.py` |
+| `fpgrowth_added_features_{cohort}_{age_band}.csv` | Final merged FP-Growth features for dashboard visualization only (not added to model data) | Yes | `add_fpgrowth_features_to_model_data.py` |
 
 S3 locations:
 - `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_features_{cohort}_{age_band}.csv`
 - `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_added_features_{cohort}_{age_band}.csv`
 
-Format: CSV with `mi_person_key` column for joining to `4a_model_data` outputs.
+Format: CSV with `mi_person_key`; used by dashboard visuals only. We do not add FP-Growth or DTW features to model data.
 
 ---
 
@@ -106,6 +106,6 @@ For each `(cohort, age_band)`:
 
 - **Feature Engineering**
   - [ ] `fpgrowth_features_{cohort}_{age_band}.csv` present under `4_fpgrowth_analysis/outputs/feature_engineering/`
-  - [ ] `fpgrowth_added_features_{cohort}_{age_band}.csv` present and joinable to model_data via `mi_person_key`
+  - [ ] `fpgrowth_added_features_{cohort}_{age_band}.csv` present (dashboard only; not added to model data)
   - [ ] (Optional) Copies uploaded to S3 `gold/feature_engineering/4_fpgrowth/...`
 

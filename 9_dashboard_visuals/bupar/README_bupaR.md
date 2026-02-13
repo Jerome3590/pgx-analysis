@@ -1,6 +1,6 @@
 ## BupaR Process Mining Analysis
 
-This directory contains scripts to run process-mining analysis on cohort trajectories using the BupaR ecosystem (R), and to turn those outputs into patient-level features for modeling.
+This directory contains scripts to run process-mining analysis on cohort trajectories using the BupaR ecosystem (R), and to turn those outputs into patient-level features for dashboard visualization. **We do not add BupaR (or DTW or FP-Growth) features to model data**; they are for dashboard visuals only.
 
 ### Key Scripts
 
@@ -44,7 +44,7 @@ This directory contains scripts to run process-mining analysis on cohort traject
     - Time-to-target features.
     - Optional `sequence_features_{cohort}_{age_band}.csv`.  
   - Outputs:
-    - `10c_bupaR_dashboard_visual/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv`, ready to join to model data via `mi_person_key`.
+    - `10c_bupaR_dashboard_visual/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv` (dashboard visualization only; not added to model data).
 
 ### Inputs and Outputs
 
@@ -72,5 +72,5 @@ For a given `(cohort, age_band)`:
 4. In R:
    - Run `add_bupar_features_to_model_data.R --cohort-name {cohort} --age-band {age_band}` to produce `bupaR_added_features_{cohort}_{age_band}.csv`.
 
-All BupaR feature outputs are designed to be joined to model-level tables on `mi_person_key` just before final model training.
+BupaR feature outputs are for dashboard visualization only; we do not add them to model data (same as DTW and FP-Growth).
 

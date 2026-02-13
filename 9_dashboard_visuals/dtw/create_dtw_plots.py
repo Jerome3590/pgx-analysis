@@ -32,6 +32,9 @@ except ImportError:
 # Polypharmacy cohort: one axis only (1D plot)
 POLYPHARMACY_COHORT = "non_opioid_ed"
 
+# Tokens to exclude from code counts (missing/placeholder values in seq_pattern_str)
+_SKIP_TOKENS = frozenset({"nan", "none", "null", ""})
+
 
 def _ensure_plots_dir(plots_dir: Path) -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +60,8 @@ def _code_counts_from_seq_pattern_str(df: pd.DataFrame) -> Tuple[pd.DataFrame, O
         seq = row.get("seq_pattern_str") or ""
         if not isinstance(seq, str):
             seq = str(seq)
-        counts = Counter(s for s in seq.split("_") if s.strip())
+        tokens = (s.strip() for s in seq.split("_") if s.strip())
+        counts = Counter(s for s in tokens if s.lower() not in _SKIP_TOKENS)
         rows.append({"mi_person_key": pid, **counts})
     if not rows:
         return pd.DataFrame(), target_series

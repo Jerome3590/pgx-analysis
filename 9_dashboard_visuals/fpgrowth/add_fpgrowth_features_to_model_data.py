@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Merge all FP-Growth features into a final tabular dataset.
+Merge FP-Growth features into a standalone tabular file for dashboard visualization only.
 
-This script combines FP-Growth features (created by create_fpgrowth_features.py) 
-into a final feature file ready for model training.
+We do NOT add FP-Growth (or DTW) features to model data. This script combines FP-Growth
+features (created by create_fpgrowth_features.py) into a single CSV used only for
+dashboard visuals (itemsets, rules, network plots). The final model step does not use
+these features.
 
 Output:
-- Saves final merged features to: outputs/feature_engineering/fpgrowth_added_features_{cohort}_{age_band}.csv
-- This is the final file ready for joining with model_data in the final model step.
+- Saves to: outputs/feature_engineering/fpgrowth_added_features_{cohort}_{age_band}.csv
+- Used by dashboard/visualizations only; not merged into 4_model_data or 6_final_model.
 """
 
 import argparse
@@ -33,14 +35,8 @@ def add_fpgrowth_features(
     age_band: str,
 ) -> None:
     """
-    Merge FP-Growth features into a final tabular dataset.
-    
-    This script loads FP-Growth features (created by create_fpgrowth_features.py)
-    and saves them as the final feature file ready for model training.
-    
-    Output:
-    - Saves final merged features to: outputs/feature_engineering/fpgrowth_added_features_{cohort}_{age_band}.csv
-    - This is the final file ready for joining with model_data in the final model step.
+    Merge FP-Growth features into a standalone CSV for dashboard visualization only.
+    We do not add FP-Growth features to model data; they are not used in 6_final_model.
     """
     
     age_band_fname = age_band.replace("-", "_")
@@ -118,15 +114,14 @@ def add_fpgrowth_features(
         print("[INFO] AWS CLI not found, skipping S3 upload")
     
     print("[INFO] Done.")
-    print(f"\nFinal output: {out_path}")
-    print("Ready for joining with model_data using mi_person_key")
+    print(f"\nFinal output: {out_path} (dashboard visualization only; not added to model data)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Merge FP-Growth features into a final tabular dataset ready for model training. "
-            "This is the final aggregation step after create_fpgrowth_features.py."
+            "Merge FP-Growth features into a standalone CSV for dashboard visualization only. "
+            "FP-Growth features are not added to model data. Run after create_fpgrowth_features.py."
         )
     )
     parser.add_argument(

@@ -2,15 +2,17 @@
 """
 Create BupaR visuals for the dashboard.
 
+We do NOT add BupaR (or DTW or FP-Growth) features to model data. This workflow
+is for dashboard visualization only.
+
 Runs the BupaR workflow for a given cohort and age band:
 1. Create BupaR outputs and plots via R scripts
-2. Merge BupaR features into a final feature table
+2. Merge BupaR features into a standalone feature table (dashboard only; not added to model data)
 3. Upload plot PNGs to the dashboard bucket
 
 Outputs:
 - Features: 10c_bupaR_dashboard_visual/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
-- Mirrored features and plots:
-  feature_engineering_outputs/5_bupar/{cohort}/{age_band}/[features,plots]
+- Mirrored features and plots: feature_engineering_outputs/5_bupar/{cohort}/{age_band}/[features,plots]
 """
 
 import argparse
@@ -137,7 +139,7 @@ def merge_bupar_features(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Step 2: Merge per-patient BupaR features into a final feature table."""
+    """Step 2: Merge per-patient BupaR features into a standalone CSV for dashboard (not added to model data)."""
     with step_block("5_bupar", "add_bupar_features_to_model_data", logger=logger):
         r_script = BUPAR_CODE_DIR / "add_bupar_features_to_model_data.R"
 
@@ -225,6 +227,7 @@ def create_bupar_visuals(
 ) -> bool:
     """
     Create BupaR visuals for the dashboard: outputs, feature merge, and plot upload.
+    BupaR features are not added to model data; they are for dashboard visualization only.
     If force is False and the output CSV already exists, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")

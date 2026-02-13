@@ -102,18 +102,18 @@ For each cohort/age-band combination:
 | File Pattern | Description | Required | Created By |
 |--------------|-------------|----------|------------|
 | `fpgrowth_features_{cohort}_{age_band}.csv` | FP-Growth features (itemsets/rules indicators) | ✅ Yes | `create_fpgrowth_features.py` |
-| `fpgrowth_added_features_{cohort}_{age_band}.csv` | **Final merged FP-Growth features ready for model training** | ✅ Yes | `add_fpgrowth_features_to_model_data.py` |
+| `fpgrowth_added_features_{cohort}_{age_band}.csv` | **Final merged FP-Growth features for dashboard visualization only (not added to model data)** | ✅ Yes | `add_fpgrowth_features_to_model_data.py` |
 
 **S3 Locations:**
 - FP-Growth features: `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_features_{cohort}_{age_band}.csv`
 - Final merged features: `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_added_features_{cohort}_{age_band}.csv`
 
-**Format:** CSV with `mi_person_key` column for joining with `model_data` in final model step.
+**Format:** CSV with `mi_person_key`; used by dashboard visuals only. **We do not add FP-Growth or DTW features to model data** (4_model_data, 6_final_model).
 
 **Workflow:**
 1. FP-Growth scripts (`cohort_fpgrowth.py` / `global_fpgrowth.py`) generate itemsets and rules → saves JSON files
 2. `create_fpgrowth_features.py` creates patient-level features from itemsets/rules → saves `fpgrowth_features_{cohort}_{age_band}.csv`
-3. `add_fpgrowth_features_to_model_data.py` creates final merged file → saves `fpgrowth_added_features_{cohort}_{age_band}.csv`
+3. `add_fpgrowth_features_to_model_data.py` merges into standalone CSV for dashboard → saves `fpgrowth_added_features_{cohort}_{age_band}.csv` (visualization only)
 
 **Feature Engineering Decision - Match vs Support:**
 
@@ -130,8 +130,7 @@ We create `_match` features (binary indicators) but **not** individual `_support
 - [ ] Run `create_fpgrowth_features.py` to generate patient-level features from itemsets/rules
 - [ ] Verify `fpgrowth_features_{cohort}_{age_band}.csv` exists in `outputs/feature_engineering/`
 - [ ] Run `add_fpgrowth_features_to_model_data.py` to create final merged feature file
-- [ ] Verify `fpgrowth_added_features_{cohort}_{age_band}.csv` exists in `outputs/feature_engineering/`
-- [ ] Verify file can be joined with `model_data` using `mi_person_key`
+- [ ] Verify `fpgrowth_added_features_{cohort}_{age_band}.csv` exists in `outputs/feature_engineering/` (dashboard only; not added to model data)
 - [ ] Upload to S3 (if applicable)
 
 ---

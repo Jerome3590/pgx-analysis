@@ -2,11 +2,18 @@
 """
 Create and publish DTW visuals for the dashboard (we do not add DTW features to model data).
 
-Takes the DTW features CSV produced by create_dtw_features.py and:
-- Copies to outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv
-- Mirrors to 5_feature_engineering/feature_engineering_outputs/6_dtw/
-- Uploads to S3 gold/feature_engineering and dashboard bucket (plots, chart_data.json)
-DTW features remain a standalone artifact for dashboard visuals; they are not merged into model_events or model data.
+Data flow to visualizations:
+- Input: dtw_features_{cohort}_{age_band}.csv from create_dtw_features.py (columns: mi_person_key, target,
+  seq_pattern_str, admin_icd_event_count, dtw_min_distance, trajectory_length, ...).
+- Validated/coerced: mi_person_key (str), target (0/1 int), seq_pattern_str (str, no NaN), admin_icd_event_count (int).
+- Cluster plots: create_dtw_plots.create_trajectory_cluster_plots(dtw_df) uses seq_pattern_str -> code counts
+  -> top_codes (excluding nan/none/null) -> Plotly 1D/3D scatter; writes dtw_trajectory_cluster_*.png/html.
+  We also copy that PNG to dtw_trajectory_analysis_*.png and dtw_sample_trajectories_*.png so API URLs work.
+- chart_data.json: _build_dtw_chart_data(dtw_df) builds routine_comparison (x, y, type, name, x_label, y_label)
+  and high_risk_trajectories (same shape) from target + admin_icd_event_count or trajectory_length/dtw_min_distance.
+  Frontend (index.html) expects chart_data_url -> JSON with routine_comparison and high_risk_trajectories.
+- Outputs: outputs/feature_engineering/dtw_added_features_*.csv; outputs/{cohort}/{age_band}/plots/*.png;
+  S3 dashboard bucket: plots/ + chart_data.json.
 """
 
 import argparse
@@ -81,12 +88,24 @@ def create_dtw_visuals(
     print(f"[INFO] Reading DTW features from {dtw_features_csv}")
     dtw_df = pd.read_csv(dtw_features_csv)
 
-    # Ensure mi_person_key column exists
+    # --- Validate and coerce data structure for visualizations ---
     if "mi_person_key" not in dtw_df.columns:
         raise ValueError("DTW features CSV must contain 'mi_person_key' column")
-
-    # Ensure mi_person_key is string type for consistent merging
     dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
+
+    if "target" not in dtw_df.columns:
+        print("[WARN] DTW features have no 'target' column; chart_data (routine_comparison, high_risk_trajectories) will be skipped.")
+    else:
+        # Coerce target to numeric (0/1) for chart_data
+        dtw_df["target"] = pd.to_numeric(dtw_df["target"], errors="coerce").fillna(0).astype(int)
+
+    if "seq_pattern_str" in dtw_df.columns:
+        dtw_df["seq_pattern_str"] = dtw_df["seq_pattern_str"].fillna("").astype(str)
+    else:
+        print("[WARN] DTW features have no 'seq_pattern_str'; trajectory cluster plots will be skipped.")
+
+    if "admin_icd_event_count" in dtw_df.columns:
+        dtw_df["admin_icd_event_count"] = pd.to_numeric(dtw_df["admin_icd_event_count"], errors="coerce").fillna(0).astype(int)
 
     print(f"[INFO] Loaded {len(dtw_df)} patients with {len(dtw_df.columns) - 1} DTW features")
 
@@ -175,6 +194,19 @@ def create_dtw_visuals(
             dtw_df=dtw_df,
             force=force,
         )
+        # API/frontend expect these filenames (lambda_function.py, index.html)
+        plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
+        overview_name = f"dtw_trajectory_analysis_{cohort_name}_{age_band_fname}.png"
+        sample_name = f"dtw_sample_trajectories_{cohort_name}_{age_band_fname}.png"
+        if plots_dir.exists():
+            cluster_pngs = list(plots_dir.glob("dtw_trajectory_cluster_*.png"))
+            if cluster_pngs:
+                src = cluster_pngs[0]
+                for name in (overview_name, sample_name):
+                    dest = plots_dir / name
+                    if dest != src:
+                        shutil.copy2(src, dest)
+                        print(f"[INFO] Wrote {name} for API overview/sample URLs")
     except Exception as e:
         print(f"[WARNING] DTW trajectory cluster plots failed: {e}")
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band)
@@ -261,10 +293,12 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
     agg = agg.dropna(subset=["target_rate"])
     if agg.empty or agg["n"].sum() == 0:
         return None
+    # Frontend expects: x, y, type, x_label, y_label, and optional name (index.html)
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "y": [float(round(v, 4)) for v in agg["target_rate"]],
         "type": "bar",
+        "name": "Outcome rate",
         "x_label": x_label,
         "y_label": "Target outcome rate",
     }
@@ -290,10 +324,12 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
     agg = use_df.groupby("q", as_index=False, observed=True).agg(target_rate=("target", "mean"), n=("target", "count"))
     if agg.empty or agg["n"].sum() == 0:
         return None
+    # Frontend expects: x, y, type, x_label, y_label, and optional name (index.html)
     return {
         "x": [str(v) for v in agg["q"]],
         "y": [float(round(v, 4)) for v in agg["target_rate"]],
         "type": "bar",
+        "name": "Outcome rate by archetype",
         "x_label": "Trajectory archetype (by DTW distance)" if col == "dtw_min_distance" else "Trajectory archetype (by length)",
         "y_label": "Target outcome rate",
     }

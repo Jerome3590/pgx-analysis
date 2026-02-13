@@ -10,7 +10,7 @@
 #
 # Output:
 # - Saves final merged features to: outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv
-# - This is the final file ready for joining with model_data in the final model step.
+# - Used for dashboard visualization only; we do not add BupaR (or DTW or FP-Growth) features to model data.
 #
 
 # Set up user library path for package loading (Windows compatibility)
