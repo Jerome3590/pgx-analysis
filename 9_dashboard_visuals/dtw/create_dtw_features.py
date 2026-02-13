@@ -1398,28 +1398,39 @@ def save_trajectory_research_outputs(
 def main():
     """Main function for command-line usage."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Create DTW features from patient trajectories")
     parser.add_argument("--cohort", required=True, help="Cohort name (e.g., opioid_ed)")
     parser.add_argument("--age_band", required=True, help="Age band (e.g., 0-12)")
     parser.add_argument("--split_type", default="target", help="Split type (target or combined)")
     parser.add_argument("--event_year", default="train", help="Event year label (train, 2019, etc.)")
     parser.add_argument("--n_prototypes", type=int, default=5, help="Number of prototype trajectories")
-    parser.add_argument("--item_types", nargs="+", default=["combined"], 
+    parser.add_argument("--item_types", nargs="+", default=["combined"],
                        help="Item types to process (drug, icd, cpt, combined)")
     parser.add_argument("--max_lookback_months", type=int, default=24,
                        help="For target patients, only events in the N months prior to anchor (default: 24). Use 0 for no limit.")
     parser.add_argument("--output", help="Output CSV path (optional)")
     parser.add_argument("--force", action="store_true", help="Re-run even if output already exists (default: skip when idempotent)")
-    parser.add_argument("--research_mode", action="store_true", 
+    parser.add_argument("--research_mode", action="store_true",
                        help="Research mode: capture ALL trajectories with time windows (no cutoff dates)")
-    
+
     args = parser.parse_args()
-    
+    age_band_fname = args.age_band.replace("-", "_")
+
+    # Per-cohort log file so failures can be inspected (e.g. logs/feature_engineering/dtw/create_dtw_features_opioid_ed_13_24.log)
+    logs_dir = REPO_ROOT / "logs" / "feature_engineering" / "dtw"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / f"create_dtw_features_{args.cohort}_{age_band_fname}.log"
+    if not any(h.baseFilename == str(log_path) for h in logger.handlers if getattr(h, "baseFilename", None)):
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        logger.addHandler(file_handler)
+    logger.info("DTW create_dtw_features started for %s / %s (log: %s)", args.cohort, args.age_band, log_path)
+
     if not DTW_AVAILABLE:
         logger.error("dtaidistance package not available. Install with: pip install dtaidistance")
-        return
-    
+        sys.exit(1)
+
     project_root = PROJECT_ROOT
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
@@ -1427,11 +1438,10 @@ def main():
 
     # Idempotent: skip if output exists and not --force (normal mode only)
     if not args.research_mode:
-        age_band_fname = args.age_band.replace("-", "_")
         default_output = (
-        _dtw_output_root(project_root)
-        / "outputs"
-        / "feature_engineering"
+            _dtw_output_root(project_root)
+            / "outputs"
+            / "feature_engineering"
             / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
         )
         if not args.force and default_output.exists():
@@ -1461,9 +1471,9 @@ def main():
             )
         if not model_data_path or not model_data_path.exists():
             logger.error("Model data not found for %s / %s (same resolution as BupaR)", args.cohort, args.age_band)
-            return
+            sys.exit(1)
         logger.info("Using model_events: %s", model_data_path)
-        
+
         # Extract trajectories with time windows (no cutoff dates in research mode)
         for item_type in args.item_types:
             logger.info(f"\nExtracting {item_type} trajectories with time windows (research mode)...")
@@ -1510,11 +1520,10 @@ def main():
     
     if dtw_features.empty:
         logger.error("No features created. Check inputs and logs.")
-        return
-    
+        sys.exit(1)
+
     # Set output path - intermediate file for DTW features only
     if not args.output:
-        age_band_fname = args.age_band.replace("-", "_")
         feature_eng_dir = (
         _dtw_output_root(project_root)
         / "outputs"
