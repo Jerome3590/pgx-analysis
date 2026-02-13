@@ -1883,7 +1883,7 @@ def train_and_evaluate(
             print(classification_report(y_test, y_pred_ens, digits=3))
 
     # ------------------------------------------------------------------
-    # Model Selection: Compare XGBoost vs XGBoost RF using Recall and AUC-PR
+    # Model Selection: XGBoost, XGBoost RF, CatBoost — Primary = AUC-PR, Tie-break = Recall
     # ------------------------------------------------------------------
     print("\n=== Model Selection (Recall and AUC-PR) ===")
     
@@ -1909,24 +1909,32 @@ def train_and_evaluate(
     if cb_recall_mean is not None:
         print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
-    # Select best XGBoost variant: Primary = Recall, Secondary = AUC-PR
-    if xgb_recall_mean > xgb_rf_recall_mean:
+    # Select best model among XGB, XGB-RF, CatBoost: Primary = AUC-PR, Tie-break = Recall
+    candidates = [
+        ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
+        ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
+    ]
+    if cb_pr_auc_mean is not None and cb_recall_mean is not None:
+        candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
+    # Sort by (AUC-PR desc, Recall desc), take first
+    candidates.sort(key=lambda t: (-t[1], -t[2]))
+    selected_model = candidates[0][0]
+    best_pr_auc = candidates[0][1]
+    best_recall = candidates[0][2]
+    # best_xgb_variant: which XGB variant to train as primary (when selected is CatBoost, still pick better XGB for training)
+    if xgb_pr_auc_mean > xgb_rf_pr_auc_mean or (xgb_pr_auc_mean == xgb_rf_pr_auc_mean and xgb_recall_mean >= xgb_rf_recall_mean):
         best_xgb_variant = "xgb"
-        selection_reason = f"XGBoost selected due to higher recall ({xgb_recall_mean:.4f} vs {xgb_rf_recall_mean:.4f})"
-    elif xgb_recall_mean < xgb_rf_recall_mean:
-        best_xgb_variant = "xgb_rf"
-        selection_reason = f"XGBoost RF selected due to higher recall ({xgb_rf_recall_mean:.4f} vs {xgb_recall_mean:.4f})"
     else:
-        # Tie on recall, use AUC-PR as tiebreaker
-        if xgb_pr_auc_mean >= xgb_rf_pr_auc_mean:
-            best_xgb_variant = "xgb"
-            selection_reason = f"XGBoost selected due to tie on recall ({xgb_recall_mean:.4f}) and higher AUC-PR ({xgb_pr_auc_mean:.4f} vs {xgb_rf_pr_auc_mean:.4f})"
-        else:
-            best_xgb_variant = "xgb_rf"
-            selection_reason = f"XGBoost RF selected due to tie on recall ({xgb_rf_recall_mean:.4f}) and higher AUC-PR ({xgb_rf_pr_auc_mean:.4f} vs {xgb_pr_auc_mean:.4f})"
-    
-    print(f"\nSelected: {best_xgb_variant.upper()}")
+        best_xgb_variant = "xgb_rf"
+    # Human-readable selection reason
+    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
+    selection_reason = (
+        f"{_names[selected_model]} selected by Recall and AUC-PR (AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
+    )
+    print(f"\nSelected: {_names[selected_model].upper()}")
     print(f"Reason: {selection_reason}")
+    # Best XGBoost variant is always trained and saved for FFA rule analysis (even when CatBoost is selected)
+    print(f"Best XGBoost variant for FFA: {best_xgb_variant.upper()}")
     
     # Save model selection metadata
     age_band_fname = age_band_to_fname(age_band)
@@ -1934,6 +1942,7 @@ def train_and_evaluate(
     out_base.mkdir(parents=True, exist_ok=True)
     
     selection_metadata = {
+        "selected_model": selected_model,
         "best_xgb_variant": best_xgb_variant,
         "xgb_recall_mean": xgb_recall_mean,
         "xgb_pr_auc_mean": xgb_pr_auc_mean,
@@ -2074,7 +2083,7 @@ def train_and_evaluate(
         "auc_mean": float(np.mean(metrics["xgb"]["auc"])) if metrics["xgb"]["auc"] else None,
         "logloss_mean": float(np.mean(metrics["xgb"]["logloss"])) if metrics["xgb"]["logloss"] else None,
         "n_runs": len(metrics["xgb"]["recall"]) if metrics["xgb"]["recall"] else 0,
-        "selected": best_xgb_variant == "xgb"
+        "selected": selected_model == "xgb"
     })
     
     # XGBoost RF metrics
@@ -2085,7 +2094,7 @@ def train_and_evaluate(
         "auc_mean": float(np.mean(metrics["xgb_rf"]["auc"])) if metrics["xgb_rf"]["auc"] else None,
         "logloss_mean": float(np.mean(metrics["xgb_rf"]["logloss"])) if metrics["xgb_rf"]["logloss"] else None,
         "n_runs": len(metrics["xgb_rf"]["recall"]) if metrics["xgb_rf"]["recall"] else 0,
-        "selected": best_xgb_variant == "xgb_rf"
+        "selected": selected_model == "xgb_rf"
     })
     
     # CatBoost metrics (if available)
@@ -2097,7 +2106,7 @@ def train_and_evaluate(
             "auc_mean": cb_auc_mean,
             "logloss_mean": cb_logloss_mean,
             "n_runs": len(metrics["catboost"]["recall"]) if metrics.get("catboost") and metrics["catboost"].get("recall") else 0,
-            "selected": False  # CatBoost is not used for model selection
+            "selected": selected_model == "catboost"
         })
     
     # Ensemble metrics (if available)
@@ -2217,7 +2226,7 @@ def train_and_evaluate(
                 other_model.set_params(device="cpu")
             other_model.fit(X, y)
 
-    # Export BEST XGBoost model JSON (FFA-friendly: trees + feature_names)
+    # Export BEST XGBoost model JSON for FFA rule analysis (always saved, even when selected_model is CatBoost)
     model_json_dir = out_base / "final_model_json"
     model_json_dir.mkdir(parents=True, exist_ok=True)
     xgb_json_path = (
@@ -2245,7 +2254,7 @@ def train_and_evaluate(
             json.dump(ffa_model_json, f, indent=2)
     
     save_model_idempotent(xgb_json_path, s3_xgb_json, save_xgb_json)
-    print(f"\nSaved BEST XGBoost model JSON ({best_xgb_variant}) to {xgb_json_path}")
+    print(f"\nSaved BEST XGBoost model JSON ({best_xgb_variant}) to {xgb_json_path} (for FFA rule analysis)")
 
     # XGBoost feature importances (from full-data model)
     if hasattr(xgb_final, "feature_importances_"):
