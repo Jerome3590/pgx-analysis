@@ -191,41 +191,12 @@ if (file.exists(logging_utils_path)) {
   }
 }
 
-log_msg("Connecting to DuckDB...")
-con <- dbConnect(duckdb::duckdb())
+log_msg("Connecting to DuckDB (multi-threaded for Parquet scan and UNPIVOT)...")
+n_threads <- min(8L, max(2L, as.integer(Sys.getenv("DUCKDB_THREADS", parallel::detectCores()))))
+con <- dbConnect(duckdb::duckdb(config = list(threads = n_threads)))
+log_msg(sprintf("  DuckDB threads: %d", n_threads))
 
-log_msg(sprintf("Loading target cohort data from: %s", model_data_path))
-log_msg(sprintf("Filtering for target=1 and years: %s", paste(train_years, collapse=",")))
-
-# Optimized query: Filter target=1 in DuckDB and only select needed columns
-# This avoids loading unnecessary data into R memory
-query_target <- sprintf(
-  "SELECT 
-    mi_person_key,
-    event_date,
-    drug_name,
-    primary_icd_diagnosis_code,
-    two_icd_diagnosis_code,
-    three_icd_diagnosis_code,
-    four_icd_diagnosis_code,
-    five_icd_diagnosis_code,
-    six_icd_diagnosis_code,
-    seven_icd_diagnosis_code,
-    eight_icd_diagnosis_code,
-    nine_icd_diagnosis_code,
-    ten_icd_diagnosis_code,
-    procedure_code
-  FROM read_parquet('%s') 
-  WHERE event_year IN (%s) AND target = 1",
-  model_data_path,
-  paste(train_years, collapse = ",")
-)
-
-log_msg("Executing DuckDB query for target cohort...")
-pgx_df_target1 <- dbGetQuery(con, query_target)
-
-log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %s", 
-                nrow(pgx_df_target1), cohort_name, age_band, paste(train_years, collapse=",")))
+log_msg(sprintf("Loading target cohort from: %s (target=1, years: %s)", model_data_path, paste(train_years, collapse = ",")))
 
 # -------------------------------------------------------------------
 # Using all codes from model_events.parquet
@@ -236,25 +207,11 @@ log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %
 # Build DRUG/ICD/CPT activities and target_eventlog
 # -------------------------------------------------------------------
 
-log_msg("Transforming target data from wide to long format using DuckDB UNPIVOT...")
-# Optimized: Use DuckDB UNPIVOT to do wide-to-long transformation efficiently
-# This processes the data in DuckDB's columnar format before loading into R
+# Single DuckDB read: UNPIVOT + first F1120 date per patient (pre/post split uses first_target_date in R)
+log_msg("Transforming target to long format and computing first F1120 date in DuckDB (single read)...")
 query_long <- sprintf(
-  "SELECT 
-    mi_person_key,
-    event_date,
-    source,
-    CAST(code AS VARCHAR) as code,
-    CASE 
-      WHEN source = 'drug_name' THEN 'DRUG:' || code
-      WHEN source LIKE '%%icd_diagnosis_code%%' THEN 'ICD:' || code
-      WHEN source = 'procedure_code' THEN 'CPT:' || code
-      ELSE code
-    END as activity
-  FROM (
-    SELECT 
-      mi_person_key,
-      event_date,
+  "WITH wide AS (
+    SELECT mi_person_key, event_date,
       CAST(drug_name AS VARCHAR) as drug_name,
       CAST(primary_icd_diagnosis_code AS VARCHAR) as primary_icd_diagnosis_code,
       CAST(two_icd_diagnosis_code AS VARCHAR) as two_icd_diagnosis_code,
@@ -267,40 +224,40 @@ query_long <- sprintf(
       CAST(nine_icd_diagnosis_code AS VARCHAR) as nine_icd_diagnosis_code,
       CAST(ten_icd_diagnosis_code AS VARCHAR) as ten_icd_diagnosis_code,
       CAST(procedure_code AS VARCHAR) as procedure_code
-    FROM read_parquet('%s') 
-    WHERE event_year IN (%s) AND target = 1
-  ) 
-  UNPIVOT (
-    code FOR source IN (
-      drug_name,
-      primary_icd_diagnosis_code,
-      two_icd_diagnosis_code,
-      three_icd_diagnosis_code,
-      four_icd_diagnosis_code,
-      five_icd_diagnosis_code,
-      six_icd_diagnosis_code,
-      seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code,
-      nine_icd_diagnosis_code,
-      ten_icd_diagnosis_code,
-      procedure_code
-    )
+    FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1
+  ),
+  long AS (
+    SELECT mi_person_key, event_date, source, CAST(code AS VARCHAR) as code,
+      CASE WHEN source = 'drug_name' THEN 'DRUG:' || code
+           WHEN source LIKE '%%icd_diagnosis_code%%' THEN 'ICD:' || code
+           WHEN source = 'procedure_code' THEN 'CPT:' || code ELSE code END as activity
+    FROM wide
+    UNPIVOT (code FOR source IN (
+      drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
+      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
+      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code
+    ))
+    WHERE code IS NOT NULL AND code != '' AND code != 'NA'
+  ),
+  first_target AS (
+    SELECT mi_person_key, min(event_date) AS first_target_date
+    FROM long WHERE activity LIKE '%%F1120%%' GROUP BY 1
   )
-  WHERE code IS NOT NULL AND code != '' AND code != 'NA'",
+  SELECT l.mi_person_key, l.event_date, l.source, l.code, l.activity, f.first_target_date
+  FROM long l LEFT JOIN first_target f ON l.mi_person_key = f.mi_person_key",
   model_data_path,
   paste(train_years, collapse = ",")
 )
 
-log_msg("Executing UNPIVOT query...")
 pgx_df_target1_long <- dbGetQuery(con, query_long) %>%
-  mutate(
-    timestamp = as.POSIXct(event_date)
-  )
+  mutate(timestamp = as.POSIXct(event_date))
 
-log_msg(sprintf("✓ Transformed to long format: %d events", nrow(pgx_df_target1_long)))
+log_msg(sprintf("✓ Loaded %d target=1 events (long + first_target_date) for %s age_band=%s",
+                nrow(pgx_df_target1_long), cohort_name, age_band))
 
 log_msg("Creating BupaR eventlog object for target cohort...")
 target_eventlog <- pgx_df_target1_long %>%
+  select(-first_target_date) %>%
   transmute(
     case_id              = mi_person_key,
     activity             = activity,
@@ -334,9 +291,11 @@ if (file.exists(utils_path)) {
   stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
-# Control: use existing if already built (NVMe gold only; no 4_model_data—we are not at that step). Else 3b outputs. Only create if not found.
+# Control: same path layout as target (outputs/cohort_name=... and gold/cohorts_model_data); fallback to legacy cohorts/input_model_data
 control_model_data_candidates <- c(
-  file.path(data_root, "gold", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(project_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "gold", "cohorts_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
@@ -349,9 +308,9 @@ for (candidate in control_model_data_candidates) {
   }
 }
 
-# If not found, use 3b output path as target for creation (so we only create under 3b when needed)
+# If not found, use 3b output path for creation (cohort_name= layout to match Python)
 if (is.null(control_model_data_path)) {
-  control_model_data_path <- file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
+  control_model_data_path <- file.path(project_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 }
 
 # Resolve 3a aggregated FI path for control filtering (required; already verified at top of script)
@@ -555,24 +514,16 @@ log_msg("=", level = "INFO")
 log_msg("Starting Pre-F1120 (before first ICD:F1120) analysis", level = "INFO")
 log_msg("=", level = "INFO")
 
-log_msg("Identifying target events and calculating event indices...")
-ev_all <- target_eventlog %>%
-  arrange(case_id, timestamp) %>%
-  group_by(case_id) %>%
+# Pre/post split using first_target_date computed in DuckDB (event_date < first_target_date = pre; > = post)
+log_msg("Splitting pre/post F1120 using first_target_date from DuckDB...")
+events_pre_target <- pgx_df_target1_long %>%
+  filter(!is.na(first_target_date), event_date < first_target_date) %>%
   mutate(
-    event_index = row_number(),
-    is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target   = any(is_target_icd),
-    first_target_index = ifelse(has_target,
-                                min(event_index[is_target_icd]),
-                                NA_integer_)
-  ) %>%
-  ungroup()
-
-events_pre_target <- ev_all %>%
-  filter(!is.na(first_target_index),
-         event_index < first_target_index) %>%  # Use < to EXCLUDE F1120 itself (for final model)
-  mutate(activity_instance_id = row_number())
+    activity_instance_id = row_number(),
+    case_id = mi_person_key,
+    lifecycle_id = "complete",
+    resource_id = "Patient"
+  )
 
 pre_target_eventlog <- events_pre_target %>%
   eventlog(
@@ -922,10 +873,14 @@ if (n_events(pre_target_eventlog) == 0) {
 if (include_post_target) {
   cat("\n--- Post-F1120 (after first ICD:F1120) analysis ---\n")
 
-  events_post_target <- ev_all %>%
-    filter(!is.na(first_target_index),
-           event_index > first_target_index) %>%
-    mutate(activity_instance_id = row_number())
+  events_post_target <- pgx_df_target1_long %>%
+    filter(!is.na(first_target_date), event_date > first_target_date) %>%
+    mutate(
+      activity_instance_id = row_number(),
+      case_id = mi_person_key,
+      lifecycle_id = "complete",
+      resource_id = "Patient"
+    )
 
   post_target_eventlog <- events_post_target %>%
     eventlog(
