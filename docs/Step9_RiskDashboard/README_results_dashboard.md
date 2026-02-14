@@ -12,17 +12,17 @@ A comprehensive, production-ready web dashboard that combines **clinical risk pr
 **Purpose**: Predict risk of adverse drug events using machine learning models
 
 **What Users Get**:
-- **Opioid ED Visit Risk Score** (ages 13-64)
+- **Opioid ED Visit Risk Score** (cohort selected via **Opioid ED** tab; full age bands)
   - Predicts risk of F1120 opioid-related emergency department visits
   - Based on patient age, ICD codes, CPT codes, and drug names
   
-- **Polypharmacy Risk Score** (ages 65-114)
+- **Polypharmacy Risk Score** (cohort selected via **Polypharmacy** tab; full age bands)
   - Predicts risk of polypharmacy-related complications
   - Based on patient age and drug combinations
 
 **Key Features**:
 - ✅ **Robust Ensemble Models**: Uses 3 models (CatBoost, XGBoost, XGBoost RF) with performance-based weighting
-- ✅ **Automatic Model Selection**: Age determines which model/cohort to use
+- ✅ **Cohort from tab**: **Opioid ED** or **Polypharmacy** tab sets cohort; age selects age band within that cohort
 - ✅ **Feature-Driven Inputs**: Dropdowns populated from actual feature importances
 - ✅ **Scenario Comparison**: Compare risk changes for different drug/ICD/CPT combinations
 - ✅ **Model Transparency**: See individual model predictions and ensemble weights
@@ -92,7 +92,7 @@ TPMT,*1,*3
 
 - **Model Storage** (ECR Container - 10GB limit)
   - All trained models (CatBoost, XGBoost, XGBoost RF)
-  - 7 age bands (4 opioid_ed + 3 polypharmacy)
+  - Full age band set for both cohorts (0-12 through 85-114; 8 bands; both opioid_ed and non_opioid_ed use same set)
   - Feature schemas with model weights
   - CPIC master Excel file
   - Total: ~1.5 GB (well within limit)

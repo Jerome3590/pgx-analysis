@@ -622,8 +622,7 @@ def run_cohort_qa(conn, cohort_name: str, age_band: str, event_year: int, logger
                             (age_band = '55-64' AND age_imputed BETWEEN 55 AND 64) OR
                             (age_band = '65-74' AND age_imputed BETWEEN 65 AND 74) OR
                             (age_band = '75-84' AND age_imputed BETWEEN 75 AND 84) OR
-                            (age_band = '85-94' AND age_imputed BETWEEN 85 AND 94) OR
-                            (age_band = '95-114' AND age_imputed BETWEEN 95 AND 114)
+                            (age_band = '85-114' AND age_imputed BETWEEN 85 AND 114)
                           )
                     """).fetchone()[0]
                     age_validation["age_band_mismatch_count"] = age_band_check
@@ -1185,7 +1184,7 @@ def main():
     cohorts = ["opioid_ed", "ed_non_opioid"] if args.cohorts == "both" else [args.cohorts]
 
     # Resolve age bands to process
-    standard_bands = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-94", "95-114"]
+    standard_bands = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
     if args.all_age_bands:
         age_bands = standard_bands
     elif args.age_bands:

@@ -450,7 +450,7 @@ def check_existing_cohorts(age_bands=None, event_years=None, bucket_name: str = 
     s3 = boto3.client("s3")
     age_bands = age_bands or [
         "0-12", "13-24", "25-44", "45-54", "55-64",
-        "65-74", "75-84", "85-94", "95-114"
+        "65-74", "75-84", "85-114"
     ]
     event_years = event_years or [2016, 2017, 2018, 2019, 2020]
     bucket_name = bucket_name or S3_BUCKET

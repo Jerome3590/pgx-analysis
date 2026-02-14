@@ -68,7 +68,7 @@ chmod +x utility_scripts/cleanup_cohort_data.sh
 **For Polypharmacy Cohort (non_opioid_ed / ED_NON_OPIOID):**
 
 ```bash
-# Age bands: 65-74, 75-84, 85-94
+# Age bands: 65-74, 75-84, 85-114 (full set for non_opioid_ed)
 # Years: 2016, 2017, 2018, 2019
 
 # Example for 65-74 (polypharmacy uses fixed 21-day window; --time-window-days is deprecated and ignored):
@@ -78,7 +78,7 @@ python 2_create_cohort/0_create_cohort.py \
     --cohort ed_non_opioid
 
 # Repeat for each year (2016, 2017, 2018, 2019)
-# Repeat for each age band (65-74, 75-84, 85-94)
+# Repeat for each age band (see py_helpers.constants.AGE_BANDS; includes 85-114)
 ```
 
 **For Opioid ED Cohort (opioid_ed / OPIOID_ED):**
@@ -353,10 +353,10 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 ## Quick Reference: All Cohorts and Age Bands
 
 ### Opioid ED Cohorts (F11.20 target)
-- `opioid_ed`: 13-24, 25-44, 45-54, 55-64
+- `opioid_ed`: full set 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114
 
 ### Polypharmacy Cohorts (First ED within 21d of drug event)
-- `non_opioid_ed`: 65-74, 75-84, 85-94
+- `non_opioid_ed`: full set (same as opioid_ed); last band 85-114
 
 ---
 

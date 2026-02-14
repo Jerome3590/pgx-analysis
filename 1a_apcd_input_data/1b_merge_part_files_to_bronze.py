@@ -259,8 +259,7 @@ def write_to_silver(main_uri: str, dataset: str, silver_output_root: str, duckdb
                 WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                 WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                 WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                 ELSE 'Other'
             END AS age_band,
             TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST("Incurred Date" AS VARCHAR), '%Y%m%d')) AS INTEGER) AS event_year

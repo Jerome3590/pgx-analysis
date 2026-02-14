@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PGx Risk Assessment Dashboard is a production-ready web application that provides risk prediction, causal analysis, and advanced visualizations for opioid ED visits (ages 13-64) and polypharmacy risk (ages 65-114).
+The PGx Risk Assessment Dashboard is a production-ready web application that provides risk prediction, causal analysis, and advanced visualizations for **Opioid ED** and **Polypharmacy** cohorts. Users select the cohort via **Opioid ED** or **Polypharmacy** tabs; both cohorts use the full set of age bands (0-12 through 85-114).
 
 ## Architecture
 
@@ -24,7 +24,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR Container) → M
 **Purpose**: User input form for risk calculation
 
 **Features**:
-- Age input (13-114, auto-selects cohort/age_band)
+- Cohort tabs (**Opioid ED** | **Polypharmacy**); age input (13-114) selects age band within chosen cohort
 - Multi-select dropdowns for:
   - Drug names (from feature importance)
   - ICD codes (from feature importance)

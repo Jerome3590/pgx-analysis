@@ -18,7 +18,7 @@ Based on actual benchmarks and EC2 performance characteristics:
 | **opioid_ed** | 55-64 | ~3.2M | 30-45 min | 20-30 min | 1-2 hrs | 2-3 hrs | 2-3 hrs | 20-30 min | **~7-10 hours** |
 | **non_opioid_ed** | 65-74 | ~2.9M | 30-45 min | 20-30 min | 1-2 hrs | 2-3 hrs | 2-3 hrs | 20-30 min | **~7-10 hours** |
 | **non_opioid_ed** | 75-84 | ~1.2M | 20-30 min | 15-20 min | 45-60 min | 1.5-2 hrs | 1.5-2 hrs | 15-20 min | **~5-7 hours** |
-| **non_opioid_ed** | 85-94 | ~275K | 10-15 min | 10-15 min | 30-45 min | 45-60 min | 45-60 min | 10-15 min | **~3-4 hours** |
+| **non_opioid_ed** | 85-114 | ~275K | 10-15 min | 10-15 min | 30-45 min | 45-60 min | 45-60 min | 10-15 min | **~3-4 hours** |
 
 **Note:** Step 3 (Feature Importance) is already complete for all cohorts (~6.5-7.5 hours per cohort when run).
 
@@ -72,8 +72,8 @@ With 32 cores and 1TB RAM, you can run **multiple cohorts in parallel**:
 
 ### Example Parallel Execution:
 ```bash
-# Terminal 1: Small cohort (85-94)
-nohup ./run_cohort_workflow.sh non_opioid_ed 85-94 > logs/non_opioid_ed_85-94.log 2>&1 &
+# Terminal 1: Small cohort (85-114)
+nohup ./run_cohort_workflow.sh non_opioid_ed 85-114 > logs/non_opioid_ed_85-114.log 2>&1 &
 
 # Terminal 2: Medium cohort (13-24)
 nohup ./run_cohort_workflow.sh opioid_ed 13-24 > logs/opioid_ed_13-24.log 2>&1 &
@@ -91,7 +91,7 @@ nohup ./run_cohort_workflow.sh opioid_ed 25-44 > logs/opioid_ed_25-44.log 2>&1 &
 
 ### Sequential (One at a Time):
 - **All 7 cohorts**: ~38-47 hours total
-- **Fastest path**: Start with small cohorts (85-94, 13-24, 75-84) = ~12-16 hours
+- **Fastest path**: Start with small cohorts (85-114, 13-24, 75-84) = ~12-16 hours
 - **Then large cohorts** (25-44, 55-64, 65-74, 45-54) = ~26-31 hours
 
 ### Parallel (3-4 cohorts simultaneously):
@@ -101,7 +101,7 @@ nohup ./run_cohort_workflow.sh opioid_ed 25-44 > logs/opioid_ed_25-44.log 2>&1 &
 - **Total wall time**: ~19-27 hours
 
 ### Optimal Strategy (4 cohorts parallel):
-- **Round 1**: 85-94, 13-24, 75-84, 45-54 → ~5-7 hours
+- **Round 1**: 85-114, 13-24, 75-84, 45-54 → ~5-7 hours
 - **Round 2**: 25-44, 55-64, 65-74 → ~7-10 hours
 - **Total**: ~12-17 hours wall time
 

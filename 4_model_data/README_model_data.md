@@ -77,7 +77,7 @@ Refined feature-importance CSVs (from Step 3b) drive the case-side event filteri
 
 Before or after syncing from S3, you can verify that `gold/pharmacy` (and optionally `gold/medical`) on NVMe has all expected cells. Step 4 expects:
 
-- **Age bands:** 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-94  
+- **Age bands:** 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114 (full set for both cohorts)
 - **Event years:** 2016, 2017, 2018, 2019  
 - **Layout:** `gold/pharmacy/age_band={band}/event_year={year}/*.parquet`
 

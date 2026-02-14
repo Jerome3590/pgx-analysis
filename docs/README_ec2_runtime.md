@@ -48,7 +48,7 @@ Based on final production workflow with DuckDB optimizations (4 threads per conn
 | **opioid_ed 55-64** | ~3.2M | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
 | **non_opioid_ed 65-74** | ~2.9M | 15 min | 10 min | 30 min | 1-1.5 hrs | 1-1.5 hrs | 20 min | **~4.5-6 hours** |
 | **non_opioid_ed 75-84** | ~1.2M | 10 min | 8 min | 20 min | 45 min | 1 hr | 15 min | **~2.5 hours** |
-| **non_opioid_ed 85-94** | ~274K | 5 min | 5 min | 15 min | 20 min | 30 min | 10 min | **~1.5 hours** |
+| **non_opioid_ed 85-114** | ~274K | 5 min | 5 min | 15 min | 20 min | 30 min | 10 min | **~1.5 hours** |
 
 **Note:**
 - Steps 3a–3b (Feature Importance) are complete and reused
@@ -125,7 +125,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 ```bash
 # Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
 ```
-- Cohorts: 65-74, 75-84, 85-94
+- Cohorts: 65-74, 75-84, 85-114 (full set for non_opioid_ed)
 - **Time:** ~6 hours (bottleneck: 65-74)
 
 **Total Wall Time:** ~12 hours (sequential batches)
@@ -287,7 +287,7 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
 **Available Cohorts:**
 - **opioid_ed**: 13-24, 25-44, 45-54, 55-64
-- **non_opioid_ed**: 65-74, 75-84, 85-94
+- **non_opioid_ed**: 65-74, 75-84, 85-114 (full age band set)
 
 **Note:** All workflow scripts are idempotent and will automatically skip completed steps.
 

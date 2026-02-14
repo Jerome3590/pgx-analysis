@@ -35,6 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from py_helpers.constants import REQUIRED_COHORTS
+
 # Optional: use project credentials when present
 _creds = REPO_ROOT.parent / "credentials"
 if _creds.exists() and not os.environ.get("AWS_SHARED_CREDENTIALS_FILE"):
@@ -227,10 +229,8 @@ def run(profile: str | None, show_logs: bool, show_outputs: bool) -> None:
         print("  Completion time is from output object LastModified.")
 
     # ----- 6. Duration estimates from previous run gaps (same-day completions) -----
-    REQUIRED_DTW = [
-        ("opioid_ed", "13-24"), ("opioid_ed", "25-44"), ("opioid_ed", "45-54"), ("opioid_ed", "55-64"),
-        ("non_opioid_ed", "65-74"), ("non_opioid_ed", "75-84"), ("non_opioid_ed", "85-94"),
-    ]
+    # Both cohorts use full set of age bands (from py_helpers.constants)
+    REQUIRED_DTW = [(c, ab) for c, bands in REQUIRED_COHORTS.items() for ab in bands]
     combo_to_key = lambda c, ab: "{} / {}".format(c, ab)
     required_keys = {combo_to_key(c, ab) for c, ab in REQUIRED_DTW}
     # Completed required combos with completion time, sorted oldest first

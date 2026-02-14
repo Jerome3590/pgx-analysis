@@ -37,7 +37,7 @@ DRUG_MAPPINGS_DIR = "/home/pgx3874/pgx-analysis/1_apcd_input_data/drug_mappings"
 QA_RESULTS_PATH = "s3://pgxdatalake/gold/qa_results"
 
 # Expected age bands and valid year range
-EXPECTED_AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-94", "95-114"]
+EXPECTED_AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
 MIN_VALID_YEAR = 2015
 MAX_VALID_YEAR = 2025
 

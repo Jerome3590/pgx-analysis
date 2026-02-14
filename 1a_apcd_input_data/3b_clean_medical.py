@@ -171,8 +171,7 @@ def build_optimized_pipeline(
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                     ELSE 'Other'
                 END AS member_age_band_dos,
                 gender_imputed AS member_gender,

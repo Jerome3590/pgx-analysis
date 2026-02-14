@@ -161,7 +161,7 @@ nohup /home/pgx3874/jupyter-env/bin/python3.11 2_create_cohort/run_series_ed_non
 echo "ed_non_opioid PID: $!"
 ```
 
-**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-94` → `13-24` → `0-12` → `95-114`
+**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-114` → `13-24` → `0-12`
 
 ### Cell 3 — Launch `opioid_ed` (shell via notebook)
 
@@ -186,7 +186,7 @@ nohup /home/pgx3874/jupyter-env/bin/python3.11 2_create_cohort/run_series_opioid
 echo "opioid_ed PID: $!"
 ```
 
-**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-94` → `13-24` → `0-12` → `95-114`
+**Processing order**: `25-44` → `65-74` → `45-54` → `55-64` → `75-84` → `85-114` → `13-24` → `0-12`
 
 ### Cell 4 — Monitor logs
 
@@ -242,8 +242,8 @@ python 2_create_cohort/run_series_opioid_ed.py --skip-existing
 Both wrappers process partitions in this order:
 
 1. **Heavy partitions first**: `25-44`, `65-74`
-2. **Medium partitions**: `45-54`, `55-64`, `75-84`, `85-94`
-3. **Light partitions**: `13-24`, `0-12`, `95-114`
+2. **Medium partitions**: `45-54`, `55-64`, `75-84`, `85-114`
+3. **Light partitions**: `13-24`, `0-12`
 
 Within each age band, processes years: `2016` → `2017` → `2018` → `2019`
 
@@ -259,7 +259,7 @@ Before running, you can optionally list what needs processing:
 from py_helpers.cohort_utils import check_existing_cohorts
 
 jobs = check_existing_cohorts(
-    age_bands=["25-44","65-74","45-54","55-64","75-84","85-94","95-114","13-24","0-12"],
+    age_bands=["25-44","65-74","45-54","55-64","75-84","85-114","13-24","0-12"],
     event_years=[2016,2017,2018,2019]
 )
 len(jobs), jobs[:5]

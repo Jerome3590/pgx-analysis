@@ -31,11 +31,8 @@ MODELS_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "models"
 METADATA_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "metadata"
 DATA_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "cpic"
 
-# Required cohorts and age bands
-REQUIRED_COHORTS = {
-    "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
-    "non_opioid_ed": ["65-74", "75-84", "85-94"],
-}
+# Required cohorts and age bands (each cohort has all age bands)
+from py_helpers.constants import REQUIRED_COHORTS
 
 # S3 paths
 S3_BUCKET = "pgxdatalake"

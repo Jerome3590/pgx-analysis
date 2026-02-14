@@ -48,9 +48,10 @@ AGGREGATED_FEATURE_IMPORTANCE_DIR = PROJECT_ROOT / '3a_feature_importance' / 'ou
 FINAL_MODEL_DIR = PROJECT_ROOT / '6_final_model' / 'outputs'
 OUTPUT_DIR = PROJECT_ROOT / '10_risk_dashboard' / 'outputs' / 'metadata'
 
-# Age bands for each cohort
-OPIOID_ED_AGE_BANDS = ["13-24", "25-44", "45-54", "55-64"]
-POLYPHARMACY_AGE_BANDS = ["65-74", "75-84", "85-94"]
+# Age bands for each cohort (each cohort has all age bands; from py_helpers.constants)
+from py_helpers.constants import REQUIRED_COHORTS
+OPIOID_ED_AGE_BANDS = REQUIRED_COHORTS["opioid_ed"]
+POLYPHARMACY_AGE_BANDS = REQUIRED_COHORTS["non_opioid_ed"]
 
 # Code type prefixes
 DRUG_PREFIX = "item_"

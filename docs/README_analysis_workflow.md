@@ -61,14 +61,14 @@ strict temporal validation and a small, focused model ensemble.
 **Cohort Focus Strategy (Phase 1):**
 
 Because full MC‑CV + permutation importance is computationally intensive but critical for
-health‑grade robustness, we focus the heaviest analysis on two cohort groups:
+health‑grade robustness, we run analysis for two cohort groups, each using the **full set of age bands**:
 
 - **Cohort Group 1 – Opioid ED (`opioid_ed`)**  
-  - Age bands: **\<65** (e.g., 0–12 through 55–64).  
+  - Age bands: **full set** (0–12, 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114).  
   - Feature space for MC‑CV: **drugs + ICD codes + CPT codes + event type**.
 
 - **Cohort Group 2 – Polypharmacy ED visits (`non_opioid_ed`)**  
-  - Age bands: **≥65** (e.g., 65–74 through 95–114).  
+  - Age bands: **full set** (same as opioid_ed; last band 85–114 combines former 85–94 and 95–114).  
   - Feature space for MC‑CV feature importance: **drugs only** (polypharmacy focus).
 
 Other cohort/age-band combinations may be explored with lighter settings (fewer splits or
@@ -77,22 +77,17 @@ is anchored on these two cohort groups**.
 
 ### Current Modeling Plan (Cohort / Age-Band Grid)
 
-For the current analysis run, we fit a **separate end‑to‑end model (Steps 3–9)** for each of the following
-`(cohort, age_band)` combinations:
+For the current analysis run, we fit a **separate end‑to‑end model (Steps 3–9)** for each
+`(cohort, age_band)` combination. Both cohorts use the **full age band set** (see `py_helpers.constants.AGE_BANDS`):
 
 - **Cohort 1 – Opioid ED (`opioid_ed`)**
   - **0–12** – smoke test / pipeline verification cohort
-  - **13–24**
-  - **25–44**
-  - **45–54**
-  - **55–64**
+  - **13–24**, **25–44**, **45–54**, **55–64**, **65–74**, **75–84**, **85–114**
 
 - **Cohort 2 – Polypharmacy ED (`non_opioid_ed`)**
-  - **65–74**
-  - **75–84**
-  - **85–94**
+  - Same full set: **0–12** through **85–114**
 
-Each of these nine cells in the grid will have its own:
+Each of these 16 cells (2 cohorts × 8 bands) in the grid will have its own:
 - `3a_feature_importance` run (MC‑CV + aggregation)
 - `4_model_data` extraction (`model_events.parquet` for target and control)
 - `5_*` feature‑engineering passes (PGx as applicable; FP‑Growth and BupaR are dashboard-only visualizations; DTW is used in Step 9 for dashboard visualizations only)

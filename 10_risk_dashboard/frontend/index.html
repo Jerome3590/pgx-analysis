@@ -290,6 +290,38 @@
       font-weight: 500;
       color: #64748b;
     }
+    /* Cohort tabs: Opioid ED vs Polypharmacy (top-level choice) */
+    .tabs-cohort {
+      margin-bottom: 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .cohort-tab-button {
+      padding: 0.6rem 1.5rem;
+      margin-right: 0.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #64748b;
+      background: #f1f5f9;
+      border: 2px solid #e2e8f0;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cohort-tab-button:hover {
+      color: #0f172a;
+      background: #e2e8f0;
+      border-color: #cbd5e1;
+    }
+    .cohort-tab-button.active {
+      color: #fff;
+      background: #3b82f6;
+      border-color: #3b82f6;
+    }
+    .cohort-tab-button[data-cohort="non_opioid_ed"].active {
+      background: #0d9488;
+      border-color: #0d9488;
+    }
     .tab-button {
       padding: 0.75rem 1.5rem;
       background: transparent;
@@ -605,6 +637,12 @@
 <body>
   <div class="container">
     <h1>PGx Risk Assessment Dashboard</h1>
+
+    <!-- Cohort tabs: Opioid ED vs Polypharmacy -->
+    <div class="tabs tabs-cohort">
+      <button type="button" class="cohort-tab-button active" data-cohort="opioid_ed" id="cohort-tab-opioid-ed" aria-label="Opioid ED cohort">Opioid ED</button>
+      <button type="button" class="cohort-tab-button" data-cohort="non_opioid_ed" id="cohort-tab-polypharmacy" aria-label="Polypharmacy cohort">Polypharmacy</button>
+    </div>
     
     <!-- Primary pipeline tabs -->
     <div class="tabs tabs-primary">
@@ -627,12 +665,11 @@
     <!-- Risk Assessment Tab -->
     <div id="risk-assessment-tab" class="tab-content active">
       <p class="subtitle">
-        Assess risk for <strong>F1120 Opioid ED Visit</strong> (ages 13-64) or 
-        <strong>Polypharmacy</strong> (ages 65-114). Model selection is automatic based on age.
+        Assess risk for <strong>Opioid ED</strong> or <strong>Polypharmacy</strong>. Select the cohort with the tabs above; age selects the age band within that cohort (both cohorts use the full set of age bands).
         <br>
         <small style="color: #64748b;">Uses robust ensemble of CatBoost, XGBoost, and XGBoost RF models.</small>
         <br>
-        <small style="color: #ca8a04; font-weight: 600;">⚠️ Note: Ages 95-114 are treated as age band 85-94 due to small cohort size. Age band 0-12 is excluded.</small>
+        <small style="color: #64748b;">Age band 0-12 is excluded. Use the <strong>Opioid ED</strong> or <strong>Polypharmacy</strong> tab above to switch cohort.</small>
         <span id="model-indicator" class="model-indicator"></span>
       </p>
 
@@ -641,9 +678,7 @@
         <label for="age">Age</label>
         <input type="number" id="age" min="13" max="114" value="35" />
         <small style="color: #64748b; font-size: 0.75rem;">
-          Ages 13-64: Opioid ED Risk | Ages 65-114: Polypharmacy Risk<br>
-          <em style="color: #ca8a04;">Note: Ages 95-114 are treated as age band 85-94 due to small cohort size</em><br>
-          <em>Age band 0-12 excluded due to small cohort size</em>
+          Cohort is set by the tabs above. Age (0-114) selects the age band; risk requires age 13+.
         </small>
       </div>
 
@@ -891,8 +926,8 @@
         <div class="control-group">
           <label for="causal-cohort">Cohort:</label>
           <select id="causal-cohort">
-            <option value="opioid_ed">Opioid ED (13-64)</option>
-            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
@@ -903,6 +938,7 @@
           <button id="btnLoadCausal">Load Causal Analysis</button>
         </div>
       </div>
+      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort and age band can be changed on this tab (and on BupaR, DTW, FP-Growth) to view either Opioid ED or Polypharmacy visualizations independently of the Risk Assessment cohort tab.</small></p>
       <div id="causal-status" class="status-message">Select cohort and age band, then click 'Load Causal Analysis'</div>
       <div class="panels">
         <div class="panel">
@@ -935,8 +971,8 @@
         <div class="control-group">
           <label for="bupar-cohort">Cohort:</label>
           <select id="bupar-cohort">
-            <option value="opioid_ed">Opioid ED (13-64)</option>
-            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
@@ -995,8 +1031,8 @@
         <div class="control-group">
           <label for="dtw-cohort">Cohort:</label>
           <select id="dtw-cohort">
-            <option value="opioid_ed">Opioid ED (13-64)</option>
-            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
@@ -1049,8 +1085,8 @@
         <div class="control-group">
           <label for="fpgrowth-cohort">Cohort:</label>
           <select id="fpgrowth-cohort">
-            <option value="opioid_ed">Opioid ED (13-64)</option>
-            <option value="non_opioid_ed">Non-Opioid ED / Polypharmacy (65-114)</option>
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
@@ -1096,10 +1132,11 @@
         <h2>Overview</h2>
         <p>
           This dashboard supports <strong>F1120 Opioid ED Visit</strong> risk (ages 13–64) and <strong>Polypharmacy</strong> risk (ages 65–114).
-          Model selection is automatic based on the age you enter. Ages 95–114 are treated as age band 85–94 due to cohort size.
+          Model selection is automatic based on the age you enter. Use the Opioid ED or Polypharmacy tab to switch cohort context.
         </p>
 
         <h2>Tabs</h2>
+        <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata).</p>
         <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Patient Card | Documentation</p>
         <ul>
           <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
@@ -1232,47 +1269,30 @@
     }
   }
 
-  function determineCohort(age) {
-    if (age >= 13 && age <= 64) {
-      return "opioid_ed";
-    } else if (age >= 65 && age <= 114) {
-      return "non_opioid_ed";
-    }
-    return null;
-  }
-
+  // Age only determines age_band (same bands for both cohorts). Cohort is set by the cohort tab only.
   function determineAgeBand(age) {
-    // Opioid ED age bands (13-64)
+    if (age >= 0 && age <= 12) return "0-12";
     if (age >= 13 && age <= 24) return "13-24";
     if (age >= 25 && age <= 44) return "25-44";
     if (age >= 45 && age <= 54) return "45-54";
     if (age >= 55 && age <= 64) return "55-64";
-    // Polypharmacy age bands (65-114)
     if (age >= 65 && age <= 74) return "65-74";
     if (age >= 75 && age <= 84) return "75-84";
-    if (age >= 85 && age <= 114) return "85-94"; // Ages 95-114 mapped to 85-94
-    // Age band 0-12 excluded due to small cohort size
+    if (age >= 85 && age <= 114) return "85-114";
     return null;
   }
 
-  function updateModelIndicator(age) {
-    const cohort = determineCohort(age);
-    if (!cohort) {
+  function updateModelIndicator() {
+    if (!currentCohort) {
       modelIndicatorEl.textContent = "";
       modelIndicatorEl.className = "model-indicator";
       return;
     }
-
-    if (cohort === "opioid_ed") {
+    if (currentCohort === "opioid_ed") {
       modelIndicatorEl.textContent = "Opioid ED Risk Model";
       modelIndicatorEl.className = "model-indicator";
     } else {
-      const ageBand = determineAgeBand(age);
-      let indicatorText = "Polypharmacy Risk Model";
-      if (age >= 95 && age <= 114) {
-        indicatorText += " (using 85-94 model)";
-      }
-      modelIndicatorEl.textContent = indicatorText;
+      modelIndicatorEl.textContent = "Polypharmacy Risk Model";
       modelIndicatorEl.className = "model-indicator polypharmacy";
     }
   }
@@ -1391,19 +1411,15 @@
 
   function renderPatientCodesTab() {
     try {
-      const age = parseInt(ageEl.value, 10) || 35;
-      const isPolypharmacy = age >= 65 && age <= 114;
-      
-      // Show/hide ICD and CPT tabs for polypharmacy patients
+      // Show/hide ICD and CPT tabs by cohort (from tab), not by age
+      const isPolypharmacy = currentCohort === "non_opioid_ed";
       const icdTabBtn = document.querySelector(".tab-button[data-tab='icd-codes']");
       const cptTabBtn = document.querySelector(".tab-button[data-tab='cpt-codes']");
       
       if (icdTabBtn) icdTabBtn.style.display = isPolypharmacy ? "none" : "inline-block";
       if (cptTabBtn) cptTabBtn.style.display = isPolypharmacy ? "none" : "inline-block";
       
-      // If currently on ICD or CPT tab and patient is polypharmacy, switch to Drugs tab
-      const currentTab = document.querySelector(".tab-content.active");
-      if (isPolypharmacy && currentTab && (currentTab.id === "icd-codes-tab" || currentTab.id === "cpt-codes-tab")) {
+      if (isPolypharmacy && document.querySelector(".tab-content.active") && (document.querySelector(".tab-content.active").id === "icd-codes-tab" || document.querySelector(".tab-content.active").id === "cpt-codes-tab")) {
         switchTab('drugs');
       }
     } catch (e) {
@@ -1453,20 +1469,22 @@
       return;
     }
 
-    const cohort = determineCohort(age);
+    const cohort = currentCohort;
     const ageBand = determineAgeBand(age);
     
-    if (!cohort || !ageBand) {
-      setStatus("Invalid age range. Supported: 13-64 (Opioid ED) or 65-114 (Polypharmacy)", "error");
+    if (!cohort) {
+      setStatus("Select a cohort (Opioid ED or Polypharmacy) using the tabs above.", "error");
       return;
     }
-    
-    // Show note if age is 95-114 (mapped to 85-94)
-    if (age >= 95 && age <= 114) {
-      setStatus(`Note: Age ${age} is treated as age band 85-94 due to small cohort size.`, "info");
+    if (!ageBand) {
+      setStatus("Please enter a valid age (0-114).", "error");
+      return;
+    }
+    if (age < 13) {
+      setStatus("Risk calculation requires age 13 or older.", "error");
+      return;
     }
 
-    // Load metadata if needed
     if (!currentMetadata || currentCohort !== cohort) {
       await loadMetadata(cohort);
     }
@@ -1487,6 +1505,7 @@
         body: JSON.stringify({
           age: age,
           cohort: cohort,
+          age_band: ageBand,
           drugs: drugs,
           icds: icds,
           cpts: cpts
@@ -1501,12 +1520,7 @@
       const data = await resp.json();
       displayRiskResults(data, cohort, ageBand);
       
-      // Show note if age was mapped
-      if (age >= 95 && age <= 114) {
-        setStatus(`Risk calculated successfully. Note: Age ${age} was treated as age band 85-94.`, "success");
-      } else {
-        setStatus("Risk calculated successfully", "success");
-      }
+      setStatus("Risk calculated successfully", "success");
       
       // Log ensemble info
       if (data.ensemble_info) {
@@ -1595,11 +1609,15 @@
   // ==============================
   async function compareScenarios() {
     const age = parseInt(ageEl.value);
-    const cohort = determineCohort(age);
+    const cohort = currentCohort;
     const ageBand = determineAgeBand(age);
 
-    if (!cohort || !ageBand) {
-      setStatus("Please enter a valid age first", "error");
+    if (!cohort) {
+      setStatus("Select a cohort (Opioid ED or Polypharmacy) using the tabs above.", "error");
+      return;
+    }
+    if (!ageBand || age < 13) {
+      setStatus("Please enter a valid age (13-114) first", "error");
       return;
     }
 
@@ -1626,6 +1644,8 @@
         body: JSON.stringify({
           base: {
             age: age,
+            cohort: cohort,
+            age_band: ageBand,
             drugs: baseDrugs,
             icds: baseIcds,
             cpts: baseCpts
@@ -1702,25 +1722,38 @@
     riskDisplayEl.style.display = "none";
     document.getElementById("comparison-mode").classList.remove("active");
     setStatus("Form reset", "info");
-    updateModelIndicator(35);
+    updateModelIndicator();
   }
 
   // ==============================
   // EVENT LISTENERS
   // ==============================
+  // Cohort tab click: switch to Opioid ED or Polypharmacy (set default age, load metadata, update UI)
+  document.querySelectorAll(".cohort-tab-button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cohort = btn.getAttribute("data-cohort");
+      if (!cohort) return;
+      document.querySelectorAll(".cohort-tab-button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const defaultAge = cohort === "opioid_ed" ? 35 : 72;
+      ageEl.value = defaultAge;
+      loadMetadata(cohort).then(() => {
+        updateModelIndicator();
+        renderPatientCodesTab();
+        syncVisualizationCohortContext(cohort);
+      });
+      switchTab("risk-assessment");
+    });
+  });
+
   ageEl.addEventListener("input", () => {
     const age = parseInt(ageEl.value);
-    updateModelIndicator(age);
-    
-    const cohort = determineCohort(age);
-    if (cohort && cohort !== currentCohort) {
-      loadMetadata(cohort);
-    }
-    
+    // Cohort is from the tab only; age only updates age_band within current cohort
     currentAgeBand = determineAgeBand(age);
     if (currentMetadata && currentAgeBand) {
       updateCodeLists();
     }
+    updateModelIndicator();
   });
 
   drugSearchEl.addEventListener("input", () => filterOptions(drugsEl, drugSearchEl));
@@ -1780,15 +1813,9 @@
     } else if (tabName === "documentation") {
       loadDocMetrics();
     } else if (tabName === "drugs" || tabName === "icd-codes" || tabName === "cpt-codes") {
-      // When switching to code selection tabs, ensure metadata is loaded
-      if (!currentMetadata) {
-        console.log("Metadata not loaded, loading now...");
-        const age = parseInt(ageEl.value) || 35;
-        const cohort = determineCohort(age);
-        if (cohort) {
-          loadMetadata(cohort);
-        }
-      } else {
+      if (!currentMetadata && currentCohort) {
+        loadMetadata(currentCohort);
+      } else if (currentMetadata) {
         console.log("Metadata already loaded, updating displays");
         updateSelectionDisplays();
       }
@@ -1945,8 +1972,6 @@
       setStatus("Age must be 13 or older. Age band 0-12 is not supported.", "error");
     } else if (age > 114) {
       setStatus("Age must be 114 or younger.", "error");
-    } else if (age >= 95 && age <= 114) {
-      setStatus(`Note: Age ${age} will be treated as age band 85-94 due to small cohort size.`, "info");
     } else {
       setStatus("Enter age and select codes, then click 'Calculate Risk Score'", "info");
     }
@@ -2403,15 +2428,32 @@
     }
   }
 
-  // Populate age band dropdowns based on cohort
+  // Populate age band dropdowns based on cohort (both cohorts use full set)
   function populateAgeBands(cohort, selectElement) {
-    const ageBands = cohort === 'opioid_ed' 
-      ? ['13-24', '25-44', '45-54', '55-64']
-      : ['65-74', '75-84', '85-94'];
+    const ageBands = ['0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114'];
     selectElement.innerHTML = ageBands.map(ab => `<option value="${ab}">${ab}</option>`).join('');
   }
 
-  // Update age bands when cohort changes
+  // Set visualization tabs' cohort and age band to match main cohort context (so user can change per-tab)
+  function syncVisualizationCohortContext(cohort) {
+    const defaultAgeBand = cohort === "opioid_ed" ? "25-44" : "65-74";
+    const ageBandToSelect = currentAgeBand || defaultAgeBand;
+    ['causal', 'dtw', 'fpgrowth', 'bupar'].forEach(prefix => {
+      const cohortSelect = document.getElementById(`${prefix}-cohort`);
+      const ageBandSelect = document.getElementById(`${prefix}-age-band`);
+      if (cohortSelect && ageBandSelect) {
+        cohortSelect.value = cohort;
+        populateAgeBands(cohort, ageBandSelect);
+        if (ageBandSelect.querySelector(`option[value="${ageBandToSelect}"]`)) {
+          ageBandSelect.value = ageBandToSelect;
+        } else {
+          ageBandSelect.selectedIndex = 0;
+        }
+      }
+    });
+  }
+
+  // Update age bands when cohort changes on a visualization tab
   ['causal', 'dtw', 'fpgrowth', 'bupar'].forEach(prefix => {
     const cohortSelect = document.getElementById(`${prefix}-cohort`);
     const ageBandSelect = document.getElementById(`${prefix}-age-band`);
@@ -2426,15 +2468,13 @@
 
   // Initialize the dashboard
   console.log("Initializing PGx Risk Dashboard...");
-  updateModelIndicator(35);
   
-  // Load metadata for default cohort
-  console.log("Loading metadata for opioid_ed cohort...");
+  // Load metadata for default cohort (sets currentCohort; then update indicator and lists)
   loadMetadata("opioid_ed").then(() => {
+    updateModelIndicator();
+    renderPatientCodesTab();
+    syncVisualizationCohortContext("opioid_ed");
     console.log("Metadata loaded successfully");
-    console.log("Drug options count:", drugsEl.options.length);
-    console.log("ICD options count:", icdsEl.options.length);
-    console.log("CPT options count:", cptsEl.options.length);
   });
 </script>
 </body>

@@ -48,7 +48,7 @@ def check_s3_cohort_file_controls(s3_path, profile='mushin'):
 
 def main():
     cohort = 'opioid_ed'
-    age_bands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-94']
+    age_bands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114']
     event_years = [2016, 2017, 2018, 2019]
     
     print('=== Checking cohort.parquet files in S3 for controls ===')

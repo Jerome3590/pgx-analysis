@@ -103,8 +103,7 @@ def determine_cohort_and_age_band(age: int) -> Tuple[str, str]:
     
     Rules:
     - Ages 13-64: opioid_ed cohort (age bands: 13-24, 25-44, 45-54, 55-64)
-    - Ages 65-94: non_opioid_ed (polypharmacy) cohort (age bands: 65-74, 75-84, 85-94)
-    - Ages 95-114: mapped to 85-94 age band (small cohort size, uses 85-94 model)
+    - Ages 65-114: non_opioid_ed (polypharmacy) cohort (age bands: 65-74, 75-84, 85-114)
     
     Note: Age band 0-12 is excluded due to small cohort size.
     """
@@ -126,8 +125,8 @@ def determine_cohort_and_age_band(age: int) -> Tuple[str, str]:
             age_band = "65-74"
         elif age <= 84:
             age_band = "75-84"
-        else:  # 85 <= age <= 114 (mapped to 85-94)
-            age_band = "85-94"
+        else:  # 85 <= age <= 114
+            age_band = "85-114"
     else:  # age > 114
         raise ValueError("Age must be 114 or younger.")
     
@@ -600,7 +599,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
     For the dashboard risk calculator design:
       - Cohort/age_band combinations correspond to the modeled age bands:
           opioid_ed:    13-24, 25-44, 45-54
-          non_opioid_ed: 65-74, 75-84, 85-94
+          non_opioid_ed: 65-74, 75-84, 85-114
       - The front end populates Drugs / CPT / ICD grids from aggregated feature
         importances and sends the selected codes as the drugs/icds/cpts lists.
     """
@@ -665,11 +664,11 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         else:
             risk_band = "high"
         
-        # Check if age was mapped (95-114 mapped to 85-94) in the age-driven path
+        # Age-driven path uses 85-114 for ages 85+
         age_mapped = age >= 95 and age <= 114 and not age_band_override
         age_mapping_note = None
         if age_mapped:
-            age_mapping_note = f"Age {age} mapped to age band 85-94 due to small cohort size"
+            age_mapping_note = f"Age {age} in age band 85-114"
         
         return _response(200, {
             "risk_score": float(risk_score),
@@ -698,14 +697,19 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
-    """POST /risk/comparison"""
+    """POST /risk/comparison. Base may include cohort and age_band (from cohort tab + age); else derived from age."""
     body = json.loads(event.get("body") or "{}")
     
     base = body.get("base", {})
     scenarios = body.get("scenarios", [])
     
     base_age = int(base.get("age", 0))
-    cohort, age_band = determine_cohort_and_age_band(base_age)
+    cohort = base.get("cohort")
+    age_band = base.get("age_band")
+    if cohort and age_band:
+        cohort, age_band = str(cohort), str(age_band)
+    else:
+        cohort, age_band = determine_cohort_and_age_band(base_age)
     
     try:
         feature_schema = load_feature_schema(cohort, age_band)

@@ -187,9 +187,9 @@ AWS_REGION = "us-east-1"
 # Email configuration
 NOTIFICATION_EMAIL = "jerome@mushinsolutions.com" 
 
-# Age bands for cohort analysis
+# Age bands for cohort analysis (last band 85-114 combines former 85-94 and 95-114)
 AGE_BANDS = [
-    '0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-94', '95-114'
+    '0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114'
 ]
 
 # Event years for cohort analysis
@@ -203,10 +203,10 @@ COHORT_NAMES = [
 ]
 
 # Pipeline-supported (cohort, age_band): model_events and dashboard visuals only run for these.
-# Align with 3_model_train_shap_ffa.ipynb and 5_build_and_deploy.ipynb.
+# Each cohort has all age bands. Align with 3_model_train_shap_ffa.ipynb and 5_build_and_deploy.ipynb.
 REQUIRED_COHORTS = {
-    "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
-    "non_opioid_ed": ["65-74", "75-84", "85-94"],
+    "opioid_ed": list(AGE_BANDS),
+    "non_opioid_ed": list(AGE_BANDS),
 }
 
 # Helper function: convert age-band to filename-safe format
@@ -216,7 +216,7 @@ def age_band_uses_f1120_target(age_band: str) -> bool:
     
     Rules:
     - Age bands < 65 (13-24, 25-44, 45-54, 55-64): Use F11.20 target
-    - Age bands >= 65 (65-74, 75-84, 85-94): Use first ED visit (HCG Setting) within 21 days of a prescription drug event (see NON_OPIOID_ED_TARGET_DESCRIPTION)
+    - Age bands >= 65 (65-74, 75-84, 85-114): Use first ED visit (HCG Setting) within 21 days of a prescription drug event (see NON_OPIOID_ED_TARGET_DESCRIPTION)
     
     Args:
         age_band: Age band string (e.g., "13-24", "65-74")
@@ -261,7 +261,7 @@ def get_cohort_slug(age_band: str) -> str:
     
     Rules:
     - Age bands < 65 (13-24, 25-44, 45-54, 55-64): Use "opioid" slug
-    - Age bands >= 65 (65-74, 75-84, 85-94): Use "polypharmacy" slug
+    - Age bands >= 65 (65-74, 75-84, 85-114): Use "polypharmacy" slug
     
     Args:
         age_band: Age band string (e.g., "13-24", "65-74")
