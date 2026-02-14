@@ -197,9 +197,14 @@ if (!file.exists(model_data_path)) {
        "\nRun 3b create_bupar_input_from_cohort.py (builds from cohort + 3a FI + target), or 4_model_data/create_model_data.py for this cohort/age band first.")
 }
 
-n_threads <- min(8L, max(2L, as.integer(Sys.getenv("DUCKDB_THREADS", parallel::detectCores()))))
-con <- dbConnect(duckdb::duckdb(config = list(threads = n_threads)))
-log_msg(sprintf("DuckDB threads: %d", n_threads))
+con <- dbConnect(duckdb::duckdb())
+n_threads <- Sys.getenv("DUCKDB_THREADS", "")
+if (n_threads != "" && !is.na(suppressWarnings(as.integer(n_threads)))) {
+  tryCatch({
+    dbExecute(con, sprintf("SET threads = %s", n_threads))
+    log_msg(sprintf("DuckDB threads: %s", n_threads))
+  }, error = function(e) {})
+}
 
 # Check if hcg_line or first_ed_non_opioid_date column exists in the parquet file
 schema_query <- sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path)
