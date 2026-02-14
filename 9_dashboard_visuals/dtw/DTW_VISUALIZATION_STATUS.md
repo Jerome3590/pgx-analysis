@@ -28,8 +28,8 @@
 
 2. **create_dtw_visuals.py**  
    - **Inputs:** DTW features CSV from step 1.  
-   - **Actions:** Copies to `dtw_added_features_{cohort}_{age_band}.csv` in same feature_engineering dir; mirrors to `5_feature_engineering/feature_engineering_outputs/6_dtw/`; uploads CSV to `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/`; calls `save_step_checkpoint("9_dashboard_visuals", cohort_name, age_band, ...)`; optionally mirrors CSV to `s3://pgx-repository/6_dtw_checkpoint/`; runs **create_dtw_plots.py** (3D/1D cluster plots); uploads plots to dashboard bucket `{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/plots/`; builds chart data (routine vs no routine, high-risk trajectories) and uploads to dashboard S3.  
-   - **Outputs:** Local plots under `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/plots/` (and/or `5_feature_engineering/.../6_dtw/.../plots/`); dashboard bucket: plots + chart_data.
+   - **Actions:** Copies to `dtw_added_features_{cohort}_{age_band}.csv` in same feature_engineering dir; uploads CSV to `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/`; calls `save_step_checkpoint("9_dashboard_visuals", cohort_name, age_band, ...)`; optionally mirrors CSV to `s3://pgx-repository/6_dtw_checkpoint/`; runs **create_dtw_plots.py** (3D/1D cluster plots); uploads plots to dashboard bucket `{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/plots/`; builds chart data (routine vs no routine, high-risk trajectories) and uploads to dashboard S3.  
+   - **Outputs:** Local plots under `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/plots/`; dashboard bucket: plots + chart_data.
 
 ---
 
@@ -48,7 +48,6 @@
 |----------|----------|
 | `10_risk_dashboard/visualizations/dtw/outputs/feature_engineering/` | `dtw_features_*.csv`, `dtw_added_features_*.csv` |
 | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/plots/` | PNG/HTML from create_dtw_plots |
-| `5_feature_engineering/feature_engineering_outputs/6_dtw/{cohort}/{age_band}/` | Mirror of features + plots |
 | `s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort}/{age_band}/` | DTW features CSV |
 | `s3://pgx-repository/pipeline_checkpoints/9_dashboard_visuals/{cohort}/{age_band}/checkpoint.json` | Step 9 checkpoint (idempotency) |
 | `s3://pgx-repository/6_dtw_checkpoint/{cohort}/{age_band}/` | Optional CSV mirror |

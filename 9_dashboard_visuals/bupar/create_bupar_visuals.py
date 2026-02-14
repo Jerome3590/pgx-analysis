@@ -11,7 +11,7 @@ Runs the BupaR workflow for a given cohort and age band:
 3. Upload plot PNGs to the dashboard bucket
 
 Outputs:
-- Features: 10c_bupaR_dashboard_visual/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
+- Features: 10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
 - Mirrored features and plots: feature_engineering_outputs/5_bupar/{cohort}/{age_band}/[features,plots]
 """
 
@@ -192,11 +192,9 @@ def upload_bupar_plots_to_dashboard_s3(
 ) -> bool:
     """Upload BupaR plot PNGs to the dashboard bucket (same as FP-Growth) under bupar/{cohort}/{age_band}/plots/."""
     age_band_fname = age_band.replace("-", "_")
-    plots_dir_10c = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
-    fe_plots_dir = REPO_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "5_bupar" / cohort_name / age_band_fname / "plots"
-    plots_dir = plots_dir_10c if plots_dir_10c.exists() else fe_plots_dir
+    plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists() or not list(plots_dir.glob("*.png")):
-        logger.warning("No BupaR plots directory or no PNGs at %s or %s; skipping S3 upload", plots_dir_10c, fe_plots_dir)
+        logger.warning("No BupaR plots directory or no PNGs at %s; skipping S3 upload", plots_dir)
         return True
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")

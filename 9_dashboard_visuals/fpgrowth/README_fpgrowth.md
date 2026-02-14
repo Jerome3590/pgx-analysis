@@ -74,18 +74,18 @@ Format: CSV with `mi_person_key`; used by dashboard visuals only. We do not add 
 ## Workflow Overview
 
 1. **Itemsets and Rules**  
-   `10b_fpgrowth_dashboard_visual/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps, split by item type and split type (`combined`, `target`).
+   `10_risk_dashboard/visualizations/fpgrowth/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps, split by item type and split type (`combined`, `target`).
    
    **Note**: FP-Growth scripts automatically prefer DTW-filtered data (`model_events_no_protocols.parquet`) if available. This ensures itemsets and association rules only capture useful signals (non-protocol events), improving the quality of discovered patterns. See `4b_dtw_filter/DTW_ROLE.md` for details on DTW protocol filtering.
 
 2. **Feature Creation**  
-   `10b_fpgrowth_dashboard_visual/create_fpgrowth_features.py` converts itemsets/rules into patient-level features (NOTE: These features are NOT used in the final model due to target leakage - visualization only):
+   `10_risk_dashboard/visualizations/fpgrowth/create_fpgrowth_features.py` converts itemsets/rules into patient-level features (NOTE: These features are NOT used in the final model due to target leakage - visualization only):
    - Binary indicators for top N itemsets and rules (`*_match` columns)
    - Count of matched itemsets/rules
    - Aggregate support/confidence metrics (e.g., `*_itemsets_max_support`, `*_rules_max_confidence`)
 
 3. **Feature Aggregation**  
-   `10b_fpgrowth_dashboard_visual/add_fpgrowth_features_to_model_data.py` writes final merged features to `fpgrowth_added_features_{cohort}_{age_band}.csv` (NOTE: These features are NOT used in the final model - visualization only).
+   `10_risk_dashboard/visualizations/fpgrowth/add_fpgrowth_features_to_model_data.py` writes final merged features to `fpgrowth_added_features_{cohort}_{age_band}.csv` (NOTE: These features are NOT used in the final model - visualization only).
 
 ---
 

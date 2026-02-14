@@ -6,7 +6,7 @@ This script uses the VS Code Jupyter format (# %% cells) so you can run it
 as a normal Python script or run cells interactively in VS Code / Cursor.
 
 Steps:
-1. Setup: resolve repo root, create symlinks 10b/10c/10d at repo root if needed
+1. Setup: resolve repo root and paths (outputs under 10_risk_dashboard/visualizations/)
 2. BupaR: process mining sequences and plots (SHAP/FFA-filtered)
 3. DTW: trajectory features and plots (SHAP/FFA-filtered)
 4. Extreme-density: extract top ~5% by medical_code density, then DTW for subgroup (parallel; set EXTREME_COMBINATIONS=[] to skip)
@@ -19,8 +19,7 @@ Run from repo root (pgx-analysis). Prerequisites: 4_model_data, 7_shap_analysis,
 """
 
 # %%
-# --- Setup: paths and symlinks for dashboard visual pipelines ---
-import os
+# --- Setup: paths for dashboard visual pipelines ---
 import sys
 import subprocess
 from pathlib import Path
@@ -40,53 +39,6 @@ FPGROWTH_VISUALS_SCRIPT = VISUAL_ROOT / "fpgrowth" / "create_fpgrowth_visuals.py
 
 print(f"Repo root: {REPO_ROOT}")
 print(f"Visualizations: {VISUAL_ROOT}")
-
-# %%
-# --- Create symlinks 10b, 10c, 10d (idempotent: no-op if present) ---
-def ensure_dashboard_symlinks():
-    """Create 10b/10c/10d at repo root and under visualizations so R and Python scripts find them."""
-    # At repo root: so R (cwd=REPO_ROOT) finds 10c_bupaR_dashboard_visual/outputs, 4a_model_data, etc.
-    repo_links = [
-        ("10c_bupaR_dashboard_visual", "10_risk_dashboard/visualizations/bupar"),
-        ("10b_fpgrowth_dashboard_visual", "10_risk_dashboard/visualizations/fpgrowth"),
-        ("10d_dtw_dashboard_visual", "10_risk_dashboard/visualizations/dtw"),
-    ]
-    for name, target in repo_links:
-        path = REPO_ROOT / name
-        target_path = REPO_ROOT / target
-        if path.exists():
-            print(f"  [repo] {name} exists")
-            continue
-        if not target_path.exists():
-            print(f"  [repo] Skip {name}: target not found")
-            continue
-        try:
-            path.symlink_to(target_path.relative_to(path.parent))
-            print(f"  [repo] Created: {name} -> {target}")
-        except OSError as e:
-            if os.name == "nt":
-                print(f"  [repo] Windows: create junction: mklink /J \"{path}\" \"{target_path}\"")
-            else:
-                print(f"  [repo] {name}: {e}")
-    # Under visualizations: so create_*_visuals.py (PROJECT_ROOT=visualizations) finds 10c/10b/10d
-    for name, subdir in [("10c_bupaR_dashboard_visual", "bupar"), ("10b_fpgrowth_dashboard_visual", "fpgrowth"), ("10d_dtw_dashboard_visual", "dtw")]:
-        path = VISUAL_ROOT / name
-        if path.exists():
-            print(f"  [visual] {name} exists")
-            continue
-        target = VISUAL_ROOT / subdir
-        if not target.exists():
-            continue
-        try:
-            path.symlink_to(subdir)
-            print(f"  [visual] Created: {name} -> {subdir}")
-        except OSError as e:
-            if os.name == "nt":
-                print(f"  [visual] Windows: mklink /J \"{path}\" \"{target}\"")
-            else:
-                print(f"  [visual] {name}: {e}")
-
-ensure_dashboard_symlinks()
 
 # %%
 # --- Config: cohorts and age bands to process ---

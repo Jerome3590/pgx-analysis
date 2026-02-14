@@ -85,16 +85,6 @@ def add_fpgrowth_features(
     print(f"[INFO] Writing final FP-Growth features to {out_path} ({len(fpgrowth_df)} rows)")
     fpgrowth_df.to_csv(out_path, index=False)
 
-    # Mirror to central 5_feature_engineering/feature_engineering_outputs directory for easy access
-    try:
-        fe_root = REPO_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "4_fpgrowth" / cohort_name / age_band
-        fe_root.mkdir(parents=True, exist_ok=True)
-        mirror_path = fe_root / out_path.name
-        print(f"[INFO] Copying final FP-Growth features to {mirror_path}")
-        shutil.copy2(out_path, mirror_path)
-    except Exception as e:  # pragma: no cover - best-effort mirror
-        print(f"[WARNING] Could not mirror FP-Growth features to feature_engineering_outputs: {e}")
-    
     # Upload to S3 gold location
     s3_path = f"s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort_name}/{age_band}/fpgrowth_added_features_{cohort_name}_{age_band_fname}.csv"
     

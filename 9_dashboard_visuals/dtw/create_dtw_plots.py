@@ -105,7 +105,7 @@ def create_trajectory_cluster_plots(
     Create 3D (or 1D for polypharmacy) Plotly trajectory cluster plots and write to plots dir.
 
     If dtw_df is None, loads DTW features from
-    project_root/10d_dtw_dashboard_visual/outputs/feature_engineering/dtw_features_{cohort}_{age_band}.csv.
+    project_root/10_risk_dashboard/visualizations/dtw/outputs/feature_engineering/dtw_features_{cohort}_{age_band}.csv.
 
     Returns list of written paths (HTML, and PNG if kaleido available).
     """
@@ -119,7 +119,9 @@ def create_trajectory_cluster_plots(
     age_band_fname = age_band.replace("-", "_")
     plots_dir = (
         project_root
-        / "10d_dtw_dashboard_visual"
+        / "10_risk_dashboard"
+        / "visualizations"
+        / "dtw"
         / "outputs"
         / cohort_name
         / age_band_fname
@@ -127,7 +129,7 @@ def create_trajectory_cluster_plots(
     )
 
     if dtw_df is None:
-        fe_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
+        fe_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "outputs" / "feature_engineering"
         csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
         if not csv_path.exists():
             print(f"[WARN] DTW features not found: {csv_path}; skipping cluster plots")

@@ -12,7 +12,7 @@ def create_top_sequences_from_traces(cohort_name: str, age_band: str, train_labe
     """Create top sequences from traces files if top sequence files are missing."""
     
     age_band_fname = age_band.replace("-", "_")
-    bupar_output_dir = PROJECT_ROOT / "10c_bupaR_dashboard_visual" / "outputs" / cohort_name / age_band_fname / "features"
+    bupar_output_dir = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs" / cohort_name / age_band_fname / "features"
     
     # Check for traces files
     overall_traces_path = bupar_output_dir / f"{cohort_name}_{age_band_fname}_{train_label}_target_traces_bupar.csv"

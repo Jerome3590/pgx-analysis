@@ -12,7 +12,7 @@ Runs the complete FP-Growth workflow:
 4. Create visualizations (plots, network HTML)
 
 Usage (Windows or Linux, from project root):
-    python 10b_fpgrowth_dashboard_visual/create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 0-12
+    python 9_dashboard_visuals/fpgrowth/create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 0-12
 """
 
 import argparse
@@ -224,15 +224,16 @@ def create_visualizations(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Step 3: Create FP-Growth visualizations and mirror to feature_engineering_outputs."""
+    """Step 3: Create FP-Growth visualizations under 10_risk_dashboard/visualizations/fpgrowth/outputs."""
     with step_block("4_fpgrowth", "create_visualizations", logger=logger):
         logger.info("Creating FP-Growth visualizations for %s / %s", cohort_name, age_band)
         script_path = PROJECT_ROOT / "fpgrowth" / "create_plots.py"
         plots_output_dir = (
             REPO_ROOT
-            / "5_feature_engineering"
-            / "feature_engineering_outputs"
-            / "4_fpgrowth"
+            / "10_risk_dashboard"
+            / "visualizations"
+            / "fpgrowth"
+            / "outputs"
             / cohort_name
             / age_band
             / "plots"

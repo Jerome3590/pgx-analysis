@@ -89,7 +89,7 @@ All FP-Growth outputs are available for visualization and exploratory analysis:
 - `{cohort}_{age_band}_{item_type}_rule_confidence.png`: Rule confidence distribution
 
 **Location:**
-- Local: `10b_fpgrowth_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- Local: `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/`
 - S3: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
 
 ### Data Files (For Analysis Only)
@@ -100,7 +100,7 @@ All FP-Growth outputs are available for visualization and exploratory analysis:
 - `{item_type}_metrics.json`: Itemset metrics (support, confidence, lift)
 
 **Location:**
-- Local: `10b_fpgrowth_dashboard_visual/outputs/{cohort}/{split_type}/{age_band}/{year}/`
+- Local: `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{split_type}/{age_band}/{year}/`
 - S3: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{split_type}/{age_band}/{year}/`
 
 ---
@@ -134,7 +134,7 @@ from pathlib import Path
 
 # Load FP-Growth network visualization
 fpgrowth_network_path = Path(
-    "10b_fpgrowth_dashboard_visual/outputs/{cohort}/{age_band}/plots/"
+    "10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/"
     "{cohort}_{age_band}_{item_type}_network.html"
 )
 
@@ -186,7 +186,7 @@ merged = merged.merge(fpgrowth_df, on="mi_person_key", how="left")
 
 ## Related Documentation
 
-- `10b_fpgrowth_dashboard_visual/README.md`: FP-Growth analysis documentation
+- `10_risk_dashboard/visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `6_final_model/README_STREAMLINED_WORKFLOW.md`: Final model workflow (FP-Growth excluded)
 - `10_risk_dashboard/README.md`: Risk dashboard integration guide
 

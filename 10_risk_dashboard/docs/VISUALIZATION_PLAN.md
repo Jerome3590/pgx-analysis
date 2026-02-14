@@ -94,7 +94,7 @@ See `README_implementation_plan_tab_visualizations.md` for API details (query pa
 **Recommended visuals:**
 - **FP-Growth network visuals:** Co-occurrence and (where available) association-rule networks for drugs, ICD, and CPT.
 - **Existing panels:** “Co-occurrence Network”, “Top Itemsets”, “Itemset Support Distribution”; item type selector (Drug Names, ICD Codes, CPT Codes, Medical Codes).
-- **Data:** FP-Growth itemsets and rules from `10b_fpgrowth_dashboard_visual` outputs; network HTML and plots in `gold/fpgrowth/{cohort}/{age_band}/plots/`.
+- **Data:** FP-Growth itemsets and rules from `10_risk_dashboard/visualizations/fpgrowth` outputs; network HTML and plots in `gold/fpgrowth/{cohort}/{age_band}/plots/`.
 - **Suggested emphasis:** Use “Co-occurrence Network” as the main answer to this question; keep item type filter so users can switch between ICD, CPT, and Drugs. Optionally add a small note that these patterns are exploratory (visualization-only, not model features) per `README_visualization_only.md`.
 
 ---

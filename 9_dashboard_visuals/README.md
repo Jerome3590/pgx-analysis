@@ -11,7 +11,7 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 - **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`
 - **FP-Growth** – Itemsets, Plotly network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
 
-Symlinks at repo root: `10b_fpgrowth_dashboard_visual`, `10c_bupaR_dashboard_visual`, `10d_dtw_dashboard_visual` point into `10_risk_dashboard/visualizations/`.
+Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`.
 
 ## S3 checkpoint
 

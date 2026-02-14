@@ -114,30 +114,6 @@ def create_dtw_visuals(
     print(f"[INFO] Writing final DTW features to {out_path} ({len(dtw_df)} rows)")
     dtw_df.to_csv(out_path, index=False)
 
-    # Mirror DTW features and added-features to central 5_feature_engineering/feature_engineering_outputs directory
-    try:
-        fe_root = (
-            project_root
-            / "5_feature_engineering"
-            / "feature_engineering_outputs"
-            / "6_dtw"
-            / cohort_name
-            / age_band
-        )
-        fe_root.mkdir(parents=True, exist_ok=True)
-
-        # Copy raw DTW features
-        dtw_mirror = fe_root / dtw_features_csv.name
-        print(f"[INFO] Copying DTW features to {dtw_mirror}")
-        shutil.copy2(dtw_features_csv, dtw_mirror)
-
-        # Copy final added-features
-        added_mirror = fe_root / out_path.name
-        print(f"[INFO] Copying final DTW features to {added_mirror}")
-        shutil.copy2(out_path, added_mirror)
-    except Exception as e:  # pragma: no cover - best-effort mirror
-        print(f"[WARNING] Could not mirror DTW features to feature_engineering_outputs: {e}")
-
     # Upload to S3 gold location (legacy feature_engineering path)
     s3_path = f"s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort_name}/{age_band}/dtw_added_features_{cohort_name}_{age_band_fname}.csv"
 
@@ -227,12 +203,8 @@ def _upload_dtw_plots_to_dashboard_s3(
 ) -> None:
     """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
     age_band_fname = age_band.replace("-", "_")
-    plots_dir_10d = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
-    fe_plots_dir = (
-        project_root / "5_feature_engineering" / "feature_engineering_outputs" / "6_dtw" / cohort_name / age_band / "plots"
-    )
-    plots_dir = plots_dir_10d if plots_dir_10d.exists() else (fe_plots_dir if fe_plots_dir.exists() else None)
-    if plots_dir is None:
+    plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
+    if not plots_dir.exists():
         return
     plot_files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html"))
     if not plot_files:

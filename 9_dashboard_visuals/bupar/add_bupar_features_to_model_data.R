@@ -101,7 +101,7 @@ if (file.exists(path_3b)) {
   model_data_path <- if (file.exists(model_data_no_protocols)) model_data_no_protocols else model_data_main
 }
 
-bupar_output_dir <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs",
+bupar_output_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs",
                                cohort_name, age_band_fname, "features")
 
 # Cohort-specific BupaR output names: opioid_ed uses F1120; non_opioid_ed uses first ED (HCG) within 21d of drug (no post-target).
@@ -115,7 +115,7 @@ if (cohort_name == "opioid_ed") {
   time_to_features_csv <- file.path(bupar_output_dir, paste0(cohort_name, "_", age_band_fname, "_", train_label, "_target_time_to_hcg_features_bupar.csv"))
 }
 
-sequence_features_csv <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs",
+sequence_features_csv <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs",
                                    "feature_engineering",
                                    paste0("sequence_features_", cohort_name, "_", age_band_fname, ".csv"))
 
@@ -231,33 +231,12 @@ if (!is.null(sequence_df)) {
 # Save Output
 # -------------------------------------------------------------------
 
-out_dir <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs", "feature_engineering")
+out_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs", "feature_engineering")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 out_path <- file.path(out_dir, paste0("bupaR_added_features_", cohort_name, "_", age_band_fname, ".csv"))
 cat("[INFO] Writing merged BupaR features to", out_path, "(", nrow(merged), "rows)\n")
 write_csv(merged, out_path)
-
-# Mirror BupaR features (and optional sequence features) to central 5_feature_engineering/feature_engineering_outputs directory
-fe_root <- file.path(
-  project_root,
-  "5_feature_engineering",
-  "feature_engineering_outputs",
-  "5_bupar",
-  cohort_name,
-  age_band
-)
-dir.create(fe_root, recursive = TRUE, showWarnings = FALSE)
-
-fe_target <- file.path(fe_root, basename(out_path))
-cat("[INFO] Copying merged BupaR features to", fe_target, "\n")
-file.copy(out_path, fe_target, overwrite = TRUE)
-
-if (file.exists(sequence_features_csv)) {
-  seq_target <- file.path(fe_root, basename(sequence_features_csv))
-  cat("[INFO] Copying sequence features to", seq_target, "\n")
-  file.copy(sequence_features_csv, seq_target, overwrite = TRUE)
-}
 
 # -------------------------------------------------------------------
 # Upload to S3
