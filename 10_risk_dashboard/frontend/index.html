@@ -654,8 +654,9 @@
       <button class="tab-button" data-tab="documentation" onclick="switchTab('documentation')">Documentation</button>
     </div>
 
-    <!-- Data visualization tabs (order: Causal, BupaR, DTW, FPGrowth per plan) -->
+    <!-- Data visualization tabs: Feature Importance first (input for BupaR, FP-Growth, DTW); final model refines further -->
     <div class="tabs tabs-secondary">
+      <button class="tab-button" data-tab="feature-importance-visualizations" onclick="switchTab('feature-importance-visualizations')">Feature Importance</button>
       <button class="tab-button" data-tab="causal-analysis" onclick="switchTab('causal-analysis')">Causal Analysis</button>
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
@@ -960,6 +961,42 @@
       </div>
     </div>
 
+    <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW; final model refines further) -->
+    <div id="feature-importance-visualizations-tab" class="tab-content">
+      <p class="subtitle">
+        <strong>Aggregated feature importance by age band.</strong> Heatmaps from Step 3a (Monte Carlo CV, permutation importance) built in <code>2_feature_importance.ipynb</code>. One heatmap per cohort: rows = top features, columns = age bands (0-12 through 85-114). Initial input for BupaR, FP-Growth, and DTW; final model will refine these further.
+        <br>
+        <small style="color: #64748b;">Select cohort and click Load to view the aggregated FI heatmap. Upload heatmaps to the dashboard bucket under <code>feature_importance/{cohort}/aggregated_fi_heatmap.png</code> for them to appear here.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="fi-cohort">Cohort:</label>
+          <select id="fi-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadFeatureImportance">Load Feature Importance Heatmap</button>
+        </div>
+      </div>
+      <div id="fi-status" class="status-message">Select cohort and click 'Load Feature Importance Heatmap'</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>Aggregated Feature Importance by Age Band</h2>
+          <div id="fi-heatmap-container">
+            <img id="fi-heatmap-image" alt="Aggregated feature importance heatmap" style="max-width: 100%; height: auto;" />
+          </div>
+        </div>
+        <div class="panel full-width">
+          <h2>Combined Cohorts (both cohorts summed)</h2>
+          <div id="fi-combined-container">
+            <img id="fi-combined-image" alt="Combined cohorts feature importance heatmap" style="max-width: 100%; height: auto;" />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- BupaR Visualizations Tab (before DTW per plan order) -->
     <div id="bupar-visualizations-tab" class="tab-content">
       <p class="subtitle">
@@ -1137,7 +1174,7 @@
 
         <h2>Tabs</h2>
         <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata).</p>
-        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Patient Card | Documentation</p>
+        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | Feature Importance | PGx Patient Card | Documentation</p>
         <ul>
           <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
           <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
@@ -1147,6 +1184,7 @@
           <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations.</li>
           <li><strong>FP-Growth Patterns</strong> — Frequent itemset and network visualizations.</li>
           <li><strong>BupaR Process Mining</strong> — Process mining and activity frequency charts.</li>
+          <li><strong>Feature Importance</strong> — Aggregated feature importance heatmaps by cohort (from Step 3a / 2_feature_importance).</li>
           <li><strong>PGx Patient Card</strong> — Generate a PGx card from SNP/phenotype input.</li>
         </ul>
 
@@ -2262,6 +2300,41 @@
     } catch (err) {
       document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
       document.getElementById("bupar-status").className = "status-message error";
+    }
+  });
+
+  // Feature Importance Visualizations Tab (aggregated heatmaps from Step 3a)
+  const fiHeatmapImg = document.getElementById("fi-heatmap-image");
+  const fiCombinedImg = document.getElementById("fi-combined-image");
+  if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
+  if (fiCombinedImg) fiCombinedImg.style.display = "none";
+  document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("fi-cohort").value;
+    if (!cohort) {
+      document.getElementById("fi-status").textContent = "Please select a cohort";
+      document.getElementById("fi-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("fi-status").textContent = "Loading feature importance heatmaps...";
+    document.getElementById("fi-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.heatmap_url) {
+        fiHeatmapImg.src = data.heatmap_url;
+        fiHeatmapImg.style.display = "block";
+        fiHeatmapImg.onerror = () => { document.getElementById("fi-status").textContent = "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket."; document.getElementById("fi-status").className = "status-message error"; };
+      }
+      if (data.combined_url) {
+        fiCombinedImg.src = data.combined_url;
+        fiCombinedImg.style.display = "block";
+      }
+      document.getElementById("fi-status").textContent = "Feature importance heatmaps loaded (if images 404, upload them to the dashboard bucket).";
+      document.getElementById("fi-status").className = "status-message success";
+    } catch (err) {
+      document.getElementById("fi-status").textContent = `Error: ${err.message}`;
+      document.getElementById("fi-status").className = "status-message error";
     }
   });
 

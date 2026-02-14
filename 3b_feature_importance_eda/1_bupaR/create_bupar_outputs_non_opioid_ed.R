@@ -73,8 +73,9 @@ log_msg("=", level = "INFO")
 # - NOT F1120; applies to cohorts 5, 6, 7 with age band >= 65
 # - Target events identified by hcg_line or first_ed_non_opioid_date in model_events
 
-# Cohort slug for paths: opioid (age < 65), polypharmacy (age >= 65) — matches Step 4 / 3b layout
-cohort_slug <- if (age_band %in% c("13-24", "25-44", "45-54", "55-64")) "opioid" else "polypharmacy"
+# Path cohort for model_events: this script is for non_opioid_ed only. Python writes to
+# 3b.../outputs/cohort_name=non_opioid_ed/age_band=... and syncs to gold/cohorts_model_data/cohort_name=non_opioid_ed/...
+path_cohort <- cohort_name  # "non_opioid_ed"
 
 # OS-aware data root (EC2: /mnt/nvme, Windows: project root)
 data_root <- Sys.getenv("PGX_DATA_ROOT", "")
@@ -103,10 +104,13 @@ if (!aggregated_fi_found) {
   stop("Aggregated feature importance is required. Run Step 3a (2_feature_importance.ipynb) for cohort ", cohort_name, " age_band ", age_band, " first. Do not continue without it.")
 }
 
-# Step 3b uses only Step 1/2/3 artifacts. No 4_model_data (that is created after target leakage removal).
+# Step 3b: model_events written by create_bupar_input_from_cohort to
+# 3b.../outputs/cohort_name=non_opioid_ed/age_band=... and synced to gold/cohorts_model_data/cohort_name=non_opioid_ed/...
 model_data_candidates <- c(
-  file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet"),
-  file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", cohort_slug), paste0("age_band=", age_band), "model_events.parquet")
+  file.path(project_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", path_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", path_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", path_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", path_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
 
 model_data_path <- NULL
@@ -117,12 +121,10 @@ for (candidate in model_data_candidates) {
   }
 }
 
-# If not found, try downloading from S3
+# If not found, try downloading from S3 (gold/cohorts_model_data = where Python syncs)
 if (is.null(model_data_path)) {
   model_data_path <- model_data_candidates[1]
-  
-  # Try to download from S3 if not found locally
-  s3_path <- paste0("s3://pgxdatalake/gold/cohorts/input_model_data/cohort_name=", cohort_slug, "/age_band=", age_band, "/model_events.parquet")
+  s3_path <- paste0("s3://pgxdatalake/gold/cohorts_model_data/cohort_name=", path_cohort, "/age_band=", age_band, "/model_events.parquet")
   cat("Model data not found locally. Checking S3: ", s3_path, "\n", sep = "")
   
   # Create directory if it doesn't exist

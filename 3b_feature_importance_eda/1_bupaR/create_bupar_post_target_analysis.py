@@ -97,19 +97,20 @@ def analyze_post_target_leakage_from_events(
     
     age_band_fname = age_band_to_fname(age_band)
     
-    # Find model_events.parquet: path by cohort (opioid_ed -> opioid, non_opioid_ed -> polypharmacy)
+    # Find model_events.parquet: Python writes to 3b.../outputs/cohort_name={cohort}/ and syncs to gold/cohorts_model_data/
     data_root = os.getenv("PGX_DATA_ROOT", "")
     if not data_root and IS_LINUX:
         data_root = "/mnt/nvme"
     elif not data_root:
         data_root = str(project_root)
     data_root = Path(data_root)
-    cohort_slug = get_cohort_slug_by_cohort(cohort)  # "opioid" or "polypharmacy" by cohort
 
     model_data_paths = [
-        project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
-        data_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
-        data_root / "gold" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet",
+        project_root / "3b_feature_importance_eda" / "outputs" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        data_root / "3b_feature_importance_eda" / "outputs" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        data_root / "gold" / "cohorts_model_data" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet",
+        project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={get_cohort_slug_by_cohort(cohort)}" / f"age_band={age_band}" / "model_events.parquet",
+        data_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={get_cohort_slug_by_cohort(cohort)}" / f"age_band={age_band}" / "model_events.parquet",
     ]
     
     model_data_path = None

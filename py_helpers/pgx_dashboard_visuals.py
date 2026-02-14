@@ -245,6 +245,36 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
     r = subprocess.run(["aws", "s3", "sync", str(frontend_dir), s3_uri, "--region", "us-east-1"])
     if r.returncode == 0:
         print("Frontend synced.")
+        # Upload feature importance heatmaps (Step 3a / 2_feature_importance) for dashboard tab
+        fi_base = REPO_ROOT / "3a_feature_importance" / "outputs"
+        prefix_clean = s3_prefix.strip("/")
+        fi_prefix = f"{prefix_clean}/feature_importance"
+        uploaded_fi = 0
+        for cohort in COHORT_NAMES:
+            local_png = fi_base / cohort / "plots" / f"{cohort}_aggregated_fi_heatmap.png"
+            if local_png.exists():
+                s3_key = f"{fi_prefix}/{cohort}/aggregated_fi_heatmap.png"
+                r2 = subprocess.run(
+                    ["aws", "s3", "cp", str(local_png), f"s3://{s3_bucket}/{s3_key}", "--region", "us-east-1"],
+                    capture_output=True, text=True,
+                )
+                if r2.returncode == 0:
+                    uploaded_fi += 1
+                    print(f"  Uploaded FI heatmap: {s3_key}")
+        combined_png = fi_base / "plots" / "combined_cohorts_feature_importance_heatmap.png"
+        if combined_png.exists():
+            s3_key_combined = f"{fi_prefix}/combined_cohorts_feature_importance_heatmap.png"
+            r3 = subprocess.run(
+                ["aws", "s3", "cp", str(combined_png), f"s3://{s3_bucket}/{s3_key_combined}", "--region", "us-east-1"],
+                capture_output=True, text=True,
+            )
+            if r3.returncode == 0:
+                uploaded_fi += 1
+                print(f"  Uploaded FI heatmap: {s3_key_combined}")
+        if uploaded_fi:
+            print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
+        elif fi_base.exists():
+            print("  No feature importance heatmaps found under 3a_feature_importance/outputs (run 2_feature_importance to generate).")
     else:
         print("S3 sync failed.")
 elif not SKIP_DEPLOY_FRONTEND:
