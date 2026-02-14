@@ -17,7 +17,8 @@ from .common import (
     disable_query_profiling,
     force_checkpoint,
     execute_sql_with_dev_validation,
-    resolve_gold_data_path,
+    check_gold_data_available,
+    get_gold_data_paths,
 )
 
 
@@ -42,12 +43,33 @@ def run_phase1_data_preparation(context):
         # Enable query profiling for this phase (partition-safe filename)
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profile_p1_{age_band}_{event_year}.json")
         
-        # Resolve paths to gold medical/pharmacy data (prefers local /mnt/nvme, falls back to S3)
-        medical_path = resolve_gold_data_path("medical", age_band, event_year)
-        pharmacy_path = resolve_gold_data_path("pharmacy", age_band, event_year)
-        logger.info(f"→ [PHASE 1] Medical data path: {medical_path}")
-        logger.info(f"→ [PHASE 1] Pharmacy data path: {pharmacy_path}")
-        
+        # Resolve paths to gold medical/pharmacy (for 85-114 may be two partitions: 85-94 + 95-114)
+        if not check_gold_data_available("medical", age_band, event_year):
+            raise FileNotFoundError(
+                f"Gold medical data not found for age_band={age_band}, event_year={event_year}. "
+                f"Ensure a single 85-114 partition or both 85-94 and 95-114 exist on S3."
+            )
+        if not check_gold_data_available("pharmacy", age_band, event_year):
+            raise FileNotFoundError(
+                f"Gold pharmacy data not found for age_band={age_band}, event_year={event_year}. "
+                f"Ensure a single 85-114 partition or both 85-94 and 95-114 exist on S3."
+            )
+        medical_paths = get_gold_data_paths("medical", age_band, event_year)
+        pharmacy_paths = get_gold_data_paths("pharmacy", age_band, event_year)
+        if not medical_paths or not pharmacy_paths:
+            raise FileNotFoundError(f"Gold paths resolved empty for age_band={age_band}, event_year={event_year}")
+        logger.info(f"→ [PHASE 1] Medical data path(s): {medical_paths}")
+        logger.info(f"→ [PHASE 1] Pharmacy data path(s): {pharmacy_paths}")
+
+        def _parquet_from(paths):
+            """SQL FROM clause: single path or UNION ALL of two paths. Escape single quotes for SQL."""
+            def esc(s):
+                return s.replace("'", "''")
+            if len(paths) == 1:
+                return f"read_parquet('{esc(paths[0])}')"
+            return f"(SELECT * FROM read_parquet('{esc(paths[0])}') UNION ALL SELECT * FROM read_parquet('{esc(paths[1])}'))"
+
+        medical_from = _parquet_from(medical_paths)
         # Use GOLD final tables to create cohort inputs (preferred source)
         # Map gold medical columns to expected normalized names
         medical_sql = f"""
@@ -92,7 +114,7 @@ def run_phase1_data_preparation(context):
             hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('{medical_path}')
+        FROM {medical_from}
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND event_date IS NOT NULL;
@@ -117,6 +139,7 @@ def run_phase1_data_preparation(context):
         logger.info("→ [PHASE 1] Medical data filtered and cleaned")
         
         # Pharmacy: use GOLD final table; demographics may be absent -> set to NULLs where not present
+        pharmacy_from = _parquet_from(pharmacy_paths)
         pharmacy_sql = f"""
         CREATE OR REPLACE VIEW pharmacy_base AS
         SELECT 
@@ -132,7 +155,7 @@ def run_phase1_data_preparation(context):
             -- Build event_date here from incurred_date for cohort processing
             TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('{pharmacy_path}')
+        FROM {pharmacy_from}
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND incurred_date IS NOT NULL

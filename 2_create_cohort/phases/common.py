@@ -156,20 +156,34 @@ def execute_sql_with_dev_validation(conn, logger, sql):
         raise
 
 
+def _parquet_from_sql(paths):
+    """Build SQL FROM clause: single path or UNION ALL of two (for 85-114 = 85-94 + 95-114)."""
+    def esc(s):
+        return s.replace("'", "''")
+    if len(paths) == 1:
+        return f"read_parquet('{esc(paths[0])}')"
+    return f"(SELECT * FROM read_parquet('{esc(paths[0])}') UNION ALL SELECT * FROM read_parquet('{esc(paths[1])}'))"
+
+
 def ensure_gold_views(conn, logger, age_band: str, event_year: int):
     """Ensure gold-backed views `medical` and `pharmacy` exist for this session.
 
     This allows later phases to run even if Phase 1 was skipped due to checkpoints.
+    For age_band=85-114, uses 85-94 and 95-114 partitions as one when single 85-114 is not present.
     """
-    # Resolve paths (prefer local /mnt/nvme over S3)
-    medical_path = resolve_gold_data_path("medical", age_band, event_year)
-    pharmacy_path = resolve_gold_data_path("pharmacy", age_band, event_year)
-    
-    if not medical_path.startswith("s3://"):
-        logger.info(f"[ensure_gold_views] Using local medical path: {medical_path}")
-    if not pharmacy_path.startswith("s3://"):
-        logger.info(f"[ensure_gold_views] Using local pharmacy path: {pharmacy_path}")
-    
+    # get_gold_data_paths is defined later in this module; resolve paths (1 or 2 for 85-114)
+    medical_paths = get_gold_data_paths("medical", age_band, event_year)
+    pharmacy_paths = get_gold_data_paths("pharmacy", age_band, event_year)
+    if not medical_paths or not pharmacy_paths:
+        raise FileNotFoundError(f"Gold data not found for age_band={age_band}, event_year={event_year}")
+    if not medical_paths[0].startswith("s3://"):
+        logger.info(f"[ensure_gold_views] Using local medical path(s): {medical_paths}")
+    if not pharmacy_paths[0].startswith("s3://"):
+        logger.info(f"[ensure_gold_views] Using local pharmacy path(s): {pharmacy_paths}")
+
+    medical_from = _parquet_from_sql(medical_paths)
+    pharmacy_from = _parquet_from_sql(pharmacy_paths)
+
     # Ensure `medical` view
     try:
         conn.sql("SELECT 1 FROM medical LIMIT 1").fetchone()
@@ -215,7 +229,7 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
             hcg_detail,
             event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('{medical_path}')
+        FROM {medical_from}
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND event_date IS NOT NULL;
@@ -252,7 +266,7 @@ def ensure_gold_views(conn, logger, age_band: str, event_year: int):
             NULL::VARCHAR AS therapeutic_class_1,
             TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d') AS event_date,
             CAST(event_year AS INTEGER) AS event_year
-        FROM read_parquet('{pharmacy_path}')
+        FROM {pharmacy_from}
         WHERE mi_person_key IS NOT NULL
           AND CAST(mi_person_key AS VARCHAR) <> ''
           AND incurred_date IS NOT NULL
@@ -415,6 +429,70 @@ def resolve_gold_data_path(dataset: str, age_band: str, event_year: int) -> str:
     except Exception:
         pass
     return f"s3://{S3_BUCKET}/gold/{dataset}/age_band={age_band}/event_year={event_year}/{dataset}_data.parquet"
+
+
+def _check_gold_data_available_for_band(dataset: str, band: str, event_year: int) -> bool:
+    """Return True if gold parquet exists for this single age_band (e.g. 85-94 or 95-114)."""
+    data_root = get_data_root()
+    filtered_subdir = f"{dataset}_filtered"
+    if is_linux():
+        p = data_root / "gold" / filtered_subdir / f"age_band={band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if p.exists() and p.stat().st_size > 0:
+            return True
+    p = Path(project_root) / "data" / "gold" / filtered_subdir / f"age_band={band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    if p.exists() and p.stat().st_size > 0:
+        return True
+    if is_linux():
+        p = data_root / "gold" / dataset / f"age_band={band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+        if p.exists() and p.stat().st_size > 0:
+            return True
+    p = Path(project_root) / "data" / "gold" / dataset / f"age_band={band}" / f"event_year={event_year}" / f"{dataset}_data.parquet"
+    if p.exists() and p.stat().st_size > 0:
+        return True
+    try:
+        from py_helpers.common_imports import s3_client, S3_BUCKET
+        for key in [
+            f"gold/{filtered_subdir}/age_band={band}/event_year={event_year}/{dataset}_data.parquet",
+            f"gold/{dataset}/age_band={band}/event_year={event_year}/{dataset}_data.parquet",
+        ]:
+            s3_client.head_object(Bucket=S3_BUCKET, Key=key)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def check_gold_data_available(dataset: str, age_band: str, event_year: int) -> bool:
+    """
+    Return True if the gold parquet file(s) exist. For age_band=85-114, returns True if either
+    a single 85-114 partition exists or both 85-94 and 95-114 partitions exist (they are treated as one).
+    """
+    if age_band != "85-114":
+        return _check_gold_data_available_for_band(dataset, age_band, event_year)
+    # 85-114: accept single partition or both 85-94 and 95-114
+    if _check_gold_data_available_for_band(dataset, "85-114", event_year):
+        return True
+    if _check_gold_data_available_for_band(dataset, "85-94", event_year) and _check_gold_data_available_for_band(dataset, "95-114", event_year):
+        return True
+    return False
+
+
+def get_gold_data_paths(dataset: str, age_band: str, event_year: int):
+    """
+    Return a list of gold parquet paths (1 or 2) for the given dataset/age_band/year.
+    For age_band=85-114, if no single 85-114 partition exists, returns [path_85_94, path_95_114]
+    so the caller can UNION ALL the two partitions as one.
+    """
+    if age_band != "85-114":
+        return [resolve_gold_data_path(dataset, age_band, event_year)]
+    if _check_gold_data_available_for_band(dataset, "85-114", event_year):
+        return [resolve_gold_data_path(dataset, "85-114", event_year)]
+    if _check_gold_data_available_for_band(dataset, "85-94", event_year) and _check_gold_data_available_for_band(dataset, "95-114", event_year):
+        return [
+            resolve_gold_data_path(dataset, "85-94", event_year),
+            resolve_gold_data_path(dataset, "95-114", event_year),
+        ]
+    return []
 
 
 def get_dynamic_targeting_config():

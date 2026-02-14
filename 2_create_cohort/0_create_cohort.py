@@ -211,10 +211,16 @@ def execute_pipeline(context):
     
     try:
         # Pre-phase: Sync gold data from S3 to local /mnt/nvme if needed
+        # For 85-114, sync both 85-94 and 95-114 (treated as one in Phase 1)
         from phases.common import sync_gold_data_to_local
         logger.info("→ [PIPELINE] Pre-phase: Ensuring gold medical/pharmacy data is available locally...")
-        sync_gold_data_to_local("medical", age_band, event_year, logger)
-        sync_gold_data_to_local("pharmacy", age_band, event_year, logger)
+        if age_band == "85-114":
+            for band in ("85-94", "95-114"):
+                sync_gold_data_to_local("medical", band, event_year, logger)
+                sync_gold_data_to_local("pharmacy", band, event_year, logger)
+        else:
+            sync_gold_data_to_local("medical", age_band, event_year, logger)
+            sync_gold_data_to_local("pharmacy", age_band, event_year, logger)
         
         # Phase 1: Data Preparation (APCD Integration)
         logger.info("→ [PIPELINE] Executing Phase 1: Data Preparation (APCD Integration)")
