@@ -1687,11 +1687,9 @@
     }
   }
 
-  // Populate age band dropdowns based on cohort
+  // Populate age band dropdowns: both cohorts use full set (0-12 through 85-114)
   function populateAgeBands(cohort, selectElement) {
-    const ageBands = cohort === 'opioid_ed' 
-      ? ['13-24', '25-44', '45-54', '55-64']
-      : ['65-74', '75-84', '85-114'];
+    const ageBands = ['0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114'];
     selectElement.innerHTML = ageBands.map(ab => `<option value="${ab}">${ab}</option>`).join('');
   }
 

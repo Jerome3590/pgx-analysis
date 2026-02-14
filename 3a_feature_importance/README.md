@@ -59,7 +59,7 @@ This project calculates scaled feature importance for predicting opioid dependen
 ### Flow and downstream use
 
 - **Historical baseline FI** lives in **pgx-repository** (read-only); used to filter cohort features after cohorts are built (1b event filter).
-- **Second pass** (default): load historical FI from pgx-repository → minus admin/Z codes → build feature matrix from cohort → run MC CV.
+- **Second pass** (default): load historical FI from pgx-repository → minus admin/Z codes → build feature matrix from cohort → run MC CV. **If baseline is missing** in pgx-repository for that cohort/age_band, the script runs a **baseline pass first** (permutation feature importance on cohort-derived features), then uses that result for the second pass. Use `--no-run-baseline-if-missing` to skip this and use n_events only.
 - **Second-pass feature importances are always saved to pgxdatalake** (`gold/feature_importance/{cohort}/{age_band}/`). We never write second-pass results to pgx-repository so the historical baseline is never overwritten.
 - **Final model train features:** Step 4 (model data) and Step 6 (final model) use these second-pass feature importances from pgxdatalake for train features.
 

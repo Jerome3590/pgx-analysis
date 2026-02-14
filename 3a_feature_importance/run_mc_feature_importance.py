@@ -564,6 +564,7 @@ def run_mc_feature_importance(
     random_seed: int = 42,
     force: bool = False,
     baseline: bool = False,
+    run_baseline_if_missing: bool = True,
 ) -> pd.DataFrame:
     """Run Monte-Carlo CV for multiple models and aggregate feature importances.
 
@@ -572,6 +573,8 @@ def run_mc_feature_importance(
 
     Default (baseline=False, second pass): load historical aggregated FI from pgx-repository,
     minus admin/Z codes; build feature matrix from cohort with those features; write to outputs/{cohort}/ and pgxdatalake.
+    If historical baseline is missing and run_baseline_if_missing=True (default), runs a baseline pass first
+    (permutation feature importance on cohort-derived features), then uses that result for the second pass.
 
     When baseline=True: write to outputs/{cohort}/_baseline/. Use only when generating
     a local baseline; normal pipeline uses historical baseline in pgx-repository.
@@ -633,25 +636,46 @@ def run_mc_feature_importance(
     df: Optional[pd.DataFrame] = None
     if not baseline:
         hist_df = _load_historical_aggregated_fi_from_pgx_repo(cohort, age_band_fname)
+        # If baseline missing and run_baseline_if_missing: run permutation FI baseline first, then use it
+        if (hist_df is None or hist_df.empty) and run_baseline_if_missing:
+            print(
+                "[INFO] Baseline missing in pgx-repository; running baseline (permutation feature importance) first."
+            )
+            run_mc_feature_importance(
+                cohort=cohort,
+                age_band=age_band,
+                n_runs=n_runs,
+                test_size=test_size,
+                random_seed=random_seed,
+                force=force,
+                baseline=True,
+                run_baseline_if_missing=False,
+            )
+            baseline_path = out_dir / "_baseline" / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+            if baseline_path.exists():
+                hist_df = pd.read_csv(baseline_path)
+                print(f"[INFO] Loaded baseline from {baseline_path} for second pass")
+            else:
+                hist_df = None
         if hist_df is not None and not hist_df.empty:
             feature_list = _get_feature_list_minus_admin_z(hist_df)
             if feature_list:
                 print(
-                    f"[INFO] Second pass: using historical aggregated FI from pgx-repository "
-                    f"(minus admin/Z): {len(feature_list)} features"
+                    f"[INFO] Second pass: using aggregated FI (minus admin/Z): {len(feature_list)} features"
                 )
                 df = _build_patient_features_from_cohort_and_fi_list(cohort, age_band, feature_list)
             else:
                 print(
-                    "[WARN] Historical FI has no features after removing admin/Z codes; "
+                    "[WARN] Baseline FI has no features after removing admin/Z codes; "
                     "falling back to n_events only."
                 )
         else:
-            print(
-                "[WARN] Historical aggregated FI not found in pgx-repository; "
-                "second pass will use n_events only. Expected: s3://pgx-repository/"
-                f"{PGX_REPO_FI_PREFIX}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-            )
+            if not run_baseline_if_missing or not (out_dir / "_baseline" / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv").exists():
+                print(
+                    "[WARN] Historical aggregated FI not found in pgx-repository; "
+                    "second pass will use n_events only. Expected: s3://pgx-repository/"
+                    f"{PGX_REPO_FI_PREFIX}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+                )
     if df is None or df.empty:
         df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
     if df.empty:
@@ -1134,6 +1158,13 @@ def main() -> None:
         "Default is no baseline: write to outputs/{cohort}/. "
         "Use --baseline only when generating baseline FI for the first time; baseline is usually already on S3.",
     )
+    parser.add_argument(
+        "--no-run-baseline-if-missing",
+        action="store_false",
+        dest="run_baseline_if_missing",
+        default=True,
+        help="Do not run baseline (permutation FI) when missing in pgx-repository; second pass will use n_events only. Default is to run baseline when missing.",
+    )
     args = parser.parse_args()
 
     run_mc_feature_importance(
@@ -1142,6 +1173,7 @@ def main() -> None:
         n_runs=args.n_runs,
         force=args.force,
         baseline=args.baseline,
+        run_baseline_if_missing=args.run_baseline_if_missing,
     )
 
 
