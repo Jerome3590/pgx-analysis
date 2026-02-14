@@ -35,7 +35,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname, get_cohort_slug
+from py_helpers.constants import age_band_to_fname
 from py_helpers.rscript_utils import find_rscript, print_rscript_version
 
 
@@ -88,8 +88,7 @@ def run_bupar_analysis(
         return False
 
     # Build BupaR input from cohort + 3a aggregated FI + target if not already present (idempotent)
-    cohort_slug = get_cohort_slug(age_band)
-    target_parquet = project_root / "3b_feature_importance_eda" / "outputs" / "cohorts" / "input_model_data" / f"cohort_name={cohort_slug}" / f"age_band={age_band}" / "model_events.parquet"
+    target_parquet = project_root / "3b_feature_importance_eda" / "outputs" / f"cohort_name={cohort}" / f"age_band={age_band}" / "model_events.parquet"
     build_script = project_root / "3b_feature_importance_eda" / "create_bupar_input_from_cohort.py"
     if target_parquet.exists():
         print(f"[INFO] BupaR input already exists at {target_parquet}; skipping build.")

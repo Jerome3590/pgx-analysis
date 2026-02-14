@@ -30,7 +30,8 @@ ensure_control_cohort_with_ratio <- function(
   train_years,
   project_root,
   expected_ratio = 5.0,
-  tolerance = 0.2
+  tolerance = 0.2,
+  ...
 ) {
   # Initialize return values
   pgx_df_control <- data.frame()

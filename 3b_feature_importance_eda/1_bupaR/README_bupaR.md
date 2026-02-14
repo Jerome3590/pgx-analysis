@@ -96,7 +96,7 @@ The main input is an event log table (long format) from `model_events.parquet`:
 | 12345         | ICD:F1120           | 2020-01-15  | ...                   |
 | 12345         | CPT:80307           | 2020-01-20  | ...                   |
 
-- **Source (Step 3b):** Only Step 1/2/3 artifacts. `3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet`. No 4_model_data (that is created after target leakage removal).
+- **Source (Step 3b):** Built by `create_bupar_input_from_cohort.py` from cohort + 3a FI. Path: `3b_feature_importance_eda/outputs/cohort_name={cohort}/age_band={age_band}/model_events.parquet` (synced to S3 `gold/cohorts_model_data/cohort_name={cohort}/age_band={age_band}/`). No 4_model_data (that is created after target leakage removal).
 - **Format:** Parquet file with event-level data including ICD codes, CPT codes, and drugs
 - **How to use:** This table is the direct input to BupaR for process mining and sequence analysis.
 - **Activity Format:** Activities are prefixed with type (e.g., `DRUG:`, `ICD:`, `CPT:`) for easy categorization
@@ -136,3 +136,29 @@ eventlog <- eventlog(
 - The R scripts (`create_bupar_outputs_*.R`) read this parquet file directly using DuckDB.
 - Events are transformed into BupaR event log format with activities prefixed by type (DRUG:, ICD:, CPT:).
 - No preprocessing filtering is applied - all events from `model_events.parquet` are used.
+
+---
+
+## 5. DuckDB usage and optimization
+
+DuckDB is used throughout the BupaR workflow for speed and to keep heavy work out of R:
+
+| Step | Where | How DuckDB helps |
+|------|--------|-------------------|
+| **Input build** | `create_bupar_input_from_cohort.py` → `4_model_data/create_model_data.py` | All event filtering, case/control union, and parquet write are done in DuckDB (no pandas for event-level data). |
+| **R: load target** | `create_bupar_outputs_*.R` | Single read: one DuckDB query does `WHERE target=1` and UNPIVOT (wide→long) so the parquet file is scanned once instead of twice. |
+| **R: control cohort** | `control_cohort_utils.R` | Counts, ratio checks, and control sampling use DuckDB over parquet. |
+| **R: connection** | Both R scripts | `dbConnect(duckdb::duckdb(), config = list(threads = n))` so Parquet scan and UNPIVOT use multiple cores. Set `DUCKDB_THREADS` (e.g. `4` or `8`) to cap threads. |
+| **Post-target analysis** | `create_bupar_post_target_analysis.py` | Pre/post target analytics and feature tables are computed in DuckDB via SQL over `model_events.parquet`. |
+
+**Pre/post target split in DuckDB:**
+- **opioid_ed:** One DuckDB query returns long-form events plus `first_target_date` (first F1120 per patient via a CTE). R filters `event_date < first_target_date` for pre-F1120 and `event_date > first_target_date` for post-F1120, so the split no longer uses event indices in R.
+- **non_opioid_ed:** A small DuckDB query returns `(mi_person_key, first_target_date)` using `first_ed_non_opioid_date` or `hcg_line`; that is joined to the long table and used for the same pre/post split.
+
+**Control cohort path alignment:**
+- Target and control `model_events` paths use the same layout: `outputs/cohort_name={cohort}/age_band={age_band}/model_events.parquet` and S3 `gold/cohorts_model_data/cohort_name={cohort}/...`. Legacy `cohorts/input_model_data/...` remains as a fallback.
+
+**Tips:**
+- **Faster runs:** Set `DUCKDB_THREADS=8` (or your core count) in the environment before running the R scripts.
+- **Less memory in R:** The pipeline already avoids loading the full wide table into R; only the long-form event table and BupaR objects are in R memory.
+- **Upstream:** Building `model_events.parquet` (Step 3b input) is already DuckDB-only in `4_model_data`; no extra optimization needed there for BupaR.

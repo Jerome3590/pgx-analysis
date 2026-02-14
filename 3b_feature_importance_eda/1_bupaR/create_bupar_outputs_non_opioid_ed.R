@@ -197,7 +197,9 @@ if (!file.exists(model_data_path)) {
        "\nRun 3b create_bupar_input_from_cohort.py (builds from cohort + 3a FI + target), or 4_model_data/create_model_data.py for this cohort/age band first.")
 }
 
-con <- dbConnect(duckdb::duckdb())
+n_threads <- min(8L, max(2L, as.integer(Sys.getenv("DUCKDB_THREADS", parallel::detectCores()))))
+con <- dbConnect(duckdb::duckdb(config = list(threads = n_threads)))
+log_msg(sprintf("DuckDB threads: %d", n_threads))
 
 # Check if hcg_line or first_ed_non_opioid_date column exists in the parquet file
 schema_query <- sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path)
@@ -205,49 +207,23 @@ schema_info <- dbGetQuery(con, schema_query)
 has_hcg_line <- "hcg_line" %in% schema_info$column_name
 has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
 
-log_msg(sprintf("Loading target cohort data from: %s", model_data_path))
-log_msg(sprintf("Filtering for target=1 and years: %s", paste(train_years, collapse=",")))
-# Optimized query: Filter target=1 in DuckDB and only select needed columns
-# Include hcg_line and first_ed_non_opioid_date if they exist (needed for target identification)
-# This avoids loading unnecessary data into R memory
+log_msg(sprintf("Loading target cohort from: %s (target=1, years: %s)", model_data_path, paste(train_years, collapse = ",")))
+
+# Wide target load (needed for pgx_df_all bind with control for Sankey)
 base_columns <- c(
-  "mi_person_key",
-  "event_date",
-  "drug_name",
-  "primary_icd_diagnosis_code",
-  "two_icd_diagnosis_code",
-  "three_icd_diagnosis_code",
-  "four_icd_diagnosis_code",
-  "five_icd_diagnosis_code",
-  "six_icd_diagnosis_code",
-  "seven_icd_diagnosis_code",
-  "eight_icd_diagnosis_code",
-  "nine_icd_diagnosis_code",
-  "ten_icd_diagnosis_code",
-  "procedure_code"
+  "mi_person_key", "event_date", "drug_name",
+  "primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code", "four_icd_diagnosis_code",
+  "five_icd_diagnosis_code", "six_icd_diagnosis_code", "seven_icd_diagnosis_code", "eight_icd_diagnosis_code",
+  "nine_icd_diagnosis_code", "ten_icd_diagnosis_code", "procedure_code"
 )
-
-# Add hcg_line and first_ed_non_opioid_date if they exist in the schema
-if (has_hcg_line) {
-  base_columns <- c(base_columns, "hcg_line")
-}
-if (has_first_ed_date) {
-  base_columns <- c(base_columns, "first_ed_non_opioid_date")
-}
-
-query_target <- sprintf(
-  "SELECT %s
-  FROM read_parquet('%s') 
-  WHERE event_year IN (%s) AND target = 1",
-  paste(base_columns, collapse = ", "),
-  model_data_path,
-  paste(train_years, collapse = ",")
+if (has_hcg_line) base_columns <- c(base_columns, "hcg_line")
+if (has_first_ed_date) base_columns <- c(base_columns, "first_ed_non_opioid_date")
+query_target_wide <- sprintf(
+  "SELECT %s FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1",
+  paste(base_columns, collapse = ", "), model_data_path, paste(train_years, collapse = ",")
 )
-
-log_msg("Executing DuckDB query for target cohort...")
-pgx_df_target1 <- dbGetQuery(con, query_target)
-log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %s", 
-                nrow(pgx_df_target1), cohort_name, age_band, paste(train_years, collapse=",")))
+pgx_df_target1 <- dbGetQuery(con, query_target_wide)
+log_msg(sprintf("  Loaded %d target=1 wide rows (for Sankey combined)", nrow(pgx_df_target1)))
 
 # -------------------------------------------------------------------
 # Using all codes from model_events.parquet
@@ -258,11 +234,8 @@ log_msg(sprintf("✓ Loaded %d target=1 events for %s age_band=%s across years %
 # Build DRUG/ICD/CPT activities and target_eventlog
 # -------------------------------------------------------------------
 
-log_msg("Transforming target data from wide to long format using DuckDB UNPIVOT...")
-log_msg("  Note: For polypharmacy cohort, only analyzing drug_name events (DRUG: activities)")
-# Optimized: Use DuckDB UNPIVOT to do wide-to-long transformation efficiently
-# For polypharmacy cohort, only analyze drug_name events (DRUG: activities)
-# This processes the data in DuckDB's columnar format before loading into R
+# Single DuckDB read: UNPIVOT wide→long in DuckDB (one Parquet scan; polypharmacy = drug_name only)
+log_msg("Transforming target to long format using DuckDB UNPIVOT (single read; DRUG only)...")
 query_long <- sprintf(
   "SELECT 
     mi_person_key,
@@ -313,16 +286,35 @@ query_long <- sprintf(
   paste(train_years, collapse = ",")
 )
 
-log_msg("Executing UNPIVOT query...")
 pgx_df_target1_long <- dbGetQuery(con, query_long) %>%
-  filter(!is.na(activity)) %>%  # Filter out NULL activities (non-drug events)
-  mutate(
-    timestamp = as.POSIXct(event_date)
-  )
+  filter(!is.na(activity)) %>%
+  mutate(timestamp = as.POSIXct(event_date))
 
-log_msg(sprintf("✓ Transformed to long format: %d drug events", nrow(pgx_df_target1_long)))
+# First target date (HCG/first ED) per patient in DuckDB for pre/post split
+if (has_first_ed_date) {
+  query_first_target <- sprintf(
+    "SELECT mi_person_key, min(first_ed_non_opioid_date) AS first_target_date FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1 AND first_ed_non_opioid_date IS NOT NULL GROUP BY 1",
+    model_data_path, paste(train_years, collapse = ",")
+  )
+} else if (has_hcg_line) {
+  query_first_target <- sprintf(
+    "SELECT mi_person_key, min(event_date) AS first_target_date FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1 AND hcg_line IN ('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits') GROUP BY 1",
+    model_data_path, paste(train_years, collapse = ",")
+  )
+} else {
+  query_first_target <- sprintf(
+    "SELECT mi_person_key, min(event_date) AS first_target_date FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1 GROUP BY 1",
+    model_data_path, paste(train_years, collapse = ",")
+  )
+}
+first_target_df <- dbGetQuery(con, query_first_target)
+pgx_df_target1_long <- pgx_df_target1_long %>% left_join(first_target_df, by = "mi_person_key")
+
+log_msg(sprintf("✓ Loaded %d target=1 drug events (long + first_target_date) for %s age_band=%s",
+                nrow(pgx_df_target1_long), cohort_name, age_band))
 
 target_eventlog <- pgx_df_target1_long %>%
+  select(-first_target_date) %>%
   transmute(
     case_id              = mi_person_key,
     activity             = activity,
@@ -355,9 +347,11 @@ if (file.exists(utils_path)) {
   stop("Control cohort utility functions not found. Expected at: ", utils_path)
 }
 
-# Control: use existing if already built (NVMe gold only; no 4_model_data—we are not at that step). Else 3b outputs. Only create if not found.
+# Control: same path layout as target (outputs/cohort_name=... and gold/cohorts_model_data); fallback to legacy cohorts/input_model_data
 control_model_data_candidates <- c(
-  file.path(data_root, "gold", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(project_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
+  file.path(data_root, "gold", "cohorts_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet"),
   file.path(data_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 )
@@ -370,9 +364,9 @@ for (candidate in control_model_data_candidates) {
   }
 }
 
-# If not found, use 3b output path as target for creation
+# If not found, use 3b output path for creation (cohort_name= layout to match Python)
 if (is.null(control_model_data_path)) {
-  control_model_data_path <- file.path(project_root, "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
+  control_model_data_path <- file.path(project_root, "3b_feature_importance_eda", "outputs", paste0("cohort_name=", control_cohort), paste0("age_band=", age_band), "model_events.parquet")
 }
 
 # Resolve 3a aggregated FI path for control filtering (required; already verified at top of script)
@@ -514,58 +508,20 @@ log_msg("Starting Pre-HCG (before first ED visit within 21d of drug event) analy
 log_msg("  Target: First ED visit (HCG Setting) within 21 days of a prescription drug event", level = "INFO")
 log_msg("=", level = "INFO")
 
-# HCG ED visits identified by hcg_line (P51/O11/P33), consistent with 2_create_cohort
+# Pre/post split using first_target_date from DuckDB (event_date < first_target_date = pre; > = post)
 ed_hcg_lines <- c('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
+target_date_map <- first_target_df %>%
+  rename(case_id = mi_person_key, target_date = first_target_date)
 
-if (has_hcg_line) {
-  target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(hcg_line) & hcg_line %in% ed_hcg_lines) %>%
-    group_by(mi_person_key) %>%
-    summarise(
-      target_date = min(event_date, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    rename(case_id = mi_person_key)
-} else if (has_first_ed_date) {
-  target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(first_ed_non_opioid_date)) %>%
-    group_by(mi_person_key) %>%
-    summarise(
-      target_date = min(first_ed_non_opioid_date, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    rename(case_id = mi_person_key)
-} else {
-  # Fallback: use first event date for each patient (shouldn't happen, but handle gracefully)
-  log_msg("⚠ WARNING: Neither hcg_line nor first_ed_non_opioid_date found in model_events.parquet", level = "WARN")
-  log_msg("  Using first event date as target date (this may not be correct)", level = "WARN")
-  target_date_map <- pgx_df_target1 %>%
-    group_by(mi_person_key) %>%
-    summarise(
-      target_date = min(event_date, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    rename(case_id = mi_person_key)
-}
-
-ev_all <- target_eventlog %>%
-  left_join(target_date_map, by = "case_id") %>%
-  arrange(case_id, timestamp) %>%
-  group_by(case_id) %>%
+log_msg("Splitting pre/post HCG using first_target_date from DuckDB...")
+events_pre_target <- pgx_df_target1_long %>%
+  filter(!is.na(first_target_date), event_date < first_target_date) %>%
   mutate(
-    event_index = row_number(),
-    is_target_event = !is.na(target_date) & timestamp >= target_date,
-    has_target = any(!is.na(target_date)),
-    first_target_index = ifelse(has_target,
-                                min(event_index[is_target_event], na.rm = TRUE),
-                                NA_integer_)
-  ) %>%
-  ungroup()
-
-events_pre_target <- ev_all %>%
-  filter(!is.na(first_target_index),
-         event_index < first_target_index) %>%  # Use < to EXCLUDE HCG itself (for final model)
-  mutate(activity_instance_id = row_number())
+    activity_instance_id = row_number(),
+    case_id = mi_person_key,
+    lifecycle_id = "complete",
+    resource_id = "Patient"
+  )
 
 pre_target_eventlog <- events_pre_target %>%
   eventlog(
@@ -671,42 +627,6 @@ save_bupar_csv(
 log_msg("Calculating time-to-HCG and time-window features (per patient)...")
 
 # Use the target_date_map we created earlier (in the pre-HCG section)
-# If target_date_map doesn't exist yet, create it here
-# Use same ED HCG line values as control exclusion logic for consistency
-if (!exists("target_date_map")) {
-  if (!exists("ed_hcg_lines")) {
-    ed_hcg_lines <- c('P51 - ER Visits and Observation Care', 'O11 - Emergency Room', 'P33 - Urgent Care Visits')
-  }
-  if (has_hcg_line) {
-    target_date_map <- pgx_df_target1 %>%
-      filter(!is.na(hcg_line) & hcg_line %in% ed_hcg_lines) %>%
-      group_by(mi_person_key) %>%
-      summarise(
-        target_date = min(event_date, na.rm = TRUE),
-        .groups = "drop"
-      ) %>%
-      rename(case_id = mi_person_key)
-  } else if (has_first_ed_date) {
-    target_date_map <- pgx_df_target1 %>%
-      filter(!is.na(first_ed_non_opioid_date)) %>%
-      group_by(mi_person_key) %>%
-      summarise(
-        target_date = min(first_ed_non_opioid_date, na.rm = TRUE),
-        .groups = "drop"
-      ) %>%
-      rename(case_id = mi_person_key)
-  } else {
-    # Fallback: use first event date for each patient
-    target_date_map <- pgx_df_target1 %>%
-      group_by(mi_person_key) %>%
-  summarise(
-        target_date = min(event_date, na.rm = TRUE),
-    .groups = "drop"
-      ) %>%
-      rename(case_id = mi_person_key)
-  }
-}
-
 target_times <- target_date_map %>%
   mutate(
     target_time = as.POSIXct(target_date),
