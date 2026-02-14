@@ -13,6 +13,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Canonical age-band order for heatmap columns (0-12 through 85-114)
+CANONICAL_AGE_BAND_ORDER = [
+    "0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"
+]
+
 # Non-interactive backend when no display (e.g. CI / headless)
 if not matplotlib.get_backend().startswith("module://"):
     try:
@@ -79,6 +84,9 @@ def create_aggregated_fi_heatmap(
     if len(loaded_bands) < 2:
         return None
 
+    # Column order: canonical age-band order (0-12 → 85-114), keeping only loaded bands
+    column_order = [b for b in CANONICAL_AGE_BAND_ORDER if b in loaded_bands]
+
     combined = pd.concat(all_dfs, ignore_index=True)
 
     # Union of top N features per age band (unique, order by mean importance later)
@@ -96,12 +104,12 @@ def create_aggregated_fi_heatmap(
         columns="age_band",
         values="importance",
         aggfunc="first",
-    ).reindex(index=top_features, columns=loaded_bands).fillna(0.0)
+    ).reindex(index=top_features, columns=column_order).fillna(0.0)
 
     # Order features by mean importance across age bands
-    pivot["_mean"] = pivot[loaded_bands].mean(axis=1)
+    pivot["_mean"] = pivot[column_order].mean(axis=1)
     pivot = pivot.sort_values("_mean", ascending=False).drop(columns=["_mean"])
-    pivot = pivot.reindex(columns=loaded_bands)
+    pivot = pivot.reindex(columns=column_order)
 
     # Cap number of rows for readable heatmap
     max_rows = 80
@@ -112,7 +120,7 @@ def create_aggregated_fi_heatmap(
     plots_dir.mkdir(parents=True, exist_ok=True)
     heatmap_path = plots_dir / f"{cohort}_aggregated_fi_heatmap.png"
 
-    fig, ax = plt.subplots(figsize=(max(8, len(loaded_bands) * 1.8), max(10, len(pivot) * 0.22)))
+    fig, ax = plt.subplots(figsize=(max(8, len(column_order) * 1.8), max(10, len(pivot) * 0.22)))
     sns.heatmap(
         pivot,
         annot=False,

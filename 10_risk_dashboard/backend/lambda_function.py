@@ -99,19 +99,20 @@ def _response(status_code: int, body: Dict[str, Any], headers: Optional[Dict[str
 
 def determine_cohort_and_age_band(age: int) -> Tuple[str, str]:
     """
-    Determine cohort and age band from age.
+    Determine cohort and age band from age (when cohort/age_band not provided).
     
-    Rules:
-    - Ages 13-64: opioid_ed cohort (age bands: 13-24, 25-44, 45-54, 55-64)
-    - Ages 65-114: non_opioid_ed (polypharmacy) cohort (age bands: 65-74, 75-84, 85-114)
-    
-    Note: Age band 0-12 is excluded due to small cohort size.
+    Both cohorts support all 8 age bands (0-12 through 85-114). This helper maps
+    a single age value to a default (cohort, age_band) for backward compatibility:
+    - Ages 0-64: opioid_ed cohort
+    - Ages 65-114: non_opioid_ed (polypharmacy) cohort
     """
-    if age < 13:
-        raise ValueError("Age must be 13 or older. Age band 0-12 is not supported due to small cohort size.")
-    elif 13 <= age <= 64:
+    if age < 0:
+        raise ValueError("Age must be 0 or older.")
+    elif age <= 64:
         cohort = "opioid_ed"
-        if age <= 24:
+        if age <= 12:
+            age_band = "0-12"
+        elif age <= 24:
             age_band = "13-24"
         elif age <= 44:
             age_band = "25-44"
@@ -597,9 +598,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
            }
       
     For the dashboard risk calculator design:
-      - Cohort/age_band combinations correspond to the modeled age bands:
-          opioid_ed:    13-24, 25-44, 45-54
-          non_opioid_ed: 65-74, 75-84, 85-114
+      - Both cohorts support all 8 age bands: 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114.
       - The front end populates Drugs / CPT / ICD grids from aggregated feature
         importances and sends the selected codes as the drugs/icds/cpts lists.
     """

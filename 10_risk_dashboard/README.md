@@ -282,7 +282,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 
 - **`GET /metadata`** - Get valid age bands and valid codes for dropdowns
   - Returns, per cohort, the supported age bands and code lists for the **Drugs / CPT / ICD** tabs
-  - The dashboard uses these to populate the cohort/age-band grid (e.g., 13-24, 25-44, 45-54, 65-74, 75-84, 85-114) and the tab-specific grids
+  - The dashboard uses these to populate the cohort/age-band grid (full set: 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) and the tab-specific grids
 
 - **`POST /risk`** - Calculate risk score for a given `(cohort, age_band)` and selected codes
   - Dashboard sends a JSON body:

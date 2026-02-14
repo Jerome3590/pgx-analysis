@@ -51,7 +51,7 @@ Comparison of the PHTS (UVA) and PGx (VCU) risk calculator dashboard tab structu
 |--------|------|-----|
 | **Inputs and calculator** | Inputs (clinical form) and Calculate are **on the same tab** (Baseline / Extended). | **Split:** code selection is on **“Drugs, ICD & CPT Codes”**; Risk Assessment has age + summary + “Edit codes” + Calculate. |
 | **Number of top-level tabs** | 5 (Baseline, Extended, Comparison, Causal, Documentation). | 8 (Risk Assessment, Drugs/ICD/CPT, Causal, DTW, FP-Growth, BupaR, PGx Card, Documentation). |
-| **Model/calculator structure** | Two calculator tabs (Baseline vs Extended) + Model Comparison tab. | One **Risk Assessment** tab; model chosen by **age** (Opioid ED 13–64 vs Polypharmacy 65–114). No separate Baseline/Extended tabs. |
+| **Model/calculator structure** | Two calculator tabs (Baseline vs Extended) + Model Comparison tab. | One **Risk Assessment** tab; model chosen by **cohort** (Opioid ED or Polypharmacy) and age band. Single calculator; cohort selects which model. |
 | **Sub-tabs** | None. | **Drugs, ICD & CPT Codes** has sub-tabs: Drugs \| ICD Codes \| CPT Codes. |
 | **Tab switching** | Inline `onclick="switchTab('tab-name')"`. Active button by **text** (e.g. "Baseline Model"). | `data-tab` + `addEventListener`. Content by `id="${targetTab}-tab"`. |
 | **Documentation** | Dedicated tab that links to `phts_readme.html` (navigates away). | **Documentation** tab shows content on the same page (inline). |
