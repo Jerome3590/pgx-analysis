@@ -3,6 +3,16 @@ Feature Importance EDA Utilities
 
 Shared utility functions for Step 3b Feature Importance EDA.
 Functions for loading feature importance files, admin codes, filters, and related data.
+
+Canonical locations for aggregated feature importance (Step 3a output):
+  Local (checked in order):
+    1. PGX_FEATURE_IMPORTANCE_OUTPUTS / {cohort} / {cohort}_{age_band_fname}_aggregated_feature_importance.csv
+    2. 3a_feature_importance/outputs/{cohort}/{filename}  (3a default write path, no age_band subdir)
+    3. 3a_feature_importance/outputs/{cohort}/{age_band}/{filename}
+    4. DATA_ROOT/gold/feature_importance/{cohort}/{age_band}/{filename}  (S3 sync layout; age_band with hyphen)
+    5. 3a_feature_importance/from_s3/by_cohort/{cohort}/{age_band}/{filename}
+  S3 (pgxdatalake):
+    gold/feature_importance/{cohort}/{age_band}/{filename}  (age_band with hyphen, e.g. 65-74)
 """
 
 import io
@@ -16,7 +26,7 @@ import duckdb
 
 from py_helpers.constants import age_band_to_fname
 
-# Step 3a writes to outputs/{cohort}/{filename} (no age_band subdir). Same order as workflow and create_bupar_input.
+
 def resolve_aggregated_fi_path(
     cohort: str,
     age_band: str,
@@ -24,7 +34,7 @@ def resolve_aggregated_fi_path(
 ) -> Optional[Path]:
     """
     Resolve path to 3a aggregated feature importance CSV.
-    Tries local paths (outputs/cohort/filename, NVMe env, from_s3), then S3; downloads and saves if from S3.
+    Tries local paths (see module docstring), then S3; downloads and saves if from S3.
     Returns Path if found, None otherwise.
     """
     age_band_fname = age_band_to_fname(age_band)
@@ -38,6 +48,13 @@ def resolve_aggregated_fi_path(
     env_3a = os.environ.get("PGX_FEATURE_IMPORTANCE_OUTPUTS")
     if env_3a:
         possible.insert(0, Path(env_3a) / cohort / filename)
+    # DATA_ROOT/gold/feature_importance (S3 sync layout; age_band with hyphen)
+    try:
+        from py_helpers.env_utils import get_data_root
+        data_root = get_data_root()
+        possible.append(data_root / "gold" / "feature_importance" / cohort / age_band / filename)
+    except ImportError:
+        pass
     for p in possible:
         if p.exists():
             return p
@@ -117,11 +134,22 @@ def load_aggregated_feature_importance(
     """
     Load aggregated feature importance from Step 3a.
     Uses resolve_aggregated_fi_path (local + S3), then falls back to legacy paths.
-    Raises FileNotFoundError if not found.
+    Raises FileNotFoundError if not found; raises ValueError if file is empty (0 rows or no feature column).
     """
     path = resolve_aggregated_fi_path(cohort, age_band, project_root)
     if path:
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        if df.empty or len(df) == 0:
+            raise ValueError(
+                f"Aggregated feature importance file is empty (0 rows): {path}\n"
+                f"  Run Step 3a for {cohort}/{age_band} to produce a non-empty file, or fix the source file."
+            )
+        if "feature" not in df.columns and len(df.columns) < 2:
+            raise ValueError(
+                f"Aggregated feature importance file has no 'feature' column or importance column: {path}\n"
+                f"  Expected CSV with at least columns: feature, and one of importance_mean / importance_scaled_by_model_sum."
+            )
+        return df
     age_band_fname = age_band_to_fname(age_band)
     legacy = [
         project_root / "3a_feature_importance" / "outputs" / cohort / age_band / f"{cohort}_{age_band_fname}_aggregated_feature_importance.parquet",
@@ -130,13 +158,22 @@ def load_aggregated_feature_importance(
     for p in legacy:
         if p.exists():
             if p.suffix.lower() == ".csv":
-                return pd.read_csv(p)
-            con = duckdb.connect()
-            path_esc = str(p).replace("'", "''")
-            out = con.execute(f"SELECT * FROM read_parquet('{path_esc}')").df()
-            con.close()
-            return out
-    raise FileNotFoundError(f"Could not find aggregated feature importance file for {cohort}/{age_band}")
+                df = pd.read_csv(p)
+            else:
+                con = duckdb.connect()
+                path_esc = str(p).replace("'", "''")
+                df = con.execute(f"SELECT * FROM read_parquet('{path_esc}')").df()
+                con.close()
+            if df.empty or len(df) == 0:
+                raise ValueError(
+                    f"Aggregated feature importance file is empty (0 rows): {p}\n"
+                    f"  Run Step 3a for {cohort}/{age_band} to produce a non-empty file."
+                )
+            return df
+    raise FileNotFoundError(
+        f"Could not find aggregated feature importance file for {cohort}/{age_band}. "
+        "Checked: PGX_FEATURE_IMPORTANCE_OUTPUTS, 3a_feature_importance/outputs, DATA_ROOT/gold/feature_importance, from_s3, S3 gold/feature_importance."
+    )
 
 
 def load_safe_feature_filter(
