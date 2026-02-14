@@ -21,7 +21,7 @@ import duckdb
 import pandas as pd
 
 from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
-from py_helpers.feature_importance_eda_utils import load_aggregated_feature_importance
+from py_helpers.feature_importance_eda_utils import load_cohort_feature_importance
 
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
@@ -79,8 +79,8 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     # ------------------------------------------------------------------
     # Source 2: Item features (CPT, ICD, Drug Name binary indicators)
     # ------------------------------------------------------------------
-    # Load aggregated feature importance (Step 3a) from canonical locations (3a outputs, DATA_ROOT/gold, S3)
-    fi_df = load_aggregated_feature_importance(cohort_name, age_band, project_root)
+    # Load Step 3b refined cohort_feature_importance (leakage-filtered); must match Step 4 model_events filter
+    fi_df = load_cohort_feature_importance(cohort_name, age_band, project_root)
     important_features = fi_df["feature"].tolist()
 
     item_features_df = None
@@ -218,7 +218,7 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         else:
             item_features_df = None
     else:
-        print(f"[WARNING] No item_* features in aggregated feature importance. Skipping item_* feature creation.")
+        print(f"[WARNING] No item_* features in Step 3b cohort_feature_importance. Skipping item_* feature creation.")
 
     # ------------------------------------------------------------------
     # Source 3: PGx features (REQUIRED - no target leakage)
