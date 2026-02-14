@@ -148,7 +148,7 @@ DuckDB is used throughout the BupaR workflow for speed and to keep heavy work ou
 | **Input build** | `create_bupar_input_from_cohort.py` → `4_model_data/create_model_data.py` | All event filtering, case/control union, and parquet write are done in DuckDB (no pandas for event-level data). |
 | **R: load target** | `create_bupar_outputs_*.R` | Single read: one DuckDB query does `WHERE target=1` and UNPIVOT (wide→long) so the parquet file is scanned once instead of twice. |
 | **R: control cohort** | `control_cohort_utils.R` | Counts, ratio checks, and control sampling use DuckDB over parquet. |
-| **R: connection** | Both R scripts | `dbConnect(duckdb::duckdb(), config = list(threads = n))` so Parquet scan and UNPIVOT use multiple cores. Set `DUCKDB_THREADS` (e.g. `4` or `8`) to cap threads. |
+| **R: connection** | Both R scripts | Connect with `dbConnect(duckdb::duckdb())` (no `config` on driver). Optionally set threads after connect via `dbExecute(con, "SET threads = N")` when `DUCKDB_THREADS` is set (e.g. `4` or `8`). See `docs/CrossStep_Development/README_duckdb_optimization.md` § R (BupaR) DuckDB connection. |
 | **Post-target analysis** | `create_bupar_post_target_analysis.py` | Pre/post target analytics and feature tables are computed in DuckDB via SQL over `model_events.parquet`. |
 
 **Pre/post target split in DuckDB:**

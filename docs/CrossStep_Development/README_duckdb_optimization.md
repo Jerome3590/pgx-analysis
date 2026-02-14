@@ -340,6 +340,38 @@ conn = create_simple_duckdb_connection(logger)
 
 ***
 
+## R (BupaR) DuckDB connection
+
+The BupaR workflow (Step 3b: `3b_feature_importance_eda/1_bupaR/`) uses DuckDB from **R** to read Parquet and run UNPIVOT/pre-post split. The R DuckDB client has different requirements than Python.
+
+### Connection pattern (required)
+
+- **Do not** pass `config` into the driver: `duckdb::duckdb(config = list(threads = n))` can cause `Expected string vector of length 1` on some builds.
+- **Do** create the connection with no config, then set threads after connect if desired:
+
+```r
+con <- dbConnect(duckdb::duckdb())
+# Optional: set threads when DUCKDB_THREADS is set (e.g. 4 or 8)
+n_threads <- Sys.getenv("DUCKDB_THREADS", "")
+if (n_threads != "" && !is.na(suppressWarnings(as.integer(n_threads)))) {
+  tryCatch({
+    dbExecute(con, sprintf("SET threads = %s", n_threads))
+  }, error = function(e) {})
+}
+```
+
+### Environment variable
+
+| Variable | Description | Example |
+| :-- | :-- | :-- |
+| `DUCKDB_THREADS` | Optional. Number of threads for Parquet scan/UNPIVOT in R. If unset, DuckDB uses its default. | `DUCKDB_THREADS=8` |
+
+Set `DUCKDB_THREADS` (e.g. `4` or `8`) before running the BupaR R scripts for faster Parquet/UNPIVOT when you have spare cores. Scripts: `create_bupar_outputs_opioid_ed.R`, `create_bupar_outputs_non_opioid_ed.R`.
+
+See also: `3b_feature_importance_eda/1_bupaR/README_bupaR.md` (§ DuckDB usage and optimization).
+
+***
+
 ## 🚀 Partitioned Data Parallelization
 
 ### Overview
