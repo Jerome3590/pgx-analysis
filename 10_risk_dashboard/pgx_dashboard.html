@@ -432,6 +432,7 @@
     <div class="tabs">
       <button class="tab-button active" data-tab="risk-assessment">Risk Assessment</button>
       <button class="tab-button" data-tab="causal-analysis">Causal Analysis</button>
+      <button class="tab-button" data-tab="feature-importance-visualizations">Feature Importance</button>
       <button class="tab-button" data-tab="dtw-visualizations">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations">FP-Growth Patterns</button>
       <button class="tab-button" data-tab="bupar-visualizations">BupaR Process Mining</button>
@@ -681,6 +682,36 @@
         <div class="panel">
           <h2>Feature Interactions</h2>
           <div id="interactions-chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW) -->
+    <div id="feature-importance-visualizations-tab" class="tab-content" style="display: none;">
+      <p class="subtitle">
+        Aggregated feature importance by age band (from Step 3a / 2_feature_importance). Heatmap: rows = top features, columns = age bands. Initial input for BupaR, FP-Growth, and DTW; final model will refine further.
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="fi-cohort">Cohort:</label>
+          <select id="fi-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadFeatureImportance">Load Feature Importance Heatmap</button>
+        </div>
+      </div>
+      <div id="fi-status" class="status-message">Select cohort and click Load</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>Aggregated Feature Importance by Age Band</h2>
+          <div id="fi-heatmap-container"><img id="fi-heatmap-image" alt="Aggregated FI heatmap" style="max-width: 100%; height: auto; display: none;" /></div>
+        </div>
+        <div class="panel full-width">
+          <h2>Combined Cohorts</h2>
+          <div id="fi-combined-container"><img id="fi-combined-image" alt="Combined FI heatmap" style="max-width: 100%; height: auto; display: none;" /></div>
         </div>
       </div>
     </div>
@@ -1588,6 +1619,33 @@
     } catch (err) {
       document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
       document.getElementById("bupar-status").className = "status-message error";
+    }
+  });
+
+  document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("fi-cohort").value;
+    const fiHeatmapImg = document.getElementById("fi-heatmap-image");
+    const fiCombinedImg = document.getElementById("fi-combined-image");
+    if (!cohort) {
+      document.getElementById("fi-status").textContent = "Please select a cohort";
+      return;
+    }
+    document.getElementById("fi-status").textContent = "Loading feature importance heatmaps...";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.heatmap_url) {
+        fiHeatmapImg.src = data.heatmap_url;
+        fiHeatmapImg.style.display = "block";
+      }
+      if (data.combined_url) {
+        fiCombinedImg.src = data.combined_url;
+        fiCombinedImg.style.display = "block";
+      }
+      document.getElementById("fi-status").textContent = "Feature importance heatmaps loaded.";
+    } catch (err) {
+      document.getElementById("fi-status").textContent = `Error: ${err.message}`;
     }
   });
 

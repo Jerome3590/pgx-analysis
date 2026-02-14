@@ -20,7 +20,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import get_cohort_slug
 from py_helpers.feature_importance_eda_utils import (
     load_administrative_codes,
     resolve_aggregated_fi_path,
@@ -84,7 +83,7 @@ def main():
     print(f"[INFO] Building BupaR input from cohort data + 3a aggregated FI + target")
     print(f"       Cohort: {cohort_name}, age_band: {age_band}")
     print(f"       Important items: {len(important_items)}")
-    print(f"       Output: {output_root}/cohorts/input_model_data/cohort_name={get_cohort_slug(age_band)}/age_band={age_band}/model_events.parquet")
+    print(f"       Output: {output_root}/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet")
 
     filter_cohort_events_for_items(
         cohort_name=cohort_name,

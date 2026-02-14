@@ -542,6 +542,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_visualizations_fpgrowth(event)
             elif path.endswith("/bupar"):
                 return handle_visualizations_bupar(event)
+            elif path.endswith("/feature_importance") or path.endswith("/feature_importance/"):
+                return handle_visualizations_feature_importance(event)
             else:
                 return _response(404, {"error": "Unknown visualization endpoint"})
         
@@ -1428,6 +1430,31 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             "network_html": f"{base_url}/{network_html_key}",
             "network_png": f"{base_url}/{network_png_key}",
         })
+    except Exception as e:
+        return _response(500, {"error": str(e)})
+
+
+def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str, Any]:
+    """GET /visualizations/feature_importance?cohort=...
+    Returns HTTPS URLs for aggregated feature importance heatmaps (from Step 3a / 2_feature_importance).
+    Heatmaps: per-cohort (feature × age band) and optional combined. Stored in dashboard bucket
+    under {S3_DASHBOARD_PREFIX}/feature_importance/{cohort}/aggregated_fi_heatmap.png and
+    feature_importance/combined_cohorts_feature_importance_heatmap.png.
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        cohort = params.get("cohort")
+        if not cohort:
+            return _response(400, {"error": "cohort parameter required"})
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
+        heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
+        combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
+        payload = {
+            "heatmap_url": f"{base_url}/{heatmap_key}",
+            "combined_url": f"{base_url}/{combined_key}",
+        }
+        return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 
