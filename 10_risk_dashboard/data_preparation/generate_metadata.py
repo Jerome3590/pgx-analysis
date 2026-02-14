@@ -117,12 +117,18 @@ def load_feature_importance(cohort: str, age_band: str) -> pd.DataFrame:
             print(f"Loading Step 3b refined features: {step3b_filepath}")
             return pd.read_csv(step3b_filepath)
 
-    # Fallback: Step 3 aggregated
+    # Fallback: Step 3 aggregated (3a writes cohort/filename; gold/ has cohort/age_band/filename)
     for base in _aggregated_fi_roots():
-        aggregated_filepath = base / cohort / age_band_fname / aggregated_filename
+        # 3a default: base/cohort/filename (no age_band subdir)
+        aggregated_filepath = base / cohort / aggregated_filename
         if aggregated_filepath.exists():
             print(f"Loading Step 3 aggregated features (fallback): {aggregated_filepath}")
             return pd.read_csv(aggregated_filepath)
+        for age_subdir in (age_band_fname, age_band):
+            aggregated_filepath = base / cohort / age_subdir / aggregated_filename
+            if aggregated_filepath.exists():
+                print(f"Loading Step 3 aggregated features (fallback): {aggregated_filepath}")
+                return pd.read_csv(aggregated_filepath)
 
     print(f"Warning: Feature importance not found for {cohort}/{age_band} in Step 3b or Step 3 roots")
     return pd.DataFrame()

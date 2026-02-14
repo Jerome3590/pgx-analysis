@@ -270,6 +270,12 @@ def filter_and_refine_features(
         if n_target_family > 0:
             print(f"Excluded {n_target_family} target-family (F10/F11/F19 substance use disorder) features — outcome codes, not predictors")
     
+    # No features or missing importance column: return minimal schema and summary
+    if refined_fi.empty or len(refined_fi.columns) < 2:
+        filtering_summary['final_count'] = 0
+        empty_df = pd.DataFrame(columns=['feature', 'importance_mean'])
+        return empty_df, filtering_summary
+
     # Filter by minimum importance threshold
     if 'importance_scaled_by_model_sum' in refined_fi.columns:
         importance_col = 'importance_scaled_by_model_sum'
@@ -277,7 +283,7 @@ def filter_and_refine_features(
         importance_col = 'importance_mean'
     else:
         importance_col = refined_fi.columns[1]  # Use second column as fallback
-    
+
     before_count = len(refined_fi)
     refined_fi = refined_fi[refined_fi[importance_col] >= min_importance_threshold]
     filtering_summary['filtered_by_threshold'] = before_count - len(refined_fi)
@@ -385,7 +391,13 @@ def main():
         safe_feature_filter=safe_feature_filter,
         cohort=args.cohort,
     )
-    
+
+    if filtering_summary["final_count"] == 0:
+        print("[ERROR] No features remained after filtering.")
+        print("  Check that aggregated feature importance has data for this cohort/age_band")
+        print("  (e.g. 3a_feature_importance ran and produced a non-empty CSV with 'feature' and an importance column).")
+        sys.exit(1)
+
     # Save refined feature importance: add code_type and raw_code, and normalize "feature" to canonical
     # form (item_icd_X, item_cpt_X, item_drug_X) so Step 4 and Step 6 read ICD/CPT/drug correctly.
     refined_fi = refined_fi.copy()

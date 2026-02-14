@@ -21,6 +21,7 @@ import duckdb
 import pandas as pd
 
 from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
+from py_helpers.feature_importance_eda_utils import load_aggregated_feature_importance
 
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
@@ -78,59 +79,12 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     # ------------------------------------------------------------------
     # Source 2: Item features (CPT, ICD, Drug Name binary indicators)
     # ------------------------------------------------------------------
-    # Load aggregated feature importance to get list of important codes/drugs
-    fi_csv = (
-        project_root
-        / "3_feature_importance"
-        / "outputs"
-        / cohort_name
-        / age_band
-        / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-    )
-    
-    # Fallback to alternative location
-    if not fi_csv.exists():
-        fi_csv = (
-            project_root
-            / "3_feature_importance"
-            / "outputs"
-            / cohort_name
-            / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-        )
-    
-    # Try downloading from S3 if not found locally
-    if not fi_csv.exists():
-        try:
-            import boto3
-            from botocore.exceptions import ClientError
-            
-            s3_client = boto3.client("s3")
-            bucket = "pgxdatalake"
-            s3_key = f"gold/feature_importance/{cohort_name}/{age_band}/{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-            
-            print(f"[INFO] Feature importance CSV not found locally. Downloading from S3: s3://{bucket}/{s3_key}")
-            
-            fi_csv = (
-                project_root
-                / "3_feature_importance"
-                / "outputs"
-                / cohort_name
-                / age_band
-                / f"{cohort_name}_{age_band_fname}_aggregated_feature_importance.csv"
-            )
-            fi_csv.parent.mkdir(parents=True, exist_ok=True)
-            
-            s3_client.download_file(bucket, s3_key, str(fi_csv))
-            print(f"[OK] Downloaded feature importance CSV to {fi_csv}")
-        except (ImportError, ClientError, Exception) as e:
-            print(f"[WARNING] Feature importance CSV not found locally and S3 download failed: {e}")
-            fi_csv = None
-    
+    # Load aggregated feature importance (Step 3a) from canonical locations (3a outputs, DATA_ROOT/gold, S3)
+    fi_df = load_aggregated_feature_importance(cohort_name, age_band, project_root)
+    important_features = fi_df["feature"].tolist()
+
     item_features_df = None
-    if fi_csv and fi_csv.exists():
-        # Load feature importance to get list of important codes/drugs
-        fi_df = pd.read_csv(fi_csv)
-        important_features = fi_df['feature'].tolist()
+    if important_features:
         
         # Filter to item_* features only
         important_items = [f.replace('item_', '') for f in important_features if f.startswith('item_')]
@@ -264,8 +218,7 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         else:
             item_features_df = None
     else:
-        print(f"[WARNING] Feature importance CSV not found. Skipping item_* feature creation.")
-        print(f"[WARNING] Expected location: {fi_csv}")
+        print(f"[WARNING] No item_* features in aggregated feature importance. Skipping item_* feature creation.")
 
     # ------------------------------------------------------------------
     # Source 3: PGx features (REQUIRED - no target leakage)

@@ -6,6 +6,7 @@ Runs all Feature Importance EDA analyses in order:
 1. Administrative/Non-informative code filtering (remove non-informative ICD/CPT codes)
 2. BupaR post-target analysis (identify pre/post target events; F1120 for opioid_ed, HCG for polypharmacy)
 3. Create safe feature filter JSON (idempotent: skip if already exists; exclude leakage, keep pre-target features)
+3.5. Ensure aggregated feature importance (Step 3a): if missing or empty, rerun Step 3a for this cohort/age_band
 4. Filter and refine feature importances (uses safe_feature_filter.json when present)
 5. Create BupaR visualizations
 
@@ -38,6 +39,15 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname, REQUIRED_COHORTS
+
+try:
+    from py_helpers.feature_importance_eda_utils import (
+        resolve_aggregated_fi_path,
+        load_aggregated_feature_importance,
+    )
+except ImportError:
+    resolve_aggregated_fi_path = None
+    load_aggregated_feature_importance = None
 
 try:
     from py_helpers.checkpoint_utils import save_step_checkpoint
@@ -97,6 +107,41 @@ def run_create_safe_feature_filter(cohort: str, age_band: str, script_dir: Path)
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Create safe feature filter failed: {e}")
+        return False
+
+
+def ensure_aggregated_fi(cohort: str, age_band: str, script_dir: Path) -> bool:
+    """
+    Ensure aggregated feature importance (Step 3a) exists and is non-empty for this cohort/age_band.
+    If missing or empty, runs Step 3a (run_mc_feature_importance) then returns.
+    Returns True if data is available (or 3a ran successfully), False if 3a failed.
+    """
+    if resolve_aggregated_fi_path is None or load_aggregated_feature_importance is None:
+        return True  # Skip check if utils not available
+    try:
+        load_aggregated_feature_importance(cohort, age_band, PROJECT_ROOT)
+        return True
+    except FileNotFoundError:
+        print(f"[INFO] Aggregated feature importance missing for {cohort}/{age_band}; running Step 3a...")
+    except ValueError as e:
+        if "empty" in str(e).lower() or "0 rows" in str(e):
+            print(f"[INFO] Aggregated feature importance empty for {cohort}/{age_band}; running Step 3a...")
+        else:
+            print(f"[WARN] {e}")
+            return False
+    script_3a = PROJECT_ROOT / "3a_feature_importance" / "run_mc_feature_importance.py"
+    if not script_3a.exists():
+        print(f"[ERROR] Step 3a script not found: {script_3a}")
+        return False
+    cmd = [sys.executable, str(script_3a), "--cohort", cohort, "--age_band", age_band]
+    try:
+        result = subprocess.run(cmd, check=True, cwd=str(PROJECT_ROOT))
+        if result.returncode != 0:
+            return False
+        print(f"[OK] Step 3a completed for {cohort}/{age_band}; continuing with filter and refine.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Step 3a failed for {cohort}/{age_band}: {e}")
         return False
 
 
@@ -164,6 +209,11 @@ def run_feature_importance_eda_for_cohort(cohort: str, age_band: str, script_dir
     # Step 3: Create safe feature filter JSON (idempotent: skip if already exists)
     if not run_create_safe_feature_filter(cohort, age_band, script_dir):
         print("[WARN] Safe feature filter not created; filter_and_refine will use BupaR CSV fallback")
+
+    # Step 3.5: Ensure aggregated feature importance (Step 3a) exists and is non-empty; rerun 3a if missing
+    if not ensure_aggregated_fi(cohort, age_band, script_dir):
+        print("[ERROR] Could not obtain aggregated feature importance (Step 3a run failed or skipped)")
+        return False
 
     # Step 4: Filter and refine (combines all filtering results; uses safe_feature_filter.json when present)
     if not run_filter_and_refine(cohort, age_band, script_dir):
