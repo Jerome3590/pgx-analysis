@@ -176,6 +176,75 @@ def load_aggregated_feature_importance(
     )
 
 
+def resolve_cohort_fi_path(
+    cohort: str,
+    age_band: str,
+    project_root: Path,
+) -> Optional[Path]:
+    """
+    Resolve path to Step 3b refined cohort_feature_importance CSV (leakage-filtered).
+    Used by Step 4 (model_events filter) and Step 6 (final model features); must match.
+    Tries local 3b outputs, DATA_ROOT/gold, then S3.
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    filename = f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
+    base_3b = project_root / "3b_feature_importance_eda" / "outputs"
+    possible = [
+        base_3b / cohort / age_band_fname / filename,
+        base_3b / cohort / age_band / filename,
+    ]
+    try:
+        from py_helpers.env_utils import get_data_root
+        data_root = get_data_root()
+        possible.append(data_root / "gold" / "feature_importance" / cohort / age_band / filename)
+        possible.append(data_root / "gold" / "feature_importance" / cohort / age_band_fname / filename)
+    except ImportError:
+        pass
+    for p in possible:
+        if p.exists():
+            return p
+    try:
+        try:
+            from py_helpers.common_imports import s3_client, S3_BUCKET
+        except ImportError:
+            import boto3
+            s3_client = boto3.client("s3")
+            S3_BUCKET = "pgxdatalake"
+        key = f"gold/feature_importance/{cohort}/{age_band}/{filename}"
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+        save_path = base_3b / cohort / age_band_fname / filename
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(save_path, index=False)
+        return save_path
+    except Exception:
+        return None
+
+
+def load_cohort_feature_importance(
+    cohort: str,
+    age_band: str,
+    project_root: Path,
+) -> pd.DataFrame:
+    """
+    Load Step 3b refined cohort_feature_importance (leakage-filtered).
+    Required for Step 4 (filter model_events) and Step 6 (final model features); same source everywhere.
+    Raises FileNotFoundError if not found; ValueError if empty.
+    """
+    path = resolve_cohort_fi_path(cohort, age_band, project_root)
+    if path is None:
+        raise FileNotFoundError(
+            f"Step 3b refined cohort_feature_importance not found for {cohort}/{age_band}. "
+            "Run: python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort <cohort> --age-band <age_band>"
+        )
+    df = pd.read_csv(path)
+    if df.empty or len(df) == 0:
+        raise ValueError(f"Step 3b cohort_feature_importance is empty: {path}")
+    if "feature" not in df.columns:
+        raise ValueError(f"Step 3b cohort_feature_importance has no 'feature' column: {path}")
+    return df
+
+
 def load_safe_feature_filter(
     cohort: str,
     age_band: str,

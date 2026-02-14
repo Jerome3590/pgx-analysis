@@ -8,8 +8,12 @@ Flow:
   2. **Second pass** (default): start from baseline aggregated FI (not original full set). Load
      historical FI from pgx-repository → minus admin/Z codes → use that list as features (~11K) →
      build patient-level feature matrix from cohort.parquet → run MC CV.
-  3. **Second-pass FI are always saved to pgxdatalake** (gold/feature_importance/{cohort}/{age_band}/).
-  4. **Final model training** uses these second-pass feature importances from pgxdatalake for
+  3. **New cohorts (no baseline in pgx-repository):** When historical is missing, we run a
+     **baseline** pass first (baseline=True). The baseline now builds a full feature matrix from
+     **cohort-derived ICD/CPT/drug codes** (minus admin/Z), not just n_events, so the resulting
+     aggregated FI has many features. That baseline is then used for the second pass.
+  4. **Second-pass FI are always saved to pgxdatalake** (gold/feature_importance/{cohort}/{age_band}/).
+  5. **Final model training** uses these second-pass feature importances from pgxdatalake for
      train features (Step 6 build_final_cohort_model_features / run_final_model).
 
 Usage (example):
@@ -665,21 +669,41 @@ def run_mc_feature_importance(
                 )
                 df = _build_patient_features_from_cohort_and_fi_list(cohort, age_band, feature_list)
             else:
-                print(
-                    "[WARN] Baseline FI has no features after removing admin/Z codes; "
-                    "falling back to n_events only."
+                raise ValueError(
+                    "Baseline aggregated FI has no features after removing admin/Z codes. "
+                    "Refusing to run with n_events only; we must have a proper feature set."
                 )
         else:
             if not run_baseline_if_missing or not (out_dir / "_baseline" / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv").exists():
-                print(
-                    "[WARN] Historical aggregated FI not found in pgx-repository; "
-                    "second pass will use n_events only. Expected: s3://pgx-repository/"
-                    f"{PGX_REPO_FI_PREFIX}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+                raise FileNotFoundError(
+                    "Historical aggregated FI not found in pgx-repository and no local baseline. "
+                    "Run with default (run_baseline_if_missing=True) to create baseline from cohort, "
+                    f"or provide s3://pgx-repository/{PGX_REPO_FI_PREFIX}/{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
                 )
+    # Baseline run (new cohorts): build feature matrix from cohort-derived ICD/CPT/drug list only (never n_events only)
+    if baseline and (df is None or df.empty):
+        feature_list = _get_cohort_feature_list_minus_admin_z(cohort, age_band)
+        if not feature_list:
+            raise ValueError(
+                f"No cohort-derived features (ICD/CPT/drug minus admin/Z) for {cohort}/{age_band}. "
+                "Ensure Step 2 cohort.parquet has code columns and is not empty."
+            )
+        print(
+            f"[INFO] Baseline run: using cohort-derived feature list (minus admin/Z): {len(feature_list)} features"
+        )
+        df = _build_patient_features_from_cohort_and_fi_list(cohort, age_band, feature_list)
     if df is None or df.empty:
-        df = build_final_features_for_mc(cohort, age_band, prefer_filtered=not baseline)
-    if df.empty:
-        raise ValueError(f"No data assembled for cohort={cohort}, age_band={age_band}")
+        raise ValueError(
+            f"No feature matrix assembled for cohort={cohort}, age_band={age_band}. "
+            "We require baseline aggregated importances or historical FI (minus admin/Z); never n_events only."
+        )
+    # Refuse to run with a single feature (n_events) so we always produce proper aggregated FI
+    feature_cols = [c for c in df.columns if c not in ("mi_person_key", "target")]
+    if len(feature_cols) < 2:
+        raise ValueError(
+            f"Feature matrix has only {len(feature_cols)} feature(s) (need many for aggregated importances). "
+            "Use baseline or historical aggregated FI; never n_events only."
+        )
 
     X, y, feature_names = _prepare_xy(df)
 
@@ -1163,7 +1187,7 @@ def main() -> None:
         action="store_false",
         dest="run_baseline_if_missing",
         default=True,
-        help="Do not run baseline (permutation FI) when missing in pgx-repository; second pass will use n_events only. Default is to run baseline when missing.",
+        help="Do not run baseline when missing in pgx-repository; second pass will fail if no historical FI. Default is to run baseline when missing.",
     )
     args = parser.parse_args()
 
