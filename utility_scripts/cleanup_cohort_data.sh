@@ -16,7 +16,10 @@
 # s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/ (1b reads from here; bucket has versioning so overwrites are safe).
 # See docs/CLEAR_WORKFLOW_FOR_FULL_RUN.md.
 #
-# Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local] [--yes]
+# Usage: ./cleanup_cohort_data.sh [--skip-checkpoints] [--skip-s3] [--skip-local] [--clear-feature-importance] [--yes]
+#
+# Default: Feature importance is PRESERVED (not deleted). Notebook 2 will only add missing (cohort, age_band).
+# --clear-feature-importance  Also delete Step 3a/3b outputs and gold/feature_importance (full recompute in notebook 2).
 #
 
 set -e  # Exit on error
@@ -27,10 +30,11 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Parse arguments
+# Parse arguments (default: preserve feature importance)
 SKIP_CHECKPOINTS=false
 SKIP_S3=false
 SKIP_LOCAL=false
+CLEAR_FEATURE_IMPORTANCE=false
 AUTO_CONFIRM=false
 
 while [[ $# -gt 0 ]]; do
@@ -47,13 +51,21 @@ while [[ $# -gt 0 ]]; do
             SKIP_LOCAL=true
             shift
             ;;
+        --skip-feature-importance)
+            # Kept for backward compatibility; same as default (preserve FI)
+            shift
+            ;;
+        --clear-feature-importance)
+            CLEAR_FEATURE_IMPORTANCE=true
+            shift
+            ;;
         --yes)
             AUTO_CONFIRM=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--skip-checkpoints] [--skip-s3] [--skip-local] [--yes]"
+            echo "Usage: $0 [--skip-checkpoints] [--skip-s3] [--skip-local] [--clear-feature-importance] [--yes]"
             exit 1
             ;;
     esac
@@ -66,12 +78,19 @@ echo ""
 echo "This script will clear:"
 echo "  - Step 2: Cohort parquet files"
 echo "  - Step 1b: Event filter outputs"
-echo "  - Step 3b / 3a: Feature importance outputs"
+if [ "$CLEAR_FEATURE_IMPORTANCE" = true ]; then
+    echo "  - Step 3b / 3a: Feature importance outputs"
+else
+    echo -e "  - Step 3b / 3a: ${GREEN}(DEFAULT: preserved; notebook 2 will only add missing. Use --clear-feature-importance to clear.)${NC}"
+fi
 echo "  - Step 4/4a: Model data"
 echo "  - Step 5–9: PGx features, final model, SHAP, FFA, combined (S3)"
 echo "  - Step 6: Trained models (local)"
 if [ "$SKIP_CHECKPOINTS" = false ]; then
     echo "  - Checkpoints (S3: pipeline_checkpoints + pgx-pipeline-status)"
+fi
+if [ "$CLEAR_FEATURE_IMPORTANCE" = false ]; then
+    echo "  - Checkpoints: 3b feature_importance_eda preserved so notebook 2 skips existing"
 fi
 echo ""
 echo -e "${GREEN}NOTE: Gold medical/pharmacy tables are preserved${NC}"
@@ -493,30 +512,36 @@ delete_s3_path "s3://${S3_BUCKET}/gold/event_filter/" "Step 1b: Event filter (S3
 echo ""
 
 # Step 3b + 3a: Feature importance outputs (preserve _baseline; overwritten on 3a --baseline re-run)
-echo "--- Step 3b / 3a: Feature Importance Outputs ---"
-delete_local_path "${STEP3B_OUTPUTS}/ed_non_opioid" "Step 3b: ED_NON_OPIOID feature importance"
-delete_local_path "${STEP3B_OUTPUTS}/opioid_ed" "Step 3b: OPIOID_ED feature importance"
-# Clear 3a local outputs but preserve _baseline subdir (overwritten on 3a --baseline re-run)
-if [ "$SKIP_LOCAL" = false ]; then
-    for _out_root in "${STEP3A_OUTPUTS}" "${STEP3_OUTPUTS}"; do
-        [ -d "$_out_root" ] || continue
-        for _cohort_dir in "${_out_root}"/*/; do
-            [ -d "$_cohort_dir" ] || continue
-            for _item in "${_cohort_dir}"*; do
-                [ -e "$_item" ] || continue
-                case "$_item" in
-                    *"/_baseline" ) ;;
-                    * ) rm -rf "$_item" 2>/dev/null || true ;;
-                esac
+# Default: preserve (notebook 2 only adds missing). Clear only if --clear-feature-importance.
+if [ "$CLEAR_FEATURE_IMPORTANCE" = true ]; then
+    echo "--- Step 3b / 3a: Feature Importance Outputs ---"
+    delete_local_path "${STEP3B_OUTPUTS}/ed_non_opioid" "Step 3b: ED_NON_OPIOID feature importance"
+    delete_local_path "${STEP3B_OUTPUTS}/opioid_ed" "Step 3b: OPIOID_ED feature importance"
+    # Clear 3a local outputs but preserve _baseline subdir (overwritten on 3a --baseline re-run)
+    if [ "$SKIP_LOCAL" = false ]; then
+        for _out_root in "${STEP3A_OUTPUTS}" "${STEP3_OUTPUTS}"; do
+            [ -d "$_out_root" ] || continue
+            for _cohort_dir in "${_out_root}"/*/; do
+                [ -d "$_cohort_dir" ] || continue
+                for _item in "${_cohort_dir}"*; do
+                    [ -e "$_item" ] || continue
+                    case "$_item" in
+                        *"/_baseline" ) ;;
+                        * ) rm -rf "$_item" 2>/dev/null || true ;;
+                    esac
+                done
             done
         done
-    done
-    echo -e "${GREEN}[LOCAL]${NC} Cleared 3a/3 feature importance (baseline preserved)"
-    log_message "[LOCAL] Cleared 3a/3 feature importance outputs (baseline preserved)"
+        echo -e "${GREEN}[LOCAL]${NC} Cleared 3a/3 feature importance (baseline preserved)"
+        log_message "[LOCAL] Cleared 3a/3 feature importance outputs (baseline preserved)"
+    fi
+    delete_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
+    delete_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
+    delete_s3_prefix_exclude_baseline "gold/feature_importance/" "Step 3a: Feature importance (S3, _baseline preserved)"
+else
+    echo "--- Step 3b / 3a: Feature Importance Outputs (DEFAULT: preserved; add missing in notebook 2) ---"
+    log_message "Step 3b/3a: feature importance preserved (default); use --clear-feature-importance to clear"
 fi
-delete_s3_path "s3://${S3_BUCKET}/gold/bupar/ed_non_opioid/" "Step 3b: ED_NON_OPIOID BupaR outputs (S3)"
-delete_s3_path "s3://${S3_BUCKET}/gold/bupar/opioid_ed/" "Step 3b: OPIOID_ED BupaR outputs (S3)"
-delete_s3_prefix_exclude_baseline "gold/feature_importance/" "Step 3a: Feature importance (S3, _baseline preserved)"
 
 echo ""
 
@@ -565,12 +590,16 @@ delete_s3_path "s3://${S3_BUCKET}/gold/models/" "Step 6: Trained models (S3)"
 
 echo ""
 
-# Checkpoints (optional)
+# Checkpoints (optional); preserve 3b FI checkpoints unless --clear-feature-importance
 if [ "$SKIP_CHECKPOINTS" = false ]; then
     echo "--- Checkpoints ---"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pipeline_checkpoints/" "All step checkpoints (1b, 4, 6, etc.)"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/create_cohort/" "Step 2: Cohort creation checkpoints"
-    delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/feature_importance_eda/" "Step 3b: Feature importance checkpoints"
+    if [ "$CLEAR_FEATURE_IMPORTANCE" = true ]; then
+        delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/feature_importance_eda/" "Step 3b: Feature importance checkpoints"
+    else
+        echo "  (preserving pgx-pipeline-status/feature_importance_eda so notebook 2 skips existing)"
+    fi
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/model_data/" "Step 4a: Model data checkpoints"
     delete_s3_path "s3://${S3_REPO_BUCKET}/pgx-pipeline-status/final_model/" "Step 6: Model training checkpoints"
 fi

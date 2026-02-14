@@ -1,12 +1,13 @@
-# Clearing All Checkpoints, S3 Artifacts, and EC2 Artifacts for Full Workflow Run
+# Clearing Checkpoints and Artifacts for Workflow Run
 
-Use this when you want to run the workflow **all the way through** from a clean state: no checkpoints, no S3 outputs, and no EC2/local outputs so every step runs from scratch.
+Use the cleanup script before a pipeline run to clear checkpoints and downstream artifacts. **Default:** Feature importance (Step 3a/3b and `gold/feature_importance`) is **preserved**; notebook 2 will only add missing (cohort, age_band). Use `--clear-feature-importance` when you need a full recompute of feature importance.
 
 ## Quick: Run the Cleanup Script
 
 ```bash
 cd ~/pgx-analysis   # or your project root
 chmod +x utility_scripts/cleanup_cohort_data.sh
+# Default: preserves feature importance; notebook 2 only adds missing
 ./utility_scripts/cleanup_cohort_data.sh
 # Confirm when prompted, or use --yes to skip confirmation
 ```
@@ -15,6 +16,7 @@ chmod +x utility_scripts/cleanup_cohort_data.sh
 - `--skip-checkpoints` — Keep S3 checkpoints (steps will still skip if outputs exist in S3).
 - `--skip-s3` — Only delete local/EC2 files.
 - `--skip-local` — Only delete S3 (and keep EC2/local).
+- **`--clear-feature-importance`** — Also clear Step 3a/3b outputs and `gold/feature_importance` (full recompute in notebook 2). Omit for default (preserve FI, add missing only).
 - `--yes` — Skip confirmation prompt.
 
 **Preserved (never deleted):** The script only deletes under **gold/cohorts** and other step outputs. It **never** deletes **gold/medical** or **gold/pharmacy** (`/mnt/nvme/gold/medical`, `/mnt/nvme/gold/pharmacy`). Project-local cohort copy uses **data/gold/cohorts** (not data/gold_cohorts). **Baseline aggregated feature importances** (`_baseline/` under feature_importance in pgxdatalake) are **preserved**; only second-pass FI is cleared. Baseline files are overwritten when you re-run Step 3a with `--baseline`. The **historical FI bucket** `s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/` is **never** deleted; 1b reads from it when local/pgxdatalake FI is missing. That bucket has **versioning** enabled, so Step 3a can overwrite with new data and previous versions remain recoverable.
@@ -22,6 +24,8 @@ chmod +x utility_scripts/cleanup_cohort_data.sh
 ---
 
 ## What Gets Cleared
+
+**Default:** Step 3a/3b outputs, `gold/feature_importance`, and `pgx-pipeline-status/feature_importance_eda` are **not** cleared. Add **`--clear-feature-importance`** to clear them for a full feature-importance recompute.
 
 ### 1. Checkpoints (S3: pgx-repository)
 

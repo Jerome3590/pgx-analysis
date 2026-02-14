@@ -1,6 +1,31 @@
 # Workflow Execution TODO List
 
-This document provides a step-by-step checklist for executing the complete workflow after the first-ED-within-21d-of-drug (HCG) target logic migration.
+This document provides a step-by-step checklist for executing the complete workflow and tracks status for a full end-to-end run.
+
+---
+
+## Workflow run status (full end-to-end)
+
+**Run goal:** Full pipeline with cohort/age-band updates: both cohorts use full age bands (0-12 through 85-114), single band 85-114, dashboard cohort-from-tab (Opioid ED / Polypharmacy).
+
+**Last reset:** 2026-02-14
+
+| # | Notebook | Status | Notes |
+|---|----------|--------|--------|
+| 0 | **0_config_and_pipeline.ipynb** | ⬜ Not started | **Reset:** env checks, run cleanup script. **Default:** feature importance preserved; notebook 2 only adds missing. Use `--clear-feature-importance` for full recompute. |
+| 1 | **1_cohort_workflow.ipynb** | ⬜ Not started | Steps 1–2: Cohorts (all bands, 85-114) |
+| 2 | **2_feature_importance.ipynb** | ⬜ Not started | Steps 3a–3c: additive — skips existing (cohort, age_band); only adds missing. Keep `FORCE_FEATURE_IMPORTANCE = False`. |
+| 3 | **3_model_train_shap_ffa.ipynb** | ⬜ Not started | Steps 4–8: Model data → PGx → final model → SHAP/FFA |
+| 4 | **4_dashboard_visuals.ipynb** | ⬜ Not started | Step 9: BupaR, DTW, FP-Growth |
+| 5 | **5_build_and_deploy.ipynb** | ⬜ Not started | Lambda + S3 frontend deploy |
+
+**How to update:** Change ⬜ to ✅ when that notebook’s run is complete.
+
+**Default behavior:** Feature importance is **preserved**. Run notebook 0 and execute the cleanup script (no extra flags). Step 3a/3b outputs and `gold/feature_importance` are **not** deleted; notebook 2 **skips** (cohort, age_band) that already have checkpoints/outputs and **only runs for missing combinations**—e.g. new age bands from the full-grid update. Then 1 → 2 → 3 → 4 → 5.
+
+**Optional — full recompute of feature importance:** Run the cleanup script with **`--clear-feature-importance`** to also delete Step 3a/3b and `gold/feature_importance`; notebook 2 will then recompute all (cohort, age_band).
+
+---
 
 ## Prerequisites
 
@@ -11,14 +36,15 @@ This document provides a step-by-step checklist for executing the complete workf
 - AWS CLI configured
 - Project cloned: `~/pgx-analysis`
 
-**Optional:** [0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb) — env checks (Python/R/Docker), run cleanup script, and pipeline instructions. Not required for the workflow below.
+**Default:** Run [0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb) first to clear checkpoints and S3/local artifacts; **feature importance is preserved** (notebook 2 only adds missing). Then run notebooks 1 → 5. Use cleanup script with `--clear-feature-importance` only when you need a full recompute of feature importance.
 
-### Key notebooks (run from repo root) — efficient flow: 1 → 2 → 3 → 4 → 5
+### Key notebooks (run from repo root) — full fresh run: 0 → 1 → 2 → 3 → 4 → 5
 
 | # | Notebook | Purpose |
 |---|----------|---------|
+| 0 | [0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb) | **Reset:** env checks, run cleanup script. **Default:** FI preserved; notebook 2 only adds missing. Use `--clear-feature-importance` for full FI recompute. |
 | 1 | [1_cohort_workflow.ipynb](1_cohort_workflow.ipynb) | Step 2: Create cohorts (OPIOID_ED, POLYPHARMACY) |
-| 2 | [2_feature_importance.ipynb](2_feature_importance.ipynb) | Steps 3a–3c: Feature importance, BupaR leakage, refine features |
+| 2 | [2_feature_importance.ipynb](2_feature_importance.ipynb) | Steps 3a–3c: additive — only add missing (cohort, age_band); keep `FORCE_FEATURE_IMPORTANCE = False`. |
 | 3 | [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb) | Model data → PGx → final model → SHAP/FFA → combine (no deploy) |
 | 4 | [4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb) | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven) |
 | 5 | [5_build_and_deploy.ipynb](5_build_and_deploy.ipynb) | Build and deploy: prepare Lambda → Docker → ECR → Lambda → S3 frontend |
@@ -39,23 +65,27 @@ cd ~/pgx-analysis
 # Make script executable (if not already)
 chmod +x utility_scripts/cleanup_cohort_data.sh
 
-# Run cleanup (will scan and log all existing data, then delete)
+# Run cleanup (default: preserves feature importance; notebook 2 only adds missing)
 ./utility_scripts/cleanup_cohort_data.sh
+
+# Optional: also clear feature importance for full recompute
+# ./utility_scripts/cleanup_cohort_data.sh --clear-feature-importance
 
 # Review the log: ./utility_scripts/check_cleanup_log.sh  (or see repo root for cleanup_cohort_data_YYYYMMDD_HHMMSS.log)
 ```
 
-**What gets cleared:**
+**What gets cleared (default):**
 - Step 2: Cohort parquet files (S3 and local)
-- Step 3b: Feature importance outputs
 - Step 4a: Model data
 - Step 6: Trained models
 - Checkpoints (optional)
+- **Step 3b/3a feature importance:** **NOT** cleared by default (preserved; notebook 2 only adds missing).
 
 **Options:**
 - `--skip-checkpoints` - Keep checkpoints
 - `--skip-s3` - Only delete local files
 - `--skip-local` - Only delete S3 files
+- **`--clear-feature-importance`** - Also delete Step 3a/3b outputs and `gold/feature_importance` (full recompute in notebook 2). Omit this flag for default (preserve FI, add missing only).
 
 ---
 
@@ -84,7 +114,7 @@ python 2_create_cohort/0_create_cohort.py \
 **For Opioid ED Cohort (opioid_ed / OPIOID_ED):**
 
 ```bash
-# Age bands: 13-24, 25-44, 45-54, 55-64
+# Age bands: full set (py_helpers.constants.AGE_BANDS): 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114
 # Years: 2016, 2017, 2018, 2019
 # Note: opioid_ed uses F11.20 target only. Polypharmacy (ed_non_opioid) uses first ED (HCG) within 21 days of drug event.
 
@@ -94,7 +124,7 @@ python 2_create_cohort/0_create_cohort.py \
     --event-year 2016 \
     --cohort opioid_ed
 
-# Repeat for each year and age band
+# Repeat for each year and each age band (full set)
 ```
 
 ### 2.2 Verify Cohort Creation
@@ -180,8 +210,8 @@ python 4_model_data/create_model_data.py \
 
 **Verify:**
 ```bash
-# Check model_events.parquet created
-ls -lh /mnt/nvme/4a_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
+# Check model_events.parquet created (path: PGX_DATA_ROOT or /mnt/nvme on EC2)
+ls -lh /mnt/nvme/4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
 ```
 
 ### 4.2 Step 4b: Event Filtering (Protocol Filtering)
@@ -383,26 +413,26 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
 ## Final documented workflow (notebooks)
 
-**Most efficient flow:** 1 → 2 → **3** → **4** → **5** (one notebook per stage; build and deploy once in 5).
+**Full fresh run:** **0** → 1 → 2 → **3** → **4** → **5** (notebook 0 clears checkpoints; then one notebook per stage; build and deploy once in 5).
 
 | Order | Notebook | Covers |
 |-------|----------|--------|
+| 0 | **`0_config_and_pipeline.ipynb`** | Clear checkpoints + S3/local (cleanup script); env checks. Run first for full E2E. |
 | 1 | **`1_cohort_workflow.ipynb`** | Step 2: Cohort creation (OPIOID_ED and POLYPHARMACY). |
 | 2 | **`2_feature_importance.ipynb`** | Steps 3a–3c: Feature importance, BupaR leakage, refine features. |
 | 3 | **`3_model_train_shap_ffa.ipynb`** | Model data → PGx → final model → SHAP/FFA → combine. No deploy. |
 | 4 | **`4_dashboard_visuals.ipynb`** or **`pgx_dashboard_visuals.py`** | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven). |
 | 5 | **`5_build_and_deploy.ipynb`** | Prepare models/Lambda → Docker → ECR → update Lambda → S3 frontend. Run once. |
 
-**Prerequisites before notebook 1:** Step 1 (cleanup) and Step 1a/1b data as needed.
+**Prerequisites before notebook 1:** Run notebook 0 to clear checkpoints (and optionally full cleanup); Step 1a/1b data as needed.
 
 ---
 
-## Checklist
+## Checklist (reset for full end-to-end run 2026-02-14)
 
-- [ ] **Step 1 (utility)**: Clear cohort data for full reset only — `utility_scripts/cleanup_cohort_data.sh`
-- [ ] **Step 2**: Create cohorts with time-windowed logic for polypharmacy cohort (`1_cohort_workflow.ipynb`)
-- [ ] **Step 2**: Create cohorts for opioid ED cohort (`1_cohort_workflow.ipynb`)
-- [ ] **Step 3**: Run Feature Importance EDA (BupaR post-target analysis) for all cohorts (`2_feature_importance.ipynb` or `3b_feature_importance_eda/step3b_interactive_analysis_cohort*.ipynb`)
+- [ ] **Notebook 0**: Clear checkpoints and start fresh — `0_config_and_pipeline.ipynb` (run cleanup script to clear checkpoints + S3/local; run first for full E2E)
+- [ ] **Notebook 1**: Create cohorts — `1_cohort_workflow.ipynb` (OPIOID_ED + POLYPHARMACY, all age bands including 85-114)
+- [ ] **Notebook 2**: Feature importance + EDA + 3c — `2_feature_importance.ipynb` (Steps 3a–3c; only adds missing — do not delete existing FI; keep `FORCE_FEATURE_IMPORTANCE = False`)
 - [ ] **Notebook 3**: Model train + SHAP/FFA — `3_model_train_shap_ffa.ipynb` (model data, PGx, final model, SHAP, FFA, combine)
 - [ ] **Notebook 4**: Dashboard visuals — `4_dashboard_visuals.ipynb` or `pgx_dashboard_visuals.py` (BupaR, DTW, FP-Growth)
 - [ ] **Notebook 5**: Build and deploy — `5_build_and_deploy.ipynb` (Lambda, ECR, S3 frontend) — run once
@@ -411,6 +441,7 @@ bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
 
 ## Notes
 
+- **Feature importance (default):** Cleanup script **preserves** Step 3a/3b and `gold/feature_importance` by default. Notebook 2 skips (cohort, age_band) that already have checkpoints/outputs and only runs for missing combinations. Keep **`FORCE_FEATURE_IMPORTANCE = False`** in notebook 2. Use **`--clear-feature-importance`** only when you need a full recompute.
 - **Time Windows**: Polypharmacy (ed_non_opioid) target = first ED visit (HCG Setting) within 21 days of a prescription drug event. See `2_create_cohort/README.md` and `py_helpers/constants.py` (NON_OPIOID_ED_TARGET_DESCRIPTION). Opioid_ed uses F11.20 target only.
 - **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Causal dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
 - **Idempotent**: All scripts are idempotent and will skip completed steps
