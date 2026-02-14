@@ -194,7 +194,7 @@ except ModuleNotFoundError as e:
 # POLYPHARMACY COHORT: cohort_name in data partitions is "non_opioid_ed"
 # but we refer to this as "polypharmacy cohort" throughout
 COHORT = "non_opioid_ed"  # Data partition name (must match S3/parquet partitions)
-AGE_BAND = "85-94"
+AGE_BAND = "85-114"
 # User-facing target name (no F1120 reference for polypharmacy)
 TARGET_LABEL = "F1120" if COHORT == "opioid_ed" else "target"
 

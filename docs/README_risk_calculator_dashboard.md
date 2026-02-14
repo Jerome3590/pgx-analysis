@@ -6,7 +6,7 @@ This directory contains the **production-ready risk assessment dashboard** and d
 
 The dashboard provides multiple capabilities:
 
-1. **Risk Assessment Dashboard** - Predict opioid ED visit risk (ages 13-64) or polypharmacy risk (ages 65-114)
+1. **Risk Assessment Dashboard** - Predict risk for **Opioid ED** or **Polypharmacy** (select cohort via tabs); both cohorts use the full set of age bands (0-12 through 85-114)
 2. **Causal Analysis** - Explore FFA causal factors and SHAP importance
 3. **DTW Trajectories** - View patient trajectory patterns
 4. **FP-Growth Patterns** - Explore frequent itemsets and association rules
@@ -117,7 +117,7 @@ This organization provides:
 
 **Key Files**:
 - `index.html` - Main dashboard with all tabs:
-  - **Risk Assessment** - Calculate risk scores for opioid ED visits (ages 13-64) or polypharmacy risk (ages 65-114)
+  - **Risk Assessment** - Calculate risk scores for **Opioid ED** or **Polypharmacy** (select cohort via tabs); both use full age bands (0-12 through 85-114)
   - **Causal Analysis** - FFA causal factors and SHAP importance with interactive charts
   - **DTW Trajectories** - Patient trajectory patterns, temporal metrics, and sample trajectories
   - **FP-Growth Patterns** - Frequent itemsets, support distributions, and co-occurrence networks
@@ -275,7 +275,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 
 - **`GET /metadata`** - Get valid age bands and valid codes for dropdowns
   - Returns, per cohort, the supported age bands and code lists for the **Drugs / CPT / ICD** tabs
-  - The dashboard uses these to populate the cohort grid (e.g., 13-24, 25-44, 45-54, 65-74, 75-84, 85-94) and the tab-specific grids
+  - The dashboard uses these to populate the cohort/age-band grid (e.g., 13-24, 25-44, 45-54, 65-74, 75-84, 85-114) and the tab-specific grids
 
 - **`POST /risk`** - Calculate risk score for a given `(cohort, age_band)` and selected codes
   - Dashboard sends a JSON body:

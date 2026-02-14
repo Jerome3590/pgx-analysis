@@ -102,7 +102,7 @@ def download_from_s3_if_needed(s3_path: str, local_path: Path) -> bool:
         return False
 
 
-def test_query(age_band: str = "85-94", sample_size: int = 100):
+def test_query(age_band: str = "85-114", sample_size: int = 100):
     """Test the control cohort creation query with a small sample."""
     print(f"\n{'='*80}")
     print(f"Testing Control Cohort Query")
@@ -342,7 +342,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Test control cohort creation query")
-    parser.add_argument("--age-band", type=str, default="85-94", help="Age band to test (default: 85-94)")
+    parser.add_argument("--age-band", type=str, default="85-114", help="Age band to test (default: 85-114)")
     parser.add_argument("--sample-size", type=int, default=100, help="Sample size for testing (default: 100)")
     
     args = parser.parse_args()

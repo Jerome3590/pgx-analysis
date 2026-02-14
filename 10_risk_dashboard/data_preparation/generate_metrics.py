@@ -23,14 +23,11 @@ from typing import Dict, List, Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from py_helpers.constants import REQUIRED_COHORTS
+
 FINAL_MODEL_DIR = PROJECT_ROOT / "6_final_model" / "outputs"
 OUTPUT_DIR = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "metadata"
 METRICS_FILENAME = "model_performance_metrics.json"
-
-REQUIRED_COHORTS = {
-    "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
-    "non_opioid_ed": ["65-74", "75-84", "85-94"],
-}
 
 S3_BUCKET = "pgxdatalake"
 S3_PREFIX = "gold/final_model"

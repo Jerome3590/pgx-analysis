@@ -41,7 +41,7 @@ log = logging.getLogger("orchestrator")
 DEFAULT_RAW_PHARMACY = "s3://pgxdatalake/silver/imputed/pharmacy_partitioned"
 DEFAULT_RAW_MEDICAL  = "s3://pgxdatalake/silver/imputed/medical_partitioned"
 
-AGE_BANDS = ["0-12","13-24","25-44","45-54","55-64","65-74","75-84","85-94","95-114"]
+AGE_BANDS = ["0-12","13-24","25-44","45-54","55-64","65-74","75-84","85-114"]
 
 AGE_BAND_CASE = """
 CASE
@@ -52,8 +52,7 @@ CASE
   WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
   WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
   WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-  WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-  WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+  WHEN TRY_CAST(member_age_dos AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
   ELSE 'Other'
 END
 """

@@ -97,8 +97,8 @@ itemset_14_match = 0.0       # Median from training data
 **Result**: Automatically uses polypharmacy model, returns polypharmacy risk
 
 **Note**: 
-- Age band 0-12 is excluded due to small cohort size
-- Ages 95-114 are mapped to age band 85-94 (uses 85-94 model)
+- Age band 0-12 is excluded from risk (minimum age 13)
+- Last age band is 85-114 (combined former 85-94 and 95-114). Cohort is selected via dashboard **Opioid ED** or **Polypharmacy** tab.
 
 ## API Call Example
 
@@ -129,14 +129,13 @@ curl -X POST https://api.example.com/risk \
 ## Important Notes
 
 ### ✅ What You Need
-- **Age** (required): 13-114 (determines which model to use)
-  - Ages 13-64: Opioid ED Risk
-  - Ages 65-114: Polypharmacy Risk (ages 95-114 use 85-94 model)
+- **Cohort**: Selected via dashboard **Opioid ED** or **Polypharmacy** tab (not driven by age)
+- **Age** (required for risk): 13-114 — selects age band within the chosen cohort (both cohorts use full set: 13-24 through 85-114)
 - **At least one code** (recommended): ICD, CPT, or drug name
 
 **Note**: 
-- Age band 0-12 is excluded due to small cohort size
-- Ages 95-114 are treated as age band 85-94 (shown on dashboard)
+- Age band 0-12 is excluded from risk calculation (minimum age 13)
+- Both cohorts use the same full set of age bands; last band is 85-114
 
 ### ⚠️ Code Format
 - **Must match training data**: `F1120` not `F11.20`

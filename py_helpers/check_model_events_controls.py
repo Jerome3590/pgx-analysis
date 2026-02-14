@@ -45,7 +45,7 @@ def check_s3_file_controls(s3_path, profile='mushin'):
 
 
 def main():
-    age_bands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-94']
+    age_bands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114']
     
     print('=== Checking model_events.parquet files in S3 for controls ===')
     print('')

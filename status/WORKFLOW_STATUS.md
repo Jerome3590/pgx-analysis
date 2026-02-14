@@ -215,8 +215,7 @@ Legend:
 |---------------|----------|----------------------|----------------|----------------|------------------|----------------|------------------|-----------------|-------------|----------------------------|
 | non_opioid_ed | 65-74    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
 | non_opioid_ed | 75-84    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
-| non_opioid_ed | 85-94    | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort. |
-| non_opioid_ed | 95-114   | IGNORED              | IGNORED        | IGNORED        | IGNORED          | IGNORED        | IGNORED          | IGNORED         | IGNORED      | Explicitly excluded cohort.|
+| non_opioid_ed | 85-114   | PENDING              | PENDING        | PENDING        | PENDING          | PENDING        | PENDING          | PENDING         | PENDING      | Primary production cohort (combined former 85-94 and 95-114). |
 
 > As of the latest reset, all downstream feature engineering outputs and final model artifacts have been cleared, so all non-test, non-ignored cells are marked `PENDING`. As runs complete and artifacts appear on disk, update the corresponding cells in this table to `DONE` together with brief notes (e.g., command used, commit hash, or run date).
 
@@ -246,7 +245,7 @@ Legend (same as above):
 |-------------------------------|----------|------------------------|--------------------------|-----------------|------------------|------------------------|-----------------------------------------------------------------|
 | non_opioid_ed_extreme_density | 65-74   | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | To be created via `extract_extreme_density_cohort.py` prior to FP-Growth. |
 | non_opioid_ed_extreme_density | 75-84   | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | To be created via `extract_extreme_density_cohort.py` prior to FP-Growth. |
-| non_opioid_ed_extreme_density | 85-94   | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | To be created via `extract_extreme_density_cohort.py` prior to FP-Growth. |
+| non_opioid_ed_extreme_density | 85-114  | PENDING                | PENDING                  | PENDING         | PENDING          | PENDING                | To be created via `extract_extreme_density_cohort.py` prior to FP-Growth. |
 
 ---
 

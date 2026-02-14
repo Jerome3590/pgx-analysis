@@ -8,10 +8,10 @@ The dashboard build process (`build_dashboard.sh`) requires outputs from multipl
 
 ### Required Cohorts and Age Bands
 
-- **opioid_ed**: 13-24, 25-44, 45-54, 55-64 (4 age bands)
-- **non_opioid_ed**: 65-74, 75-84, 85-94 (3 age bands)
+- **opioid_ed**: full set 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114 (8 age bands)
+- **non_opioid_ed**: full set (same as opioid_ed): 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114
 
-**Total: 7 cohort/age_band combinations required**
+**Total: 16 cohort/age_band combinations (2 cohorts × 8 bands) required**
 
 ## Required Outputs by Step
 

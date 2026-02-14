@@ -36,8 +36,8 @@ See 10_risk_dashboard/deployment/ or archived/utility_scripts/build_dashboard.sh
 
 **Example output:**
 ```
-✓ opioid_ed: 2 age band(s) available (13-24, 25-44)
-✓ non_opioid_ed: 1 age band(s) available (65-74)
+✓ opioid_ed: N age band(s) available (e.g. 13-24, 25-44, …, 85-114)
+✓ non_opioid_ed: N age band(s) available (same full set)
 
 Preparing models for available cohorts...
   Processing cohort: opioid_ed
@@ -47,6 +47,8 @@ Generating metadata for available cohorts...
   Processing cohort: opioid_ed
   Processing cohort: non_opioid_ed
 ```
+
+(Both cohorts use the full set of age bands: 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114.)
 
 ### 3. **Docker Build (Incremental)**
 
@@ -164,21 +166,21 @@ The Lambda function (`lambda_function.py`) handles missing models gracefully:
 ## Example Scenarios
 
 ### Scenario 1: Partial Deployment
-- **Completed:** `opioid_ed/13-24`, `opioid_ed/25-44`
-- **Not completed:** `opioid_ed/45-54`, `opioid_ed/55-64`, all `non_opioid_ed`
-- **Result:** Dashboard works for ages 13-44 only
-- **User experience:** Ages 45+ show "Model not available" message
+- **Completed:** e.g. `opioid_ed/13-24`, `opioid_ed/25-44`
+- **Not completed:** Other cohort/age_band combinations
+- **Result:** Dashboard works for completed cohort/age_band combinations only
+- **User experience:** Risk and visualizations work for available combinations; others show "Model not available" or empty
 
 ### Scenario 2: One Cohort Complete
-- **Completed:** All `opioid_ed` age bands
-- **Not completed:** All `non_opioid_ed` age bands
-- **Result:** Dashboard works for ages 13-64 only
-- **User experience:** Ages 65+ show "Model not available" message
+- **Completed:** All age bands for `opioid_ed` (or `non_opioid_ed`)
+- **Not completed:** All age bands for the other cohort
+- **Result:** Full functionality for one cohort tab; other cohort tab shows missing models for its bands
+- **User experience:** User can switch cohort tab; available cohort works for all its age bands
 
 ### Scenario 3: All Cohorts Complete
-- **Completed:** All cohorts/age_bands
+- **Completed:** All cohort/age_band combinations (both cohorts, full age band set)
 - **Result:** Full dashboard functionality
-- **User experience:** All ages supported
+- **User experience:** Both Opioid ED and Polypharmacy tabs work for all age bands (0-12 through 85-114)
 
 ## Best Practices
 

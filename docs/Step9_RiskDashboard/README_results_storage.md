@@ -39,10 +39,10 @@
 **Polypharmacy (3 age bands):**
 - 65-74: ~3.3 MB
 - 75-84: ~3.3 MB
-- 85-94: ~3.3 MB
-- **Subtotal: ~9.9 MB**
+- 85-114: ~3.3 MB (combined former 85-94 and 95-114)
+- **Subtotal per cohort: ~26 MB** (8 age bands 0-12 through 85-114; 0-12 optional for risk)
 
-**Total Models: ~23 MB** (7 age bands × 3.3 MB)
+**Total Models (illustrative):** ~26 MB per cohort × 2 cohorts = ~52 MB if all cohort/age_band combinations are trained. Builds are incremental (only available combinations included).
 
 ### Metadata Files
 - Feature importance CSVs: **~750 KB**
@@ -62,7 +62,7 @@
 
 | Component | Size |
 |-----------|------|
-| Models (7 age bands) | ~23 MB |
+| Models (per cohort × age bands) | ~26 MB per cohort (8 bands) |
 | Metadata | ~1 MB |
 | Python Dependencies | ~1 GB |
 | Base Lambda Image | ~500 MB |
@@ -94,7 +94,7 @@
 ### Key Points:
 
 1. **Models are small**: ~3.3 MB per age_band
-   - Even with 7 age bands = ~23 MB total
+   - Both cohorts use the full set of age bands (0-12 through 85-114)
    - Well within limits
 
 2. **Dependencies are the largest component**: ~1 GB
@@ -107,8 +107,8 @@
    - Can add ~5-6x more models/age_bands if needed
 
 4. **All models fit comfortably**:
-   - All 7 age bands (4 opioid_ed + 3 polypharmacy)
-   - All 3 model types per age_band
+   - Full age band set for both cohorts (opioid_ed and non_opioid_ed)
+   - All 3 model types per cohort/age_band
    - All metadata and schemas
 
 ## Optimization Opportunities (If Needed)

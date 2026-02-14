@@ -37,7 +37,7 @@ else:
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py_helpers.constants import age_band_to_fname
+from py_helpers.constants import age_band_to_fname, REQUIRED_COHORTS
 
 try:
     from py_helpers.checkpoint_utils import save_step_checkpoint
@@ -46,11 +46,8 @@ except ImportError:
         """Dummy checkpoint function if checkpoint_utils not available."""
         return True
 
-# Cohorts and age bands
-COHORTS = {
-    'opioid_ed': ['13-24', '25-44', '45-54', '55-64'],
-    'non_opioid_ed': ['65-74', '75-84', '85-94']
-}
+# Both cohorts use full set of age bands (from py_helpers.constants)
+COHORTS = REQUIRED_COHORTS
 
 
 def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:

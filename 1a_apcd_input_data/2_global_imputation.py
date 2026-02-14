@@ -231,8 +231,7 @@ def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_r
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                     ELSE 'Other'
                 END AS age_band,
                 -- Derive event_year from Incurred Date
@@ -347,8 +346,7 @@ def create_raw_silver_datasets(pharmacy_input: str, medical_input: str, output_r
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                     WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    WHEN TRY_CAST("Member Age DOS" AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                     ELSE 'Other'
                 END AS age_band,
                 -- Derive event_year from Incurred Date
@@ -969,8 +967,7 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                     ELSE 'Other'
                 END AS age_band,
                 TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')) AS INTEGER) AS event_year
@@ -1085,8 +1082,7 @@ def run_global_imputation(pharmacy_input: str, medical_input: str, output_root: 
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 55 AND 64  THEN '55-64'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 65 AND 74  THEN '65-74'
                     WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 75 AND 84  THEN '75-84'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 94  THEN '85-94'
-                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 95 AND 114 THEN '95-114'
+                    WHEN TRY_CAST(age_imputed AS INTEGER) BETWEEN 85 AND 114 THEN '85-114'
                     ELSE 'Other'
                 END AS age_band,
                 TRY_CAST(EXTRACT(YEAR FROM TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')) AS INTEGER) AS event_year

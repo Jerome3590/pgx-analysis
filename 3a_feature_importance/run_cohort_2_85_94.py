@@ -30,7 +30,7 @@ from py_helpers.feature_importance_utils import run_cohort_analysis
 
 # Configuration
 COHORT_NAME = "non_opioid_ed"
-AGE_BAND = "85-94"
+AGE_BAND = "85-114"  # Combined former 85-94 and 95-114
 TRAIN_YEARS = [2016, 2017, 2018]
 TEST_YEAR = 2019
 N_SPLITS = 25

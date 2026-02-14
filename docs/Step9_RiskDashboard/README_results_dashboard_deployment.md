@@ -140,9 +140,9 @@ aws s3 cp 10_risk_dashboard/index.html s3://<BUCKET>/index.html
 ### Example Scenario
 
 **Initial Deployment**:
-- Completed: `opioid_ed/13-24`, `opioid_ed/25-44`
-- Not completed: All other cohorts
-- **Result**: Dashboard works for ages 13-44 only
+- Completed: e.g. `opioid_ed/13-24`, `opioid_ed/25-44`
+- Not completed: Other cohort/age_band combinations
+- **Result**: Dashboard works for completed cohort/age_band combinations; user selects cohort via Opioid ED or Polypharmacy tab
 
 **After More Cohorts Complete**:
 - Rebuild: See `10_risk_dashboard/deployment/` or `archived/utility_scripts/build_dashboard.sh`

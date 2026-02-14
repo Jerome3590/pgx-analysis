@@ -10,11 +10,7 @@ from typing import List, Optional, Tuple
 
 import pandas as pd
 
-# Default cohort × age_band grid (align with 3_model_train_shap_ffa, 5_build_and_deploy)
-REQUIRED_COHORTS = {
-    "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
-    "non_opioid_ed": ["65-74", "75-84", "85-94"],
-}
+from py_helpers.constants import REQUIRED_COHORTS
 
 PGX_REPO_BUCKET = "pgx-repository"
 PGX_REPO_FI_PREFIX = "pgx-analysis/3_feature_importance/outputs"

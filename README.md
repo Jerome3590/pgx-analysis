@@ -33,8 +33,10 @@ Legacy shell scripts and the former combined notebooks (3, 4) are in **archived/
 
 ### Available Cohorts and Age Bands
 
-- **`opioid_ed`**: `13-24`, `25-44`, `45-54`, `55-64`
-- **`non_opioid_ed`**: `65-74`, `75-84`, `85-94`
+Both cohorts use the **full set of age bands**: `0-12`, `13-24`, `25-44`, `45-54`, `55-64`, `65-74`, `75-84`, `85-114` (last band 85-114 combines former 85-94 and 95-114).
+
+- **`opioid_ed`**: Opioid ED cohort (F11.20 target) — all age bands above
+- **`non_opioid_ed`**: Polypharmacy cohort (HCG ED target) — all age bands above
 
 ### Workflow Steps (Executed Automatically)
 

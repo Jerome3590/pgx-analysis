@@ -4,10 +4,10 @@
 
 This document outlines the implementation plan for a user-facing risk assessment dashboard that provides:
 
-1. **F1120 Opioid ED Visit Risk Score** (ages 13-64)
-2. **Polypharmacy Risk Score** (ages 65+)
+1. **Opioid ED Risk Score** (F11.20 target) — select via **Opioid ED** tab
+2. **Polypharmacy Risk Score** (HCG ED target) — select via **Polypharmacy** tab
 
-The dashboard uses age to automatically select the appropriate model and provides an interactive interface for exploring risk factors.
+The dashboard uses **cohort tabs** to choose cohort; age selects the age band within that cohort (both cohorts use the full set of age bands). An interactive interface supports exploring risk factors and visualizations per cohort/age band.
 
 ---
 
@@ -44,18 +44,18 @@ The dashboard uses age to automatically select the appropriate model and provide
 ## Data Sources
 
 ### Cohort 1: Opioid ED (`opioid_ed`)
-- **Age Range**: 13-64 (age bands: 13-24, 25-44, 45-54, 55-64)
-- **Models**: `8_final_model/outputs/opioid_ed/{age_band}/models/`
+- **Age Bands**: Full set (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) — same as Polypharmacy
+- **Models**: `6_final_model/outputs/opioid_ed/{age_band}/models/` (or `8_final_model` per project layout)
 - **Feature Importances**: `3a_feature_importance/outputs/opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, ICD codes, CPT codes, Drug names
-- **Note**: Age band 0-12 excluded due to small cohort size
+- **Note**: Risk calculation requires age 13+; cohort is selected via dashboard **Opioid ED** tab
 
 ### Cohort 2: Polypharmacy (`non_opioid_ed`)
-- **Age Range**: 65-114 (age bands: 65-74, 75-84, 85-94)
-- **Models**: `8_final_model/outputs/non_opioid_ed/{age_band}/models/`
+- **Age Bands**: Full set (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) — same as Opioid ED
+- **Models**: `6_final_model/outputs/non_opioid_ed/{age_band}/models/`
 - **Feature Importances**: `3a_feature_importance/outputs/non_opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, Drug names (single or combinations)
-- **Note**: Ages 95-114 are mapped to age band 85-94 (uses 85-94 model) due to small cohort size
+- **Note**: Last band 85-114 combines former 85-94 and 95-114. Cohort selected via dashboard **Polypharmacy** tab
 
 ---
 
@@ -71,7 +71,7 @@ The dashboard uses age to automatically select the appropriate model and provide
 ```json
 {
   "cohort": "opioid_ed",
-  "age_bands": ["13-24", "25-44", "45-54", "55-64"],
+  "age_bands": ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"],
   "codes": {
     "13-24": {
       "drugs": [
@@ -196,10 +196,10 @@ models/
 ```
 
 **Ensemble Logic**:
-1. Determine cohort from age (13-64 → `opioid_ed`, 65-114 → `non_opioid_ed`)
-2. Determine age band from age:
-   - Validates age is 13-114 (excludes 0-12)
-   - Maps ages 95-114 to age band 85-94 (uses 85-94 model)
+1. Cohort is provided by the dashboard (from **Opioid ED** or **Polypharmacy** tab) or inferred from age when not provided (backward compatible)
+2. Age band is derived from age (or provided explicitly):
+   - Validates age is 13-114 for risk (excludes 0-12)
+   - Full age band set: 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114 (last band 85-114 combines former 85-94 and 95-114)
 3. Load all three models (CatBoost, XGBoost, XGBoost RF) from container/S3 (with caching)
 4. Load model weights from `feature_schema.json` (calculated from MC-CV performance metrics)
 5. Build feature vector from inputs
@@ -477,39 +477,22 @@ def build_feature_vector(age, drugs, icds, cpts, feature_schema):
 
 ---
 
-## Age-Based Model Selection
+## Cohort and Age Band Selection
+
+Cohort is provided by the frontend (user selects **Opioid ED** or **Polypharmacy** tab). Age band is derived from the user's age within the full set (13-24 through 85-114). Example logic:
 
 ```python
-def determine_cohort_and_age_band(age):
-    """
-    Determine which cohort and age band to use based on age.
-    
-    Rules:
-    - Ages 13-64: opioid_ed cohort
-    - Ages 65+: non_opioid_ed (polypharmacy) cohort
-    """
-    if age < 13:
-        raise ValueError("Age must be 13 or older")
-    elif age >= 13 and age <= 64:
-        cohort = "opioid_ed"
-        if age <= 24:
-            age_band = "13-24"
-        elif age <= 44:
-            age_band = "25-44"
-        elif age <= 54:
-            age_band = "45-54"
-        else:
-            age_band = "55-64"
-    else:  # age >= 65
-        cohort = "non_opioid_ed"
-        if age <= 74:
-            age_band = "65-74"
-        elif age <= 84:
-            age_band = "75-84"
-        else:
-            age_band = "85-94"
-    
-    return cohort, age_band
+# Cohort comes from request (dashboard tab). Age band from age.
+def get_age_band(age):
+    """Map age to band; 85+ → 85-114."""
+    if age < 13: raise ValueError("Age must be 13+")
+    if age <= 24: return "13-24"
+    if age <= 44: return "25-44"
+    if age <= 54: return "45-54"
+    if age <= 64: return "55-64"
+    if age <= 74: return "65-74"
+    if age <= 84: return "75-84"
+    return "85-114"
 ```
 
 ---

@@ -40,10 +40,8 @@ if str(REPO_ROOT) not in sys.path:
 try:
     from py_helpers.constants import REQUIRED_COHORTS
 except ImportError:
-    REQUIRED_COHORTS = {
-        "opioid_ed": ["13-24", "25-44", "45-54", "55-64"],
-        "non_opioid_ed": ["65-74", "75-84", "85-94"],
-    }
+    _all_bands = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
+    REQUIRED_COHORTS = {"opioid_ed": _all_bands, "non_opioid_ed": _all_bands}
 
 
 def ensure_symlinks(repo_root: Path) -> None:

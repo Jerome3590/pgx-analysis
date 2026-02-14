@@ -7,7 +7,7 @@ Expected layout (same as create_model_data.py):
   DATA_ROOT/gold/medical/age_band={band}/event_year={year}/*.parquet
 
 Expected cells for Step 4:
-  - Age bands: 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-94
+  - Age bands: 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114
   - Event years: 2016, 2017, 2018, 2019
 
 Run from project root:
@@ -27,7 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from py_helpers.env_utils import get_data_root  # noqa: E402
 
 # Same as create_model_data.py
-EXPECTED_AGE_BANDS = ["13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-94"]
+EXPECTED_AGE_BANDS = ["13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
 EXPECTED_YEARS = [2016, 2017, 2018, 2019]
 
 

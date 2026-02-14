@@ -150,7 +150,7 @@ def create_combined_cohorts_fi_heatmap(
 
     Args:
         outputs_base: Base directory for Step 3a outputs (e.g. 3a_feature_importance/outputs).
-        cohorts: Dict cohort -> list of age_bands (e.g. {"opioid_ed": ["13-24", ...], "non_opioid_ed": ["65-74", ...]}).
+        cohorts: Dict cohort -> list of age_bands (e.g. REQUIRED_COHORTS; both opioid_ed and non_opioid_ed use full set).
         top_n: Number of top features to show (by max summed importance across cohorts).
         importance_col: Column name for importance (default: scaled_importance_mean, then importance_mean).
 

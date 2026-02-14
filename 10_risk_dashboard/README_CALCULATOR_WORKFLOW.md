@@ -9,7 +9,7 @@ The PGx dashboard uses two risk models, mapped from the PHTS dual-model approach
 | PHTS (reference) | PGx cohort | Age bands | Description |
 |------------------|------------|-----------|-------------|
 | **Baseline** | `opioid_ed` | 13-24, 25-44, 45-54, 55-64 | Opioid-related ED visit predictive model |
-| **Extended** | `non_opioid_ed` (polypharmacy) | 65-74, 75-84, 85-94 | Polypharmacy / adverse drug event model |
+| **Extended** | `non_opioid_ed` (polypharmacy) | Full set (0-12 through 85-114) | Polypharmacy / adverse drug event model |
 
 - **Baseline** in PHTS = base calculator features only → in PGx this is the **opioid_ed** cohort (younger age bands, opioid ED outcome).
 - **Extended** in PHTS = base + recommended features → in PGx this is the **non_opioid_ed** (polypharmacy) cohort (older age bands, drug–ED relationship outcome).

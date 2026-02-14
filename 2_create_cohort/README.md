@@ -399,7 +399,7 @@ python 0_create_cohort.py --age-band "65-74" --event-year 2016 --cohort both
 **Important:** The batch processing scripts (`run_series_ed_non_opioid.py` and `run_series_opioid_ed.py`) are designed to process **ALL age_band/year combinations** for their respective cohort types, not just a single combination.
 
 **Behavior:**
-- These scripts loop through all predefined age bands (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-94, 95-114) and event years (2016, 2017, 2018, 2019, 2020)
+- These scripts loop through all predefined age bands (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) and event years (2016, 2017, 2018, 2019, 2020). The last band 85-114 combines the former 85-94 and 95-114.
 - With `--skip-existing`, they check S3 for existing cohorts and only process missing combinations
 - **Note:** `check_existing_cohorts()` checks for BOTH `opioid_ed` and `ed_non_opioid` cohorts. If either is missing for a given age_band/year, that combination will be processed
 - If you're starting fresh (no cohorts exist), all 36 combinations (9 age bands × 4 years) will be processed
