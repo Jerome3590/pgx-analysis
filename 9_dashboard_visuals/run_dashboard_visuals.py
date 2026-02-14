@@ -44,30 +44,6 @@ except ImportError:
     REQUIRED_COHORTS = {"opioid_ed": _all_bands, "non_opioid_ed": _all_bands}
 
 
-def ensure_symlinks(repo_root: Path) -> None:
-    """Create symlinks 10b, 10c, 10d at repo root if missing (idempotent)."""
-    links = [
-        ("10c_bupaR_dashboard_visual", "10_risk_dashboard/visualizations/bupar"),
-        ("10b_fpgrowth_dashboard_visual", "10_risk_dashboard/visualizations/fpgrowth"),
-        ("10d_dtw_dashboard_visual", "10_risk_dashboard/visualizations/dtw"),
-    ]
-    for name, target in links:
-        path = repo_root / name
-        target_path = repo_root / target
-        if path.exists():
-            continue
-        if not target_path.exists():
-            continue
-        try:
-            path.symlink_to(target_path.relative_to(path.parent))
-            print(f"  [symlink] {name} -> {target}")
-        except OSError as e:
-            if os.name == "nt":
-                print(f"  [symlink] Windows: create junction or run as admin: {name} -> {target_path}")
-            else:
-                print(f"  [symlink] {name}: {e}")
-
-
 def run_sync(profile: str | None) -> bool:
     """Run sync_visualization_data_from_s3.py; return True on success."""
     script = REPO_ROOT / "9_dashboard_visuals" / "sync_visualization_data_from_s3.py"
@@ -115,8 +91,6 @@ def main():
     print(f"Combinations: {len(combinations)}")
     print()
 
-    # Symlinks
-    ensure_symlinks(REPO_ROOT)
     # Creation code lives in 9_dashboard_visuals (step 9); outputs go to 10_risk_dashboard/visualizations
     step9_root = REPO_ROOT / "9_dashboard_visuals"
     bupar_script = step9_root / "bupar" / "create_bupar_visuals.py"

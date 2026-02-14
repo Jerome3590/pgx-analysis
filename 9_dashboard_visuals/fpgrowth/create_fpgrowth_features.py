@@ -513,23 +513,6 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fpgrowth_features.to_csv(output_path, index=False)
 
-    # Mirror to central 5_feature_engineering/feature_engineering_outputs directory for easy access
-    try:
-        fe_root = (
-            REPO_ROOT
-            / "5_feature_engineering"
-            / "feature_engineering_outputs"
-            / "4_fpgrowth"
-            / args.cohort
-            / args.age_band
-        )
-        fe_root.mkdir(parents=True, exist_ok=True)
-        mirror_path = fe_root / output_path.name
-        print(f"[INFO] Copying FP-Growth features to {mirror_path}")
-        shutil.copy2(output_path, mirror_path)
-    except Exception as e:  # pragma: no cover - best-effort mirror
-        logger.warning(f"Could not mirror FP-Growth features to feature_engineering_outputs: {e}")
-    
     print(f"\nCreated {len(fpgrowth_features.columns) - 1} FP-Growth features for {len(fpgrowth_features)} patients")
     print("Output format: Ready for merging with other features (uses mi_person_key)")
     print(f"Saved to: {output_path}")

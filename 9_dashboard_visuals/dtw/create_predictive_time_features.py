@@ -315,8 +315,8 @@ def create_predictive_time_features(
     print(f"  ICD interval features: {len([c for c in feature_cols if 'icd_interval' in c])}")
     print(f"  CPT interval features: {len([c for c in feature_cols if 'cpt_interval' in c])}")
     
-    # Save results (scoped under 10d_dtw_dashboard_visual/outputs)
-    output_dir = project_root / "10d_dtw_dashboard_visual" / "outputs" / "feature_engineering"
+    # Save results under 10_risk_dashboard/visualizations/dtw/outputs
+    output_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "outputs" / "feature_engineering"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_path = output_dir / f"predictive_time_features_{cohort_name}_{age_band_fname}.csv"

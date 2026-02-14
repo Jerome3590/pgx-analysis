@@ -1341,22 +1341,14 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
     # Step 5 adds PGx features - load them here for final model training
     # Note: BupaR, DTW, and FP-Growth are now used for dashboard visualizations only
     
-    # Check multiple locations for PGx features from Step 5
+    # Check multiple locations for PGx features from Step 5 (canonical: 5_pgx_analysis/outputs)
     pgx_path_candidates = [
-        # Primary location: Step 5 outputs
         PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-        # Legacy location: feature_engineering_outputs
-        PROJECT_ROOT / "5_feature_engineering" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-        # S3 download location
-        PROJECT_ROOT / "5_feature_engineering" / "from_s3" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
     ]
-    
-    # Also check data root locations
     data_root = get_data_root()
-    pgx_path_candidates.extend([
+    pgx_path_candidates.append(
         data_root / "5_pgx_analysis" / "outputs" / "feature_engineering" / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-        data_root / "5_feature_engineering" / "feature_engineering_outputs" / "7_pgx" / cohort / age_band / f"pgx_added_features_{cohort}_{age_band_fname}.csv",
-    ])
+    )
     
     pgx_path = None
     for candidate in pgx_path_candidates:

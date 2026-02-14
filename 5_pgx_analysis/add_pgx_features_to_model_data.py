@@ -103,23 +103,6 @@ def add_pgx_features(
     print(f"[INFO] Writing final PGx features to {out_path} ({len(pgx_df)} rows)")
     pgx_df.to_csv(out_path, index=False)
     
-    # Mirror PGx features and added-features to central 5_feature_engineering/feature_engineering_outputs directory
-    try:
-        fe_root = project_root / "5_feature_engineering" / "feature_engineering_outputs" / "7_pgx" / cohort_name / age_band
-        fe_root.mkdir(parents=True, exist_ok=True)
-
-        # Copy base PGx features
-        pgx_mirror = fe_root / pgx_features_csv.name
-        print(f"[INFO] Copying PGx features to {pgx_mirror}")
-        shutil.copy2(pgx_features_csv, pgx_mirror)
-
-        # Copy final added-features
-        added_mirror = fe_root / out_path.name
-        print(f"[INFO] Copying final PGx features to {added_mirror}")
-        shutil.copy2(out_path, added_mirror)
-    except Exception as e:  # pragma: no cover - best-effort mirror
-        print(f"[WARNING] Could not mirror PGx features to feature_engineering_outputs: {e}")
-    
     # Upload to S3 gold location (primary: gold/pgx_features/, also mirror to legacy location)
     s3_path_primary = f"s3://pgxdatalake/gold/pgx_features/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv"
     s3_path_legacy = f"s3://pgxdatalake/gold/feature_engineering/7_pgx/{cohort_name}/{age_band}/pgx_added_features_{cohort_name}_{age_band_fname}.csv"

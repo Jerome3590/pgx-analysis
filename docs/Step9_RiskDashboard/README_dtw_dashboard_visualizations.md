@@ -57,7 +57,7 @@ DTW visualizations help clinicians understand:
 - Builds per-patient code counts from `seq_pattern_str` in the DTW features CSV
 - For non–polypharmacy cohorts: 3D Plotly scatter (axes = top 3 code counts), KMeans clusters
 - For polypharmacy (`non_opioid_ed`): 1D plot (one axis = top code count)
-- Writes HTML (and optional PNG) to `10d_dtw_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- Writes HTML (and optional PNG) to `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/plots/`
 - CLI: `python create_dtw_plots.py --cohort-name {cohort} --age-band {age_band} [--n-clusters 5] [--force]`
 
 **`create_predictive_time_features.py`** - Time-based features
@@ -68,10 +68,10 @@ DTW visualizations help clinicians understand:
 
 ### Local Outputs
 
-DTW visuals are written under `10d_dtw_dashboard_visual/outputs/` (and optionally mirrored to `5_feature_engineering/feature_engineering_outputs/6_dtw/`). Plots directory:
+DTW visuals are written under `10_risk_dashboard/visualizations/dtw/outputs/`. Plots directory:
 
 ```
-10d_dtw_dashboard_visual/outputs/
+10_risk_dashboard/visualizations/dtw/outputs/
 ├── feature_engineering/          # DTW features CSV (create_dtw_features.py → create_dtw_visuals.py)
 │   ├── dtw_features_{cohort}_{age_band}.csv
 │   └── dtw_added_features_{cohort}_{age_band}.csv
@@ -123,7 +123,7 @@ python create_dtw_visuals.py --cohort-name opioid_ed --age-band 25-44
 ### Output Verification
 
 After running, verify:
-- [ ] Trajectory cluster plot(s) generated: `dtw_trajectory_cluster_3d_*.html` or `dtw_trajectory_cluster_1d_*.html` (polypharmacy) in `10d_dtw_dashboard_visual/outputs/{cohort}/{age_band}/plots/`
+- [ ] Trajectory cluster plot(s) generated: `dtw_trajectory_cluster_3d_*.html` or `dtw_trajectory_cluster_1d_*.html` (polypharmacy) in `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/plots/`
 - [ ] PNG visualization files (and optional HTML) in plots dir
 - [ ] JSON metrics/chart data as applicable
 - [ ] Files follow naming convention: `dtw_{plot_type}_{cohort}_{age_band}.{ext}`

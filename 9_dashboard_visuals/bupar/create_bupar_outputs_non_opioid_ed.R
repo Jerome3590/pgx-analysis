@@ -121,7 +121,7 @@ cat("FP-Growth target dir: ", target_dir_train, "\n\n", sep = "")
 # Helper for saving CSVs locally + to S3, and central plots directory
 # -------------------------------------------------------------------
 
-bup_ar_output_root <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs")
+bup_ar_output_root <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs")
 
 save_bupar_csv <- function(df, filename,
                            cohort = cohort_name,

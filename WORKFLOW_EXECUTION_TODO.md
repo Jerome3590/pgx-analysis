@@ -325,14 +325,12 @@ python pgx_dashboard_visuals.py
 # Set SKIP_DEPLOY_LAMBDA=1 / SKIP_DEPLOY_FRONTEND=1 to skip deploy when needed
 ```
 
-**Symlinks:** If R or scripts expect `10c_bupaR_dashboard_visual`, `10b_fpgrowth_dashboard_visual`, `10d_dtw_dashboard_visual` at repo root, the notebook/script create them (idempotent). See `pgx_dashboard_visuals.py` setup cell.
-
 **Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR.
 
 **Verify:**
-- BupaR: `10_risk_dashboard/visualizations/bupar` outputs (or `10c_bupaR_dashboard_visual/outputs`) and S3 `gold/bupar/`
-- DTW: `gold/feature_engineering/6_dtw/{cohort}/{age_band}/` and feature_importance plots
-- FP-Growth: `10_risk_dashboard/visualizations/fpgrowth` outputs (or `10b_fpgrowth_dashboard_visual/outputs`) and S3 `gold/fpgrowth/`
+- BupaR: `10_risk_dashboard/visualizations/bupar/outputs/` and S3 `gold/bupar/`
+- DTW: `10_risk_dashboard/visualizations/dtw/outputs/`, S3 `gold/feature_engineering/6_dtw/{cohort}/{age_band}/`
+- FP-Growth: `10_risk_dashboard/visualizations/fpgrowth/outputs/` and S3 `gold/fpgrowth/`
 
 ---
 

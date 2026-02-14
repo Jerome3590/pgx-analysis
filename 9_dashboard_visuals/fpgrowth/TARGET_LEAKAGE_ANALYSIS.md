@@ -130,7 +130,7 @@ FP-Growth should be used **only for visualization and exploratory analysis**, no
 
 ### Direct Target Code Leakage
 
-**File**: `10b_fpgrowth_dashboard_visual/create_fpgrowth_features.py`
+**File**: `9_dashboard_visuals/fpgrowth/create_fpgrowth_features.py`
 
 **Line 158-162**: Rule matching includes consequents (which can be target codes)
 ```python
@@ -152,7 +152,7 @@ features_df[f'{item_type}_rule_{idx}_match'] = (
 
 ### Target Codes in Transactions
 
-**File**: `10b_fpgrowth_dashboard_visual/create_fpgrowth_features.py`
+**File**: `9_dashboard_visuals/fpgrowth/create_fpgrowth_features.py`
 
 **Line 86-101**: ICD code extraction includes ALL ICD codes (including target codes)
 ```python

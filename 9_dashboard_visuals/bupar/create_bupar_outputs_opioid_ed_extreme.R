@@ -91,7 +91,7 @@ cat("FP-Growth target dir:  ", target_dir_train, "\n\n", sep = "")
 # Helper for saving CSVs locally + to S3, and central plots directory
 # -------------------------------------------------------------------
 
-bup_ar_output_root <- file.path(project_root, "10c_bupaR_dashboard_visual", "outputs")
+bup_ar_output_root <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs")
 
 save_bupar_csv <- function(df, filename,
                            cohort = cohort_name_extreme,
@@ -615,25 +615,6 @@ p4 <- ggplot(target_events_sample,
 
 ggsave(file.path(plots_dir, sprintf("%s_%s_activity_milestones_gantt.png", cohort_name_extreme, age_band_fname)),
        plot = p4, width = 16, height = 12, dpi = 300)
-
-# Mirror plots to central 5_feature_engineering/feature_engineering_outputs directory
-fe_plots_dir <- file.path(
-  project_root,
-  "5_feature_engineering",
-  "feature_engineering_outputs",
-  "5_bupar",
-  cohort_name_extreme,
-  age_band,
-  "plots"
-)
-if (dir.exists(plots_dir)) {
-  dir.create(fe_plots_dir, recursive = TRUE, showWarnings = FALSE)
-  plot_files <- list.files(plots_dir, full.names = TRUE)
-  if (length(plot_files) > 0) {
-    cat("[INFO] Copying extreme BupaR plots to", fe_plots_dir, "\n")
-    file.copy(plot_files, fe_plots_dir, overwrite = TRUE)
-  }
-}
 
 if (grDevices::dev.cur() > 1) {
   grDevices::dev.off()
