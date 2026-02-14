@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Check S3 for cohort creation completion status with time durations.
 
 Reads pipeline state from pgx-repository (pgx-pipeline-status/create_cohort/)
@@ -9,11 +9,13 @@ and optionally lists cohort parquets in pgxdatalake (gold/cohorts/) to report:
 - Duration (completed_at - created_at)
 
 Usage:
-    python check_s3_cohort_completion.py [--cohorts] [--outputs] [--profile NAME]
+    python check_s3_cohort_completion.py [--cohorts] [--outputs] [--profile NAME] [--repair] [--dry-run]
     --cohorts: only show pipeline state (default: both state + outputs summary)
     --outputs: also list each cohort parquet in pgxdatalake with LastModified and size
     --profile: AWS profile (default: AWS_PROFILE or default).
-    Local: if C:\\Projects\\credentials exists, uses it (AWS_SHARED_CREDENTIALS_FILE).
+    --repair: for each 'running' entity, if cohort output exists in pgxdatalake, set state to completed in pgx-repository (run locally with profile that can write, e.g. mushin).
+    --dry-run: with --repair, only print what would be repaired.
+    Local: if C:\Projects\credentials exists, uses it (AWS_SHARED_CREDENTIALS_FILE).
 """
 
 import argparse
@@ -109,10 +111,8 @@ def list_build_logs(s3_client, bucket=STATE_BUCKET, prefix=BUILD_LOGS_PREFIX, ma
             parts = key.replace(prefix + "/", "").split("/")
             if len(parts) >= 4:
                 cohort_name, band, year = parts[0], parts[1], parts[2]
-                log_name = parts[-1]
             else:
                 cohort_name = band = year = ""
-                log_name = key.split("/")[-1]
             results.append({
                 "cohort_name": cohort_name,
                 "age_band": band,
@@ -154,6 +154,78 @@ def list_cohort_outputs(s3_client, bucket=COHORT_BUCKET, prefix=COHORT_PREFIX):
     return results
 
 
+def _parse_entity_id(entity_id):
+    """Parse entity_id into cohort, age_band, event_year. e.g. ed_non_opioid_85-114_2016 -> ('ed_non_opioid', '85-114', '2016')."""
+    parts = entity_id.split("_")
+    if len(parts) < 3:
+        return None, None, None
+    event_year = parts[-1]
+    age_band = parts[-2]
+    cohort = "_".join(parts[:-2])
+    return cohort, age_band, event_year
+
+
+def _cohort_output_exists(s3_client, cohort, age_band, event_year, bucket=COHORT_BUCKET):
+    """Check if cohort parquet exists in pgxdatalake. cohort is e.g. opioid_ed or ed_non_opioid."""
+    import py_helpers.s3_utils as s3_utils
+    path = s3_utils.get_cohort_parquet_path(cohort, age_band, event_year, bucket_name=bucket)
+    if path.startswith("s3://"):
+        path = path[5:]
+    buck, _, key = path.partition("/")
+    try:
+        s3_client.head_object(Bucket=buck, Key=key)
+        return True
+    except Exception:
+        return False
+
+
+def _repair_running_states(s3_client, states, bucket_state, bucket_cohorts, dry_run=False):
+    """For each state with status 'running', if cohort output exists, set state to completed."""
+    running = [s for s in states if s.get("status") == "running"]
+    if not running:
+        print("No 'running' states to repair.")
+        return
+    repaired = 0
+    for s in running:
+        entity_id = s.get("_entity_id", "")
+        key = s.get("_key", "")
+        cohort, age_band, event_year = _parse_entity_id(entity_id)
+        if not cohort or not age_band or not event_year:
+            print(f"  Skip {entity_id}: could not parse cohort/age_band/event_year")
+            continue
+        if cohort == "both":
+            exists = (
+                _cohort_output_exists(s3_client, "opioid_ed", age_band, event_year, bucket_cohorts)
+                and _cohort_output_exists(s3_client, "ed_non_opioid", age_band, event_year, bucket_cohorts)
+            )
+        else:
+            exists = _cohort_output_exists(s3_client, cohort, age_band, event_year, bucket_cohorts)
+        if not exists:
+            print(f"  Skip {entity_id}: output missing in pgxdatalake")
+            continue
+        if dry_run:
+            print(f"  Would repair: {entity_id} -> completed")
+            repaired += 1
+            continue
+        state = {k: v for k, v in s.items() if not k.startswith("_")}
+        state["status"] = "completed"
+        state["completed_at"] = datetime.utcnow().isoformat() + "Z"
+        state["updated_at"] = state["completed_at"]
+        state.setdefault("metadata", {})["repair_from_script"] = True
+        try:
+            s3_client.put_object(
+                Bucket=bucket_state,
+                Key=key,
+                Body=json.dumps(state, indent=2),
+                ContentType="application/json",
+            )
+            print(f"  Repaired: {entity_id} -> completed")
+            repaired += 1
+        except Exception as e:
+            print(f"  Failed to write state for {entity_id}: {e}", file=sys.stderr)
+    print(f"Repair: {repaired} state(s) updated." if not dry_run else f"Dry-run: {repaired} would be updated.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Check S3 for cohort creation completion status with time durations"
@@ -188,6 +260,9 @@ def main():
         default=os.environ.get("AWS_PROFILE"),
         help="AWS profile for S3 (default: AWS_PROFILE or default profile)",
     )
+    parser.add_argument("--repair", action="store_true",
+        help="For each 'running' entity, if output exists in pgxdatalake, set state to completed in pgx-repository (run locally with profile that can write)")
+    parser.add_argument("--dry-run", action="store_true", help="With --repair: only print what would be repaired")
     args = parser.parse_args()
 
     session_kw = {}
@@ -195,6 +270,15 @@ def main():
         session_kw["profile_name"] = args.profile
     session = boto3.Session(**session_kw)
     s3 = session.client("s3")
+
+    # ----- Repair first if requested -----
+    if getattr(args, "repair", False):
+        states = fetch_pipeline_states(s3)
+        print("REPAIR (running -> completed if output exists)")
+        _repair_running_states(s3, states, args.bucket_state, args.bucket_cohorts, dry_run=getattr(args, "dry_run", False))
+        if args.cohorts:
+            return
+        # Fall through to show state table
 
     # ----- Pipeline state (pgx-repository) -----
     print("=" * 80)
