@@ -281,6 +281,8 @@ def main():
                        help="DEPRECATED: Time window is fixed at 21 days. This argument is ignored.")
     parser.add_argument("--concurrent-workers", type=int, default=None,
                        help="Number of concurrent workers (for memory limit calculation). If not set, detects from MAX_WORKERS or PGX_COHORT_WORKERS env vars, or defaults to 3.")
+    parser.add_argument("--repair-state", action="store_true",
+                       help="Only sync pipeline state from output: if cohort parquet(s) exist, mark state completed and exit (no pipeline run). Use to fix stuck 'running' state.")
     
     args = parser.parse_args()
     # If target overrides provided on CLI, set environment variables *before* reloading constants/s3_utils
@@ -358,7 +360,28 @@ def main():
         pipeline_state = PipelineState('create_cohort', entity_id, logger)
         logger.info(f"Checkpoint location: s3://pgx-repository/pgx-pipeline-status/create_cohort/{entity_id.replace('/', '_')}/")
 
-        # Check if final output already exists (skip if all requested cohort parquets exist)
+        # --repair-state: only sync state from output, then exit (no pipeline run)
+        if getattr(args, 'repair_state', False):
+            logger.info(f"{SYMBOLS['info']} --repair-state: checking output and updating state only")
+            if args.cohort == "both":
+                opioid_path = s3_utils.get_cohort_parquet_path("opioid_ed", args.age_band, args.event_year)
+                ed_path = s3_utils.get_cohort_parquet_path("ed_non_opioid", args.age_band, args.event_year)
+                if PipelineState.check_output_exists(opioid_path) and PipelineState.check_output_exists(ed_path):
+                    pipeline_state.mark_pipeline_completed({'output': opioid_path, 'repair_state': True})
+                    logger.info(f"{SYMBOLS['success']} State updated to completed (both outputs exist)")
+                else:
+                    logger.warning("Output(s) missing; state not updated. Run full pipeline to create cohorts.")
+            else:
+                output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
+                cohort_output = output_paths.get('cohort_parquet')
+                if cohort_output and PipelineState.check_output_exists(cohort_output):
+                    pipeline_state.mark_pipeline_completed({'output': cohort_output, 'repair_state': True})
+                    logger.info(f"{SYMBOLS['success']} State updated to completed (output exists)")
+                else:
+                    logger.warning("Output missing; state not updated. Run full pipeline to create cohort.")
+            return
+
+        # Idempotent: if output already exists, mark state completed and exit (fixes stuck "running" state)
         if args.cohort == "both":
             opioid_path = s3_utils.get_cohort_parquet_path("opioid_ed", args.age_band, args.event_year)
             ed_path = s3_utils.get_cohort_parquet_path("ed_non_opioid", args.age_band, args.event_year)
@@ -367,6 +390,8 @@ def main():
                 PipelineState.check_output_exists(ed_path)
             )
             if both_exist:
+                if pipeline_state.state.get('status') == 'running':
+                    logger.info(f"{SYMBOLS['info']} Output exists but state was 'running'; updating state to completed (idempotent)")
                 logger.info(f"{SYMBOLS['success']} Both cohort parquets already exist: opioid_ed, ed_non_opioid")
                 logger.info(f"{SYMBOLS['success']} Skipping pipeline - cohort already created")
                 pipeline_state.mark_pipeline_completed({'output': opioid_path, 'skipped': True})
@@ -379,6 +404,8 @@ def main():
             output_paths = s3_utils.get_output_paths(args.cohort, args.age_band, args.event_year)
             cohort_output = output_paths.get('cohort_parquet')
             if cohort_output and PipelineState.check_output_exists(cohort_output):
+                if pipeline_state.state.get('status') == 'running':
+                    logger.info(f"{SYMBOLS['info']} Output exists but state was 'running'; updating state to completed (idempotent)")
                 logger.info(f"{SYMBOLS['success']} Final output already exists: {cohort_output}")
                 logger.info(f"{SYMBOLS['success']} Skipping pipeline - cohort already created")
                 pipeline_state.mark_pipeline_completed({'output': cohort_output, 'skipped': True})

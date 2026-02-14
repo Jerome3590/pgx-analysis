@@ -414,6 +414,8 @@ python 2_create_cohort/run_series_ed_non_opioid.py --skip-existing --concurrent-
 python 2_create_cohort/run_series_opioid_ed.py --skip-existing --concurrent-workers 1
 ```
 
+**Idempotent state:** If the pipeline exits after writing the cohort parquet but before saving "completed" state, the entity can stay "running" in `pgx-pipeline-status/create_cohort/`. Re-running the same cohort/age_band/year will detect existing output, update state to completed, and exit (no re-run). To fix a stuck "running" entity without re-running the pipeline, use `--repair-state`: e.g. `python 2_create_cohort/0_create_cohort.py --cohort ed_non_opioid --age-band 85-114 --event-year 2016 --repair-state`.
+
 **To Process a Single Cohort:**
 If you only want to process one specific age_band/year combination, use `0_create_cohort.py` directly:
 
