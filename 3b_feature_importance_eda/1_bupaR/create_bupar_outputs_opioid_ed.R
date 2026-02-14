@@ -191,10 +191,16 @@ if (file.exists(logging_utils_path)) {
   }
 }
 
-log_msg("Connecting to DuckDB (multi-threaded for Parquet scan and UNPIVOT)...")
-n_threads <- min(8L, max(2L, as.integer(Sys.getenv("DUCKDB_THREADS", parallel::detectCores()))))
-con <- dbConnect(duckdb::duckdb(config = list(threads = n_threads)))
-log_msg(sprintf("  DuckDB threads: %d", n_threads))
+log_msg("Connecting to DuckDB...")
+con <- dbConnect(duckdb::duckdb())
+# Optionally set threads (some DuckDB R versions want this via dbConnect or PRAGMA)
+n_threads <- min(8L, max(2L, as.integer(Sys.getenv("DUCKDB_THREADS", NA_integer_))))
+if (!is.na(n_threads)) {
+  tryCatch({
+    dbExecute(con, sprintf("SET threads = %d", n_threads))
+    log_msg(sprintf("  DuckDB threads: %d", n_threads))
+  }, error = function(e) {})
+}
 
 log_msg(sprintf("Loading target cohort from: %s (target=1, years: %s)", model_data_path, paste(train_years, collapse = ",")))
 
