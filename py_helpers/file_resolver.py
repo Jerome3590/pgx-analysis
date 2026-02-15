@@ -444,6 +444,17 @@ def load_cohort_feature_importance(
             f"Could not find cohort_feature_importance for {cohort}/{age_band}. "
             "Check that Step 3b has completed for this cohort/age_band."
         )
+
+    # Polypharmacy cohort: use only drug-name features (drop ICD/CPT)
+    if cohort == "non_opioid_ed":
+        from py_helpers.feature_utils import filter_fi_to_drug_only
+        df = filter_fi_to_drug_only(df, feature_col="feature")
+        if df.empty:
+            raise ValueError(
+                f"Cohort feature importance for {cohort}/{age_band} has no drug-name features. "
+                "Polypharmacy cohort requires drug features only."
+            )
+
     return df
 
 
@@ -498,7 +509,17 @@ def load_aggregated_feature_importance(
             f"Expected columns: feature, importance_mean/importance_scaled_by_model_sum. "
             f"Found: {list(df.columns)}"
         )
-    
+
+    # Polypharmacy cohort: use only drug-name features (drop ICD/CPT)
+    if cohort == "non_opioid_ed":
+        from py_helpers.feature_utils import filter_fi_to_drug_only
+        df = filter_fi_to_drug_only(df, feature_col="feature")
+        if df.empty:
+            raise ValueError(
+                f"Aggregated feature importance for {cohort}/{age_band} has no drug-name features. "
+                "Polypharmacy cohort requires drug features only."
+            )
+
     return df
 
 

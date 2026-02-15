@@ -246,7 +246,7 @@ def parse_aggregated_filename(path: Path) -> Tuple[str, str]:
     return cohort_name, age_band
 
 
-def get_important_items(agg_csv: Path) -> List[str]:
+def get_important_items(agg_csv: Path, cohort: Optional[str] = None) -> List[str]:
     """Read aggregated feature-importance CSV and return raw item codes for SQL matching.
 
     Step 3b CSVs use feature names like item_icd_F1120, item_cpt_80307, item_drug_SUBOXONE,
@@ -256,11 +256,17 @@ def get_important_items(agg_csv: Path) -> List[str]:
     filter matches all three sources; otherwise only drugs would match and ICD/CPT would
     never appear in model_events (opioid_ed would effectively get Drug-only features).
 
+    For cohort non_opioid_ed (polypharmacy), only drug-name features are used (ICD/CPT dropped).
+
     Excludes drug names in DRUG_NAMES_EXCLUDED_MODEL_TRAINING (Narcan, Unknown, Fentanyl,
     1036F, T401XA1) so they are not used as features in model training."""
     df = pd.read_csv(agg_csv)
     if "feature" not in df.columns:
         raise ValueError(f"'feature' column not found in {agg_csv}")
+
+    if cohort == "non_opioid_ed":
+        from py_helpers.feature_utils import filter_fi_to_drug_only
+        df = filter_fi_to_drug_only(df, feature_col="feature")
 
     # Prefer raw_code from Step 3b when present; else derive from feature column
     if "raw_code" in df.columns:
@@ -1259,7 +1265,7 @@ def main() -> None:
             f"\n=== Processing cohort={cohort_name}, age_band={age_band} "
             f"from {agg_path.name} ==="
         )
-        important_items = get_important_items(agg_path)
+        important_items = get_important_items(agg_path, cohort=cohort_name)
         if not important_items:
             print(
                 f"[WARN] No important items extracted from {agg_path.name}; "

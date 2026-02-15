@@ -295,6 +295,8 @@ NON_OPIOID_ED_TARGET_DESCRIPTION = (
     "First ED visit (identified by HCG Setting: P51/O11/P33) within 21 days of a prescription drug event."
 )
 NON_OPIOID_ED_TIME_WINDOW_DAYS = 21
+# Max ED visits per year for polypharmacy target definition; patients with this many or more are excluded.
+NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR = 7
 
 
 def get_cohort_slug_by_cohort(cohort: str) -> str:

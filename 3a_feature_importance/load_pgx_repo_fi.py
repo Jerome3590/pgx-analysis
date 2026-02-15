@@ -73,6 +73,10 @@ def get_baseline_summary_df(project_root: Optional[Path] = None) -> pd.DataFrame
             if df is None:
                 df = _load_aggregated_fi_from_pgx_repo(cohort, age_band_fname)
             if df is not None and "feature" in df.columns:
+                # Polypharmacy cohort: only drug-name features
+                if cohort == "non_opioid_ed":
+                    from py_helpers.feature_utils import filter_fi_to_drug_only
+                    df = filter_fi_to_drug_only(df, feature_col="feature")
                 n = len(df)
                 features = df["feature"].astype(str).dropna().unique().tolist()
                 sample = ", ".join(features[:3]) if features else ""

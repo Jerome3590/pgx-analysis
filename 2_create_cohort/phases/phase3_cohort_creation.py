@@ -22,7 +22,13 @@ from .common import (
     ensure_gold_views,
     ensure_unified_views,
 )
-from py_helpers.constants import S3_BUCKET, get_opioid_icd_sql_condition, ALL_ICD_DIAGNOSIS_COLUMNS, OPIOID_ICD_CODES
+from py_helpers.constants import (
+    S3_BUCKET,
+    get_opioid_icd_sql_condition,
+    ALL_ICD_DIAGNOSIS_COLUMNS,
+    OPIOID_ICD_CODES,
+    NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR,
+)
 import os
 import time
 
@@ -36,7 +42,8 @@ def run_phase3_step3_final_cohort_fact(context):
     pipeline_state = context.get("pipeline_state")
     # Use 21-day window for adverse drug event identification (based on distribution analysis)
     time_window_days = 21  # Fixed 21-day window captures majority of adverse drug events
-    
+    max_ed_visits = NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR  # Polypharmacy: exclude patients with >= this many ED visits/year
+
     step_name = "phase3_step3_final_cohort_fact"
     
     # Check if step already completed
@@ -96,7 +103,7 @@ def run_phase3_step3_final_cohort_fact(context):
         target_case_count = int(target_case_count_df.iloc[0]['count']) if not target_case_count_df.empty else 0
         
         # Count ED_NON_OPIOID targets AFTER excluding opioid patients AND applying both filters:
-        # FILTER 1: <5 ED visits per year (true adverse drug events)
+        # FILTER 1: < max_ed_visits ED visits per year (true adverse drug events)
         # FILTER 2: Drug event within 21 days of ED event (temporal relationship)
         # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
         # Use fetchdf() to avoid INT32 overflow
@@ -114,7 +121,7 @@ def run_phase3_step3_final_cohort_fact(context):
         ed_non_opioid_total_before_filter_df = cohort_conn_duckdb.sql(ed_non_opioid_total_before_filter_query).fetchdf()
         ed_non_opioid_total_before_filter = int(ed_non_opioid_total_before_filter_df.iloc[0]['count']) if not ed_non_opioid_total_before_filter_df.empty else 0
 
-        # Now count with both filters: <5 visits per year AND drug event within 21 days of ED event
+        # Now count with both filters: < max_ed_visits visits per year AND drug event within 21 days of ED event
         ed_non_opioid_case_count_query = f"""
         WITH hcg_patients_with_visit_counts AS (
             -- FILTER 1: Count ED visits per patient per year
@@ -133,10 +140,10 @@ def run_phase3_step3_final_cohort_fact(context):
             GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
         ),
         patients_with_less_than_5_visits AS (
-            -- Only include patients with <5 ED visits per year
+            -- Only include patients with < max_ed_visits ED visits per year
             SELECT DISTINCT mi_person_key
             FROM hcg_patients_with_visit_counts
-            WHERE ed_visit_count < 5
+            WHERE ed_visit_count < {max_ed_visits}
         ),
         ed_events AS (
             SELECT DISTINCT
@@ -198,10 +205,10 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
         if excluded_by_filters > 0:
-            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_by_filters:,} patients by filters (<5 visits per year AND drug within 21 days)")
+            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_by_filters:,} patients by filters (<{max_ed_visits} visits per year AND drug within 21 days)")
             logger.info(f"  ED_NON_OPIOID: Total before filters: {ed_non_opioid_total_before_filter:,}, After filters: {ed_non_opioid_case_count:,}")
         logger.info(f"  POLYPHARMACY COHORT: Using 21-day time window for adverse drug event identification")
-        logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <5 ED visits per year AND drug event within 21 days of ED event")
+        logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <{max_ed_visits} ED visits per year AND drug event within 21 days of ED event")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -396,10 +403,10 @@ def run_phase3_step3_final_cohort_fact(context):
                 GROUP BY uef.mi_person_key, CAST(YEAR(uef.event_date) AS INTEGER)
             ),
             patients_with_less_than_5_visits AS (
-                -- Only include patients with <5 ED visits per year
+                -- Only include patients with < max_ed_visits ED visits per year
                 SELECT DISTINCT mi_person_key
                 FROM hcg_patients_with_visit_counts
-                WHERE ed_visit_count < 5
+                WHERE ed_visit_count < {max_ed_visits}
             ),
             ed_events AS (
                 SELECT DISTINCT
@@ -747,7 +754,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 patients_with_less_than_5_visits AS (
                     SELECT DISTINCT mi_person_key
                     FROM hcg_patients_with_visit_counts
-                    WHERE ed_visit_count < 5
+                    WHERE ed_visit_count < {max_ed_visits}
                 ),
                 ed_events AS (
                     SELECT DISTINCT
@@ -860,7 +867,7 @@ def run_phase3_step3_final_cohort_fact(context):
                         patients_with_less_than_5_visits AS (
                             SELECT DISTINCT mi_person_key
                             FROM hcg_patients_with_visit_counts
-                            WHERE ed_visit_count < 5
+                            WHERE ed_visit_count < {max_ed_visits}
                         ),
                         ed_events AS (
                             SELECT DISTINCT
@@ -962,7 +969,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 patients_with_less_than_5_visits AS (
                     SELECT DISTINCT mi_person_key
                     FROM hcg_patients_with_visit_counts
-                    WHERE ed_visit_count < 5
+                    WHERE ed_visit_count < {max_ed_visits}
                 ),
                 ed_events AS (
                     SELECT DISTINCT
