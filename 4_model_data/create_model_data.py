@@ -78,6 +78,7 @@ from py_helpers.constants import (
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
     get_physical_age_bands_for_gold,
+    get_physical_age_bands_for_medical_pharmacy,
     age_band_partition_candidates,
 )
 from py_helpers.env_utils import get_data_root, get_model_data_root
@@ -415,7 +416,6 @@ def filter_cohort_events_for_items(
                     / "cohort.parquet"
                 )
                 if p.exists():
-                    status = "found"
                     cohort_parquet_paths.append(str(p))
                     added_for_year = True
                     # For 85-114, using single partition; don't also add 85-94/95-114 this year
@@ -450,33 +450,40 @@ def filter_cohort_events_for_items(
         return
 
     # Build lists of gold medical and pharmacy parquet paths for this age_band across years.
-    # For 85-114 we consolidate physical partitions 85-94 and 95-114; use explicit file paths to avoid DuckDB empty-glob errors.
+    # For 85-114, medical/pharmacy use two sub-cohorts (85-94 and 95-114); cohort uses single 85-114.
+    medical_pharmacy_bands = get_physical_age_bands_for_medical_pharmacy(age_band)
     medical_parquet_paths: List[str] = []
     pharmacy_parquet_paths: List[str] = []
 
-    print(f"[INFO] Gold medical search: root={local_medical_root}  (age_band {age_band} -> physical {physical_bands})")
-    print(f"[INFO] Gold pharmacy search: root={local_pharmacy_root}  (age_band {age_band} -> physical {physical_bands})")
+    print(f"[INFO] Gold medical search: root={local_medical_root}  (age_band {age_band} -> medical/pharmacy physical {medical_pharmacy_bands})")
+    print(f"[INFO] Gold pharmacy search: root={local_pharmacy_root}  (age_band {age_band} -> medical/pharmacy physical {medical_pharmacy_bands})")
     for year in years:
-        for physical in physical_bands:
-            medical_parent = (
-                local_medical_root
-                / f"age_band={physical}"
-                / f"event_year={year}"
-            )
-            pharmacy_parent = (
-                local_pharmacy_root
-                / f"age_band={physical}"
-                / f"event_year={year}"
-            )
-
-            med_files = list(medical_parent.glob("*.parquet")) if medical_parent.exists() else []
-            pharm_files = list(pharmacy_parent.glob("*.parquet")) if pharmacy_parent.exists() else []
+        for physical in medical_pharmacy_bands:
+            med_files = []
+            pharm_files = []
+            for part in age_band_partition_candidates(physical):
+                medical_parent = (
+                    local_medical_root
+                    / f"age_band={part}"
+                    / f"event_year={year}"
+                )
+                pharmacy_parent = (
+                    local_pharmacy_root
+                    / f"age_band={part}"
+                    / f"event_year={year}"
+                )
+                if not med_files and medical_parent.exists():
+                    med_files = list(medical_parent.glob("*.parquet"))
+                if not pharm_files and pharmacy_parent.exists():
+                    pharm_files = list(pharmacy_parent.glob("*.parquet"))
+                if med_files and pharm_files:
+                    break
             print(
-                f"[INFO]   medical   {medical_parent}  -> "
+                f"[INFO]   medical   {local_medical_root}/age_band={physical}/event_year={year}  -> "
                 + (f"{len(med_files)} file(s)" if med_files else "MISSING or no *.parquet")
             )
             print(
-                f"[INFO]   pharmacy  {pharmacy_parent}  -> "
+                f"[INFO]   pharmacy  {local_pharmacy_root}/age_band={physical}/event_year={year}  -> "
                 + (f"{len(pharm_files)} file(s)" if pharm_files else "MISSING or no *.parquet")
             )
 
