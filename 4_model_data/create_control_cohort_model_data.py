@@ -37,6 +37,8 @@ from py_helpers.constants import (
     ALL_ICD_DIAGNOSIS_COLUMNS,
     get_cohort_slug,
     get_opioid_icd_sql_condition,
+    get_physical_age_bands_for_medical_pharmacy,
+    age_band_partition_candidates,
 )
 from py_helpers.env_utils import get_data_root, get_model_data_root
 from py_helpers.feature_importance_eda_utils import load_administrative_codes
@@ -176,20 +178,21 @@ def create_control_cohort_model_data(
     
     cohort_name = "non_opioid_non_ed"
     
-    # Build paths to medical and pharmacy parquet files
+    # Build paths to medical and pharmacy parquet files.
+    # For 85-114 use sub-cohorts 85-94 and 95-114 (same as create_model_data).
     medical_parquet_paths = []
     pharmacy_parquet_paths = []
-    
+    medical_pharmacy_bands = get_physical_age_bands_for_medical_pharmacy(age_band)
+
     for year in years:
-        # Medical files
-        medical_glob = local_medical_root / f"age_band={age_band}" / f"event_year={year}" / "*.parquet"
-        medical_files = list(medical_glob.parent.glob(medical_glob.name))
-        medical_parquet_paths.extend(medical_files)
-        
-        # Pharmacy files
-        pharmacy_glob = local_pharmacy_root / f"age_band={age_band}" / f"event_year={year}" / "*.parquet"
-        pharmacy_files = list(pharmacy_glob.parent.glob(pharmacy_glob.name))
-        pharmacy_parquet_paths.extend(pharmacy_files)
+        for physical in medical_pharmacy_bands:
+            for part in age_band_partition_candidates(physical):
+                medical_parent = local_medical_root / f"age_band={part}" / f"event_year={year}"
+                pharmacy_parent = local_pharmacy_root / f"age_band={part}" / f"event_year={year}"
+                if medical_parent.exists():
+                    medical_parquet_paths.extend(medical_parent.glob("*.parquet"))
+                if pharmacy_parent.exists():
+                    pharmacy_parquet_paths.extend(pharmacy_parent.glob("*.parquet"))
     
     if not medical_parquet_paths and not pharmacy_parquet_paths:
         print(f"[ERROR] No medical or pharmacy files found for age_band={age_band}")
@@ -201,15 +204,18 @@ def create_control_cohort_model_data(
     
     # Control cohort uses fixed slug "non_opioid_non_ed" (matches R/control_cohort_utils and S3)
     control_slug = "non_opioid_non_ed"
-    
-    # New structure: cohorts/input_model_data/cohort_name=non_opioid_non_ed/age_band={age_band}/
-    out_dir = (
-        output_root 
-        / "cohorts" 
-        / "input_model_data"
-        / f"cohort_name={control_slug}" 
-        / f"age_band={age_band}"
-    )
+
+    # When writing under 3b/outputs use flat layout (cohort_name=.../age_band=...) so R finds it first
+    if "3b_feature_importance_eda" in str(output_root) and "outputs" in str(output_root):
+        out_dir = output_root / f"cohort_name={control_slug}" / f"age_band={age_band}"
+    else:
+        out_dir = (
+            output_root
+            / "cohorts"
+            / "input_model_data"
+            / f"cohort_name={control_slug}"
+            / f"age_band={age_band}"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "model_events.parquet"
     

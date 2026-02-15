@@ -31,6 +31,8 @@ ensure_control_cohort_with_ratio <- function(
   project_root,
   expected_ratio = 5.0,
   tolerance = 0.2,
+  output_root_3b = NULL,
+  aggregated_fi_path = NULL,
   ...
 ) {
   # Initialize return values
@@ -191,6 +193,13 @@ ensure_control_cohort_with_ratio <- function(
         "--age-band", age_band,
         "--sample-size", as.character(required_controls)
       )
+      # Write to 3b/outputs so R finds the file; require aggregated FI for item filtering
+      if (!is.null(output_root_3b) && nzchar(output_root_3b)) {
+        create_cmd <- c(create_cmd, "--output-root", output_root_3b)
+        if (!is.null(aggregated_fi_path) && file.exists(aggregated_fi_path)) {
+          create_cmd <- c(create_cmd, "--aggregated-fi-csv", aggregated_fi_path)
+        }
+      }
       
       cat("[INFO] Running: ", python_cmd, " ", paste(create_cmd, collapse = " "), "\n", sep = "")
       create_result <- system2(python_cmd, create_cmd, stdout = TRUE, stderr = TRUE)
@@ -249,8 +258,8 @@ ensure_control_cohort_with_ratio <- function(
       cat("[ERROR] Cannot create control cohort: Python or script not found\n")
       cat("   Python: ", python_cmd, "\n", sep = "")
       cat("   Script: ", create_script, "\n", sep = "")
-      cat("   Please run manually:\n")
-      cat("   ", python_cmd, " 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --sample-size ", required_controls, "\n\n", sep = "")
+      cat("   Please run manually (use --output-root and --aggregated-fi-csv for Step 3b):\n")
+      cat("   ", python_cmd, " 4_model_data/create_control_cohort_model_data.py --age-band ", age_band, " --output-root 3b_feature_importance_eda/outputs --aggregated-fi-csv <path_to_3a_aggregated_fi.csv>\n\n", sep = "")
     }
   }
   
