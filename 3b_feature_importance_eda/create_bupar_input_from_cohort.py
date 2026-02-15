@@ -59,7 +59,7 @@ def main():
         print("        Run Step 3a for this cohort/age_band first (2_feature_importance.ipynb).")
         sys.exit(1)
 
-    important_items = get_important_items(agg_csv)
+    important_items = get_important_items(agg_csv, cohort=cohort_name)
     if not important_items:
         print(f"[WARN] No important items in {agg_csv}; building with all events (no FI filter).")
     else:

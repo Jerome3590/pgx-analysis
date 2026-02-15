@@ -177,9 +177,9 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 **ED_NON_OPIOID Cohort (Polypharmacy):**
 - **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a 21-day window of drug events
 - **Dual Filter System for True Adverse Drug Events:** The cohort applies two sequential filters to ensure only true adverse drug events are included:
-  1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
-     - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
-     - Filter applied first: Counts ED visits per patient per year, excludes patients with 5+ visits
+  1. **ED Visit Frequency Filter:** Only includes patients with **<7 ED visits per year** (configurable via `NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR` in `py_helpers/constants.py`)
+     - Rationale: Patients with 7+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+     - Filter applied first: Counts ED visits per patient per year, excludes patients with 7+ visits
   2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
      - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
      - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 1-21 days (0-day gaps excluded as likely discharge prescriptions)
@@ -193,7 +193,7 @@ The pipeline includes temporal analysis fields that differ between cohorts:
   - Reference date: First ED_NON_OPIOID event within 21-day window of drug event (index event per patient)
   - Includes: Medical events OR drug events within 21-day window before target
   - Target indicator: `is_target_case` (1 if drug event within 1-21 days before ED, excluding 0-day discharge prescriptions)
-  - **Filtered to patients with <5 ED visits per year** (true adverse drug events only)
+  - **Filtered to patients with <7 ED visits per year** (true adverse drug events only)
   - **21-day window captures ~90.5% of adverse drug events** (excluding 0-day discharge prescriptions) based on distribution analysis
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event if none)
@@ -217,7 +217,7 @@ flowchart TD
     A[All ED_NON_OPIOID Patients<br/>Excluding Opioid Patients<br/>N = Total Patients] --> B[Count ED Visits<br/>Per Patient Per Year<br/>hcg_patients_with_visit_counts]
     B --> C{Filter 1:<br/>Visit Count<br/>< 5 per year?}
     C -->|Yes| D[Patients with<br/>< 5 ED Visits/Year<br/>N = Filtered Count 1]
-    C -->|No| E[Excluded:<br/>5+ Visits/Year<br/>N = Excluded Count 1]
+    C -->|No| E[Excluded:<br/>7+ Visits/Year<br/>N = Excluded Count 1]
     D --> F[Get ED Events<br/>for Filtered Patients<br/>ed_events]
     F --> G[Get All Drug Events<br/>drug_events]
     G --> H[Match ED-Drug Pairs<br/>Find Most Recent Drug<br/>Before Each ED Event<br/>ed_drug_pairs]
@@ -238,7 +238,7 @@ flowchart TD
 
 **Filter Statistics Logged:**
 - Total patients before filters: `N_total`
-- Excluded by Filter 1 (5+ visits): `N_excluded_1`
+- Excluded by Filter 1 (7+ visits): `N_excluded_1`
 - Remaining after Filter 1: `N_filtered_1`
 - Excluded by Filter 2 (0-day gaps or no temporal relationship): `N_excluded_2`
 - Final target patients: `N_final = N_filtered_1 - N_excluded_2`
@@ -276,7 +276,7 @@ The 21-day window for adverse drug event identification is based on empirical di
 ```
 → [PHASE 3 STEP 3] Target case counts:
   ED_NON_OPIOID target patients (ed_non_opioid): 62,313
-  ED_NON_OPIOID: Excluded 15,000 patients by filters (<5 visits per year AND drug 1-21 days before ED, excluding 0-day discharge prescriptions)
+  ED_NON_OPIOID: Excluded 15,000 patients by filters (<7 visits per year AND drug 1-21 days before ED, excluding 0-day discharge prescriptions)
   ED_NON_OPIOID: Total before filters: 77,313, After filters: 62,313
   Drug-to-ED Gap Distribution (days_from_drug_to_ed, excluding 0-day discharge prescriptions):
     1-7 days: 2,259 ED events (64.6% of adverse drug events)
@@ -1276,7 +1276,7 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 **View:** `ed_non_opioid_cohort`
 
 **Key Features: Dual Filter System**
-1. **ED Visit Frequency Filter:** Only includes patients with **<5 ED visits per year**
+1. **ED Visit Frequency Filter:** Only includes patients with **<7 ED visits per year**
 2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
 
 The filtering uses a sequential CTE approach for clarity and maintainability. Each step builds on the previous one:
@@ -1310,7 +1310,7 @@ hcg_patients_with_visit_counts AS (
 ),
 hcg_index AS (
     -- First ED_NON_OPIOID (index) date per patient (opioid patients excluded)
-    -- FILTER: Only include patients with <5 ED visits per year (true adverse drug events)
+    -- FILTER: Only include patients with <7 ED visits per year (true adverse drug events)
     -- This anchors all time windows to a single index event per patient
     SELECT
         uef.mi_person_key,
@@ -1319,7 +1319,7 @@ hcg_index AS (
     INNER JOIN hcg_patients_with_visit_counts vc ON uef.mi_person_key = vc.mi_person_key
         AND uef.event_year = vc.event_year
     WHERE uef.event_classification = 'ed_non_opioid'
-      AND vc.ed_visit_count < 5
+      AND vc.ed_visit_count < 7
       AND NOT EXISTS (
           SELECT 1
           FROM opioid_patients_materialized op
@@ -1329,7 +1329,7 @@ hcg_index AS (
 ),
 target_cases AS (
     SELECT DISTINCT mi_person_key
-    FROM hcg_index  -- Uses filtered index (only <5 visits per year)
+    FROM hcg_index  -- Uses filtered index (only <7 visits per year)
 ),
 first_target_dates AS (
     -- Find first ED_NON_OPIOID target event date per patient
@@ -1768,10 +1768,10 @@ The pipeline calculates temporal relationships between events and target events,
 #### ED_NON_OPIOID Cohort Temporal Behavior
 
 - **Dual Filter System:** The cohort applies two sequential filters to ensure only true adverse drug events:
-  1. **ED Visit Frequency Filter (<5 visits per year):**
-     - Rationale: Patients with 5+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
+  1. **ED Visit Frequency Filter (<7 visits per year):**
+     - Rationale: Patients with 7+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
      - Applied via `hcg_patients_with_visit_counts` CTE that counts ED visits per patient per year
-     - Patients with 5+ visits are excluded before temporal relationship analysis
+     - Patients with 7+ visits are excluded before temporal relationship analysis
      - Logging shows total patients before filter, after filter, and how many were excluded
   2. **Temporal Drug-ED Relationship Filter (1-21 days, excluding 0-day):**
      - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
@@ -1786,7 +1786,7 @@ The pipeline calculates temporal relationships between events and target events,
   - Follows SQL best practices for complex filtering logic
 - **30-Day Lookback Window:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:**
-  - Reference date: First ED_NON_OPIOID event (index event per patient, filtered to <5 visits per year)
+  - Reference date: First ED_NON_OPIOID event (index event per patient, filtered to <7 visits per year)
   - Includes: Medical events OR drug events within 30 days before target
 - **Controls:**
   - Reference date: First non-ED medical event (fallback to first medical event)

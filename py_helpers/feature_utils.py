@@ -8,6 +8,8 @@ Following cursor dev rules: Prefer DuckDB and Parquet over pandas DataFrames.
 """
 
 from typing import Set, Tuple, Union
+
+import pandas as pd
 import re
 import duckdb
 from pathlib import Path
@@ -103,6 +105,22 @@ def feature_to_code(feature: str) -> str:
             return code[4:]
         return code
     return s
+
+
+def filter_fi_to_drug_only(
+    df: pd.DataFrame,
+    feature_col: str = "feature",
+) -> pd.DataFrame:
+    """
+    Keep only rows where the feature is a drug (item_drug_* or classified as drug).
+    Used for non_opioid_ed (polypharmacy) cohort so only drug-name features are used.
+    """
+    if df is None or df.empty:
+        return df
+    if feature_col not in df.columns:
+        return df
+    mask = df[feature_col].astype(str).apply(lambda f: feature_to_code_type(f) == "drug")
+    return df.loc[mask].reset_index(drop=True)
 
 
 def feature_to_code_type(feature: str) -> str:

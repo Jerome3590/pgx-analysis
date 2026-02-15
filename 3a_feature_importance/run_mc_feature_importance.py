@@ -45,6 +45,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from py_helpers.constants import age_band_to_fname  # noqa: E402
 from py_helpers.env_utils import get_xgb_cpu_nthread, get_data_root, is_linux  # noqa: E402
+from py_helpers.feature_utils import filter_fi_to_drug_only  # noqa: E402
 from py_helpers.s3_utils import normalize_cohort_name, get_cohort_parquet_path  # noqa: E402
 from py_helpers.feature_importance_utils import aggregate_feature_importance  # noqa: E402
 
@@ -225,6 +226,7 @@ def _get_cohort_feature_list_minus_admin_z(cohort: str, age_band: str) -> List[s
     """
     Get all distinct codes from cohort.parquet event-level code columns, minus admin/Z.
     Used when historical aggregated FI from pgx-repository has too few features (e.g. only n_events).
+    For non_opioid_ed (polypharmacy) only drug_name is used; ICD/CPT are excluded.
     """
     cohort_paths = _resolve_cohort_parquet_paths(cohort, age_band)
     if not cohort_paths:
@@ -232,13 +234,16 @@ def _get_cohort_feature_list_minus_admin_z(cohort: str, age_band: str) -> List[s
             f"Cohort data not found for cohort={cohort}, age_band={age_band}. "
             "Run Step 2 (2_create_cohort) first."
         )
-    code_cols = [
-        "primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code",
-        "four_icd_diagnosis_code", "five_icd_diagnosis_code", "six_icd_diagnosis_code",
-        "seven_icd_diagnosis_code", "eight_icd_diagnosis_code", "nine_icd_diagnosis_code",
-        "ten_icd_diagnosis_code", "procedure_code", "cpt_mod_1_code", "cpt_mod_2_code",
-        "drug_name",
-    ]
+    if cohort == "non_opioid_ed":
+        code_cols = ["drug_name"]
+    else:
+        code_cols = [
+            "primary_icd_diagnosis_code", "two_icd_diagnosis_code", "three_icd_diagnosis_code",
+            "four_icd_diagnosis_code", "five_icd_diagnosis_code", "six_icd_diagnosis_code",
+            "seven_icd_diagnosis_code", "eight_icd_diagnosis_code", "nine_icd_diagnosis_code",
+            "ten_icd_diagnosis_code", "procedure_code", "cpt_mod_1_code", "cpt_mod_2_code",
+            "drug_name",
+        ]
     con = duckdb.connect()
     try:
         desc = con.execute(
@@ -662,6 +667,13 @@ def run_mc_feature_importance(
             else:
                 hist_df = None
         if hist_df is not None and not hist_df.empty:
+            if cohort == "non_opioid_ed":
+                hist_df = filter_fi_to_drug_only(hist_df)
+                if hist_df.empty:
+                    raise ValueError(
+                        "Historical aggregated FI has no drug-only features for non_opioid_ed. "
+                        "Run baseline first to produce drug-only aggregated FI."
+                    )
             feature_list = _get_feature_list_minus_admin_z(hist_df)
             if feature_list:
                 print(
@@ -1116,6 +1128,8 @@ def run_mc_feature_importance(
 
             # Remove administrative/Z codes so second pass = aggregated FI minus admin Z
             agg_df = _filter_aggregated_fi_admin_codes(agg_df)
+            if cohort == "non_opioid_ed":
+                agg_df = filter_fi_to_drug_only(agg_df)
 
             agg_df.to_csv(agg_path, index=False)
             print(f"Saved aggregated feature importance to {agg_path}")
