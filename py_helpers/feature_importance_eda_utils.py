@@ -98,27 +98,6 @@ def resolve_cohort_fi_path(
     Used by Step 4 (model_events filter) and Step 6 (final model features); must match.
     """
     return _resolve_cohort_fi_path(cohort, age_band, project_root)
-    except ImportError:
-        pass
-    for p in possible:
-        if p.exists():
-            return p
-    try:
-        try:
-            from py_helpers.common_imports import s3_client, S3_BUCKET
-        except ImportError:
-            import boto3
-            s3_client = boto3.client("s3")
-            S3_BUCKET = "pgxdatalake"
-        key = f"gold/feature_importance/{cohort}/{age_band}/{filename}"
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        df = pd.read_csv(io.BytesIO(obj["Body"].read()))
-        save_path = base_3b / cohort / age_band_fname / filename
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(save_path, index=False)
-        return save_path
-    except Exception:
-        return None
 
 
 def load_cohort_feature_importance(
