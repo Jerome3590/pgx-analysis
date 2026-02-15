@@ -78,6 +78,7 @@ from py_helpers.constants import (
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
     get_physical_age_bands_for_gold,
+    age_band_partition_candidates,
 )
 from py_helpers.env_utils import get_data_root, get_model_data_root
 from py_helpers.feature_utils import feature_to_code
@@ -395,27 +396,48 @@ def filter_cohort_events_for_items(
         print(f"[INFO] No feature importance CSVs found. Creating model_events.parquet with ALL events (no filtering) for {cohort_name}/{age_band}.")
 
     # Build list of local cohort parquet paths for this cohort/age_band across years.
-    # For 85-114 we consolidate physical partitions 85-94 and 95-114.
+    # For 85-114: prefer single partition age_band=85-114 when present; else use 85-94 and 95-114.
+    # Try both hyphen and underscore partition names for gold data.
     cohort_parquet_paths: List[str] = []
     physical_bands = get_physical_age_bands_for_gold(age_band)
-    cohort_paths_checked = [
-        (
-            local_cohort_root
-            / f"cohort_name={cohort_name}"
-            / f"event_year={year}"
-            / f"age_band={physical}"
-            / "cohort.parquet"
-        )
-        for year in years
-        for physical in physical_bands
-    ]
-    print(f"[INFO] Cohort parquet search: root={local_cohort_root}  (age_band {age_band} -> physical {physical_bands})")
-    for p in cohort_paths_checked:
-        exists = p.exists()
-        status = "found" if exists else "MISSING"
-        print(f"[INFO]   {p}  -> {status}")
-        if exists:
-            cohort_parquet_paths.append(str(p))
+    print(f"[INFO] Cohort parquet search: root={local_cohort_root}  (age_band {age_band} -> physical {physical_bands}, try hyphen and underscore)")
+    for year in years:
+        added_for_year = False
+        for physical in physical_bands:
+            if added_for_year:
+                break
+            for part in age_band_partition_candidates(physical):
+                p = (
+                    local_cohort_root
+                    / f"cohort_name={cohort_name}"
+                    / f"event_year={year}"
+                    / f"age_band={part}"
+                    / "cohort.parquet"
+                )
+                if p.exists():
+                    status = "found"
+                    cohort_parquet_paths.append(str(p))
+                    added_for_year = True
+                    # For 85-114, using single partition; don't also add 85-94/95-114 this year
+                    if physical == "85-114":
+                        break
+                    break
+                print(f"[INFO]   {p}  -> MISSING")
+            if added_for_year:
+                print(f"[INFO]   ... (year {year} found, skip remaining physical bands)")
+        if not added_for_year:
+            for physical in physical_bands:
+                for part in age_band_partition_candidates(physical):
+                    p = (
+                        local_cohort_root
+                        / f"cohort_name={cohort_name}"
+                        / f"event_year={year}"
+                        / f"age_band={part}"
+                        / "cohort.parquet"
+                    )
+                    print(f"[INFO]   {p}  -> MISSING")
+    for p in cohort_parquet_paths:
+        print(f"[INFO]   (using) {p}")
 
     if not cohort_parquet_paths:
         msg = (

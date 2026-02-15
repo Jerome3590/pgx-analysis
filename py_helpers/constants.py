@@ -315,11 +315,22 @@ def age_band_to_fname(age_band: str) -> str:
 def get_physical_age_bands_for_gold(age_band: str) -> list:
     """
     Return the physical age-band partition(s) to use when reading gold data (cohort, medical, pharmacy).
-    Pipeline uses a single logical band 85-114; gold data is partitioned as 85-94 and 95-114.
+    For 85-114 we use the single partition 85-114 only (85-94 and 95-114 are not used).
     """
     if age_band == "85-114":
-        return ["85-94", "95-114"]
+        return ["85-114"]
     return [age_band]
+
+
+def age_band_partition_candidates(physical_band: str) -> list:
+    """
+    Return candidate partition folder names for a physical age band (e.g. 85-94).
+    Tries hyphen first (85-94), then underscore (85_94) so gold data stored either way is found.
+    """
+    candidates = [physical_band]
+    if "-" in physical_band:
+        candidates.append(physical_band.replace("-", "_"))
+    return candidates
 
 # Processing Configuration
 LOCK_TIMEOUT_HOURS = 6  # Hours before considering a lock stale
