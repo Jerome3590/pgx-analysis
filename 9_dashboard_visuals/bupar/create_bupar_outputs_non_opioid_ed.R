@@ -309,7 +309,8 @@ pgx_df_target1_long <- pgx_df_target1 %>%
       TRUE ~ code
     ),
     timestamp = as.POSIXct(event_date)
-  )
+  ) %>%
+  filter(!is.na(timestamp))
 
 target_eventlog <- pgx_df_target1_long %>%
   transmute(
@@ -317,7 +318,12 @@ target_eventlog <- pgx_df_target1_long %>%
     activity             = activity,
     timestamp            = timestamp,
     activity_instance_id = dplyr::row_number(),
-    lifecycle_id         = "complete",
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
     resource_id          = "Patient"
   ) %>%
   eventlog(
@@ -415,7 +421,8 @@ pgx_df_all_long <- pgx_df_all %>%
       TRUE ~ code
     ),
     timestamp = as.POSIXct(event_date)
-  )
+  ) %>%
+  filter(!is.na(timestamp))
 
 sankey_eventlog <- pgx_df_all_long %>%
   transmute(
@@ -424,7 +431,12 @@ sankey_eventlog <- pgx_df_all_long %>%
     timestamp            = timestamp,
     group                = group,
     activity_instance_id = dplyr::row_number(),
-    lifecycle_id         = "complete",
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
     resource_id          = "Patient"
   ) %>%
   eventlog(
@@ -489,7 +501,12 @@ events_pre_target <- ev_all %>%
   filter(!is.na(first_target_index), event_index < first_target_index) %>%
   mutate(
     activity_instance_id = row_number(),
-    lifecycle_id         = "complete",
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
     resource_id          = "Patient"
   )
 
@@ -698,14 +715,21 @@ save_bupar_csv(
   sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
 )
 
-# 2) Process Matrix and CSV export
+# 2) Process Matrix and CSV export (event log is built only from rows with valid timestamp)
 if (n_target > 0L) {
-  pm_target <- process_matrix(target_eventlog, type = "frequency")
-  pm_target_df <- as.data.frame(pm_target)
-  save_bupar_csv(
-    pm_target_df,
-    sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
-  )
+  pm_target <- tryCatch(
+    process_matrix(target_eventlog, type = "frequency"),
+    error = function(e) {
+      cat("Note: process_matrix skipped due to error:", conditionMessage(e), "\n")
+      NULL
+    })
+  if (!is.null(pm_target)) {
+    pm_target_df <- as.data.frame(pm_target)
+    save_bupar_csv(
+      pm_target_df,
+      sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
+    )
+  }
   tryCatch(
     process_map(target_eventlog, type = "frequency"),
     error = function(e) cat(" [skip] process_map(target):", conditionMessage(e), "\n")
