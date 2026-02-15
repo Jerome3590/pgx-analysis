@@ -311,6 +311,16 @@ def age_band_to_fname(age_band: str) -> str:
     """Convert an age-band like '0-12' to a filename-safe form '0_12'."""
     return age_band.replace('-', '_') if isinstance(age_band, str) else str(age_band)
 
+
+def get_physical_age_bands_for_gold(age_band: str) -> list:
+    """
+    Return the physical age-band partition(s) to use when reading gold data (cohort, medical, pharmacy).
+    Pipeline uses a single logical band 85-114; gold data is partitioned as 85-94 and 95-114.
+    """
+    if age_band == "85-114":
+        return ["85-94", "95-114"]
+    return [age_band]
+
 # Processing Configuration
 LOCK_TIMEOUT_HOURS = 6  # Hours before considering a lock stale
 DEFAULT_SAMPLE_RATIO = 5  # Default 5x controls per positive case
