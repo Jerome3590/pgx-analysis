@@ -42,9 +42,9 @@ DRUG_NAMES_EXCLUDED_MODEL_TRAINING = frozenset({
     "T401XA1",
 })
 
-# Substrings to exclude from any feature name (case-insensitive). E.g. "syringe" excludes
-# item_drug_BD_INSULIN_SYRINGE_SAFETY and any other feature containing "syringe".
-FEATURE_SUBSTRINGS_EXCLUDED = frozenset({"syringe"})
+# Substrings to exclude from any feature name (case-insensitive).
+# Syringe was removed; it is helpful for identifying diabetics.
+FEATURE_SUBSTRINGS_EXCLUDED = frozenset()
 
 # Codes to exclude (lagging variables)
 EXCLUDED_CODES = {
