@@ -314,11 +314,21 @@ def age_band_to_fname(age_band: str) -> str:
 
 def get_physical_age_bands_for_gold(age_band: str) -> list:
     """
-    Return the physical age-band partition(s) to use when reading gold data (cohort, medical, pharmacy).
-    For 85-114 we use the single partition 85-114 only (85-94 and 95-114 are not used).
+    Return the physical age-band partition(s) for gold COHORT data.
+    For 85-114 we use the single partition 85-114 only.
     """
     if age_band == "85-114":
         return ["85-114"]
+    return [age_band]
+
+
+def get_physical_age_bands_for_medical_pharmacy(age_band: str) -> list:
+    """
+    Return the physical age-band partition(s) for gold MEDICAL and PHARMACY data.
+    For 85-114, medical/pharmacy are stored as two sub-cohorts: 85-94 and 95-114.
+    """
+    if age_band == "85-114":
+        return ["85-94", "95-114"]
     return [age_band]
 
 
