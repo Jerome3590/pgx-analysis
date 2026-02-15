@@ -674,6 +674,7 @@ def run_mc_feature_importance(
                         "Historical aggregated FI has no drug-only features for non_opioid_ed. "
                         "Run baseline first to produce drug-only aggregated FI."
                     )
+                print(f"[INFO] non_opioid_ed: restricted to drug-only features ({len(hist_df)} features)")
             feature_list = _get_feature_list_minus_admin_z(hist_df)
             if feature_list:
                 print(
@@ -703,6 +704,8 @@ def run_mc_feature_importance(
         print(
             f"[INFO] Baseline run: using cohort-derived feature list (minus admin/Z): {len(feature_list)} features"
         )
+        if cohort == "non_opioid_ed":
+            print("[INFO] non_opioid_ed baseline: feature list is drug_name only (no ICD/CPT)")
         df = _build_patient_features_from_cohort_and_fi_list(cohort, age_band, feature_list)
     if df is None or df.empty:
         raise ValueError(
@@ -723,6 +726,7 @@ def run_mc_feature_importance(
     n_patients = len(df)
     n_cases = int((y == 1).sum())
     n_controls = int((y == 0).sum())
+    print(f"[DATASET] Cohort: {cohort}, age_band: {age_band}")
     print(f"[DATASET] Built patient-level table: {n_patients:,} rows")
     print(f"[DATASET] Target: {n_cases:,} cases (1), {n_controls:,} controls (0)")
     print(f"[DATASET] Features ({len(feature_names)}): {feature_names}")
