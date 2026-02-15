@@ -217,22 +217,28 @@ class FileResolver:
             
             return None
     
-    def _format_path(self, template: str) -> str:
-        """Format a path template with current parameters."""
-        return template.format(
+    def _format_path(self, template: str, *, include_filename: bool = True) -> str:
+        """Format a path template with current parameters.
+        When include_filename is False, {filename} is not expanded (avoids recursion when formatting the filename pattern).
+        """
+        kwargs = dict(
             cohort=self.cohort or "",
             age_band=self.age_band or "",
             age_band_fname=self.age_band_fname or "",
             event_year=self.event_year or "",
             model_type=self.model_type or "",
             extension=self.extension or "",
-            filename=self._get_filename(),
         )
+        if include_filename:
+            kwargs["filename"] = self._get_filename()
+        else:
+            kwargs["filename"] = ""
+        return template.format(**kwargs)
     
     def _get_filename(self) -> str:
         """Get the filename based on the config pattern."""
         pattern = self.config.get("filename_pattern", "")
-        return self._format_path(pattern)
+        return self._format_path(pattern, include_filename=False)
     
     def _get_candidate_paths(self) -> List[Path]:
         """Get all candidate paths to check in order."""
