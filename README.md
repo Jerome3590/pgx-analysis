@@ -2,16 +2,11 @@
 
 End-to-end workflow for feature discovery, noise reduction, and causal-oriented modeling using drug exposures, ICD/CPT codes, and classification outcomes.
 
-## 📚 Documentation
+**This project builds a classification model on large-scale healthcare data, then uses model-based feature importance plus pattern and process mining to derive a stable feature set and interpretable explanations for causal analyses.**
 
-This project is organized into four main sections:
+---
 
-1. **[Overview](docs/README_overview.md)** - Project structure, components, and high-level workflow
-2. **[Data Pipeline](README_data_pipeline.md)** - Data processing, cohort creation, and data flow
-3. **[Analysis Workflow](docs/README_analysis_workflow.md)** - Feature importance, pattern mining, and final model development
-4. **[Data Visualizations](README_data_visualizations.md)** - Visualization approaches, interpretation, and network analysis
-
-## Quick Start
+## 📋 Quick Start
 
 ```bash
 # Install dependencies
@@ -19,91 +14,31 @@ pip install -r requirements.txt
 
 # Configure AWS credentials for S3 access
 aws configure
+
+# (Optional) Clear NVMe and project outputs for fresh run
+# See 0_config_and_pipeline.ipynb for full instructions
 ```
 
-## Config and fresh start
+## 🚀 Running the Workflow
 
-**[0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb)** lets you clear EC2 NVMe and project pipeline output directories for a fresh run, and contains step-by-step **instructions for running the pipeline** (prerequisites, notebook order, cohorts). Use it to reset local/NVMe data and project outputs; S3 checkpoints are not cleared by default (see the notebook for an optional full reset).
+**Configuration and Execution:**
+1. **[0_config_and_pipeline.ipynb](0_config_and_pipeline.ipynb)** - Configure EC2/local setup, clear project outputs, review prerequisites and notebook order
 
-## Running the Workflow
+**Five workflow notebooks (run in order):**
 
-The **workflow notebooks** are the primary way to run the pipeline. They sync required inputs from S3 to local and use S3 checkpoints so steps are skipped when already completed. Run in order: **1_cohort_workflow.ipynb** → **2_feature_importance.ipynb** → **3_model_train_shap_ffa.ipynb** → **4_dashboard_visuals.ipynb** → **5_build_and_deploy.ipynb**.
+| # | Notebook | Purpose | Steps |
+|---|----------|---------|-------|
+| 1 | **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Cohort creation (APCD input, event filtering, QA) | 1a → 1b → 2 |
+| 2 | **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Feature importance screening and refinement | 3a → 3b → 3c |
+| 3 | **[3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb)** | Model training, feature attribution, analysis | 4 → 5 → 6 → 7 → 8 |
+| 4 | **[4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb)** | Dashboard visualizations (BupaR, DTW, FP-Growth) | 9 (visuals) |
+| 5 | **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy (Lambda, Docker, S3) | 9 (deploy) |
 
-Legacy shell scripts and the former combined notebooks (3, 4) are in **archived/**; use the five notebooks above.
+**Execution Model**: Each notebook syncs required inputs from **S3 to NVMe** via `aws s3 sync` and uses **S3 checkpoints** for idempotency, so completed steps are skipped automatically.
 
-### Available Cohorts and Age Bands
+---
 
-Both cohorts use the **full set of age bands**: `0-12`, `13-24`, `25-44`, `45-54`, `55-64`, `65-74`, `75-84`, `85-114` (last band 85-114 combines former 85-94 and 95-114).
-
-- **`opioid_ed`**: Opioid ED cohort (F11.20 target) — all age bands above
-- **`non_opioid_ed`**: Polypharmacy cohort (HCG ED target) — all age bands above
-
-### Workflow Steps (Executed Automatically)
-
-1. **Step 1a**: APCD input data (1a_apcd_input_data) – bronze → silver → gold.
-2. **Step 1b**: Event filter (1b_apcd_event_filter) – Aggregated FI + ICD/administrative code filtering.
-3. **Step 2**: Cohort creation (2_create_cohort) – 5:1 target:control cohorts.
-4. **Step 3a**: Feature importance (3a_feature_importance) – MC-CV aggregated importances (CatBoost, XGBoost, XGBoost RF).
-5. **Step 3b**: Feature Importance EDA (3b_feature_importance_eda) – BupaR post-target analysis, code research; outputs refined `cohort_feature_importance.csv`.
-6. **Step 3c**: Final update to features (2_feature_importance.ipynb) – Strip remaining BupaR-identified leakage from `cohort_feature_importance.csv`; these CSVs are the only input to Step 4.
-8. **Step 4**: Model data (4_model_data) – `model_events.parquet` from refined features; removes target leakage (events on/after target date) for case events.
-9. **Step 5**: PGx feature engineering (5_pgx_analysis).
-10. **Step 6**: Final model (6_final_model) – training and selection (Recall / AUC-PR).
-11. **Step 7**: SHAP analysis (7_shap_analysis).
-12. **Step 8**: FFA analysis (8_ffa_analysis) – XGBoost only, SHAP-prioritized rules.
-13. **Step 9**: Risk dashboard (10_risk_dashboard) – deployment (Lambda, dashboard).
-
-The scripts are idempotent and will skip completed steps automatically.
-
-## Workflow Notebooks
-
-The pipeline is split into five workflow notebooks. Run in order:
-
-| Notebook | Purpose |
-|----------|--------|
-| **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Steps 1–2: Cohorts (APCD input, event filter, cohort creation). |
-| **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Steps 3a–3c: Feature importance (3a MC-CV), EDA (3b BupaR), final feature update (3c). |
-| **[3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb)** | Model data → PGx → final model → SHAP/FFA → combine. No deploy. |
-| **[4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb)** | Dashboard visuals: BupaR, DTW, FP-Growth (SHAP/FFA-driven). |
-| **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once. |
-
-**ICD filtering moved earlier:** Administrative/ICD code filtering runs in **1b_apcd_event_filter** (before cohort creation). That reduces downstream data volume and ensures feature importance (Step 3a/3b) is computed on the same filtered event set, capturing true predictive features. After moving ICD filtering earlier, feature importances must be rerun once cohorts are rebuilt.
-
-## Repository Structure
-
-```
-pgx-analysis/
-├── 1a_apcd_input_data/         # Step 1a: APCD data preprocessing (bronze → silver → gold)
-├── 1b_apcd_event_filter/       # Step 1b: Event filtering (ICD/administrative codes; runs before cohorts)
-├── 2_create_cohort/            # Step 2: Cohort creation and QA (5:1 target:control)
-├── 3a_feature_importance/     # Step 3a: MC-CV feature importance (aggregated importances)
-├── 3b_feature_importance_eda/ # Step 3b: Feature refinement (BupaR post-target, code research)
-├── 4_model_data/               # Step 4: Model-ready event datasets (cases + controls)
-├── 5_pgx_analysis/            # Step 5: PGx feature engineering
-├── 6_final_model/             # Step 6: Final model training and selection
-├── 7_shap_analysis/            # Step 7: SHAP post-model analysis (CatBoost + XGBoost)
-├── 8_ffa_analysis/             # Step 8: Formal Feature Attribution (uses SHAP to prioritize rules)
-├── 10_risk_dashboard/           # Step 9: Risk dashboard deployment (Lambda, dashboard UI)
-├── 0_config_and_pipeline.ipynb # Config: clear NVMe/project dirs, pipeline run instructions
-├── 1_cohort_workflow.ipynb     # Workflow notebook: Steps 1–2 (cohorts)
-├── 2_feature_importance.ipynb # Workflow notebook: Steps 3a–3c (feature importance + final feature update)
-├── 3_model_train_shap_ffa.ipynb    # Workflow: model data, PGx, final model, SHAP/FFA
-├── 4_dashboard_visuals.ipynb       # Workflow: BupaR, DTW, FP-Growth visuals
-├── 5_build_and_deploy.ipynb       # Workflow: build and deploy (Lambda, S3)
-├── archived/                   # Legacy notebooks (3, 4) and scripts (see archived/README.md if present)
-│   ├── 3_pgx_calculator_workflow.ipynb
-│   ├── 4_pgx_dashboard_visuals.ipynb
-│   ├── utility_scripts/        # Old workflow shell scripts
-│   ├── qa/                     # Check/validate/clear/diagnose scripts
-│   └── testing/                # Test scripts
-├── py_helpers/                 # Shared Python helper utilities
-├── r_helpers/                  # Shared R helper utilities
-└── docs/                       # Documentation
-```
-
-## High-Level Workflow
-
-**Execution model:** Each workflow notebook syncs required inputs from **S3 to NVMe** (or local) via `aws s3 sync` (idempotent) and uses **S3 checkpoints** so steps are skipped when already completed. Run order: **1** → **2** → **3** → **4** → **5**.
+## 📊 Workflow Pipeline
 
 ```mermaid
 flowchart TD
@@ -118,27 +53,27 @@ flowchart TD
         A4 --> B1[3a: Monte Carlo CV]
         B1 --> B2[Aggregated Feature Importance]
         B2 --> B3[Top Features Selection]
-        B3 --> B4[3b: BupaR Post-Target + Code Research]
-        B4 --> B5[3c: Final update to features]
+        B3 --> B4[3b: BupaR Post-Target Analysis]
+        B4 --> B5[3c: Final Feature Update]
         B5 --> B6[Refined cohort_feature_importance.csv]
     end
 
     subgraph W3["3_model_train_shap_ffa.ipynb"]
         B6 --> C1[4: Model Data]
-        C1 --> D1[5: PGx]
+        C1 --> D1[5: PGx Engineering]
         D1 --> E1[6: Final Model]
-        E1 --> E4[7: SHAP]
-        E4 --> F2[8: FFA]
-        F2 --> F1[Combine SHAP/FFA]
+        E1 --> E4[7: SHAP Analysis]
+        E4 --> F2[8: FFA Analysis]
+        F2 --> F1[Combine SHAP/FFA Results]
     end
 
     subgraph W4["4_dashboard_visuals.ipynb"]
-        F1 --> G0[BupaR, DTW, FP-Growth]
+        F1 --> G0[BupaR, DTW, FP-Growth Visuals]
     end
 
     subgraph W5["5_build_and_deploy.ipynb"]
         G0 --> G1[9: Risk Dashboard]
-        G1 --> G5[Deploy: S3 + Lambda + API Gateway]
+        G1 --> G5[Deploy: S3 + Lambda + API]
     end
 
     style A1 fill:#f9f,stroke:#333
@@ -149,44 +84,305 @@ flowchart TD
     style G1 fill:#ffb,stroke:#333
 ```
 
-## Key Features
+---
 
-- **Feature Screening** with a focused model ensemble (CatBoost, XGBoost boosted trees, XGBoost RF mode) + Monte Carlo cross-validation
-- **Feature Refinement (Feature Importance EDA)** using BupaR post-target analysis; Step 4 removes target leakage when building model data
-- **Event filtering (Step 1b)** – Aggregated FI + ICD/administrative code filtering (1b_apcd_event_filter)
-- **Structure Discovery** via FP-Growth, process mining (BupaR), and dynamic time warping (DTW) for dashboard visualizations only (Step 9 - not used as model features)
-- **Final Model Development** combining refined feature importances (from Feature Importance EDA) with PGx features for prediction and causal inference
-- **Model Selection** based on Recall (primary) and AUC-PR (secondary) metrics, selecting best model from CatBoost, XGBoost, or XGBoost RF
+## 📂 Repository Structure
 
-## Developer Conventions
+```
+pgx-analysis/
+├── 1a_apcd_input_data/           # Step 1a: APCD data preprocessing (bronze → silver → gold)
+├── 1b_apcd_event_filter/         # Step 1b: Event filtering (ICD/admin codes; runs before cohorts)
+├── 2_create_cohort/              # Step 2: Cohort creation and quality assurance (5:1 target:control)
+├── 3a_feature_importance/        # Step 3a: MC-CV feature importance screening
+├── 3b_feature_importance_eda/    # Step 3b: Feature refinement (BupaR post-target, code research)
+├── 4_model_data/                 # Step 4: Model-ready event datasets (target vs control)
+├── 5_pgx_analysis/               # Step 5: Pharmacogenomics (PGx) feature engineering
+├── 6_final_model/                # Step 6: Final model training and evaluation
+├── 7_shap_analysis/              # Step 7: SHAP-based post-model analysis
+├── 8_ffa_analysis/               # Step 8: Formal Feature Attribution (FFA) analysis
+├── 10_risk_dashboard/            # Step 9: Risk calculator + dashboard, API, deployment
+├── archived/                     # Legacy notebooks and scripts
+├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
+├── r_helpers/                    # Shared R utilities
+├── docs/                         # Comprehensive documentation
+├── 0_config_and_pipeline.ipynb   # Configuration and pipeline run instructions
+├── 1_cohort_workflow.ipynb       # Workflow: Steps 1–2
+├── 2_feature_importance.ipynb    # Workflow: Steps 3a–3c
+├── 3_model_train_shap_ffa.ipynb  # Workflow: Steps 4–8 + combine
+├── 4_dashboard_visuals.ipynb     # Workflow: Dashboard visualizations
+├── 5_build_and_deploy.ipynb      # Workflow: Build and deploy
+├── README.md                     # This file
+└── requirements.txt              # Python dependencies
+```
 
-- **Console output (cross‑platform)**: Avoid non‑ASCII characters (for example, unicode arrows like `→`) in Python/R scripts that may run on Windows consoles. Use plain ASCII (e.g. `->`) in `print()`/logging messages to prevent encoding errors under `cp1252` and similar code pages.
+---
 
-## Cohort Focus Strategy
+## 🎯 Workflow Steps (9 Steps Total)
 
-Because full Monte Carlo CV + permutation importance is computationally intensive, the
-project focuses the heaviest, publication-grade feature-importance analysis on two
-clinically motivated cohort groups:
+### Step 1a: APCD Input Data Processing
+- **Location:** `1a_apcd_input_data/`
+- Convert raw text data to Parquet format
+- Clean and standardize medical and pharmacy data
+- Apply drug name and ICD code mappings
+- **Output:** Bronze/Silver/Gold tier data
 
-- **Cohort Group 1 – Opioid ED (`opioid_ed`)**  
-  - Age bands: **\<65** (e.g., 0–12, 13–24, 25–44, 45–54, 55–64).  
-  - Feature space: **drugs + ICD codes + CPT codes + event type**.  
-  - Use case: detailed feature discovery for opioid-related ED visits and opioid use disorder.
+### Step 1b: Event Filtering (ICD/Administrative Codes)
+- **Location:** `1b_apcd_event_filter/`
+- Filter events using administrative codes and aggregated FI
+- Removes post-event leakage and protocol violations
+- **Runs before cohort creation** to reduce downstream data volume
+- **Output:** Filtered event set used by Steps 2 and 3a
 
-- **Cohort Group 2 – Polypharmacy ED (`non_opioid_ed`)**  
-  - Age bands: **≥65** (e.g., 65–74, 75–84, 85–94, 95–114).  
-  - Feature space for MC‑CV feature importance: **drugs only** (polypharmacy focus), with
-    downstream pattern mining and trajectory methods layering on additional structure.
+### Step 2: Cohort Creation
+- **Location:** `2_create_cohort/`
+- Create target and control cohorts with 5:1 ratio
+- Apply age band stratification
+- Comprehensive quality assurance and validation
+- **Output:** `cohort_{cohort_name}_ageband_{band}.parquet` for each cohort/age band
 
-Other cohort/age-band combinations can be explored with lighter configurations, but
-publication-grade, health outcomes–oriented modeling is anchored on these two groups.
+### Step 3a: Feature Importance Screening
+- **Location:** `3a_feature_importance/`
+- Monte Carlo cross-validation with three models:
+  - **CatBoost** - Gradient boosting with categorical features
+  - **XGBoost** - Gradient boosting with trees
+  - **XGBoost RF Mode** - Random forest-style boosting
+- Aggregate importance scores across models and folds
+- **Output:** `aggregated_feature_importance.csv`
 
-## Related Documentation
+### Step 3b: Feature Importance EDA & Refinement
+- **Location:** `3b_feature_importance_eda/`
+- BupaR post-target analysis to identify target leakage
+- Code research and clinical validation
+- Refine feature set based on findings
+- **Output:** `cohort_feature_importance.csv` (refined)
 
-- `3a_feature_importance/README.md` – Feature importance methodology and cohort configuration
-- `4_model_data/README_model_data.md` – Model-ready events and target vs control extraction
-- Event filtering: `1b_apcd_event_filter/filter_protocol_events.py` – Aggregated FI + ICD/administrative codes
-- `6_final_model/README.md` – Final model training and selection
-- `5_pgx_analysis/README.md` – Pharmacogenomics (PGx) feature engineering
-- `status/WORKFLOW_STATUS.md` – Per-cohort workflow execution status and checkpoints
-- `status/WORKFLOW_COMPLETE_SUMMARY.md` – High-level summary of workflow completion across cohorts and age bands
+### Step 3c: Final Feature Update
+- **Part of:** `2_feature_importance.ipynb`
+- Strip remaining leakage-identified features
+- Final QA on refined feature set
+- This CSV is the only input to Step 4
+- **Output:** Final `cohort_feature_importance.csv`
+
+### Step 4: Model Data Preparation
+- **Location:** `4_model_data/`
+- Extract model-ready event dataset
+- Remove target leakage (events on/after target date for cases)
+- Create balanced target/control sets
+- **Output:** `model_events.parquet`
+
+### Step 5: PGx Feature Engineering
+- **Location:** `5_pgx_analysis/`
+- Pharmacogenomics feature engineering
+- Add PGx derivatives and interactions
+- **Output:** `pgx_added_features.csv`
+
+### Step 6: Final Model Training
+- **Location:** `6_final_model/`
+- Train CatBoost, XGBoost, and XGBoost RF models on refined features
+- **Selection Criteria:** Primary: Recall (clinical sensitivity), Secondary: AUC-PR
+- Export best model and evaluation metrics
+- **Output:** `final_model.pkl`, `model_evaluation.json`
+
+### Step 7: SHAP Analysis
+- **Location:** `7_shap_analysis/`
+- Compute global and local SHAP values on final model
+- Identify most important features and their impacts
+- **Output:** `shap_analysis.parquet`
+
+### Step 8: Formal Feature Attribution (FFA) Analysis
+- **Location:** `8_ffa_analysis/`
+- Generate rule-based explanations using final model
+- SHAP-based filtering and prioritization of rules
+- Compute feature attribution scores
+- **Output:** `ffa_results.parquet`, `final_ffa_results.parquet` (after pruning)
+
+### Step 9: Risk Dashboard
+- **Location:** `10_risk_dashboard/`
+- Consolidate SHAP and FFA results
+- Generate visualizations (BupaR process mining, DTW sequence alignment, FP-Growth patterns)
+- Create risk dashboard frontend (HTML/JavaScript)
+- Deploy backend Lambda function
+- **Output:** Lambda function, S3 frontend, API Gateway endpoints
+
+---
+
+## 👥 Cohorts and Age Bands
+
+### Opioid ED Cohort (`opioid_ed`)
+- **Target:** F11.20 (Opioid use disorder with intoxication)
+- **Analysis Focus:** Feature discovery for opioid-related ED visits
+- **Age Bands Modeled:** 0–12, 13–24, 25–44, 45–54, 55–64 (and full range available: 65–74, 75–84, 85–114)
+
+### Polypharmacy/Non-Opioid ED Cohort (`non_opioid_ed`)
+- **Target:** HCG condition ED visit (high-cost/geriatric ED)
+- **Analysis Focus:** Polypharmacy patterns in elderly patients
+- **Age Bands Modeled:** 65–74, 75–84, 85–114 (and available: 0–12, 13–24, 25–44, 45–54, 55–64)
+
+**Full Age Band Range:** 0–12, 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114
+
+For each `(cohort, age_band)` combination, the pipeline runs:
+- MC-CV feature importance (Step 3a)
+- Feature refinement (Step 3b)
+- Model-ready event extraction (Step 4)
+- PGx feature engineering (Step 5)
+- Final model training (Step 6)
+- SHAP analysis (Step 7)
+- FFA analysis (Step 8)
+- **One final model produced per cohort/age-band**
+
+---
+
+## 🔧 Key Project Components
+
+### Core Analysis Modules
+
+**1a_apcd_input_data: APCD Data Processing**
+- `0_txt_to_parquet.py` - Convert text to Parquet
+- `3_apcd_clean.py` - Main cleaning pipeline
+- `drug_mappings/` - Drug standardization (A-Z drugs + medical supplies)
+- `claim_mappings/` - ICD code mappings and classifications
+
+**2_create_cohort: Cohort Creation**
+- `0_create_cohort.py` - Orchestration and execution
+- `2_step2_data_quality_qa.py` - QA and validation
+- `phases/` - Individual phase implementations
+- `table_mappings/` - Mapping configurations
+
+**3a_feature_importance: Feature Screening**
+- Three core models: **CatBoost, XGBoost, XGBoost RF**
+- MC-CV aggregation for robust importance ranking
+- Ensemble consensus approach for final feature selection
+
+**3b_feature_importance_eda: Feature Refinement**
+- BupaR post-target analysis for target leakage detection
+- Code research and clinical validation
+- Produces refined CSV for Steps 4+
+
+**5_pgx_analysis: Pharmacogenomics**
+- Feature engineering with PGx derivatives
+- Genetic-drug interaction modeling
+- Produces PGx feature additions
+
+**6_final_model: Model Development**
+- Three models: CatBoost, XGBoost, XGBoost RF
+- Model selection: Primary Recall, Secondary AUC-PR
+- **One model per cohort/age-band**
+
+**7_shap_analysis: SHAP Post-Model**
+- Global and local SHAP values
+- Feature importance and impact quantification
+- Used to prioritize rules in Step 8
+
+**8_ffa_analysis: Formal Feature Attribution**
+- Rule-based explanations using final model
+- SHAP-filtered rule selection
+- Produces interpretable explanation rules
+
+**10_risk_dashboard: Dashboard & Deployment**
+- Frontend: Interactive HTML dashboard
+- Backend: Lambda function for risk calculation
+- Visualizations: BupaR, DTW, FP-Growth
+- Deployment: Docker, ECR, API Gateway
+
+### Shared Utilities
+- `py_helpers/` - S3, DuckDB, logging, constants
+- `r_helpers/` - R-based utilities
+- `archived/` - Legacy workflows and scripts
+
+---
+
+## 💾 Data and Variables
+
+- **Unit of Analysis:** Patient-episode or encounter
+- **Outcome (Y):** Binary classification (e.g., opioid disorder, ED visit)
+- **Treatments (A):** Drug exposure indicators
+- **Covariates (X):**
+  - ICD diagnosis codes (grouped/rolled up)
+  - CPT procedure codes
+  - Demographics and baseline attributes
+- **Temporal Info:** Timestamps for diagnoses, procedures, drug administrations
+
+**Data Separation:**
+- Pre-treatment covariates (confounding control)
+- Treatment variables (drugs)
+- Post-treatment variables (mediators/outcomes)
+
+---
+
+## 🎨 Key Design Decisions
+
+### Partition-First Architecture
+- All heavy processing partitioned by `(age_band, event_year)`
+- S3-backed checkpoints enable resumable, parallelizable jobs
+- DuckDB for efficient SQL-based transformations
+- **Details:** See [docs/CrossStep_Development/README_data_pipeline_architecture.md](docs/CrossStep_Development/README_data_pipeline_architecture.md)
+
+### Feature Engineering Simplification
+- **Primary:** Aggregated MC-CV feature importances
+- **Secondary:** PGx feature engineering
+- **Visualization-Only:** BupaR, FP-Growth, DTW (valuable for exploration, not model features)
+- **Rationale:** Simplifies pipeline while maintaining predictive power; prevents feature leakage
+
+### Model Ensemble Approach
+- Three models provide **model agreement** and consensus filtering
+- CatBoost handles categorical features natively
+- XGBoost provides robustness benchmark
+- XGBoost RF mode tests ensemble effects
+- **Result:** More robust feature selection and prediction
+
+### Event Filter Placement
+- **Step 1b runs before cohort creation** (Step 2)
+- Reduces downstream data volume
+- Ensures feature importance computed on filtered event set
+- True predictive features captured in Step 3a
+
+### Temporal Validation
+- **Train:** 2016–2018
+- **Test:** 2019 holdout
+- **Excluded:** 2020 (COVID-19 healthcare disruption)
+- Prevents data leakage; ensures generalization
+
+---
+
+## 📚 Documentation
+
+**Core Documentation:**
+- [README_data_pipeline_architecture.md](docs/CrossStep_Development/README_data_pipeline_architecture.md) - Full pipeline architecture, DuckDB config, optimization
+- [README_data_pipeline_workflow.md](docs/CrossStep_Development/README_data_pipeline_workflow.md) - Step-by-step data transformations and workflow
+- [README_lessons_learned.md](docs/CrossStep_Development/README_lessons_learned.md) - Key insights from project development
+- [FFA Analysis Documentation](docs/Step8_FFA/) - Feature attribution methodology and implementation
+
+**Step-Specific Documentation:**
+- `1a_apcd_input_data/README.md` - APCD data processing
+- `1b_apcd_event_filter/README.md` - Event filtering details
+- `2_create_cohort/README.md` - Cohort creation pipeline
+- `3a_feature_importance/README.md` - Feature importance methodology and configuration
+- `4_model_data/README_model_data.md` - Model-ready data extraction
+- `6_final_model/README.md` - Final model training and selection
+- `5_pgx_analysis/README.md` - PGx feature engineering
+- `10_risk_dashboard/docs/` - Dashboard and deployment documentation
+
+---
+
+## 🖥️ System Requirements
+
+- **Python 3.8+** with dependencies in `requirements.txt`
+- **AWS Account** with S3 access for data storage and checkpoints
+- **EC2 Instance** (recommended: 32-core CPU, 1TB NVMe, sufficient EBS) or local machine with similar specs
+- **R** (for feature importance EDA and visualizations)
+- **Docker** (for Lambda deployment)
+
+---
+
+## 💡 Developer Conventions
+
+- **Console output (cross-platform):** Avoid non-ASCII characters (e.g., unicode arrows) in Python/R scripts; use plain ASCII to prevent encoding issues on Windows consoles
+
+---
+
+## ⚠️ Important Notes
+
+- **Scripts are idempotent:** Completed steps are skipped automatically via S3 checkpoints
+- **Run notebooks in order:** Don't skip notebooks; dependencies exist between steps
+- **S3 sync is idempotent:** Only changed files are synced, minimizing bandwidth
+- **Fresh run:** Use `0_config_and_pipeline.ipynb` to clear local/NVMe outputs; S3 checkpoints preserved by default

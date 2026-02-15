@@ -454,6 +454,84 @@ When investigating row count issues:
 - Log extensively for debugging
 - Review queries for cartesian product risks
 
-**Version:** 2.0  
-**Last Updated:** January 20, 2026  
+---
+
+## Design Decisions and Architecture
+
+### Feature Engineering Simplification
+
+**Initial Approach:** Multiple feature engineering steps (BupaR, FP-Growth, DTW, PGx) with all features combined for final model.
+
+**Final Approach:** Single feature engineering step (PGx only) with aggregated feature importances used directly.
+
+**Key Lessons:**
+- **FP-Growth Features:** Removed due to target leakage. Patterns mined from combined target+control data can encode target-specific information, creating artificial predictive power.
+- **BupaR Features:** Moved to visualization-only. While valuable for exploration, process mining features add complexity without sufficient predictive benefit.
+- **DTW:** Used for dashboard visualizations only. Doesn't contribute additional predictive signal beyond aggregated importances.
+- **Aggregated Features:** Using MC-CV feature importances directly (without encoding) simplifies pipeline while maintaining predictive power.
+
+**Result:** Streamlined workflow focused on core features with other methods reserved for exploration and visualization.
+
+### Model Selection Philosophy
+
+**Approach:** Use ensemble of three models (CatBoost, XGBoost, XGBoost RF) with **Model Agreement** philosophy.
+
+**Key Lessons:**
+- **Robustness Over Sensitivity:** Features important in multiple models receive higher scores than single-model features, preventing model-specific artifacts.
+- **CatBoost FFA Limitation as Quality Control:** CatBoost's complex transformations make symbolic rule extraction difficult. This limitation functions as quality filter in Step 8.
+- **Consensus Filter:** Requiring features to be detectable by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) ensures actionability at both statistical and interpretive levels.
+- **Selection Criteria:** Primary metric is Recall (clinical sensitivity), secondary is AUC-PR (precision-recall balance).
+
+**Result:** More robust feature selection and model interpretation with higher confidence in predictions.
+
+### Event Filter Placement
+
+**Problem:** ICD/administrative code filtering traditionally done inconsistently across pipeline, causing feature importance and model training to use different data.
+
+**Solution:** **Step 1b: Event Filtering runs BEFORE cohort creation (Step 2)**
+
+**Key Lessons:**
+- Filtering at raw data level reduces downstream computation volume
+- Feature importance (Step 3a) computed on same filtered event set as model training (Step 4+)
+- Ensures true predictive features captured without confounding
+- Validates data quality early in pipeline
+
+**Result:** Improved efficiency and consistency. Feature importance and training guaranteed to use identical data.
+
+### Temporal Validation Strategy
+
+**Approach:** Strict temporal validation with separated time periods.
+
+**Key Lessons:**
+- **Train-Test Split:** 2016-2018 training, 2019 holdout, 2020 excluded (COVID-19)
+- **Prevents Leakage:** Future data never seen during training ensures temporal isolation
+- **COVID Exclusion:** Pandemic disruptions not representative of normal operations
+- **Ensures Consistency:** Same train/test split across feature importance and modeling ensures features generalize temporally
+
+**Result:** More reliable performance estimates and better generalization to future data.
+
+### Drug Event Explosion Strategy
+
+**Challenge:** Healthcare data is high-dimensional (hundreds of drugs, thousands of ICD codes per patient).
+
+**Solution:** Patient-Level → Drug-Level Transformation enables sequence modeling while tracking temporal relationships.
+
+**Key Lessons:**
+- Context duplication (demographics per drug event) enables both cross-sectional and longitudinal analysis
+- Enables sophisticated temporal analyses (BupaR, DTW, FpGrowth)
+- Maintains temporal information critical for causal inference (`days_to_ade`, `days_to_outcome`)
+- Larger data volume requires efficient formats (Parquet, DuckDB) but enables advanced pattern mining
+
+**Result:** Natural representation for sequence methods while maintaining temporal information needed for symbolic reasoning and rule extraction.
+
+---
+
+## Related Documentation
+
+- [README.md](../../README.md) - Main project documentation
+- [README_data_pipeline_architecture.md](README_data_pipeline_architecture.md) - Pipeline architecture
+- [README_data_pipeline_workflow.md](README_data_pipeline_workflow.md) - Workflow execution
+
+**Version:** 2.1  
+**Last Updated:** February 15, 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team
