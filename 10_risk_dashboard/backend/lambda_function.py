@@ -1459,6 +1459,11 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
         return _response(500, {"error": str(e)})
 
 
+# TODO: Patient-level BupaR visuals (trace explorer, process matrix, frequency map filtered by
+# cohort/age_band/patient subset) require on-demand R execution. Implement when R is available
+# in Lambda (e.g. custom runtime/layer or separate R service) and add POST /visualizations/bupar/patient-level.
+
+
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
     Returns HTTPS URLs for BupaR plots from the dashboard bucket (S3_DASHBOARD_BUCKET)
@@ -1476,17 +1481,19 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
-        # Filenames produced by R (create_bupar_outputs_*.R)
-        return _response(200, {
+        # Pre/post trace explorer filenames differ by cohort (opioid_ed: f1120, non_opioid_ed: hcg)
+        pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
+        # Pre-target only; no Gantt (time info from DTW). Post-target for EDA/leakage may add later.
+        payload = {
             "activity_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_overall_activity_frequency.png",
-            "pre_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png",
-            "post_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_post_f1120_activity_frequency.png",
-            "gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_milestones_gantt.png",
-            "pre_target_gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_pre_f1120_gantt.png",
-            "post_target_gantt_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_post_f1120_gantt.png",
+            "pre_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_{pre_suffix}_activity_frequency.png",
             "sequence_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_sequence_top.png",
-            "milestones_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_milestones_gantt.png"
-        })
+            "trace_explorer_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer.png",
+            "trace_explorer_pre_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_{pre_suffix}.png",
+            "performance_spectrum_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_performance_spectrum.png",
+            "frequency_map_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_frequency_map.png",
+        }
+        return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 

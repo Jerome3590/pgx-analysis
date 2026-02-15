@@ -24,6 +24,7 @@ suppressPackageStartupMessages({
   library(bupaverse)
   library(processmapR)
   library(edeaR)
+  library(ggplot2)
   library(lubridate)
 })
 
@@ -506,12 +507,18 @@ cat("Pre-HCG eventlog summary:\n")
 print(pre_target_eventlog)
 
 n_pre <- nrow(events_pre_target)
-# 1) Trace explorer: use coverage (fraction) to avoid "No traces were selected" when trace set is empty or small
+# 1) Trace explorer: save as PNG for dashboard
 if (n_pre > 0L) {
-  tryCatch(
-    trace_explorer(pre_target_eventlog, coverage = 0.8),
-    error = function(e) cat(" [skip] trace_explorer(pre-HCG):", conditionMessage(e), "\n")
+  p_te_pre <- tryCatch(
+    trace_explorer(pre_target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
+                   coverage_labels = c("relative")),
+    error = function(e) { cat(" [skip] trace_explorer(pre-HCG):", conditionMessage(e), "\n"); NULL }
   )
+  if (!is.null(p_te_pre)) {
+    ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_pre_hcg.png", cohort_name, age_band_fname)),
+           plot = p_te_pre, width = 14, height = 10, dpi = 300)
+    print(p_te_pre)
+  }
 } else {
   cat(" [skip] trace_explorer(pre-HCG): no pre-HCG events\n")
 }
@@ -639,13 +646,41 @@ save_bupar_csv(
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer (use coverage to avoid "No traces were selected" when trace set is small)
+# 1) Trace Explorer: save as PNG for dashboard
 n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
-  tryCatch(
-    trace_explorer(target_eventlog, coverage = 0.8),
-    error = function(e) cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n")
+  p_te <- tryCatch(
+    trace_explorer(target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
+                   coverage_labels = c("relative")),
+    error = function(e) { cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n"); NULL }
   )
+  if (!is.null(p_te)) {
+    ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
+           plot = p_te, width = 14, height = 10, dpi = 300)
+    print(p_te)
+  }
+  # Performance spectrum (aggregated activity trace; requires psmineR)
+  tryCatch({
+    if (requireNamespace("psmineR", quietly = TRUE)) {
+      p_ps <- target_eventlog %>% psmineR::ps_aggregated()
+      ggsave(file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname)),
+             plot = p_ps, width = 12, height = 8, dpi = 300)
+      cat("Saved performance_spectrum.png\n")
+    } else {
+      cat(" [skip] performance_spectrum: psmineR not installed\n")
+    }
+  }, error = function(e) cat(" [skip] performance_spectrum:", conditionMessage(e), "\n"))
+  # Frequency map (process_map with render = F then export_map to PNG; may be Plotly/HTML in some versions)
+  freq_map_path <- file.path(plots_dir, sprintf("%s_%s_frequency_map.png", cohort_name, age_band_fname))
+  tryCatch({
+    pm_freq <- process_map(target_eventlog, type = "frequency", render = FALSE)
+    if (exists("export_map", mode = "function")) {
+      processmapR::export_map(pm_freq, file_name = freq_map_path, file_type = "png", width = 1200, height = 900)
+      cat("Saved frequency_map.png\n")
+    } else {
+      cat(" [skip] frequency_map: export_map not found\n")
+    }
+  }, error = function(e) cat(" [skip] frequency_map:", conditionMessage(e), "\n"))
 } else {
   cat(" [skip] trace_explorer(target): no events\n")
 }
