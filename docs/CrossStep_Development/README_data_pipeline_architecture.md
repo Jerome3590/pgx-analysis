@@ -542,6 +542,18 @@ Every component — from data ingestion through cohort generation — runs as in
 **Last Updated:** January 7, 2026
 **Maintainers:** PGx Data Engineering \& Analytics Team
 
+## Related Documentation
+
+**Data Pipeline Documentation:**
+- [`README_data_pipeline_workflow.md`](README_data_pipeline_workflow.md) - Step-by-step data processing workflow (complementary: workflow vs. architecture)
+- [`README_parallelization_pipeline.md`](README_parallelization_pipeline.md) - Parallelization strategies for pipeline optimization
+- [`README_ec2_runtime.md`](README_ec2_runtime.md) - EC2 instance specifications and runtime performance
+
+**Step-Specific Documentation:**
+- [Step 1: Input Data](../Step1_Input) - APCD raw data preparation
+- [Step 2: Cohort Creation](../Step2_Cohort) - Analytical cohort generation
+- [Step 8: FFA Analysis](../Step8_FFA/README_ffa_pipeline.md) - FFA pipeline and output data locations
+
 ---
 <span style="display:none">[^1][^2][^3][^4][^5][^6][^7][^8][^9]</span>
 

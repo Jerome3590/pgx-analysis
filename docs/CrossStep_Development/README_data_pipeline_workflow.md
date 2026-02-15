@@ -220,5 +220,7 @@ aws configure
 - [`README_overview.md`](README_overview.md) - Project structure and components
 - [`README_analysis_workflow.md`](README_analysis_workflow.md) - Feature importance, Step 4 model data, and pattern mining
 - [`Step1-2_DataPipeline/README_create_cohort.md`](Step1-2_DataPipeline/README_create_cohort.md) - Comprehensive cohort creation guide
-- [`README_data_pipeline_architecture.md`](README_data_pipeline_architecture.md) - Detailed pipeline architecture
+- [`README_data_pipeline_architecture.md`](README_data_pipeline_architecture.md) - Detailed pipeline architecture (complementary: architecture vs. workflow)
+- [`../Step8_FFA/README_ffa_pipeline.md`](../Step8_FFA/README_ffa_pipeline.md) - FFA analysis data pipeline and output locations
+
 
