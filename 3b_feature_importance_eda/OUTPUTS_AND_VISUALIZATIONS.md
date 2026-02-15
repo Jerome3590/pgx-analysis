@@ -12,10 +12,10 @@ Feature Importance EDA creates comprehensive outputs including data files, featu
 │   └── {age_band_fname}/
 │       ├── features/                    # BupaR feature files
 │       ├── plots/                       # Visualization PNG files
-│       ├── {cohort}_{age_band}_cohort_feature_importance.csv
-│       └── {cohort}_{age_band}_feature_filtering_summary.json
-       ├── {cohort}_{age_band}_bupar_post_target_analysis.csv
-       └── {cohort}_{age_band}_safe_feature_filter.json
+│       ├── {cohort}_{age_band_fname}_cohort_feature_importance.csv
+│       └── {cohort}_{age_band_fname}_feature_filtering_summary.json
+│       ├── {cohort}_{age_band_fname}_bupar_post_target_analysis.csv
+│       └── {cohort}_{age_band_fname}_safe_feature_filter.json
 ```
 
 ## Data Outputs
@@ -26,8 +26,8 @@ Feature Importance EDA creates comprehensive outputs including data files, featu
 
 | File | Description | Columns |
 |------|-------------|---------|
-| `{cohort}_{age_band}_cohort_feature_importance.csv` | **Primary output** - Refined feature importances for Step 4a | `feature`, `importance_normalized`, `importance_scaled` |
-| `{cohort}_{age_band}_feature_filtering_summary.json` | Summary of filtering decisions | JSON with counts and filtering statistics |
+| `{cohort}_{age_band_fname}_cohort_feature_importance.csv` | **Primary output** - Refined feature importances for Step 4/6 (final model features) | `feature`, importance columns, `code_type`, `raw_code` |
+| `{cohort}_{age_band_fname}_feature_filtering_summary.json` | Summary of filtering decisions | JSON with counts and filtering statistics |
 
 **Features:**
 - Feature names are sanitized (spaces/special chars → underscores)
@@ -142,6 +142,30 @@ For `opioid_ed/13-24`:
   - Additional code-type specific Gantt charts (drugs, CPT) if events exist
 
 **Total Size:** ~1-2 MB (visualizations) + ~2-5 MB (data files, depending on cohort size)
+
+## Troubleshooting: "No cohort_feature_importance.csv" / Script not finding files locally
+
+**Why the script doesn't find files locally:** Step 4/6 and the notebook resolve `cohort_feature_importance` in this order: `3b_feature_importance_eda/outputs/{cohort}/{age_band_fname}/`, then `DATA_ROOT/gold/feature_importance/`, then S3. If the file is missing, it's because the **Filter and refine** step (step 4 in the execution order) was never run for that cohort/age_band, or it failed (e.g. no aggregated FI, or `final_count == 0`).
+
+**Correct file for final model features (Step 4 and Step 6):**
+
+- **Path:** `3b_feature_importance_eda/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_cohort_feature_importance.csv`
+- **Example:** `3b_feature_importance_eda/outputs/opioid_ed/65_74/opioid_ed_65_74_cohort_feature_importance.csv`
+- This is the **only** file Step 4 (model_events filter) and Step 6 (final model features) use; it is produced only by the filter-and-refine step.
+
+**How to generate the missing file:** Run the filter-and-refine step for that cohort/age_band. From the project root:
+
+```bash
+python 3b_feature_importance_eda/2_filtering/filter_and_refine_features.py --cohort opioid_ed --age-band 65-74
+```
+
+Or run the full Step 3b workflow for that band (which runs BupaR, safe filter, then filter-and-refine):
+
+```bash
+python 3b_feature_importance_eda/run_feature_importance_eda.py --cohort opioid_ed --age-band 65-74
+```
+
+Prerequisites: (1) Step 3a aggregated FI for that band (e.g. `3a_feature_importance/outputs/opioid_ed/opioid_ed_65_74_aggregated_feature_importance.csv`), (2) BupaR post-target CSV in `3b_feature_importance_eda/outputs/opioid_ed/65_74/`. The filter step writes the refined CSV and uploads it to S3.
 
 ## Usage in Downstream Steps
 

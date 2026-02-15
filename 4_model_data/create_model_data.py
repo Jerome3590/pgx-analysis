@@ -77,6 +77,7 @@ from py_helpers.constants import (
     OPIOID_ICD_CODES,
     DEFAULT_SAMPLE_RATIO,
     get_opioid_icd_sql_condition,
+    get_physical_age_bands_for_gold,
 )
 from py_helpers.env_utils import get_data_root, get_model_data_root
 from py_helpers.feature_utils import feature_to_code
@@ -393,19 +394,22 @@ def filter_cohort_events_for_items(
     if use_all_events:
         print(f"[INFO] No feature importance CSVs found. Creating model_events.parquet with ALL events (no filtering) for {cohort_name}/{age_band}.")
 
-    # Build list of local cohort parquet paths for this cohort/age_band across years
+    # Build list of local cohort parquet paths for this cohort/age_band across years.
+    # For 85-114 we consolidate physical partitions 85-94 and 95-114.
     cohort_parquet_paths: List[str] = []
+    physical_bands = get_physical_age_bands_for_gold(age_band)
     cohort_paths_checked = [
         (
             local_cohort_root
             / f"cohort_name={cohort_name}"
             / f"event_year={year}"
-            / f"age_band={age_band}"
+            / f"age_band={physical}"
             / "cohort.parquet"
         )
         for year in years
+        for physical in physical_bands
     ]
-    print(f"[INFO] Cohort parquet search: root={local_cohort_root}")
+    print(f"[INFO] Cohort parquet search: root={local_cohort_root}  (age_band {age_band} -> physical {physical_bands})")
     for p in cohort_paths_checked:
         exists = p.exists()
         status = "found" if exists else "MISSING"
@@ -423,36 +427,41 @@ def filter_cohort_events_for_items(
             logger.warning(msg)
         return
 
-    # Build lists of gold medical and pharmacy parquet paths (globs) for this age_band across years
+    # Build lists of gold medical and pharmacy parquet paths for this age_band across years.
+    # For 85-114 we consolidate physical partitions 85-94 and 95-114; use explicit file paths to avoid DuckDB empty-glob errors.
     medical_parquet_paths: List[str] = []
     pharmacy_parquet_paths: List[str] = []
 
-    print(f"[INFO] Gold medical search: root={local_medical_root}  (expect age_band={age_band}/event_year={{year}}/*.parquet)")
-    print(f"[INFO] Gold pharmacy search: root={local_pharmacy_root}  (expect age_band={age_band}/event_year={{year}}/*.parquet)")
+    print(f"[INFO] Gold medical search: root={local_medical_root}  (age_band {age_band} -> physical {physical_bands})")
+    print(f"[INFO] Gold pharmacy search: root={local_pharmacy_root}  (age_band {age_band} -> physical {physical_bands})")
     for year in years:
-        medical_parent = (
-            local_medical_root
-            / f"age_band={age_band}"
-            / f"event_year={year}"
-        )
-        pharmacy_parent = (
-            local_pharmacy_root
-            / f"age_band={age_band}"
-            / f"event_year={year}"
-        )
+        for physical in physical_bands:
+            medical_parent = (
+                local_medical_root
+                / f"age_band={physical}"
+                / f"event_year={year}"
+            )
+            pharmacy_parent = (
+                local_pharmacy_root
+                / f"age_band={physical}"
+                / f"event_year={year}"
+            )
 
-        medical_glob = medical_parent / "*.parquet"
-        pharmacy_glob = pharmacy_parent / "*.parquet"
+            med_files = list(medical_parent.glob("*.parquet")) if medical_parent.exists() else []
+            pharm_files = list(pharmacy_parent.glob("*.parquet")) if pharmacy_parent.exists() else []
+            print(
+                f"[INFO]   medical   {medical_parent}  -> "
+                + (f"{len(med_files)} file(s)" if med_files else "MISSING or no *.parquet")
+            )
+            print(
+                f"[INFO]   pharmacy  {pharmacy_parent}  -> "
+                + (f"{len(pharm_files)} file(s)" if pharm_files else "MISSING or no *.parquet")
+            )
 
-        med_exists = medical_parent.exists()
-        pharm_exists = pharmacy_parent.exists()
-        print(f"[INFO]   medical   {medical_parent}  -> {'found' if med_exists else 'MISSING'}")
-        print(f"[INFO]   pharmacy  {pharmacy_parent}  -> {'found' if pharm_exists else 'MISSING'}")
-
-        if med_exists:
-            medical_parquet_paths.append(str(medical_glob))
-        if pharm_exists:
-            pharmacy_parquet_paths.append(str(pharmacy_glob))
+            for p in med_files:
+                medical_parquet_paths.append(str(p))
+            for p in pharm_files:
+                pharmacy_parquet_paths.append(str(p))
 
     if not medical_parquet_paths:
         msg = (
