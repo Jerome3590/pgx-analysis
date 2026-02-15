@@ -231,7 +231,12 @@ target_eventlog <- pgx_df_target1_long %>%
     activity             = activity,
     timestamp            = timestamp,
     activity_instance_id = dplyr::row_number(),
-    lifecycle_id         = "complete",
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
     resource_id          = "Patient"
   ) %>%
   eventlog(
@@ -339,7 +344,12 @@ sankey_eventlog <- pgx_df_all_long %>%
     timestamp            = timestamp,
     group                = group,
     activity_instance_id = dplyr::row_number(),
-    lifecycle_id         = "complete",
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
     resource_id          = "Patient"
   ) %>%
   eventlog(
