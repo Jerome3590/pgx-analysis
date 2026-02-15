@@ -1027,10 +1027,6 @@
           <div id="bupar-sequence-image"></div>
         </div>
         <div class="panel">
-          <h2>Times Between Sequences (Pre-Target Gantt)</h2>
-          <div id="bupar-pre-gantt-image"></div>
-        </div>
-        <div class="panel">
           <h2>Overall Activity Frequency</h2>
           <div id="bupar-activity-freq-image"></div>
         </div>
@@ -1039,20 +1035,20 @@
           <div id="bupar-pre-freq-image"></div>
         </div>
         <div class="panel">
-          <h2>Post-Target Activity Frequency</h2>
-          <div id="bupar-post-freq-image"></div>
+          <h2>Trace Explorer (top 20 traces)</h2>
+          <div id="bupar-trace-explorer-image"></div>
         </div>
         <div class="panel">
-          <h2>Gantt Chart (Overall)</h2>
-          <div id="bupar-gantt-image"></div>
+          <h2>Trace Explorer Pre-Target</h2>
+          <div id="bupar-trace-explorer-pre-image"></div>
         </div>
         <div class="panel">
-          <h2>Gantt Chart (Post-Target)</h2>
-          <div id="bupar-post-gantt-image"></div>
+          <h2>Performance Spectrum (aggregated activity trace)</h2>
+          <div id="bupar-performance-spectrum-image"></div>
         </div>
         <div class="panel">
-          <h2>Activity Milestones Gantt</h2>
-          <div id="bupar-milestones-image"></div>
+          <h2>Frequency Map (directly-follows process map)</h2>
+          <div id="bupar-frequency-map-image"></div>
         </div>
       </div>
     </div>
@@ -2487,12 +2483,11 @@
     const imageMap = {
       'bupar-activity-freq-image': data.activity_frequency_image,
       'bupar-pre-freq-image': data.pre_target_frequency_image,
-      'bupar-post-freq-image': data.post_target_frequency_image,
-      'bupar-gantt-image': data.gantt_image,
-      'bupar-pre-gantt-image': data.pre_target_gantt_image,
-      'bupar-post-gantt-image': data.post_target_gantt_image,
       'bupar-sequence-image': data.sequence_image,
-      'bupar-milestones-image': data.milestones_image
+      'bupar-trace-explorer-image': data.trace_explorer_image,
+      'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
+      'bupar-performance-spectrum-image': data.performance_spectrum_image,
+      'bupar-frequency-map-image': data.frequency_map_image
     };
     for (const [elementId, imageUrl] of Object.entries(imageMap)) {
       if (imageUrl) {

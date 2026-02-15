@@ -472,8 +472,17 @@ print(pre_target_eventlog)
 if (nrow(as.data.frame(pre_target_eventlog)) == 0) {
   cat("No pre-F1120 events found; skipping pre-F1120 trace and feature analysis for this cohort/age band.\n")
 } else {
-# 1) Trace explorer (use full coverage; data already filtered to important features)
-trace_explorer(pre_target_eventlog, coverage = 1.0)
+# 1) Trace explorer (use coverage 0.8 for readable bars; save as PNG for dashboard)
+p_te_pre <- tryCatch(
+  trace_explorer(pre_target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
+                 coverage_labels = c("relative")),
+  error = function(e) { cat(" [skip] trace_explorer(pre-F1120):", conditionMessage(e), "\n"); NULL }
+)
+if (!is.null(p_te_pre)) {
+  ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_pre_f1120.png", cohort_name, age_band_fname)),
+         plot = p_te_pre, width = 14, height = 10, dpi = 300)
+  print(p_te_pre)
+}
 
 # Save pre-F1120 traces and categorize into top/rare
 traces_pre <- bupaR::traces(pre_target_eventlog)
@@ -778,9 +787,18 @@ if (include_post_target) {
   cat("Post-F1120 eventlog summary:\n")
   print(post_target_eventlog)
 
-  # 1) Trace explorer: post-F1120 trajectories (use full coverage; data already filtered to important features)
-  trace_explorer(post_target_eventlog, coverage = 1.0)
-  
+  # 1) Trace explorer: post-F1120 trajectories (save as PNG for dashboard)
+  p_te_post <- tryCatch(
+    trace_explorer(post_target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
+                   coverage_labels = c("relative")),
+    error = function(e) { cat(" [skip] trace_explorer(post-F1120):", conditionMessage(e), "\n"); NULL }
+  )
+  if (!is.null(p_te_post)) {
+    ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_post_f1120.png", cohort_name, age_band_fname)),
+           plot = p_te_post, width = 14, height = 10, dpi = 300)
+    print(p_te_post)
+  }
+
   # Save post-F1120 traces and categorize into top/rare
   traces_post <- bupaR::traces(post_target_eventlog)
   traces_post_df <- as.data.frame(traces_post) %>%
@@ -1001,8 +1019,17 @@ if (include_post_target) {
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer: use full coverage (data already filtered to important features)
-trace_explorer(target_eventlog, coverage = 1.0)
+# 1) Trace Explorer: save as PNG for dashboard
+p_te <- tryCatch(
+  trace_explorer(target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
+                 coverage_labels = c("relative")),
+  error = function(e) { cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n"); NULL }
+)
+if (!is.null(p_te)) {
+  ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
+         plot = p_te, width = 14, height = 10, dpi = 300)
+  print(p_te)
+}
 
 # Save trace summary as tabular output
 traces_target <- bupaR::traces(target_eventlog)
@@ -1072,6 +1099,38 @@ save_bupar_csv(
 # For small datasets, use ggplot2 visualizations instead of process_map
 plots_dir <- file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
 if (!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE)
+
+# Performance spectrum (aggregated activity trace; requires psmineR)
+tryCatch({
+  if (requireNamespace("psmineR", quietly = TRUE)) {
+    p_ps <- target_eventlog %>% psmineR::ps_aggregated()
+    ggsave(file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname)),
+           plot = p_ps, width = 12, height = 8, dpi = 300)
+    cat("Saved performance_spectrum.png\n")
+  } else {
+    cat(" [skip] performance_spectrum: psmineR not installed\n")
+  }
+}, error = function(e) cat(" [skip] performance_spectrum:", conditionMessage(e), "\n"))
+
+# Frequency map (process_map with frequency; render = F then export_map to PNG; else saves HTML if only Plotly/HTML)
+freq_map_path <- file.path(plots_dir, sprintf("%s_%s_frequency_map.png", cohort_name, age_band_fname))
+tryCatch({
+  pm_freq <- process_map(target_eventlog, type = frequency("absolute"), render = FALSE)
+  if (exists("export_map", mode = "function")) {
+    processmapR::export_map(pm_freq, file_name = freq_map_path, file_type = "png", width = 1200, height = 900)
+    cat("Saved frequency_map.png via export_map\n")
+  } else {
+    cat(" [skip] frequency_map: export_map not found (process_map may return Plotly/HTML only)\n")
+  }
+}, error = function(e) {
+  tryCatch({
+    pm_freq <- process_map(target_eventlog, type = "frequency", render = FALSE)
+    if (exists("export_map", mode = "function")) {
+      processmapR::export_map(pm_freq, file_name = freq_map_path, file_type = "png", width = 1200, height = 900)
+      cat("Saved frequency_map.png via export_map (type=character)\n")
+    }
+  }, error = function(e2) cat(" [skip] frequency_map:", conditionMessage(e2), "\n"))
+})
 
 # Activity frequency plot (overall)
 target_activity_freq <- target_eventlog %>%

@@ -74,3 +74,7 @@ For a given `(cohort, age_band)`:
 
 BupaR feature outputs are for dashboard visualization only; we do not add them to model data (same as DTW and FP-Growth).
 
+### TODO: Patient-level BupaR visuals
+
+Patient-level BupaR visuals (trace explorer, process matrix, frequency map filtered by cohort/age_band/patient subset) are not yet implemented. They require on-demand R execution; we will need to install R in Lambda (or use a separate R runtime/service) and add an endpoint (e.g. POST /visualizations/bupar/patient-level) plus dashboard filter UI to submit selections for Lambda to process.
+
