@@ -198,11 +198,16 @@ if (file.exists(allowed_codes_shap_ffa_path)) {
   cat("No SHAP/FFA allowed codes file; using all codes (event log = dataset filtered by dates only).\n", sep = "")
 }
 
-cat("Total unique allowed codes: ", length(allowed_codes), "\n\n", sep = "")
+cat("Total unique allowed codes: ", length(allowed_codes), "\n", sep = "")
+cat("Sample allowed_codes (first 10): ", paste(head(allowed_codes, 10), collapse = ", "), "\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Build DRUG/ICD/CPT activities and target_eventlog
 # -------------------------------------------------------------------
+
+cat("Model events columns: ", paste(colnames(pgx_df_target1), collapse = ", "), "\n", sep = "")
+cat("Sample drug_name values (first 5): ", paste(head(unique(pgx_df_target1$drug_name[!is.na(pgx_df_target1$drug_name)]), 5), collapse = ", "), "\n", sep = "")
+cat("Sample primary_icd values (first 5): ", paste(head(unique(pgx_df_target1$primary_icd_diagnosis_code[!is.na(pgx_df_target1$primary_icd_diagnosis_code)]), 5), collapse = ", "), "\n\n", sep = "")
 
 pgx_df_target1_long <- pgx_df_target1 %>%
   transmute(
