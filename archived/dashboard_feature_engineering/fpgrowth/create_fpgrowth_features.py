@@ -515,7 +515,7 @@ def main():
     
     if fpgrowth_features.empty:
         logger.error("No features created. Check inputs and logs.")
-        return
+        sys.exit(1)
     
     # Set output path - intermediate file for FP-Growth features only
     if not args.output:

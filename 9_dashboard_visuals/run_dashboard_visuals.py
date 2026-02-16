@@ -94,7 +94,6 @@ def main():
     # Creation code lives in 9_dashboard_visuals (step 9); outputs go to 10_risk_dashboard/visualizations
     step9_root = REPO_ROOT / "9_dashboard_visuals"
     bupar_script = step9_root / "bupar" / "create_bupar_visuals.py"
-    dtw_features_script = step9_root / "dtw" / "create_dtw_features.py"
     dtw_visuals_script = step9_root / "dtw" / "create_dtw_visuals.py"
     fpgrowth_script = step9_root / "fpgrowth" / "create_fpgrowth_visuals.py"
     force_flag = ["--force"] if args.force else []
@@ -134,33 +133,27 @@ def main():
                     sys.exit(1)
     print()
 
-    # DTW
+    # DTW (visuals only; we do not create DTW features in this pipeline)
     print("DTW")
     print("-" * 40)
-    if not dtw_features_script.exists() or not dtw_visuals_script.exists():
-        print("  DTW scripts not found; skip.")
+    if not dtw_visuals_script.exists():
+        print("  DTW visuals script not found; skip.")
     else:
-        def run_dtw_one(c: str, ab: str):
-            r1 = subprocess.run(
-                [sys.executable, str(dtw_features_script), "--cohort", c, "--age_band", ab] + force_flag,
-                cwd=str(REPO_ROOT),
-                capture_output=False,
-            )
-            if r1.returncode != 0:
-                return (c, ab, r1.returncode, None)
-            r2 = subprocess.run(
-                [sys.executable, str(dtw_visuals_script), "--cohort-name", c, "--age-band", ab, "--project-root", str(REPO_ROOT)] + force_flag,
-                cwd=str(REPO_ROOT),
-                capture_output=False,
-            )
-            return (c, ab, r1.returncode, r2.returncode)
-
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
-            futures = {ex.submit(run_dtw_one, c, ab): (c, ab) for c, ab in combinations}
+            futures = {
+                ex.submit(
+                    subprocess.run,
+                    [sys.executable, str(dtw_visuals_script), "--cohort-name", c, "--age-band", ab, "--project-root", str(REPO_ROOT)] + force_flag,
+                    cwd=str(REPO_ROOT),
+                    capture_output=False,
+                ): (c, ab)
+                for c, ab in combinations
+            }
             for fut in as_completed(futures):
-                c, ab, c1, c2 = fut.result()
-                print(f"  [DTW] {c} / {ab} -> exit {c1}, {c2}")
-                if (c2 is None or c2 != 0) and args.fail_fast:
+                c, ab = futures[fut]
+                r = fut.result()
+                print(f"  [DTW] {c} / {ab} -> exit {r.returncode}")
+                if r.returncode != 0 and args.fail_fast:
                     sys.exit(1)
     print()
 

@@ -32,7 +32,6 @@ from py_helpers.constants import AGE_BANDS, COHORT_NAMES  # noqa: E402
 
 VISUAL_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations"
 BUPAR_VISUALS_SCRIPT = VISUAL_ROOT / "bupar" / "create_bupar_visuals.py"
-DTW_FEATURES_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_features.py"
 DTW_VISUALS_SCRIPT = VISUAL_ROOT / "dtw" / "create_dtw_visuals.py"
 EXTREME_EXTRACT_SCRIPT = VISUAL_ROOT / "dtw" / "extract_extreme_density_cohort.py"
 FPGROWTH_VISUALS_SCRIPT = VISUAL_ROOT / "fpgrowth" / "create_fpgrowth_visuals.py"
@@ -87,36 +86,27 @@ with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
 print("BupaR done.")
 
 # %%
-# --- Run DTW trajectory features and publish (parallel; idempotent unless FORCE_RERUN) ---
+# --- Run DTW visuals only (parallel; idempotent unless FORCE_RERUN). We do not create DTW features here. ---
 def _run_dtw_one(cohort_name, age_band):
-    r1 = subprocess.run(
-        [sys.executable, str(DTW_FEATURES_SCRIPT), "--cohort", cohort_name, "--age_band", age_band] + force_flag,
-        cwd=str(REPO_ROOT),
-        capture_output=False,
-    )
-    if r1.returncode != 0:
-        return (cohort_name, age_band, r1.returncode, None)
-    r2 = subprocess.run(
+    r = subprocess.run(
         [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
-    return (cohort_name, age_band, r1.returncode, r2.returncode)
+    return (cohort_name, age_band, r.returncode)
 
 with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
     futures = {ex.submit(_run_dtw_one, c, ab): (c, ab) for c, ab in combinations}
     for fut in as_completed(futures):
-        cohort_name, age_band, c1, c2 = fut.result()
-        print(f"  [DTW] {cohort_name} / {age_band} -> exit {c1}, {c2}")
-        if c2 is None and FAIL_FAST:
-            raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name} / {age_band}")
-        if c2 is not None and c2 != 0 and FAIL_FAST:
+        cohort_name, age_band, code = fut.result()
+        print(f"  [DTW] {cohort_name} / {age_band} -> exit {code}")
+        if code != 0 and FAIL_FAST:
             raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
 print("DTW done.")
 
 # %%
-# --- Run extreme-density extract + DTW (parallel; idempotent unless FORCE_RERUN) ---
-# Extract top ~5% by medical_code density into {cohort}_extreme_density, then run DTW for that subgroup.
+# --- Run extreme-density extract + DTW visuals only (parallel; idempotent unless FORCE_RERUN) ---
+# Extract top ~5% by medical_code density into {cohort}_extreme_density, then run DTW visuals for that subgroup.
 def _run_extreme_one(cohort_name, age_band):
     r0 = subprocess.run(
         [sys.executable, str(EXTREME_EXTRACT_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
@@ -124,33 +114,24 @@ def _run_extreme_one(cohort_name, age_band):
         capture_output=False,
     )
     if r0.returncode != 0:
-        return (cohort_name, age_band, r0.returncode, None, None)
+        return (cohort_name, age_band, r0.returncode, None)
     extreme_name = f"{cohort_name}_extreme_density"
-    r1 = subprocess.run(
-        [sys.executable, str(DTW_FEATURES_SCRIPT), "--cohort", extreme_name, "--age_band", age_band] + force_flag,
-        cwd=str(REPO_ROOT),
-        capture_output=False,
-    )
-    if r1.returncode != 0:
-        return (cohort_name, age_band, r0.returncode, r1.returncode, None)
     r2 = subprocess.run(
         [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", extreme_name, "--age-band", age_band,
          "--project-root", str(REPO_ROOT)] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
-    return (cohort_name, age_band, r0.returncode, r1.returncode, r2.returncode)
+    return (cohort_name, age_band, r0.returncode, r2.returncode)
 
 if EXTREME_COMBINATIONS:
     with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
         futures = {ex.submit(_run_extreme_one, c, ab): (c, ab) for c, ab in EXTREME_COMBINATIONS}
         for fut in as_completed(futures):
-            cohort_name, age_band, c0, c1, c2 = fut.result()
-            print(f"  [Extreme] {cohort_name} / {age_band} -> extract={c0}, dtw_feat={c1}, dtw_vis={c2}")
+            cohort_name, age_band, c0, c2 = fut.result()
+            print(f"  [Extreme] {cohort_name} / {age_band} -> extract={c0}, dtw_vis={c2}")
             if c0 != 0 and FAIL_FAST:
                 raise RuntimeError(f"Extract extreme cohort failed: {cohort_name} / {age_band}")
-            if c1 is not None and c1 != 0 and FAIL_FAST:
-                raise RuntimeError(f"DTW create_dtw_features failed: {cohort_name}_extreme_density / {age_band}")
             if c2 is not None and c2 != 0 and FAIL_FAST:
                 raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name}_extreme_density / {age_band}")
     print(f"Extreme-density done ({len(EXTREME_COMBINATIONS)} combinations).")

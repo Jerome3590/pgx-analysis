@@ -37,40 +37,51 @@ def resolve_model_events_path(
     project_root = Path(project_root).resolve()
     cohort_slug = get_cohort_slug_by_cohort(cohort_name)
 
-    # 1) Try 3b (same as BupaR)
-    path_3b = (
-        project_root
-        / "3b_feature_importance_eda"
-        / "outputs"
-        / "cohorts"
-        / "input_model_data"
-        / f"cohort_name={cohort_slug}"
-        / f"age_band={age_band}"
-        / "model_events.parquet"
-    )
-    if path_3b.exists():
-        return path_3b
+    # EC2 uses underscore in partition names (age_band=75_84). Try underscore first, then hyphen.
+    band_underscore = age_band.replace("-", "_") if "-" in age_band else age_band
+    band_hyphen = age_band.replace("_", "-") if "_" in age_band else age_band
+    bands_to_try = (band_underscore, band_hyphen) if band_underscore != band_hyphen else (age_band,)
 
-    # 2) Fallback: 4_model_data (same candidate roots as BupaR)
+    # 1) Try 3b (same as BupaR)
+    for band in bands_to_try:
+        path_3b = (
+            project_root
+            / "3b_feature_importance_eda"
+            / "outputs"
+            / "cohorts"
+            / "input_model_data"
+            / f"cohort_name={cohort_slug}"
+            / f"age_band={band}"
+            / "model_events.parquet"
+        )
+        if path_3b.exists():
+            return path_3b
+
+    # 2) Fallback: 4_model_data. On EC2 data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then project.
     import os
+    nvme_4 = Path("/mnt/nvme/4_model_data")
     data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
-    candidates_4 = []
+    candidates_4 = [nvme_4]
     if data_root_env:
         candidates_4.append(Path(data_root_env) / "4_model_data")
     candidates_4.extend([
-        Path("/mnt/nvme/4_model_data"),
         project_root / "4_model_data",
         project_root / "4a_model_data",
     ])
+    def _check_dir(base: Path, band: str) -> Optional[Path]:
+        d = base / f"cohort_name={cohort_name}" / f"age_band={band}"
+        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+            p = d / name
+            if p.exists():
+                return p
+        return None
+
     for root in candidates_4:
         if not root.exists():
             continue
-        model_data_dir = root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
-        no_protocols = model_data_dir / "model_events_no_protocols.parquet"
-        main_path = model_data_dir / "model_events.parquet"
-        if no_protocols.exists():
-            return no_protocols
-        if main_path.exists():
-            return main_path
+        for band in bands_to_try:
+            p = _check_dir(root, band)
+            if p is not None:
+                return p
 
     return None

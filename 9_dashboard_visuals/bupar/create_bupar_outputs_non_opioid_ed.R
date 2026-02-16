@@ -76,12 +76,12 @@ if (FALSE) {
   }
 }
 if (TRUE) {
-  # Fallback: 4_model_data (PGX_DATA_ROOT, /mnt/nvme, project); then 4a_model_data (legacy). Prefer model_events_no_protocols if available.
+  # On EC2 model data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then project. Prefer model_events_no_protocols if available.
   model_data_root <- NULL
   data_root <- Sys.getenv("PGX_DATA_ROOT")
   candidates <- c(
-    if (nzchar(data_root)) file.path(data_root, "4_model_data") else character(0),
     "/mnt/nvme/4_model_data",
+    if (nzchar(data_root)) file.path(data_root, "4_model_data") else character(0),
     file.path(project_root, "4_model_data"),
     file.path(project_root, "4a_model_data")
   )
@@ -94,11 +94,27 @@ if (TRUE) {
   if (is.null(model_data_root)) {
     model_data_root <- file.path(project_root, "4_model_data")
   }
-  model_data_dir <- file.path(
+  # EC2 uses underscore in partition names (age_band=75_84). Try underscore first, then hyphen.
+  model_data_dir_underscore <- file.path(
+    model_data_root,
+    paste0("cohort_name=", cohort_name),
+    paste0("age_band=", age_band_fname)
+  )
+  model_data_dir_hyphen <- file.path(
     model_data_root,
     paste0("cohort_name=", cohort_name),
     paste0("age_band=", age_band)
   )
+  if (file.exists(file.path(model_data_dir_underscore, "model_events_no_protocols.parquet")) ||
+      file.exists(file.path(model_data_dir_underscore, "model_events.parquet"))) {
+    model_data_dir <- model_data_dir_underscore
+  } else if (file.exists(file.path(model_data_dir_hyphen, "model_events_no_protocols.parquet")) ||
+             file.exists(file.path(model_data_dir_hyphen, "model_events.parquet"))) {
+    model_data_dir <- model_data_dir_hyphen
+  } else {
+    stop("Model data not found for cohort ", cohort_name, " age_band ", age_band,
+         " (tried age_band=", age_band_fname, " and age_band=", age_band, ")")
+  }
   model_data_no_protocols <- file.path(model_data_dir, "model_events_no_protocols.parquet")
   model_data_main         <- file.path(model_data_dir, "model_events.parquet")
   if (file.exists(model_data_no_protocols)) {

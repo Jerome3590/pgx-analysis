@@ -71,7 +71,9 @@ s3_outputs/
 4b_dtw_filter/code_lookup/
 
 # Archived workflow steps (no longer part of active pipeline)
-archived/
+archived/*
+# Preserve archived dashboard feature-engineering scripts in version control
+!archived/dashboard_feature_engineering/
 
 # Log files
 *.log
