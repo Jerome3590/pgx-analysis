@@ -8,9 +8,11 @@ is for dashboard visualization only.
 Runs the BupaR workflow for a given cohort and age band:
 1. Create BupaR outputs and plots via R scripts
 2. Merge BupaR features into a standalone feature table (dashboard only; not added to model data)
-3. Upload plot PNGs to the dashboard bucket
+3. Upload interactive HTML and static PNG plots to the dashboard bucket
 
 Outputs:
+- Interactive plots: 3 HTML files with year dropdown filtering (activity_frequency, trace_explorer, process_matrix)
+- Static plots: 3 PNG fallback files
 - Features: 10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
 - Mirrored features and plots: feature_engineering_outputs/5_bupar/{cohort}/{age_band}/[features,plots]
 """
@@ -306,12 +308,12 @@ def upload_bupar_plots_to_dashboard_s3(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Upload BupaR plot PNGs to the dashboard bucket (same as FP-Growth) under bupar/{cohort}/{age_band}/plots/."""
+    """Upload BupaR plot PNGs and interactive HTML files to the dashboard bucket under bupar/{cohort}/{age_band}/plots/."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
-    if not plots_dir.exists() or not list(plots_dir.glob("*.png")):
+    if not plots_dir.exists():
         logger.warning(
-            "No BupaR plots directory or no PNGs at %s; skipping S3 upload. "
+            "No BupaR plots directory at %s; skipping S3 upload. "
             "Check R stdout/stderr above for EMPTY EVENT LOG or fallback to FP-Growth.",
             plots_dir,
         )
@@ -327,14 +329,18 @@ def upload_bupar_plots_to_dashboard_s3(
         logger.warning("checkpoint_utils not available; skipping BupaR plot upload to dashboard S3")
         return True
 
+    # Upload both PNG (legacy) and HTML (interactive) files
     uploaded = 0
-    for p in plots_dir.glob("*.png"):
-        key = f"{s3_prefix}/{p.name}"
-        s3_path = f"s3://{s3_bucket}/{key}"
-        if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
-            uploaded += 1
+    for pattern in ["*.png", "*.html"]:
+        for p in plots_dir.glob(pattern):
+            key = f"{s3_prefix}/{p.name}"
+            s3_path = f"s3://{s3_bucket}/{key}"
+            if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
+                uploaded += 1
     if uploaded:
-        logger.info("Uploaded %s BupaR plot(s) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
+        logger.info("Uploaded %s BupaR file(s) (PNG + HTML) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
+    else:
+        logger.warning("No PNG or HTML files found in %s", plots_dir)
     return True
 
 
