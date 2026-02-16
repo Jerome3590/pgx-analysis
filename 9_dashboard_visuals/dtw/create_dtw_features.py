@@ -25,7 +25,9 @@ from pathlib import Path
 import logging
 import subprocess
 import shutil
+import os
 from typing import Optional, Dict, List, Set, Tuple
+from multiprocessing import Pool, cpu_count
 import duckdb
 
 try:
@@ -684,14 +686,61 @@ def extract_trajectories_with_time_windows(
     return trajectories, df
 
 
+def _compute_dtw_for_patient(args):
+    """Helper function for parallel DTW computation."""
+    pid, encoded_traj, prototype_trajectories, prototype_indices, original_traj_len, original_traj_diversity = args
+    
+    if not encoded_traj:
+        return None
+    
+    feature_row = {'mi_person_key': pid}
+    
+    # Compute distance to each prototype
+    for proto_idx, proto_pid in enumerate(prototype_indices):
+        proto_traj = prototype_trajectories[proto_pid]
+        
+        if proto_traj:
+            try:
+                distance = dtw.distance(encoded_traj, proto_traj)
+                feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = distance
+            except Exception:
+                feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = np.inf
+        else:
+            feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = np.inf
+    
+    # Compute statistics
+    distances = [v for k, v in feature_row.items() if k.startswith('dtw_distance_to_prototype_')]
+    if distances:
+        feature_row['dtw_min_distance'] = min(distances)
+        feature_row['dtw_max_distance'] = max(distances)
+        feature_row['dtw_mean_distance'] = np.mean(distances)
+        feature_row['dtw_std_distance'] = np.std(distances)
+    
+    # Trajectory characteristics
+    feature_row['trajectory_length'] = original_traj_len
+    feature_row['trajectory_diversity'] = original_traj_diversity
+    
+    return feature_row
+
+
 def compute_dtw_distances_to_prototypes(
     patient_trajectories: Dict[str, List[str]],
-    n_prototypes: int = 5
+    n_prototypes: int = 5,
+    n_workers: Optional[int] = None
 ) -> pd.DataFrame:
     """
     Compute DTW distances from each patient to prototype trajectories.
     
     Prototypes are selected as median-length trajectories from clusters.
+    
+    Parameters:
+    -----------
+    patient_trajectories : Dict[str, List[str]]
+        Dictionary mapping patient IDs to their trajectories
+    n_prototypes : int
+        Number of prototype trajectories to use (default: 5)
+    n_workers : Optional[int]
+        Number of parallel workers. None = use all CPUs, 1 = sequential
     """
     if not DTW_AVAILABLE:
         raise ImportError("dtaidistance package not available. Install with: pip install dtaidistance")
@@ -737,43 +786,38 @@ def compute_dtw_distances_to_prototypes(
     
     logger.info(f"Selected {len(prototype_trajectories)} prototype trajectories")
     
-    # Compute DTW distances
-    features_list = []
+    # Determine number of workers
+    if n_workers is None:
+        n_workers = max(1, cpu_count() - 1)  # Leave one CPU free
     
+    # Prepare arguments for parallel computation
+    compute_args = []
     for pid, encoded_traj in encoded_trajectories.items():
         if not encoded_traj:
             continue
-        
-        feature_row = {'mi_person_key': pid}
-        
-        # Compute distance to each prototype
-        for proto_idx, proto_pid in enumerate(prototype_indices):
-            proto_traj = prototype_trajectories[proto_pid]
-            
-            if proto_traj:
-                try:
-                    distance = dtw.distance(encoded_traj, proto_traj)
-                    feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = distance
-                except Exception as e:
-                    logger.warning(f"Error computing DTW distance for patient {pid} to prototype {proto_idx}: {e}")
-                    feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = np.inf
-            else:
-                feature_row[f'dtw_distance_to_prototype_{proto_idx}'] = np.inf
-        
-        # Compute statistics
-        distances = [v for k, v in feature_row.items() if k.startswith('dtw_distance_to_prototype_')]
-        if distances:
-            feature_row['dtw_min_distance'] = min(distances)
-            feature_row['dtw_max_distance'] = max(distances)
-            feature_row['dtw_mean_distance'] = np.mean(distances)
-            feature_row['dtw_std_distance'] = np.std(distances)
-        
-        # Trajectory characteristics
         original_traj = patient_trajectories[pid]
-        feature_row['trajectory_length'] = len(original_traj)
-        feature_row['trajectory_diversity'] = len(set(original_traj))
-        
-        features_list.append(feature_row)
+        compute_args.append((
+            pid,
+            encoded_traj,
+            prototype_trajectories,
+            prototype_indices,
+            len(original_traj),
+            len(set(original_traj))
+        ))
+    
+    # Compute DTW distances (parallel if n_workers > 1)
+    if n_workers > 1 and len(compute_args) > 100:  # Only parallelize for large datasets
+        logger.info(f"Computing DTW distances in parallel using {n_workers} workers")
+        with Pool(n_workers) as pool:
+            features_list = pool.map(_compute_dtw_for_patient, compute_args)
+        features_list = [f for f in features_list if f is not None]
+    else:
+        logger.info("Computing DTW distances sequentially")
+        features_list = []
+        for args in compute_args:
+            result = _compute_dtw_for_patient(args)
+            if result is not None:
+                features_list.append(result)
     
     features_df = pd.DataFrame(features_list)
     logger.info(f"Created {len(features_df.columns) - 1} DTW features for {len(features_df)} patients")
