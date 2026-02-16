@@ -16,6 +16,7 @@ Outputs:
 """
 
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -68,6 +69,39 @@ def _find_rscript() -> str | None:
     return None
 
 
+def _model_data_path(cohort_name: str, age_band: str, project_root: Path) -> Path | None:
+    """Return path to model_events parquet if it exists; else None. Matches R script resolution (3b then 4_model_data)."""
+    cohort_slug_3b = "opioid" if cohort_name == "opioid_ed" else "polypharmacy"
+    path_3b = (
+        project_root
+        / "3b_feature_importance_eda"
+        / "outputs"
+        / "cohorts"
+        / "input_model_data"
+        / f"cohort_name={cohort_slug_3b}"
+        / f"age_band={age_band}"
+        / "model_events.parquet"
+    )
+    if path_3b.exists():
+        return path_3b
+    data_root = os.environ.get("PGX_DATA_ROOT", "")
+    candidates = [
+        Path(data_root) / "4_model_data" if data_root else None,
+        Path("/mnt/nvme/4_model_data"),
+        project_root / "4_model_data",
+        project_root / "4a_model_data",
+    ]
+    for root in candidates:
+        if root is None or not root.exists():
+            continue
+        model_data_dir = root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
+        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+            p = model_data_dir / name
+            if p.exists():
+                return p
+    return None
+
+
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create a module-level logger with both console and file handlers."""
     logs_dir = PROJECT_ROOT / "logs" / "feature_engineering" / "5_bupar"
@@ -106,20 +140,60 @@ def create_bupar_outputs(
         age_band_arg = age_band
         age_band_fname = age_band.replace("-", "_")
 
-        # Write SHAP/FFA allowed codes for BupaR (filter original data to model-important items)
+        # Write SHAP/FFA allowed codes for BupaR (required: event log = dataset filtered by causal codes + dates)
+        out_dir = DASHBOARD_BUPAR_OUT / "outputs"
+        allowed_path = out_dir / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
         try:
             from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
 
-            out_dir = DASHBOARD_BUPAR_OUT / "outputs"
-            allowed_path = out_dir / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
-            if write_shap_ffa_allowed_codes_for_bupar(
+            if not write_shap_ffa_allowed_codes_for_bupar(
                 cohort_name, age_band, allowed_path, top_n=500, project_root=REPO_ROOT
             ):
-                logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
-            else:
-                logger.info("No SHAP/FFA codes found; BupaR will use FP-Growth itemsets if present")
+                logger.error(
+                    "SHAP/FFA allowed codes file required for BupaR is missing or empty. "
+                    "Run SHAP/FFA analysis (7_shap_analysis) for cohort=%s age_band=%s first.",
+                    cohort_name,
+                    age_band,
+                )
+                return False
+            logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
+            logger.error("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
+            return False
+
+        # Require artifact exists and has at least one code before calling R
+        if not allowed_path.exists():
+            logger.error(
+                "SHAP/FFA allowed codes file not found at %s; aborting BupaR script.",
+                allowed_path,
+            )
+            return False
+        try:
+            with open(allowed_path, encoding="utf-8") as f:
+                codes = json.load(f)
+            if not codes or (isinstance(codes, list) and len(codes) == 0):
+                logger.error(
+                    "SHAP/FFA allowed codes file is empty at %s; run SHAP/FFA for %s / %s first.",
+                    allowed_path,
+                    cohort_name,
+                    age_band,
+                )
+                return False
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("Invalid SHAP/FFA allowed codes JSON at %s: %s", allowed_path, e)
+            return False
+
+        # Require model data exists before calling R
+        model_path = _model_data_path(cohort_name, age_band, REPO_ROOT)
+        if not model_path or not model_path.exists():
+            logger.error(
+                "Model data (model_events.parquet) not found for cohort=%s age_band=%s. "
+                "Run 3b/4_model_data for this cohort/age band first.",
+                cohort_name,
+                age_band,
+            )
+            return False
+        logger.info("Model data found: %s", model_path)
 
         if cohort_name == "opioid_ed":
             r_script = BUPAR_CODE_DIR / "create_bupar_outputs_opioid_ed.R"

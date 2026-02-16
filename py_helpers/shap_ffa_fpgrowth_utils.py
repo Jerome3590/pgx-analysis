@@ -14,7 +14,8 @@ import pandas as pd
 
 def _parse_feature_name(feature: str) -> Tuple[str, str]:
     """
-    Parse feature name to (code_type, code). Handles "item_<code>" format.
+    Parse feature name to (code_type, code). Handles "item_<code>", "drug_<code>", "icd_<code>", "cpt_<code>".
+    Returns the **code** that matches model data (e.g. LORAZEPAM not drug_LORAZEPAM) for BupaR/DTW filtering.
     Returns: (code_type, code); code_type is 'drug', 'icd', 'cpt', or 'other'.
     """
     if feature is None or (isinstance(feature, float) and pd.isna(feature)):
@@ -22,12 +23,25 @@ def _parse_feature_name(feature: str) -> Tuple[str, str]:
     feature = str(feature).strip()
     if not feature:
         return ("other", "")
+    # Strip known prefixes so we get the code that appears in model data (drug_name, icd columns, procedure_code)
+    if feature.startswith("drug_"):
+        code = feature[5:].strip()
+        return ("drug", code) if code else ("other", "")
+    if feature.startswith("icd_"):
+        code = feature[4:].strip()
+        return ("icd", code) if code else ("other", "")
+    if feature.startswith("cpt_"):
+        code = feature[4:].strip()
+        return ("cpt", code) if code else ("other", "")
     if feature.startswith("item_"):
         code = feature[5:].strip()
     else:
         code = feature
     if not code:
-        return ("other", feature)
+        return ("other", "")
+    # Non-code features (e.g. n_events, pgx_num_drugs) should not be added to allowed codes
+    if "_" in code and not code.replace(".", "").replace("-", "").replace("_", "").isalnum():
+        return ("other", "")
     if code.isdigit():
         return ("cpt", code)
     if code[0].isalpha() and len(code) >= 2:
@@ -36,10 +50,13 @@ def _parse_feature_name(feature: str) -> Tuple[str, str]:
             return ("icd", code)
         if len(code) <= 5 and code.isalnum():
             return ("icd", code)
+        # Skip numeric/aggregate-like names (e.g. n_events, pgx_num_cpic_drugs)
+        if "num_" in code or code.startswith("n_") or "pgx_" in code.lower():
+            return ("other", "")
         return ("drug", code)
     if code.replace(".", "").isdigit():
         return ("cpt", code)
-    return ("drug", code)
+    return ("other", "")
 
 
 def _load_shap_importance(

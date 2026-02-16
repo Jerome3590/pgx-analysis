@@ -183,7 +183,7 @@ if (file.exists(allowed_codes_shap_ffa_path)) {
   if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
   cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA only (causal feature importances).\n", sep = "")
 } else {
-  cat("No SHAP/FFA allowed codes file; event log will be empty (ensure step that writes allowed_codes runs first).\n", sep = "")
+  cat("No SHAP/FFA allowed codes file; using all codes (event log = dataset filtered by dates only).\n", sep = "")
 }
 
 cat("Total unique allowed codes: ", length(allowed_codes), "\n\n", sep = "")
@@ -253,12 +253,13 @@ n_codes_in_data <- length(codes_in_data)
 cat("BupaR diagnostic: long rows before allowed_codes filter: ", n_long_before_allowed,
     " (distinct codes in data: ", n_codes_in_data, ").\n", sep = "")
 
+# Event log = dataset filtered by causal (SHAP/FFA) codes when available, then by valid dates; never empty by design when data exist
 pgx_df_target1_long <- pgx_df_target1_long %>%
   {
     if (length(allowed_codes) > 0) {
       dplyr::filter(., code %in% allowed_codes)
     } else {
-      dplyr::filter(., FALSE)  # only SHAP/FFA codes; no file => empty event log
+      .  # no causal filter; use all codes so event log = dataset with dates
     }
   } %>%
   mutate(
@@ -403,7 +404,7 @@ pgx_df_all_long <- pgx_df_all %>%
     if (length(allowed_codes) > 0) {
       dplyr::filter(., code %in% allowed_codes)
     } else {
-      .
+      .  # no causal filter; use all codes
     }
   } %>%
   mutate(
@@ -1031,6 +1032,8 @@ if (include_post_target) {
 
 cat("\n--- Target-only global process mining ---\n")
 
+n_target <- nrow(as.data.frame(target_eventlog))
+if (n_target > 0L) {
 # 1) Trace Explorer: save as PNG for dashboard
 p_te <- tryCatch(
   trace_explorer(target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
@@ -1045,17 +1048,26 @@ if (!is.null(p_te)) {
 
 # Save trace summary as tabular output
 traces_target <- bupaR::traces(target_eventlog)
+} else {
+  cat(" [skip] trace_explorer(target): no events\n")
+  traces_target <- data.frame(trace_id = character(0), trace = character(0), length = integer(0),
+    first_activity = character(0), last_activity = character(0),
+    absolute_frequency = integer(0), relative_frequency = numeric(0))
+}
 save_bupar_csv(
-  traces_target,
+  as.data.frame(traces_target),
   sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
 )
 
 # Categorize traces into top sequences and rare sequences
 # Top sequences: most frequent traces (e.g., top 20% by frequency or top N by absolute frequency)
 # Rare sequences: traces that appear only once or very infrequently
-traces_target_df <- as.data.frame(traces_target) %>%
-  arrange(desc(absolute_frequency))
+traces_target_df <- as.data.frame(traces_target)
+if (nrow(traces_target_df) > 0L && "absolute_frequency" %in% names(traces_target_df)) {
+  traces_target_df <- traces_target_df %>% arrange(desc(absolute_frequency))
+}
 
+if (n_target > 0L) {
 # Define thresholds
 total_cases <- n_cases(target_eventlog)
 top_n_threshold <- max(20, ceiling(total_cases * 0.1))  # Top 20 sequences or top 10% of cases, whichever is larger
@@ -1317,6 +1329,9 @@ ggsave(file.path(plots_dir, sprintf("%s_%s_activity_sequence_top.png", cohort_na
        plot = p5, width = 16, height = 12, dpi = 300)
 
 cat("Created overall activity frequency, Gantt timeline (overall + by code type), and activity sequence plots.\n")
+} else {
+  cat(" [skip] process_matrix/traces/process_map/plots: no events\n")
+}
 
 # Close the cohort-specific PDF device if it is still open so that
 # Rplots-like output is finalized under the correct plots directory.

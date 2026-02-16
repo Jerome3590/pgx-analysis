@@ -190,7 +190,7 @@ if (file.exists(allowed_codes_shap_ffa_path)) {
   if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
   cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA only (causal feature importances).\n", sep = "")
 } else {
-  cat("No SHAP/FFA allowed codes file; event log will be empty (ensure step that writes allowed_codes runs first).\n", sep = "")
+  cat("No SHAP/FFA allowed codes file; using all codes (event log = dataset filtered by dates only).\n", sep = "")
 }
 
 cat("Total unique allowed codes: ", length(allowed_codes), "\n\n", sep = "")
@@ -260,12 +260,13 @@ n_codes_in_data <- length(codes_in_data)
 cat("BupaR diagnostic: long rows before allowed_codes filter: ", n_long_before_allowed,
     " (distinct codes in data: ", n_codes_in_data, ").\n", sep = "")
 
+# Event log = dataset filtered by causal (SHAP/FFA) codes when available, then by valid dates; never empty by design when data exist
 pgx_df_target1_long <- pgx_df_target1_long %>%
   {
     if (length(allowed_codes) > 0) {
       dplyr::filter(., code %in% allowed_codes)
     } else {
-      dplyr::filter(., FALSE)  # only SHAP/FFA codes; no file => empty event log
+      .  # no causal filter; use all codes so event log = dataset with dates
     }
   } %>%
   mutate(
