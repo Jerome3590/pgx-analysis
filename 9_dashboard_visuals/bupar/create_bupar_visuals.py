@@ -347,20 +347,21 @@ def upload_bupar_plots_to_dashboard_s3(
 def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
+    skip_feature_engineering: bool = True,
     force: bool = False,
 ) -> bool:
     """
-    Create BupaR visuals for the dashboard: outputs, feature merge, and plot upload.
-    BupaR features are not added to model data; they are for dashboard visualization only.
-    If force is False and the output CSV already exists, skips (idempotent).
+    Create BupaR visuals for the dashboard: outputs and plot upload.
+    BupaR features are not added to model data; feature engineering skipped by default.
+    If force is False and plots already exist, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")
-    out_csv = DASHBOARD_BUPAR_OUT / "outputs" / "feature_engineering" / f"bupaR_added_features_{cohort_name}_{age_band_fname}.csv"
-    if not force and out_csv.exists():
+    plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
+    if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
         logger_bupar = logging.getLogger(f"bupar.{cohort_name}.{age_band_fname}")
         if not logger_bupar.handlers:
             logger_bupar.addHandler(logging.StreamHandler(sys.stdout))
-        logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", out_csv)
+        logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", plots_dir)
         return True
 
     logger, log_path = _get_logger(cohort_name, age_band)
@@ -382,10 +383,13 @@ def create_bupar_visuals(
             mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
 
-        if not merge_bupar_features(cohort_name, age_band, logger=logger):
-            logger.error("BupaR merge step failed; aborting")
-            mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
-            return False
+        if not skip_feature_engineering:
+            if not merge_bupar_features(cohort_name, age_band, logger=logger):
+                logger.error("BupaR merge step failed; aborting")
+                mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
+                return False
+        else:
+            logger.info("Skipping feature engineering (BupaR features not used in model data)")
 
         upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
 
@@ -412,6 +416,11 @@ if __name__ == "__main__":
         help="Age band (e.g., 0-12)",
     )
     parser.add_argument(
+        "--enable-feature-engineering",
+        action="store_true",
+        help="Enable feature engineering steps (creates CSV files, not used by default)",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Re-run even if output already exists (default: skip when idempotent)",
@@ -423,6 +432,7 @@ if __name__ == "__main__":
         success = create_bupar_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
+            skip_feature_engineering=not args.enable_feature_engineering,
             force=args.force,
         )
 
