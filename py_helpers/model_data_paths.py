@@ -15,9 +15,53 @@ This module resolves local paths only; S3 paths are not resolved here.
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from py_helpers.constants import get_cohort_slug_by_cohort
+
+
+def confirm_paths_exist_with_listings(
+    paths: List[Path],
+    max_entries: int = 30,
+) -> Tuple[bool, List[str]]:
+    """
+    Confirm each path exists (file, size > 0) and return listings of parent dir contents.
+    Use before continuing so logs show "path exists with objects" before the script proceeds.
+    Returns (all_exist, list of "path -> exists=True|False, size=N, parent contents: [...]").
+    """
+    result: List[str] = []
+    all_ok = True
+    for p in paths:
+        path = Path(p)
+        if not path.exists():
+            result.append(f"{path} -> exists=False (missing)")
+            all_ok = False
+            continue
+        if path.is_file():
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = -1
+            if size <= 0:
+                result.append(f"{path} -> exists=True size=0 (empty file)")
+                all_ok = False
+            else:
+                result.append(f"{path} -> exists=True size={size}")
+        else:
+            result.append(f"{path} -> exists=True (directory)")
+        parent = path.parent
+        if parent.exists():
+            try:
+                entries = sorted(parent.iterdir())
+                names = [e.name for e in entries[:max_entries]]
+                if len(entries) > max_entries:
+                    names.append(f"... and {len(entries) - max_entries} more")
+                result.append(f"  parent contents: {names}")
+            except OSError as e:
+                result.append(f"  parent listdir error: {e}")
+        else:
+            result.append("  parent missing")
+    return all_ok, result
 
 
 def get_model_events_paths_checked(
