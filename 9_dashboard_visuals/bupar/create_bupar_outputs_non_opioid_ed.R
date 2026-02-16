@@ -213,16 +213,22 @@ if (exists("model_data_paths", inherits = FALSE)) {
 
 con <- dbConnect(duckdb::duckdb())
 
-# Detect if model_events has HCG target columns (needed for pre-HCG split)
+# Normalized target config: cohort uses target date column (not an ICD code) for pre-target split
+target_code_label   <- "ED visit (HCG)"           # no single ICD; target = first ED within 21d of drug
+target_date_columns <- c("first_ed_non_opioid_date", "hcg_line")  # prefer first, fallback hcg_line
+# Detect if model_events has target date columns (needed for pre-HCG split)
 schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
 keys_received_schema <- schema_info$column_name
-keys_expected_pre_hcg <- c("hcg_line", "first_ed_non_opioid_date", "event_date", "mi_person_key", "target")
-has_hcg_line <- "hcg_line" %in% keys_received_schema
+keys_expected_target <- c("event_date", "mi_person_key", "target", target_date_columns)
 has_first_ed_date <- "first_ed_non_opioid_date" %in% keys_received_schema
-cat("keys_expected (for pre-HCG): ", paste(keys_expected_pre_hcg, collapse = ", "), "\n", sep = "")
-cat("keys_received (model_events schema): ", paste(head(keys_received_schema, 40), collapse = ", "), if (length(keys_received_schema) > 40) " ..." else "", "\n", sep = "")
-if (has_hcg_line) cat("Model data has hcg_line column (first ED visit within 21d of drug event).\n")
-if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date column.\n")
+has_hcg_line <- "hcg_line" %in% keys_received_schema
+cat("cohort=", cohort_name, " target_code=", target_code_label, " target_date_columns_expected=", paste(target_date_columns, collapse = ", "), "\n", sep = "")
+cat("keys_expected (for target date): ", paste(keys_expected_target, collapse = ", "), "\n", sep = "")
+cat("keys_received (model_events schema): ", paste(keys_received_schema, collapse = ", "), "\n", sep = "")
+missing_target <- setdiff(target_date_columns, keys_received_schema)
+if (length(missing_target) > 0L) cat("WARNING: target date columns missing in schema: ", paste(missing_target, collapse = ", "), "\n", sep = "")
+if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date (use for target date after step 4 leakage removal).\n")
+if (has_hcg_line) cat("Model data has hcg_line column (fallback when first_ed_non_opioid_date absent).\n")
 
 query <- sprintf(
   paste0("SELECT * FROM ", model_data_from_sql, " WHERE event_year IN (%s)"),

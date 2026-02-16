@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]  # 9_dashboard_visuals -> repo root
 VIZ_SYNC_DIR = REPO_ROOT / "logs" / "viz_sync"
 BUCKET = "pgx-repository"
 PREFIXES = ("4_fpgrowth_log", "5_bupar_log", "6_dtw_log")

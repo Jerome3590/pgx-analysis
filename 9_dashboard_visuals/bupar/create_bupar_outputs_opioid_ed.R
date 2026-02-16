@@ -213,6 +213,18 @@ if (exists("model_data_paths", inherits = FALSE)) {
 
 con <- dbConnect(duckdb::duckdb())
 
+# Normalized target config: cohort uses ICD F1120 as target code and first_opioid_ed_date for pre-target split
+target_code_label    <- "F1120"
+target_date_column   <- "first_opioid_ed_date"
+schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
+keys_received_schema <- schema_info$column_name
+keys_expected_target <- c("event_date", "mi_person_key", "target", target_date_column)
+has_target_date_col <- target_date_column %in% keys_received_schema
+cat("cohort=", cohort_name, " target_code=", target_code_label, " target_date_column_expected=", target_date_column, "\n", sep = "")
+cat("keys_expected (for target date): ", paste(keys_expected_target, collapse = ", "), "\n", sep = "")
+cat("keys_received (model_events schema): ", paste(keys_received_schema, collapse = ", "), "\n", sep = "")
+if (!has_target_date_col) cat("WARNING: target date column missing in schema: ", target_date_column, "\n", sep = "")
+
 query <- sprintf(
   paste0("SELECT * FROM ", model_data_from_sql, " WHERE event_year IN (%s)"),
   paste(train_years, collapse = ",")

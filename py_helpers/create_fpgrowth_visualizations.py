@@ -882,6 +882,22 @@ def create_all_fpgrowth_plots(
                 del s3_urls[itype]
         out["s3_urls"] = s3_urls
 
+    # Upload empty-state JSON for dashboard when itemsets/rules were empty (written by run_single_cohort_fpgrowth)
+    if s3_upload and s3_bucket:
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+        except ImportError:
+            pass
+        else:
+            empty_state_path = plots_root / "empty_state.json"
+            if empty_state_path.exists():
+                s3_plot_prefix = f"{s3_prefix.rstrip('/')}/{cohort_name}/{age_band}/plots"
+                key = f"{s3_plot_prefix}/empty_state.json"
+                s3_path = f"s3://{s3_bucket}/{key}"
+                logger = logging.getLogger("fpgrowth_plots")
+                if upload_file_to_s3(empty_state_path, s3_path, logger=logger, check_exists=True):
+                    out.setdefault("s3_urls", {})["_empty_state"] = _s3_public_url(s3_bucket, key)
+
     return out
 
 
@@ -1028,5 +1044,20 @@ def create_all_fpgrowth_plots_multi_year(
                 del s3_urls[itype]
         
         out["s3_urls"] = s3_urls
-    
+
+    # Upload empty-state JSON when itemsets/rules were empty
+    if s3_upload and s3_bucket:
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+        except ImportError:
+            pass
+        else:
+            empty_state_path = plots_root / "empty_state.json"
+            if empty_state_path.exists():
+                s3_plot_prefix = f"{s3_prefix.rstrip('/')}/{cohort_name}/{age_band}/plots"
+                key = f"{s3_plot_prefix}/empty_state.json"
+                s3_path = f"s3://{s3_bucket}/{key}"
+                if upload_file_to_s3(empty_state_path, s3_path, logger=logger, check_exists=True):
+                    out.setdefault("s3_urls", {})["_empty_state"] = _s3_public_url(s3_bucket, key)
+
     return out
