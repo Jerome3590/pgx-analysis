@@ -122,6 +122,44 @@ def setup_logger(name: str = 'cohort_fpgrowth') -> logging.Logger:
     
     return logger
 
+
+def _model_data_path(cohort_name: str, age_band: str) -> Path | None:
+    """Return path to model_events parquet if it exists; else None. Matches BupaR resolution (3b then 4_model_data)."""
+    import os
+    
+    # Check 3b first (cohort-specific input_model_data)
+    cohort_slug_3b = "opioid" if cohort_name == "opioid_ed" else "polypharmacy"
+    path_3b = (
+        REPO_ROOT
+        / "3b_feature_importance_eda"
+        / "outputs"
+        / "cohorts"
+        / "input_model_data"
+        / f"cohort_name={cohort_slug_3b}"
+        / f"age_band={age_band}"
+        / "model_events.parquet"
+    )
+    if path_3b.exists():
+        return path_3b
+    
+    # Check environment variable or standard locations
+    data_root = os.environ.get("PGX_DATA_ROOT", "")
+    candidates = [
+        Path(data_root) / "4_model_data" if data_root else None,
+        Path("/mnt/nvme/4_model_data"),
+        REPO_ROOT / "4_model_data",
+        REPO_ROOT / "4a_model_data",
+    ]
+    for root in candidates:
+        if root is None or not root.exists():
+            continue
+        model_data_dir = root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
+        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+            p = model_data_dir / name
+            if p.exists():
+                return p
+    return None
+
 # =============================================================================
 # COHORT PROCESSING
 # =============================================================================
@@ -352,32 +390,23 @@ def process_single_cohort(
         # Prefer DTW-filtered model_data (protocol events removed) if available,
         # then fall back to regular model_data, then raw GOLD cohorts parquet.
         # This ensures FP-Growth only uses useful signals (non-protocol events) for itemsets and rules.
-        model_data_dir = (
-            MODEL_DATA_ROOT
-            / f"cohort_name={cohort_name}"
-            / f"age_band={age_band_fname}"
-        )
-        model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
-        model_data_file = model_data_dir / "model_events.parquet"
+        # Use smart path resolution (checks 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data)
+        model_data_path = _model_data_path(cohort_name, age_band_fname)
 
         # Special handling for aggregated training window ("train" = 2016–2018)
         event_label = str(event_year)
         if event_label == "train":
-            # Training FP-Growth should prefer DTW-filtered data (protocol events removed),
-            # then fall back to regular model_data (filtered important items + 5:1 control).
+            # Training FP-Growth requires model_data (filtered important items + 5:1 control).
             # This keeps memory usage manageable and ensures only useful signals are used.
             if USE_MODEL_DATA_IF_AVAILABLE:
-                if model_data_filtered.exists():
-                    parquet_file = model_data_filtered
-                    logger.info(f"Using DTW-filtered model_data (no protocols) for TRAIN FP-Growth (2016–2018): {parquet_file}")
-                elif model_data_file.exists():
-                    parquet_file = model_data_file
-                    logger.info(f"Using model_data file for TRAIN FP-Growth (2016–2018): {parquet_file}")
-                    logger.warning("DTW-filtered data (model_events_no_protocols.parquet) not found. Consider running DTW filter (4b_dtw_filter) first to remove protocol events.")
+                if model_data_path:
+                    parquet_file = model_data_path
+                    file_type = "no_protocols" if "no_protocols" in str(parquet_file) else "regular"
+                    logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2018): {parquet_file}")
                 else:
                     logger.warning(
                         f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
-                        f"but model_data file not found at {model_data_file}. "
+                        f"but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data. "
                         "Run create_model_data.py first for this cohort/age_band."
                     )
                     return {
@@ -397,23 +426,11 @@ def process_single_cohort(
                     'error': 'TRAIN requires model_data but USE_MODEL_DATA_IF_AVAILABLE is False'
                 }
         else:
-            # For non-TRAIN years, prefer DTW-filtered data, then regular model_data, then raw GOLD cohorts
-            if USE_MODEL_DATA_IF_AVAILABLE:
-                if model_data_filtered.exists():
-                    parquet_file = model_data_filtered
-                    logger.info(f"Using DTW-filtered model_data (no protocols) for FP-Growth: {parquet_file}")
-                elif model_data_file.exists():
-                    parquet_file = model_data_file
-                    logger.info(f"Using model_data file for FP-Growth: {parquet_file}")
-                    logger.warning("DTW-filtered data (model_events_no_protocols.parquet) not found. Consider running DTW filter (4b_dtw_filter) first to remove protocol events.")
-                else:
-                    parquet_file = (
-                        local_data_path
-                        / f"cohort_name={cohort_name}"
-                        / f"event_year={event_year}"
-                        / f"age_band={age_band_fname}"
-                        / "cohort.parquet"
-                    )
+            # For non-TRAIN years, prefer model_data if available, else fall back to raw GOLD cohorts
+            if USE_MODEL_DATA_IF_AVAILABLE and model_data_path:
+                parquet_file = model_data_path
+                file_type = "no_protocols" if "no_protocols" in str(parquet_file) else "regular"
+                logger.info(f"Using {file_type} model_data for FP-Growth: {parquet_file}")
             else:
                 parquet_file = (
                     local_data_path
@@ -1001,12 +1018,14 @@ def main():
     logger.info(f"S3 Output: {S3_OUTPUT_BASE}")
     logger.info(f"Local Data: {LOCAL_DATA_PATH}")
     logger.info(f"Local Data Exists: {LOCAL_DATA_PATH.exists()}")
-    logger.info(f"Model Data Root: {MODEL_DATA_ROOT} (exists={MODEL_DATA_ROOT.exists()})")
+    logger.info(f"Model Data Fallback: 3b → $PGX_DATA_ROOT → /mnt/nvme/4_model_data → 4_model_data → 4a_model_data")
     logger.info("="*80)
     
-    if not LOCAL_DATA_PATH.exists() and not MODEL_DATA_ROOT.exists():
+    # Check if at least one data source exists (either raw cohorts or model_data)
+    model_data_exists = _model_data_path("opioid_ed", "13_24") is not None  # Test with one cohort
+    if not LOCAL_DATA_PATH.exists() and not model_data_exists:
         logger.error(f"✗ Local data path does not exist: {LOCAL_DATA_PATH}")
-        logger.error(f"✗ Model data root does not exist: {MODEL_DATA_ROOT}")
+        logger.error(f"✗ Model data not found in any fallback location (3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data)")
         logger.error(
             "  On EC2, sync from S3 with:\n"
             "    aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ /mnt/nvme/cohorts/"
