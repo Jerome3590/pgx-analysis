@@ -1044,7 +1044,7 @@ def create_all_dtw_features(
             allowed_codes=allowed_codes,
             cohort_name=cohort_name,
             item_type=item_type,
-            target_filter=None,  # Include both target and control
+            target_filter=1,  # Only target=1 cases (match BupaR/FP-Growth pattern)
             cutoff_dates=cutoff_dates_dict,
             max_lookback_months=max_lookback_months,
         )
@@ -1059,7 +1059,7 @@ def create_all_dtw_features(
                 allowed_codes=None,
                 cohort_name=cohort_name,
                 item_type=item_type,
-                target_filter=None,
+                target_filter=1,  # Only target=1 cases (match BupaR/FP-Growth pattern)
                 cutoff_dates=cutoff_dates_dict,
                 max_lookback_months=max_lookback_months,
             )
@@ -1083,8 +1083,8 @@ def create_all_dtw_features(
     
     logger.info(f"Total trajectories for prototype creation: {len(all_trajectories_combined)}")
     
-    # Create prototypes from combined trajectories (target + control)
-    logger.info(f"Creating {n_prototypes} prototypes from combined trajectories...")
+    # Create prototypes from target cases only (target=1; matches BupaR/FP-Growth pattern)
+    logger.info(f"Creating {n_prototypes} prototypes from target case trajectories...")
     dtw_features_combined = compute_dtw_distances_to_prototypes(
         patient_trajectories=all_trajectories_combined,
         n_prototypes=n_prototypes
