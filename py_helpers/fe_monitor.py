@@ -175,6 +175,15 @@ class ResourceBlock:
             cpu_pct=end_cpu_pct,
             extra=stats,
         )
+        if exc_type is not None and exc_val is not None:
+            self.logger.error(
+                "[%s][%s][%s] exception: %s",
+                self.scope.upper(),
+                self.module,
+                self.name,
+                exc_val,
+                exc_info=(exc_type, exc_val, exc_tb),
+            )
 
     def _log(
         self,

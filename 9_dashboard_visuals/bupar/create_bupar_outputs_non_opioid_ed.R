@@ -215,8 +215,12 @@ con <- dbConnect(duckdb::duckdb())
 
 # Detect if model_events has HCG target columns (needed for pre-HCG split)
 schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
-has_hcg_line <- "hcg_line" %in% schema_info$column_name
-has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
+keys_received_schema <- schema_info$column_name
+keys_expected_pre_hcg <- c("hcg_line", "first_ed_non_opioid_date", "event_date", "mi_person_key", "target")
+has_hcg_line <- "hcg_line" %in% keys_received_schema
+has_first_ed_date <- "first_ed_non_opioid_date" %in% keys_received_schema
+cat("keys_expected (for pre-HCG): ", paste(keys_expected_pre_hcg, collapse = ", "), "\n", sep = "")
+cat("keys_received (model_events schema): ", paste(head(keys_received_schema, 40), collapse = ", "), if (length(keys_received_schema) > 40) " ..." else "", "\n", sep = "")
 if (has_hcg_line) cat("Model data has hcg_line column (first ED visit within 21d of drug event).\n")
 if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date column.\n")
 
@@ -564,8 +568,13 @@ if (has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
 }
 if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
   target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
-  cat("WARNING: No hcg_line or first_ed_non_opioid_date in model_events; pre-HCG events will be empty.\n")
-  cat("  Ensure model_events includes HCG target columns (e.g. from 4_model_data or 3b with HCG).\n")
+  if (!has_hcg_line && !has_first_ed_date) {
+    cat("WARNING: model_events has no hcg_line or first_ed_non_opioid_date; pre-HCG events will be empty.\n")
+    cat("  Ensure model_events includes HCG target columns (e.g. from 4_model_data or 3b with HCG). keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
+  } else {
+    cat("WARNING: hcg_line/first_ed_non_opioid_date present but 0 target cases (no ED rows in ed_hcg_lines with valid event_date, or no first_ed_non_opioid_date). pre-HCG events will be empty.\n")
+    cat("  keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
+  }
 }
 
 ev_all <- as.data.frame(target_eventlog) %>%
