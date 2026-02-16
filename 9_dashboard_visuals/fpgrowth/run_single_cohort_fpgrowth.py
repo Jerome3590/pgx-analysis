@@ -10,6 +10,11 @@ import sys
 import argparse
 from pathlib import Path
 
+try:
+    import psutil
+except ImportError:
+    psutil = None  # noqa: I001
+
 # Add project root to path
 # Script lives in 9_dashboard_visuals/fpgrowth; outputs go to 10_risk_dashboard/visualizations/fpgrowth
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -46,10 +51,23 @@ def main():
     print(f"Running FP-Growth for {args.cohort_name} / {args.age_band} / {args.event_year}")
     print(f"Using data path: {local_data_path}")
     
+    def _log_resources(label: str) -> None:
+        if psutil is None:
+            return
+        try:
+            mem = psutil.virtual_memory()
+            proc = psutil.Process()
+            mem_gb = mem.used / (1024**3)
+            cpu = proc.cpu_percent(interval=None)
+            print(f"[RESOURCE {label}] mem_used_gb={mem_gb:.1f} cpu_pct={cpu:.1f}", flush=True)
+        except Exception:
+            pass
+
     # Process each item type; track if any succeeded
     any_ok = False
     for item_type in ITEM_TYPES:
-        print(f"\nProcessing {item_type}...")
+        _log_resources(f"before {item_type}")
+        print(f"\nProcessing {item_type}...", flush=True)
         try:
             result = process_single_cohort(
                 item_type=item_type,
@@ -66,7 +84,9 @@ def main():
             else:
                 any_ok = True
                 print(f"[OK] {item_type}: {result.get('itemsets_count', 0)} itemsets, {result.get('rules_count', 0)} rules")
+            _log_resources(f"after {item_type}")
         except Exception as e:
+            _log_resources(f"after {item_type} (exception)")
             print(f"[ERROR] {item_type} failed: {e}")
             import traceback
             traceback.print_exc()

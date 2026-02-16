@@ -71,8 +71,10 @@ def ensure_itemsets(
     age_band: str,
     logger: logging.Logger,
     force: bool = False,
-) -> None:
-    """Step 0: Ensure FP-Growth itemsets exist for this cohort/age_band. If force=True, re-run even when they exist."""
+) -> bool:
+    """Step 0: Ensure FP-Growth itemsets exist for this cohort/age_band. If force=True, re-run even when they exist.
+    Returns True if itemsets exist (pre-existing or created); False if creation was attempted and failed (no outputs).
+    """
     age_band_fname = age_band.replace("-", "_")
     itemsets_dir = (
         DASHBOARD_FPGROWTH_OUT
@@ -89,7 +91,7 @@ def ensure_itemsets(
     with step_block("4_fpgrowth", "ensure_itemsets", logger=logger):
         if itemsets_exist and not force:
             logger.info("Itemsets already exist at %s; skipping creation (use --force to re-run)", itemsets_dir)
-            return
+            return True
         if itemsets_exist and force:
             logger.info("Itemsets exist at %s; re-running due to --force", itemsets_dir)
 
@@ -118,6 +120,9 @@ def ensure_itemsets(
                 logger.info("Itemset stdout:\n%s", result.stdout)
             if result.stderr:
                 logger.info("Itemset stderr:\n%s", result.stderr)
+            # Verify outputs exist after run
+            itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            return itemsets_now
         except subprocess.CalledProcessError as exc:
             logger.error("Itemset creation failed (returncode=%s)", exc.returncode)
             if exc.stderr:
@@ -125,11 +130,15 @@ def ensure_itemsets(
             logger.warning(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
+            itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            return itemsets_now
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Itemset creation failed with exception: %s", exc)
             logger.warning(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
+            itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            return itemsets_now
 
 
 def create_visualizations(
@@ -237,7 +246,13 @@ def create_fpgrowth_visuals(
     with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger):
         logger.info("Starting FP-Growth visuals for %s / %s", cohort_name, age_band)
 
-        ensure_itemsets(cohort_name, age_band, logger=logger, force=force)
+        itemsets_ok = ensure_itemsets(cohort_name, age_band, logger=logger, force=force)
+        if not itemsets_ok:
+            logger.warning(
+                "No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
+                cohort_name,
+                age_band,
+            )
 
         if not skip_visualizations:
             ok = create_visualizations(cohort_name, age_band, logger=logger)
@@ -249,7 +264,8 @@ def create_fpgrowth_visuals(
         logger.info("FP-Growth visuals completed for %s / %s", cohort_name, age_band)
 
     mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
-    return True
+    # Exit 0 only when we have itemsets (so notebook "exit 0" matches real completion)
+    return itemsets_ok
 
 
 if __name__ == "__main__":

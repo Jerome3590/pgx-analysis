@@ -164,25 +164,34 @@ def _model_data_from_sql(paths: list) -> str:
 # COHORT PROCESSING
 # =============================================================================
 
-def log_memory(logger, stage=""):
-    """Log current memory usage."""
+def log_memory_cpu(logger, stage: str = ""):
+    """Log current memory and CPU usage to help detect hangs and resource issues."""
     try:
         mem = psutil.virtual_memory()
         mem_used_gb = mem.used / (1024**3)
         mem_total_gb = mem.total / (1024**3)
         mem_percent = mem.percent
         mem_avail_gb = mem.available / (1024**3)
-        
-        logger.info(f"[MEMORY {stage}] Used: {mem_used_gb:.1f} GB / {mem_total_gb:.1f} GB ({mem_percent:.1f}%) | Available: {mem_avail_gb:.1f} GB")
-        
-        # Warning if memory usage is high
+        # Process CPU (this process); interval=None for non-blocking snapshot
+        proc = psutil.Process()
+        cpu_proc = proc.cpu_percent(interval=None)
+        # System-wide CPU (short interval to avoid long blocks; 0.1s)
+        cpu_sys = psutil.cpu_percent(interval=0.1)
+        logger.info(
+            f"[RESOURCE {stage}] mem_used={mem_used_gb:.1f}GB/{mem_total_gb:.1f}GB ({mem_percent:.1f}%) avail={mem_avail_gb:.1f}GB | "
+            f"cpu_process={cpu_proc:.1f}% cpu_system={cpu_sys:.1f}%"
+        )
         if mem_percent > 85:
-            logger.warning(f"⚠️  HIGH MEMORY USAGE: {mem_percent:.1f}% - May cause OOM!")
-        
+            logger.warning(f"⚠️  HIGH MEMORY: {mem_percent:.1f}% - may cause OOM")
         return mem_percent
     except Exception as e:
-        logger.error(f"Error getting memory info: {e}")
+        logger.error(f"Error getting resource info: {e}")
         return 0.0
+
+
+def log_memory(logger, stage: str = ""):
+    """Log current memory and CPU (calls log_memory_cpu for consistency)."""
+    return log_memory_cpu(logger, stage)
 
 
 def assign_transaction_density(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
@@ -732,15 +741,16 @@ def process_single_cohort(
         
         logger.info(f"Processing transactions by density level...")
         for density in DENSITY_BINS:
+            log_memory_cpu(logger, f"Start density={density}")
             transactions = get_transactions_by_density(df, density, logger)
             density_counts[density] = len(transactions)
-            
+
             if len(transactions) < 10:
                 logger.warning(f"⚠️  Insufficient {density} density transactions ({len(transactions)}) - skipping")
                 continue
-            
+
             try:
-                logger.info(f"Processing {density} density transactions...")
+                logger.info(f"Processing {density} density transactions (n={len(transactions):,})...")
                 
                 # Encode transactions
                 te = TransactionEncoder()
