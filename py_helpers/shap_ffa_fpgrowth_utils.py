@@ -35,6 +35,16 @@ def _parse_feature_name(feature: str) -> Tuple[str, str]:
         return ("cpt", code) if code else ("other", "")
     if feature.startswith("item_"):
         code = feature[5:].strip()
+        # Handle second-level prefixes (item_drug_X → drug_X → X)
+        if code.startswith("drug_"):
+            code = code[5:].strip()
+            return ("drug", code) if code else ("other", "")
+        if code.startswith("icd_"):
+            code = code[4:].strip()
+            return ("icd", code) if code else ("other", "")
+        if code.startswith("cpt_"):
+            code = code[4:].strip()
+            return ("cpt", code) if code else ("other", "")
     else:
         code = feature
     if not code:
