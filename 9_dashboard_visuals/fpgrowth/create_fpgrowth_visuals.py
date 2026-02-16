@@ -127,7 +127,14 @@ def ensure_itemsets(
             return itemsets_now
         except subprocess.CalledProcessError as exc:
             logger.error("Itemset creation failed (returncode=%s)", exc.returncode)
+            # Log first [ERROR] / [ERROR_PARAMS] line from runner so reason is visible even if full stdout is truncated
             if exc.stdout:
+                for line in exc.stdout.splitlines():
+                    line = line.strip()
+                    if line.startswith("[ERROR]") or line.startswith("[ERROR_PARAMS]"):
+                        logger.error("runner: %s", line)
+                        if line.startswith("[ERROR]"):
+                            break
                 logger.error("stdout (errors/params from runner):\n%s", exc.stdout)
             if exc.stderr:
                 logger.error("stderr:\n%s", exc.stderr)

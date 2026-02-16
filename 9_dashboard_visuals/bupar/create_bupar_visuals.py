@@ -150,7 +150,7 @@ def create_bupar_outputs(
             logger.error("Invalid SHAP/FFA allowed codes JSON at %s: %s", allowed_path, e)
             return False
 
-        # Require model data exists before calling R (single path or 85-114 = 85-94 + 95-114 union)
+        # Require model data exists before calling R; confirm path exists with objects before continuing
         model_paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
         if not model_paths or not all(p.exists() for p in model_paths):
             paths_checked = get_model_events_paths_checked(REPO_ROOT, cohort_name, age_band)
@@ -170,6 +170,14 @@ def create_bupar_outputs(
                     "[ERROR_PARAMS] step=5_bupar path_listings: %s",
                     " ; ".join(path_listings),
                 )
+            return False
+        from py_helpers.model_data_paths import confirm_paths_exist_with_listings
+        all_ok, confirm_listings = confirm_paths_exist_with_listings(list(model_paths))
+        for line in confirm_listings:
+            logger.info("[PATH_CONFIRM] %s", line)
+        if not all_ok:
+            logger.error("Model data path(s) missing or empty; aborting.")
+            logger.error("[ERROR_PARAMS] step=5_bupar path_listings: %s", " ; ".join(confirm_listings))
             return False
         if len(model_paths) == 2:
             logger.info("Model data found (85-114 = 85-94 + 95-114): %s, %s", model_paths[0], model_paths[1])

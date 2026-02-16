@@ -4,6 +4,20 @@ This document lists fix plans for each issue found in the synced visualization l
 
 ---
 
+## Why BupaR and DTW find model data (and how FP-Growth matches)
+
+**Model data on EC2 is on NVMe** at `/mnt/nvme/4_model_data`. All three steps use the **same resolution order** so they find the same paths when a partition exists.
+
+| Step | Where resolution runs | How root is set | Resolution order |
+|------|------------------------|-----------------|------------------|
+| **BupaR** | Python: `create_bupar_visuals.py` resolves with `REPO_ROOT` (from `__file__` → repo root). Then launches R with `cwd=REPO_ROOT`. R script uses `getwd()` as project root and **explicitly tries `/mnt/nvme/4_model_data` first**, then `PGX_DATA_ROOT`, then `project_root/4_model_data`. | Repo root (Python passes cwd to R). | NVMe → PGX_DATA_ROOT → project 4_model_data |
+| **DTW** | DTW **visuals** (`create_dtw_visuals.py`) only load the precomputed DTW CSV; they do not read model_events. DTW **feature creation** (other scripts) uses `py_helpers.model_data_paths.resolve_model_events_paths(REPO_ROOT, ...)`. | Repo root. | 3b → `/mnt/nvme/4_model_data` → PGX_DATA_ROOT → project 4_model_data |
+| **FP-Growth** | **Subprocess** `run_single_cohort_fpgrowth.py` calls `resolve_model_events_path(s)(project_root, ...)`. If the parent does not pass `--project-root`, the script uses `REPO_ROOT` from its own `__file__` (also repo root when path is absolute). | **Must receive `--project-root`** from `create_fpgrowth_visuals.py` so it uses the same repo root as BupaR. | Same as in `py_helpers.model_data_paths`: 3b → NVMe → PGX_DATA_ROOT → project 4_model_data |
+
+So when the dashboard runs all three from the same entry point with the same repo root and NVMe available, they all see the same paths. If **one** cohort/age_band (e.g. 13-24) has no partition on NVMe (and not under project root), **all** would fail for that band. If BupaR finds data and FP-Growth doesn’t for the same band, ensure FP-Growth is invoked with `--project-root` (the dashboard does this in `create_fpgrowth_visuals.py`).
+
+---
+
 ## 1. FP-Growth: model_data not found
 
 ### Issue

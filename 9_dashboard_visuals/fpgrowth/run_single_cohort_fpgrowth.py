@@ -63,6 +63,18 @@ def main():
             print("[ERROR] TRAIN requires model_data; none found for this cohort/age_band.", flush=True)
             print("[ERROR_PARAMS]", {"cohort_name": args.cohort_name, "age_band": args.age_band, "event_year": args.event_year, "error": "TRAIN model_data not found", "paths_checked": paths_checked, "path_listings": path_listings}, flush=True)
             sys.exit(1)
+        try:
+            from py_helpers.model_data_paths import confirm_paths_exist_with_listings
+            all_ok, confirm_listings = confirm_paths_exist_with_listings(model_data_paths)
+            for line in confirm_listings:
+                print(f"[PATH_CONFIRM] {line}", flush=True)
+            if not all_ok:
+                print("[ERROR] Model data path(s) missing or empty; aborting.", flush=True)
+                print("[ERROR_PARAMS]", {"cohort_name": args.cohort_name, "age_band": args.age_band, "path_listings": confirm_listings}, flush=True)
+                sys.exit(1)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ERROR] Path confirm failed: {e}", flush=True)
+            sys.exit(1)
 
     # Use model_data if available, otherwise use local data path
     local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
