@@ -34,6 +34,14 @@ from_s3/*
 
 # Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
 9_risk_dashboard/visualizations/*/outputs/
+10_risk_dashboard/visualizations/*/outputs/
+
+# Test output files in status directory
+status/*.png
+status/*.pdf
+status/*.csv
+status/*.json
+status/*.crdownload
 
 *.pyc
 .ipynb_checkpoints/
