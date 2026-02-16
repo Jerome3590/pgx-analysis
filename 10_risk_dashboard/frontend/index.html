@@ -1225,6 +1225,18 @@
           <p class="doc-metrics-loading">Loading metrics…</p>
         </div>
 
+        <h2>Feature importance sources for visuals</h2>
+        <p>
+          BupaR, DTW, and FP-Growth use <strong>different</strong> feature-importance inputs:
+        </p>
+        <ul>
+          <li><strong>BupaR Process Mining</strong> and <strong>DTW Trajectories</strong> use <strong>SHAP/FFA combined</strong> — allowed codes (drug, ICD, CPT) come from merged SHAP and FFA causal importance (Steps 7 and 8). The pipeline writes these to a single allowed-codes file per cohort/age band; R (BupaR) and Python (DTW) use that list only.</li>
+          <li><strong>FP-Growth Patterns</strong> use <strong>final feature importances</strong> — allowed items come from the cohort feature importance list (Step 3b, refined/leakage-filtered). FP-Growth does not use the SHAP/FFA combined list.</li>
+        </ul>
+        <p>
+          So: BupaR and DTW visuals are driven by SHAP/FFA combined; FP-Growth visuals are driven by the final (cohort) feature importance list.
+        </p>
+
         <h2>Technical notes</h2>
         <p>
           The backend uses an ensemble of CatBoost, XGBoost, and XGBoost RF models. Metadata (drugs, ICD, CPT) is filtered by cohort and age band. 

@@ -1,13 +1,13 @@
 """
-SHAP/FFA-driven FP-Growth: load model-important features for filtering.
+Feature importance utilities for dashboard visuals.
 
-Used by FP-Growth visualization pipeline to run on the original dataset
-restricted to items identified as important by SHAP and/or FFA analysis.
+- BupaR and DTW: use SHAP/FFA combined (get_shap_ffa_allowed_codes_combined, write_shap_ffa_allowed_codes_for_bupar).
+- FP-Growth: use final feature importances (get_final_feature_importance_codes) from cohort_feature_importance.
 """
 
 import json
 from pathlib import Path
-from typing import Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -188,7 +188,7 @@ def write_shap_ffa_allowed_codes_for_bupar(
     use_ffa: bool = True,
 ) -> bool:
     """
-    Write a JSON array of allowed codes (for BupaR) from SHAP/FFA.
+    Write a JSON array of allowed codes (for BupaR) from SHAP/FFA combined.
     Returns True if the file was written (at least one code), False otherwise.
     """
     codes = get_shap_ffa_allowed_codes_combined(
@@ -200,3 +200,76 @@ def write_shap_ffa_allowed_codes_for_bupar(
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(sorted(codes), f, indent=0)
     return True
+
+
+def _load_final_feature_importance(
+    cohort: str,
+    age_band: str,
+    project_root: Optional[Path] = None,
+    data_root: Optional[Path] = None,
+) -> pd.DataFrame:
+    """Load final (cohort) feature importance CSV. Returns DataFrame with columns: feature, importance."""
+    project_root = project_root or Path.cwd()
+    try:
+        from py_helpers.file_resolver import FileResolver
+    except ImportError:
+        return pd.DataFrame()
+    resolver = FileResolver(
+        file_type="cohort_feature_importance",
+        project_root=project_root,
+        cohort=cohort,
+        age_band=age_band,
+    )
+    path = resolver.resolve()
+    if not path or not path.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(path)
+    if "feature" not in df.columns and len(df.columns) >= 1:
+        df = df.rename(columns={df.columns[0]: "feature"})
+    imp_col = next(
+        (c for c in df.columns if c != "feature" and ("importance" in c.lower() or "mean" in c.lower())),
+        df.columns[1] if len(df.columns) > 1 else None,
+    )
+    if imp_col is None and "feature" in df.columns:
+        df = df[["feature"]].copy()
+        df["importance"] = 1.0
+    elif imp_col is not None:
+        df = df[["feature", imp_col]].copy()
+        df.columns = ["feature", "importance"]
+    return df
+
+
+def get_final_feature_importance_codes(
+    cohort: str,
+    age_band: str,
+    item_type: str,
+    top_n: int = 500,
+    project_root: Optional[Path] = None,
+    data_root: Optional[Path] = None,
+) -> Set[str]:
+    """
+    Return the set of item codes from final (cohort) feature importance for FP-Growth.
+
+    item_type: 'drug_name', 'icd_code', 'cpt_code', or 'medical_code'.
+    Used by FP-Growth only; BupaR and DTW use get_shap_ffa_allowed_codes_combined.
+    """
+    df = _load_final_feature_importance(cohort, age_band, project_root, data_root)
+    if df.empty:
+        return set()
+    if "importance" not in df.columns:
+        df["importance"] = 1.0
+    df = df.sort_values("importance", ascending=False).head(top_n)
+    code_sets: Dict[str, Set[str]] = {"drug": set(), "icd": set(), "cpt": set()}
+    for feat in df["feature"].astype(str):
+        code_type, code = _parse_feature_name(feat)
+        if code and code_type in code_sets:
+            code_sets[code_type].add(code)
+    if item_type == "drug_name":
+        return code_sets["drug"]
+    if item_type == "icd_code":
+        return code_sets["icd"]
+    if item_type == "cpt_code":
+        return code_sets["cpt"]
+    if item_type == "medical_code":
+        return code_sets["drug"] | code_sets["icd"] | code_sets["cpt"]
+    return set()

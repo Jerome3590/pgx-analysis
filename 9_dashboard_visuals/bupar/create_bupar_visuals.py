@@ -18,6 +18,7 @@ Outputs:
 import argparse
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,32 @@ from py_helpers.fe_monitor import (  # noqa: E402
     step_block,
     mirror_log_to_s3,
 )
+
+
+def _find_rscript() -> str | None:
+    """Return path to Rscript executable, or None if not found.
+    Checks PATH first, then R_HOME, then common Windows install paths.
+    """
+    rscript = shutil.which("Rscript")
+    if rscript:
+        return rscript
+    # R_HOME (e.g. set by user or R installer)
+    r_home = os.environ.get("R_HOME")
+    if r_home:
+        cand = Path(r_home) / "bin" / "Rscript"
+        if cand.suffix != ".exe" and sys.platform == "win32":
+            cand = Path(str(cand) + ".exe")
+        if cand.exists():
+            return str(cand)
+    # Windows: common install path
+    if sys.platform == "win32":
+        pf = Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "R"
+        if pf.exists():
+            for r_dir in sorted(pf.glob("R-*"), reverse=True):
+                exe = r_dir / "bin" / "Rscript.exe"
+                if exe.exists():
+                    return str(exe)
+    return None
 
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
@@ -102,6 +129,14 @@ def create_bupar_outputs(
             logger.error("Unsupported cohort for BupaR: %s", cohort_name)
             return False
 
+        rscript = _find_rscript()
+        if not rscript:
+            logger.error(
+                "Rscript not found. Install R (https://cran.r-project.org/) and add it to PATH, "
+                "or set R_HOME to your R install directory, or run on a machine where R is installed (e.g. EC2)."
+            )
+            return False
+
         logger.info(
             "Running BupaR outputs script %s for %s / %s (cwd=%s)",
             r_script,
@@ -112,7 +147,7 @@ def create_bupar_outputs(
 
         try:
             result = subprocess.run(
-                ["Rscript", str(r_script), age_band_arg],
+                [rscript, str(r_script), age_band_arg],
                 cwd=str(REPO_ROOT),
                 capture_output=True,
                 text=True,
@@ -143,6 +178,13 @@ def merge_bupar_features(
     with step_block("5_bupar", "add_bupar_features_to_model_data", logger=logger):
         r_script = BUPAR_CODE_DIR / "add_bupar_features_to_model_data.R"
 
+        rscript = _find_rscript()
+        if not rscript:
+            logger.error(
+                "Rscript not found. Install R and add it to PATH, or set R_HOME, or run on a machine where R is installed."
+            )
+            return False
+
         logger.info(
             "Merging BupaR features for %s / %s using %s",
             cohort_name,
@@ -153,7 +195,7 @@ def merge_bupar_features(
         try:
             result = subprocess.run(
                 [
-                    "Rscript",
+                    rscript,
                     str(r_script),
                     "--project-root",
                     str(REPO_ROOT),
