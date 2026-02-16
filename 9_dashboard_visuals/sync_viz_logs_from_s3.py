@@ -5,7 +5,8 @@ Sync visualization logs from S3 into logs/viz_sync/ for local inspection.
 S3 layout (from fe_monitor.mirror_log_to_s3):
   s3://pgx-repository/{step}_log/{cohort}/{age_band}/{filename}
 
-Steps: 4_fpgrowth_log, 5_bupar_log, 6_dtw_log
+Steps: 4_model_data_log, 4_fpgrowth_log, 5_bupar_log, 6_dtw_log,
+  final_model_log (model training).
 
 Usage (from repo root):
   python 9_dashboard_visuals/sync_viz_logs_from_s3.py
@@ -20,7 +21,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]  # 9_dashboard_visuals -> repo root
 VIZ_SYNC_DIR = REPO_ROOT / "logs" / "viz_sync"
 BUCKET = "pgx-repository"
-PREFIXES = ("4_fpgrowth_log", "5_bupar_log", "6_dtw_log")
+PREFIXES = (
+    "4_model_data_log",
+    "4_fpgrowth_log",
+    "5_bupar_log",
+    "6_dtw_log",
+    "final_model_log",  # Step 6 model training (run_final_model.py)
+)
 
 
 def main() -> int:
