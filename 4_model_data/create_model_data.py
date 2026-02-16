@@ -673,7 +673,7 @@ def filter_cohort_events_for_items(
         return
 
     # Ensure target date column is in output for BupaR/dashboard (case rows need it; control gets NULL)
-    target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+    target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
     if target_date_col in cohort_cols and target_date_col not in common_cols:
         common_cols = list(common_cols) + [target_date_col]
         print(f"[INFO] Including cohort-only column in model_events for target date: {target_date_col}")
@@ -843,7 +843,7 @@ def filter_cohort_events_for_items(
         # In this degenerate case, just build case-only events (with target leakage removal).
         leakage_condition = "TRUE"
         if "event_date" in cohort_cols:
-            target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+            target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
             if target_date_col in cohort_cols:
                 leakage_condition = (
                     f"(event_date IS NULL OR {target_date_col} IS NULL OR "
@@ -889,7 +889,7 @@ def filter_cohort_events_for_items(
     # Events on or after target date are removed here (previously done in 1b; now linear: 3b → 4).
     leakage_condition = "TRUE"
     if "event_date" in common_cols:
-        target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+        target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
         if target_date_col in common_cols:
             leakage_condition = (
                 f"(event_date IS NULL OR {target_date_col} IS NULL OR "
