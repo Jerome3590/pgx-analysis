@@ -6,6 +6,7 @@ Item types (from cohort_fpgrowth.ITEM_TYPES): drug_name, icd_code, cpt_code, med
 This script calls process_single_cohort directly for a specific cohort/age_band.
 """
 
+import json
 import sys
 import argparse
 from pathlib import Path
@@ -47,6 +48,7 @@ def main():
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve() if args.project_root else None
+    model_data_paths = None
 
     # Upfront path check for TRAIN: require model_data; fail fast with paths_checked/path_listings
     if args.event_year == "train":
@@ -77,7 +79,12 @@ def main():
             sys.exit(1)
 
     # Use model_data if available, otherwise use local data path
-    local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
+    # When TRAIN and we have resolved paths, show the actual data root (e.g. /mnt/nvme/4_model_data)
+    if args.event_year == "train" and model_data_paths:
+        # path is .../cohort_name=X/age_band=Y/file.parquet -> parent.parent.parent = 4_model_data root
+        local_data_path = model_data_paths[0].parent.parent.parent
+    else:
+        local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
 
     print(f"Running FP-Growth for {args.cohort_name} / {args.age_band} / {args.event_year}")
     print(f"Using data path: {local_data_path}")
@@ -143,8 +150,35 @@ def main():
         print("\nFP-Growth itemsets creation complete!")
     else:
         summary = "; ".join(f"{t}={e}" for t, e in failures) if failures else "no item types produced itemsets"
-        print(f"\nFP-Growth itemsets creation failed: {summary}. See [ERROR] / [ERROR_PARAMS] above (paths_checked, path_listings).")
-        sys.exit(1)
+        # When only "No frequent itemsets" (e.g. small cohort / insufficient transactions), exit 0 so pipeline continues
+        only_no_itemsets = failures and all(e == "No frequent itemsets" for _, e in failures)
+        if only_no_itemsets:
+            print(f"\nNo itemsets for any item type (insufficient transactions for {args.cohort_name}/{args.age_band}); exiting 0.")
+            # Write empty-state JSON for dashboard to show a message instead of broken/empty viz
+            dashboard_plots_dir = (
+                REPO_ROOT
+                / "10_risk_dashboard"
+                / "visualizations"
+                / "fpgrowth"
+                / "outputs"
+                / args.cohort_name
+                / args.age_band
+                / "plots"
+            )
+            dashboard_plots_dir.mkdir(parents=True, exist_ok=True)
+            empty_state = {
+                "empty": True,
+                "message": "No frequent itemsets or rules for this cohort/age band (insufficient transactions).",
+                "cohort_name": args.cohort_name,
+                "age_band": args.age_band,
+            }
+            empty_path = dashboard_plots_dir / "empty_state.json"
+            with open(empty_path, "w", encoding="utf-8") as f:
+                json.dump(empty_state, f, indent=2)
+            print(f"Wrote dashboard empty-state: {empty_path}", flush=True)
+        else:
+            print(f"\nFP-Growth itemsets creation failed: {summary}. See [ERROR] / [ERROR_PARAMS] above (paths_checked, path_listings).")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

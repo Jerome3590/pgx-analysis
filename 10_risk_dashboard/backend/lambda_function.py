@@ -1405,6 +1405,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
 def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/fpgrowth?cohort=...&age_band=...&item_type=...
     Returns HTTPS URLs for dashboard: itemsets PNG, network Plotly HTML (iframe by cohort).
+    If itemsets/rules were empty, returns JSON with empty=True and message for dashboard to show.
     Files are built by 4_dashboard_visuals / create_plots and uploaded to the dashboard bucket
     (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/.
     """
@@ -1417,10 +1418,23 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         
-        age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        
+        empty_state_key = f"{base_key}/empty_state.json"
+
+        # When itemsets/rules were empty, pipeline uploads empty_state.json; return it for dashboard
+        try:
+            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=empty_state_key)
+            body = obj["Body"].read().decode("utf-8")
+            payload = json.loads(body)
+            return _response(200, payload)
+        except ClientError as e:
+            if e.response["Error"]["Code"] != "NoSuchKey":
+                raise
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        age_band_fname = age_band.replace("-", "_")
         # Legacy filenames (backward compatibility)
         itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
         network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"

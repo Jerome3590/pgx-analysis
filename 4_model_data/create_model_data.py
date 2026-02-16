@@ -672,8 +672,16 @@ def filter_cohort_events_for_items(
         con.close()
         return
 
+    # Ensure target date column is in output for BupaR/dashboard (case rows need it; control gets NULL)
+    target_date_col = "first_opioid_ed_date" if "opioid" in cohort_name.lower() else "first_ed_non_opioid_date"
+    if target_date_col in cohort_cols and target_date_col not in common_cols:
+        common_cols = list(common_cols) + [target_date_col]
+        print(f"[INFO] Including cohort-only column in model_events for target date: {target_date_col}")
+
     common_cols_sql = ", ".join(common_cols)
-    common_cols_sql_control = ", ".join(f"c.{c}" for c in common_cols)
+    common_cols_sql_control = ", ".join(
+        f"c.{c}" if c in control_cols else f"NULL AS {c}" for c in common_cols
+    )
 
     # 1. Case patients from gold cohorts
     # NOTE: Time window filtering is now handled in Step 2 (2_create_cohort)

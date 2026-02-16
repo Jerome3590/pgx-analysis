@@ -1729,6 +1729,18 @@
   }
 
   function renderFPGrowthVisualizations(data) {
+    // When itemsets/rules were empty, API returns empty_state JSON with message for dashboard
+    if (data.empty && data.message) {
+      const msg = data.message;
+      const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
+      const supportEl = document.getElementById("fpgrowth-support-image");
+      const networkEl = document.getElementById("fpgrowth-network-container");
+      if (itemsetsEl) itemsetsEl.innerHTML = `<p class="status-message info" style="padding: 1rem;">${msg}</p>`;
+      if (supportEl) supportEl.innerHTML = '';
+      if (networkEl) networkEl.innerHTML = `<p class="status-message info" style="padding: 1rem;">${msg}</p>`;
+      return;
+    }
+
     // Render itemsets: prioritize interactive HTML, fall back to static PNG
     const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
     if (itemsetsEl) {
