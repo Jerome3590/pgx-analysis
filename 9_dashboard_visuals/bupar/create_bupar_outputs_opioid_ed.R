@@ -523,21 +523,54 @@ cat("Combined TARGET + CONTROL sankey_eventlog created.\n")
 print(sankey_eventlog)
 
 # -------------------------------------------------------------------
+# Target date per case for pre-/post-F1120 split.
+# Step 4 (4_model_data) removes target leakage: only events with event_date < first_opioid_ed_date
+# are kept, so the F1120 (ED) row is NOT in model_events. We must use first_opioid_ed_date
+# (present on every target row); F1120-in-activity would yield 0 pre-F1120 cases.
+# -------------------------------------------------------------------
+
+target_date_map <- NULL
+if ("first_opioid_ed_date" %in% names(pgx_df_target1)) {
+  fed <- pgx_df_target1 %>%
+    filter(!is.na(first_opioid_ed_date))
+  fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_opioid_ed_date))
+  target_date_map <- fed %>%
+    filter(!is.na(first_ed_parsed)) %>%
+    group_by(mi_person_key) %>%
+    summarise(target_date = min(first_ed_parsed, na.rm = TRUE), .groups = "drop") %>%
+    filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
+    rename(case_id = mi_person_key)
+  cat("Target dates from first_opioid_ed_date: ", nrow(target_date_map), " cases.\n", sep = "")
+}
+if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
+  target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
+  if (!"first_opioid_ed_date" %in% names(pgx_df_target1)) {
+    cat("No first_opioid_ed_date in model_events; using F1120-in-activity for target index (may be 0 after step 4).\n")
+  }
+}
+
+# -------------------------------------------------------------------
 # Pre-F1120 (before first ICD:F1120) sequences
 # -------------------------------------------------------------------
 
 cat("\n--- Pre-F1120 (before first ICD:F1120) analysis ---\n")
 
-ev_all <- target_eventlog %>%
+ev_all <- as.data.frame(target_eventlog) %>%
+  left_join(target_date_map, by = "case_id") %>%
   arrange(case_id, timestamp) %>%
   group_by(case_id) %>%
   mutate(
     event_index = row_number(),
+    is_target_from_date = !is.na(target_date) & as.Date(timestamp) >= as.Date(target_date),
     is_target_icd = Reduce(`|`, lapply(target_icd_patterns, function(p) grepl(p, activity))),
-    has_target   = any(is_target_icd),
-    first_target_index = ifelse(has_target,
-                                min(event_index[is_target_icd]),
-                                NA_integer_)
+    has_target_from_date = any(!is.na(target_date)),
+    has_target_icd = any(is_target_icd),
+    has_target = has_target_from_date | has_target_icd,
+    first_target_index = ifelse(
+      has_target_from_date,
+      min(event_index[is_target_from_date], na.rm = TRUE),
+      ifelse(has_target_icd, min(event_index[is_target_icd], na.rm = TRUE), NA_integer_)
+    )
   ) %>%
   ungroup()
 
