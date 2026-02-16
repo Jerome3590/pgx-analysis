@@ -276,13 +276,13 @@ def create_visualizations(
 def create_fpgrowth_visuals(
     cohort_name: str,
     age_band: str,
-    skip_feature_engineering: bool = False,
+    skip_feature_engineering: bool = True,
     skip_visualizations: bool = False,
     force: bool = False,
 ) -> bool:
     """
-    Create FP-Growth visuals for the dashboard: itemsets, features, merge, and plots.
-    FP-Growth features are not added to model data; they are for dashboard visualization only.
+    Create FP-Growth visuals for the dashboard: itemsets and plots.
+    FP-Growth features are not added to model data; feature engineering steps skipped by default.
 
     Idempotent with respect to itemset creation; downstream scripts overwrite CSV outputs.
     If force is False and the output CSV already exists, skips (idempotent).
@@ -328,7 +328,7 @@ def create_fpgrowth_visuals(
                 mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
                 return False
         else:
-            logger.info("Skipping feature engineering; assuming features already present")
+            logger.info("Skipping feature engineering (FP-Growth features not used in model data)")
 
         if not skip_visualizations:
             ok = create_visualizations(cohort_name, age_band, logger=logger)
@@ -360,9 +360,9 @@ if __name__ == "__main__":
         help="Age band (e.g., 0-12)",
     )
     parser.add_argument(
-        "--skip-feature-engineering",
+        "--enable-feature-engineering",
         action="store_true",
-        help="Skip feature engineering steps",
+        help="Enable feature engineering steps (creates CSV files, not used by default)",
     )
     parser.add_argument(
         "--skip-visualizations",
@@ -377,11 +377,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Feature engineering is skipped by default (features not used in model data)
+    # Enable only if explicitly requested via --enable-feature-engineering
+    skip_fe = not args.enable_feature_engineering
+
     with module_block("4_fpgrowth"):
         success = create_fpgrowth_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
-            skip_feature_engineering=args.skip_feature_engineering,
+            skip_feature_engineering=skip_fe,
             skip_visualizations=args.skip_visualizations,
             force=args.force,
         )
