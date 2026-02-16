@@ -2,6 +2,8 @@
 
 📖 **Documentation**: See [`docs/README_fpgrowth.md`](/docs/README_fpgrowth.md) for complete documentation.
 
+**Feature importance source:** FP-Growth uses **final (cohort) feature importances** (Step 3b `cohort_feature_importance`). BupaR and DTW use SHAP/FFA combined instead. See [9_dashboard_visuals/README.md](../README.md#feature-importance-sources-for-visuals).
+
 ---
 
 ## Output Files Manifest

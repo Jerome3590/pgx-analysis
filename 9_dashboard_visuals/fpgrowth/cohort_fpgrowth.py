@@ -7,9 +7,8 @@ Processes each cohort separately to find cohort-specific patterns across:
 - icd_code (medical diagnosis codes)
 - cpt_code (medical procedure codes)
 
-When USE_SHAP_FFA_FOR_FPGROWTH is True (default), FP-Growth runs on the original dataset
-but is restricted to items identified as important by SHAP and/or FFA analysis (Step 7 / Step 8).
-This drives the visualization from model importance instead of mining over all codes.
+FP-Growth uses final feature importances (cohort_feature_importance from Step 3b) to restrict
+items. BupaR and DTW use SHAP/FFA combined; FP-Growth uses this final list instead.
 
 Outputs to: s3://pgxdatalake/gold/fpgrowth/cohort/{item_type}/cohort_name={cohort}/age_band={age}/event_year={year}/
 """
@@ -30,8 +29,12 @@ from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 
 try:
-    from py_helpers.shap_ffa_fpgrowth_utils import get_shap_ffa_important_codes
+    from py_helpers.shap_ffa_fpgrowth_utils import (
+        get_final_feature_importance_codes,
+        get_shap_ffa_important_codes,
+    )
 except ImportError:
+    get_final_feature_importance_codes = None
     get_shap_ffa_important_codes = None
 
 # Script lives in 9_dashboard_visuals/fpgrowth; outputs go to 10_risk_dashboard/visualizations/fpgrowth
@@ -94,9 +97,10 @@ LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fa
 MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
 USE_MODEL_DATA_IF_AVAILABLE = True
 
-# Restrict FP-Growth to items identified by SHAP/FFA (run on original dataset; items from model importance).
-USE_SHAP_FFA_FOR_FPGROWTH = True
-SHAP_FFA_TOP_N = 500  # Max features to take from combined SHAP + FFA
+# Restrict FP-Growth to important items. BupaR/DTW use SHAP/FFA combined; FP-Growth uses final feature importances.
+USE_FINAL_FI_FOR_FPGROWTH = True   # Final (cohort_feature_importance) from Step 3b
+USE_SHAP_FFA_FOR_FPGROWTH = False  # Legacy: SHAP+FFA combined (use for BupaR/DTW only)
+FI_TOP_N = 500  # Max features to take from final FI or SHAP+FFA
 
 # Local FP-Growth outputs (step 10: risk dashboard visualization outputs only)
 LOCAL_OUTPUT_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth" / "outputs"
@@ -565,44 +569,57 @@ def process_single_cohort(
                 'error': 'No data'
             }
         
-        # Restrict to SHAP/FFA-identified features (run FP-Growth on original dataset, items from model importance)
-        if USE_SHAP_FFA_FOR_FPGROWTH and get_shap_ffa_important_codes is not None:
+        # Restrict to important items: FP-Growth uses final feature importances (cohort_feature_importance)
+        data_root = None
+        try:
+            from py_helpers.env_utils import get_data_root
+            data_root = get_data_root()
+            if data_root is not None:
+                data_root = Path(data_root)
+        except Exception:
+            pass
+        allowed = None
+        if USE_FINAL_FI_FOR_FPGROWTH and get_final_feature_importance_codes is not None:
             try:
-                data_root = None
-                try:
-                    from py_helpers.env_utils import get_data_root
-                    data_root = get_data_root()
-                    if data_root is not None:
-                        data_root = Path(data_root)
-                except Exception:
-                    pass
+                allowed = get_final_feature_importance_codes(
+                    cohort_name,
+                    age_band,
+                    item_type,
+                    top_n=FI_TOP_N,
+                    project_root=REPO_ROOT,
+                    data_root=data_root,
+                )
+            except Exception as e:
+                logger.warning(f"Final feature importance filter failed: {e}; using all items")
+        elif USE_SHAP_FFA_FOR_FPGROWTH and get_shap_ffa_important_codes is not None:
+            try:
                 allowed = get_shap_ffa_important_codes(
                     cohort_name,
                     age_band,
                     item_type,
-                    top_n=SHAP_FFA_TOP_N,
+                    top_n=FI_TOP_N,
                     project_root=REPO_ROOT,
                     data_root=data_root,
                 )
-                if allowed:
-                    item_upper = df["item"].astype(str).str.strip().str.upper()
-                    allowed_upper = {c.strip().upper() for c in allowed}
-                    before = len(df)
-                    df = df[item_upper.isin(allowed_upper)].copy()
-                    logger.info(f"Filtered to SHAP/FFA important items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
-                    if len(df) == 0:
-                        logger.warning(f"✗ No rows left for {cohort_id} after SHAP/FFA filter")
-                        return {
-                            'item_type': item_type,
-                            'cohort_name': cohort_name,
-                            'age_band': age_band,
-                            'event_year': event_year,
-                            'error': 'No data after SHAP/FFA filter'
-                        }
-                else:
-                    logger.warning("SHAP/FFA returned no codes; using all items (run Step 7 SHAP and Step 8 FFA for filtering)")
             except Exception as e:
                 logger.warning(f"SHAP/FFA filter failed: {e}; using all items")
+        if allowed:
+            item_upper = df["item"].astype(str).str.strip().str.upper()
+            allowed_upper = {c.strip().upper() for c in allowed}
+            before = len(df)
+            df = df[item_upper.isin(allowed_upper)].copy()
+            logger.info(f"Filtered to FI important items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
+            if len(df) == 0:
+                logger.warning(f"✗ No rows left for {cohort_id} after FI filter")
+                return {
+                    'item_type': item_type,
+                    'cohort_name': cohort_name,
+                    'age_band': age_band,
+                    'event_year': event_year,
+                    'error': 'No data after FI filter'
+                }
+        elif USE_FINAL_FI_FOR_FPGROWTH or USE_SHAP_FFA_FOR_FPGROWTH:
+            logger.warning("FI returned no codes; using all items (ensure cohort_feature_importance or SHAP/FFA outputs exist)")
         
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")

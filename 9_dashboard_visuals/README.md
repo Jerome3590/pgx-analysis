@@ -13,6 +13,18 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`.
 
+## Feature importance sources for visuals
+
+Dashboard visuals use **two different** feature-importance sources so the right inputs drive each workflow:
+
+| Visual | Feature importance source | Description |
+|--------|---------------------------|-------------|
+| **BupaR** | **SHAP/FFA combined** | Allowed codes (drug/ICD/CPT) come from merged SHAP + FFA causal importance (Step 7 + 8). Written to `allowed_codes_shap_ffa_{cohort}_{age_band}.json`; R scripts use this file only (no FP-Growth inputs). |
+| **DTW** | **SHAP/FFA combined** | Same as BupaR: trajectories and plots are restricted to codes from the combined SHAP/FFA list. |
+| **FP-Growth** | **Final feature importances** | Allowed items come from **cohort feature importance** (Step 3b: `cohort_feature_importance` CSV). FP-Growth does not use SHAP/FFA combined. |
+
+So: **BupaR and DTW** always use the **SHAP/FFA combined** output; **FP-Growth** uses the **final (cohort) feature importance** list. Implemented in `py_helpers/shap_ffa_fpgrowth_utils.py` (`get_shap_ffa_allowed_codes_combined` for BupaR/DTW, `get_final_feature_importance_codes` for FP-Growth).
+
 ## S3 checkpoint
 
 - **Step name:** `9_dashboard_visuals`

@@ -3,7 +3,7 @@
 # End-to-end bupaR analysis for Cohort 2 (POLYPHARMACY_ED, non_opioid_ed),
 # configurable age band (65–74, 75–84, 85–94).
 #
-# - Builds target-only and combined event logs from model_data + FP-Growth TRAIN outputs
+# - Builds target-only and combined event logs from model_data (allowed codes from SHAP/FFA only)
 # - Runs pre-HCG sequence analyses (no post-target to avoid leakage)
 # - Exports pre-HCG, time-to-HCG per-patient features, trace tables, and process matrices
 #
@@ -101,22 +101,8 @@ if (file.exists(path_3b)) {
   }
 }
 
-fpgrowth_root <- file.path(
-  project_root,
-  "4_fpgrowth_analysis",
-  "outputs",
-  cohort_name
-)
-
-target_dir_train <- file.path(fpgrowth_root, "target", age_band_fname, "train")
-
-itemsets_drug_target_path    <- file.path(target_dir_train, "drug_name_itemsets_target_only.json")
-itemsets_icd_target_path     <- file.path(target_dir_train, "icd_code_itemsets_target_only.json")
-itemsets_medical_target_path <- file.path(target_dir_train, "medical_code_itemsets_target_only.json")
-
 cat("Project root:         ", project_root, "\n", sep = "")
-cat("Model data path:      ", model_data_path, "\n", sep = "")
-cat("FP-Growth target dir: ", target_dir_train, "\n\n", sep = "")
+cat("Model data path:      ", model_data_path, "\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Helper for saving CSVs locally + to S3, and central plots directory
@@ -189,7 +175,7 @@ pgx_df_target1 <- pgx_df %>%
 cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
 
 # -------------------------------------------------------------------
-# Load allowed code set: prefer SHAP/FFA (model-important), else FP-Growth itemsets
+# Load allowed code set: SHAP/FFA causal feature importances only (no FP-Growth, no fallback).
 # -------------------------------------------------------------------
 
 allowed_codes_shap_ffa_path <- file.path(
@@ -198,46 +184,16 @@ allowed_codes_shap_ffa_path <- file.path(
 )
 
 allowed_codes <- character(0)
-used_shap_ffa <- FALSE
 
 if (file.exists(allowed_codes_shap_ffa_path)) {
   allowed_codes <- fromJSON(allowed_codes_shap_ffa_path)
   if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
-  cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA (model-important items).\n", sep = "")
-  used_shap_ffa <- TRUE
+  cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA only (causal feature importances).\n", sep = "")
 } else {
-  if (file.exists(itemsets_drug_target_path)) {
-    drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
-    drug_codes <- unique(unlist(drug_itemsets_target$itemsets))
-    allowed_codes <- union(allowed_codes, drug_codes)
-    cat("Loaded ", length(drug_codes), " unique drug codes from target-only itemsets.\n", sep = "")
-  } else {
-    warning("Drug target-only itemsets not found at ", itemsets_drug_target_path)
-  }
-
-  if (file.exists(itemsets_icd_target_path)) {
-    icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
-    icd_codes <- unique(unlist(icd_itemsets_target$itemsets))
-    allowed_codes <- union(allowed_codes, icd_codes)
-    cat("Loaded ", length(icd_codes), " unique ICD codes from target-only itemsets.\n", sep = "")
-  } else {
-    warning("ICD target-only itemsets not found at ", itemsets_icd_target_path)
-  }
-
-  if (file.exists(itemsets_medical_target_path)) {
-    medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
-    medical_codes <- unique(unlist(medical_itemsets_target$itemsets))
-    allowed_codes <- union(allowed_codes, medical_codes)
-    cat("Loaded ", length(medical_codes), " unique medical (ICD+CPT) codes from target-only itemsets.\n", sep = "")
-  } else {
-    warning("Medical target-only itemsets not found at ", itemsets_medical_target_path)
-  }
+  cat("No SHAP/FFA allowed codes file; event log will be empty (ensure step that writes allowed_codes runs first).\n", sep = "")
 }
 
-# Ensure target ICD patterns are in the activity alphabet
-allowed_codes <- union(allowed_codes, target_icd_patterns)
-
-cat("Total unique allowed codes (incl. target ICDs): ", length(allowed_codes), "\n\n", sep = "")
+cat("Total unique allowed codes: ", length(allowed_codes), "\n\n", sep = "")
 
 # -------------------------------------------------------------------
 # Build DRUG/ICD/CPT activities and target_eventlog
@@ -309,7 +265,7 @@ pgx_df_target1_long <- pgx_df_target1_long %>%
     if (length(allowed_codes) > 0) {
       dplyr::filter(., code %in% allowed_codes)
     } else {
-      .
+      dplyr::filter(., FALSE)  # only SHAP/FFA codes; no file => empty event log
     }
   } %>%
   mutate(
@@ -318,64 +274,42 @@ pgx_df_target1_long <- pgx_df_target1_long %>%
       grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
       source == "procedure_code" ~ paste0("CPT:", code),
       TRUE ~ code
-    ),
-    timestamp = as.POSIXct(event_date)
-  ) %>%
+    )
+  )
+
+n_after_allowed <- nrow(pgx_df_target1_long)
+cat("BupaR diagnostic: long rows after allowed_codes filter (before timestamp): ", n_after_allowed, ".\n", sep = "")
+
+# Robust timestamp: parquet/DuckDB may give date as integer (days) or Date; as.POSIXct(integer) treats as seconds
+to_ts <- function(x) {
+  if (is.numeric(x)) {
+    as.POSIXct(as.Date(x, origin = "1970-01-01"))
+  } else {
+    as.POSIXct(as.Date(x))
+  }
+}
+pgx_df_target1_long <- pgx_df_target1_long %>%
+  mutate(timestamp = suppressWarnings(to_ts(event_date)))
+
+n_na_ts <- sum(is.na(pgx_df_target1_long$timestamp))
+na_ts_event_date_sample <- if (n_na_ts > 0L) head(pgx_df_target1_long$event_date[is.na(pgx_df_target1_long$timestamp)], 10) else character(0)
+if (n_na_ts > 0L) {
+  cat("BupaR diagnostic: timestamp NA count: ", n_na_ts, " (event_date class: ", paste(class(pgx_df_target1_long$event_date), collapse = ", "), ").\n", sep = "")
+}
+pgx_df_target1_long <- pgx_df_target1_long %>%
   filter(!is.na(timestamp))
 
 n_long_after <- nrow(pgx_df_target1_long)
-cat("BupaR diagnostic: long rows after allowed_codes + timestamp filter: ", n_long_after, ".\n", sep = "")
-if (n_long_after == 0L && length(allowed_codes) > 0L && n_long_before_allowed > 0L) {
+cat("BupaR diagnostic: long rows after timestamp filter: ", n_long_after, ".\n", sep = "")
+if (n_long_after == 0L && n_after_allowed > 0L) {
+  cat("BupaR diagnostic: timestamp filter removed all rows. event_date sample (where timestamp was NA): ",
+      paste(na_ts_event_date_sample, collapse = ", "), ".\n", sep = "")
+}
+if (n_long_after == 0L && length(allowed_codes) > 0L && n_long_before_allowed > 0L && n_after_allowed == 0L) {
   cat("BupaR diagnostic: no overlap between allowed_codes and data. Sample allowed_codes (max 20): ",
       paste(head(allowed_codes, 20), collapse = ", "), ".\n", sep = "")
   cat("BupaR diagnostic: sample codes in data (max 20): ",
       paste(head(codes_in_data, 20), collapse = ", "), ".\n", sep = "")
-}
-
-# If SHAP/FFA filter yielded no events, fall back to FP-Growth itemsets so we still get visuals
-if (used_shap_ffa && nrow(pgx_df_target1_long) == 0L && nrow(pgx_df_target1) > 0L) {
-  cat("WARNING: SHAP/FFA allowed codes yielded 0 events; falling back to FP-Growth itemsets for this cohort/age_band.\n")
-  allowed_codes <- character(0)
-  if (file.exists(itemsets_drug_target_path)) {
-    drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
-    allowed_codes <- union(allowed_codes, unique(unlist(drug_itemsets_target$itemsets)))
-  }
-  if (file.exists(itemsets_icd_target_path)) {
-    icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
-    allowed_codes <- union(allowed_codes, unique(unlist(icd_itemsets_target$itemsets)))
-  }
-  if (file.exists(itemsets_medical_target_path)) {
-    medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
-    allowed_codes <- union(allowed_codes, unique(unlist(medical_itemsets_target$itemsets)))
-  }
-  allowed_codes <- union(allowed_codes, target_icd_patterns)
-  cat("Fallback: ", length(allowed_codes), " allowed codes from FP-Growth.\n", sep = "")
-  pgx_df_target1_long <- pgx_df_target1 %>%
-    transmute(
-      mi_person_key, event_date,
-      drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code
-    ) %>%
-    mutate(across(c(drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code), as.character)) %>%
-    pivot_longer(cols = c(drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
-      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
-      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code),
-      names_to = "source", values_to = "code") %>%
-    filter(!is.na(code), code != "", code != "NA") %>%
-    { if (length(allowed_codes) > 0) dplyr::filter(., code %in% allowed_codes) else . } %>%
-    mutate(
-      activity = dplyr::case_when(
-        source == "drug_name" ~ paste0("DRUG:", code),
-        grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
-        source == "procedure_code" ~ paste0("CPT:", code),
-        TRUE ~ code
-      ),
-      timestamp = as.POSIXct(event_date)
-    ) %>%
-    filter(!is.na(timestamp))
 }
 
 target_eventlog <- pgx_df_target1_long %>%
@@ -486,7 +420,7 @@ pgx_df_all_long <- pgx_df_all %>%
       source == "procedure_code" ~ paste0("CPT:", code),
       TRUE ~ code
     ),
-    timestamp = as.POSIXct(event_date)
+    timestamp = suppressWarnings(to_ts(event_date))
   ) %>%
   filter(!is.na(timestamp))
 
