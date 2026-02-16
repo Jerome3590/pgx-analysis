@@ -33,6 +33,10 @@ try:
     from py_helpers.fe_monitor import mirror_log_to_s3
 except ImportError:
     mirror_log_to_s3 = None
+try:
+    from py_helpers.model_data_paths import resolve_model_events_paths
+except ImportError:
+    resolve_model_events_paths = None
 
 # On EC2 model data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then repo.
 _MODEL_DATA_ROOTS = [
@@ -144,6 +148,22 @@ def _get_model_events_path(cohort_name: str, age_band: str) -> Path:
     )
 
 
+def _get_model_events_paths_and_from_sql(cohort_name: str, age_band: str) -> tuple[list[Path], str]:
+    """Resolve 1 or 2 model_events paths (85-114 = 85-94 + 95-114). Return (paths, FROM-clause SQL)."""
+    if resolve_model_events_paths and REPO_ROOT.exists():
+        paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+        if paths and all(p.exists() for p in paths):
+            norm = [str(p).replace("\\", "/") for p in paths]
+            if len(norm) == 1:
+                return paths, f"read_parquet('{norm[0]}')"
+            if len(norm) == 2:
+                return paths, f"(SELECT * FROM read_parquet('{norm[0]}') UNION ALL SELECT * FROM read_parquet('{norm[1]}'))"
+    single = _get_model_events_path(cohort_name, age_band)
+    if single.exists():
+        return [single], f"read_parquet('{str(single).replace(chr(92), '/')}')"
+    return [], ""
+
+
 def extract_extreme_density_cohort(
     cohort_name: str,
     age_band: str,
@@ -168,21 +188,28 @@ def extract_extreme_density_cohort(
         output_cohort_name,
     )
 
-    model_events_path = _get_model_events_path(cohort_name, age_band)
-    if not model_events_path.exists():
-        logger.error("Source model_events not found at %s", model_events_path)
+    paths, from_sql = _get_model_events_paths_and_from_sql(cohort_name, age_band)
+    if not paths or not from_sql:
+        logger.error("Source model_events not found for %s / %s (tried single path and 85-114 = 85-94 + 95-114)", cohort_name, age_band)
         raise SystemExit(1)
+    if len(paths) == 2:
+        logger.info("Using model_events for 85-114 as union of 85-94 + 95-114")
+    # Write path: single partition or new 85-114 when we read from two
+    if len(paths) == 2:
+        _effective_root = paths[0].parent.parent.parent
+        model_events_path = _effective_root / f"cohort_name={cohort_name}" / "age_band=85-114" / "model_events.parquet"
+    else:
+        model_events_path = paths[0]
 
     # ------------------------------------------------------------------
     # Step 1: Load medical_code-style events for TRAIN years
     # ------------------------------------------------------------------
     con = duckdb.connect(database=":memory:")
+    con.execute(f"CREATE VIEW model_events AS SELECT * FROM {from_sql}")
 
     # Match TRAIN window used in FP-Growth (2016–2018)
     years_sql = ", ".join(str(y) for y in TRAIN_YEARS)
     event_filter = f"event_year IN ({years_sql})"
-
-    model_events_str = str(model_events_path).replace("\\", "/")
 
     # NOTE: Earlier versions of model_events included an event_type column to
     # distinguish medical vs pharmacy events and this query filtered on
@@ -193,67 +220,67 @@ def extract_extreme_density_cohort(
     query_medical = f"""
     WITH all_med_codes AS (
         SELECT mi_person_key, primary_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE primary_icd_diagnosis_code IS NOT NULL
           AND primary_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, two_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE two_icd_diagnosis_code IS NOT NULL
           AND two_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, three_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE three_icd_diagnosis_code IS NOT NULL
           AND three_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, four_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE four_icd_diagnosis_code IS NOT NULL
           AND four_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, five_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE five_icd_diagnosis_code IS NOT NULL
           AND five_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, six_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE six_icd_diagnosis_code IS NOT NULL
           AND six_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, seven_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE seven_icd_diagnosis_code IS NOT NULL
           AND seven_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, eight_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE eight_icd_diagnosis_code IS NOT NULL
           AND eight_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, nine_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE nine_icd_diagnosis_code IS NOT NULL
           AND nine_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, ten_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE ten_icd_diagnosis_code IS NOT NULL
           AND ten_icd_diagnosis_code != ''
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, procedure_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE procedure_code IS NOT NULL
           AND procedure_code != ''
           AND {event_filter}
@@ -311,10 +338,7 @@ def extract_extreme_density_cohort(
         pd.DataFrame({"mi_person_key": extreme_ids}),
     )
 
-    con2.execute(
-        "CREATE TABLE events AS SELECT * FROM read_parquet(?)",
-        [model_events_str],
-    )
+    con2.execute(f"CREATE TABLE events AS SELECT * FROM {from_sql}")
 
     # Extreme cohort events (same 4_model_data root as source, e.g. PGX_DATA_ROOT on EC2)
     _effective_root = model_events_path.parent.parent.parent
@@ -340,12 +364,13 @@ def extract_extreme_density_cohort(
     )
     logger.info("Wrote extreme-density cohort events to %s", extreme_events_path)
 
-    # Filtered (non-extreme) events replace the original model_events
+    # Filtered (non-extreme) events replace the original model_events (or write new 85-114 partition)
+    model_events_path.parent.mkdir(parents=True, exist_ok=True)
     backup_path = model_events_path.with_name("model_events_with_extreme.parquet")
-    if not backup_path.exists():
+    if model_events_path.exists() and not backup_path.exists():
         model_events_path.replace(backup_path)
         logger.info("Backed up original model_events to %s", backup_path)
-    else:
+    elif model_events_path.exists():
         logger.info("Backup already exists at %s; original will be overwritten in place", backup_path)
 
     model_events_str_out = str(model_events_path).replace("\\", "/")

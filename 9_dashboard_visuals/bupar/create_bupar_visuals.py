@@ -40,7 +40,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     step_block,
     mirror_log_to_s3,
 )
-from py_helpers.model_data_paths import resolve_model_events_path  # noqa: E402
+from py_helpers.model_data_paths import resolve_model_events_paths  # noqa: E402
 
 
 def _find_rscript() -> str | None:
@@ -150,9 +150,9 @@ def create_bupar_outputs(
             logger.error("Invalid SHAP/FFA allowed codes JSON at %s: %s", allowed_path, e)
             return False
 
-        # Require model data exists before calling R (tries underscore then hyphen for EC2)
-        model_path = resolve_model_events_path(REPO_ROOT, cohort_name, age_band)
-        if not model_path or not model_path.exists():
+        # Require model data exists before calling R (single path or 85-114 = 85-94 + 95-114 union)
+        model_paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+        if not model_paths or not all(p.exists() for p in model_paths):
             logger.error(
                 "Model data (model_events.parquet) not found for cohort=%s age_band=%s. "
                 "Run 3b/4_model_data for this cohort/age band first.",
@@ -160,7 +160,10 @@ def create_bupar_outputs(
                 age_band,
             )
             return False
-        logger.info("Model data found: %s", model_path)
+        if len(model_paths) == 2:
+            logger.info("Model data found (85-114 = 85-94 + 95-114): %s, %s", model_paths[0], model_paths[1])
+        else:
+            logger.info("Model data found: %s", model_paths[0])
 
         if cohort_name == "opioid_ed":
             r_script = BUPAR_CODE_DIR / "create_bupar_outputs_opioid_ed.R"
