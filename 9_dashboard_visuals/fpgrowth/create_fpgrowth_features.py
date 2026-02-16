@@ -358,7 +358,7 @@ def create_all_fpgrowth_features(
         project_root
         / "4_model_data"
         / f"cohort_name={cohort_name}"
-        / f"age_band={age_band}"
+        / f"age_band={age_band_fname}"
     )
     model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
     model_data_path = (

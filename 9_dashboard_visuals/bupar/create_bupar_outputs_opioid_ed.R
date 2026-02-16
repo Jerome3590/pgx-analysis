@@ -25,6 +25,8 @@ suppressPackageStartupMessages({
   library(processmapR)
   library(edeaR)
   library(ggplot2)
+  library(plotly)
+  library(htmlwidgets)
 })
 
 # -------------------------------------------------------------------
@@ -1054,6 +1056,129 @@ if (!is.null(p_te)) {
   ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
          plot = p_te, width = 16, height = 12, dpi = 300)
   print(p_te)
+  
+  # Create interactive Plotly version with year filtering
+  tryCatch({
+    # Extract year and compute trace frequencies by year
+    trace_data_by_year <- target_eventlog %>%
+      as.data.frame() %>%
+      mutate(year = lubridate::year(timestamp)) %>%
+      group_by(case_id, year) %>%
+      arrange(timestamp) %>%
+      summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
+      group_by(year, trace) %>%
+      summarise(frequency = n(), .groups = "drop")
+    
+    # Get top 30 traces overall
+    top_traces <- trace_data_by_year %>%
+      group_by(trace) %>%
+      summarise(total_freq = sum(frequency), .groups = "drop") %>%
+      arrange(desc(total_freq)) %>%
+      head(30) %>%
+      pull(trace)
+    
+    # Filter to top traces and add "All Years" aggregation
+    trace_filtered <- trace_data_by_year %>%
+      filter(trace %in% top_traces)
+    
+    trace_all <- trace_filtered %>%
+      group_by(trace) %>%
+      summarise(frequency = sum(frequency), .groups = "drop") %>%
+      mutate(year = 0)  # 0 = "All Years"
+    
+    trace_combined <- bind_rows(trace_all, trace_filtered) %>%
+      arrange(desc(frequency))
+    
+    # Abbreviate traces for display (truncate long sequences)
+    trace_combined <- trace_combined %>%
+      mutate(trace_display = ifelse(nchar(trace) > 100, 
+                                     paste0(substr(trace, 1, 97), "..."), 
+                                     trace))
+    
+    # Create plotly figure with year buttons
+    years <- c(0, 2016, 2017, 2018)
+    year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
+    
+    fig <- plot_ly()
+    
+    for (i in seq_along(years)) {
+      yr <- years[i]
+      data_year <- trace_combined %>%
+        filter(year == yr) %>%
+        arrange(desc(frequency)) %>%
+        head(30)
+      
+      # Calculate relative coverage
+      total_cases <- sum(data_year$frequency)
+      data_year <- data_year %>%
+        mutate(relative_pct = frequency / total_cases * 100,
+               cumulative_pct = cumsum(relative_pct))
+      
+      fig <- fig %>%
+        add_trace(
+          type = "bar",
+          y = data_year$trace_display,
+          x = data_year$frequency,
+          name = "Trace Frequency",
+          orientation = "h",
+          visible = (i == 1),  # Show "All Years" by default
+          marker = list(color = "#3b82f6"),
+          text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
+          hovertemplate = paste0(
+            "<b>Trace:</b> %{y}<br>",
+            "<b>Frequency:</b> %{x}<br>",
+            "<b>Coverage:</b> %{text}<br>",
+            "<extra></extra>"
+          )
+        )
+    }
+    
+    # Create year filter buttons
+    updatemenus <- list(
+      list(
+        active = 0,
+        type = "dropdown",
+        x = 0.15,
+        xanchor = "left",
+        y = 1.08,
+        yanchor = "top",
+        buttons = lapply(seq_along(years), function(i) {
+          visible_vec <- rep(FALSE, length(years))
+          visible_vec[i] <- TRUE
+          
+          list(
+            label = year_labels[i],
+            method = "update",
+            args = list(
+              list(visible = visible_vec),
+              list(title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels[i]))
+            )
+          )
+        })
+      )
+    )
+    
+    fig <- fig %>%
+      layout(
+        title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "- All Years (2016-2018)"),
+        xaxis = list(title = "Frequency (Number of Cases)"),
+        yaxis = list(title = "", categoryorder = "total ascending"),
+        updatemenus = updatemenus,
+        margin = list(l = 300, r = 50, t = 100, b = 50),
+        hovermode = "closest",
+        height = 900
+      )
+    
+    # Save interactive HTML
+    saveWidget(
+      fig,
+      file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname)),
+      selfcontained = TRUE,
+      title = paste("Trace Explorer:", cohort_name, age_band)
+    )
+    
+    cat("Saved trace_explorer_interactive.html with year filtering\n")
+  }, error = function(e) cat(" [skip] interactive trace explorer:", conditionMessage(e), "\n"))
 }
 
 # Save trace summary as tabular output
@@ -1176,6 +1301,131 @@ if (!is.null(pm_target)) {
            plot = p_matrix, width = 16, height = 14, dpi = 300)
     
     cat("Saved process_matrix.png\n")
+    
+    # Create interactive Plotly version with year filtering
+    tryCatch({
+      # Extract year and compute process matrix by year
+      pm_by_year <- target_eventlog %>%
+        as.data.frame() %>%
+        mutate(year = lubridate::year(timestamp)) %>%
+        group_by(case_id, year) %>%
+        arrange(timestamp) %>%
+        mutate(next_activity = lead(activity)) %>%
+        filter(!is.na(next_activity)) %>%
+        ungroup() %>%
+        group_by(year, activity, next_activity) %>%
+        summarise(frequency = n(), .groups = "drop")
+      
+      # Get top 25 activities overall
+      top_activities_pm <- target_eventlog %>%
+        as.data.frame() %>%
+        count(activity, sort = TRUE) %>%
+        head(25) %>%
+        pull(activity)
+      
+      # Filter and add "All Years"
+      pm_filtered <- pm_by_year %>%
+        filter(activity %in% top_activities_pm, next_activity %in% top_activities_pm)
+      
+      pm_all <- pm_filtered %>%
+        group_by(activity, next_activity) %>%
+        summarise(frequency = sum(frequency), .groups = "drop") %>%
+        mutate(year = 0)
+      
+      pm_combined <- bind_rows(pm_all, pm_filtered)
+      
+      # Create plotly heatmap with year buttons
+      years <- c(0, 2016, 2017, 2018)
+      year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
+      
+      fig <- plot_ly()
+      
+      for (i in seq_along(years)) {
+        yr <- years[i]
+        data_year <- pm_combined %>%
+          filter(year == yr) %>%
+          complete(activity = top_activities_pm, 
+                   next_activity = top_activities_pm, 
+                   fill = list(frequency = 0))
+        
+        # Create matrix (log scale)
+        matrix_data <- data_year %>%
+          mutate(log_freq = log10(frequency + 1)) %>%
+          pivot_wider(id_cols = activity, names_from = next_activity, values_from = log_freq, values_fill = 0) %>%
+          column_to_rownames("activity") %>%
+          as.matrix()
+        
+        # Original frequency for hover
+        freq_matrix <- data_year %>%
+          pivot_wider(id_cols = activity, names_from = next_activity, values_from = frequency, values_fill = 0) %>%
+          column_to_rownames("activity") %>%
+          as.matrix()
+        
+        fig <- fig %>%
+          add_trace(
+            type = "heatmap",
+            x = colnames(matrix_data),
+            y = rownames(matrix_data),
+            z = matrix_data,
+            visible = (i == 1),  # Show "All Years" by default
+            colorscale = "Magma",
+            text = freq_matrix,
+            hovertemplate = paste0(
+              "<b>From:</b> %{y}<br>",
+              "<b>To:</b> %{x}<br>",
+              "<b>Frequency:</b> %{text}<br>",
+              "<extra></extra>"
+            ),
+            colorbar = list(title = "log10(freq+1)")
+          )
+      }
+      
+      # Create year filter buttons
+      updatemenus <- list(
+        list(
+          active = 0,
+          type = "dropdown",
+          x = 0.15,
+          xanchor = "left",
+          y = 1.05,
+          yanchor = "top",
+          buttons = lapply(seq_along(years), function(i) {
+            visible_vec <- rep(FALSE, length(years))
+            visible_vec[i] <- TRUE
+            
+            list(
+              label = year_labels[i],
+              method = "update",
+              args = list(
+                list(visible = visible_vec),
+                list(title = paste("Process Matrix:", cohort_name, age_band, "-", year_labels[i]))
+              )
+            )
+          })
+        )
+      )
+      
+      fig <- fig %>%
+        layout(
+          title = paste("Process Matrix:", cohort_name, age_band, "- All Years (2016-2018)"),
+          xaxis = list(title = "To Activity →", tickangle = 45),
+          yaxis = list(title = "← From Activity"),
+          updatemenus = updatemenus,
+          margin = list(l = 200, r = 50, t = 100, b = 150),
+          height = 900,
+          width = 1000
+        )
+      
+      # Save interactive HTML
+      saveWidget(
+        fig,
+        file.path(plots_dir, sprintf("%s_%s_process_matrix_interactive.html", cohort_name, age_band_fname)),
+        selfcontained = TRUE,
+        title = paste("Process Matrix:", cohort_name, age_band)
+      )
+      
+      cat("Saved process_matrix_interactive.html with year filtering\n")
+    }, error = function(e) cat(" [skip] interactive process matrix:", conditionMessage(e), "\n"))
   }, error = function(e) cat(" [skip] process_matrix heatmap:", conditionMessage(e), "\n"))
 }
 
@@ -1248,6 +1498,132 @@ p3 <- ggplot(target_activity_freq,
 
 ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name, age_band_fname)),
        plot = p3, width = 14, height = 11, dpi = 300)
+
+# Create interactive Plotly version with year filtering
+tryCatch({
+  # Extract year from eventlog and compute frequency by year
+  activity_freq_by_year <- target_eventlog %>%
+    as.data.frame() %>%
+    mutate(year = lubridate::year(timestamp),
+           activity_type = case_when(
+             grepl("^DRUG:", activity) ~ "Drug",
+             grepl("^ICD:", activity) ~ "Diagnosis",
+             grepl("^CPT:", activity) ~ "Procedure",
+             TRUE ~ "Other"
+           )) %>%
+    group_by(year, activity, activity_type) %>%
+    summarise(count = n(), .groups = "drop")
+  
+  # Get top 40 activities overall (across all years)
+  top_activities <- activity_freq_by_year %>%
+    group_by(activity) %>%
+    summarise(total_count = sum(count), .groups = "drop") %>%
+    arrange(desc(total_count)) %>%
+    head(40) %>%
+    pull(activity)
+  
+  # Filter to top activities and add "All Years" aggregation
+  activity_freq_filtered <- activity_freq_by_year %>%
+    filter(activity %in% top_activities)
+  
+  activity_freq_all <- activity_freq_filtered %>%
+    group_by(activity, activity_type) %>%
+    summarise(count = sum(count), .groups = "drop") %>%
+    mutate(year = 0)  # Use 0 to represent "All Years"
+  
+  activity_freq_combined <- bind_rows(activity_freq_all, activity_freq_filtered) %>%
+    arrange(activity, year)
+  
+  # Create color mapping
+  colors <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
+  
+  # Create traces for each year
+  years <- c(0, 2016, 2017, 2018)
+  year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
+  
+  # Build plotly figure with buttons
+  fig <- plot_ly()
+  
+  for (i in seq_along(years)) {
+    yr <- years[i]
+    data_year <- activity_freq_combined %>%
+      filter(year == yr) %>%
+      arrange(desc(count)) %>%
+      head(40)
+    
+    for (act_type in unique(data_year$activity_type)) {
+      data_type <- data_year %>% filter(activity_type == act_type)
+      
+      fig <- fig %>%
+        add_trace(
+          type = "bar",
+          y = data_type$activity,
+          x = data_type$count,
+          name = act_type,
+          marker = list(color = colors[act_type]),
+          orientation = "h",
+          visible = (i == 1),  # Show "All Years" by default
+          legendgroup = act_type,
+          showlegend = (i == 1),
+          hovertemplate = paste0(
+            "<b>Activity:</b> %{y}<br>",
+            "<b>Type:</b> ", act_type, "<br>",
+            "<b>Count:</b> %{x}<br>",
+            "<extra></extra>"
+          )
+        )
+    }
+  }
+  
+  # Create year filter buttons
+  updatemenus <- list(
+    list(
+      active = 0,
+      type = "dropdown",
+      x = 0.15,
+      xanchor = "left",
+      y = 1.15,
+      yanchor = "top",
+      buttons = lapply(seq_along(years), function(i) {
+        visible_vec <- rep(FALSE, length(years) * length(unique(activity_freq_combined$activity_type)))
+        start_idx <- (i - 1) * length(unique(activity_freq_combined$activity_type)) + 1
+        end_idx <- i * length(unique(activity_freq_combined$activity_type))
+        visible_vec[start_idx:end_idx] <- TRUE
+        
+        list(
+          label = year_labels[i],
+          method = "update",
+          args = list(
+            list(visible = visible_vec),
+            list(title = paste("Activity Frequency:", cohort_name, age_band, "-", year_labels[i]))
+          )
+        )
+      })
+    )
+  )
+  
+  fig <- fig %>%
+    layout(
+      title = paste("Activity Frequency:", cohort_name, age_band, "- All Years (2016-2018)"),
+      xaxis = list(title = "Frequency"),
+      yaxis = list(title = "", categoryorder = "total ascending"),
+      barmode = "stack",
+      updatemenus = updatemenus,
+      margin = list(l = 200, r = 50, t = 100, b = 50),
+      legend = list(orientation = "h", y = 1.05, x = 0.5, xanchor = "center"),
+      hovermode = "closest"
+    )
+  
+  # Save interactive HTML
+  saveWidget(
+    fig,
+    file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname)),
+    selfcontained = TRUE,
+    title = paste("Activity Frequency:", cohort_name, age_band)
+  )
+  
+  cat("Saved activity_frequency_interactive.html with year filtering\n")
+}, error = function(e) cat(" [skip] interactive activity frequency:", conditionMessage(e), "\n"))
 
 # Gantt-style timeline (patient = job, activity = stage)
 # Sample up to 30 cases for visualization
