@@ -54,7 +54,8 @@ This directory contains scripts to run process-mining analysis on cohort traject
   - BupaR trace and feature CSVs under `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/features/` (for merge step).
 
 - **Outputs** (local + S3):
-  - Eventlogs, trace tables, process matrices, and plots under `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/`.  
+  - Eventlogs, trace tables, process matrices, and plots under `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/`.
+  - Interactive HTML (trace explorer, process matrix, activity frequency) are saved as **single self-contained files** (`saveWidget(..., selfcontained = TRUE, libdir = NULL)`) so they work from any path (S3, dashboard iframe)—no folder or `lib/` dependency.  
   - Final merged feature file:
     - `10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv`  
     - Uploaded to `s3://pgxdatalake/gold/feature_engineering/5_bupar/{cohort}/{age_band}/bupaR_added_features_{cohort}_{age_band}.csv` by `add_bupar_features_to_model_data.R`.

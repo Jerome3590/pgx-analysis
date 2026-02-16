@@ -13,10 +13,81 @@ Where model_events are written (saved):
 This module resolves local paths only; S3 paths are not resolved here.
 """
 
+import os
 from pathlib import Path
 from typing import List, Optional
 
 from py_helpers.constants import get_cohort_slug_by_cohort
+
+
+def get_model_events_paths_checked(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+) -> List[str]:
+    """
+    Return the ordered list of paths that resolve_model_events_path tries.
+    Use when resolution fails so logs can record [ERROR_PARAMS] paths_checked
+    for follow-on runs (e.g. fix path or create model_data).
+    """
+    project_root = Path(project_root).resolve()
+    cohort_slug = get_cohort_slug_by_cohort(cohort_name)
+    band_underscore = age_band.replace("-", "_") if "-" in age_band else age_band
+    band_hyphen = age_band.replace("_", "-") if "_" in age_band else age_band
+    bands_to_try = (band_underscore, band_hyphen) if band_underscore != band_hyphen else (age_band,)
+    out: List[str] = []
+    # 3b paths
+    for band in bands_to_try:
+        p = (
+            project_root
+            / "3b_feature_importance_eda"
+            / "outputs"
+            / "cohorts"
+            / "input_model_data"
+            / f"cohort_name={cohort_slug}"
+            / f"age_band={band}"
+            / "model_events.parquet"
+        )
+        out.append(str(p))
+    # 4_model_data roots (same order as resolve_model_events_path)
+    nvme_4 = Path("/mnt/nvme/4_model_data")
+    data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
+    candidates_4 = [nvme_4]
+    if data_root_env:
+        candidates_4.append(Path(data_root_env) / "4_model_data")
+    candidates_4.extend([
+        project_root / "4_model_data",
+        project_root / "4a_model_data",
+    ])
+    for root in candidates_4:
+        for band in bands_to_try:
+            for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+                out.append(str(root / f"cohort_name={cohort_name}" / f"age_band={band}" / name))
+    return out
+
+
+def get_path_check_listings(paths: List[str], max_entries: int = 30) -> List[str]:
+    """
+    For logging diagnostics: for each path (file path we checked), list the parent
+    directory contents so logs show what actually exists at each location.
+    Returns one string per path, e.g. "path -> parent contents: [a, b]" or "path -> parent missing".
+    """
+    result: List[str] = []
+    for p in paths:
+        path = Path(p)
+        parent = path.parent
+        if not parent.exists():
+            result.append(f"{p} -> parent missing")
+        else:
+            try:
+                entries = sorted(parent.iterdir())
+                names = [e.name for e in entries[:max_entries]]
+                if len(entries) > max_entries:
+                    names.append(f"... and {len(entries) - max_entries} more")
+                result.append(f"{p} -> parent contents: {names}")
+            except OSError as e:
+                result.append(f"{p} -> listdir error: {e}")
+    return result
 
 
 def resolve_model_events_paths(
@@ -107,7 +178,6 @@ def resolve_model_events_path(
             return path_3b
 
     # 2) Fallback: 4_model_data. On EC2 data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then project.
-    import os
     nvme_4 = Path("/mnt/nvme/4_model_data")
     data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
     candidates_4 = [nvme_4]

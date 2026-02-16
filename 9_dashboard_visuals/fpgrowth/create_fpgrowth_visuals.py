@@ -109,6 +109,8 @@ def ensure_itemsets(
                     age_band,
                     "--event-year",
                     "train",
+                    "--project-root",
+                    str(REPO_ROOT),
                 ],
                 cwd=PROJECT_ROOT,
                 capture_output=True,

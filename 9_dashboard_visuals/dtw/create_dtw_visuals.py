@@ -81,18 +81,36 @@ def create_dtw_visuals(
             f"[WARN] DTW features not found: {dtw_features_csv}\n"
             f"  Skipping (create_dtw_features.py did not produce output—often because 4_model_data for this cohort/age_band is missing)."
         )
+        try:
+            from py_helpers.model_data_paths import get_path_check_listings
+            path_listings = get_path_check_listings([str(dtw_features_csv)])
+            path_listings_str = " ; ".join(path_listings) if path_listings else ""
+        except Exception:  # noqa: BLE001
+            path_listings_str = ""
+        print(
+            f"[ERROR_PARAMS] step=6_dtw cohort_name={cohort_name} age_band={age_band} error=DTW features CSV not found "
+            f"expected_path={dtw_features_csv} fix=Run create_dtw_features.py (9_dashboard_visuals/dtw/) for this cohort/age_band first."
+        )
+        if path_listings_str:
+            print(f"[ERROR_PARAMS] step=6_dtw path_listings: {path_listings_str}")
         return
 
     print(f"[INFO] Reading DTW features from {dtw_features_csv}")
     dtw_df = pd.read_csv(dtw_features_csv)
 
+    keys_expected_dtw = ["mi_person_key", "target", "seq_pattern_str", "admin_icd_event_count", "dtw_min_distance", "trajectory_length"]
+    keys_received_dtw = list(dtw_df.columns)
+    print(f"[INFO] keys_expected (DTW features): {keys_expected_dtw}")
+    print(f"[INFO] keys_received (DTW features): {keys_received_dtw}")
+
     # --- Validate and coerce data structure for visualizations ---
     if "mi_person_key" not in dtw_df.columns:
+        print(f"[ERROR_PARAMS] step=6_dtw keys_expected={keys_expected_dtw} keys_received={keys_received_dtw}")
         raise ValueError("DTW features CSV must contain 'mi_person_key' column")
     dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
 
     if "target" not in dtw_df.columns:
-        print("[WARN] DTW features have no 'target' column; chart_data (routine_comparison, high_risk_trajectories) will be skipped.")
+        print(f"[WARN] DTW features have no 'target' column; keys_received={keys_received_dtw}. Chart_data (routine_comparison, high_risk_trajectories) will be skipped.")
     else:
         # Coerce target to numeric (0/1) for chart_data
         dtw_df["target"] = pd.to_numeric(dtw_df["target"], errors="coerce").fillna(0).astype(int)
@@ -100,7 +118,7 @@ def create_dtw_visuals(
     if "seq_pattern_str" in dtw_df.columns:
         dtw_df["seq_pattern_str"] = dtw_df["seq_pattern_str"].fillna("").astype(str)
     else:
-        print("[WARN] DTW features have no 'seq_pattern_str'; trajectory cluster plots will be skipped.")
+        print(f"[WARN] DTW features have no 'seq_pattern_str'; keys_received={keys_received_dtw}. Trajectory cluster plots will be skipped.")
 
     if "admin_icd_event_count" in dtw_df.columns:
         dtw_df["admin_icd_event_count"] = pd.to_numeric(dtw_df["admin_icd_event_count"], errors="coerce").fillna(0).astype(int)

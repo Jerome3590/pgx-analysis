@@ -40,7 +40,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     step_block,
     mirror_log_to_s3,
 )
-from py_helpers.model_data_paths import resolve_model_events_paths  # noqa: E402
+from py_helpers.model_data_paths import get_model_events_paths_checked, get_path_check_listings, resolve_model_events_paths  # noqa: E402
 
 
 def _find_rscript() -> str | None:
@@ -153,12 +153,23 @@ def create_bupar_outputs(
         # Require model data exists before calling R (single path or 85-114 = 85-94 + 95-114 union)
         model_paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
         if not model_paths or not all(p.exists() for p in model_paths):
+            paths_checked = get_model_events_paths_checked(REPO_ROOT, cohort_name, age_band)
+            path_listings = get_path_check_listings(paths_checked) if paths_checked else []
             logger.error(
                 "Model data (model_events.parquet) not found for cohort=%s age_band=%s. "
                 "Run 3b/4_model_data for this cohort/age band first.",
                 cohort_name,
                 age_band,
             )
+            logger.error(
+                "[ERROR_PARAMS] step=5_bupar cohort_name=%s age_band=%s error=model_data not found paths_checked=%s",
+                cohort_name, age_band, " | ".join(paths_checked) if paths_checked else "(none)",
+            )
+            if path_listings:
+                logger.error(
+                    "[ERROR_PARAMS] step=5_bupar path_listings: %s",
+                    " ; ".join(path_listings),
+                )
             return False
         if len(model_paths) == 2:
             logger.info("Model data found (85-114 = 85-94 + 95-114): %s, %s", model_paths[0], model_paths[1])
