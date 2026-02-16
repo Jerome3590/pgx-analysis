@@ -53,22 +53,27 @@ target_icd_patterns <- c("HCG")
 # HCG line values that identify ED visits (match cohort creation / 4_model_data)
 ed_hcg_lines <- c("P51 - ER Visits and Observation Care", "O11 - Emergency Room", "P33 - Urgent Care Visits")
 
-# Resolve model_events path: Step 2/3 (3b) builds model_events first; Step 4 (4_model_data) may also have them.
-# Check Step 2/3 location first (3b_feature_importance_eda/outputs/cohorts/input_model_data, cohort slug by cohort).
-cohort_slug_3b <- if (cohort_name == "opioid_ed") "opioid" else "polypharmacy"
-path_3b <- file.path(
-  project_root,
-  "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data",
-  paste0("cohort_name=", cohort_slug_3b),
-  paste0("age_band=", age_band),
-  "model_events.parquet"
-)
-if (file.exists(path_3b)) {
-  model_data_path   <- path_3b
-  model_data_dir    <- dirname(path_3b)
-  model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
-  cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
-} else {
+# Resolve model_events path: Use Step 4 (4_model_data) which has full schema with all ICD/CPT columns.
+# Step 3b model_events have different schema (missing ICD/CPT columns) and cause BupaR failures.
+# Disabled Step 3b path to ensure consistent schema.
+if (FALSE) {
+  # DISABLED: Step 3b path has incomplete schema
+  cohort_slug_3b <- if (cohort_name == "opioid_ed") "opioid" else "polypharmacy"
+  path_3b <- file.path(
+    project_root,
+    "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data",
+    paste0("cohort_name=", cohort_slug_3b),
+    paste0("age_band=", age_band),
+    "model_events.parquet"
+  )
+  if (file.exists(path_3b)) {
+    model_data_path   <- path_3b
+    model_data_dir    <- dirname(path_3b)
+    model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
+    cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
+  }
+}
+if (TRUE) {
   # Fallback: 4_model_data (PGX_DATA_ROOT, /mnt/nvme, project); then 4a_model_data (legacy). Prefer model_events_no_protocols if available.
   model_data_root <- NULL
   data_root <- Sys.getenv("PGX_DATA_ROOT")
