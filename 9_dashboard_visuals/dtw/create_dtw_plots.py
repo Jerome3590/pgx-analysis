@@ -14,7 +14,7 @@ Code counts are derived from seq_pattern_str in the DTW features CSV (activity s
 
 from collections import Counter
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import pandas as pd
 import numpy as np
@@ -27,6 +27,12 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
     SKLEARN_AVAILABLE = False
+
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
 
 
 # Polypharmacy cohort: one axis only (1D plot)
@@ -93,6 +99,74 @@ def _cluster_points(
     return km.fit_predict(X)
 
 
+def _load_event_years_from_model_data(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+    mi_person_keys: List[str]
+) -> Dict[str, int]:
+    """
+    Load event years for patients from model_data.
+    
+    For target patients: uses target event date (first_ed_opioid_date, first_ed_non_opioid_date)
+    For control patients: uses last observed event date from model_events
+    
+    Returns dict mapping mi_person_key to event_year (2016, 2017, or 2018)
+    """
+    if not DUCKDB_AVAILABLE:
+        print("[WARN] DuckDB not available; cannot load event years")
+        return {}
+    
+    age_band_fname = age_band.replace("-", "_")
+    model_data_path = project_root / "4_model_data" / cohort_name / age_band_fname / f"model_data_{cohort_name}_{age_band_fname}.parquet"
+    
+    if not model_data_path.exists():
+        print(f"[WARN] model_data not found at {model_data_path}")
+        return {}
+    
+    try:
+        con = duckdb.connect(":memory:")
+        
+        # Determine target event date column based on cohort
+        if cohort_name == "opioid_ed":
+            target_date_col = "first_ed_opioid_date"
+        elif cohort_name == "non_opioid_ed":
+            target_date_col = "first_ed_non_opioid_date"
+        else:
+            target_date_col = "target_event_date"  # fallback
+        
+        # Load event years from model_data
+        query = f"""
+        SELECT 
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            CASE 
+                WHEN target = 1 AND {target_date_col} IS NOT NULL 
+                    THEN YEAR(CAST({target_date_col} AS DATE))
+                ELSE YEAR(CURRENT_DATE)  -- placeholder for controls
+            END as event_year
+        FROM read_parquet('{model_data_path}')
+        WHERE CAST(mi_person_key AS VARCHAR) IN ({','.join("'" + str(k) + "'" for k in mi_person_keys)})
+        """
+        
+        df = con.execute(query).df()
+        con.close()
+        
+        # Convert to dict
+        year_map = {}
+        for _, row in df.iterrows():
+            year = row['event_year']
+            # Ensure year is in valid range (2016-2018 for training data)
+            if pd.notna(year) and 2016 <= year <= 2018:
+                year_map[str(row['mi_person_key'])] = int(year)
+        
+        print(f"[INFO] Loaded event years for {len(year_map)} patients from model_data")
+        return year_map
+        
+    except Exception as e:
+        print(f"[WARN] Failed to load event years: {e}")
+        return {}
+
+
 def create_trajectory_cluster_plots(
     project_root: Path,
     cohort_name: str,
@@ -147,6 +221,24 @@ def create_trajectory_cluster_plots(
         print("[WARN] No code counts from seq_pattern_str; skipping cluster plots")
         return []
 
+    # Load event years from model_data for year filtering
+    year_map = _load_event_years_from_model_data(
+        project_root, cohort_name, age_band, count_df.index.tolist()
+    )
+    
+    # Add year to count_df
+    if year_map:
+        count_df['event_year'] = count_df.index.map(lambda x: year_map.get(str(x), None))
+        # Filter to patients with valid years
+        has_year = count_df['event_year'].notna()
+        if has_year.any():
+            print(f"[INFO] {has_year.sum()} of {len(count_df)} patients have event years for filtering")
+        else:
+            print("[WARN] No patients have event years; proceeding without year filtering")
+            count_df['event_year'] = None
+    else:
+        count_df['event_year'] = None
+
     is_polypharmacy = cohort_name == POLYPHARMACY_COHORT
     n_axes = 1 if is_polypharmacy else 3
     top_codes = _top_codes(count_df, n_axes)
@@ -162,29 +254,94 @@ def create_trajectory_cluster_plots(
 
     _ensure_plots_dir(plots_dir)
     written: List[Path] = []
+    
+    # Determine if we can do year filtering
+    has_years = count_df['event_year'].notna().any() if 'event_year' in count_df.columns else False
+    
+    if has_years:
+        # Year-filtered interactive visualization
+        years = sorted([y for y in count_df['event_year'].dropna().unique() if pd.notna(y)])
+        years_with_all = [0] + years  # 0 = "All Years"
+        year_labels = {0: "All Years (2016-2018)"}
+        year_labels.update({int(y): str(int(y)) for y in years})
+        
+        fname_suffix = "interactive"
+    else:
+        # No year filtering - single visualization
+        years_with_all = [0]
+        year_labels = {0: "All Years"}
+        fname_suffix = "1d" if is_polypharmacy else "3d"
 
     if is_polypharmacy:
         # 1D: x = count of top code, y = 0 (or small jitter for visibility)
-        np.random.seed(42)
-        x = count_df[code_cols[0]].values
-        y = np.zeros(len(x)) + np.random.uniform(-0.1, 0.1, size=len(x))
-        hover_list = []
-        for i in count_df.index:
-            t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
-            hover_list.append(f"mi_person_key={i}{t}, {code_cols[0]}={count_df.loc[i, code_cols[0]]}")
         fig = go.Figure()
-        for c in sorted(count_df["cluster"].unique()):
-            mask = count_df["cluster"] == c
-            fig.add_trace(
-                go.Scatter(
-                    x=x[mask],
-                    y=y[mask],
-                    mode="markers",
-                    name=f"Cluster {c}",
-                    text=[hover_list[j] for j in np.where(mask)[0]],
-                    hoverinfo="text",
+        
+        for year_idx, year in enumerate(years_with_all):
+            if year == 0:
+                # All years
+                year_df = count_df
+            else:
+                # Specific year
+                year_df = count_df[count_df['event_year'] == year]
+            
+            if year_df.empty:
+                continue
+            
+            np.random.seed(42)
+            x = year_df[code_cols[0]].values
+            y = np.zeros(len(x)) + np.random.uniform(-0.1, 0.1, size=len(x))
+            
+            hover_list = []
+            for i in year_df.index:
+                t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
+                y_str = f", year={int(year_df.loc[i, 'event_year'])}" if 'event_year' in year_df.columns and pd.notna(year_df.loc[i, 'event_year']) else ""
+                hover_list.append(f"mi_person_key={i}{t}{y_str}, {code_cols[0]}={year_df.loc[i, code_cols[0]]}")
+            
+            for c in sorted(year_df["cluster"].unique()):
+                mask = year_df["cluster"] == c
+                mask_indices = [j for j, idx in enumerate(year_df.index) if mask.iloc[j] if j < len(mask) else False]
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=x[mask.values],
+                        y=y[mask.values],
+                        mode="markers",
+                        name=f"Cluster {c}",
+                        text=[hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]],
+                        hoverinfo="text",
+                        visible=(year_idx == 0),  # Show "All Years" by default
+                        legendgroup=f"cluster{c}",
+                        showlegend=(year_idx == 0),
+                    )
                 )
-            )
+        
+        if has_years:
+            # Add year dropdown buttons
+            n_clusters_actual = len(count_df["cluster"].unique())
+            updatemenus = [dict(
+                active=0,
+                buttons=[
+                    dict(
+                        label=year_labels[year],
+                        method="update",
+                        args=[
+                            {"visible": [
+                                (year_idx == i) 
+                                for year_idx in range(len(years_with_all)) 
+                                for _ in range(n_clusters_actual)
+                            ]},
+                            {"title": f"DTW Trajectory Clusters - {cohort_name} {age_band} - {year_labels[year]}"}
+                        ]
+                    )
+                    for i, year in enumerate(years_with_all)
+                ],
+                x=0.15,
+                xanchor="left",
+                y=1.10,
+                yanchor="top"
+            )]
+            fig.update_layout(updatemenus=updatemenus)
+        
         fig.update_layout(
             title=f"DTW trajectory clusters (polypharmacy) — {cohort_name} {age_band}<br>Axis: count of top code '{code_cols[0]}'",
             xaxis_title=f"Count of '{code_cols[0]}'",
@@ -193,35 +350,82 @@ def create_trajectory_cluster_plots(
             height=500,
             showlegend=True,
         )
-        fname = f"dtw_trajectory_cluster_1d_{cohort_name}_{age_band_fname}.html"
+        fname = f"dtw_trajectory_cluster_{fname_suffix}_{cohort_name}_{age_band_fname}.html"
     else:
         # 3D: x, y, z = counts of top 3 codes
-        x = count_df[code_cols[0]].values
-        y = count_df[code_cols[1]].values
-        z = count_df[code_cols[2]].values
-        hover_list = []
-        for i in count_df.index:
-            t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
-            hover_list.append(
-                f"mi_person_key={i}{t}<br>"
-                f"{code_cols[0]}={count_df.loc[i, code_cols[0]]}, "
-                f"{code_cols[1]}={count_df.loc[i, code_cols[1]]}, "
-                f"{code_cols[2]}={count_df.loc[i, code_cols[2]]}"
-            )
         fig = go.Figure()
-        for c in sorted(count_df["cluster"].unique()):
-            mask = count_df["cluster"] == c
-            fig.add_trace(
-                go.Scatter3d(
-                    x=x[mask],
-                    y=y[mask],
-                    z=z[mask],
-                    mode="markers",
-                    name=f"Cluster {c}",
-                    text=[hover_list[j] for j in np.where(mask)[0]],
-                    hoverinfo="text",
+        
+        for year_idx, year in enumerate(years_with_all):
+            if year == 0:
+                # All years
+                year_df = count_df
+            else:
+                # Specific year
+                year_df = count_df[count_df['event_year'] == year]
+            
+            if year_df.empty:
+                continue
+            
+            x = year_df[code_cols[0]].values
+            y = year_df[code_cols[1]].values
+            z = year_df[code_cols[2]].values
+            
+            hover_list = []
+            for i in year_df.index:
+                t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
+                y_str = f", year={int(year_df.loc[i, 'event_year'])}" if 'event_year' in year_df.columns and pd.notna(year_df.loc[i, 'event_year']) else ""
+                hover_list.append(
+                    f"mi_person_key={i}{t}{y_str}<br>"
+                    f"{code_cols[0]}={year_df.loc[i, code_cols[0]]}, "
+                    f"{code_cols[1]}={year_df.loc[i, code_cols[1]]}, "
+                    f"{code_cols[2]}={year_df.loc[i, code_cols[2]]}"
                 )
-            )
+            
+            for c in sorted(year_df["cluster"].unique()):
+                mask = year_df["cluster"] == c
+                
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=x[mask.values],
+                        y=y[mask.values],
+                        z=z[mask.values],
+                        mode="markers",
+                        name=f"Cluster {c}",
+                        text=[hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]],
+                        hoverinfo="text",
+                        visible=(year_idx == 0),  # Show "All Years" by default
+                        legendgroup=f"cluster{c}",
+                        showlegend=(year_idx == 0),
+                    )
+                )
+        
+        if has_years:
+            # Add year dropdown buttons
+            n_clusters_actual = len(count_df["cluster"].unique())
+            updatemenus = [dict(
+                active=0,
+                buttons=[
+                    dict(
+                        label=year_labels[year],
+                        method="update",
+                        args=[
+                            {"visible": [
+                                (year_idx == i) 
+                                for year_idx in range(len(years_with_all)) 
+                                for _ in range(n_clusters_actual)
+                            ]},
+                            {"title": f"DTW Trajectory Clusters - {cohort_name} {age_band} - {year_labels[year]}"}
+                        ]
+                    )
+                    for i, year in enumerate(years_with_all)
+                ],
+                x=0.15,
+                xanchor="left",
+                y=1.02,
+                yanchor="top"
+            )]
+            fig.update_layout(updatemenus=updatemenus)
+        
         fig.update_layout(
             title=f"DTW trajectory clusters — {cohort_name} {age_band}<br>Axes: top 3 codes (counts)",
             scene=dict(
@@ -232,7 +436,7 @@ def create_trajectory_cluster_plots(
             height=700,
             showlegend=True,
         )
-        fname = f"dtw_trajectory_cluster_3d_{cohort_name}_{age_band_fname}.html"
+        fname = f"dtw_trajectory_cluster_{fname_suffix}_{cohort_name}_{age_band_fname}.html"
 
     out_html = plots_dir / fname
     if not force and out_html.exists():

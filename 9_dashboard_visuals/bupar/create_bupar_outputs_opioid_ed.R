@@ -812,13 +812,13 @@ if (include_post_target) {
 
   # 1) Trace explorer: post-F1120 trajectories (save as PNG for dashboard)
   p_te_post <- tryCatch(
-    trace_explorer(post_target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
-                   coverage_labels = c("relative")),
+    trace_explorer(post_target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
+                   coverage_labels = c("relative", "absolute"), show_labels = TRUE),
     error = function(e) { cat(" [skip] trace_explorer(post-F1120):", conditionMessage(e), "\n"); NULL }
   )
   if (!is.null(p_te_post)) {
     ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_post_f1120.png", cohort_name, age_band_fname)),
-           plot = p_te_post, width = 14, height = 10, dpi = 300)
+           plot = p_te_post, width = 16, height = 12, dpi = 300)
     print(p_te_post)
   }
 
@@ -1046,13 +1046,13 @@ n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
 # 1) Trace Explorer: save as PNG for dashboard
 p_te <- tryCatch(
-  trace_explorer(target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
-                 coverage_labels = c("relative")),
+  trace_explorer(target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
+                 coverage_labels = c("relative", "absolute"), show_labels = TRUE),
   error = function(e) { cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n"); NULL }
 )
 if (!is.null(p_te)) {
   ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
-         plot = p_te, width = 14, height = 10, dpi = 300)
+         plot = p_te, width = 16, height = 12, dpi = 300)
   print(p_te)
 }
 
@@ -1128,6 +1128,55 @@ if (!is.null(pm_target)) {
     pm_target_df,
     sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
   )
+  
+  # Generate process matrix heatmap visualization
+  tryCatch({
+    # Convert to long format for ggplot
+    pm_long <- pm_target_df %>%
+      tibble::rownames_to_column("from_activity") %>%
+      tidyr::pivot_longer(cols = -from_activity, 
+                         names_to = "to_activity", 
+                         values_to = "frequency") %>%
+      filter(frequency > 0)  # Remove zero-frequency cells
+    
+    # Filter to top activities (reduce clutter)
+    top_activities <- target_eventlog %>%
+      group_by(activity) %>%
+      summarise(count = n(), .groups = "drop") %>%
+      arrange(desc(count)) %>%
+      head(25) %>%
+      pull(activity)
+    
+    pm_long_filtered <- pm_long %>%
+      filter(from_activity %in% top_activities,
+             to_activity %in% top_activities)
+    
+    # Create heatmap
+    p_matrix <- ggplot(pm_long_filtered, 
+                      aes(x = to_activity, y = from_activity, fill = frequency)) +
+      geom_tile(color = "white", size = 0.5) +
+      geom_text(aes(label = ifelse(frequency > 0, frequency, "")), 
+               size = 2.5, color = "white") +
+      scale_fill_viridis_c(option = "magma", 
+                          trans = "log10",
+                          breaks = c(1, 10, 100, 1000),
+                          labels = scales::comma) +
+      labs(title = paste("Process Matrix:", cohort_name, age_band),
+           subtitle = "Frequency of directly-follows relationships (top 25 activities)",
+           x = "To Activity →", 
+           y = "← From Activity",
+           fill = "Frequency\n(log scale)") +
+      theme_minimal(base_size = 12) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+            axis.text.y = element_text(size = 9),
+            panel.grid = element_blank(),
+            legend.position = "right")
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix.png", cohort_name, age_band_fname)),
+           plot = p_matrix, width = 16, height = 14, dpi = 300)
+    
+    cat("Saved process_matrix.png\n")
+  }, error = function(e) cat(" [skip] process_matrix heatmap:", conditionMessage(e), "\n"))
 }
 
 # 3) Process Map visualization
@@ -1167,22 +1216,38 @@ tryCatch({
   }, error = function(e2) cat(" [skip] frequency_map:", conditionMessage(e2), "\n"))
 })
 
-# Activity frequency plot (overall)
+# Activity frequency plot (overall) with color coding by event type
 target_activity_freq <- target_eventlog %>%
-  group_by(activity) %>%
+  mutate(activity_type = case_when(
+    grepl("^DRUG:", activity) ~ "Drug",
+    grepl("^ICD:", activity) ~ "Diagnosis",
+    grepl("^CPT:", activity) ~ "Procedure",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(activity, activity_type) %>%
   summarise(count = n(), .groups = "drop") %>%
   arrange(desc(count)) %>%
-  head(30)
+  head(40)  # Increase from 30
 
-p3 <- ggplot(target_activity_freq, aes(x = reorder(activity, count), y = count)) +
-  geom_bar(stat = "identity", fill = "darkgreen") +
+p3 <- ggplot(target_activity_freq, 
+            aes(x = reorder(activity, count), y = count, fill = activity_type)) +
+  geom_col() +
   coord_flip() +
+  scale_fill_manual(values = c("Drug" = "#3b82f6", 
+                               "Diagnosis" = "#ef4444", 
+                               "Procedure" = "#10b981",
+                               "Other" = "#64748b"),
+                   name = "Event Type") +
   labs(title = paste("Overall Activity Frequency:", cohort_name, age_band),
-       x = "Activity", y = "Frequency") +
-  theme_bw()
+       subtitle = "Top 40 activities by frequency",
+       x = NULL, y = "Frequency") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.y = element_text(size = 10),
+        legend.position = "top",
+        panel.grid.minor = element_blank())
 
 ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name, age_band_fname)),
-       plot = p3, width = 12, height = 10, dpi = 300)
+       plot = p3, width = 14, height = 11, dpi = 300)
 
 # Gantt-style timeline (patient = job, activity = stage)
 # Sample up to 30 cases for visualization

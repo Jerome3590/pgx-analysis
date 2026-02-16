@@ -824,6 +824,15 @@
           <label for="bupar-age-band">Age Band:</label>
           <select id="bupar-age-band"></select>
         </div>
+        <div class="control-group">
+          <label for="bupar-year">Year:</label>
+          <select id="bupar-year">
+            <option value="all">All Years (2016-2018)</option>
+            <option value="2016">2016</option>
+            <option value="2017">2017</option>
+            <option value="2018">2018</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadBupaR">Load BupaR Visualizations</button>
         </div>
@@ -853,6 +862,14 @@
         <div class="panel">
           <h2>Performance Spectrum (aggregated activity trace)</h2>
           <div id="bupar-performance-spectrum-image"></div>
+        </div>
+        <div class="panel">
+          <h2>Process Matrix (Drug Interaction Patterns)</h2>
+          <p style="font-size: 0.9em; color: #64748b; margin-bottom: 10px;">
+            Heatmap showing frequency of directly-follows relationships. 
+            High values indicate common activity sequences (e.g., Drug A → Drug B).
+          </p>
+          <div id="bupar-process-matrix-image"></div>
         </div>
         <div class="panel">
           <h2>Frequency Map (directly-follows process map)</h2>
@@ -1598,19 +1615,21 @@
   document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
     const cohort = document.getElementById("bupar-cohort").value;
     const ageBand = document.getElementById("bupar-age-band").value;
+    const year = document.getElementById("bupar-year").value;
     if (!cohort || !ageBand) {
       document.getElementById("bupar-status").textContent = "Please select cohort and age band";
       document.getElementById("bupar-status").className = "status-message error";
       return;
     }
-    document.getElementById("bupar-status").textContent = "Loading BupaR visualizations...";
+    const yearLabel = year === "all" ? "All Years (2016-2018)" : year;
+    document.getElementById("bupar-status").textContent = `Loading BupaR visualizations for ${yearLabel}...`;
     document.getElementById("bupar-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`);
+      const resp = await fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}&year=${year}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       renderBupaRVisualizations(data);
-      document.getElementById("bupar-status").textContent = "BupaR visualizations loaded successfully";
+      document.getElementById("bupar-status").textContent = `BupaR visualizations loaded successfully (${yearLabel})`;
       document.getElementById("bupar-status").className = "status-message success";
     } catch (err) {
       document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
@@ -1678,14 +1697,21 @@
   }
 
   function renderDTWVisualizations(data) {
-    // Render DTW overview image
-    if (data.overview_image) {
-      document.getElementById("dtw-overview-image").innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" />`;
+    // Render DTW overview - prioritize interactive HTML
+    if (data.overview_interactive) {
+      document.getElementById("dtw-overview-image").innerHTML = 
+        `<iframe src="${data.overview_interactive}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="DTW Trajectory Clusters"></iframe>`;
+    } else if (data.overview_image) {
+      document.getElementById("dtw-overview-image").innerHTML = 
+        `<img src="${data.overview_image}" style="max-width: 100%;" />`;
     }
+    
     // Render sample trajectories image
     if (data.sample_trajectories_image) {
-      document.getElementById("dtw-sample-trajectories-image").innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" />`;
+      document.getElementById("dtw-sample-trajectories-image").innerHTML = 
+        `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" />`;
     }
+    
     // Render trajectory metrics chart
     if (data.metrics) {
       const trace = {
@@ -1703,39 +1729,67 @@
   }
 
   function renderFPGrowthVisualizations(data) {
-    // Render itemsets image
-    if (data.itemsets_image) {
-      document.getElementById("fpgrowth-itemsets-image").innerHTML = `<img src="${data.itemsets_image}" style="max-width: 100%;" />`;
+    // Render itemsets: prioritize interactive HTML, fall back to static PNG
+    const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
+    if (itemsetsEl) {
+      const itemsetsUrl = data.itemsets_interactive || data.itemsets_image;
+      if (itemsetsUrl) {
+        if (itemsetsUrl.endsWith('.html')) {
+          itemsetsEl.innerHTML = `<iframe src="${itemsetsUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth itemsets"></iframe>`;
+        } else {
+          itemsetsEl.innerHTML = `<img src="${itemsetsUrl}" style="max-width: 100%;" />`;
+        }
+      }
     }
-    // Render support distribution image
-    if (data.support_image) {
-      document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" />`;
+    
+    // Render support distribution (same as itemsets for now)
+    const supportEl = document.getElementById("fpgrowth-support-image");
+    if (supportEl) {
+      const supportUrl = data.itemsets_interactive || data.support_image;
+      if (supportUrl) {
+        if (supportUrl.endsWith('.html')) {
+          supportEl.innerHTML = `<iframe src="${supportUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth support"></iframe>`;
+        } else {
+          supportEl.innerHTML = `<img src="${supportUrl}" style="max-width: 100%;" />`;
+        }
+      }
     }
-    // Render network: Plotly HTML from S3 (iframe by cohort)
+    
+    // Render network: prioritize interactive HTML, fall back to single-year HTML or PNG
     const networkEl = document.getElementById("fpgrowth-network-container");
-    if (networkEl && data.network_html) {
-      if (data.network_html.startsWith("http://") || data.network_html.startsWith("https://")) {
-        networkEl.innerHTML = `<iframe src="${data.network_html}" style="width: 100%; height: 620px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>`;
-      } else {
-        networkEl.innerHTML = data.network_html;
+    if (networkEl) {
+      const networkUrl = data.network_interactive || data.network_html || data.network_png;
+      if (networkUrl) {
+        if (networkUrl.endsWith('.html')) {
+          networkEl.innerHTML = `<iframe src="${networkUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>`;
+        } else {
+          networkEl.innerHTML = `<img src="${networkUrl}" style="max-width: 100%;" />`;
+        }
       }
     }
   }
 
   function renderBupaRVisualizations(data) {
     // Pre-target only; no Gantt (time info from DTW)
+    // Check for interactive HTML versions first, fall back to PNG
     const imageMap = {
-      'bupar-activity-freq-image': data.activity_frequency_image,
+      'bupar-activity-freq-image': data.activity_frequency_interactive || data.activity_frequency_image,
       'bupar-pre-freq-image': data.pre_target_frequency_image,
       'bupar-sequence-image': data.sequence_image,
-      'bupar-trace-explorer-image': data.trace_explorer_image,
+      'bupar-trace-explorer-image': data.trace_explorer_interactive || data.trace_explorer_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
       'bupar-performance-spectrum-image': data.performance_spectrum_image,
+      'bupar-process-matrix-image': data.process_matrix_interactive || data.process_matrix_image,
       'bupar-frequency-map-image': data.frequency_map_image
     };
     for (const [elementId, imageUrl] of Object.entries(imageMap)) {
       if (imageUrl) {
-        document.getElementById(elementId).innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
+        // If URL ends with .html, embed as iframe; otherwise use img tag
+        if (imageUrl.endsWith('.html')) {
+          document.getElementById(elementId).innerHTML = `<iframe src="${imageUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="${elementId}"></iframe>`;
+        } else {
+          document.getElementById(elementId).innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
+        }
       }
     }
   }
