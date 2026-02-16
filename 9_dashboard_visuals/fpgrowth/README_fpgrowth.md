@@ -56,36 +56,19 @@ HTML network plots use Cytoscape.js and include:
 - Filter controls (node centrality, support, edge confidence, max nodes)
 - Interactive zoom/pan, tooltips, PNG export
 
-#### Feature Engineering Files (`outputs/feature_engineering/`)
-
-| File Pattern | Description | Required | Created By |
-|--------------|-------------|----------|------------|
-| `fpgrowth_features_{cohort}_{age_band}.csv` | FP-Growth features (itemset/rule indicators) | Yes | `create_fpgrowth_features.py` |
-| `fpgrowth_added_features_{cohort}_{age_band}.csv` | Final merged FP-Growth features for dashboard visualization only (not added to model data) | Yes | `add_fpgrowth_features_to_model_data.py` |
-
-S3 locations:
-- `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_features_{cohort}_{age_band}.csv`
-- `s3://pgxdatalake/gold/feature_engineering/4_fpgrowth/{cohort}/{age_band}/fpgrowth_added_features_{cohort}_{age_band}.csv`
-
-Format: CSV with `mi_person_key`; used by dashboard visuals only. We do not add FP-Growth or DTW features to model data.
+**Outputs:** Itemsets/rules JSON and plots only under `outputs/{cohort}/combined/`, `outputs/{cohort}/target/`, and `outputs/{cohort}/{age_band}/plots/`. We do **not** use or create `outputs/feature_engineering/`; FP-Growth features are not added to model data.
 
 ---
 
 ## Workflow Overview
 
 1. **Itemsets and Rules**  
-   `10_risk_dashboard/visualizations/fpgrowth/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps, split by item type and split type (`combined`, `target`).
+   `9_dashboard_visuals/fpgrowth/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4_model_data` / `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps for all item types (`drug_name`, `icd_code`, `cpt_code`, `medical_code`), split by `combined` and `target`. Outputs go to `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/combined|target/{age_band_fname}/train/`.
    
    **Note**: FP-Growth scripts automatically prefer DTW-filtered data (`model_events_no_protocols.parquet`) if available. This ensures itemsets and association rules only capture useful signals (non-protocol events), improving the quality of discovered patterns. See `4b_dtw_filter/DTW_ROLE.md` for details on DTW protocol filtering.
 
-2. **Feature Creation**  
-   `10_risk_dashboard/visualizations/fpgrowth/create_fpgrowth_features.py` converts itemsets/rules into patient-level features (NOTE: These features are NOT used in the final model due to target leakage - visualization only):
-   - Binary indicators for top N itemsets and rules (`*_match` columns)
-   - Count of matched itemsets/rules
-   - Aggregate support/confidence metrics (e.g., `*_itemsets_max_support`, `*_rules_max_confidence`)
-
-3. **Feature Aggregation**  
-   `10_risk_dashboard/visualizations/fpgrowth/add_fpgrowth_features_to_model_data.py` writes final merged features to `fpgrowth_added_features_{cohort}_{age_band}.csv` (NOTE: These features are NOT used in the final model - visualization only).
+2. **Plots**  
+   `create_fpgrowth_visuals.py` / `create_plots.py` build PNG and HTML from itemsets/rules JSON and write under `outputs/{cohort}/{age_band}/plots/`. No feature-engineering CSVs are created.
 
 ---
 
@@ -104,8 +87,5 @@ For each `(cohort, age_band)`:
   - [ ] HTML rule networks when rules are available
   - [ ] All plots uploaded to S3 under `gold/fpgrowth/{cohort}/{age_band}/plots/` (if applicable)
 
-- **Feature Engineering**
-  - [ ] `fpgrowth_features_{cohort}_{age_band}.csv` present under `4_fpgrowth_analysis/outputs/feature_engineering/`
-  - [ ] `fpgrowth_added_features_{cohort}_{age_band}.csv` present (dashboard only; not added to model data)
-  - [ ] (Optional) Copies uploaded to S3 `gold/feature_engineering/4_fpgrowth/...`
+- **No feature_engineering:** We do not create or use `outputs/feature_engineering/` for FP-Growth.
 

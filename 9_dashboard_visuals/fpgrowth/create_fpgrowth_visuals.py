@@ -39,7 +39,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create a module-level logger with both console and file handlers."""
-    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "feature_engineering" / "4_fpgrowth"
+    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "fpgrowth"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     age_band_fname = age_band.replace("-", "_")
@@ -70,8 +70,9 @@ def ensure_itemsets(
     cohort_name: str,
     age_band: str,
     logger: logging.Logger,
+    force: bool = False,
 ) -> None:
-    """Step 0: Ensure FP-Growth itemsets exist for this cohort/age_band."""
+    """Step 0: Ensure FP-Growth itemsets exist for this cohort/age_band. If force=True, re-run even when they exist."""
     age_band_fname = age_band.replace("-", "_")
     itemsets_dir = (
         DASHBOARD_FPGROWTH_OUT
@@ -86,9 +87,11 @@ def ensure_itemsets(
     )
 
     with step_block("4_fpgrowth", "ensure_itemsets", logger=logger):
-        if itemsets_exist:
-            logger.info("Itemsets already exist at %s; skipping creation", itemsets_dir)
+        if itemsets_exist and not force:
+            logger.info("Itemsets already exist at %s; skipping creation (use --force to re-run)", itemsets_dir)
             return
+        if itemsets_exist and force:
+            logger.info("Itemsets exist at %s; re-running due to --force", itemsets_dir)
 
         logger.info("Creating FP-Growth itemsets for %s / %s", cohort_name, age_band)
         script_path = PROJECT_ROOT / "fpgrowth" / "run_single_cohort_fpgrowth.py"
@@ -150,11 +153,14 @@ def create_visualizations(
         )
         plots_output_dir.mkdir(parents=True, exist_ok=True)
 
+        fpgrowth_outputs_root = DASHBOARD_FPGROWTH_OUT / "outputs"
         try:
             result = subprocess.run(
                 [
                     sys.executable,
                     str(script_path),
+                    "--base-dir",
+                    str(fpgrowth_outputs_root),
                     "--cohort-name",
                     cohort_name,
                     "--age-band",
@@ -231,7 +237,7 @@ def create_fpgrowth_visuals(
     with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger):
         logger.info("Starting FP-Growth visuals for %s / %s", cohort_name, age_band)
 
-        ensure_itemsets(cohort_name, age_band, logger=logger)
+        ensure_itemsets(cohort_name, age_band, logger=logger, force=force)
 
         if not skip_visualizations:
             ok = create_visualizations(cohort_name, age_band, logger=logger)
