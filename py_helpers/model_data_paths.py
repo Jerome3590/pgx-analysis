@@ -14,9 +14,58 @@ This module resolves local paths only; S3 paths are not resolved here.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from py_helpers.constants import get_cohort_slug_by_cohort
+
+
+def resolve_model_events_paths(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+) -> List[Path]:
+    """
+    Resolve model_events path(s). For 85-114, returns one path if partition 85-114 exists,
+    or two paths [85-94, 95-114] when only sub-partitions exist (caller should UNION).
+    Otherwise returns the same as resolve_model_events_path as a single-element list.
+    """
+    single = resolve_model_events_path(project_root, cohort_name, age_band)
+    if single is not None:
+        return [single]
+    if age_band != "85-114":
+        return []
+
+    # 85-114: try union of 85-94 and 95-114 (same roots and naming as 4_model_data).
+    import os
+    nvme_4 = Path("/mnt/nvme/4_model_data")
+    data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
+    candidates_4 = [nvme_4]
+    if data_root_env:
+        candidates_4.append(Path(data_root_env) / "4_model_data")
+    candidates_4.extend([
+        project_root / "4_model_data",
+        project_root / "4a_model_data",
+    ])
+
+    def _file_in_dir(base: Path, band: str) -> Optional[Path]:
+        d = base / f"cohort_name={cohort_name}" / f"age_band={band}"
+        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+            p = d / name
+            if p.exists():
+                return p
+        return None
+
+    for root in candidates_4:
+        if not root.exists():
+            continue
+        # Try 85-94 then 95-114 (hyphen and underscore).
+        for b94 in ("85-94", "85_94"):
+            for b114 in ("95-114", "95_114"):
+                p94 = _file_in_dir(root, b94)
+                p114 = _file_in_dir(root, b114)
+                if p94 is not None and p114 is not None:
+                    return [p94, p114]
+    return []
 
 
 def resolve_model_events_path(

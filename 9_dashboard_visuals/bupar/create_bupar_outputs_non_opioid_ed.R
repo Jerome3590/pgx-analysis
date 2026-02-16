@@ -108,24 +108,57 @@ if (TRUE) {
   if (file.exists(file.path(model_data_dir_underscore, "model_events_no_protocols.parquet")) ||
       file.exists(file.path(model_data_dir_underscore, "model_events.parquet"))) {
     model_data_dir <- model_data_dir_underscore
+    model_data_no_protocols <- file.path(model_data_dir, "model_events_no_protocols.parquet")
+    model_data_main         <- file.path(model_data_dir, "model_events.parquet")
+    model_data_path <- if (file.exists(model_data_no_protocols)) model_data_no_protocols else model_data_main
+    model_data_from_sql <- sprintf("read_parquet('%s')", model_data_path)
   } else if (file.exists(file.path(model_data_dir_hyphen, "model_events_no_protocols.parquet")) ||
              file.exists(file.path(model_data_dir_hyphen, "model_events.parquet"))) {
     model_data_dir <- model_data_dir_hyphen
+    model_data_no_protocols <- file.path(model_data_dir, "model_events_no_protocols.parquet")
+    model_data_main         <- file.path(model_data_dir, "model_events.parquet")
+    model_data_path <- if (file.exists(model_data_no_protocols)) model_data_no_protocols else model_data_main
+    model_data_from_sql <- sprintf("read_parquet('%s')", model_data_path)
+  } else if (age_band == "85-114") {
+    # 85-114: when single partition missing, union 85-94 and 95-114 (same as create_model_data / FP-Growth).
+    band_94_dirs  <- list(
+      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=85_94"),
+      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=85-94")
+    )
+    band_114_dirs <- list(
+      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=95_114"),
+      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=95-114")
+    )
+    pick_file <- function(dirs) {
+      for (d in dirs) {
+        np <- file.path(d, "model_events_no_protocols.parquet")
+        if (file.exists(np)) return(np)
+        mp <- file.path(d, "model_events.parquet")
+        if (file.exists(mp)) return(mp)
+      }
+      NULL
+    }
+    path_94  <- pick_file(band_94_dirs)
+    path_114 <- pick_file(band_114_dirs)
+    if (!is.null(path_94) && !is.null(path_114)) {
+      model_data_path      <- path_94
+      model_data_paths     <- c(path_94, path_114)
+      model_data_from_sql  <- sprintf("(SELECT * FROM read_parquet('%s') UNION ALL SELECT * FROM read_parquet('%s'))", path_94, path_114)
+      cat("Using model_events for 85-114 as union of 85-94 + 95-114\n")
+    } else {
+      stop("Model data not found for cohort ", cohort_name, " age_band ", age_band,
+           " (tried single 85-114 and union 85-94 + 95-114)")
+    }
   } else {
     stop("Model data not found for cohort ", cohort_name, " age_band ", age_band,
          " (tried age_band=", age_band_fname, " and age_band=", age_band, ")")
   }
-  model_data_no_protocols <- file.path(model_data_dir, "model_events_no_protocols.parquet")
-  model_data_main         <- file.path(model_data_dir, "model_events.parquet")
-  if (file.exists(model_data_no_protocols)) {
-    model_data_path <- model_data_no_protocols
-  } else {
-    model_data_path <- model_data_main
-  }
 }
 
 cat("Project root:         ", project_root, "\n", sep = "")
-cat("Model data path:      ", model_data_path, "\n\n", sep = "")
+cat("Model data path:      ", model_data_path, "\n", sep = "")
+if (exists("model_data_paths", inherits = FALSE)) cat("(85-114 = union 85-94 + 95-114)\n", sep = "")
+cat("\n", sep = "")
 
 # -------------------------------------------------------------------
 # Helper for saving CSVs locally + to S3, and central plots directory
@@ -167,23 +200,28 @@ pdf(file = rplots_path, width = 12, height = 9)
 # Load model_data and build target-only subset
 # -------------------------------------------------------------------
 
-if (!file.exists(model_data_path)) {
+# For 85-114 union we have two paths; otherwise one path
+if (exists("model_data_paths", inherits = FALSE)) {
+  if (!file.exists(model_data_path) || !file.exists(model_data_paths[2])) {
+    stop("model_data parquet(s) not found for 85-114 union.",
+         "\nRun 4_model_data/create_model_data.py for 85-94 and 95-114 (or single 85-114) first.")
+  }
+} else if (!file.exists(model_data_path)) {
   stop("model_data parquet not found at: ", model_data_path,
-       "\nRun 3_feature_importance/create_model_data.py for this cohort/age band first.")
+       "\nRun 4_model_data/create_model_data.py for this cohort/age band first.")
 }
 
 con <- dbConnect(duckdb::duckdb())
 
 # Detect if model_events has HCG target columns (needed for pre-HCG split)
-schema_info <- dbGetQuery(con, sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path))
+schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
 has_hcg_line <- "hcg_line" %in% schema_info$column_name
 has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
 if (has_hcg_line) cat("Model data has hcg_line column (first ED visit within 21d of drug event).\n")
 if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date column.\n")
 
 query <- sprintf(
-  "SELECT * FROM read_parquet('%s') WHERE event_year IN (%s)",
-  model_data_path,
+  paste0("SELECT * FROM ", model_data_from_sql, " WHERE event_year IN (%s)"),
   paste(train_years, collapse = ",")
 )
 

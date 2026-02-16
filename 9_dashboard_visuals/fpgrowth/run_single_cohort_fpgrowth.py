@@ -2,6 +2,7 @@
 """
 Run FP-Growth analysis for a single cohort/age_band combination.
 
+Item types (from cohort_fpgrowth.ITEM_TYPES): drug_name, icd_code, cpt_code, medical_code.
 This script calls process_single_cohort directly for a specific cohort/age_band.
 """
 

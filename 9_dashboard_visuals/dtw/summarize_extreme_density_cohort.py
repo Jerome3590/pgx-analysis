@@ -42,6 +42,10 @@ try:
     from py_helpers.fe_monitor import mirror_log_to_s3
 except ImportError:
     mirror_log_to_s3 = None
+try:
+    from py_helpers.model_data_paths import resolve_model_events_paths
+except ImportError:
+    resolve_model_events_paths = None
 
 # On EC2 model data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then repo.
 _MODEL_DATA_ROOTS = [
@@ -127,6 +131,23 @@ def _get_model_events_path(cohort_name: str, age_band: str) -> Path:
     )
 
 
+def _get_model_events_paths_and_from_sql(cohort_name: str, age_band: str) -> tuple[list[Path], str]:
+    """Resolve 1 or 2 model_events paths (85-114 = 85-94 + 95-114). Return (paths, FROM-clause SQL)."""
+    if resolve_model_events_paths and REPO_ROOT.exists():
+        paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+        if paths and all(p.exists() for p in paths):
+            norm = [str(p).replace("\\", "/") for p in paths]
+            if len(norm) == 1:
+                return paths, f"read_parquet('{norm[0]}')"
+            if len(norm) == 2:
+                return paths, f"(SELECT * FROM read_parquet('{norm[0]}') UNION ALL SELECT * FROM read_parquet('{norm[1]}'))"
+    # Fallback: single path from local resolver
+    single = _get_model_events_path(cohort_name, age_band)
+    if single.exists():
+        return [single], f"read_parquet('{str(single).replace(chr(92), '/')}')"
+    return [], ""
+
+
 def summarize_extreme_density_cohort(
     cohort_name: str,
     age_band: str,
@@ -136,15 +157,17 @@ def summarize_extreme_density_cohort(
         logger, _ = setup_logger()
     logger.info("Summarizing extreme-density cohort %s / %s", cohort_name, age_band)
 
-    model_events_path = _get_model_events_path(cohort_name, age_band)
-    if not model_events_path.exists():
-        logger.error("model_events not found at %s", model_events_path)
+    paths, from_sql = _get_model_events_paths_and_from_sql(cohort_name, age_band)
+    if not paths or not from_sql:
+        logger.error("model_events not found for %s / %s (tried single path and 85-114 = 85-94 + 95-114)", cohort_name, age_band)
         raise SystemExit(1)
+    if len(paths) == 2:
+        logger.info("Using model_events for 85-114 as union of 85-94 + 95-114")
 
     age_band_fname = age_band.replace("-", "_")
-    model_events_str = str(model_events_path).replace("\\", "/")
 
     con = duckdb.connect(database=":memory:")
+    con.execute(f"CREATE VIEW model_events AS SELECT * FROM {from_sql}")
 
     # ------------------------------------------------------------------
     # Aggregate stats: patients, events, event_type breakdown
@@ -155,9 +178,8 @@ def summarize_extreme_density_cohort(
         SELECT
             COUNT(DISTINCT mi_person_key) AS n_patients,
             COUNT(*) AS n_events
-        FROM read_parquet(?)
-        """,
-        [model_events_str],
+        FROM model_events
+        """
     ).df()
 
     n_patients = int(agg_df.iloc[0]["n_patients"])
@@ -168,11 +190,10 @@ def summarize_extreme_density_cohort(
     event_type_df = con.execute(
         """
         SELECT event_type, COUNT(*) AS n_events
-        FROM read_parquet(?)
+        FROM model_events
         GROUP BY event_type
         ORDER BY n_events DESC
         """,
-        [model_events_str],
     ).df()
 
     for _, row in event_type_df.iterrows():
@@ -192,7 +213,7 @@ def summarize_extreme_density_cohort(
             SELECT
                 mi_person_key,
                 MAX(target) AS target
-            FROM read_parquet(?)
+            FROM model_events
             GROUP BY mi_person_key
         )
         SELECT target, COUNT(*) AS n_patients
@@ -200,7 +221,6 @@ def summarize_extreme_density_cohort(
         GROUP BY target
         ORDER BY target
         """,
-        [model_events_str],
     ).df()
 
     target_dist = {}
@@ -225,77 +245,77 @@ def summarize_extreme_density_cohort(
     query_medical = f"""
     WITH all_med_codes AS (
         SELECT mi_person_key, primary_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE primary_icd_diagnosis_code IS NOT NULL
           AND primary_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, two_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE two_icd_diagnosis_code IS NOT NULL
           AND two_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, three_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE three_icd_diagnosis_code IS NOT NULL
           AND three_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, four_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE four_icd_diagnosis_code IS NOT NULL
           AND four_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, five_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE five_icd_diagnosis_code IS NOT NULL
           AND five_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, six_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE six_icd_diagnosis_code IS NOT NULL
           AND six_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, seven_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE seven_icd_diagnosis_code IS NOT NULL
           AND seven_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, eight_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE eight_icd_diagnosis_code IS NOT NULL
           AND eight_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, nine_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE nine_icd_diagnosis_code IS NOT NULL
           AND nine_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, ten_icd_diagnosis_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE ten_icd_diagnosis_code IS NOT NULL
           AND ten_icd_diagnosis_code != ''
           AND event_type = 'medical'
           AND {event_filter}
         UNION ALL
         SELECT mi_person_key, procedure_code AS code
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE procedure_code IS NOT NULL
           AND procedure_code != ''
           AND event_type = 'medical'
@@ -344,10 +364,9 @@ def summarize_extreme_density_cohort(
             COUNT(*) AS n_events_total,
             SUM(CASE WHEN event_type = 'pharmacy' THEN 1 ELSE 0 END) AS n_events_pharmacy,
             SUM(CASE WHEN event_type = 'medical' THEN 1 ELSE 0 END) AS n_events_medical
-        FROM read_parquet(?)
+        FROM model_events
         GROUP BY mi_person_key
         """,
-        [model_events_str],
     ).df()
 
     # Left join transaction sizes (may be missing for some if no TRAIN-year medical codes)
@@ -363,13 +382,12 @@ def summarize_extreme_density_cohort(
         # Escape single quotes for SQL; build IN list
         admin_list = ", ".join("'" + str(c).replace("'", "''") + "'" for c in sorted(admin_icd))
         icd_conditions = " OR ".join(f"{col} IN ({admin_list})" for col in ICD_DIAGNOSIS_COLUMNS)
-        path_str = model_events_str.replace("\\", "/")
         try:
             admin_df = con.execute(
                 f"""
                 WITH events_with_admin_icd AS (
                     SELECT mi_person_key
-                    FROM read_parquet('{path_str}')
+                    FROM model_events
                     WHERE {icd_conditions}
                 )
                 SELECT mi_person_key, COUNT(*)::INTEGER AS admin_icd_event_count
@@ -396,7 +414,7 @@ def summarize_extreme_density_cohort(
         patient_summary_df["admin_icd_event_count"] = 0
         patient_summary_df["routine_admin"] = "Unknown (no admin codes lookup)"
 
-    out_dir = model_events_path.parent
+    out_dir = paths[0].parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
     patient_csv_path = out_dir / f"extreme_density_patient_summary_{age_band_fname}.csv"
@@ -412,14 +430,13 @@ def summarize_extreme_density_cohort(
         SELECT
             drug_name,
             COUNT(*) AS n_events
-        FROM read_parquet(?)
+        FROM model_events
         WHERE event_type = 'pharmacy'
           AND drug_name IS NOT NULL
           AND drug_name != ''
         GROUP BY drug_name
         ORDER BY n_events DESC
         """,
-        [model_events_str],
     ).df()
 
     drug_freq_path = out_dir / f"extreme_density_drug_frequency_{age_band_fname}.csv"
@@ -443,61 +460,61 @@ def summarize_extreme_density_cohort(
     icd_freq_query = f"""
     WITH all_icds AS (
         SELECT primary_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE primary_icd_diagnosis_code IS NOT NULL
           AND primary_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT two_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE two_icd_diagnosis_code IS NOT NULL
           AND two_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT three_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE three_icd_diagnosis_code IS NOT NULL
           AND three_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT four_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE four_icd_diagnosis_code IS NOT NULL
           AND four_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT five_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE five_icd_diagnosis_code IS NOT NULL
           AND five_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT six_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE six_icd_diagnosis_code IS NOT NULL
           AND six_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT seven_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE seven_icd_diagnosis_code IS NOT NULL
           AND seven_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT eight_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE eight_icd_diagnosis_code IS NOT NULL
           AND eight_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT nine_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE nine_icd_diagnosis_code IS NOT NULL
           AND nine_icd_diagnosis_code != ''
           AND event_type = 'medical'
         UNION ALL
         SELECT ten_icd_diagnosis_code AS icd
-        FROM read_parquet('{model_events_str}')
+        FROM model_events
         WHERE ten_icd_diagnosis_code IS NOT NULL
           AND ten_icd_diagnosis_code != ''
           AND event_type = 'medical'
@@ -532,14 +549,13 @@ def summarize_extreme_density_cohort(
         SELECT
             procedure_code AS cpt,
             COUNT(*) AS n_events
-        FROM read_parquet(?)
+        FROM model_events
         WHERE event_type = 'medical'
           AND procedure_code IS NOT NULL
           AND procedure_code != ''
         GROUP BY procedure_code
         ORDER BY n_events DESC
         """,
-        [model_events_str],
     ).df()
 
     cpt_freq_path = out_dir / f"extreme_density_cpt_frequency_{age_band_fname}.csv"

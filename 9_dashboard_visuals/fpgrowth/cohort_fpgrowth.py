@@ -86,6 +86,7 @@ DRY_RUN_LIMIT = 5  # Number of cohort combinations to process in dry run
 
 COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 
+# FP-Growth item types: drugs, ICD diagnosis codes, CPT procedure codes, and combined medical_code
 ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code', 'medical_code']
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
 LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fast I/O)
@@ -130,6 +131,27 @@ def _model_data_path(cohort_name: str, age_band: str) -> Path | None:
         return resolve_model_events_path(REPO_ROOT, cohort_name, age_band)
     except Exception:  # noqa: BLE001
         return None
+
+
+def _model_data_paths(cohort_name: str, age_band: str) -> list:
+    """Return 1 or 2 paths for model_events (2 only for 85-114 when 85-94 + 95-114 exist). Uses shared resolver."""
+    try:
+        from py_helpers.model_data_paths import resolve_model_events_paths
+        return resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _model_data_from_sql(paths: list) -> str:
+    """Build DuckDB FROM clause: single read_parquet or UNION of two (for 85-114 = 85-94 + 95-114)."""
+    if not paths:
+        raise ValueError("model_data paths list is empty")
+    normalized = [str(p).replace("\\", "/") for p in paths]
+    if len(normalized) == 1:
+        return f"read_parquet('{normalized[0]}')"
+    if len(normalized) == 2:
+        return f"(SELECT * FROM read_parquet('{normalized[0]}') UNION ALL SELECT * FROM read_parquet('{normalized[1]}'))"
+    raise ValueError(f"Expected 1 or 2 model_data paths, got {len(paths)}")
 
 # =============================================================================
 # COHORT PROCESSING
@@ -362,8 +384,13 @@ def process_single_cohort(
         # then fall back to regular model_data, then raw GOLD cohorts parquet.
         # This ensures FP-Growth only uses useful signals (non-protocol events) for itemsets and rules.
         # Use smart path resolution (checks 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data).
-        # Pass age_band with hyphen: 4_model_data and 3b use hyphen in partition names (e.g. age_band=75-84).
-        model_data_path = _model_data_path(cohort_name, age_band)
+        # For 85-114, may union 85-94 + 95-114 when single 85-114 partition is not present.
+        model_data_paths = _model_data_paths(cohort_name, age_band)
+        if model_data_paths:
+            resolved_str = " + ".join(str(p) for p in model_data_paths)
+            logger.info(f"Resolved model_events for {cohort_name}/{age_band}: {resolved_str}")
+        else:
+            logger.info(f"Resolved model_events for {cohort_name}/{age_band}: none (tried 3b, /mnt/nvme/4_model_data, $PGX_DATA_ROOT, 4_model_data, 4a_model_data; both age_band formats)")
 
         # Special handling for aggregated training window ("train" = 2016–2018)
         event_label = str(event_year)
@@ -371,14 +398,18 @@ def process_single_cohort(
             # Training FP-Growth requires model_data (filtered important items + 5:1 control).
             # This keeps memory usage manageable and ensures only useful signals are used.
             if USE_MODEL_DATA_IF_AVAILABLE:
-                if model_data_path:
-                    parquet_file = model_data_path
+                if model_data_paths:
+                    model_data_from = _model_data_from_sql(model_data_paths)
+                    parquet_file = model_data_paths[0]  # for logging / schema check
                     file_type = "no_protocols" if "no_protocols" in str(parquet_file) else "regular"
-                    logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2018): {parquet_file}")
+                    if len(model_data_paths) == 2:
+                        logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (85-114 = 85-94 + 95-114): {model_data_paths[0]} + {model_data_paths[1]}")
+                    else:
+                        logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2018): {parquet_file}")
                 else:
                     logger.warning(
                         f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
-                        f"but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data. "
+                        f"but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data (for 85-114 also 85-94+95-114). "
                         "Run create_model_data.py first for this cohort/age_band."
                     )
                     return {
@@ -399,11 +430,16 @@ def process_single_cohort(
                 }
         else:
             # For non-TRAIN years, prefer model_data if available, else fall back to raw GOLD cohorts
-            if USE_MODEL_DATA_IF_AVAILABLE and model_data_path:
-                parquet_file = model_data_path
+            if USE_MODEL_DATA_IF_AVAILABLE and model_data_paths:
+                model_data_from = _model_data_from_sql(model_data_paths)
+                parquet_file = model_data_paths[0]
                 file_type = "no_protocols" if "no_protocols" in str(parquet_file) else "regular"
-                logger.info(f"Using {file_type} model_data for FP-Growth: {parquet_file}")
+                if len(model_data_paths) == 2:
+                    logger.info(f"Using {file_type} model_data for FP-Growth (85-114 = 85-94 + 95-114): {model_data_paths[0]} + {model_data_paths[1]}")
+                else:
+                    logger.info(f"Using {file_type} model_data for FP-Growth: {parquet_file}")
             else:
+                model_data_from = None  # will use parquet_file for GOLD
                 parquet_file = (
                     local_data_path
                     / f"cohort_name={cohort_name}"
@@ -412,7 +448,7 @@ def process_single_cohort(
                     / "cohort.parquet"
                 )
 
-        if not parquet_file.exists():
+        if model_data_from is None and not parquet_file.exists():
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
             return {
                 'item_type': item_type,
@@ -421,7 +457,9 @@ def process_single_cohort(
                 'event_year': event_year,
                 'error': 'File not found'
             }
-        
+        if model_data_from is None:
+            model_data_from = f"read_parquet('{str(parquet_file).replace(chr(92), '/')}')"
+
         # Determine event_year filter (single year vs aggregated TRAIN window).
         event_label = str(event_year)
         if event_label == "train":
@@ -430,9 +468,9 @@ def process_single_cohort(
         else:
             event_filter = f"event_year = {event_year}"
 
-        # Verify parquet schema before querying
+        # Verify parquet schema before querying (use first path for union case)
         try:
-            schema_check = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{parquet_file}') LIMIT 0").fetchall()
+            schema_check = con.execute(f"DESCRIBE SELECT * FROM {model_data_from} LIMIT 0").fetchall()
             available_cols = {row[0] for row in schema_check}
             logger.info(f"Parquet schema has {len(available_cols)} columns: {sorted(available_cols)[:20]}...")
         except Exception as e:
@@ -460,7 +498,7 @@ def process_single_cohort(
                 }
             query = f"""
             SELECT mi_person_key, drug_name as item, target
-            FROM read_parquet('{parquet_file}')
+            FROM {model_data_from}
             WHERE
                 drug_name IS NOT NULL
                 AND drug_name != ''
@@ -472,43 +510,43 @@ def process_single_cohort(
             query = f"""
             WITH all_icds AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE primary_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE two_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE three_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE four_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE five_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE six_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE seven_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE eight_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE nine_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as icd, target
-                FROM read_parquet('{parquet_file}') 
+                FROM {model_data_from} 
                 WHERE ten_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
             )
             SELECT mi_person_key, icd as item, target FROM all_icds WHERE icd != ''
@@ -516,7 +554,7 @@ def process_single_cohort(
         elif item_type == 'cpt_code':
             query = f"""
             SELECT mi_person_key, procedure_code as item, target
-            FROM read_parquet('{parquet_file}')
+            FROM {model_data_from}
             WHERE
                 procedure_code IS NOT NULL
                 AND procedure_code != ''
@@ -528,47 +566,47 @@ def process_single_cohort(
             query = f"""
             WITH all_med_codes AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, procedure_code as code, target
-                FROM read_parquet('{parquet_file}')
+                FROM {model_data_from}
                 WHERE procedure_code IS NOT NULL AND procedure_code != '' AND target = 1 AND {event_filter}
             )
             SELECT mi_person_key, code as item, target FROM all_med_codes WHERE code != ''
