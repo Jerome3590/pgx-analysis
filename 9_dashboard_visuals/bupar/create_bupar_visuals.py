@@ -71,7 +71,7 @@ def _find_rscript() -> str | None:
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create a module-level logger with both console and file handlers."""
-    logs_dir = PROJECT_ROOT / "logs" / "feature_engineering" / "5_bupar"
+    logs_dir = PROJECT_ROOT / "logs" / "bupaR"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     age_band_fname = age_band.replace("-", "_")

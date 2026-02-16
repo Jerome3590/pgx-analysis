@@ -29,6 +29,13 @@ from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 
 try:
+    from py_helpers.constants import COHORT_NAMES, AGE_BANDS, EVENT_YEARS
+except ImportError:
+    COHORT_NAMES = ["opioid_ed", "non_opioid_ed"]
+    AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
+    EVENT_YEARS = ["2016", "2017", "2018", "2019", "2020"]
+
+try:
     from py_helpers.shap_ffa_fpgrowth_utils import (
         get_final_feature_importance_codes,
         get_shap_ffa_important_codes,
