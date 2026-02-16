@@ -12,8 +12,8 @@ Data flow to visualizations:
 - chart_data.json: _build_dtw_chart_data(dtw_df) builds routine_comparison (x, y, type, name, x_label, y_label)
   and high_risk_trajectories (same shape) from target + admin_icd_event_count or trajectory_length/dtw_min_distance.
   Frontend (index.html) expects chart_data_url -> JSON with routine_comparison and high_risk_trajectories.
-- Outputs: outputs/feature_engineering/dtw_added_features_*.csv; outputs/{cohort}/{age_band}/plots/*.png;
-  S3 dashboard bucket: plots/ + chart_data.json.
+- Outputs: outputs/{cohort}/{age_band}/plots/*.png/html + chart_data.json uploaded to S3 dashboard bucket.
+  DTW CSV files (dtw_features, dtw_added_features) are NOT uploaded; dashboard only uses plots and chart_data.
 """
 
 import argparse
@@ -41,7 +41,6 @@ if str(REPO_ROOT) not in sys.path:
 if str(DTW_VIZ_DIR) not in sys.path:
     sys.path.insert(0, str(DTW_VIZ_DIR))  # noqa: E402 — so create_dtw_plots can be imported
 
-from py_helpers.fe_monitor import mirror_checkpoint_to_s3  # noqa: E402
 from py_helpers.checkpoint_utils import check_step_checkpoint_exists, save_step_checkpoint  # noqa: E402
 
 
@@ -53,18 +52,17 @@ def create_dtw_visuals(
 ) -> None:
     """
     Create and publish DTW visuals for the dashboard. Does not add DTW features to model data.
-    Loads the DTW features CSV from create_dtw_features.py, writes a copy to
-    outputs/feature_engineering/dtw_added_features_{cohort}_{age_band}.csv,
-    mirrors to feature_engineering_outputs, uploads to S3, and uploads plots + chart_data to the dashboard bucket.
-    If force is False and the output CSV already exists, skips (idempotent).
+    Loads the DTW features CSV from create_dtw_features.py, generates plots and chart_data,
+    and uploads to the dashboard bucket. DTW CSV files are not uploaded (dashboard only uses plots/chart_data).
+    If force is False and plots already exist, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
-    out_dir = dtw_out / "outputs" / "feature_engineering"
-    out_path = out_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
-    # Idempotency: skip if local output exists or pipeline checkpoint exists (aligns with pipeline_checkpoints)
-    if not force and out_path.exists():
-        print(f"[INFO] Output exists at {out_path}; skipping (use --force to re-run)")
+    
+    # Idempotency: check if plots directory exists (dashboard deliverables)
+    plots_dir = dtw_out / "outputs" / cohort_name / age_band_fname / "plots"
+    if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
+        print(f"[INFO] DTW plots exist at {plots_dir}; skipping (use --force to re-run)")
         return
     if not force and check_step_checkpoint_exists("9_dashboard_visuals", cohort_name, age_band, logger=None):
         print(f"[INFO] Pipeline checkpoint exists for 9_dashboard_visuals {cohort_name}/{age_band}; skipping (use --force to re-run)")
@@ -109,57 +107,6 @@ def create_dtw_visuals(
 
     print(f"[INFO] Loaded {len(dtw_df)} patients with {len(dtw_df.columns) - 1} DTW features")
 
-    # Output to feature_engineering directory
-    out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Writing final DTW features to {out_path} ({len(dtw_df)} rows)")
-    dtw_df.to_csv(out_path, index=False)
-
-    # Upload to S3 gold location (legacy feature_engineering path)
-    s3_path = f"s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort_name}/{age_band}/dtw_added_features_{cohort_name}_{age_band_fname}.csv"
-
-    aws_cli = shutil.which("aws")
-    if aws_cli:
-        try:
-            print(f"[INFO] Uploading to S3: {s3_path}")
-            subprocess.run(
-                [aws_cli, "s3", "cp", str(out_path), s3_path],
-                check=True,
-                capture_output=True,
-            )
-            print("[INFO] S3 upload successful")
-        except subprocess.CalledProcessError as e:
-            print(f"[WARNING] S3 upload failed: {e.stderr.decode() if e.stderr else 'Unknown error'}")
-    else:
-        print("[INFO] AWS CLI not found, skipping S3 upload")
-
-    # Pipeline checkpoint (pipeline_checkpoints/9_dashboard_visuals/) — used for idempotency and status
-    s3_output_paths = [
-        f"s3://pgxdatalake/gold/feature_engineering/6_dtw/{cohort_name}/{age_band}/dtw_added_features_{cohort_name}_{age_band_fname}.csv",
-    ]
-    try:
-        save_step_checkpoint(
-            "9_dashboard_visuals",
-            cohort_name,
-            age_band,
-            metadata={"output_csv": out_path.name},
-            output_paths=s3_output_paths,
-            logger=None,
-        )
-    except Exception as exc:  # pragma: no cover
-        print(f"[WARNING] Could not save pipeline checkpoint: {exc}")
-
-    # Optional: mirror CSV to 6_dtw_checkpoint (legacy/observability; see README_DTW_S3_CHECKPOINTS.md)
-    try:
-        mirror_checkpoint_to_s3(
-            feature_step="6_dtw",
-            cohort=cohort_name,
-            age_band=age_band,
-            local_path=out_path,
-            logger=None,
-        )
-    except Exception as exc:  # pragma: no cover - best-effort
-        print(f"[WARNING] Could not mirror DTW checkpoint to S3: {exc}")
-
     # Create 3D/1D trajectory cluster plots (Plotly) then upload plots to dashboard bucket
     try:
         from create_dtw_plots import create_trajectory_cluster_plots
@@ -192,8 +139,25 @@ def create_dtw_visuals(
     if chart_data:
         _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data)
 
+    # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
+    s3_output_paths = [
+        f"s3://{os.environ.get('S3_DASHBOARD_BUCKET', 'jerome-dixon.io')}/{os.environ.get('S3_DASHBOARD_PREFIX', 'vcu/pgx-risk-calculator')}/dtw/{cohort_name}/{age_band}/plots/"
+    ]
+    try:
+        save_step_checkpoint(
+            "9_dashboard_visuals",
+            cohort_name,
+            age_band,
+            metadata={"dtw_plots": "uploaded"},
+            output_paths=s3_output_paths,
+            logger=None,
+        )
+    except Exception as exc:  # pragma: no cover
+        print(f"[WARNING] Could not save pipeline checkpoint: {exc}")
+
     print("[INFO] Done.")
-    print(f"\nFinal output: {out_path} (standalone DTW features for dashboard; not added to model data)")
+    print(f"\nDTW visuals complete. Plots and chart_data uploaded to dashboard S3 (CSV files not uploaded; dashboard uses plots only)")
+
 
 
 def _upload_dtw_plots_to_dashboard_s3(
