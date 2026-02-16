@@ -411,15 +411,19 @@ def process_single_cohort(
                         local_data_path
                         / f"cohort_name={cohort_name}"
                         / f"event_year={event_year}"
-                    / f"age_band={age_band_fname}"
-                    / "cohort.parquet"
-                )
+                        / f"age_band={age_band_fname}"
+                        / "cohort.parquet"
+                    )
             else:
                 parquet_file = (
                     local_data_path
                     / f"cohort_name={cohort_name}"
                     / f"event_year={event_year}"
                     / f"age_band={age_band_fname}"
+                    / "cohort.parquet"
+                )
+
+        if not parquet_file.exists():
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
             return {
                 'item_type': item_type,
