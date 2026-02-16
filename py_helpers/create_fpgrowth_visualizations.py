@@ -40,6 +40,68 @@ def _load_json_df(path: Path) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+def _load_multi_year_data(
+    base_path: Path,
+    cohort_name: str,
+    age_band: str,
+    item_type: str,
+    split_type: str = "combined",
+    logger: Optional[logging.Logger] = None,
+) -> Dict[int, Dict[str, pd.DataFrame]]:
+    """
+    Load itemsets and rules from multiple year directories (train/, 2016/, 2017/, 2018/).
+    
+    Returns:
+        Dict mapping year -> {"itemsets": df, "rules": df}
+        Year 0 represents "All Years" (train/ directory)
+        Individual years 2016, 2017, 2018 map to their respective directories
+    """
+    age_band_fname = age_band.replace("-", "_")
+    years_to_load = [
+        (0, "train"),       # Year 0 = "All Years" from train/ directory
+        (2016, "2016"),
+        (2017, "2017"),
+        (2018, "2018"),
+    ]
+    
+    multi_year_data: Dict[int, Dict[str, pd.DataFrame]] = {}
+    
+    for year, year_dir in years_to_load:
+        year_path = base_path / cohort_name / split_type / age_band_fname / year_dir
+        
+        # Load itemsets
+        itemsets_file = f"{item_type}_itemsets_lift_filtered.json"
+        itemsets_path = year_path / itemsets_file
+        df_itemsets = _load_json_df(itemsets_path)
+        
+        # Load rules (for target split type)
+        df_rules = pd.DataFrame()
+        if split_type == "target":
+            rules_file = f"{item_type}_rules_lift_filtered.json"
+            rules_path = year_path / rules_file
+            df_rules = _load_json_df(rules_path)
+        
+        # Only store if we have data
+        if not df_itemsets.empty or not df_rules.empty:
+            multi_year_data[year] = {
+                "itemsets": df_itemsets,
+                "rules": df_rules
+            }
+            if logger:
+                logger.info(
+                    "Loaded year %s (%s): %d itemsets, %d rules",
+                    year if year != 0 else "All",
+                    year_dir,
+                    len(df_itemsets),
+                    len(df_rules)
+                )
+        else:
+            if logger:
+                logger.warning("No data found for year %s (%s) at %s", year, year_dir, year_path)
+    
+    return multi_year_data
+
+
 def _top_itemset_plot(
     df_itemsets: pd.DataFrame,
     cohort_name: str,
@@ -88,6 +150,157 @@ def _top_itemset_plot(
     if logger:
         logger.info("Saved top itemset plot to %s", out_path)
 
+    return out_path
+
+
+def _top_itemsets_interactive(
+    multi_year_data: Dict[int, Dict[str, pd.DataFrame]],
+    cohort_name: str,
+    age_band: str,
+    item_type: str,
+    top_n: int,
+    output_dir: Path,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """
+    Create an interactive Plotly horizontal bar chart showing top itemsets with year dropdown.
+    
+    Args:
+        multi_year_data: Dict mapping year -> {"itemsets": df, "rules": df}
+        cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
+        age_band: Age band (e.g., "1-0-12", "1-13-24")
+        item_type: Type of items (drug_name, icd_code, cpt_code, medical_code)
+        top_n: Number of top itemsets to display
+        output_dir: Directory to save the output HTML file
+        logger: Logger instance
+        
+    Returns:
+        Path to the generated HTML file, or None if no data
+    """
+    if not PLOTLY_AVAILABLE:
+        if logger:
+            logger.warning("Plotly not available; skipping interactive itemsets visualization")
+        return None
+    
+    if not multi_year_data:
+        return None
+    
+    # Helper function to create label for itemset
+    def _label(items) -> str:
+        if not isinstance(items, list):
+            return str(items)
+        return ", ".join(str(x) for x in items[:3])  # Limit to first 3 items for readability
+    
+    # Prepare data for each year
+    traces = []
+    years = sorted(multi_year_data.keys())
+    
+    for year in years:
+        df_itemsets = multi_year_data[year]["itemsets"]
+        if df_itemsets.empty or "support" not in df_itemsets.columns:
+            continue
+        
+        df = df_itemsets.copy()
+        df["label"] = df["itemsets"].apply(_label)
+        df = df.sort_values("support", ascending=False).head(top_n)
+        
+        if df.empty:
+            continue
+        
+        # Create hover text with full itemset details
+        def _hover_text(row):
+            items = row["itemsets"] if isinstance(row["itemsets"], list) else [row["itemsets"]]
+            support = row["support"]
+            return f"<b>Itemset:</b> {', '.join(str(x) for x in items)}<br><b>Support:</b> {support:.4f}"
+        
+        df["hover"] = df.apply(_hover_text, axis=1)
+        
+        year_label = "All Years (2016-2018)" if year == 0 else str(year)
+        
+        trace = go.Bar(
+            x=df["support"],
+            y=df["label"],
+            orientation="h",
+            name=year_label,
+            visible=(year == 0),  # Only "All Years" visible by default
+            marker=dict(color="steelblue"),
+            hovertext=df["hover"],
+            hoverinfo="text"
+        )
+        traces.append(trace)
+    
+    if not traces:
+        if logger:
+            logger.warning("No itemsets data available for interactive visualization")
+        return None
+    
+    # Create dropdown menu buttons
+    buttons = []
+    for i, year in enumerate(years):
+        year_label = "All Years (2016-2018)" if year == 0 else str(year)
+        visible_list = [False] * len(traces)
+        visible_list[i] = True
+        
+        button = dict(
+            label=year_label,
+            method="update",
+            args=[
+                {"visible": visible_list},
+                {"title": f"{cohort_name} {age_band} {item_type} — Top {top_n} Itemsets ({year_label})"}
+            ]
+        )
+        buttons.append(button)
+    
+    # Create layout with dropdown
+    layout = go.Layout(
+        title=f"{cohort_name} {age_band} {item_type} — Top {top_n} Itemsets (All Years)",
+        xaxis=dict(title="Support", showgrid=True),
+        yaxis=dict(title="Itemset", autorange="reversed"),  # Top itemset at top
+        updatemenus=[
+            dict(
+                buttons=buttons,
+                direction="down",
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.15,
+                xanchor="left",
+                y=1.08,
+                yanchor="top",
+                bgcolor="rgba(255, 255, 255, 0.9)",
+                bordercolor="#888",
+                borderwidth=1
+            )
+        ],
+        annotations=[
+            dict(
+                text="<b>Year:</b>",
+                showarrow=False,
+                x=0.03,
+                y=1.08,
+                xref="paper",
+                yref="paper",
+                align="left",
+                xanchor="left",
+                yanchor="top",
+                font=dict(size=12)
+            )
+        ],
+        height=800,
+        margin=dict(l=200, r=50, t=100, b=50),
+        hovermode="closest"
+    )
+    
+    fig = go.Figure(data=traces, layout=layout)
+    
+    # Save to HTML
+    fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_itemsets_interactive.html"
+    out_path = output_dir / fname
+    _ensure_output_dir(output_dir)
+    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True})
+    
+    if logger:
+        logger.info("Saved interactive itemsets visualization to %s", out_path)
+    
     return out_path
 
 
@@ -276,6 +489,257 @@ def _network_from_rules_plotly(
     return out_path
 
 
+def _network_interactive_multi_year(
+    multi_year_data: Dict[int, Dict[str, pd.DataFrame]],
+    cohort_name: str,
+    age_band: str,
+    item_type: str,
+    min_rules: int,
+    max_nodes: int,
+    output_dir: Path,
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Path]:
+    """
+    Create an interactive Plotly network graph from association rules with year dropdown.
+    
+    Args:
+        multi_year_data: Dict mapping year -> {"itemsets": df, "rules": df}
+        cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
+        age_band: Age band (e.g., "1-0-12", "1-13-24")
+        item_type: Type of items (drug_name, icd_code, cpt_code, medical_code)
+        min_rules: Minimum number of rules required to generate network
+        max_nodes: Maximum number of nodes to include in the network
+        output_dir: Directory to save the output HTML file
+        logger: Logger instance
+        
+    Returns:
+        Path to the generated HTML file, or None if no data
+    """
+    if not PLOTLY_AVAILABLE:
+        if logger:
+            logger.warning("Plotly not available; skipping interactive network visualization")
+        return None
+    
+    if not multi_year_data:
+        return None
+    
+    # Build network graphs for each year
+    year_graphs = {}
+    years = sorted(multi_year_data.keys())
+    
+    for year in years:
+        df_rules = multi_year_data[year]["rules"]
+        if df_rules.empty or len(df_rules) < min_rules:
+            continue
+        
+        if "antecedents" not in df_rules.columns or "consequents" not in df_rules.columns:
+            continue
+        
+        # Build directed graph
+        G = nx.DiGraph()
+        for _, row in df_rules.iterrows():
+            ants = row["antecedents"]
+            cons = row["consequents"]
+            support = float(row.get("support", 0.0) or 0.0)
+            confidence = float(row.get("confidence", 0.0) or 0.0)
+            lift = float(row.get("lift", 0.0) or 0.0)
+            
+            if not isinstance(ants, list) or not isinstance(cons, list):
+                continue
+            
+            for a in ants:
+                for c in cons:
+                    if not a or not c:
+                        continue
+                    if G.has_edge(a, c):
+                        # Aggregate metrics by averaging
+                        data = G[a][c]
+                        data["support"] = (data["support"] + support) / 2.0
+                        data["confidence"] = (data["confidence"] + confidence) / 2.0
+                        data["lift"] = (data["lift"] + lift) / 2.0
+                    else:
+                        G.add_edge(a, c, support=support, confidence=confidence, lift=lift)
+        
+        if G.number_of_edges() > 0:
+            # Limit nodes if network too large
+            if G.number_of_nodes() > max_nodes:
+                # Keep top nodes by degree centrality
+                centrality = nx.degree_centrality(G)
+                top_nodes = sorted(centrality, key=centrality.get, reverse=True)[:max_nodes]
+                G = G.subgraph(top_nodes).copy()
+            
+            year_graphs[year] = G
+    
+    if not year_graphs:
+        if logger:
+            logger.warning("No network data available for interactive visualization")
+        return None
+    
+    # Create traces for each year
+    traces = []
+    years_with_data = sorted(year_graphs.keys())
+    
+    for year in years_with_data:
+        G = year_graphs[year]
+        
+        # Compute layout once per year
+        pos = nx.spring_layout(G, seed=42, k=0.5, iterations=50)
+        centrality = nx.degree_centrality(G)
+        
+        # Create edge traces
+        edge_x, edge_y = [], []
+        edge_hover = []
+        
+        for u, v in G.edges():
+            x0, y0 = pos[u]
+            x1, y1 = pos[v]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+            
+            data = G[u][v]
+            hover = (
+                f"<b>Rule:</b> {u} → {v}<br>"
+                f"<b>Support:</b> {data['support']:.4f}<br>"
+                f"<b>Confidence:</b> {data['confidence']:.4f}<br>"
+                f"<b>Lift:</b> {data['lift']:.4f}"
+            )
+            edge_hover.append(hover)
+        
+        edge_trace = go.Scatter(
+            x=edge_x,
+            y=edge_y,
+            line=dict(width=1.5, color="#888"),
+            hoverinfo="text",
+            hovertext=[h for h in edge_hover for _ in range(3)],  # Repeat for each edge segment
+            mode="lines",
+            name="Rules",
+            showlegend=False,
+            visible=(year == 0)  # Only "All Years" visible by default
+        )
+        
+        # Create node traces
+        node_x = [pos[n][0] for n in G.nodes()]
+        node_y = [pos[n][1] for n in G.nodes()]
+        node_sizes = [15 + 35 * centrality.get(n, 0.0) for n in G.nodes()]
+        node_text = list(G.nodes())
+        
+        node_hover = []
+        for node in G.nodes():
+            in_degree = G.in_degree(node)
+            out_degree = G.out_degree(node)
+            hover = (
+                f"<b>Item:</b> {node}<br>"
+                f"<b>In-degree:</b> {in_degree}<br>"
+                f"<b>Out-degree:</b> {out_degree}<br>"
+                f"<b>Centrality:</b> {centrality[node]:.4f}"
+            )
+            node_hover.append(hover)
+        
+        node_trace = go.Scatter(
+            x=node_x,
+            y=node_y,
+            mode="markers+text",
+            text=node_text,
+            textposition="top center",
+            textfont=dict(size=9),
+            marker=dict(
+                size=node_sizes,
+                color="lightblue",
+                line=dict(width=1, color="darkblue")
+            ),
+            hoverinfo="text",
+            hovertext=node_hover,
+            name="Items",
+            showlegend=False,
+            visible=(year == 0)  # Only "All Years" visible by default
+        )
+        
+        traces.extend([edge_trace, node_trace])
+    
+    # Create dropdown menu buttons
+    buttons = []
+    for i, year in enumerate(years_with_data):
+        year_label = "All Years (2016-2018)" if year == 0 else str(year)
+        visible_list = [False] * len(traces)
+        
+        # Each year has 2 traces (edges and nodes)
+        trace_idx = i * 2
+        visible_list[trace_idx] = True      # edge trace
+        visible_list[trace_idx + 1] = True  # node trace
+        
+        G = year_graphs[year]
+        n_nodes = G.number_of_nodes()
+        n_edges = G.number_of_edges()
+        
+        button = dict(
+            label=year_label,
+            method="update",
+            args=[
+                {"visible": visible_list},
+                {"title": f"{cohort_name} {age_band} {item_type} — Association Rules Network ({year_label})<br><sub>{n_nodes} items, {n_edges} rules</sub>"}
+            ]
+        )
+        buttons.append(button)
+    
+    # Initial year for title
+    initial_year = years_with_data[0]
+    G_initial = year_graphs[initial_year]
+    initial_label = "All Years (2016-2018)" if initial_year == 0 else str(initial_year)
+    
+    # Create layout with dropdown
+    layout = go.Layout(
+        title=f"{cohort_name} {age_band} {item_type} — Association Rules Network ({initial_label})<br><sub>{G_initial.number_of_nodes()} items, {G_initial.number_of_edges()} rules</sub>",
+        showlegend=False,
+        hovermode="closest",
+        updatemenus=[
+            dict(
+                buttons=buttons,
+                direction="down",
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.15,
+                xanchor="left",
+                y=1.15,
+                yanchor="top",
+                bgcolor="rgba(255, 255, 255, 0.9)",
+                bordercolor="#888",
+                borderwidth=1
+            )
+        ],
+        annotations=[
+            dict(
+                text="<b>Year:</b>",
+                showarrow=False,
+                x=0.03,
+                y=1.15,
+                xref="paper",
+                yref="paper",
+                align="left",
+                xanchor="left",
+                yanchor="top",
+                font=dict(size=12)
+            )
+        ],
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        height=800,
+        margin=dict(l=20, r=20, t=100, b=20)
+    )
+    
+    fig = go.Figure(data=traces, layout=layout)
+    
+    # Save to HTML
+    fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_network_interactive.html"
+    out_path = output_dir / fname
+    _ensure_output_dir(output_dir)
+    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True})
+    
+    if logger:
+        logger.info("Saved interactive network visualization to %s", out_path)
+    
+    return out_path
+
+
 def _s3_public_url(bucket: str, key: str, region: Optional[str] = None) -> str:
     """Return HTTPS URL for an S3 object (public-read style)."""
     if region:
@@ -421,3 +885,148 @@ def create_all_fpgrowth_plots(
     return out
 
 
+
+def create_all_fpgrowth_plots_multi_year(
+    base_dir: str,
+    cohort_name: str,
+    age_band: str,
+    item_types: Optional[List[str]] = None,
+    output_dir: str = "",
+    s3_upload: bool = False,
+    s3_bucket: Optional[str] = None,
+    s3_prefix: str = "fpgrowth",
+    top_n: int = 30,
+    max_nodes: int = 50,
+) -> Dict[str, Any]:
+    """
+    Create interactive FP-Growth visualizations with multi-year support (train/, 2016/, 2017/, 2018/).
+    
+    Generates:
+      - Interactive itemsets bar chart with year dropdown (combined split)
+      - Interactive network graph with year dropdown (target split)
+    
+    Args:
+        base_dir: Root directory containing FP-Growth results
+        cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
+        age_band: Age band (e.g., "1-0-12", "1-13-24")
+        item_types: List of item types to process (drug_name, icd_code, cpt_code, medical_code)
+        output_dir: Directory to save output files (defaults to base_dir/plots)
+        s3_upload: Whether to upload results to S3
+        s3_bucket: S3 bucket name for uploads
+        s3_prefix: S3 key prefix for uploads
+        top_n: Number of top itemsets to display
+        max_nodes: Maximum number of nodes in network graph
+    
+    Returns:
+        Dict with:
+            "plots": mapping item_type -> { plot_name: Path }
+            "s3_urls": (if s3_upload) mapping item_type -> { plot_name: str URL }
+    """
+    # Setup logger
+    logger = logging.getLogger("fpgrowth_plots_multi_year")
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    
+    if not item_types:
+        item_types = ["drug_name", "icd_code", "cpt_code", "medical_code"]
+    
+    base_path = Path(base_dir)
+    plots_root = Path(output_dir) if output_dir else base_path / "plots"
+    
+    results: Dict[str, Dict[str, Path]] = {}
+    
+    for item_type in item_types:
+        logger.info(
+            "Creating multi-year FP-Growth plots for %s / %s (%s)",
+            cohort_name,
+            age_band,
+            item_type,
+        )
+        item_results: Dict[str, Path] = {}
+        
+        # Load multi-year data for combined itemsets
+        multi_year_combined = _load_multi_year_data(
+            base_path=base_path,
+            cohort_name=cohort_name,
+            age_band=age_band,
+            item_type=item_type,
+            split_type="combined",
+            logger=logger
+        )
+        
+        # Create interactive itemsets visualization
+        if multi_year_combined:
+            itemsets_html = _top_itemsets_interactive(
+                multi_year_data=multi_year_combined,
+                cohort_name=cohort_name,
+                age_band=age_band,
+                item_type=item_type,
+                top_n=top_n,
+                output_dir=plots_root,
+                logger=logger
+            )
+            if itemsets_html is not None:
+                item_results["itemsets_interactive"] = itemsets_html
+        
+        # Load multi-year data for target rules network
+        multi_year_target = _load_multi_year_data(
+            base_path=base_path,
+            cohort_name=cohort_name,
+            age_band=age_band,
+            item_type=item_type,
+            split_type="target",
+            logger=logger
+        )
+        
+        # Create interactive network visualization
+        if multi_year_target:
+            network_html = _network_interactive_multi_year(
+                multi_year_data=multi_year_target,
+                cohort_name=cohort_name,
+                age_band=age_band,
+                item_type=item_type,
+                min_rules=5,
+                max_nodes=max_nodes,
+                output_dir=plots_root,
+                logger=logger
+            )
+            if network_html is not None:
+                item_results["network_interactive"] = network_html
+        
+        if item_results:
+            results[item_type] = item_results
+    
+    out: Dict[str, Any] = {"plots": results}
+    
+    # Upload to S3 when requested
+    if s3_upload and s3_bucket and results:
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+        except ImportError:
+            logger.warning("checkpoint_utils not available; skipping S3 upload")
+            s3_upload = False
+    
+    if s3_upload and s3_bucket and results:
+        age_band_fname = age_band.replace("-", "_")
+        s3_plot_prefix = f"{s3_prefix.rstrip('/')}/{cohort_name}/{age_band}/plots"
+        s3_urls: Dict[str, Dict[str, str]] = {}
+        
+        for itype, paths in results.items():
+            s3_urls[itype] = {}
+            for plot_name, local_path in paths.items():
+                if not isinstance(local_path, Path) or not local_path.exists():
+                    continue
+                key = f"{s3_plot_prefix}/{local_path.name}"
+                s3_path = f"s3://{s3_bucket}/{key}"
+                if upload_file_to_s3(local_path, s3_path, logger=logger, check_exists=True):
+                    s3_urls[itype][plot_name] = _s3_public_url(s3_bucket, key)
+            if not s3_urls[itype]:
+                del s3_urls[itype]
+        
+        out["s3_urls"] = s3_urls
+    
+    return out

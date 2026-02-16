@@ -544,13 +544,13 @@ n_pre <- nrow(events_pre_target)
 # 1) Trace explorer: save as PNG for dashboard
 if (n_pre > 0L) {
   p_te_pre <- tryCatch(
-    trace_explorer(pre_target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
-                   coverage_labels = c("relative")),
+    trace_explorer(pre_target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
+                   coverage_labels = c("relative", "absolute"), show_labels = TRUE),
     error = function(e) { cat(" [skip] trace_explorer(pre-HCG):", conditionMessage(e), "\n"); NULL }
   )
   if (!is.null(p_te_pre)) {
     ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_pre_hcg.png", cohort_name, age_band_fname)),
-           plot = p_te_pre, width = 14, height = 10, dpi = 300)
+           plot = p_te_pre, width = 16, height = 12, dpi = 300)
     print(p_te_pre)
   }
 } else {
@@ -684,13 +684,13 @@ cat("\n--- Target-only global process mining ---\n")
 n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
   p_te <- tryCatch(
-    trace_explorer(target_eventlog, n_traces = 20, label_size = 3.5, abbreviate = FALSE,
-                   coverage_labels = c("relative")),
+    trace_explorer(target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
+                   coverage_labels = c("relative", "absolute"), show_labels = TRUE),
     error = function(e) { cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n"); NULL }
   )
   if (!is.null(p_te)) {
     ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
-           plot = p_te, width = 14, height = 10, dpi = 300)
+           plot = p_te, width = 16, height = 12, dpi = 300)
     print(p_te)
   }
   # Performance spectrum (aggregated activity trace; requires psmineR)
@@ -746,7 +746,94 @@ if (n_target > 0L) {
       pm_target_df,
       sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name, age_band_fname)
     )
+    
+    # Generate process matrix heatmap visualization
+    tryCatch({
+      # Convert to long format for ggplot
+      pm_long <- pm_target_df %>%
+        tibble::rownames_to_column("from_activity") %>%
+        tidyr::pivot_longer(cols = -from_activity, 
+                           names_to = "to_activity", 
+                           values_to = "frequency") %>%
+        filter(frequency > 0)  # Remove zero-frequency cells
+      
+      # Filter to top activities (reduce clutter)
+      top_activities <- target_eventlog %>%
+        group_by(activity) %>%
+        summarise(count = n(), .groups = "drop") %>%
+        arrange(desc(count)) %>%
+        head(25) %>%
+        pull(activity)
+      
+      pm_long_filtered <- pm_long %>%
+        filter(from_activity %in% top_activities,
+               to_activity %in% top_activities)
+      
+      # Create heatmap
+      p_matrix <- ggplot(pm_long_filtered, 
+                        aes(x = to_activity, y = from_activity, fill = frequency)) +
+        geom_tile(color = "white", size = 0.5) +
+        geom_text(aes(label = ifelse(frequency > 0, frequency, "")), 
+                 size = 2.5, color = "white") +
+        scale_fill_viridis_c(option = "magma", 
+                            trans = "log10",
+                            breaks = c(1, 10, 100, 1000),
+                            labels = scales::comma) +
+        labs(title = paste("Process Matrix:", cohort_name, age_band),
+             subtitle = "Frequency of directly-follows relationships (top 25 activities)",
+             x = "To Activity →", 
+             y = "← From Activity",
+             fill = "Frequency\n(log scale)") +
+        theme_minimal(base_size = 12) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+              axis.text.y = element_text(size = 9),
+              panel.grid = element_blank(),
+              legend.position = "right")
+      
+      ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix.png", cohort_name, age_band_fname)),
+             plot = p_matrix, width = 16, height = 14, dpi = 300)
+      
+      cat("Saved process_matrix.png\n")
+    }, error = function(e) cat(" [skip] process_matrix heatmap:", conditionMessage(e), "\n"))
   }
+  
+  # Overall Activity Frequency plot with color coding
+  tryCatch({
+    target_activity_freq <- target_eventlog %>%
+      mutate(activity_type = case_when(
+        grepl("^DRUG:", activity) ~ "Drug",
+        grepl("^ICD:", activity) ~ "Diagnosis",
+        grepl("^CPT:", activity) ~ "Procedure",
+        TRUE ~ "Other"
+      )) %>%
+      group_by(activity, activity_type) %>%
+      summarise(count = n(), .groups = "drop") %>%
+      arrange(desc(count)) %>%
+      head(40)
+    
+    p_activity_freq <- ggplot(target_activity_freq, 
+                aes(x = reorder(activity, count), y = count, fill = activity_type)) +
+      geom_col() +
+      coord_flip() +
+      scale_fill_manual(values = c("Drug" = "#3b82f6", 
+                                   "Diagnosis" = "#ef4444", 
+                                   "Procedure" = "#10b981",
+                                   "Other" = "#64748b"),
+                       name = "Event Type") +
+      labs(title = paste("Overall Activity Frequency:", cohort_name, age_band),
+           subtitle = "Top 40 activities by frequency",
+           x = NULL, y = "Frequency") +
+      theme_minimal(base_size = 13) +
+      theme(axis.text.y = element_text(size = 10),
+            legend.position = "top",
+            panel.grid.minor = element_blank())
+    
+    ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name, age_band_fname)),
+           plot = p_activity_freq, width = 14, height = 11, dpi = 300)
+    
+    cat("Saved overall_activity_frequency.png\n")
+  }, error = function(e) cat(" [skip] overall_activity_frequency:", conditionMessage(e), "\n"))
+  
   tryCatch(
     process_map(target_eventlog, type = "frequency"),
     error = function(e) cat(" [skip] process_map(target):", conditionMessage(e), "\n")

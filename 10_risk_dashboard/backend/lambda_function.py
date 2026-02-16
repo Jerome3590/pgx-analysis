@@ -1392,6 +1392,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         plots_key = f"{prefix}/plots"
         payload = {
             "overview_image": f"{base_url}/{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png",
+            "overview_interactive": f"{base_url}/{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html",
             "sample_trajectories_image": f"{base_url}/{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
             "chart_data_url": f"{base_url}/{prefix}/chart_data.json",
             "metrics": {},
@@ -1419,16 +1420,26 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        # Filenames produced by py_helpers.create_fpgrowth_visualizations
+        
+        # Legacy filenames (backward compatibility)
         itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
         network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"
         network_png_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.png"
+        
+        # New interactive multi-year visualizations
+        itemsets_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_itemsets_interactive.html"
+        network_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_network_interactive.html"
+        
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         return _response(200, {
+            # Legacy static visualizations
             "itemsets_image": f"{base_url}/{itemsets_key}",
             "support_image": f"{base_url}/{itemsets_key}",
             "network_html": f"{base_url}/{network_html_key}",
             "network_png": f"{base_url}/{network_png_key}",
+            # New interactive multi-year visualizations
+            "itemsets_interactive": f"{base_url}/{itemsets_interactive_key}",
+            "network_interactive": f"{base_url}/{network_interactive_key}",
         })
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1486,11 +1497,15 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
         # Pre-target only; no Gantt (time info from DTW). Post-target for EDA/leakage may add later.
         payload = {
             "activity_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_overall_activity_frequency.png",
+            "activity_frequency_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_frequency_interactive.html",
             "pre_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_{pre_suffix}_activity_frequency.png",
             "sequence_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_sequence_top.png",
             "trace_explorer_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer.png",
+            "trace_explorer_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_interactive.html",
             "trace_explorer_pre_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_{pre_suffix}.png",
             "performance_spectrum_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_performance_spectrum.png",
+            "process_matrix_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix.png",
+            "process_matrix_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix_interactive.html",
             "frequency_map_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_frequency_map.png",
         }
         return _response(200, payload)
