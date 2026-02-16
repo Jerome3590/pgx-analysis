@@ -438,16 +438,41 @@ def process_single_cohort(
         else:
             event_filter = f"event_year = {event_year}"
 
+        # Verify parquet schema before querying
+        try:
+            schema_check = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{parquet_file}') LIMIT 0").fetchall()
+            available_cols = {row[0] for row in schema_check}
+            logger.info(f"Parquet schema has {len(available_cols)} columns: {sorted(available_cols)[:20]}...")
+        except Exception as e:
+            logger.error(f"Failed to read parquet schema from {parquet_file}: {e}")
+            return {
+                'item_type': item_type,
+                'cohort_name': cohort_name,
+                'age_band': age_band,
+                'event_year': event_year,
+                'error': f'Schema read failure: {e}'
+            }
+
         # Build query based on item type. Always include `target` so we can run
         # a separate target-only FP-Growth pass (within-case patterns).
         if item_type == 'drug_name':
             # 4_model_data already encodes event context; filter directly on drug_name.
+            if 'drug_name' not in available_cols:
+                logger.error(f"Column 'drug_name' not found in {parquet_file}. Available: {sorted(available_cols)[:30]}")
+                return {
+                    'item_type': item_type,
+                    'cohort_name': cohort_name,
+                    'age_band': age_band,
+                    'event_year': event_year,
+                    'error': f"Column 'drug_name' not in parquet (has: {len(available_cols)} columns)"
+                }
             query = f"""
             SELECT mi_person_key, drug_name as item, target
             FROM read_parquet('{parquet_file}')
             WHERE
                 drug_name IS NOT NULL
                 AND drug_name != ''
+                AND target = 1
                 AND {event_filter}
             """
         elif item_type == 'icd_code':
@@ -456,43 +481,43 @@ def process_single_cohort(
             WITH all_icds AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE two_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE two_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE three_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE three_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE four_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE four_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE five_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE five_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE six_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE six_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE seven_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE eight_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE nine_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as icd, target
                 FROM read_parquet('{parquet_file}') 
-                WHERE ten_icd_diagnosis_code IS NOT NULL AND {event_filter}
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
             )
             SELECT mi_person_key, icd as item, target FROM all_icds WHERE icd != ''
             """
@@ -503,6 +528,7 @@ def process_single_cohort(
             WHERE
                 procedure_code IS NOT NULL
                 AND procedure_code != ''
+                AND target = 1
                 AND {event_filter}
             """
         elif item_type == 'medical_code':
@@ -511,47 +537,47 @@ def process_single_cohort(
             WITH all_med_codes AS (
                 SELECT mi_person_key, primary_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND {event_filter}
+                WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, two_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND {event_filter}
+                WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, three_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND {event_filter}
+                WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, four_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND {event_filter}
+                WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, five_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND {event_filter}
+                WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, six_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND {event_filter}
+                WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, seven_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND {event_filter}
+                WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, eight_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND {event_filter}
+                WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, nine_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND {event_filter}
+                WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, ten_icd_diagnosis_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND {event_filter}
+                WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
                 SELECT mi_person_key, procedure_code as code, target
                 FROM read_parquet('{parquet_file}')
-                WHERE procedure_code IS NOT NULL AND procedure_code != '' AND {event_filter}
+                WHERE procedure_code IS NOT NULL AND procedure_code != '' AND target = 1 AND {event_filter}
             )
             SELECT mi_person_key, code as item, target FROM all_med_codes WHERE code != ''
             """
