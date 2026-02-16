@@ -11,6 +11,7 @@
 .venv*
 .cursorrules
 .cursor/
+.cursorignore
 
 data/*
 testing/*
