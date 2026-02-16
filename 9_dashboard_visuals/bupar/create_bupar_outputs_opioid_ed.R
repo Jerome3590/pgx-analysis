@@ -49,22 +49,27 @@ cat("  Age band: ", age_band, " (control = within-cohort target=0, no F1120)\n\n
 target_icd_patterns <- c("F1120")   # opioid ED
 include_post_target <- TRUE        # use post-F1120 only for descriptive analysis
 
-# Resolve model_events path: Step 2/3 (3b) builds model_events first; Step 4 (4_model_data) may also have them.
-# Check Step 2/3 location first (3b_feature_importance_eda/outputs/cohorts/input_model_data, cohort slug by cohort).
-cohort_slug_3b <- if (cohort_name == "opioid_ed") "opioid" else "polypharmacy"
-path_3b <- file.path(
-  project_root,
-  "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data",
-  paste0("cohort_name=", cohort_slug_3b),
-  paste0("age_band=", age_band),
-  "model_events.parquet"
-)
-if (file.exists(path_3b)) {
-  model_data_path   <- path_3b
-  model_data_dir    <- dirname(path_3b)
-  model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
-  cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
-} else {
+# Resolve model_events path: Use Step 4 (4_model_data) which has full schema with all ICD/CPT columns.
+# Step 3b model_events have different schema (missing ICD/CPT columns) and cause BupaR failures.
+# Disabled Step 3b path to ensure consistent schema.
+if (FALSE) {
+  # DISABLED: Step 3b path has incomplete schema
+  cohort_slug_3b <- if (cohort_name == "opioid_ed") "opioid" else "polypharmacy"
+  path_3b <- file.path(
+    project_root,
+    "3b_feature_importance_eda", "outputs", "cohorts", "input_model_data",
+    paste0("cohort_name=", cohort_slug_3b),
+    paste0("age_band=", age_band),
+    "model_events.parquet"
+  )
+  if (file.exists(path_3b)) {
+    model_data_path   <- path_3b
+    model_data_dir    <- dirname(path_3b)
+    model_data_root   <- dirname(dirname(dirname(path_3b)))  # input_model_data dir (parent of cohort_name=...)
+    cat("Using model_events from Step 2/3 (3b): ", path_3b, "\n", sep = "")
+  }
+}
+if (TRUE) {
   # Fallback: 4_model_data (PGX_DATA_ROOT/4_model_data on EC2, or project 4_model_data); fallback 4a_model_data (legacy).
   model_data_root <- NULL
   data_root <- Sys.getenv("PGX_DATA_ROOT")
