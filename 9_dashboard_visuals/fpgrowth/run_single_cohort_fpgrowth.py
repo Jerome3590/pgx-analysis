@@ -30,6 +30,7 @@ cohort_fpgrowth = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cohort_fpgrowth)
 
 process_single_cohort = cohort_fpgrowth.process_single_cohort
+_model_data_paths = cohort_fpgrowth._model_data_paths
 MIN_SUPPORT = cohort_fpgrowth.MIN_SUPPORT
 MIN_CONFIDENCE = cohort_fpgrowth.MIN_CONFIDENCE
 ITEM_TYPES = cohort_fpgrowth.ITEM_TYPES
@@ -46,6 +47,22 @@ def main():
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve() if args.project_root else None
+
+    # Upfront path check for TRAIN: require model_data; fail fast with paths_checked/path_listings
+    if args.event_year == "train":
+        model_data_paths = _model_data_paths(args.cohort_name, args.age_band, project_root=project_root)
+        if not model_data_paths:
+            root = project_root if project_root is not None else REPO_ROOT
+            try:
+                from py_helpers.model_data_paths import get_model_events_paths_checked, get_path_check_listings
+                paths_checked = get_model_events_paths_checked(root, args.cohort_name, args.age_band)
+                path_listings = get_path_check_listings(paths_checked) if paths_checked else []
+            except Exception:  # noqa: BLE001
+                paths_checked = []
+                path_listings = []
+            print("[ERROR] TRAIN requires model_data; none found for this cohort/age_band.", flush=True)
+            print("[ERROR_PARAMS]", {"cohort_name": args.cohort_name, "age_band": args.age_band, "event_year": args.event_year, "error": "TRAIN model_data not found", "paths_checked": paths_checked, "path_listings": path_listings}, flush=True)
+            sys.exit(1)
 
     # Use model_data if available, otherwise use local data path
     local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
@@ -65,8 +82,9 @@ def main():
         except Exception:
             pass
 
-    # Process each item type; track if any succeeded
+    # Process each item type; track if any succeeded; collect failures for summary
     any_ok = False
+    failures = []  # (item_type, error_msg)
     for item_type in ITEM_TYPES:
         _log_resources(f"before {item_type}")
         print(f"\nProcessing {item_type}...", flush=True)
@@ -83,7 +101,9 @@ def main():
                 project_root=project_root,
             )
             if 'error' in result:
-                print(f"[ERROR] {item_type}: {result['error']}", flush=True)
+                err_msg = result['error']
+                failures.append((item_type, err_msg))
+                print(f"[ERROR] {item_type}: {err_msg}", flush=True)
                 # Log missing/mismatched params so follow-on runs can correct (paths_checked, path, path_listings, etc.)
                 params = {k: v for k, v in result.items() if k in ("cohort_name", "age_band", "item_type", "error", "paths_checked", "path", "path_listings")}
                 if result.get("paths_checked") and "path_listings" not in params:
@@ -100,6 +120,7 @@ def main():
             _log_resources(f"after {item_type}")
         except Exception as e:
             _log_resources(f"after {item_type} (exception)")
+            failures.append((item_type, str(e)))
             print(f"[ERROR] {item_type} failed: {e}", flush=True)
             err_params = {"cohort_name": args.cohort_name, "age_band": args.age_band, "item_type": item_type, "error": str(e)}
             print("[ERROR_PARAMS]", err_params, flush=True)
@@ -109,7 +130,8 @@ def main():
     if any_ok:
         print("\nFP-Growth itemsets creation complete!")
     else:
-        print("\nFP-Growth itemsets creation failed: no item types produced itemsets (e.g. model_data not found).")
+        summary = "; ".join(f"{t}={e}" for t, e in failures) if failures else "no item types produced itemsets"
+        print(f"\nFP-Growth itemsets creation failed: {summary}. See [ERROR] / [ERROR_PARAMS] above (paths_checked, path_listings).")
         sys.exit(1)
 
 if __name__ == "__main__":
