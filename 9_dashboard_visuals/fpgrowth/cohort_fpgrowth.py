@@ -224,11 +224,15 @@ def get_transactions_by_density(df: pd.DataFrame, density: str, logger: logging.
     if len(df_density) == 0:
         return []
     
+    # Ensure all items are strings and valid before creating transactions
     transactions = (
         df_density.groupby('mi_person_key')['item']
-        .apply(lambda x: sorted(set(x.tolist())))
+        .apply(lambda x: sorted(set(str(item).strip() for item in x.tolist() if pd.notna(item) and str(item).strip())))
         .tolist()
     )
+    
+    # Filter out empty transactions
+    transactions = [t for t in transactions if len(t) > 0]
     
     logger.info(f"  {density}: {len(transactions):,} transactions")
     
@@ -620,6 +624,38 @@ def process_single_cohort(
                 }
         elif USE_FINAL_FI_FOR_FPGROWTH or USE_SHAP_FFA_FOR_FPGROWTH:
             logger.warning("FI returned no codes; using all items (ensure cohort_feature_importance or SHAP/FFA outputs exist)")
+        
+        # Add item type prefix (like BupaR does: DRUG:, ICD:, CPT:) to ensure proper encoding
+        item_prefix = {
+            'drug_name': 'DRUG:',
+            'icd_code': 'ICD:',
+            'cpt_code': 'CPT:',
+            'medical_code': 'MED:'
+        }.get(item_type, '')
+        
+        if item_prefix:
+            logger.info(f"Adding {item_prefix} prefix to items for proper encoding")
+            df['item'] = item_prefix + df['item'].astype(str).str.strip()
+        else:
+            df['item'] = df['item'].astype(str).str.strip()
+        
+        # Filter out empty/invalid items
+        before_filter = len(df)
+        df = df[df['item'] != item_prefix].copy()  # Remove items that are just the prefix
+        df = df[df['item'].notna()].copy()
+        after_filter = len(df)
+        if before_filter != after_filter:
+            logger.info(f"Filtered out {before_filter - after_filter:,} empty/invalid items")
+        
+        if len(df) == 0:
+            logger.warning(f"✗ No valid items remaining after cleanup for {cohort_id}")
+            return {
+                'item_type': item_type,
+                'cohort_name': cohort_name,
+                'age_band': age_band,
+                'event_year': event_year,
+                'error': 'No valid items after cleanup'
+            }
         
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
