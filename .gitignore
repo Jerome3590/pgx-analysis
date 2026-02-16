@@ -43,6 +43,9 @@ status/*.csv
 status/*.json
 status/*.crdownload
 
+# S3 upload tracker (local tracking, not for repo)
+status/s3_upload_tracker.json
+
 *.pyc
 .ipynb_checkpoints/
 __pycache__/

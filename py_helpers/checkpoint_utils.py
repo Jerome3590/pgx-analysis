@@ -68,7 +68,17 @@ def check_step_outputs_exist(s3_paths: List[str], logger: Optional[logging.Logge
     return True
 
 
-def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.Logger] = None, check_exists: bool = True) -> bool:
+def upload_file_to_s3(
+    local_path: Path,
+    s3_path: str,
+    logger: Optional[logging.Logger] = None,
+    check_exists: bool = True,
+    tracker: Optional[Any] = None,
+    viz_type: Optional[str] = None,
+    cohort: Optional[str] = None,
+    age_band: Optional[str] = None,
+    item_type: Optional[str] = None
+) -> bool:
     """
     Upload a local file to S3 (idempotent - skips if already exists).
     
@@ -77,6 +87,11 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
         s3_path: S3 destination path
         logger: Optional logger
         check_exists: If True, check if file already exists in S3 before uploading (idempotent)
+        tracker: Optional S3UploadTracker instance for local tracking
+        viz_type: Visualization type (for tracking)
+        cohort: Cohort name (for tracking)
+        age_band: Age band (for tracking)
+        item_type: Item type (for tracking, FP-Growth only)
     
     Returns:
         True if upload successful or file already exists, False otherwise
@@ -84,6 +99,19 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
     if not local_path.exists():
         if logger:
             logger.warning(f"Local file does not exist: {local_path}")
+        if tracker and viz_type and cohort and age_band:
+            from py_helpers.s3_upload_tracker import get_file_size_mb
+            tracker.log_upload(
+                local_path=str(local_path),
+                s3_path=s3_path,
+                visualization_type=viz_type,
+                cohort=cohort,
+                age_band=age_band,
+                item_type=item_type,
+                file_size_mb=0.0,
+                success=False,
+                error="Local file does not exist"
+            )
         return False
     
     try:
@@ -95,6 +123,19 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
                 s3_client.head_object(Bucket=bucket, Key=key)
                 if logger:
                     logger.info(f"[OK] File already exists in S3: {s3_path} (skipping upload)")
+                if tracker and viz_type and cohort and age_band:
+                    from py_helpers.s3_upload_tracker import get_file_size_mb
+                    tracker.log_upload(
+                        local_path=str(local_path),
+                        s3_path=s3_path,
+                        visualization_type=viz_type,
+                        cohort=cohort,
+                        age_band=age_band,
+                        item_type=item_type,
+                        file_size_mb=get_file_size_mb(local_path),
+                        success=True,
+                        metadata={"skipped": True, "reason": "Already exists in S3"}
+                    )
                 return True
             except s3_client.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] not in ["404", "NoSuchKey"]:
@@ -105,10 +146,37 @@ def upload_file_to_s3(local_path: Path, s3_path: str, logger: Optional[logging.L
         s3_client.upload_file(str(local_path), bucket, key)
         if logger:
             logger.info(f"[OK] Uploaded to S3: {s3_path}")
+        
+        # Track successful upload
+        if tracker and viz_type and cohort and age_band:
+            from py_helpers.s3_upload_tracker import get_file_size_mb
+            tracker.log_upload(
+                local_path=str(local_path),
+                s3_path=s3_path,
+                visualization_type=viz_type,
+                cohort=cohort,
+                age_band=age_band,
+                item_type=item_type,
+                file_size_mb=get_file_size_mb(local_path),
+                success=True
+            )
         return True
     except Exception as e:
         if logger:
             logger.error(f"Failed to upload {local_path} to {s3_path}: {e}")
+        if tracker and viz_type and cohort and age_band:
+            from py_helpers.s3_upload_tracker import get_file_size_mb
+            tracker.log_upload(
+                local_path=str(local_path),
+                s3_path=s3_path,
+                visualization_type=viz_type,
+                cohort=cohort,
+                age_band=age_band,
+                item_type=item_type,
+                file_size_mb=get_file_size_mb(local_path),
+                success=False,
+                error=str(e)
+            )
         return False
 
 
