@@ -122,7 +122,7 @@ def create_bupar_outputs(
             if result.stdout:
                 logger.info("BupaR stdout:\n%s", result.stdout)
             if result.stderr:
-                logger.info("BupaR stderr:\n%s", result.stderr)
+                logger.warning("BupaR stderr (check for EMPTY EVENT LOG or min() warnings):\n%s", result.stderr)
             return True
         except subprocess.CalledProcessError as exc:
             logger.error("BupaR outputs script failed (returncode=%s)", exc.returncode)
@@ -194,7 +194,11 @@ def upload_bupar_plots_to_dashboard_s3(
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists() or not list(plots_dir.glob("*.png")):
-        logger.warning("No BupaR plots directory or no PNGs at %s; skipping S3 upload", plots_dir)
+        logger.warning(
+            "No BupaR plots directory or no PNGs at %s; skipping S3 upload. "
+            "Check R stdout/stderr above for EMPTY EVENT LOG or fallback to FP-Growth.",
+            plots_dir,
+        )
         return True
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
