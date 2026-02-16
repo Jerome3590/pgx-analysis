@@ -352,31 +352,47 @@ def create_all_fpgrowth_features(
         FPGROWTH_OUT / "outputs" / cohort_name / split_type / age_band_fname / event_year
     )
     
-    # Model data path: use canonical 4_model_data (model-ready cases + controls).
-    # We no longer read from the legacy model_data/ tree for feature engineering.
-    model_data_dir = (
-        project_root
-        / "4_model_data"
-        / f"cohort_name={cohort_name}"
-        / f"age_band={age_band_fname}"
-    )
-    model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
-    model_data_path = (
-        model_data_filtered
-        if model_data_filtered.exists()
-        else model_data_dir / "model_events.parquet"
-    )
-    
-    if not model_data_path.exists():
-        logger.error(f"Model data not found: {model_data_path}")
+    # Model data path: resolve same as BupaR and DTW (3b first, then 4_model_data).
+    try:
+        from py_helpers.model_data_paths import resolve_model_events_path
+        model_data_path = resolve_model_events_path(project_root, cohort_name, age_band)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not use shared model_events resolver: %s", exc)
+        model_data_path = None
+    if not model_data_path or not model_data_path.exists():
+        # Fallback: project 4_model_data (same as DTW/BupaR fallback)
+        for age_part in (age_band, age_band_fname):
+            fallback_dir = (
+                project_root / "4_model_data"
+                / f"cohort_name={cohort_name}"
+                / f"age_band={age_part}"
+            )
+            no_protocols = fallback_dir / "model_events_no_protocols.parquet"
+            main_path = fallback_dir / "model_events.parquet"
+            if no_protocols.exists():
+                model_data_path = no_protocols
+                break
+            if main_path.exists():
+                model_data_path = main_path
+                break
+        else:
+            model_data_path = None
+    if not model_data_path or not model_data_path.exists():
+        logger.error(
+            "Model data not found for %s / %s. Checked 3b and 4_model_data (same as BupaR/DTW). "
+            "Paths: 3b .../input_model_data/cohort_name=<slug>/age_band=%s/, 4_model_data/cohort_name=%s/age_band=%s/",
+            cohort_name, age_band, age_band, cohort_name, age_band,
+        )
         return pd.DataFrame()
-    
+    logger.info("Using model_events: %s", model_data_path)
+    path_str = str(model_data_path).replace("\\", "/")
+
     # Get base patient list (both target and control)
     con = duckdb.connect()
     base_df = con.execute(
         f"""
         SELECT DISTINCT mi_person_key
-        FROM read_parquet('{model_data_path}')
+        FROM read_parquet('{path_str}')
         WHERE target IN (0, 1)
         """
     ).df()

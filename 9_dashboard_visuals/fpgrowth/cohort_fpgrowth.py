@@ -124,41 +124,12 @@ def setup_logger(name: str = 'cohort_fpgrowth') -> logging.Logger:
 
 
 def _model_data_path(cohort_name: str, age_band: str) -> Path | None:
-    """Return path to model_events parquet if it exists; else None. Matches BupaR resolution (3b then 4_model_data)."""
-    import os
-    
-    # Check 3b first (cohort-specific input_model_data)
-    cohort_slug_3b = "opioid" if cohort_name == "opioid_ed" else "polypharmacy"
-    path_3b = (
-        REPO_ROOT
-        / "3b_feature_importance_eda"
-        / "outputs"
-        / "cohorts"
-        / "input_model_data"
-        / f"cohort_name={cohort_slug_3b}"
-        / f"age_band={age_band}"
-        / "model_events.parquet"
-    )
-    if path_3b.exists():
-        return path_3b
-    
-    # Check environment variable or standard locations
-    data_root = os.environ.get("PGX_DATA_ROOT", "")
-    candidates = [
-        Path(data_root) / "4_model_data" if data_root else None,
-        Path("/mnt/nvme/4_model_data"),
-        REPO_ROOT / "4_model_data",
-        REPO_ROOT / "4a_model_data",
-    ]
-    for root in candidates:
-        if root is None or not root.exists():
-            continue
-        model_data_dir = root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
-        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
-            p = model_data_dir / name
-            if p.exists():
-                return p
-    return None
+    """Return path to model_events parquet if it exists; else None. Uses shared resolver (same as BupaR/DTW)."""
+    try:
+        from py_helpers.model_data_paths import resolve_model_events_path
+        return resolve_model_events_path(REPO_ROOT, cohort_name, age_band)
+    except Exception:  # noqa: BLE001
+        return None
 
 # =============================================================================
 # COHORT PROCESSING
