@@ -131,20 +131,22 @@ def setup_logger(name: str = 'cohort_fpgrowth') -> logging.Logger:
     return logger
 
 
-def _model_data_path(cohort_name: str, age_band: str) -> Path | None:
+def _model_data_path(cohort_name: str, age_band: str, project_root: Path | None = None) -> Path | None:
     """Return path to model_events parquet if it exists; else None. Uses shared resolver (same as BupaR/DTW)."""
+    root = Path(project_root).resolve() if project_root is not None else REPO_ROOT
     try:
         from py_helpers.model_data_paths import resolve_model_events_path
-        return resolve_model_events_path(REPO_ROOT, cohort_name, age_band)
+        return resolve_model_events_path(root, cohort_name, age_band)
     except Exception:  # noqa: BLE001
         return None
 
 
-def _model_data_paths(cohort_name: str, age_band: str) -> list:
-    """Return 1 or 2 paths for model_events (2 only for 85-114 when 85-94 + 95-114 exist). Uses shared resolver."""
+def _model_data_paths(cohort_name: str, age_band: str, project_root: Path | None = None) -> list:
+    """Return 1 or 2 paths for model_events (2 only for 85-114 when 85-94 + 95-114 exist). Uses shared resolver (same as BupaR/DTW)."""
+    root = Path(project_root).resolve() if project_root is not None else REPO_ROOT
     try:
         from py_helpers.model_data_paths import resolve_model_events_paths
-        return resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+        return resolve_model_events_paths(root, cohort_name, age_band)
     except Exception:  # noqa: BLE001
         return []
 
@@ -371,7 +373,8 @@ def process_single_cohort(
     local_data_path: Path,
     s3_output_base: str,
     min_support: float,
-    min_confidence: float
+    min_confidence: float,
+    project_root: Path | None = None,
 ) -> Dict:
     """
     Process a single cohort for a single item type.
@@ -401,7 +404,8 @@ def process_single_cohort(
         # This ensures FP-Growth only uses useful signals (non-protocol events) for itemsets and rules.
         # Use smart path resolution (checks 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data).
         # For 85-114, may union 85-94 + 95-114 when single 85-114 partition is not present.
-        model_data_paths = _model_data_paths(cohort_name, age_band)
+        # Pass project_root so subprocess uses same base as parent (BupaR/DTW use same paths).
+        model_data_paths = _model_data_paths(cohort_name, age_band, project_root=project_root)
         if model_data_paths:
             resolved_str = " + ".join(str(p) for p in model_data_paths)
             logger.info(f"Resolved model_events for {cohort_name}/{age_band}: {resolved_str}")
@@ -423,20 +427,44 @@ def process_single_cohort(
                     else:
                         logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2018): {parquet_file}")
                 else:
+                    try:
+                        from py_helpers.model_data_paths import get_model_events_paths_checked, get_path_check_listings
+                        _root = (Path(project_root).resolve() if project_root is not None else REPO_ROOT)
+                        paths_checked = get_model_events_paths_checked(_root, cohort_name, age_band)
+                        path_listings = get_path_check_listings(paths_checked) if paths_checked else []
+                    except Exception:  # noqa: BLE001
+                        paths_checked = []
+                        path_listings = []
                     logger.warning(
                         f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
                         f"but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data (for 85-114 also 85-94+95-114). "
                         "Run create_model_data.py first for this cohort/age_band."
                     )
+                    logger.error(
+                        "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=TRAIN model_data not found paths_checked=%s",
+                        cohort_name, age_band, item_type,
+                        " | ".join(paths_checked) if paths_checked else "(none)",
+                    )
+                    if path_listings:
+                        logger.error(
+                            "[ERROR_PARAMS] step=4_fpgrowth path_listings: %s",
+                            " ; ".join(path_listings),
+                        )
                     return {
                         'item_type': item_type,
                         'cohort_name': cohort_name,
                         'age_band': age_band,
                         'event_year': event_year,
-                        'error': 'TRAIN model_data not found'
+                        'error': 'TRAIN model_data not found',
+                        'paths_checked': paths_checked,
+                        'path_listings': path_listings,
                     }
             else:
                 logger.warning("USE_MODEL_DATA_IF_AVAILABLE is False, but TRAIN FP-Growth requires model_data")
+                logger.error(
+                    "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=TRAIN requires model_data but USE_MODEL_DATA_IF_AVAILABLE is False",
+                    cohort_name, age_band, item_type,
+                )
                 return {
                     'item_type': item_type,
                     'cohort_name': cohort_name,
@@ -466,12 +494,17 @@ def process_single_cohort(
 
         if model_data_from is None and not parquet_file.exists():
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
+            logger.error(
+                "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=File not found path=%s",
+                cohort_name, age_band, item_type, str(parquet_file),
+            )
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
                 'age_band': age_band,
                 'event_year': event_year,
-                'error': 'File not found'
+                'error': 'File not found',
+                'path': str(parquet_file),
             }
         if model_data_from is None:
             model_data_from = f"read_parquet('{str(parquet_file).replace(chr(92), '/')}')"
@@ -488,15 +521,25 @@ def process_single_cohort(
         try:
             schema_check = con.execute(f"DESCRIBE SELECT * FROM {model_data_from} LIMIT 0").fetchall()
             available_cols = {row[0] for row in schema_check}
-            logger.info(f"Parquet schema has {len(available_cols)} columns: {sorted(available_cols)[:20]}...")
+            keys_received = sorted(available_cols)
+            keys_expected_item = ["mi_person_key", "target", "event_year", item_type if item_type != "medical_code" else "drug_name/icd/cpt columns"]
+            logger.info("keys_expected (parquet, for item_type=%s): %s", item_type, keys_expected_item)
+            logger.info("keys_received (parquet): %s", keys_received[:30] if len(keys_received) > 30 else keys_received)
+            logger.info("Parquet schema has %s columns: %s...", len(available_cols), keys_received[:20])
         except Exception as e:
-            logger.error(f"Failed to read parquet schema from {parquet_file}: {e}")
+            logger.error("Failed to read parquet schema from %s: %s", parquet_file, e)
+            logger.error(
+                "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=Schema read failure "
+                "keys_expected=parquet_schema keys_received=N/A (read failed) path=%s exception=%s",
+                cohort_name, age_band, item_type, str(parquet_file), str(e),
+            )
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
                 'age_band': age_band,
                 'event_year': event_year,
-                'error': f'Schema read failure: {e}'
+                'error': f'Schema read failure: {e}',
+                'path': str(parquet_file),
             }
 
         # Build query based on item type. Always include `target` so we can run
@@ -504,7 +547,13 @@ def process_single_cohort(
         if item_type == 'drug_name':
             # 4_model_data already encodes event context; filter directly on drug_name.
             if 'drug_name' not in available_cols:
-                logger.error(f"Column 'drug_name' not found in {parquet_file}. Available: {sorted(available_cols)[:30]}")
+                keys_expected = ["drug_name", "mi_person_key", "target", "event_year"]
+                keys_received = sorted(available_cols)
+                logger.error("Column 'drug_name' not found. keys_expected=%s keys_received=%s", keys_expected, keys_received[:40])
+                logger.error(
+                    "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=Column drug_name not in parquet keys_expected=%s keys_received=%s path=%s",
+                    cohort_name, age_band, item_type, keys_expected, keys_received[:40], str(parquet_file),
+                )
                 return {
                     'item_type': item_type,
                     'cohort_name': cohort_name,

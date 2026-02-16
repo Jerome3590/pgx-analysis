@@ -42,12 +42,14 @@ def main():
     parser.add_argument("--cohort-name", required=True, help="Cohort name (e.g., opioid_ed)")
     parser.add_argument("--age-band", required=True, help="Age band (e.g., 0-12)")
     parser.add_argument("--event-year", default="train", help="Event year (train, 2019, etc.)")
-    
+    parser.add_argument("--project-root", default=None, help="Repo root for model_events resolution (same as BupaR/DTW); default=inferred from script path")
     args = parser.parse_args()
-    
+
+    project_root = Path(args.project_root).resolve() if args.project_root else None
+
     # Use model_data if available, otherwise use local data path
     local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
-    
+
     print(f"Running FP-Growth for {args.cohort_name} / {args.age_band} / {args.event_year}")
     print(f"Using data path: {local_data_path}")
     
@@ -77,17 +79,30 @@ def main():
                 local_data_path=local_data_path,
                 s3_output_base=S3_OUTPUT_BASE,
                 min_support=MIN_SUPPORT,
-                min_confidence=MIN_CONFIDENCE
+                min_confidence=MIN_CONFIDENCE,
+                project_root=project_root,
             )
             if 'error' in result:
-                print(f"[ERROR] {item_type}: {result['error']}")
+                print(f"[ERROR] {item_type}: {result['error']}", flush=True)
+                # Log missing/mismatched params so follow-on runs can correct (paths_checked, path, path_listings, etc.)
+                params = {k: v for k, v in result.items() if k in ("cohort_name", "age_band", "item_type", "error", "paths_checked", "path", "path_listings")}
+                if result.get("paths_checked") and "path_listings" not in params:
+                    try:
+                        from py_helpers.model_data_paths import get_path_check_listings
+                        params["path_listings"] = get_path_check_listings(result["paths_checked"])
+                    except Exception:  # noqa: BLE001
+                        pass
+                if params:
+                    print(f"[ERROR_PARAMS] {params}", flush=True)
             else:
                 any_ok = True
                 print(f"[OK] {item_type}: {result.get('itemsets_count', 0)} itemsets, {result.get('rules_count', 0)} rules")
             _log_resources(f"after {item_type}")
         except Exception as e:
             _log_resources(f"after {item_type} (exception)")
-            print(f"[ERROR] {item_type} failed: {e}")
+            print(f"[ERROR] {item_type} failed: {e}", flush=True)
+            err_params = {"cohort_name": args.cohort_name, "age_band": args.age_band, "item_type": item_type, "error": str(e)}
+            print("[ERROR_PARAMS]", err_params, flush=True)
             import traceback
             traceback.print_exc()
 

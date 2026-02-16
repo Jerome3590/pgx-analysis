@@ -261,7 +261,14 @@ cat("Sample allowed_codes (first 10): ", paste(head(allowed_codes, 10), collapse
 # Build DRUG/ICD/CPT activities and target_eventlog
 # -------------------------------------------------------------------
 
-cat("Model events columns: ", paste(colnames(pgx_df_target1), collapse = ", "), "\n", sep = "")
+keys_expected_model <- c("mi_person_key", "event_date", "target", "drug_name", "primary_icd_diagnosis_code",
+  "two_icd_diagnosis_code", "three_icd_diagnosis_code", "four_icd_diagnosis_code", "five_icd_diagnosis_code",
+  "six_icd_diagnosis_code", "seven_icd_diagnosis_code", "eight_icd_diagnosis_code", "nine_icd_diagnosis_code",
+  "ten_icd_diagnosis_code", "procedure_code")
+keys_received_model <- colnames(pgx_df_target1)
+cat("keys_expected (model_events): ", paste(keys_expected_model, collapse = ", "), "\n", sep = "")
+cat("keys_received (model_events): ", paste(keys_received_model, collapse = ", "), "\n", sep = "")
+cat("Model events columns: ", paste(keys_received_model, collapse = ", "), "\n", sep = "")
 cat("Sample drug_name values (first 5): ", paste(head(unique(pgx_df_target1$drug_name[!is.na(pgx_df_target1$drug_name)]), 5), collapse = ", "), "\n", sep = "")
 cat("Sample primary_icd values (first 5): ", paste(head(unique(pgx_df_target1$primary_icd_diagnosis_code[!is.na(pgx_df_target1$primary_icd_diagnosis_code)]), 5), collapse = ", "), "\n\n", sep = "")
 
@@ -317,7 +324,7 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     names_to = "source",
     values_to = "code"
   ) %>%
-  filter(!is.na(code), code != "", code != "NA")
+  filter(!is.na(mi_person_key), !is.na(code), code != "", code != "NA")
 
 # Diagnostics: counts before/after allowed_codes filter
 n_long_before_allowed <- nrow(pgx_df_target1_long)
@@ -402,6 +409,10 @@ target_eventlog <- pgx_df_target1_long %>%
     timestamp            = "timestamp"
   )
 
+keys_expected_eventlog <- c("case_id", "activity", "timestamp", "activity_instance_id", "lifecycle_id", "resource_id")
+keys_received_eventlog <- names(target_eventlog)
+cat("keys_expected (eventlog): ", paste(keys_expected_eventlog, collapse = ", "), "\n", sep = "")
+cat("keys_received (eventlog): ", paste(keys_received_eventlog, collapse = ", "), "\n", sep = "")
 cat("Target eventlog created.\n")
 print(target_eventlog)
 
@@ -861,11 +872,12 @@ if (n_target > 0L) {
           height = 900
         )
       
-      # Save interactive HTML
+      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
       saveWidget(
         fig,
         file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname)),
         selfcontained = TRUE,
+        libdir = NULL,
         title = paste("Trace Explorer:", cohort_name, age_band)
       )
       
@@ -911,12 +923,25 @@ save_bupar_csv(
   sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
 )
 
-# 2) Process Matrix and CSV export (event log is built only from rows with valid timestamp)
+# 2) Process Matrix and CSV export
+# Use same event log as rest of script (activity = DRUG:/ICD:/CPT: from event log creation). Filter out NA in
+# timestamp/activity/case_id so process_matrix does not hit "missing value where TRUE/FALSE needed".
+target_eventlog_valid <- target_eventlog %>%
+  filter(!is.na(timestamp), !is.na(activity), !is.na(case_id))
+if (nrow(target_eventlog_valid) < nrow(target_eventlog)) {
+  cat("BupaR: Dropped ", nrow(target_eventlog) - nrow(target_eventlog_valid),
+      " rows with NA in timestamp/activity/case_id for process_matrix\n", sep = "")
+}
 if (n_target > 0L) {
   pm_target <- tryCatch(
-    process_matrix(target_eventlog, type = "frequency"),
+    if (n_events(target_eventlog_valid) > 0L && n_cases(target_eventlog_valid) > 0L) {
+      process_matrix(target_eventlog_valid, type = "frequency")
+    } else {
+      NULL
+    },
     error = function(e) {
       cat("Note: process_matrix skipped due to error:", conditionMessage(e), "\n")
+      cat("[ERROR_PARAMS] step=5_bupar step=process_matrix cohort_name=", cohort_name, " age_band=", age_band_fname, " error=", conditionMessage(e), "\n", sep = "")
       NULL
     })
   if (!is.null(pm_target)) {
@@ -1088,11 +1113,12 @@ if (n_target > 0L) {
             width = 1000
           )
         
-        # Save interactive HTML
+        # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
         saveWidget(
           fig,
           file.path(plots_dir, sprintf("%s_%s_process_matrix_interactive.html", cohort_name, age_band_fname)),
           selfcontained = TRUE,
+          libdir = NULL,
           title = paste("Process Matrix:", cohort_name, age_band)
         )
         
@@ -1252,11 +1278,12 @@ if (n_target > 0L) {
           hovermode = "closest"
         )
       
-      # Save interactive HTML
+      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
       saveWidget(
         fig,
         file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname)),
         selfcontained = TRUE,
+        libdir = NULL,
         title = paste("Activity Frequency:", cohort_name, age_band)
       )
       
