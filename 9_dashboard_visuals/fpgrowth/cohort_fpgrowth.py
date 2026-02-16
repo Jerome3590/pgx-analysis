@@ -341,6 +341,9 @@ def process_single_cohort(
     
     start_time = time.time()
     
+    # Convert age_band to filename format (hyphens to underscores for EC2 compatibility)
+    age_band_fname = age_band.replace("-", "_")
+    
     try:
         # Simple in-memory connection (no AWS needed for local parquet reads)
         con = duckdb.connect(':memory:')
@@ -352,7 +355,7 @@ def process_single_cohort(
         model_data_dir = (
             MODEL_DATA_ROOT
             / f"cohort_name={cohort_name}"
-            / f"age_band={age_band}"
+            / f"age_band={age_band_fname}"
         )
         model_data_filtered = model_data_dir / "model_events_no_protocols.parquet"
         model_data_file = model_data_dir / "model_events.parquet"
@@ -408,19 +411,15 @@ def process_single_cohort(
                         local_data_path
                         / f"cohort_name={cohort_name}"
                         / f"event_year={event_year}"
-                        / f"age_band={age_band}"
-                        / "cohort.parquet"
-                    )
+                    / f"age_band={age_band_fname}"
+                    / "cohort.parquet"
+                )
             else:
                 parquet_file = (
                     local_data_path
                     / f"cohort_name={cohort_name}"
                     / f"event_year={event_year}"
-                    / f"age_band={age_band}"
-                    / "cohort.parquet"
-                )
-
-        if not parquet_file.exists():
+                    / f"age_band={age_band_fname}"
             logger.warning(f"✗ Cohort file not found: {parquet_file}")
             return {
                 'item_type': item_type,
