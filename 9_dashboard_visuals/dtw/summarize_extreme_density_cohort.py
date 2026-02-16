@@ -24,6 +24,7 @@ For a given cohort / age_band (typically {source}_extreme_density), this script:
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Set, Tuple
@@ -42,7 +43,12 @@ try:
 except ImportError:
     mirror_log_to_s3 = None
 
-MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
+# On EC2 model data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then repo.
+_MODEL_DATA_ROOTS = [
+    Path("/mnt/nvme/4_model_data"),
+    *([Path(os.environ.get("PGX_DATA_ROOT", "").strip()) / "4_model_data"] if os.environ.get("PGX_DATA_ROOT", "").strip() else []),
+    REPO_ROOT / "4_model_data",
+]
 TRAIN_YEARS = [2016, 2017, 2018]
 
 # ICD diagnosis columns in model_events (must match 4_model_data / create_dtw_features)
@@ -101,8 +107,20 @@ def setup_logger(
 
 
 def _get_model_events_path(cohort_name: str, age_band: str) -> Path:
+    """Resolve model_events path; EC2 uses underscore in partition (age_band=75_84). Try underscore first, then hyphen."""
+    band_underscore = age_band.replace("-", "_") if "-" in age_band else age_band
+    band_hyphen = age_band.replace("_", "-") if "_" in age_band else age_band
+    for root in _MODEL_DATA_ROOTS:
+        if not root.exists():
+            continue
+        for band in (band_underscore, band_hyphen):
+            d = root / f"cohort_name={cohort_name}" / f"age_band={band}"
+            for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+                p = d / name
+                if p.exists():
+                    return p
     return (
-        MODEL_DATA_ROOT
+        _MODEL_DATA_ROOTS[-1]
         / f"cohort_name={cohort_name}"
         / f"age_band={age_band}"
         / "model_events.parquet"

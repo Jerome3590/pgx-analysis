@@ -361,8 +361,9 @@ def process_single_cohort(
         # Prefer DTW-filtered model_data (protocol events removed) if available,
         # then fall back to regular model_data, then raw GOLD cohorts parquet.
         # This ensures FP-Growth only uses useful signals (non-protocol events) for itemsets and rules.
-        # Use smart path resolution (checks 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data)
-        model_data_path = _model_data_path(cohort_name, age_band_fname)
+        # Use smart path resolution (checks 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data).
+        # Pass age_band with hyphen: 4_model_data and 3b use hyphen in partition names (e.g. age_band=75-84).
+        model_data_path = _model_data_path(cohort_name, age_band)
 
         # Special handling for aggregated training window ("train" = 2016–2018)
         event_label = str(event_year)

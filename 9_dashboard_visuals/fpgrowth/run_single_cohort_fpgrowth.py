@@ -45,7 +45,8 @@ def main():
     print(f"Running FP-Growth for {args.cohort_name} / {args.age_band} / {args.event_year}")
     print(f"Using data path: {local_data_path}")
     
-    # Process each item type
+    # Process each item type; track if any succeeded
+    any_ok = False
     for item_type in ITEM_TYPES:
         print(f"\nProcessing {item_type}...")
         try:
@@ -62,13 +63,18 @@ def main():
             if 'error' in result:
                 print(f"[ERROR] {item_type}: {result['error']}")
             else:
+                any_ok = True
                 print(f"[OK] {item_type}: {result.get('itemsets_count', 0)} itemsets, {result.get('rules_count', 0)} rules")
         except Exception as e:
             print(f"[ERROR] {item_type} failed: {e}")
             import traceback
             traceback.print_exc()
-    
-    print("\nFP-Growth itemsets creation complete!")
+
+    if any_ok:
+        print("\nFP-Growth itemsets creation complete!")
+    else:
+        print("\nFP-Growth itemsets creation failed: no item types produced itemsets (e.g. model_data not found).")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

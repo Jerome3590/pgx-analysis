@@ -5,16 +5,13 @@ Create BupaR visuals for the dashboard.
 We do NOT add BupaR (or DTW or FP-Growth) features to model data. This workflow
 is for dashboard visualization only.
 
-Runs the BupaR workflow for a given cohort and age band:
+Runs the BupaR workflow for a given cohort and age band (outputs and plots only; no feature engineering):
 1. Create BupaR outputs and plots via R scripts
-2. Merge BupaR features into a standalone feature table (dashboard only; not added to model data)
-3. Upload interactive HTML and static PNG plots to the dashboard bucket
+2. Upload interactive HTML and static PNG plots to the dashboard bucket
 
 Outputs:
 - Interactive plots: 3 HTML files with year dropdown filtering (activity_frequency, trace_explorer, process_matrix)
 - Static plots: 3 PNG fallback files
-- Features: 10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band_fname}.csv
-- Mirrored features and plots: feature_engineering_outputs/5_bupar/{cohort}/{age_band}/[features,plots]
 """
 
 import argparse
@@ -43,6 +40,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     step_block,
     mirror_log_to_s3,
 )
+from py_helpers.model_data_paths import resolve_model_events_path  # noqa: E402
 
 
 def _find_rscript() -> str | None:
@@ -68,39 +66,6 @@ def _find_rscript() -> str | None:
                 exe = r_dir / "bin" / "Rscript.exe"
                 if exe.exists():
                     return str(exe)
-    return None
-
-
-def _model_data_path(cohort_name: str, age_band: str, project_root: Path) -> Path | None:
-    """Return path to model_events parquet if it exists; else None. Matches R script resolution (3b then 4_model_data)."""
-    cohort_slug_3b = "opioid" if cohort_name == "opioid_ed" else "polypharmacy"
-    path_3b = (
-        project_root
-        / "3b_feature_importance_eda"
-        / "outputs"
-        / "cohorts"
-        / "input_model_data"
-        / f"cohort_name={cohort_slug_3b}"
-        / f"age_band={age_band}"
-        / "model_events.parquet"
-    )
-    if path_3b.exists():
-        return path_3b
-    data_root = os.environ.get("PGX_DATA_ROOT", "")
-    candidates = [
-        Path(data_root) / "4_model_data" if data_root else None,
-        Path("/mnt/nvme/4_model_data"),
-        project_root / "4_model_data",
-        project_root / "4a_model_data",
-    ]
-    for root in candidates:
-        if root is None or not root.exists():
-            continue
-        model_data_dir = root / f"cohort_name={cohort_name}" / f"age_band={age_band}"
-        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
-            p = model_data_dir / name
-            if p.exists():
-                return p
     return None
 
 
@@ -185,8 +150,8 @@ def create_bupar_outputs(
             logger.error("Invalid SHAP/FFA allowed codes JSON at %s: %s", allowed_path, e)
             return False
 
-        # Require model data exists before calling R
-        model_path = _model_data_path(cohort_name, age_band, REPO_ROOT)
+        # Require model data exists before calling R (tries underscore then hyphen for EC2)
+        model_path = resolve_model_events_path(REPO_ROOT, cohort_name, age_band)
         if not model_path or not model_path.exists():
             logger.error(
                 "Model data (model_events.parquet) not found for cohort=%s age_band=%s. "
@@ -245,64 +210,6 @@ def create_bupar_outputs(
             return False
 
 
-def merge_bupar_features(
-    cohort_name: str,
-    age_band: str,
-    logger: logging.Logger,
-) -> bool:
-    """Step 2: Merge per-patient BupaR features into a standalone CSV for dashboard (not added to model data)."""
-    with step_block("5_bupar", "add_bupar_features_to_model_data", logger=logger):
-        r_script = BUPAR_CODE_DIR / "add_bupar_features_to_model_data.R"
-
-        rscript = _find_rscript()
-        if not rscript:
-            logger.error(
-                "Rscript not found. Install R and add it to PATH, or set R_HOME, or run on a machine where R is installed."
-            )
-            return False
-
-        logger.info(
-            "Merging BupaR features for %s / %s using %s",
-            cohort_name,
-            age_band,
-            r_script,
-        )
-
-        try:
-            result = subprocess.run(
-                [
-                    rscript,
-                    str(r_script),
-                    "--project-root",
-                    str(REPO_ROOT),
-                    "--cohort-name",
-                    cohort_name,
-                    "--age-band",
-                    age_band,
-                ],
-                cwd=str(REPO_ROOT),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            logger.info("Merged BupaR features successfully")
-            if result.stdout:
-                logger.info("Merge stdout:\n%s", result.stdout)
-            if result.stderr:
-                logger.info("Merge stderr:\n%s", result.stderr)
-            return True
-        except subprocess.CalledProcessError as exc:
-            logger.error(
-                "BupaR feature merge script failed (returncode=%s)", exc.returncode
-            )
-            if exc.stderr:
-                logger.error("stderr:\n%s", exc.stderr)
-            return False
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("BupaR feature merge script failed with exception: %s", exc)
-            return False
-
-
 def upload_bupar_plots_to_dashboard_s3(
     cohort_name: str,
     age_band: str,
@@ -347,12 +254,11 @@ def upload_bupar_plots_to_dashboard_s3(
 def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
-    skip_feature_engineering: bool = True,
     force: bool = False,
 ) -> bool:
     """
-    Create BupaR visuals for the dashboard: outputs and plot upload.
-    BupaR features are not added to model data; feature engineering skipped by default.
+    Create BupaR visuals for the dashboard: outputs and plot upload only.
+    We do not create or merge BupaR features (no feature engineering in this pipeline).
     If force is False and plots already exist, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")
@@ -383,14 +289,6 @@ def create_bupar_visuals(
             mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
 
-        if not skip_feature_engineering:
-            if not merge_bupar_features(cohort_name, age_band, logger=logger):
-                logger.error("BupaR merge step failed; aborting")
-                mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
-                return False
-        else:
-            logger.info("Skipping feature engineering (BupaR features not used in model data)")
-
         upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
 
         logger.info("BupaR visuals completed for %s / %s", cohort_name, age_band)
@@ -416,11 +314,6 @@ if __name__ == "__main__":
         help="Age band (e.g., 0-12)",
     )
     parser.add_argument(
-        "--enable-feature-engineering",
-        action="store_true",
-        help="Enable feature engineering steps (creates CSV files, not used by default)",
-    )
-    parser.add_argument(
         "--force",
         action="store_true",
         help="Re-run even if output already exists (default: skip when idempotent)",
@@ -432,7 +325,6 @@ if __name__ == "__main__":
         success = create_bupar_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
-            skip_feature_engineering=not args.enable_feature_engineering,
             force=args.force,
         )
 

@@ -2,14 +2,12 @@
 """
 Create FP-Growth visuals for the dashboard.
 
-We do NOT add FP-Growth (or DTW) features to model data. This workflow is for
-dashboard visualization only.
+We do NOT add FP-Growth (or DTW) features to model data. This workflow produces
+itemsets and plots only (no feature-engineering steps).
 
-Runs the complete FP-Growth workflow:
+Runs:
 1. Ensure FP-Growth itemsets exist (target split, TRAIN years)
-2. Create FP-Growth patient-level features
-3. Merge features into standalone CSV for dashboard (mirror, S3); not added to model data
-4. Create visualizations (plots, network HTML)
+2. Create visualizations (plots, network HTML)
 
 Usage (Windows or Linux, from project root):
     python 9_dashboard_visuals/fpgrowth/create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 0-12
@@ -131,94 +129,6 @@ def ensure_itemsets(
             )
 
 
-def create_features(
-    cohort_name: str,
-    age_band: str,
-    logger: logging.Logger,
-) -> bool:
-    """Step 1: Create FP-Growth patient-level features."""
-    with step_block("4_fpgrowth", "create_features", logger=logger):
-        logger.info("Creating FP-Growth features for %s / %s", cohort_name, age_band)
-        script_path = PROJECT_ROOT / "fpgrowth" / "create_fpgrowth_features.py"
-
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(script_path),
-                    "--cohort",
-                    cohort_name,
-                    "--age_band",
-                    age_band,
-                ],
-                cwd=PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            logger.info("FP-Growth features created")
-            if result.stdout:
-                logger.info("Feature stdout:\n%s", result.stdout)
-            if result.stderr:
-                logger.info("Feature stderr:\n%s", result.stderr)
-            return True
-        except subprocess.CalledProcessError as exc:
-            logger.error("Feature creation failed (returncode=%s)", exc.returncode)
-            if exc.stderr:
-                logger.error("stderr:\n%s", exc.stderr)
-            return False
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Feature creation failed with exception: %s", exc)
-            return False
-
-
-def add_features_to_model_data(
-    cohort_name: str,
-    age_band: str,
-    logger: logging.Logger,
-) -> bool:
-    """Step 2: Add FP-Growth features to model data."""
-    with step_block("4_fpgrowth", "add_features_to_model_data", logger=logger):
-        logger.info(
-            "Adding FP-Growth features to model data for %s / %s",
-            cohort_name,
-            age_band,
-        )
-        script_path = (
-            PROJECT_ROOT / "fpgrowth" / "add_fpgrowth_features_to_model_data.py"
-        )
-
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(script_path),
-                    "--cohort-name",
-                    cohort_name,
-                    "--age-band",
-                    age_band,
-                ],
-                cwd=PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            logger.info("FP-Growth features added to model data")
-            if result.stdout:
-                logger.info("Merge stdout:\n%s", result.stdout)
-            if result.stderr:
-                logger.info("Merge stderr:\n%s", result.stderr)
-            return True
-        except subprocess.CalledProcessError as exc:
-            logger.error("Feature merge failed (returncode=%s)", exc.returncode)
-            if exc.stderr:
-                logger.error("stderr:\n%s", exc.stderr)
-            return False
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Feature merge failed with exception: %s", exc)
-            return False
-
-
 def create_visualizations(
     cohort_name: str,
     age_band: str,
@@ -276,29 +186,35 @@ def create_visualizations(
 def create_fpgrowth_visuals(
     cohort_name: str,
     age_band: str,
-    skip_feature_engineering: bool = True,
     skip_visualizations: bool = False,
     force: bool = False,
 ) -> bool:
     """
-    Create FP-Growth visuals for the dashboard: itemsets and plots.
-    FP-Growth features are not added to model data; feature engineering steps skipped by default.
+    Create FP-Growth visuals for the dashboard: itemsets and plots only.
+    We do not create or merge FP-Growth features (no feature engineering in this pipeline).
 
-    Idempotent with respect to itemset creation; downstream scripts overwrite CSV outputs.
-    If force is False and the output CSV already exists, skips (idempotent).
+    Idempotent: if force is False and itemsets already exist for this cohort/age_band, skips.
     """
     age_band_fname = age_band.replace("-", "_")
-    out_csv = (
+    itemsets_dir = (
         DASHBOARD_FPGROWTH_OUT
         / "outputs"
-        / "feature_engineering"
-        / f"fpgrowth_added_features_{cohort_name}_{age_band_fname}.csv"
+        / cohort_name
+        / "target"
+        / age_band_fname
+        / "train"
     )
-    if not force and out_csv.exists():
+    itemsets_exist = itemsets_dir.exists() and any(
+        itemsets_dir.glob("*_itemsets*.json")
+    )
+    if not force and itemsets_exist:
         logger_skip = logging.getLogger(f"fpgrowth.{cohort_name}.{age_band_fname}")
         if not logger_skip.handlers:
             logger_skip.addHandler(logging.StreamHandler(sys.stdout))
-        logger_skip.info("Output exists at %s; skipping (use --force to re-run)", out_csv)
+        logger_skip.info(
+            "Itemsets already exist at %s; skipping (use --force to re-run)",
+            itemsets_dir,
+        )
         return True
 
     logger, log_path = _get_logger(cohort_name, age_band)
@@ -316,19 +232,6 @@ def create_fpgrowth_visuals(
         logger.info("Starting FP-Growth visuals for %s / %s", cohort_name, age_band)
 
         ensure_itemsets(cohort_name, age_band, logger=logger)
-
-        if not skip_feature_engineering:
-            if not create_features(cohort_name, age_band, logger=logger):
-                logger.error("FP-Growth feature creation failed; aborting")
-                mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
-                return False
-
-            if not add_features_to_model_data(cohort_name, age_band, logger=logger):
-                logger.error("FP-Growth feature merge failed; aborting")
-                mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
-                return False
-        else:
-            logger.info("Skipping feature engineering (FP-Growth features not used in model data)")
 
         if not skip_visualizations:
             ok = create_visualizations(cohort_name, age_band, logger=logger)
@@ -360,11 +263,6 @@ if __name__ == "__main__":
         help="Age band (e.g., 0-12)",
     )
     parser.add_argument(
-        "--enable-feature-engineering",
-        action="store_true",
-        help="Enable feature engineering steps (creates CSV files, not used by default)",
-    )
-    parser.add_argument(
         "--skip-visualizations",
         action="store_true",
         help="Skip visualization creation",
@@ -377,15 +275,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Feature engineering is skipped by default (features not used in model data)
-    # Enable only if explicitly requested via --enable-feature-engineering
-    skip_fe = not args.enable_feature_engineering
-
     with module_block("4_fpgrowth"):
         success = create_fpgrowth_visuals(
             cohort_name=args.cohort_name,
             age_band=args.age_band,
-            skip_feature_engineering=skip_fe,
             skip_visualizations=args.skip_visualizations,
             force=args.force,
         )
