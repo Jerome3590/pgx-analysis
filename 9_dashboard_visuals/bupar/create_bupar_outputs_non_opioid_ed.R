@@ -198,11 +198,13 @@ allowed_codes_shap_ffa_path <- file.path(
 )
 
 allowed_codes <- character(0)
+used_shap_ffa <- FALSE
 
 if (file.exists(allowed_codes_shap_ffa_path)) {
   allowed_codes <- fromJSON(allowed_codes_shap_ffa_path)
   if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
   cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA (model-important items).\n", sep = "")
+  used_shap_ffa <- TRUE
 } else {
   if (file.exists(itemsets_drug_target_path)) {
     drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
@@ -293,7 +295,16 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     names_to = "source",
     values_to = "code"
   ) %>%
-  filter(!is.na(code), code != "", code != "NA") %>%
+  filter(!is.na(code), code != "", code != "NA")
+
+# Diagnostics: counts before/after allowed_codes filter
+n_long_before_allowed <- nrow(pgx_df_target1_long)
+codes_in_data <- unique(pgx_df_target1_long$code)
+n_codes_in_data <- length(codes_in_data)
+cat("BupaR diagnostic: long rows before allowed_codes filter: ", n_long_before_allowed,
+    " (distinct codes in data: ", n_codes_in_data, ").\n", sep = "")
+
+pgx_df_target1_long <- pgx_df_target1_long %>%
   {
     if (length(allowed_codes) > 0) {
       dplyr::filter(., code %in% allowed_codes)
@@ -311,6 +322,61 @@ pgx_df_target1_long <- pgx_df_target1 %>%
     timestamp = as.POSIXct(event_date)
   ) %>%
   filter(!is.na(timestamp))
+
+n_long_after <- nrow(pgx_df_target1_long)
+cat("BupaR diagnostic: long rows after allowed_codes + timestamp filter: ", n_long_after, ".\n", sep = "")
+if (n_long_after == 0L && length(allowed_codes) > 0L && n_long_before_allowed > 0L) {
+  cat("BupaR diagnostic: no overlap between allowed_codes and data. Sample allowed_codes (max 20): ",
+      paste(head(allowed_codes, 20), collapse = ", "), ".\n", sep = "")
+  cat("BupaR diagnostic: sample codes in data (max 20): ",
+      paste(head(codes_in_data, 20), collapse = ", "), ".\n", sep = "")
+}
+
+# If SHAP/FFA filter yielded no events, fall back to FP-Growth itemsets so we still get visuals
+if (used_shap_ffa && nrow(pgx_df_target1_long) == 0L && nrow(pgx_df_target1) > 0L) {
+  cat("WARNING: SHAP/FFA allowed codes yielded 0 events; falling back to FP-Growth itemsets for this cohort/age_band.\n")
+  allowed_codes <- character(0)
+  if (file.exists(itemsets_drug_target_path)) {
+    drug_itemsets_target <- fromJSON(itemsets_drug_target_path, simplifyDataFrame = TRUE)
+    allowed_codes <- union(allowed_codes, unique(unlist(drug_itemsets_target$itemsets)))
+  }
+  if (file.exists(itemsets_icd_target_path)) {
+    icd_itemsets_target <- fromJSON(itemsets_icd_target_path, simplifyDataFrame = TRUE)
+    allowed_codes <- union(allowed_codes, unique(unlist(icd_itemsets_target$itemsets)))
+  }
+  if (file.exists(itemsets_medical_target_path)) {
+    medical_itemsets_target <- fromJSON(itemsets_medical_target_path, simplifyDataFrame = TRUE)
+    allowed_codes <- union(allowed_codes, unique(unlist(medical_itemsets_target$itemsets)))
+  }
+  allowed_codes <- union(allowed_codes, target_icd_patterns)
+  cat("Fallback: ", length(allowed_codes), " allowed codes from FP-Growth.\n", sep = "")
+  pgx_df_target1_long <- pgx_df_target1 %>%
+    transmute(
+      mi_person_key, event_date,
+      drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
+      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
+      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code
+    ) %>%
+    mutate(across(c(drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
+      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
+      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code), as.character)) %>%
+    pivot_longer(cols = c(drug_name, primary_icd_diagnosis_code, two_icd_diagnosis_code, three_icd_diagnosis_code,
+      four_icd_diagnosis_code, five_icd_diagnosis_code, six_icd_diagnosis_code, seven_icd_diagnosis_code,
+      eight_icd_diagnosis_code, nine_icd_diagnosis_code, ten_icd_diagnosis_code, procedure_code),
+      names_to = "source", values_to = "code") %>%
+    filter(!is.na(code), code != "", code != "NA") %>%
+    { if (length(allowed_codes) > 0) dplyr::filter(., code %in% allowed_codes) else . } %>%
+    mutate(
+      activity = dplyr::case_when(
+        source == "drug_name" ~ paste0("DRUG:", code),
+        grepl("icd_diagnosis_code", source) ~ paste0("ICD:", code),
+        source == "procedure_code" ~ paste0("CPT:", code),
+        TRUE ~ code
+      ),
+      timestamp = as.POSIXct(event_date)
+    ) %>%
+    filter(!is.na(timestamp))
+}
 
 target_eventlog <- pgx_df_target1_long %>%
   transmute(
@@ -462,18 +528,24 @@ cat("\n--- Pre-HCG (before first ED visit within 21d of drug event) analysis ---
 # Build target date per case from model_events (hcg_line or first_ed_non_opioid_date)
 target_date_map <- NULL
 if (has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
-  target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines, !is.na(event_date)) %>%
+  hcg_ed <- pgx_df_target1 %>%
+    filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines, !is.na(event_date))
+  hcg_ed$event_date_parsed <- suppressWarnings(as.Date(hcg_ed$event_date))
+  target_date_map <- hcg_ed %>%
+    filter(!is.na(event_date_parsed)) %>%
     group_by(mi_person_key) %>%
-    summarise(target_date = min(as.Date(event_date), na.rm = TRUE), .groups = "drop") %>%
+    summarise(target_date = min(event_date_parsed, na.rm = TRUE), .groups = "drop") %>%
     filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
     rename(case_id = mi_person_key)
   cat("Target dates from hcg_line (ED visits): ", nrow(target_date_map), " cases.\n", sep = "")
 } else if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) {
-  target_date_map <- pgx_df_target1 %>%
-    filter(!is.na(first_ed_non_opioid_date)) %>%
+  fed <- pgx_df_target1 %>%
+    filter(!is.na(first_ed_non_opioid_date))
+  fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_ed_non_opioid_date))
+  target_date_map <- fed %>%
+    filter(!is.na(first_ed_parsed)) %>%
     group_by(mi_person_key) %>%
-    summarise(target_date = min(as.Date(first_ed_non_opioid_date), na.rm = TRUE), .groups = "drop") %>%
+    summarise(target_date = min(first_ed_parsed, na.rm = TRUE), .groups = "drop") %>%
     filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
     rename(case_id = mi_person_key)
   cat("Target dates from first_ed_non_opioid_date: ", nrow(target_date_map), " cases.\n", sep = "")
