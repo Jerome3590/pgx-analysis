@@ -60,6 +60,37 @@ This directory contains scripts to run process-mining analysis on cohort traject
     - `10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv`  
     - Uploaded to `s3://pgxdatalake/gold/feature_engineering/5_bupar/{cohort}/{age_band}/bupaR_added_features_{cohort}_{age_band}.csv` by `add_bupar_features_to_model_data.R`.
 
+### Dashboard aggregated visuals vs patient-level outputs
+
+**Dashboard aggregated visuals** are the cohort/age-band-level plots and interactive HTMLs that the risk dashboard displays. The API (`GET /visualizations/bupar`) returns URLs to these prebuilt assets only. All are under `outputs/{cohort}/{age_band_fname}/plots/` and uploaded to `{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/`.
+
+| Artifact | Filename pattern | Description |
+|----------|------------------|-------------|
+| Activity frequency (image) | `{cohort}_{age_band_fname}_overall_activity_frequency.png` | Top activities by frequency (static) |
+| Activity frequency (interactive) | `{cohort}_{age_band_fname}_activity_frequency_interactive.html` | Same with year dropdown (Plotly) |
+| Trace explorer (image) | `{cohort}_{age_band_fname}_trace_explorer.png` | Top trace patterns (static) |
+| Trace explorer (interactive) | `{cohort}_{age_band_fname}_trace_explorer_interactive.html` | Same with year dropdown (Plotly) |
+| Process matrix (image) | `{cohort}_{age_band_fname}_process_matrix.png` | Directly-follows heatmap (static) |
+| Process matrix (interactive) | `{cohort}_{age_band_fname}_process_matrix_interactive.html` | Same with year dropdown (Plotly) |
+| Pre-target trace explorer | `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_pre_hcg.png` (non_opioid_ed) | Pre-target trace patterns |
+| Pre-target activity frequency | `{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png` / `_pre_hcg_...` | Pre-target activity frequency |
+| Performance spectrum | `{cohort}_{age_band_fname}_performance_spectrum.png` | Aggregated activity trace (psmineR) |
+| Frequency map | `{cohort}_{age_band_fname}_frequency_map.png` | Process map frequency view |
+| Activity sequence (top) | `{cohort}_{age_band_fname}_activity_sequence_top.png` | Top activity sequence |
+
+**Patient-level metrics** are not displayed in the current dashboard. They are produced for a **follow-on project** (e.g. on-demand patient-level trace/process-matrix views or API). Outputs include:
+
+| Output | Location / pattern | Use |
+|--------|---------------------|-----|
+| Per-patient pre-target features | `*_train_target_pre_f1120_patient_features_bupar.csv` / `*_pre_hcg_*` | Follow-on patient-level API |
+| Per-patient post-target features | `*_train_target_post_f1120_patient_features_bupar.csv` (opioid_ed) | Follow-on / EDA |
+| Time-to-target features | `*_train_target_time_to_f1120_features_bupar.csv` / `*_time_to_hcg_*` | Follow-on |
+| Trace tables (per case) | `*_traces_bupar.csv`, `*_traces_top_bupar.csv`, `*_traces_rare_bupar.csv` | Follow-on / analytics |
+| Process matrix (tabular) | `*_train_target_process_matrix_bupar.csv` | Follow-on / analytics |
+| Merged BupaR features | `bupaR_added_features_{cohort}_{age_band}.csv` (feature_engineering/) | Dashboard visualization only; not model input; patient-level drill-down in follow-on |
+
+Pipeline logging uses the tag **`[DASHBOARD_AGGREGATED]`** for the artifacts in the first table and **patient-level** for the second so logs clearly separate what is served to the dashboard vs what is for the follow-on project.
+
 ### Typical Workflow
 
 For a given `(cohort, age_band)`:
