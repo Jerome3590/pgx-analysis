@@ -1199,6 +1199,11 @@ if (!is.null(p_te)) {
     trace_combined <- bind_rows(trace_all, trace_filtered) %>%
       arrange(desc(frequency))
     
+    # Diagnostic logging for troubleshooting empty HTML
+    cat("BupaR diagnostic [trace_explorer]: n_target=", n_target, " n_cases=", n_cases(target_eventlog),
+        " nrow(trace_data_by_year)=", nrow(trace_data_by_year), " nrow(trace_combined)=", nrow(trace_combined),
+        " nrow(trace_filtered)=", nrow(trace_filtered), "\n", sep = "")
+    
     # Abbreviate traces for display (truncate long sequences)
     trace_combined <- trace_combined %>%
       mutate(trace_display = ifelse(nchar(trace) > 100, 
@@ -1280,15 +1285,22 @@ if (!is.null(p_te)) {
       )
     
     # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
+    trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
+    tryCatch(
+      if (exists("partial_bundle", mode = "function", where = asNamespace("plotly"))) {
+        fig <- plotly::partial_bundle(fig)
+      },
+      error = function(e) cat("BupaR diagnostic: partial_bundle skipped:", conditionMessage(e), "\n")
+    )
     saveWidget(
       fig,
-      file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname)),
+      trace_html_path,
       selfcontained = TRUE,
       libdir = NULL,
       title = paste("Trace Explorer:", cohort_name, age_band)
     )
-    
-    cat("Saved trace_explorer_interactive.html with year filtering\n")
+    trace_html_size <- file.info(trace_html_path)$size
+    cat("Saved trace_explorer_interactive.html with year filtering; path=", trace_html_path, " size_bytes=", if (is.na(trace_html_size)) "NA" else trace_html_size, "\n", sep = "")
   }, error = function(e) cat(" [skip] interactive trace explorer:", conditionMessage(e), "\n"))
 }
 
@@ -1458,6 +1470,10 @@ if (!is.null(pm_target)) {
       
       pm_combined <- bind_rows(pm_all, pm_filtered)
       
+      # Diagnostic logging for troubleshooting empty HTML
+      cat("BupaR diagnostic [process_matrix]: n_events=", n_events(target_eventlog_valid), " n_cases=", n_cases(target_eventlog_valid),
+          " nrow(pm_by_year)=", nrow(pm_by_year), " nrow(pm_combined)=", nrow(pm_combined), "\n", sep = "")
+      
       # Create plotly heatmap with year buttons
       years <- c(0, 2016, 2017, 2018)
       year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
@@ -1541,15 +1557,22 @@ if (!is.null(pm_target)) {
         )
       
       # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
+      pm_html_path <- file.path(plots_dir, sprintf("%s_%s_process_matrix_interactive.html", cohort_name, age_band_fname))
+      tryCatch(
+        if (exists("partial_bundle", mode = "function", where = asNamespace("plotly"))) {
+          fig <- plotly::partial_bundle(fig)
+        },
+        error = function(e) cat("BupaR diagnostic: partial_bundle skipped:", conditionMessage(e), "\n")
+      )
       saveWidget(
         fig,
-        file.path(plots_dir, sprintf("%s_%s_process_matrix_interactive.html", cohort_name, age_band_fname)),
+        pm_html_path,
         selfcontained = TRUE,
         libdir = NULL,
         title = paste("Process Matrix:", cohort_name, age_band)
       )
-      
-      cat("Saved process_matrix_interactive.html with year filtering\n")
+      pm_html_size <- file.info(pm_html_path)$size
+      cat("Saved process_matrix_interactive.html with year filtering; path=", pm_html_path, " size_bytes=", if (is.na(pm_html_size)) "NA" else pm_html_size, "\n", sep = "")
     }, error = function(e) cat(" [skip] interactive process matrix:", conditionMessage(e), "\n"))
   }, error = function(e) cat(" [skip] process_matrix heatmap:", conditionMessage(e), "\n"))
 }
@@ -1659,6 +1682,10 @@ tryCatch({
   activity_freq_combined <- bind_rows(activity_freq_all, activity_freq_filtered) %>%
     arrange(activity, year)
   
+  # Diagnostic logging for troubleshooting empty HTML
+  cat("BupaR diagnostic [activity_frequency]: nrow(activity_freq_by_year)=", nrow(activity_freq_by_year),
+      " nrow(activity_freq_combined)=", nrow(activity_freq_combined), " nrow(target_activity_freq)=", nrow(target_activity_freq), "\n", sep = "")
+  
   # Create color mapping
   colors <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
   
@@ -1740,15 +1767,22 @@ tryCatch({
     )
   
   # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
+  af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
+  tryCatch(
+    if (exists("partial_bundle", mode = "function", where = asNamespace("plotly"))) {
+      fig <- plotly::partial_bundle(fig)
+    },
+    error = function(e) cat("BupaR diagnostic: partial_bundle skipped:", conditionMessage(e), "\n")
+  )
   saveWidget(
     fig,
-    file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname)),
+    af_html_path,
     selfcontained = TRUE,
     libdir = NULL,
     title = paste("Activity Frequency:", cohort_name, age_band)
   )
-  
-  cat("Saved activity_frequency_interactive.html with year filtering\n")
+  af_html_size <- file.info(af_html_path)$size
+  cat("Saved activity_frequency_interactive.html with year filtering; path=", af_html_path, " size_bytes=", if (is.na(af_html_size)) "NA" else af_html_size, "\n", sep = "")
 }, error = function(e) cat(" [skip] interactive activity frequency:", conditionMessage(e), "\n"))
 
 # Gantt-style timeline (patient = job, activity = stage)

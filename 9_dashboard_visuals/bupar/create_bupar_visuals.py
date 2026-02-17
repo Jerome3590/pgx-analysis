@@ -221,6 +221,24 @@ def create_bupar_outputs(
                 logger.info("BupaR stdout:\n%s", result.stdout)
             if result.stderr:
                 logger.warning("BupaR stderr (check for EMPTY EVENT LOG or min() warnings):\n%s", result.stderr)
+            # Log HTML outputs for troubleshooting empty visuals
+            age_band_fname = age_band_arg.replace("-", "_")
+            plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
+            if plots_dir.exists():
+                for pattern in ["*.html", "*.png"]:
+                    for p in sorted(plots_dir.glob(pattern)):
+                        try:
+                            size = p.stat().st_size
+                            logger.info(
+                                "BupaR output file: %s size=%s bytes (%s)",
+                                p.name,
+                                f"{size:,}" if size is not None else "N/A",
+                                "EMPTY - check R diagnostic logs" if (size is not None and size < 500) else "ok",
+                            )
+                        except OSError as e:
+                            logger.warning("BupaR output file %s: could not stat: %s", p.name, e)
+            else:
+                logger.warning("BupaR plots dir missing after R run: %s", plots_dir)
             return True
         except subprocess.CalledProcessError as exc:
             logger.error("BupaR outputs script failed (returncode=%s)", exc.returncode)
@@ -258,18 +276,29 @@ def upload_bupar_plots_to_dashboard_s3(
         logger.warning("checkpoint_utils not available; skipping BupaR plot upload to dashboard S3")
         return True
 
-    # Upload both PNG (legacy) and HTML (interactive) files
+    # Upload both PNG (legacy) and HTML (interactive) files; log each for troubleshooting
     uploaded = 0
     for pattern in ["*.png", "*.html"]:
-        for p in plots_dir.glob(pattern):
+        for p in sorted(plots_dir.glob(pattern)):
+            try:
+                size = p.stat().st_size
+                if size is not None and size < 500 and p.suffix == ".html":
+                    logger.warning(
+                        "BupaR HTML file very small (likely empty content): %s size=%s bytes",
+                        p.name,
+                        size,
+                    )
+            except OSError:
+                pass
             key = f"{s3_prefix}/{p.name}"
             s3_path = f"s3://{s3_bucket}/{key}"
             if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
                 uploaded += 1
+                logger.debug("Uploaded %s to %s", p.name, s3_path)
     if uploaded:
         logger.info("Uploaded %s BupaR file(s) (PNG + HTML) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
     else:
-        logger.warning("No PNG or HTML files found in %s", plots_dir)
+        logger.warning("No PNG or HTML files found in %s (check R stdout for BupaR diagnostic and empty event log)", plots_dir)
     return True
 
 
