@@ -556,12 +556,16 @@ if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) 
   fed <- pgx_df_target1 %>%
     filter(!is.na(first_ed_non_opioid_date))
   fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_ed_non_opioid_date))
-  target_date_map <- fed %>%
-    filter(!is.na(first_ed_parsed)) %>%
-    group_by(mi_person_key) %>%
-    summarise(target_date = min(first_ed_parsed, na.rm = TRUE), .groups = "drop") %>%
-    filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
-    rename(case_id = mi_person_key)
+  fed_filtered <- fed %>% filter(!is.na(first_ed_parsed))
+  if (nrow(fed_filtered) > 0) {
+    target_date_map <- fed_filtered %>%
+      group_by(mi_person_key) %>%
+      summarise(target_date = min(first_ed_parsed, na.rm = TRUE), .groups = "drop") %>%
+      filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
+      rename(case_id = mi_person_key)
+  } else {
+    target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
+  }
   cat("Target dates from first_ed_non_opioid_date: ", nrow(target_date_map), " cases.\n", sep = "")
 }
 if ((is.null(target_date_map) || nrow(target_date_map) == 0L) && has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
@@ -569,12 +573,16 @@ if ((is.null(target_date_map) || nrow(target_date_map) == 0L) && has_hcg_line &&
   hcg_ed <- pgx_df_target1 %>%
     filter(!is.na(hcg_line), hcg_line %in% ed_hcg_lines, !is.na(event_date))
   hcg_ed$event_date_parsed <- suppressWarnings(as.Date(hcg_ed$event_date))
-  target_date_map <- hcg_ed %>%
-    filter(!is.na(event_date_parsed)) %>%
-    group_by(mi_person_key) %>%
-    summarise(target_date = min(event_date_parsed, na.rm = TRUE), .groups = "drop") %>%
-    filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
-    rename(case_id = mi_person_key)
+  hcg_filtered <- hcg_ed %>% filter(!is.na(event_date_parsed))
+  if (nrow(hcg_filtered) > 0) {
+    target_date_map <- hcg_filtered %>%
+      group_by(mi_person_key) %>%
+      summarise(target_date = min(event_date_parsed, na.rm = TRUE), .groups = "drop") %>%
+      filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
+      rename(case_id = mi_person_key)
+  } else {
+    target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
+  }
   cat("Target dates from hcg_line (ED visits): ", nrow(target_date_map), " cases.\n", sep = "")
 }
 if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
