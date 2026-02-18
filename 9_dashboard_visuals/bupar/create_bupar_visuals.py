@@ -10,8 +10,9 @@ Runs the BupaR workflow for a given cohort and age band (outputs and plots only;
 2. Upload interactive HTML and static PNG plots to the dashboard bucket
 
 Outputs:
-- Interactive plots: 3 HTML files with year dropdown filtering (activity_frequency, trace_explorer, process_matrix)
-- Static plots: 3 PNG fallback files
+- Interactive plots: 2 HTML files with year dropdown filtering (activity_frequency, trace_explorer)
+- Static plots: Multiple PNG files for process maps and activity analysis
+- Note: process_matrix visualization was removed due to consistent bupaR library errors
 """
 
 import argparse
