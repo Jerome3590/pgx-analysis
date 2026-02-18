@@ -40,9 +40,17 @@ def run_phase3_step3_final_cohort_fact(context):
     age_band = context["age_band"]
     event_year = context["event_year"]
     pipeline_state = context.get("pipeline_state")
-    # Use 21-day window for adverse drug event identification (based on distribution analysis)
-    time_window_days = 21  # Fixed 21-day window captures majority of adverse drug events
-    max_ed_visits = NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR  # Polypharmacy: exclude patients with >= this many ED visits/year
+    
+    # Get age-band-specific parameters for non_opioid_ed cohort
+    # Pediatric and geriatric ages have relaxed filters to capture more adverse drug events
+    from py_helpers.constants import get_non_opioid_ed_params
+    age_params = get_non_opioid_ed_params(age_band)
+    time_window_days = age_params["time_window_days"]
+    max_ed_visits = age_params["max_ed_visits_per_year"]
+    
+    logger.info(f"→ [PHASE 3 STEP 3] Age-band-specific parameters for {age_band}:")
+    logger.info(f"  Time window: {time_window_days} days (drug event before ED visit)")
+    logger.info(f"  Max ED visits per year: {max_ed_visits} (excludes chronic ED users)")
 
     step_name = "phase3_step3_final_cohort_fact"
     
@@ -104,7 +112,7 @@ def run_phase3_step3_final_cohort_fact(context):
         
         # Count ED_NON_OPIOID targets AFTER excluding opioid patients AND applying both filters:
         # FILTER 1: < max_ed_visits ED visits per year (true adverse drug events)
-        # FILTER 2: Drug event within 21 days of ED event (temporal relationship)
+        # FILTER 2: Drug event within {time_window_days} days of ED event (temporal relationship)
         # HIGH-IMPACT FIX #1: Replace NOT IN with NOT EXISTS
         # Use fetchdf() to avoid INT32 overflow
         # First, count total before filters
@@ -121,7 +129,7 @@ def run_phase3_step3_final_cohort_fact(context):
         ed_non_opioid_total_before_filter_df = cohort_conn_duckdb.sql(ed_non_opioid_total_before_filter_query).fetchdf()
         ed_non_opioid_total_before_filter = int(ed_non_opioid_total_before_filter_df.iloc[0]['count']) if not ed_non_opioid_total_before_filter_df.empty else 0
 
-        # Now count with both filters: < max_ed_visits visits per year AND drug event within 21 days of ED event
+        # Now count with both filters: < max_ed_visits visits per year AND drug event within {time_window_days} days of ED event
         ed_non_opioid_case_count_query = f"""
         WITH hcg_patients_with_visit_counts AS (
             -- FILTER 1: Count ED visits per patient per year
@@ -187,12 +195,12 @@ def run_phase3_step3_final_cohort_fact(context):
             WHERE most_recent_drug_date IS NOT NULL
         ),
         patients_with_temporal_relationship AS (
-            -- FILTER 2: Only include patients where drug event is within 21 days of ED event
+            -- FILTER 2: Only include patients where drug event is within {time_window_days} days of ED event
             -- EXCLUDE 0-day gaps (likely discharge prescriptions filled on ED visit day)
             SELECT DISTINCT mi_person_key
             FROM ed_drug_days
             WHERE days_from_drug_to_ed > 0
-              AND days_from_drug_to_ed <= 21
+              AND days_from_drug_to_ed <= {time_window_days}
         )
         SELECT CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) AS count
         FROM patients_with_temporal_relationship
@@ -205,10 +213,10 @@ def run_phase3_step3_final_cohort_fact(context):
         logger.info(f"  OPIOID_ED target patients ({label_target}): {target_case_count:,}")
         logger.info(f"  ED_NON_OPIOID target patients ({label_ed_non_opioid}): {ed_non_opioid_case_count:,}")
         if excluded_by_filters > 0:
-            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_by_filters:,} patients by filters (<{max_ed_visits} visits per year AND drug within 21 days)")
+            logger.info(f"  ED_NON_OPIOID: Excluded {excluded_by_filters:,} patients by filters (<{max_ed_visits} visits per year AND drug within {time_window_days} days)")
             logger.info(f"  ED_NON_OPIOID: Total before filters: {ed_non_opioid_total_before_filter:,}, After filters: {ed_non_opioid_case_count:,}")
-        logger.info(f"  POLYPHARMACY COHORT: Using 21-day time window for adverse drug event identification")
-        logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <{max_ed_visits} ED visits per year AND drug event within 21 days of ED event")
+        logger.info(f"  POLYPHARMACY COHORT: Using {time_window_days}-day time window for adverse drug event identification")
+        logger.info(f"  POLYPHARMACY COHORT: Filtering to patients with <{max_ed_visits} ED visits per year AND drug event within {time_window_days} days of ED event")
         
         if target_case_count == 0:
             logger.warning(f"⚠️ [PHASE 3 STEP 3] WARNING: No target cases found for OPIOID_ED cohort ({label_target})")
@@ -381,9 +389,9 @@ def run_phase3_step3_final_cohort_fact(context):
         if ed_non_opioid_case_count > 0:
             # HIGH-IMPACT FIX #4: Union HCG exclusion windows into single exclusion set
             # This reduces planner load, temp tables, and memory pressure
-            # Simplified to 21-day window for adverse drug event identification
-            # - All target cases based on drug-ED relationship within 21 days (excluding 0-day discharge prescriptions)
-            # - 21-day window captures majority of adverse drug events based on distribution analysis
+            # Simplified to {time_window_days}-day window for adverse drug event identification
+            # - All target cases based on drug-ED relationship within {time_window_days} days (excluding 0-day discharge prescriptions)
+            # - {time_window_days}-day window captures majority of adverse drug events based on distribution analysis
             ed_non_opioid_cohort_sql = f"""
             CREATE OR REPLACE TABLE ed_non_opioid_cohort AS
             WITH hcg_patients_with_visit_counts AS (
@@ -454,9 +462,9 @@ def run_phase3_step3_final_cohort_fact(context):
                 WHERE most_recent_drug_date IS NOT NULL
             ),
             qualifying_ed AS (
-                -- FILTER 2: Only include patients where drug event is within 21 days of ED event (true adverse drug events)
+                -- FILTER 2: Only include patients where drug event is within {time_window_days} days of ED event (true adverse drug events)
                 -- EXCLUDE 0-day gaps (likely discharge prescriptions filled on ED visit day)
-                -- 21-day window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions)
+                -- {time_window_days}-day window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions)
                 SELECT
                     mi_person_key,
                     ed_event_date,
@@ -464,7 +472,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     days_from_drug_to_ed
                 FROM ed_drug_days
                 WHERE days_from_drug_to_ed > 0
-                  AND days_from_drug_to_ed <= 21
+                  AND days_from_drug_to_ed <= {time_window_days}
             ),
             index_qualifying_ed AS (
                 -- Pick the earliest qualifying ED per patient (index event for cohort logic)
@@ -498,7 +506,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     index_hcg_date
                 FROM index_qualifying_ed
             ),
-            -- Create drug-ED pairs for 21-day window (adverse drug event identification)
+            -- Create drug-ED pairs for {time_window_days}-day window (adverse drug event identification)
             drug_hcg_pairs_21d AS (
                 SELECT DISTINCT
                     mi_person_key,
@@ -506,7 +514,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     index_hcg_date as hcg_event_date
                 FROM index_qualifying_ed
                 WHERE days_from_drug_to_ed > 0
-                  AND days_from_drug_to_ed <= 21
+                  AND days_from_drug_to_ed <= {time_window_days}
             ),
             -- HCG exclusion set (patients with qualifying drug-ED relationships)
             all_hcg_exclusions AS (
@@ -516,7 +524,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 SELECT DISTINCT mi_person_key
                 FROM drug_events
             ),
-            -- Target cases: patients with drug-ED relationship within 21-day window
+            -- Target cases: patients with drug-ED relationship within {time_window_days}-day window
             target_cases AS (
                 SELECT DISTINCT mi_person_key
                 FROM drug_hcg_pairs_21d
@@ -677,7 +685,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     WHEN ewd.event_type = 'medical' AND ewd.hcg_line IS NULL THEN 'NON_ED'
                     ELSE 'NON_ED'
                 END as cohort,
-                -- is_target_case: 1 if patient has drug-ED relationship within 21-day window
+                -- is_target_case: 1 if patient has drug-ED relationship within {time_window_days}-day window
                 CASE WHEN tc.mi_person_key IS NOT NULL THEN 1 ELSE 0 END as is_target_case,
                 NULL as first_opioid_ed_date,
                 CASE 
@@ -685,15 +693,15 @@ def run_phase3_step3_final_cohort_fact(context):
                     ELSE NULL
                 END as first_ed_non_opioid_date
             FROM events_with_dates ewd
-            -- Join target_cases (cohort membership based on 21-day window)
+            -- Join target_cases (cohort membership based on {time_window_days}-day window)
             LEFT JOIN target_cases tc ON ewd.mi_person_key = tc.mi_person_key
             LEFT JOIN sampled_controls sc ON ewd.mi_person_key = sc.mi_person_key
-            -- Include events: all medical events OR pharmacy events within 21-day window
+            -- Include events: all medical events OR pharmacy events within {time_window_days}-day window
             WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
               AND (
                   ewd.event_type = 'medical' 
                   OR (ewd.event_type = 'pharmacy' AND ewd.days_to_target_event IS NOT NULL 
-                      AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= 21)
+                      AND ewd.days_to_target_event >= 0 AND ewd.days_to_target_event <= {time_window_days})
               );
             """
         else:
@@ -796,7 +804,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 ),
                         qualifying_ed AS (
                             -- EXCLUDE 0-day gaps (likely discharge prescriptions filled on ED visit day)
-                            -- 21-day window captures majority of adverse drug events
+                            -- {time_window_days}-day window captures majority of adverse drug events
                             SELECT
                                 mi_person_key,
                                 ed_event_date,
@@ -804,7 +812,7 @@ def run_phase3_step3_final_cohort_fact(context):
                                 days_from_drug_to_ed
                             FROM ed_drug_days
                             WHERE days_from_drug_to_ed > 0
-                              AND days_from_drug_to_ed <= 21
+                              AND days_from_drug_to_ed <= {time_window_days}
                         ),
                         index_qualifying_ed AS (
                             SELECT
@@ -909,7 +917,7 @@ def run_phase3_step3_final_cohort_fact(context):
                             WHERE most_recent_drug_date IS NOT NULL
                         ),
                         qualifying_ed AS (
-                            -- 21-day window captures majority of adverse drug events
+                            -- {time_window_days}-day window captures majority of adverse drug events
                             SELECT
                                 mi_person_key,
                                 ed_event_date,
@@ -917,7 +925,7 @@ def run_phase3_step3_final_cohort_fact(context):
                                 days_from_drug_to_ed
                             FROM ed_drug_days
                             WHERE days_from_drug_to_ed > 0
-                              AND days_from_drug_to_ed <= 21
+                              AND days_from_drug_to_ed <= {time_window_days}
                         ),
                         index_qualifying_ed AS (
                             SELECT
@@ -1011,7 +1019,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 ),
                 qualifying_ed AS (
                     -- EXCLUDE 0-day gaps (likely discharge prescriptions filled on ED visit day)
-                    -- 21-day window captures majority of adverse drug events
+                    -- {time_window_days}-day window captures majority of adverse drug events
                     SELECT
                         mi_person_key,
                         ed_event_date,
@@ -1019,7 +1027,7 @@ def run_phase3_step3_final_cohort_fact(context):
                         days_from_drug_to_ed
                     FROM ed_drug_days
                     WHERE days_from_drug_to_ed > 0
-                      AND days_from_drug_to_ed <= 21
+                      AND days_from_drug_to_ed <= {time_window_days}
                 ),
                 index_qualifying_ed AS (
                     SELECT
@@ -1043,7 +1051,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     SELECT DISTINCT mi_person_key
                     FROM index_qualifying_ed
                     WHERE days_from_drug_to_ed > 0
-                      AND days_from_drug_to_ed <= 21
+                      AND days_from_drug_to_ed <= {time_window_days}
                 )
                 SELECT 
                     CAST(COUNT(*) AS BIGINT) as patients_21d
@@ -1051,7 +1059,7 @@ def run_phase3_step3_final_cohort_fact(context):
                 """).fetchdf()
                 if not cte_counts_df.empty:
                     counts = cte_counts_df.iloc[0]
-                    logger.info(f"  Patients with drug-ED relationship within 21-day window: {int(counts['patients_21d']):,}")
+                    logger.info(f"  Patients with drug-ED relationship within {time_window_days}-day window: {int(counts['patients_21d']):,}")
             except Exception as e:
                 logger.warning(f"Could not calculate CTE diagnostic counts: {e}")
         
@@ -1066,8 +1074,8 @@ def run_phase3_step3_final_cohort_fact(context):
                 SELECT 
                     CAST(COUNT(*) AS BIGINT) as total_drug_events,
                     CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as patients_with_drugs,
-                    CAST(COUNT(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 21 THEN 1 END) AS BIGINT) as drugs_in_time_window,
-                    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= 21 THEN days_to_target_event END) as avg_days_in_window
+                    CAST(COUNT(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= {time_window_days} THEN 1 END) AS BIGINT) as drugs_in_time_window,
+                    AVG(CASE WHEN days_to_target_event IS NOT NULL AND days_to_target_event >= 0 AND days_to_target_event <= {time_window_days} THEN days_to_target_event END) as avg_days_in_window
                 FROM ed_non_opioid_cohort
                 WHERE event_type = 'pharmacy' AND is_target_case = 1
                 """).fetchdf()
@@ -1076,7 +1084,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     logger.info(f"→ [PHASE 3 STEP 3] ED_NON_OPIOID Drug Window Stats (target cases):")
                     logger.info(f"  Total drug events: {int(drug_window_stats['total_drug_events']):,}")
                     logger.info(f"  Patients with drugs: {int(drug_window_stats['patients_with_drugs']):,}")
-                    logger.info(f"  Drugs in 21-day window: {int(drug_window_stats['drugs_in_time_window']):,}")
+                    logger.info(f"  Drugs in {time_window_days}-day window: {int(drug_window_stats['drugs_in_time_window']):,}")
                     if drug_window_stats['avg_days_in_window'] is not None:
                         logger.info(f"  Avg days in window: {float(drug_window_stats['avg_days_in_window']):.1f}")
                 
@@ -1143,7 +1151,7 @@ def run_phase3_step3_final_cohort_fact(context):
                     logger.info(f"  Avg days from drug to ED: {float(temp_rel['avg_days_from_drug_to_ed']):.1f}")
                     logger.info(f"  Min days from drug to ED: {int(temp_rel['min_days_from_drug_to_ed']):,}")
                     logger.info(f"  Max days from drug to ED: {int(temp_rel['max_days_from_drug_to_ed']):,}")
-                    logger.info(f"  [OK] All target patients have drug event within 21 days of ED event (filter working correctly)")
+                    logger.info(f"  [OK] All target patients have drug event within {time_window_days} days of ED event (filter working correctly)")
             except Exception as e:
                 logger.debug(f"Could not calculate drug window stats: {e}")
         
