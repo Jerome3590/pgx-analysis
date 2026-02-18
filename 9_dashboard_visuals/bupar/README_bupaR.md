@@ -91,6 +91,28 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 Pipeline logging uses the tag **`[DASHBOARD_AGGREGATED]`** for the artifacts in the first table and **patient-level** for the second so logs clearly separate what is served to the dashboard vs what is for the follow-on project.
 
+### Why is SHAP/FFA missing for only one cohort/age_band?
+
+BupaR needs the **SHAP/FFA allowed-codes** file for each `(cohort, age_band)`. That file is built from Step 7 (SHAP) and Step 8 (FFA) outputs. If BupaR fails for one combination (e.g. `non_opioid_ed` / `75-84`) while others (e.g. `non_opioid_ed` / `65-74`) succeed, common causes are:
+
+1. **Step 7 or Step 8 never ran for that combination**  
+   Notebook 3 runs Step 7 → Step 8 → Combine in a single loop over all `REQUIRED_COHORTS`. If the run was **interrupted** (timeout, crash, manual stop) before that combination’s Step 7 or Step 8 finished, only later combinations will be missing. Order is: `opioid_ed` 0-12 … 85-114, then `non_opioid_ed` 0-12 … 65-74, **75-84**, 85-114. So 75-84 is near the end; an early stop can leave 75-84 (and 85-114) without SHAP/FFA.
+
+2. **Step 7 or Step 8 failed for that combination**  
+   If Step 8 (FFA) fails for 75-84, the notebook cell exits and Combine never runs for 75-84. Re-run notebook 3 from Step 7 (or Step 8) for the full loop so 75-84 gets SHAP and FFA outputs.
+
+3. **Only a subset was run**  
+   If Step 7 / Step 8 / Combine were run manually for a subset (e.g. only 65-74), then 75-84 will have no outputs. Run the full loop in notebook 3 for all combinations.
+
+4. **Where BupaR looks for SHAP/FFA**  
+   Allowed codes are read from:  
+   - `7_shap_analysis/outputs/{cohort}/{age_band_fname}/*_shap_global_importance_xgboost.csv`  
+   - `8_ffa_analysis/outputs/{cohort}/{age_band_fname}/xgboost/causal_importance.parquet` or `feature_importance_axp.parquet`  
+   - Fallback: `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/combined_importance.csv` (Combine step).  
+   If your pipeline writes SHAP/FFA under a data root (e.g. NVMe), ensure BupaR is run with that same layout or that Combine has been run so the fallback file exists.
+
+**Fix:** Run notebook 3 (Model train + SHAP/FFA) so that **Step 7**, **Step 8**, and **Combine** complete for the missing combination (e.g. `non_opioid_ed` / `75-84`), then re-run dashboard visuals (notebook 4).
+
 ### Typical Workflow
 
 For a given `(cohort, age_band)`:
