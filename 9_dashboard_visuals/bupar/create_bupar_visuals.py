@@ -113,8 +113,18 @@ def create_bupar_outputs(
         try:
             from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
 
+            try:
+                from py_helpers.env_utils import get_data_root
+                data_root = get_data_root()
+            except Exception:
+                data_root = None
             if not write_shap_ffa_allowed_codes_for_bupar(
-                cohort_name, age_band, allowed_path, top_n=500, project_root=REPO_ROOT
+                cohort_name,
+                age_band,
+                allowed_path,
+                top_n=500,
+                project_root=REPO_ROOT,
+                data_root=data_root,
             ):
                 logger.error(
                     "SHAP/FFA allowed codes file required for BupaR is missing or empty. "

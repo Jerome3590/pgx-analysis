@@ -107,28 +107,92 @@ def _load_ffa_importance(
     project_root: Optional[Path] = None,
     data_root: Optional[Path] = None,
 ) -> pd.DataFrame:
-    """Load FFA causal importance. Returns DataFrame with columns: feature, importance."""
+    """
+    Load FFA importance. Returns DataFrame with columns: feature, importance.
+    Tries causal_importance.parquet first, then feature_importance_axp.parquet
+    (same file Combine step uses) so BupaR finds FFA when SHAP/FFA pipeline completed.
+    """
     age_band_fname = age_band.replace("-", "_")
     candidates = []
     if project_root:
-        candidates.append(project_root / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / "xgboost" / "causal_importance.parquet")
+        base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / "xgboost"
+        candidates.append(base / "causal_importance.parquet")
+        candidates.append(base / "feature_importance_axp.parquet")
     if data_root:
-        candidates.append(data_root / "gold" / "ffa_analysis" / cohort / age_band / "xgboost" / "causal_importance.parquet")
+        base = data_root / "gold" / "ffa_analysis" / cohort / age_band / "xgboost"
+        candidates.append(base / "causal_importance.parquet")
+        candidates.append(base / "feature_importance_axp.parquet")
     for path in candidates:
         if path and path.exists():
-            df = pd.read_parquet(path)
-            if "feature" not in df.columns:
-                return pd.DataFrame()
+            try:
+                df = pd.read_parquet(path)
+            except Exception:
+                continue
+            if "feature" not in df.columns or df.empty:
+                continue
             imp_col = next(
-                (c for c in df.columns if "causal" in c.lower() or "importance" in c.lower()),
-                df.columns[1] if len(df.columns) > 1 else None,
+                (c for c in df.columns if c != "feature" and ("causal" in c.lower() or "importance" in c.lower())),
+                None,
             )
+            if imp_col is None and len(df.columns) > 1:
+                for c in df.columns:
+                    if c != "feature" and pd.api.types.is_numeric_dtype(df[c]):
+                        imp_col = c
+                        break
             if imp_col is None:
-                return pd.DataFrame()
+                continue
             df = df[["feature", imp_col]].copy()
             df.columns = ["feature", "importance"]
             return df
     return pd.DataFrame()
+
+
+def _load_combined_importance_from_dashboard(
+    cohort: str,
+    age_band: str,
+    project_root: Optional[Path] = None,
+) -> pd.DataFrame:
+    """
+    Load combined SHAP+FFA importance from the Combine step output.
+    Used as fallback when 7_shap_analysis / 8_ffa_analysis paths are missing.
+    Location: 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/combined_importance.csv
+    Returns DataFrame with columns: feature, importance.
+    """
+    if not project_root:
+        return pd.DataFrame()
+    age_band_fname = age_band.replace("-", "_")
+    path = (
+        project_root
+        / "10_risk_dashboard"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / "combined_importance.csv"
+    )
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        if "feature" not in df.columns or df.empty:
+            return pd.DataFrame()
+        imp_col = next(
+            (
+                c
+                for c in df.columns
+                if c != "feature"
+                and ("combined" in c.lower() or "importance" in c.lower())
+            ),
+            df.columns[1] if len(df.columns) > 1 else None,
+        )
+        if imp_col is None:
+            imp_col = df.columns[1] if len(df.columns) > 1 else None
+        if imp_col is None:
+            return pd.DataFrame()
+        df = df[["feature", imp_col]].copy()
+        df.columns = ["feature", "importance"]
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 def get_shap_ffa_important_codes(
@@ -157,6 +221,13 @@ def get_shap_ffa_important_codes(
         ffa_df = _load_ffa_importance(cohort, age_band, project_root, data_root)
         if not ffa_df.empty:
             combined.append(ffa_df)
+    if not combined:
+        # Fallback: use Combine step output (10_risk_dashboard/outputs/.../combined_importance.csv)
+        dashboard_df = _load_combined_importance_from_dashboard(
+            cohort, age_band, project_root
+        )
+        if not dashboard_df.empty:
+            combined.append(dashboard_df)
     if not combined:
         return set()
     merged = pd.concat(combined, ignore_index=True)
