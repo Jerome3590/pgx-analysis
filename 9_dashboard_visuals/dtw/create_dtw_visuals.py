@@ -9,9 +9,11 @@ Data flow to visualizations:
 - Cluster plots: create_dtw_plots.create_trajectory_cluster_plots(dtw_df) uses seq_pattern_str -> code counts
   -> top_codes (excluding nan/none/null) -> Plotly 1D/3D scatter; writes dtw_trajectory_cluster_*.png/html.
   We also copy that PNG to dtw_trajectory_analysis_*.png and dtw_sample_trajectories_*.png so API URLs work.
-- chart_data.json: _build_dtw_chart_data(dtw_df) builds routine_comparison (x, y, type, name, x_label, y_label)
-  and high_risk_trajectories (same shape) from target + admin_icd_event_count or trajectory_length/dtw_min_distance.
-  Frontend (index.html) expects chart_data_url -> JSON with routine_comparison and high_risk_trajectories.
+- chart_data.json: _build_dtw_chart_data(dtw_df) builds three charts:
+  1. routine_comparison: outcome rate by routine vs no routine appointments (admin ICD filter)
+  2. high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
+  3. target_pathway_patterns: common codes in target=1 trajectories (shows what leads to adverse events)
+  Frontend (index.html) expects chart_data_url -> JSON with these three chart objects (x, y, type, name, x_label, y_label).
 - Outputs: outputs/{cohort}/{age_band}/plots/*.png/html + chart_data.json uploaded to S3 dashboard bucket.
   DTW CSV files (dtw_features, dtw_added_features) are NOT uploaded; dashboard only uses plots and chart_data.
 """
@@ -174,7 +176,11 @@ def create_dtw_visuals(
         print(f"[WARNING] Could not save pipeline checkpoint: {exc}")
 
     print("[INFO] Done.")
-    print(f"\nDTW visuals complete. Plots and chart_data uploaded to dashboard S3 (CSV files not uploaded; dashboard uses plots only)")
+    print(f"\nDTW visuals complete. Plots and chart_data uploaded to dashboard S3:")
+    print(f"  - Trajectory cluster plots (3D/1D)")
+    print(f"  - chart_data.json with 3 charts: routine_comparison, high_risk_trajectories, target_pathway_patterns")
+    print(f"  - target_pathway_patterns shows common codes in target=1 trajectories (what leads to adverse events)")
+    print(f"  CSV files not uploaded; dashboard uses plots only")
 
 
 
@@ -289,8 +295,63 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
     }
 
 
+def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Analyze target=1 patients to identify common trajectory patterns leading to adverse events. Prebuilt on EC2."""
+    if df.empty or "target" not in df.columns or "seq_pattern_str" not in df.columns:
+        return None
+    
+    # Filter to target=1 patients only
+    target_df = df[df["target"] == 1].copy()
+    if len(target_df) < 10:
+        return None
+    
+    # Extract top codes from sequences in target=1 population
+    from collections import Counter
+    all_codes = []
+    for seq in target_df["seq_pattern_str"]:
+        if pd.isna(seq) or not isinstance(seq, str):
+            continue
+        tokens = [s.strip() for s in seq.split("_") if s.strip()]
+        all_codes.extend([t for t in tokens if t.lower() not in {"nan", "none", "null", ""}])
+    
+    if not all_codes:
+        return None
+    
+    # Count frequency of each code in target=1 trajectories
+    code_counts = Counter(all_codes)
+    top_codes = code_counts.most_common(8)  # Top 8 codes in target=1 trajectories
+    
+    if not top_codes:
+        return None
+    
+    # Calculate what % of target=1 patients have each top code
+    code_prevalence = []
+    for code, _ in top_codes:
+        n_patients_with_code = sum(1 for seq in target_df["seq_pattern_str"] 
+                                   if isinstance(seq, str) and code in seq)
+        pct = (n_patients_with_code / len(target_df)) * 100
+        code_prevalence.append({"code": code, "prevalence_pct": pct, "n_patients": n_patients_with_code})
+    
+    # Sort by prevalence
+    code_prevalence.sort(key=lambda x: x["prevalence_pct"], reverse=True)
+    
+    # Frontend expects: x, y, type, x_label, y_label, and optional name
+    return {
+        "x": [item["code"] for item in code_prevalence],
+        "y": [float(round(item["prevalence_pct"], 1)) for item in code_prevalence],
+        "type": "bar",
+        "name": "Common codes in adverse event trajectories",
+        "x_label": "Activity Code (SHAP/FFA Important Features)",
+        "y_label": "% of Target=1 Patients with Code",
+        "metadata": {
+            "total_target_patients": int(len(target_df)),
+            "total_control_patients": int(len(df[df["target"] == 0])),
+        }
+    }
+
+
 def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Build routine_comparison and high_risk_trajectories chart payloads for dashboard. Prebuilt on EC2."""
+    """Build routine_comparison, high_risk_trajectories, and target_pathway_patterns chart payloads for dashboard. Prebuilt on EC2."""
     if dtw_df.empty:
         return None
     out = {}
@@ -300,6 +361,9 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:
         out["high_risk_trajectories"] = high_risk
+    target_pathways = _compute_target_pathway_patterns(dtw_df)
+    if target_pathways:
+        out["target_pathway_patterns"] = target_pathways
     return out or None
 
 
