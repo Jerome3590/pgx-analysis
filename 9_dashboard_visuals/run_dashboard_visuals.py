@@ -157,21 +157,31 @@ def main():
                     sys.exit(1)
     print()
 
-    # FP-Growth (sequential for memory)
+    # FP-Growth (parallel with 3 workers to balance memory usage)
     print("FP-Growth")
     print("-" * 40)
     if not fpgrowth_script.exists():
         print("  FP-Growth script not found; skip.")
     else:
-        for c, ab in combinations:
-            r = subprocess.run(
-                [sys.executable, str(fpgrowth_script), "--cohort-name", c, "--age-band", ab] + force_flag,
-                cwd=str(REPO_ROOT),
-                capture_output=False,
-            )
-            print(f"  [FP-Growth] {c} / {ab} -> exit {r.returncode}")
-            if r.returncode != 0 and args.fail_fast:
-                sys.exit(1)
+        print(f"  Processing {len(combinations)} cohort/age_band combinations with 3 parallel workers...")
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futures = {
+                ex.submit(
+                    subprocess.run,
+                    [sys.executable, str(fpgrowth_script), "--cohort-name", c, "--age-band", ab] + force_flag,
+                    cwd=str(REPO_ROOT),
+                    capture_output=False,
+                ): (c, ab)
+                for c, ab in combinations
+            }
+            completed = 0
+            for fut in as_completed(futures):
+                c, ab = futures[fut]
+                r = fut.result()
+                completed += 1
+                print(f"  [FP-Growth {completed}/{len(combinations)}] {c} / {ab} -> exit {r.returncode}")
+                if r.returncode != 0 and args.fail_fast:
+                    sys.exit(1)
 
     print()
     print("Dashboard visuals workflow done.")
