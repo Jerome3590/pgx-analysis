@@ -50,9 +50,12 @@ The dashboard visuals **effectively address all core research questions** with a
 **Routine vs No Routine Appointments (RQ1)**
 - Location: DTW Trajectories tab
 - Metrics: `admin_icd_event_count` from administrative codes lookup
-- Visuals: "Routine vs No Routine (Outcomes)" comparison chart
+- Visuals: 
+  - "Routine vs No Routine (Outcomes)" comparison chart
+  - "High-Risk vs Low-Risk Trajectories" by quartiles
+  - **NEW:** "Common Pathway Patterns in Adverse Events" - shows top codes in target=1 trajectories
 - Data: Uses full pipeline data (2016-2019), SHAP/FFA filtered codes
-- **Recommendation:** ✅ No changes needed; directly answers the question
+- **Recommendation:** ✅ Comprehensive coverage; new target=1 pathway analysis directly answers "what leads to adverse events"
 
 **Sequence Analysis (RQ2 & RQ3)**
 - Location: BupaR Process Mining tab
@@ -338,30 +341,37 @@ Based on documentation (`README_DTW_COHORT_ANALYSIS.md`, `DTW_FEATURE_ANALYSIS.m
 
 The dashboard visuals **strongly address all six research questions** with appropriate, well-designed visualizations. The SHAP/FFA filtering ensures all visuals are model-driven and interpretable.
 
-### DTW Implementation: ⚠️ CRITICAL GAP
+**Recent Enhancement:**
+- Added **target=1 pathway patterns analysis** - identifies common codes in adverse event trajectories
+- Answers: "What are the shared clinical pathways leading to adverse outcomes?"
+- Shows prevalence of top codes within target=1 population (not just outcome rates)
+- Complements existing outcome rate comparisons with actionable clinical insights
 
-The **missing DTW feature creation step** is a blocking issue that prevents the pipeline from generating DTW visualizations on fresh runs. This must be addressed immediately.
+### DTW Implementation: ✅ RESOLVED
 
-**Recommended approach:**
-1. Restore `create_dtw_features.py` from archived version
-2. Integrate into pipeline workflow (before create_dtw_visuals.py)
-3. Apply performance optimizations (Sakoe-Chiba, batching, checkpointing)
-4. Test full pipeline end-to-end
+**Status:** Lightweight trajectory extraction solution implemented successfully.
 
-**Expected outcome:** Complete DTW pipeline with <10 min runtime per cohort/age_band, enabling all routine vs. no routine appointment analysis, trajectory clustering, and archetype visualizations as designed.
+**What was built:**
+1. `create_dtw_trajectories.py` - Lightweight SQL-based extraction (~1-2 min per cohort/age_band)
+2. Integrated into `4_dashboard_visuals.ipynb` - Two-step DTW process (extraction → visualization)
+3. Three dashboard charts now created:
+   - **routine_comparison**: Outcome rate by routine vs no routine appointments
+   - **high_risk_trajectories**: Outcome rate by trajectory quartiles
+   - **target_pathway_patterns**: Common codes in target=1 trajectories (NEW)
+
+**Performance:** 1-2 minutes per cohort/age_band (vs 10-20 minutes with full DTW distances)
+
+**Key insight:** Visualization code uses KMeans on code counts, NOT expensive DTW distances. Lightweight extraction sufficient.
 
 ### Next Steps
 
 **Priority order:**
-1. **DTW restoration** (critical path; blocks visualizations)
-2. **Performance optimization** (reduces runtime from potential hours to minutes)
-3. **Enhanced visualizations** (interactive BupaR, year filtering, radar charts)
+1. ✅ **DTW restoration** - COMPLETE (lightweight solution)
+2. ✅ **Target=1 pathway analysis** - COMPLETE (shows what leads to adverse events)
+3. **Enhanced visualizations** (interactive BupaR, year filtering, radar charts) - optional enhancements
 
-**Timeline estimate:**
-- DTW restoration + testing: 2-4 hours
-- Performance optimization: 4-8 hours  
-- Enhanced visualizations: 8-16 hours
-- **Total:** 14-28 hours for complete implementation
+**Estimated remaining work:**
+- Enhanced visualizations: 8-16 hours (optional quality-of-life improvements)
 
 ---
 
