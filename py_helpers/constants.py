@@ -298,6 +298,60 @@ NON_OPIOID_ED_TIME_WINDOW_DAYS = 21
 # Max ED visits per year for polypharmacy target definition; patients with this many or more are excluded.
 NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR = 7
 
+# Age-band-specific parameters for non_opioid_ed cohort (relaxed for pediatric/geriatric)
+# Rationale: Pediatric (0-12) and young adults (13-24) may have different adverse drug event patterns
+# due to different drug metabolism, fewer prescriptions, and different healthcare utilization patterns.
+NON_OPIOID_ED_AGE_BAND_PARAMS = {
+    # Pediatric (0-12): Wider window (30 days) + more ED visits allowed (10/year)
+    # Rationale: Slower metabolism, fewer prescriptions, parents may delay ED visits
+    "0-12": {"time_window_days": 30, "max_ed_visits_per_year": 10},
+    
+    # Young adults (13-24): Slightly relaxed (28 days, 9 visits)
+    # Rationale: Transitional age, medication adherence issues, fewer prescriptions
+    "13-24": {"time_window_days": 28, "max_ed_visits_per_year": 9},
+    
+    # Adults (25-64): Standard parameters (21 days, 7 visits)
+    # These are the baseline parameters validated by distribution analysis
+    "25-44": {"time_window_days": 21, "max_ed_visits_per_year": 7},
+    "45-54": {"time_window_days": 21, "max_ed_visits_per_year": 7},
+    "55-64": {"time_window_days": 21, "max_ed_visits_per_year": 7},
+    
+    # Seniors (65-84): Standard parameters
+    # Note: Polypharmacy is more common but we maintain strict filters for true adverse events
+    "65-74": {"time_window_days": 21, "max_ed_visits_per_year": 7},
+    "75-84": {"time_window_days": 21, "max_ed_visits_per_year": 7},
+    
+    # Elderly (85-114): Slightly relaxed window (25 days, still 7 visits)
+    # Rationale: Slower drug metabolism, delayed symptom presentation
+    "85-114": {"time_window_days": 25, "max_ed_visits_per_year": 7},
+}
+
+def get_non_opioid_ed_params(age_band: str) -> dict:
+    """
+    Get age-band-specific parameters for non_opioid_ed cohort.
+    
+    Args:
+        age_band: Age band string (e.g., "0-12", "65-74")
+    
+    Returns:
+        Dict with 'time_window_days' and 'max_ed_visits_per_year' keys
+    
+    Example:
+        >>> get_non_opioid_ed_params("0-12")
+        {'time_window_days': 30, 'max_ed_visits_per_year': 10}
+    """
+    return NON_OPIOID_ED_AGE_BAND_PARAMS.get(
+        age_band,
+        {"time_window_days": NON_OPIOID_ED_TIME_WINDOW_DAYS, 
+         "max_ed_visits_per_year": NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR}
+    )
+
+# Expected empty cohorts: age bands where non_opioid_ed is expected to have insufficient data
+# Used by dashboard visualizations to show appropriate messages instead of errors
+NON_OPIOID_ED_EXPECTED_EMPTY_AGE_BANDS = set()
+# Note: After implementing relaxed parameters, we expect all age bands to have some data.
+# This set is kept for future reference if specific age bands consistently produce no results.
+
 
 def get_cohort_slug_by_cohort(cohort: str) -> str:
     """Cohort slug for paths: opioid_ed -> opioid, non_opioid_ed -> polypharmacy."""
