@@ -86,8 +86,13 @@ def main():
     else:
         local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
 
-    print(f"Running FP-Growth for {args.cohort_name} / {args.age_band} / {args.event_year}")
-    print(f"Using data path: {local_data_path}")
+    print("="*70, flush=True)
+    print(f"FP-GROWTH ITEMSET MINING: {args.cohort_name} / {args.age_band} / {args.event_year}", flush=True)
+    print("="*70, flush=True)
+    print(f"Data path: {local_data_path}", flush=True)
+    print(f"Item types: {', '.join(ITEM_TYPES)}", flush=True)
+    print(f"Min support: {MIN_SUPPORT}, Min confidence: {MIN_CONFIDENCE}", flush=True)
+    print("", flush=True)
     
     def _log_resources(label: str) -> None:
         if psutil is None:
@@ -104,9 +109,12 @@ def main():
     # Process each item type; track if any succeeded; collect failures for summary
     any_ok = False
     failures = []  # (item_type, error_msg)
-    for item_type in ITEM_TYPES:
+    for idx, item_type in enumerate(ITEM_TYPES, 1):
         _log_resources(f"before {item_type}")
-        print(f"\nProcessing {item_type}...", flush=True)
+        print("", flush=True)
+        print("-" * 70, flush=True)
+        print(f"[ITEM TYPE {idx}/{len(ITEM_TYPES)}] Processing {item_type}...", flush=True)
+        print("-" * 70, flush=True)
         try:
             result = process_single_cohort(
                 item_type=item_type,
@@ -135,7 +143,13 @@ def main():
                     print(f"[ERROR_PARAMS] {params}", flush=True)
             else:
                 any_ok = True
-                print(f"[OK] {item_type}: {result.get('itemsets_count', 0)} itemsets, {result.get('rules_count', 0)} rules")
+                itemset_count = result.get('itemsets_count', 0)
+                rules_count = result.get('rules_count', 0)
+                print(f"✓ [OK] {item_type}: {itemset_count} itemsets, {rules_count} rules", flush=True)
+                if itemset_count > 0:
+                    print(f"   Generated {itemset_count} frequent itemsets", flush=True)
+                    if rules_count > 0:
+                        print(f"   Generated {rules_count} association rules", flush=True)
             _log_resources(f"after {item_type}")
         except Exception as e:
             _log_resources(f"after {item_type} (exception)")
@@ -146,9 +160,15 @@ def main():
             import traceback
             traceback.print_exc()
 
+    print("", flush=True)
+    print("="*70, flush=True)
     if any_ok:
-        print("\nFP-Growth itemsets creation complete!")
+        success_count = len(ITEM_TYPES) - len(failures)
+        print(f"✓ FP-GROWTH COMPLETE: {success_count}/{len(ITEM_TYPES)} item types successful", flush=True)
+        if failures:
+            print(f"   {len(failures)} item types failed (see errors above)", flush=True)
     else:
+        print(f"✗ FP-GROWTH FAILED: All {len(ITEM_TYPES)} item types failed", flush=True)
         summary = "; ".join(f"{t}={e}" for t, e in failures) if failures else "no item types produced itemsets"
         # When only "No frequent itemsets" (e.g. small cohort / insufficient transactions), exit 0 so pipeline continues
         only_no_itemsets = failures and all(e == "No frequent itemsets" for _, e in failures)

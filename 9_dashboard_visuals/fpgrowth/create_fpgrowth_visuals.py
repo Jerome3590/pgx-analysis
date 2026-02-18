@@ -95,7 +95,10 @@ def ensure_itemsets(
         if itemsets_exist and force:
             logger.info("Itemsets exist at %s; re-running due to --force", itemsets_dir)
 
-        logger.info("Creating FP-Growth itemsets for %s / %s", cohort_name, age_band)
+        logger.info("="*60)
+        logger.info("CREATING FP-GROWTH ITEMSETS: %s / %s", cohort_name, age_band)
+        logger.info("="*60)
+        logger.info("Processing 4 item types: drug_name, icd_code, cpt_code, medical_code")
         script_path = PROJECT_ROOT / "fpgrowth" / "run_single_cohort_fpgrowth.py"
 
         try:
@@ -117,24 +120,41 @@ def ensure_itemsets(
                 text=True,
                 check=True,
             )
-            logger.info("FP-Growth itemsets created successfully")
+            logger.info("="*60)
+            logger.info("✓ FP-Growth itemsets created successfully for %s / %s", cohort_name, age_band)
+            logger.info("="*60)
             if result.stdout:
-                logger.info("Itemset stdout:\n%s", result.stdout)
+                # Parse stdout for [OK] lines to show summary
+                ok_lines = [line for line in result.stdout.splitlines() if "[OK]" in line]
+                if ok_lines:
+                    logger.info("Item type results:")
+                    for line in ok_lines:
+                        logger.info("  %s", line.strip())
+                logger.info("Full itemset stdout:\n%s", result.stdout)
             if result.stderr:
                 logger.info("Itemset stderr:\n%s", result.stderr)
             # Verify outputs exist after run
             itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            if itemsets_now:
+                itemset_files = list(itemsets_dir.glob("*_itemsets*.json"))
+                logger.info("Created %d itemset files in %s", len(itemset_files), itemsets_dir)
             return itemsets_now
         except subprocess.CalledProcessError as exc:
-            logger.error("Itemset creation failed (returncode=%s)", exc.returncode)
+            logger.error("="*60)
+            logger.error("✗ Itemset creation FAILED for %s / %s (returncode=%s)", cohort_name, age_band, exc.returncode)
+            logger.error("="*60)
             # Log first [ERROR] / [ERROR_PARAMS] line from runner so reason is visible even if full stdout is truncated
             if exc.stdout:
+                error_summary = []
                 for line in exc.stdout.splitlines():
                     line = line.strip()
                     if line.startswith("[ERROR]") or line.startswith("[ERROR_PARAMS]"):
+                        error_summary.append(line)
                         logger.error("runner: %s", line)
-                        if line.startswith("[ERROR]"):
+                        if line.startswith("[ERROR]") and "No frequent itemsets" not in line:
                             break
+                if error_summary:
+                    logger.error("Error summary: %d error lines found", len(error_summary))
                 logger.error("stdout (errors/params from runner):\n%s", exc.stdout)
             if exc.stderr:
                 logger.error("stderr:\n%s", exc.stderr)
@@ -255,24 +275,38 @@ def create_fpgrowth_visuals(
     )
 
     with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger):
-        logger.info("Starting FP-Growth visuals for %s / %s", cohort_name, age_band)
+        logger.info("")
+        logger.info("#" * 70)
+        logger.info("#  FP-GROWTH VISUAL WORKFLOW: %s / %s", cohort_name, age_band)
+        logger.info("#" * 70)
+        logger.info("")
 
+        logger.info("[STEP 1/2] Creating itemsets...")
         itemsets_ok = ensure_itemsets(cohort_name, age_band, logger=logger, force=force)
         if not itemsets_ok:
             logger.warning(
-                "No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
+                "⚠️  No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
                 cohort_name,
                 age_band,
             )
+        else:
+            logger.info("✓ Itemsets ready")
 
         if not skip_visualizations:
+            logger.info("[STEP 2/2] Creating visualizations...")
             ok = create_visualizations(cohort_name, age_band, logger=logger)
             if not ok:
-                logger.error("Visualization step failed")
+                logger.error("✗ Visualization step failed")
+            else:
+                logger.info("✓ Visualizations complete")
         else:
-            logger.info("Skipping visualization creation")
+            logger.info("[STEP 2/2] Skipping visualization creation")
 
-        logger.info("FP-Growth visuals completed for %s / %s", cohort_name, age_band)
+        logger.info("")
+        logger.info("#" * 70)
+        logger.info("#  FP-GROWTH COMPLETED: %s / %s", cohort_name, age_band)
+        logger.info("#" * 70)
+        logger.info("")
 
     mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
     # Exit 0 only when we have itemsets (so notebook "exit 0" matches real completion)
