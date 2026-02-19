@@ -115,36 +115,6 @@ if (TRUE) {
     model_data_main         <- file.path(model_data_dir, "model_events.parquet")
     model_data_path <- if (file.exists(model_data_no_protocols)) model_data_no_protocols else model_data_main
     model_data_from_sql <- sprintf("read_parquet('%s')", model_data_path)
-  } else if (age_band == "85-114") {
-    # 85-114: when single partition missing, union 85-94 and 95-114 (same as create_model_data / FP-Growth).
-    band_94_dirs  <- list(
-      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=85_94"),
-      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=85-94")
-    )
-    band_114_dirs <- list(
-      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=95_114"),
-      file.path(model_data_root, paste0("cohort_name=", cohort_name), "age_band=95-114")
-    )
-    pick_file <- function(dirs) {
-      for (d in dirs) {
-        np <- file.path(d, "model_events_no_protocols.parquet")
-        if (file.exists(np)) return(np)
-        mp <- file.path(d, "model_events.parquet")
-        if (file.exists(mp)) return(mp)
-      }
-      NULL
-    }
-    path_94  <- pick_file(band_94_dirs)
-    path_114 <- pick_file(band_114_dirs)
-    if (!is.null(path_94) && !is.null(path_114)) {
-      model_data_path      <- path_94
-      model_data_paths     <- c(path_94, path_114)
-      model_data_from_sql  <- sprintf("(SELECT * FROM read_parquet('%s') UNION ALL SELECT * FROM read_parquet('%s'))", path_94, path_114)
-      cat("Using model_events for 85-114 as union of 85-94 + 95-114\n")
-    } else {
-      stop("Model data not found for cohort ", cohort_name, " age_band ", age_band,
-           " (tried single 85-114 and union 85-94 + 95-114)")
-    }
   } else {
     stop("Model data not found for cohort ", cohort_name, " age_band ", age_band,
          " (tried age_band=", age_band_fname, " and age_band=", age_band, ")")
@@ -153,7 +123,7 @@ if (TRUE) {
 
 cat("Project root:         ", project_root, "\n", sep = "")
 cat("Model data path:      ", model_data_path, "\n", sep = "")
-if (exists("model_data_paths", inherits = FALSE)) cat("(85-114 = union 85-94 + 95-114)\n", sep = "")
+cat("Model data SQL:       ", substr(model_data_from_sql, 1, 100), "...\n", sep = "")
 cat("\n", sep = "")
 
 # -------------------------------------------------------------------
