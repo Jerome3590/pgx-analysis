@@ -296,7 +296,7 @@ def _top_itemsets_interactive(
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_itemsets_interactive.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True})
+    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True}, include_plotlyjs=True)
     
     if logger:
         logger.info("Saved interactive itemsets visualization to %s", out_path)
@@ -483,7 +483,7 @@ def _network_from_rules_plotly(
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_target_rules_network.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True})
+    fig.write_html(str(out_path), config={"responsive": True}, include_plotlyjs=True)
     if logger:
         logger.info("Saved Plotly network HTML to %s", out_path)
     return out_path
@@ -732,7 +732,7 @@ def _network_interactive_multi_year(
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_network_interactive.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True})
+    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True}, include_plotlyjs=True)
     
     if logger:
         logger.info("Saved interactive network visualization to %s", out_path)

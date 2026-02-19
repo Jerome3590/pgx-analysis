@@ -814,13 +814,12 @@ if (n_target > 0L) {
           filter(year == yr) %>%
           arrange(desc(frequency)) %>%
           head(30)
-        
-        # Calculate relative coverage
-        total_cases <- sum(data_year$frequency)
+        if (nrow(data_year) == 0L) next
+        total_cases <- sum(data_year$frequency, na.rm = TRUE)
+        total_cases <- if (total_cases <= 0) 1 else total_cases
         data_year <- data_year %>%
           mutate(relative_pct = frequency / total_cases * 100,
                  cumulative_pct = cumsum(relative_pct))
-        
         fig <- fig %>%
           add_trace(
             type = "bar",
@@ -876,14 +875,9 @@ if (n_target > 0L) {
           height = 900
         )
       
-      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
+      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard.
+      # Do NOT use partial_bundle() here: it can produce empty HTML when dependencies are stripped.
       trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
-      tryCatch(
-        if (exists("partial_bundle", mode = "function", where = asNamespace("plotly"))) {
-          fig <- plotly::partial_bundle(fig)
-        },
-        error = function(e) cat("BupaR diagnostic: partial_bundle skipped:", conditionMessage(e), "\n")
-      )
       saveWidget(
         fig,
         trace_html_path,
@@ -1008,10 +1002,10 @@ if (n_target > 0L) {
           filter(year == yr) %>%
           arrange(desc(count)) %>%
           head(40)
-        
+        if (nrow(data_year) == 0L) next
         for (act_type in unique(data_year$activity_type)) {
           data_type <- data_year %>% filter(activity_type == act_type)
-          
+          if (nrow(data_type) == 0L) next
           fig <- fig %>%
             add_trace(
               type = "bar",
@@ -1072,14 +1066,9 @@ if (n_target > 0L) {
           hovermode = "closest"
         )
       
-      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard
+      # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard.
+      # Do NOT use partial_bundle() here: it can produce empty HTML when dependencies are stripped.
       af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
-      tryCatch(
-        if (exists("partial_bundle", mode = "function", where = asNamespace("plotly"))) {
-          fig <- plotly::partial_bundle(fig)
-        },
-        error = function(e) cat("BupaR diagnostic: partial_bundle skipped:", conditionMessage(e), "\n")
-      )
       saveWidget(
         fig,
         af_html_path,
