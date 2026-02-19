@@ -919,19 +919,27 @@ if (!is.null(p_te)) {
                                      paste0(substr(trace, 1, 97), "..."), 
                                      trace))
     
-    # Create plotly figure with year buttons
     years <- c(0, 2016, 2017, 2018)
     year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
-    
+    years_with_data <- integer(0)
+    year_labels_with_data <- character(0)
+    for (idx in seq_along(years)) {
+      n <- nrow(trace_combined %>% filter(year == years[idx]) %>% head(30))
+      if (n > 0L) {
+        years_with_data <- c(years_with_data, years[idx])
+        year_labels_with_data <- c(year_labels_with_data, year_labels[idx])
+      }
+    }
+    if (length(years_with_data) == 0L) {
+      cat("BupaR diagnostic [trace_explorer]: no years with data; skipping interactive HTML\n")
+    } else {
     fig <- plot_ly()
-    
-    for (i in seq_along(years)) {
-      yr <- years[i]
+    for (k in seq_along(years_with_data)) {
+      yr <- years_with_data[k]
       data_year <- trace_combined %>%
         filter(year == yr) %>%
         arrange(desc(frequency)) %>%
         head(30)
-      if (nrow(data_year) == 0L) next
       total_cases <- sum(data_year$frequency, na.rm = TRUE)
       total_cases <- if (total_cases <= 0) 1 else total_cases
       data_year <- data_year %>%
@@ -944,7 +952,7 @@ if (!is.null(p_te)) {
           x = data_year$frequency,
           name = "Trace Frequency",
           orientation = "h",
-          visible = (i == 1),  # Show "All Years" by default
+          visible = (k == 1L),
           marker = list(color = "#3b82f6"),
           text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
           hovertemplate = paste0(
@@ -955,8 +963,7 @@ if (!is.null(p_te)) {
           )
         )
     }
-    
-    # Create year filter buttons
+    n_traces <- length(years_with_data)
     updatemenus <- list(
       list(
         active = 0,
@@ -965,25 +972,23 @@ if (!is.null(p_te)) {
         xanchor = "left",
         y = 1.08,
         yanchor = "top",
-        buttons = lapply(seq_along(years), function(i) {
-          visible_vec <- rep(FALSE, length(years))
-          visible_vec[i] <- TRUE
-          
+        buttons = lapply(seq_along(years_with_data), function(k) {
+          visible_vec <- rep(FALSE, n_traces)
+          visible_vec[k] <- TRUE
           list(
-            label = year_labels[i],
+            label = year_labels_with_data[k],
             method = "update",
             args = list(
               list(visible = visible_vec),
-              list(title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels[i]))
+              list(title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[k]))
             )
           )
         })
       )
     )
-    
     fig <- fig %>%
       layout(
-        title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "- All Years (2016-2018)"),
+        title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[1L]),
         xaxis = list(title = "Frequency (Number of Cases)"),
         yaxis = list(title = "", categoryorder = "total ascending"),
         updatemenus = updatemenus,
@@ -991,9 +996,6 @@ if (!is.null(p_te)) {
         hovermode = "closest",
         height = 900
       )
-    
-    # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard.
-    # Do NOT use partial_bundle() here: it can produce empty HTML when dependencies are stripped.
     trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
     saveWidget(
       fig,
@@ -1004,6 +1006,7 @@ if (!is.null(p_te)) {
     )
     trace_html_size <- file.info(trace_html_path)$size
     cat("Saved trace_explorer_interactive.html with year filtering; path=", trace_html_path, " size_bytes=", if (is.na(trace_html_size)) "NA" else trace_html_size, "\n", sep = "")
+    }
   }, error = function(e) cat(" [skip] interactive trace explorer:", conditionMessage(e), "\n"))
 }
 
@@ -1181,23 +1184,35 @@ tryCatch({
   # Create color mapping
   colors <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
   
-  # Create traces for each year
   years <- c(0, 2016, 2017, 2018)
   year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
-  
-  # Build plotly figure with buttons
+  years_with_data <- integer(0)
+  year_labels_with_data <- character(0)
+  for (idx in seq_along(years)) {
+    n <- nrow(activity_freq_combined %>% filter(year == years[idx]) %>% head(40))
+    if (n > 0L) {
+      years_with_data <- c(years_with_data, years[idx])
+      year_labels_with_data <- c(year_labels_with_data, year_labels[idx])
+    }
+  }
+  if (length(years_with_data) == 0L) {
+    cat("BupaR diagnostic [activity_frequency]: no years with data; skipping interactive HTML\n")
+  } else {
   fig <- plot_ly()
-  
-  for (i in seq_along(years)) {
-    yr <- years[i]
+  trace_count <- 0L
+  traces_per_year <- integer(length(years_with_data))
+  for (k in seq_along(years_with_data)) {
+    yr <- years_with_data[k]
     data_year <- activity_freq_combined %>%
       filter(year == yr) %>%
       arrange(desc(count)) %>%
       head(40)
-    if (nrow(data_year) == 0L) next
+    n_this <- 0L
     for (act_type in unique(data_year$activity_type)) {
       data_type <- data_year %>% filter(activity_type == act_type)
       if (nrow(data_type) == 0L) next
+      n_this <- n_this + 1L
+      trace_count <- trace_count + 1L
       fig <- fig %>%
         add_trace(
           type = "bar",
@@ -1206,9 +1221,9 @@ tryCatch({
           name = act_type,
           marker = list(color = colors[act_type]),
           orientation = "h",
-          visible = (i == 1),  # Show "All Years" by default
+          visible = (k == 1L),
           legendgroup = act_type,
-          showlegend = (i == 1),
+          showlegend = (k == 1L),
           hovertemplate = paste0(
             "<b>Activity:</b> %{y}<br>",
             "<b>Type:</b> ", act_type, "<br>",
@@ -1217,9 +1232,10 @@ tryCatch({
           )
         )
     }
+    traces_per_year[k] <- n_this
   }
-  
-  # Create year filter buttons
+  n_traces_total <- trace_count
+  visible_vec_len <- n_traces_total
   updatemenus <- list(
     list(
       active = 0,
@@ -1228,27 +1244,25 @@ tryCatch({
       xanchor = "left",
       y = 1.15,
       yanchor = "top",
-      buttons = lapply(seq_along(years), function(i) {
-        visible_vec <- rep(FALSE, length(years) * length(unique(activity_freq_combined$activity_type)))
-        start_idx <- (i - 1) * length(unique(activity_freq_combined$activity_type)) + 1
-        end_idx <- i * length(unique(activity_freq_combined$activity_type))
-        visible_vec[start_idx:end_idx] <- TRUE
-        
+      buttons = lapply(seq_along(years_with_data), function(k) {
+        visible_vec <- rep(FALSE, visible_vec_len)
+        start_idx <- 1L + sum(traces_per_year[seq_len(k - 1)])
+        end_idx <- sum(traces_per_year[seq_len(k)])
+        if (end_idx >= start_idx) visible_vec[start_idx:end_idx] <- TRUE
         list(
-          label = year_labels[i],
+          label = year_labels_with_data[k],
           method = "update",
           args = list(
             list(visible = visible_vec),
-            list(title = paste("Activity Frequency:", cohort_name, age_band, "-", year_labels[i]))
+            list(title = paste("Activity Frequency:", cohort_name, age_band, "-", year_labels_with_data[k]))
           )
         )
       })
     )
   )
-  
   fig <- fig %>%
     layout(
-      title = paste("Activity Frequency:", cohort_name, age_band, "- All Years (2016-2018)"),
+      title = paste("Activity Frequency:", cohort_name, age_band, "-", year_labels_with_data[1L]),
       xaxis = list(title = "Frequency"),
       yaxis = list(title = "", categoryorder = "total ascending"),
       barmode = "stack",
@@ -1257,9 +1271,6 @@ tryCatch({
       legend = list(orientation = "h", y = 1.05, x = 0.5, xanchor = "center"),
       hovermode = "closest"
     )
-  
-  # Save interactive HTML as single self-contained file (no lib/ folder) for S3/dashboard.
-  # Do NOT use partial_bundle() here: it can produce empty HTML when dependencies are stripped.
   af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
   saveWidget(
     fig,
@@ -1270,6 +1281,7 @@ tryCatch({
   )
   af_html_size <- file.info(af_html_path)$size
   cat("Saved activity_frequency_interactive.html with year filtering; path=", af_html_path, " size_bytes=", if (is.na(af_html_size)) "NA" else af_html_size, "\n", sep = "")
+  }
 }, error = function(e) cat(" [skip] interactive activity frequency:", conditionMessage(e), "\n"))
 
 cat("Created overall activity frequency visualizations.\n")
