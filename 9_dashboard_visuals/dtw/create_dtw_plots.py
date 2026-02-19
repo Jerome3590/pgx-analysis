@@ -443,7 +443,7 @@ def create_trajectory_cluster_plots(
         print(f"[INFO] Plot already exists: {out_html}; skipping (use --force to re-run)")
         return [out_html]
 
-    fig.write_html(str(out_html), config={"responsive": True})
+    fig.write_html(str(out_html), config={"responsive": True}, include_plotlyjs=True)
     written.append(out_html)
     print(f"[INFO] Wrote {out_html}")
 
