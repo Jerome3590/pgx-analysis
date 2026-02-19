@@ -2,7 +2,9 @@
 
 ## Overview
 
-This directory holds **data visualization outputs only** (plots, CSVs, JSON, HTML) for the risk dashboard tabs. It does **not** contain the code that creates these artifacts. Creation code lives in **`9_dashboard_visuals/`** (pipeline step 9), following the same pattern as `6_final_model`, `7_shap_analysis`, and `8_ffa_analysis`.
+This directory holds **data visualization outputs** (plots, CSVs, JSON, HTML) for the risk dashboard tabs when step 9 is run. It does **not** contain the code that creates these artifacts; creation code lives in **`9_dashboard_visuals/`** (pipeline step 9).
+
+**Outputs are not in the repo.** They are generated on EC2 (or locally when running the dashboard visuals step) and uploaded to the dashboard S3 bucket. The repo only contains READMEs and docs; `*/outputs/` under this tree is in `.gitignore`.
 
 ## Directory Structure
 
@@ -20,10 +22,12 @@ visualizations/
 **Creation code (step 9):** `9_dashboard_visuals/dtw/` — e.g. `create_dtw_features.py`, `create_dtw_visuals.py`
 
 **Outputs:**
-- `dtw_trajectory_analysis_{cohort}_{age_band}.png` - Overview visualization
-- `dtw_sample_trajectories_{cohort}_{age_band}.png` - Sample trajectories
+- `dtw_trajectory_cluster_3d_{cohort}_{age_band}.html` / `.png` (or `1d` for non_opioid_ed) — trajectory cluster Plotly
+- `dtw_trajectory_analysis_{cohort}_{age_band}.png` — overview (optional)
+- `dtw_sample_trajectories_{cohort}_{age_band}.png` — sample trajectories (optional)
+- `chart_data.json` at parent of `plots/`
 
-**S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
+**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/`
 
 ## FP-Growth (`fpgrowth/`)
 
@@ -32,24 +36,28 @@ visualizations/
 **Creation code (step 9):** `9_dashboard_visuals/fpgrowth/` — e.g. `create_fpgrowth_visuals.py`, `create_plots.py`
 
 **Outputs:**
-- `*_top20_itemsets.png` - Top itemsets bar chart
-- `*_itemset_support.png` - Support distribution
-- `*_network.html` - Interactive co-occurrence network
+- `{cohort}_{age_band}_{item_type}_combined_top_itemsets.png` — top itemsets
+- `*_itemsets_interactive.html` — interactive itemsets
+- `*_target_rules_network.png` / `*_target_rules_network.html`, `*_network_interactive.html` (item_type: drug_name, icd_code, cpt_code, medical_code)
 
-**S3 Location**: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
+**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/`
 
 ## BupaR (`bupar/`)
 
-**Purpose**: Process mining visualizations.
+**Purpose**: Process mining visualizations (pathways, trace patterns, activity frequency).
 
 **Creation code (step 9):** `9_dashboard_visuals/bupar/` — e.g. `create_bupar_visuals.py`, `create_bupar_outputs_*_ed.R`
 
-**Outputs:**
-- `*_overall_activity_frequency.png` - Activity frequency chart
-- `*_gantt.png` - Gantt chart
-- `*_activity_sequence_top.png` - Top activity sequences
+**Outputs (final):**
+- `*_overall_activity_frequency.png` — activity frequency (static)
+- `*_activity_frequency_interactive.html` — same with year dropdown (requires `plots/lib/`)
+- `*_trace_explorer_pre_f1120.png` (opioid_ed) / `*_trace_explorer_pre_hcg.png` (non_opioid_ed) — pre-target trace patterns
+- `*_trace_explorer_interactive.html` — pre-target trace explorer with year dropdown (requires `plots/lib/`)
+- `*_pre_f1120_activity_frequency.png` (opioid_ed only)
+- `*_performance_spectrum.png` (optional, psmineR)
+- `*_frequency_map.png` (optional)
 
-**S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
+**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/` (full tree including `lib/`)
 
 ## Usage
 

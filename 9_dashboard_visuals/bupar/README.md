@@ -1,5 +1,41 @@
 # BupaR Process Mining Documentation
 
+## Testing one age band locally
+
+To run BupaR for a **single** cohort/age band (e.g. to verify script changes):
+
+1. **Model data** must exist for that cohort and age band. The script looks for parquet under:
+   - `4_model_data/cohort_name=opioid_ed/age_band=0_12/` (or `age_band=0-12`)
+   - or `PGX_DATA_ROOT/4_model_data/...` if set
+   - or `4a_model_data/...` as fallback  
+   Run `4_model_data` (or equivalent) for the desired cohort/age band first if needed.
+
+2. **From repo root**, run the Python driver with `--local-test` (skips SHAP/FFA allowed codes and S3 upload):
+
+   ```bash
+   python 9_dashboard_visuals/bupar/create_bupar_visuals.py --cohort-name opioid_ed --age-band 0-12 --force --local-test
+   ```
+
+   For **non_opioid_ed** (default age band in R is 65-74):
+
+   ```bash
+   python 9_dashboard_visuals/bupar/create_bupar_visuals.py --cohort-name non_opioid_ed --age-band 65-74 --force --local-test
+   ```
+
+3. **R only** (no Python): if the allowed-codes file already exists (or you want R to use all codes), run from repo root:
+
+   ```bash
+   Rscript 9_dashboard_visuals/bupar/create_bupar_outputs_opioid_ed.R 0-12
+   # or
+   Rscript 9_dashboard_visuals/bupar/create_bupar_outputs_non_opioid_ed.R 65-74
+   ```
+
+   The R script reads `10_risk_dashboard/visualizations/bupar/outputs/allowed_codes_shap_ffa_{cohort}_{age}.json` if present; if missing or empty, it uses all codes in the data.
+
+Outputs go to `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` and `.../features/`.
+
+---
+
 ## Overview
 This document describes how to use the outputs of the FP-Growth cohort pipeline as event logs for BupaR process mining in R. All scripts in this directory are R-based for consistency and to enable execution in a single R Jupyter notebook kernel.
 

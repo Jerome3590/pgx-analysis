@@ -11,7 +11,7 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 - **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`
 - **FP-Growth** – Itemsets, Plotly network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
 
-Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`.
+Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
 
 ## Feature importance sources for visuals
 
@@ -71,3 +71,14 @@ Run after [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb). Then run
 | 3 | 3_model_train_shap_ffa.ipynb | Model train, SHAP, FFA |
 | 4 | 4_dashboard_visuals.ipynb | **Dashboard visuals (phase 9)** |
 | 5 | 5_build_and_deploy.ipynb | Build and deploy |
+
+## Ensuring no outputs are pushed (one-time)
+
+If visualization outputs were ever committed, remove them from tracking so only code is pushed (outputs are generated on EC2). From repo root:
+
+```bash
+git rm -r --cached 10_risk_dashboard/visualizations/bupar/outputs/   # if any were tracked
+git commit -m "Stop tracking dashboard visualization outputs; generate on EC2"
+```
+
+After that, `.gitignore` keeps `10_risk_dashboard/visualizations/*/outputs/` from being re-added.
