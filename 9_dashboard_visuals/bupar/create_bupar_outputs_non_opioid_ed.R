@@ -917,27 +917,7 @@ if (n_target > 0L) {
       cat(" [skip] frequency_map: export_map not found\n")
     }
   }, error = function(e) cat(" [skip] frequency_map:", conditionMessage(e), "\n"))
-} else {
-  cat(" [skip] trace_explorer(target): no events\n")
-}
-
-# Save trace summary as tabular output (bupaR::traces; edeaR::traces not exported in some versions)
-traces_target <- tryCatch(
-  bupaR::traces(target_eventlog),
-  error = function(e) {
-    cat(" [skip] traces(target_eventlog):", conditionMessage(e), "\n")
-    data.frame(trace_id = character(0), trace = character(0), length = integer(0), first_activity = character(0), last_activity = character(0))
-  }
-)
-save_bupar_csv(
-  as.data.frame(traces_target),
-  sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
-)
-
-# Process matrix visualization has been removed (consistently fails with bupaR library error).
-# Other visualizations (activity frequency, trace explorer, process maps) provide comprehensive coverage.
-  
-  # Overall Activity Frequency plot with color coding
+  # Overall Activity Frequency plot with color coding (only when we have target events)
   tryCatch({
     target_activity_freq <- target_eventlog %>%
       mutate(activity_type = case_when(
@@ -1116,7 +1096,22 @@ save_bupar_csv(
     process_map(target_eventlog, type = "frequency"),
     error = function(e) cat(" [skip] process_map(target):", conditionMessage(e), "\n")
   )
+} else {
+  cat(" [skip] trace_explorer(target): no events\n")
 }
+
+# Save trace summary as tabular output (bupaR::traces; edeaR::traces not exported in some versions)
+traces_target <- tryCatch(
+  bupaR::traces(target_eventlog),
+  error = function(e) {
+    cat(" [skip] traces(target_eventlog):", conditionMessage(e), "\n")
+    data.frame(trace_id = character(0), trace = character(0), length = integer(0), first_activity = character(0), last_activity = character(0))
+  }
+)
+save_bupar_csv(
+  as.data.frame(traces_target),
+  sprintf("%s_%s_train_target_traces_bupar.csv", cohort_name, age_band_fname)
+)
 
 # Close the cohort-specific PDF device if it is still open so that any
 # base graphics output is written under the correct cohort directory.
