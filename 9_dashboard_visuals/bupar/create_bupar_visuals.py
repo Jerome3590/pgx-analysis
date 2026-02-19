@@ -102,6 +102,7 @@ def create_bupar_outputs(
     cohort_name: str,
     age_band: str,
     logger: logging.Logger,
+    local_test: bool = False,
 ) -> bool:
     """Step 1: Run the R script that builds BupaR event logs, features, and plots."""
     with step_block("5_bupar", "create_bupar_outputs", logger=logger):
@@ -110,36 +111,42 @@ def create_bupar_outputs(
 
         # Write SHAP/FFA allowed codes for BupaR (required: event log = dataset filtered by causal codes + dates)
         out_dir = DASHBOARD_BUPAR_OUT / "outputs"
+        out_dir.mkdir(parents=True, exist_ok=True)
         allowed_path = out_dir / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
-        try:
-            from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
-
+        if local_test:
+            # Local test: use empty list so R uses all codes; no SHAP/FFA required
+            allowed_path.write_text("[]", encoding="utf-8")
+            logger.info("Local test: wrote empty allowed_codes (R will use all codes) to %s", allowed_path)
+        else:
             try:
-                from py_helpers.env_utils import get_data_root
-                data_root = get_data_root()
-            except Exception:
-                data_root = None
-            if not write_shap_ffa_allowed_codes_for_bupar(
-                cohort_name,
-                age_band,
-                allowed_path,
-                top_n=500,
-                project_root=REPO_ROOT,
-                data_root=data_root,
-            ):
-                logger.error(
-                    "SHAP/FFA allowed codes file required for BupaR is missing or empty. "
-                    "Run SHAP/FFA analysis (7_shap_analysis) for cohort=%s age_band=%s first.",
+                from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
+
+                try:
+                    from py_helpers.env_utils import get_data_root
+                    data_root = get_data_root()
+                except Exception:
+                    data_root = None
+                if not write_shap_ffa_allowed_codes_for_bupar(
                     cohort_name,
                     age_band,
-                )
+                    allowed_path,
+                    top_n=500,
+                    project_root=REPO_ROOT,
+                    data_root=data_root,
+                ):
+                    logger.error(
+                        "SHAP/FFA allowed codes file required for BupaR is missing or empty. "
+                        "Run SHAP/FFA analysis (7_shap_analysis) for cohort=%s age_band=%s first.",
+                        cohort_name,
+                        age_band,
+                    )
+                    return False
+                logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
                 return False
-            logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
-            return False
 
-        # Require artifact exists and has at least one code before calling R
+        # Require artifact exists; allow empty list only for local_test (R uses all codes)
         if not allowed_path.exists():
             logger.error(
                 "SHAP/FFA allowed codes file not found at %s; aborting BupaR script.",
@@ -149,7 +156,7 @@ def create_bupar_outputs(
         try:
             with open(allowed_path, encoding="utf-8") as f:
                 codes = json.load(f)
-            if not codes or (isinstance(codes, list) and len(codes) == 0):
+            if not local_test and (not codes or (isinstance(codes, list) and len(codes) == 0)):
                 logger.error(
                     "SHAP/FFA allowed codes file is empty at %s; run SHAP/FFA for %s / %s first.",
                     allowed_path,
@@ -266,7 +273,7 @@ def upload_bupar_plots_to_dashboard_s3(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Upload BupaR plot PNGs and interactive HTML files to the dashboard bucket under bupar/{cohort}/{age_band}/plots/."""
+    """Upload BupaR plots dir to the dashboard bucket: PNG, HTML, and plots/lib/ (for interactive HTML deps)."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
@@ -287,29 +294,31 @@ def upload_bupar_plots_to_dashboard_s3(
         logger.warning("checkpoint_utils not available; skipping BupaR plot upload to dashboard S3")
         return True
 
-    # Upload both PNG (legacy) and HTML (interactive) files; log each for troubleshooting
+    # Upload entire plots tree (PNG, HTML, and lib/ for interactive HTML) so relative paths work on S3
     uploaded = 0
-    for pattern in ["*.png", "*.html"]:
-        for p in sorted(plots_dir.glob(pattern)):
-            try:
-                size = p.stat().st_size
-                if size is not None and size < 500 and p.suffix == ".html":
-                    logger.warning(
-                        "BupaR HTML file very small (likely empty content): %s size=%s bytes",
-                        p.name,
-                        size,
-                    )
-            except OSError:
-                pass
-            key = f"{s3_prefix}/{p.name}"
-            s3_path = f"s3://{s3_bucket}/{key}"
-            if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
-                uploaded += 1
-                logger.debug("Uploaded %s to %s", p.name, s3_path)
+    for p in sorted(plots_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        try:
+            size = p.stat().st_size
+            if size is not None and size < 500 and p.suffix == ".html":
+                logger.warning(
+                    "BupaR HTML file very small (likely empty content): %s size=%s bytes",
+                    p.name,
+                    size,
+                )
+        except OSError:
+            pass
+        rel = p.relative_to(plots_dir)
+        key = f"{s3_prefix}/{rel.as_posix()}"
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
+            uploaded += 1
+            logger.debug("Uploaded %s to %s", rel.as_posix(), s3_path)
     if uploaded:
-        logger.info("Uploaded %s BupaR file(s) (PNG + HTML) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
+        logger.info("Uploaded %s BupaR file(s) (plots + lib) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
     else:
-        logger.warning("No PNG or HTML files found in %s (check R stdout for BupaR diagnostic and empty event log)", plots_dir)
+        logger.warning("No files found in %s (check R stdout for BupaR diagnostic and empty event log)", plots_dir)
     return True
 
 
@@ -317,6 +326,7 @@ def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
     force: bool = False,
+    local_test: bool = False,
 ) -> bool:
     """
     Create BupaR visuals for the dashboard: outputs and plot upload only.
@@ -346,16 +356,21 @@ def create_bupar_visuals(
     with function_block("5_bupar", "create_bupar_visuals", logger=logger):
         logger.info("Starting BupaR visuals for %s / %s", cohort_name, age_band)
 
-        if not create_bupar_outputs(cohort_name, age_band, logger=logger):
+        if not create_bupar_outputs(cohort_name, age_band, logger=logger, local_test=local_test):
             logger.error("BupaR outputs step failed; aborting")
-            mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
+            if not local_test:
+                mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
             return False
 
-        upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
+        if not local_test:
+            upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
+        else:
+            logger.info("Local test: skipping S3 upload")
 
         logger.info("BupaR visuals completed for %s / %s", cohort_name, age_band)
 
-    mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
+    if not local_test:
+        mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
     return True
 
 
@@ -380,6 +395,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Re-run even if output already exists (default: skip when idempotent)",
     )
+    parser.add_argument(
+        "--local-test",
+        action="store_true",
+        help="One age-band local test: skip SHAP/FFA allowed codes (use all codes); only model data required",
+    )
 
     args = parser.parse_args()
 
@@ -388,6 +408,7 @@ if __name__ == "__main__":
             cohort_name=args.cohort_name,
             age_band=args.age_band,
             force=args.force,
+            local_test=args.local_test,
         )
 
     sys.exit(0 if success else 1)

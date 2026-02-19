@@ -55,7 +55,7 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 - **Outputs** (local + S3):
   - Eventlogs, trace tables, process matrices, and plots under `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/`.
-  - Interactive HTML (trace explorer, process matrix, activity frequency) are saved as **single self-contained files** (`saveWidget(..., selfcontained = TRUE, libdir = NULL)`) so they work from any path (S3, dashboard iframe)—no folder or `lib/` dependency.  
+  - Interactive HTML (trace explorer, activity frequency) are saved with **external dependencies** (`saveWidget(..., selfcontained = FALSE, libdir = "lib")`) so the plot renders correctly; the `plots/lib/` folder must be deployed alongside the HTML (e.g. sync or upload the whole `plots/` directory).  
   - Final merged feature file:
     - `10_risk_dashboard/visualizations/bupar/outputs/feature_engineering/bupaR_added_features_{cohort}_{age_band}.csv`  
     - Uploaded to `s3://pgxdatalake/gold/feature_engineering/5_bupar/{cohort}/{age_band}/bupaR_added_features_{cohort}_{age_band}.csv` by `add_bupar_features_to_model_data.R`.
@@ -67,16 +67,14 @@ This directory contains scripts to run process-mining analysis on cohort traject
 | Artifact | Filename pattern | Description |
 |----------|------------------|-------------|
 | Activity frequency (image) | `{cohort}_{age_band_fname}_overall_activity_frequency.png` | Top activities by frequency (static) |
-| Activity frequency (interactive) | `{cohort}_{age_band_fname}_activity_frequency_interactive.html` | Same with year dropdown (Plotly) |
-| Trace explorer (image) | `{cohort}_{age_band_fname}_trace_explorer.png` | Top trace patterns (static) |
-| Trace explorer (interactive) | `{cohort}_{age_band_fname}_trace_explorer_interactive.html` | Same with year dropdown (Plotly) |
-| Process matrix (image) | `{cohort}_{age_band_fname}_process_matrix.png` | Directly-follows heatmap (static) |
-| Process matrix (interactive) | `{cohort}_{age_band_fname}_process_matrix_interactive.html` | Same with year dropdown (Plotly) |
-| Pre-target trace explorer | `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_pre_hcg.png` (non_opioid_ed) | Pre-target trace patterns |
-| Pre-target activity frequency | `{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png` / `_pre_hcg_...` | Pre-target activity frequency |
-| Performance spectrum | `{cohort}_{age_band_fname}_performance_spectrum.png` | Aggregated activity trace (psmineR) |
-| Frequency map | `{cohort}_{age_band_fname}_frequency_map.png` | Process map frequency view |
-| Activity sequence (top) | `{cohort}_{age_band_fname}_activity_sequence_top.png` | Top activity sequence |
+| Activity frequency (interactive) | `{cohort}_{age_band_fname}_activity_frequency_interactive.html` | Same with year dropdown (Plotly); requires `plots/lib/` |
+| Trace explorer (pre-target only, image) | `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_trace_explorer_pre_hcg.png` (non_opioid_ed) | Pre-target trace patterns |
+| Trace explorer (interactive) | `{cohort}_{age_band_fname}_trace_explorer_interactive.html` | Pre-target only; year dropdown (Plotly); requires `plots/lib/` |
+| Pre-target activity frequency | `{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png` (opioid_ed only) | Pre-target activity frequency |
+| Performance spectrum | `{cohort}_{age_band_fname}_performance_spectrum.png` | Aggregated activity trace (psmineR; optional) |
+| Frequency map | `{cohort}_{age_band_fname}_frequency_map.png` | Process map frequency view (optional; requires processmapR::export_map) |
+
+**Not produced:** overall trace_explorer.png, process_matrix png/html, post-F1120 visuals (opioid_ed), activity_sequence_top.png. Interactive HTMLs use external deps in `plots/lib/`; upload/sync must include the full `plots/` tree.
 
 **Patient-level metrics** are not displayed in the current dashboard. They are produced for a **follow-on project** (e.g. on-demand patient-level trace/process-matrix views or API). Outputs include:
 

@@ -14,33 +14,26 @@ BupaR visualizations help clinicians understand:
 - **Process Flows**: Common sequences and transitions in patient care
 - **Pre/Post Target Analysis**: Pathways before and after target events (for opioid_ed cohort)
 
-## Visualization Types
+## Visualization Types (final artifacts)
 
-### 1. Activity Frequency Charts
-- **File Pattern**: `{cohort}_{age_band}_overall_activity_frequency.png`
-- **Description**: Bar chart showing frequency of each activity (drug, ICD, CPT code)
-- **Use Case**: Identify most common activities in patient pathways
+### 1. Activity frequency
+- **Static**: `{cohort}_{age_band_fname}_overall_activity_frequency.png` — bar chart of top activities (drug, ICD, CPT).
+- **Interactive**: `{cohort}_{age_band_fname}_activity_frequency_interactive.html` — same with year dropdown (Plotly). Requires `plots/lib/` deployed with the HTML.
 
-### 2. Gantt Charts
-- **File Pattern**: `{cohort}_{age_band}_gantt.png`
-- **Description**: Timeline visualization showing activity sequences per patient
-- **Use Case**: Visualize temporal progression of patient care
+### 2. Trace explorer (pre-target only)
+- **Static**: `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_trace_explorer_pre_hcg.png` (non_opioid_ed) — top trace patterns before target.
+- **Interactive**: `{cohort}_{age_band_fname}_trace_explorer_interactive.html` — pre-target only, year dropdown. Requires `plots/lib/`.
 
-### 3. Activity Sequence Charts
-- **File Pattern**: `{cohort}_{age_band}_activity_sequence_top.png`
-- **Description**: Bar chart of most frequent activity sequences
-- **Use Case**: Identify common pathways patients follow
+### 3. Pre-target activity frequency (opioid_ed only)
+- **File**: `{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png` — activity frequency before F1120.
 
-### 4. Pre/Post Target Visualizations (opioid_ed only)
-- **Pre-F1120**: `{cohort}_{age_band}_pre_f1120_activity_frequency.png`, `pre_f1120_gantt.png`
-- **Post-F1120**: `{cohort}_{age_band}_post_f1120_activity_frequency.png`, `post_f1120_gantt.png`
-- **Description**: Separate visualizations for pathways before and after F1120 (opioid dependence) diagnosis
-- **Use Case**: Understand how patient pathways change after diagnosis
+### 4. Performance spectrum (optional)
+- **File**: `{cohort}_{age_band_fname}_performance_spectrum.png` — aggregated activity trace (psmineR). Skipped if psmineR not installed.
 
-### 5. Activity Milestones Gantt
-- **File Pattern**: `{cohort}_{age_band}_activity_milestones_gantt.png`
-- **Description**: Gantt chart highlighting key milestones in patient pathways
-- **Use Case**: Identify critical transition points
+### 5. Frequency map (optional)
+- **File**: `{cohort}_{age_band_fname}_frequency_map.png` — process map frequency view. Skipped if processmapR::export_map not available.
+
+**Not produced:** overall trace_explorer.png, process_matrix, gantt, post-F1120 visuals, activity_milestones_gantt.
 
 ## Scripts
 
@@ -72,48 +65,42 @@ BupaR visualizations help clinicians understand:
 ```
 10_risk_dashboard/visualizations/bupar/outputs/
 ├── {cohort}/
-│   └── {age_band}/
+│   └── {age_band_fname}/
 │       ├── features/          # Feature files (for reference, not used in model)
-│       │   ├── {cohort}_{age_band}_train_target_pre_f1120_patient_features_bupar.csv
-│       │   ├── {cohort}_{age_band}_train_target_post_f1120_patient_features_bupar.csv
+│       │   ├── *_train_target_pre_f1120_patient_features_bupar.csv  (opioid_ed) / *_pre_hcg_* (non_opioid_ed)
 │       │   └── ...
 │       └── plots/             # Visualization files (for dashboard)
-│           ├── {cohort}_{age_band}_overall_activity_frequency.png
-│           ├── {cohort}_{age_band}_gantt.png
-│           ├── {cohort}_{age_band}_activity_sequence_top.png
-│           ├── {cohort}_{age_band}_pre_f1120_activity_frequency.png
-│           ├── {cohort}_{age_band}_pre_f1120_gantt.png
-│           ├── {cohort}_{age_band}_post_f1120_activity_frequency.png
-│           ├── {cohort}_{age_band}_post_f1120_gantt.png
-│           └── {cohort}_{age_band}_activity_milestones_gantt.png
+│           ├── {cohort}_{age_band_fname}_overall_activity_frequency.png
+│           ├── {cohort}_{age_band_fname}_activity_frequency_interactive.html
+│           ├── {cohort}_{age_band_fname}_trace_explorer_pre_f1120.png  (opioid_ed) / _trace_explorer_pre_hcg.png (non_opioid_ed)
+│           ├── {cohort}_{age_band_fname}_trace_explorer_interactive.html
+│           ├── {cohort}_{age_band_fname}_pre_f1120_activity_frequency.png   (opioid_ed only)
+│           ├── {cohort}_{age_band_fname}_performance_spectrum.png            (optional)
+│           ├── {cohort}_{age_band_fname}_frequency_map.png                   (optional)
+│           └── lib/             # Dependencies for interactive HTML (must deploy with HTML)
 ```
 
 ### S3 Outputs
 
-**S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
+**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/` (e.g. `jerome-dixon.io` / `vcu/pgx-risk-calculator`).
 
-All PNG visualization files are uploaded to S3 for dashboard access via Lambda API.
+All PNG, HTML, and `plots/lib/` are uploaded so interactive HTMLs load correctly.
 
 ## Usage
 
 ### Running BupaR Visualizations
 
-**For opioid_ed cohort:**
+**Using Python orchestrator (recommended, from repo root):**
 ```bash
-cd 10_risk_dashboard/visualizations/bupar
-Rscript create_bupar_outputs_opioid_ed.R {age_band}
+python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --cohort {cohort} --age-band {age_band}
 ```
+Or run BupaR only: `python 9_dashboard_visuals/bupar/create_bupar_visuals.py --cohort-name {cohort} --age-band {age_band}`.
 
-**For non_opioid_ed cohort:**
+**R only (from repo root):**
 ```bash
-cd 10_risk_dashboard/visualizations/bupar
-Rscript create_bupar_outputs_non_opioid_ed.R {age_band}
-```
-
-**Using Python orchestrator:**
-```bash
-cd 10_risk_dashboard/visualizations/bupar
-python create_bupar_visuals.py --cohort-name {cohort} --age-band {age_band}
+Rscript 9_dashboard_visuals/bupar/create_bupar_outputs_opioid_ed.R {age_band}
+# or
+Rscript 9_dashboard_visuals/bupar/create_bupar_outputs_non_opioid_ed.R {age_band}
 ```
 
 ### Required Inputs

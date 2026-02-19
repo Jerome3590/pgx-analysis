@@ -619,6 +619,102 @@ if (n_pre > 0L) {
            plot = p_te_pre, width = 16, height = 12, dpi = 300)
     print(p_te_pre)
   }
+  # Trace explorer interactive (pre-HCG only)
+  tryCatch({
+    trace_data_by_year <- pre_target_eventlog %>%
+      as.data.frame() %>%
+      mutate(year = lubridate::year(timestamp)) %>%
+      group_by(case_id, year) %>%
+      arrange(timestamp) %>%
+      summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
+      group_by(year, trace) %>%
+      summarise(frequency = n(), .groups = "drop")
+    top_traces <- trace_data_by_year %>%
+      group_by(trace) %>%
+      summarise(total_freq = sum(frequency), .groups = "drop") %>%
+      arrange(desc(total_freq)) %>%
+      head(30) %>%
+      pull(trace)
+    trace_filtered <- trace_data_by_year %>% filter(trace %in% top_traces)
+    trace_all <- trace_filtered %>%
+      group_by(trace) %>%
+      summarise(frequency = sum(frequency), .groups = "drop") %>%
+      mutate(year = 0)
+    trace_combined <- bind_rows(trace_all, trace_filtered) %>%
+      arrange(desc(frequency)) %>%
+      mutate(trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace))
+    years <- c(0, 2016, 2017, 2018)
+    year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
+    years_with_data <- integer(0)
+    year_labels_with_data <- character(0)
+    for (idx in seq_along(years)) {
+      n <- nrow(trace_combined %>% filter(year == years[idx]) %>% head(30))
+      if (n > 0L) {
+        years_with_data <- c(years_with_data, years[idx])
+        year_labels_with_data <- c(year_labels_with_data, year_labels[idx])
+      }
+    }
+    if (length(years_with_data) > 0L) {
+      fig <- plot_ly()
+      for (k in seq_along(years_with_data)) {
+        yr <- years_with_data[k]
+        data_year <- trace_combined %>%
+          filter(year == yr) %>%
+          arrange(desc(frequency)) %>%
+          head(30)
+        total_cases <- sum(data_year$frequency, na.rm = TRUE)
+        total_cases <- if (total_cases <= 0) 1 else total_cases
+        data_year <- data_year %>%
+          mutate(relative_pct = frequency / total_cases * 100, cumulative_pct = cumsum(relative_pct))
+        fig <- fig %>%
+          add_trace(
+            type = "bar",
+            y = data_year$trace_display,
+            x = data_year$frequency,
+            name = "Trace Frequency",
+            orientation = "h",
+            visible = (k == 1L),
+            marker = list(color = "#3b82f6"),
+            text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
+            hovertemplate = paste0("<b>Trace:</b> %{y}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>")
+          )
+      }
+      n_traces <- length(years_with_data)
+      updatemenus <- list(
+        list(
+          active = 0,
+          type = "dropdown",
+          x = 0.15, xanchor = "left", y = 1.08, yanchor = "top",
+          buttons = lapply(seq_along(years_with_data), function(k) {
+            visible_vec <- rep(FALSE, n_traces)
+            visible_vec[k] <- TRUE
+            list(
+              label = year_labels_with_data[k],
+              method = "update",
+              args = list(
+                list(visible = visible_vec),
+                list(title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[k]))
+              )
+            )
+          })
+        )
+      )
+      fig <- fig %>%
+        layout(
+          title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[1L]),
+          xaxis = list(title = "Frequency (Number of Cases)"),
+          yaxis = list(title = "", categoryorder = "total ascending"),
+          updatemenus = updatemenus,
+          margin = list(l = 300, r = 50, t = 100, b = 50),
+          hovermode = "closest",
+          height = 900
+        )
+      trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
+      # selfcontained = FALSE + libdir so dependencies are in plots/lib/; avoids blank HTML from selfcontained bundle
+      saveWidget(fig, trace_html_path, selfcontained = FALSE, libdir = "lib", title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
+      cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
+    }
+  }, error = function(e) cat(" [skip] interactive trace explorer (pre-HCG):", conditionMessage(e), "\n"))
 } else {
   cat(" [skip] trace_explorer(pre-HCG): no pre-HCG events\n")
 }
@@ -746,159 +842,23 @@ save_bupar_csv(
 
 cat("\n--- Target-only global process mining ---\n")
 
-# 1) Trace Explorer: save as PNG for dashboard
+# Trace explorer is pre-target only (see pre-HCG block above).
 n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
-  p_te <- tryCatch(
-    trace_explorer(target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
-                   coverage_labels = c("relative", "absolute"), show_labels = TRUE),
-    error = function(e) { cat(" [skip] trace_explorer(target):", conditionMessage(e), "\n"); NULL }
-  )
-  if (!is.null(p_te)) {
-    ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer.png", cohort_name, age_band_fname)),
-           plot = p_te, width = 16, height = 12, dpi = 300)
-    print(p_te)
-    
-    # Create interactive Plotly version with year filtering
-    tryCatch({
-      # Extract year and compute trace frequencies by year
-      trace_data_by_year <- target_eventlog %>%
-        as.data.frame() %>%
-        mutate(year = lubridate::year(timestamp)) %>%
-        group_by(case_id, year) %>%
-        arrange(timestamp) %>%
-        summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
-        group_by(year, trace) %>%
-        summarise(frequency = n(), .groups = "drop")
-      
-      # Get top 30 traces overall
-      top_traces <- trace_data_by_year %>%
-        group_by(trace) %>%
-        summarise(total_freq = sum(frequency), .groups = "drop") %>%
-        arrange(desc(total_freq)) %>%
-        head(30) %>%
-        pull(trace)
-      
-      # Filter to top traces and add "All Years" aggregation
-      trace_filtered <- trace_data_by_year %>%
-        filter(trace %in% top_traces)
-      
-      trace_all <- trace_filtered %>%
-        group_by(trace) %>%
-        summarise(frequency = sum(frequency), .groups = "drop") %>%
-        mutate(year = 0)  # 0 = "All Years"
-      
-      trace_combined <- bind_rows(trace_all, trace_filtered) %>%
-        arrange(desc(frequency))
-      
-      # Diagnostic logging for troubleshooting empty HTML
-      cat("BupaR diagnostic [trace_explorer]: n_target=", n_target, " n_cases=", n_cases(target_eventlog),
-          " nrow(trace_data_by_year)=", nrow(trace_data_by_year), " nrow(trace_combined)=", nrow(trace_combined),
-          " nrow(trace_filtered)=", nrow(trace_filtered), "\n", sep = "")
-      
-      # Abbreviate traces for display (truncate long sequences)
-      trace_combined <- trace_combined %>%
-        mutate(trace_display = ifelse(nchar(trace) > 100, 
-                                       paste0(substr(trace, 1, 97), "..."), 
-                                       trace))
-      
-      years <- c(0, 2016, 2017, 2018)
-      year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
-      years_with_data <- integer(0)
-      year_labels_with_data <- character(0)
-      for (idx in seq_along(years)) {
-        n <- nrow(trace_combined %>% filter(year == years[idx]) %>% head(30))
-        if (n > 0L) {
-          years_with_data <- c(years_with_data, years[idx])
-          year_labels_with_data <- c(year_labels_with_data, year_labels[idx])
-        }
-      }
-      if (length(years_with_data) == 0L) {
-        cat("BupaR diagnostic [trace_explorer]: no years with data; skipping interactive HTML\n")
-      } else {
-      fig <- plot_ly()
-      for (k in seq_along(years_with_data)) {
-        yr <- years_with_data[k]
-        data_year <- trace_combined %>%
-          filter(year == yr) %>%
-          arrange(desc(frequency)) %>%
-          head(30)
-        total_cases <- sum(data_year$frequency, na.rm = TRUE)
-        total_cases <- if (total_cases <= 0) 1 else total_cases
-        data_year <- data_year %>%
-          mutate(relative_pct = frequency / total_cases * 100,
-                 cumulative_pct = cumsum(relative_pct))
-        fig <- fig %>%
-          add_trace(
-            type = "bar",
-            y = data_year$trace_display,
-            x = data_year$frequency,
-            name = "Trace Frequency",
-            orientation = "h",
-            visible = (k == 1L),
-            marker = list(color = "#3b82f6"),
-            text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
-            hovertemplate = paste0(
-              "<b>Trace:</b> %{y}<br>",
-              "<b>Frequency:</b> %{x}<br>",
-              "<b>Coverage:</b> %{text}<br>",
-              "<extra></extra>"
-            )
-          )
-      }
-      n_traces <- length(years_with_data)
-      updatemenus <- list(
-        list(
-          active = 0,
-          type = "dropdown",
-          x = 0.15,
-          xanchor = "left",
-          y = 1.08,
-          yanchor = "top",
-          buttons = lapply(seq_along(years_with_data), function(k) {
-            visible_vec <- rep(FALSE, n_traces)
-            visible_vec[k] <- TRUE
-            list(
-              label = year_labels_with_data[k],
-              method = "update",
-              args = list(
-                list(visible = visible_vec),
-                list(title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[k]))
-              )
-            )
-          })
-        )
-      )
-      fig <- fig %>%
-        layout(
-          title = paste("Top 30 Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[1L]),
-          xaxis = list(title = "Frequency (Number of Cases)"),
-          yaxis = list(title = "", categoryorder = "total ascending"),
-          updatemenus = updatemenus,
-          margin = list(l = 300, r = 50, t = 100, b = 50),
-          hovermode = "closest",
-          height = 900
-        )
-      trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
-      saveWidget(
-        fig,
-        trace_html_path,
-        selfcontained = TRUE,
-        libdir = NULL,
-        title = paste("Trace Explorer:", cohort_name, age_band)
-      )
-      trace_html_size <- file.info(trace_html_path)$size
-      cat("Saved trace_explorer_interactive.html with year filtering; path=", trace_html_path, " size_bytes=", if (is.na(trace_html_size)) "NA" else trace_html_size, "\n", sep = "")
-      }
-    }, error = function(e) cat(" [skip] interactive trace explorer:", conditionMessage(e), "\n"))
-  }
   # Performance spectrum (aggregated activity trace; requires psmineR)
+  # Explicit segment_coverage and print() so the plot builds before ggsave (avoids blank PNG in batch/headless)
   tryCatch({
     if (requireNamespace("psmineR", quietly = TRUE)) {
-      p_ps <- target_eventlog %>% psmineR::ps_aggregated()
-      ggsave(file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname)),
-             plot = p_ps, width = 12, height = 8, dpi = 300)
-      cat("Saved performance_spectrum.png\n")
+      p_ps <- target_eventlog %>%
+        psmineR::ps_aggregated(segment_coverage = 0.2)
+      if (!is.null(p_ps) && inherits(p_ps, "ggplot")) {
+        ggplot2::print(p_ps)
+        ggsave(file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname)),
+               plot = p_ps, width = 12, height = 8, dpi = 300)
+        cat("Saved performance_spectrum.png\n")
+      } else {
+        cat(" [skip] performance_spectrum: ps_aggregated() did not return a ggplot\n")
+      }
     } else {
       cat(" [skip] performance_spectrum: psmineR not installed\n")
     }
@@ -1083,13 +1043,13 @@ if (n_target > 0L) {
           hovermode = "closest"
         )
       # Save interactive HTML only when we have at least one year with data
-      # Do NOT use partial_bundle() here: it can produce empty HTML when dependencies are stripped.
+      # selfcontained = FALSE + libdir so dependencies are in plots/lib/; avoids blank HTML from selfcontained bundle
       af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
       saveWidget(
         fig,
         af_html_path,
-        selfcontained = TRUE,
-        libdir = NULL,
+        selfcontained = FALSE,
+        libdir = "lib",
         title = paste("Activity Frequency:", cohort_name, age_band)
       )
       af_html_size <- file.info(af_html_path)$size
