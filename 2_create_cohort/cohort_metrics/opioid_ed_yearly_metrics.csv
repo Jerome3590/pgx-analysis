@@ -1,6 +1,0 @@
-cohort_name,year,target_patients,control_patients,target_transactions,control_transactions
-opioid_ed,2016,10491,52445,1735499,2593911
-opioid_ed,2017,10404,52014,1754055,3070690
-opioid_ed,2018,11685,58422,2422152,3885128
-opioid_ed,2019,16505,82516,2936320,4547241
-opioid_ed,2020,23024,115100,5763709,5797776
