@@ -9,11 +9,14 @@ Steps: 4_model_data_log, 4_fpgrowth_log, 5_bupar_log, 6_dtw_log,
   final_model_log (model training).
 
 Usage (from repo root):
-  python 9_dashboard_visuals/sync_viz_logs_from_s3.py
+  python 9_dashboard_visuals/sync_viz_logs_from_s3.py [--profile PROFILE]
+
+  --profile PROFILE   AWS CLI profile (e.g. mushin). Optional.
 
 Requires AWS CLI configured with access to pgx-repository.
 """
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -31,15 +34,23 @@ PREFIXES = (
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Sync visualization logs from S3")
+    parser.add_argument("--profile", default=None, help="AWS CLI profile (e.g. mushin)")
+    args = parser.parse_args()
+
     VIZ_SYNC_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Syncing viz logs from s3://{BUCKET}/ to {VIZ_SYNC_DIR}")
+    profile_msg = f" (profile {args.profile})" if args.profile else ""
+    print(f"Syncing viz logs from s3://{BUCKET}/ to {VIZ_SYNC_DIR}{profile_msg}")
+    cmd_base = ["aws", "s3", "sync"]
+    if args.profile:
+        cmd_base.extend(["--profile", args.profile])
     for prefix in PREFIXES:
         local_dir = VIZ_SYNC_DIR / prefix
         local_dir.mkdir(parents=True, exist_ok=True)
         uri = f"s3://{BUCKET}/{prefix}/"
         print(f"  {uri} -> {local_dir}")
         r = subprocess.run(
-            ["aws", "s3", "sync", uri, str(local_dir)],
+            [*cmd_base, uri, str(local_dir)],
             cwd=str(REPO_ROOT),
         )
         if r.returncode != 0:
