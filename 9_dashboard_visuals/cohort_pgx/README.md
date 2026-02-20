@@ -1,0 +1,420 @@
+# Cohort PGx Network Topology
+
+This module creates **interactive multi-layer network topology visualizations** showing gene-drug-phenotype relationships with advanced filtering capabilities for each cohort.
+
+## Overview
+
+The **Cohort PGx** feature combines:
+- **SHAP/FFA feature importance** - Identifies top N genes for a cohort/age band
+- **PharmGKB VIP reports** - Fetches comprehensive clinical annotations, guidelines, and drug interactions
+- **pytextrank** - Extracts key phrases and entities from VIP summary text
+- **AWS Comprehend** (optional) - Medical entity recognition and key phrase extraction
+- **NetworkX + Plotly** - Builds interactive multi-layer network topology with filtering
+
+## Key Features
+
+### Rich Data Layers
+
+1. **Genes** - Color-coded by PharmGKB tier (Tier 1/2/3), sized by number of connections
+   - Tier 1 (Red): Most clinically important pharmacogenes
+   - Tier 2 (Orange): Well-established pharmacogenes
+   - Tier 3 (Yellow): Emerging evidence pharmacogenes
+   - Includes CPIC guideline status and AMP tier annotations
+
+2. **Drugs** - Medications affected by gene variants
+   - Direct gene-drug "metabolizes" relationships
+   - Drug-drug interactions (inhibition, induction, combination effects)
+   - Weighted by mention frequency in clinical text
+
+3. **Phenotypes** - Adverse events and clinical outcomes
+   - Extracted from VIP summaries (e.g., "Bleeding Risk", "QT Prolongation")
+   - Gene-phenotype "affects_risk" relationships
+
+4. **Drug-Drug Interactions** - Pharmacokinetic/pharmacodynamic interactions
+   - Inhibition, induction, enhancement, combination effects
+   - Evidence snippets from clinical text
+
+### Interactive Filtering
+
+Dropdown menu controls to toggle network views:
+- **Show All**: Complete network (all layers visible)
+- **Genes Only**: Just gene nodes and gene-gene connections
+- **Genes + Drugs**: Gene-drug metabolism relationships
+- **Genes + Phenotypes**: Gene-adverse event associations
+- **Drug-Drug Interactions**: Pharmacokinetic interactions between drugs
+- **Tier 1 Only**: Focus on most clinically important genes
+
+### Weighted Edges
+
+Edge thickness represents evidence strength:
+- Mention frequency in VIP text (drugs/phenotypes)
+- Evidence text length (drug-drug interactions)
+- Normalized to 0-1 scale
+
+## Workflow
+
+### 1. Extract Top Genes from Feature Importance
+
+**Script**: `fetch_vip_reports.py`
+
+Extracts top N genes from feature importance data (Step 3b or notebook 3 combined_importance.csv) and fetches VIP reports from PharmGKB API with comprehensive clinical data.
+
+**Input**:
+- `3a_feature_importance/outputs/{cohort}/{age_band}/cohort_feature_importance.csv` (primary)
+- `10_risk_dashboard/outputs/{cohort}/{age_band}/combined_importance.csv` (fallback)
+
+**Output**:
+- `{cohort}_{age_band}_vip_reports.json` - VIP reports including:
+  - vipSummary.html (clinical guidelines, drugs, alleles, interactions)
+  - vipCitation (full reference with DOI)
+  - CPIC/AMP status
+  - Tier classification
+  - Genomic coordinates
+
+**Usage**:
+```bash
+python fetch_vip_reports.py \
+  --cohort opioid_ed \
+  --age-band 25-44 \
+  --top-n 50 \
+  --project-root /path/to/repo \
+  --output-dir outputs/reports
+```
+
+### 2. Build Multi-Layer Network Topology
+
+**Script**: `build_network_topology.py`
+
+Processes VIP reports to extract entities, relationships, interactions, and build comprehensive network topology.
+
+**Entity Extraction**:
+- **Genes**: From VIP metadata (symbol, name, tier, CPIC/AMP status)
+- **Drugs**: Pattern matching + Comprehend entities
+- **Phenotypes**: Adverse event extraction from clinical text
+  - Pattern matching: "risk of X", "adverse events: X", "X toxicity"
+  - Common adverse events: bleeding, QT prolongation, myopathy, etc.
+
+**Relationship Discovery**:
+- **Gene → Drug**: Metabolizes/interacts (weighted by mention frequency)
+- **Gene → Phenotype**: Affects risk (weighted by mention frequency)
+- **Gene ↔ Gene**: Co-metabolizes (shared drug targets)
+- **Drug ↔ Drug**: Interactions (inhibition, induction, enhancement)
+
+**Network Analysis**:
+- Node degree centrality (number of connections)
+- Graph density and clustering
+- Hub identification (genes with most connections)
+- Tier distribution (Tier 1/2/3 breakdown)
+
+**Output**:
+- `network_topology.html` - Interactive Plotly visualization with filters
+- `network_nodes.csv` - Node data (id, type, label, degree, tier, CPIC status)
+- `network_edges.csv` - Edge data (source, target, relation, weight, mentions, evidence)
+- `drug_interactions.csv` - Drug-drug interactions (drug1, drug2, type, evidence)
+- `key_phrases.json` - Extracted key phrases per gene
+- `network_stats.json` - Network statistics (nodes, edges, density, tier counts)
+- `gene_metadata.json` - Gene tier and CPIC information
+
+**Usage**:
+```bash
+python build_network_topology.py \
+  --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
+  --output-dir outputs/networks/opioid_ed/25_44
+  
+# Skip AWS Comprehend (use pytextrank only)
+python build_network_topology.py \
+  --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
+  --output-dir outputs/networks/opioid_ed/25_44 \
+  --no-comprehend
+```
+
+## Installation
+
+### Required Dependencies
+
+```bash
+# Core NLP + network analysis
+pip install spacy pytextrank networkx plotly beautifulsoup4
+
+# Download spaCy model
+python -m spacy download en_core_web_sm
+
+# AWS Comprehend (optional)
+pip install boto3
+```
+
+### AWS Comprehend Setup (Optional)
+
+If using AWS Comprehend for enhanced medical entity recognition:
+
+1. **Install boto3**: `pip install boto3`
+2. **Configure AWS credentials**: `aws configure` or set environment variables
+3. **Verify access**:
+   ```python
+   import boto3
+   client = boto3.client("comprehend", region_name="us-east-1")
+   print(client.detect_entities(Text="Test", LanguageCode="en"))
+   ```
+
+**Note**: AWS Comprehend is optional. pytextrank provides entity extraction without AWS dependencies.
+
+## Notebook Integration
+
+Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.ipynb)):
+
+1. **Fetch VIP reports**: Parallel fetch for all cohort/age_band combinations (max 2 workers for API rate limiting)
+2. **Build networks**: Parallel network building (max 4 workers)
+3. **View outputs**: Interactive visualization previews
+
+## Dashboard Integration
+
+### Upload to S3
+
+```bash
+# Upload network visualizations to dashboard bucket
+aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ \
+  s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/ \
+  --exclude "*.csv" --exclude "*.json" --include "*.html"
+```
+
+### Lambda API Endpoint
+
+Add to `lambda_function.py`:
+
+```python
+@app.get("/visualizations/cohort-pgx")
+def get_cohort_pgx_viz(cohort: str, age_band: str):
+    """Get Cohort PGx network topology visualization URLs."""
+    age_band_fname = age_band.replace("-", "_")
+    base_url = f"https://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/{cohort}/{age_band_fname}"
+    
+    return {
+        "network_topology": f"{base_url}/network_topology.html",
+        "network_nodes": f"{base_url}/network_nodes.csv",
+        "network_edges": f"{base_url}/network_edges.csv",
+        "drug_interactions": f"{base_url}/drug_interactions.csv",
+        "gene_metadata": f"{base_url}/gene_metadata.json",
+        "network_stats": f"{base_url}/network_stats.json",
+        "key_phrases": f"{base_url}/key_phrases.json"
+    }
+```
+
+### Frontend Tab
+
+Add new tab to `index.html`:
+
+```html
+<div class="tab-pane fade" id="cohort-pgx-tab">
+  <h3>Cohort PGx Network Topology</h3>
+  <div id="cohort-pgx-container">
+    <iframe id="network-iframe" style="width:100%; height:800px; border:1px solid #ddd;"></iframe>
+  </div>
+  <div id="network-stats" class="mt-3">
+    <!-- Network statistics displayed here -->
+  </div>
+</div>
+```
+
+JavaScript to load network:
+
+```javascript
+async function loadCohortPgxNetwork(cohort, ageBand) {
+  const response = await fetch(`/visualizations/cohort-pgx?cohort=${cohort}&age_band=${ageBand}`);
+  const data = await response.json();
+  
+  // Load network visualization
+  document.getElementById('network-iframe').src = data.network_topology;
+  
+  // Load and display statistics
+  const statsResponse = await fetch(data.network_stats);
+  const stats = await statsResponse.json();
+  displayNetworkStats(stats);
+}
+```
+
+## Output Structure
+
+```
+10_risk_dashboard/visualizations/cohort_pgx/
+├── reports/
+│   ├── opioid_ed_25_44_vip_reports.json          # Full VIP reports with clinical text
+│   ├── opioid_ed_25_44_vip_reports_summary.json  # Summary statistics
+│   └── ...
+└── networks/
+    ├── opioid_ed/
+    │   ├── 25_44/
+    │   │   ├── network_topology.html         # Interactive visualization with filters
+    │   │   ├── network_nodes.csv             # Nodes (gene/drug/phenotype, tier, CPIC)
+    │   │   ├── network_edges.csv             # Edges (source, target, relation, weight)
+    │   │   ├── drug_interactions.csv         # Drug-drug interactions with evidence
+    │   │   ├── gene_metadata.json            # Gene tiers and CPIC status
+    │   │   ├── key_phrases.json              # Top phrases per gene
+    │   │   └── network_stats.json            # Network statistics
+    │   └── ...
+    └── non_opioid_ed/
+        └── ...
+```
+```
+
+## Interpreting the Visualization
+
+### Node Types & Colors
+
+**Genes** (circles, sized by connections):
+- **Red (Tier 1)**: Most clinically important - AMP/CPIC guidelines, strong evidence
+- **Orange (Tier 2)**: Well-established pharmacogenes with clinical annotations
+- **Yellow (Tier 3)**: Emerging evidence, research implications
+- **Gray**: Unknown tier classification
+
+**Drugs** (diamonds, cyan):
+- Medications affected by gene variants
+- Size indicates number of genes affecting the drug
+
+**Phenotypes** (squares, mint green):
+- Adverse events or clinical outcomes
+- Extracted from VIP clinical summaries
+
+### Edge Types & Colors
+
+- **Gray**: Gene → Drug (metabolizes) - pharmacokinetic relationship
+- **Pink**: Gene → Phenotype (affects_risk) - clinical outcome association
+- **Blue**: Gene ↔ Gene (co_metabolizes) - shared drug targets
+- **Purple**: Drug ↔ Drug (metabolic interaction)
+- **Red**: Drug ↔ Drug (inhibition)
+- **Green**: Drug ↔ Drug (induction)
+- **Gold**: Drug ↔ Drug (combination effect)
+- **Tomato**: Drug ↔ Drug (enhancement)
+
+**Edge thickness** = evidence strength (mention frequency, text detail)
+
+### Interactive Controls
+
+Use the **Filter View** dropdown (top-left) to explore different layers:
+
+1. **Show All**: Complete network - see the full complexity
+2. **Genes Only**: Focus on gene-gene relationships through shared pathways
+3. **Genes + Drugs**: Gene-drug metabolism - which genes affect which medications
+4. **Genes + Phenotypes**: Gene-adverse events - clinical risk associations
+5. **Drug-Drug Interactions**: Pharmacokinetic interactions requiring monitoring
+6. **Tier 1 Only**: Focus on most clinically actionable genes (CPIC guidelines)
+
+### How to Use
+
+**For Clinicians**:
+- Check if patient's adverse event risk genes (red/orange nodes) affect their current medications
+- Review drug-drug interactions for polypharmacy patients
+- Identify CPIC guideline genes (✓ CPIC in hover text) requiring PGx testing
+
+**For Researchers**:
+- Identify hub genes (large nodes, many connections) - high-value PGx targets
+- Compare networks across cohorts to find cohort-specific patterns
+- Analyze phenotype associations for adverse event prediction
+
+**For Pharmacists**:
+- Review gene-drug relationships before dispensing high-risk medications
+- Check for drug-drug interactions in complex regimens
+- Determine if PGx testing would benefit the patient
+
+## Research Applications
+
+### 1. Cohort-Specific Pharmacogenomics
+
+- Identify gene-drug interactions unique to each cohort
+- Compare network topology across age bands
+- Discover hub genes (high centrality) driving adverse events
+
+### 2. Drug Interaction Patterns
+
+- Visualize polypharmacy complexity
+- Identify shared metabolic pathways
+- Find drug combinations requiring PGx monitoring
+
+### 3. Age-Related PGx Differences
+
+- Compare network density across age bands
+- Identify age-specific gene-drug relationships
+- Guide age-appropriate PGx testing strategies
+
+## API Details
+
+### PharmGKB REST API v1
+
+**Documentation**: https://www.postman.com/pharmgkb/pharmgkb-api/documentation/g9rp4zr/pharmgkb-rest-api
+
+**Endpoints Used**:
+- `GET /v1/data/gene?symbol={GENE}` - Fetch gene VIP data
+- Rate limit: 0.5s delay between requests (conservative)
+
+**VIP URLs**:
+- Format: `https://www.clinpgx.org/vip/{PA_ID}/overview`
+- Example: `https://www.clinpgx.org/vip/PA166170325/overview` (CYP2D6)
+
+### AWS Comprehend
+
+**APIs Used**:
+- `detect_entities()` - General entity recognition
+- `detect_key_phrases()` - Key phrase extraction
+- Text limit: 5000 bytes per request
+
+**Entity Types**:
+- `COMMERCIAL_ITEM`, `TITLE` → Drugs
+- `EVENT`, `OTHER` → Phenotypes
+
+## Performance
+
+### Runtime Estimates
+
+- **Fetch VIP reports**: ~1-2 minutes per cohort/age_band (API rate limited)
+- **Build network**: ~2-5 minutes per cohort/age_band (depends on text volume)
+- **Total for 16 combinations** (2 cohorts × 8 age bands): ~50-100 minutes
+
+### Optimization Tips
+
+1. **Parallel execution**: Max 2 workers for VIP fetch (API rate limits), 4 for network build
+2. **Skip Comprehend**: Use `--no-comprehend` for faster processing (pytextrank only)
+3. **Skip VIP pages**: Use `--no-vip-pages` to skip HTML fetching (uses API data only)
+4. **Cache results**: Idempotent - skips existing outputs
+
+## Troubleshooting
+
+### Missing Feature Importance
+
+**Error**: "No genes found"
+
+**Solution**: Ensure feature importance exists:
+- Step 3b: `3a_feature_importance/outputs/{cohort}/{age_band}/cohort_feature_importance.csv`
+- Notebook 3: `10_risk_dashboard/outputs/{cohort}/{age_band}/combined_importance.csv`
+
+### API Rate Limiting
+
+**Error**: "429 Too Many Requests"
+
+**Solution**: Increase `REQUEST_DELAY` in `fetch_vip_reports.py` (default 0.5s)
+
+### AWS Comprehend Errors
+
+**Error**: "Could not initialize AWS Comprehend"
+
+**Solution**: 
+- Use `--no-comprehend` flag (pytextrank still works)
+- Check AWS credentials: `aws configure`
+- Verify region: `us-east-1` recommended
+
+### spaCy Model Missing
+
+**Error**: "Can't find model 'en_core_web_sm'"
+
+**Solution**: `python -m spacy download en_core_web_sm`
+
+## References
+
+- **PharmGKB**: https://www.pharmgkb.org
+- **ClinPGx**: https://www.clinpgx.org
+- **pytextrank**: https://github.com/DerwenAI/pytextrank
+- **AWS Comprehend**: https://aws.amazon.com/comprehend/
+- **NetworkX**: https://networkx.org/
+- **Plotly**: https://plotly.com/python/
+
+## License
+
+See main repository LICENSE.

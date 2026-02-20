@@ -1,0 +1,99 @@
+{
+  "gene_symbol": "CYP2D6",
+  "gene_id": "PA128",
+  "gene_data": {
+    "objCls": "Gene",
+    "id": "PA128",
+    "symbol": "CYP2D6",
+    "name": "cytochrome P450 family 2 subfamily D member 6",
+    "alleleFile": "CYP2D6_allele_definition_table.xlsx",
+    "alleleFunctionSource": "CPIC",
+    "alleleType": "Named Alleles",
+    "amp": true,
+    "buildVersion": "GRCh38.p7",
+    "cbStart": "q13.1",
+    "cbStop": "q13.2",
+    "chr": {
+      "objCls": "Chromosome",
+      "id": "PA525",
+      "name": "chr22"
+    },
+    "chrStartPosB37": 42522501,
+    "chrStartPosB38": 42125531,
+    "chrStopPosB37": 42526883,
+    "chrStopPosB38": 42130881,
+    "cpicGene": true,
+    "hasNonStandardHaplotypes": false,
+    "hideHaplotypes": false,
+    "pharmVarGene": true,
+    "strand": "minus",
+    "vipCitation": {
+      "id": 7144344,
+      "title": "Cytochrome P450 2D6.",
+      "_sameAs": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4373606",
+      "authors": [
+        "Owen Ryan P",
+        "Sangkuhl Katrin",
+        "Klein Teri E",
+        "Altman Russ B"
+      ],
+      "crossReferences": [
+        {
+          "id": 1449247412,
+          "resource": "PubMed Central",
+          "resourceId": "PMC4373606",
+          "_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4373606"
+        },
+        {
+          "id": 562114580,
+          "resource": "PubMed",
+          "resourceId": "19512959",
+          "_url": "https://www.ncbi.nlm.nih.gov/pubmed/19512959"
+        },
+        {
+          "id": 1449247413,
+          "resource": "DOI",
+          "resourceId": "10.1097/FPC.0b013e32832e0e97",
+          "_url": "http://dx.doi.org/10.1097%2FFPC.0b013e32832e0e97"
+        }
+      ],
+      "day": -1,
+      "journal": "Pharmacogenetics and genomics",
+      "month": 7,
+      "objCls": "Literature",
+      "page": "559-62",
+      "pediatric": false,
+      "pgkbPublication": true,
+      "pubDate": "2009-07-01T00:00:00-07:00",
+      "pubmedMeshTerms": [],
+      "terms": [
+        {
+          "id": 1454108640,
+          "resource": "ClinPGx Tags",
+          "term": "PharmGKB",
+          "termId": "pgkbTags:1454108640"
+        },
+        {
+          "id": 1451577482,
+          "resource": "PGx Paper Types",
+          "term": "Review",
+          "termId": "pgxPaperTypes:1451577482"
+        }
+      ],
+      "type": "Literature",
+      "volume": "19",
+      "year": 2009
+    },
+    "vipId": "PA166170264",
+    "vipSummary": {
+      "id": 1448995144,
+      "html": "<p>CYP2D6 is one of the key pharmacogenes involved in implementation of pharmacogenomics. It is highly polymorphic and involved in the metabolism of up to 25% of the drugs that are in common use in the clinic.</p>\n<ul>\n<li>It is involved in guidelines for <a href=\"/guidelineAnnotation/PA166104996\">codeine</a> and other opioids, antidepressants, and tamoxifen <a href=\"/gene/PA128/prescribingInfo#guideline-annotations\">go to list of all guidelines with CYP2D6</a>.</li>\n<li>the nomenclature has been set by <a rel=\"noopener noreferrer\" href=\"https://www.pharmvar.org/gene/CYP2D6\" target=\"_blank\">PharmVar</a>.</li>\n<li>the AMP tier 1 alleles are <a href=\"/haplotype/PA165816577\">CYP2D6*2</a>, <a href=\"/haplotype/PA165816578\">CYP2D6*3</a>, <a href=\"/haplotype/PA165816579\">CYP2D6*4</a>, <a href=\"/haplotype/PA165948092\">CYP2D6*5</a>, <a href=\"/haplotype/PA165816581\">CYP2D6*6</a>, <a href=\"/haplotype/PA165948317\">CYP2D6*9</a>, <a href=\"/haplotype/PA165816582\">CYP2D6*10</a>, <a href=\"/haplotype/PA165816583\">CYP2D6*17</a>, <a href=\"/haplotype/PA165948318\">CYP2D6*29</a>, <a href=\"/haplotype/PA165816584\">CYP2D6*41</a>, CYP2D6 duplications and other copy number variants <a href=\"/ampAllelesToTest\">see all alleles on the AMP recommended to test list</a>.</li>\n<li>See the <a href=\"/page/cyp2d6RefMaterials\">Gene-specific Information Tables</a> for Allele Definitions (for which variants comprise which star alleles), Allele function assignments (normal function, no function, decreased or increased function etc) and Diplotype-Phenotype Table (for how the alleles combine to form metabolizer phenotypes for PM, NM, UM).</li>\n<li>CYP2D6 is the most studied CYP for phenoconversion, where a drug-drug interaction mimics a metabolizer phenotype. <a href=\"/chemical/PA450801\">paroxetine</a>, <a href=\"/chemical/PA449673\">fluoxetine</a> and <a href=\"/chemical/PA448687\">bupropion</a> are strong inhibitors of CYP2D6 as per <a rel=\"noopener noreferrer\" href=\"https://drug-interactions.medicine.iu.edu/MainTable.aspx\" target=\"_blank\">Flockhart Table</a>.</li>\n</ul>\n"
+    },
+    "vipTier": "Tier 1"
+  },
+  "clinical_annotations": [],
+  "variant_annotations": [],
+  "drug_labels": [],
+  "related_chemicals": [],
+  "guidelines": []
+}
