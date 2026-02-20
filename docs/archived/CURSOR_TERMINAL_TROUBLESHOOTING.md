@@ -98,6 +98,20 @@ If you use **Git Credential Manager** or another helper that listens on a port, 
 
 **If it keeps coming back:** Check Cursor/VS Code settings for terminal environment variables (`terminal.integrated.env.windows` or similar) and system/account environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`). Something may be setting a proxy to `127.0.0.1:62328` for the integrated terminal.
 
+**Use WSL (recommended):** Run git and AWS CLI from WSL so they use Linux env and avoid the Cursor proxy:
+```bash
+# Open WSL (e.g. Ubuntu) and go to the project (Windows path under /mnt/c/)
+cd /mnt/c/Projects/pgx-analysis
+
+# Git (no proxy in WSL by default)
+git push origin main
+
+# AWS CLI (install in WSL if needed: sudo apt install awscli / or pip)
+python 9_dashboard_visuals/sync_viz_logs_from_s3.py
+# or with profile: python 9_dashboard_visuals/sync_viz_logs_from_s3.py --profile YOUR_PROFILE
+```
+Ensure Git and AWS are configured in WSL (e.g. `git config`, `aws configure`); they are separate from Windows.
+
 ---
 
 ## Workarounds

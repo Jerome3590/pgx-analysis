@@ -106,6 +106,12 @@ def main() -> int:
                 print("  {}:{}  {}".format(path, line_no, snippet))
             if len(hits) > 50:
                 print("  ... and {} more.".format(len(hits) - 50))
+            # Highlight 85-114 related errors (common failure age band)
+            eighty_five = [(p, n, s) for p, n, s in hits if "85-114" in s or "85_114" in s or "/85" in p]
+            if eighty_five:
+                print("\n*** 85-114 related ERROR/FATAL ({}):".format(len(eighty_five)))
+                for path, line_no, snippet in eighty_five[:20]:
+                    print("  {}:{}  {}".format(path, line_no, snippet))
         else:
             print("\nNo ERROR/FATAL lines found in synced logs.")
     return 0

@@ -931,7 +931,7 @@ if (n_post > 0L) {
                   list(visible = visible_vec),
                   list(title = paste("Post-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_added_post[k]))
                 )
-              }
+              )
             })
           )
         )
