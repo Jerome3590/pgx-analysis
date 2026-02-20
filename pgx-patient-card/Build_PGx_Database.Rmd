@@ -1,8 +1,23 @@
 ---
-title: "PGx"
+title: "Build PGx Database (DEPRECATED - Use Python Scripts)"
 author: "Jerome Dixon"
 date: "12/8/2020"
 output: html_document
+---
+
+**⚠️ DEPRECATED**: This R script uses outdated PharmGKB API endpoints and URLs.
+
+**Use the new Python implementation instead:**
+- `fetch_pharmgkb_data.py` - Fetch VIP data from current PharmGKB API
+- `generate_pgx_qr_codes.py` - Generate QR codes with ClinPGx URLs
+- `build_pgx_database.py` - Build unified PGx database
+- See `README_PYTHON.md` for full documentation
+
+**Changes in 2026:**
+- PharmGKB API `/v1/site/vips` endpoint no longer available
+- VIP pages migrated to ClinPGx: `https://www.clinpgx.org/vip/{PA_ID}/overview`
+- CPIC Excel file still valid: `https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx`
+
 ---
 
 ```{r setup, include=FALSE}
@@ -156,9 +171,15 @@ pharm_GKB_df <- bind_rows(pharm_gkb_dfs_list)
 
 library(rvest)
 
+# Note: PharmGKB API has migrated. The /v1/site/vips endpoint is deprecated.
+# Current API documentation: https://www.postman.com/pharmgkb/pharmgkb-api/documentation/g9rp4zr/pharmgkb-rest-api
+# VIP content now surfaces at ClinPGx URLs (clinpgx.org) instead of pharmgkb.org
 
 build_VIP_df <- function() {
   
+  # WARNING: This endpoint (/v1/site/vips) is deprecated as of 2026.
+  # For current data, use entity-specific endpoints from PharmGKB REST API.
+  # This code is retained for legacy compatibility.
   r <-GET("https://api.pharmgkb.org/v1/site/vips")
   vip_list <- content(r, as="text", encoding="UTF-8") %>% 
     fromJSON(flatten=TRUE) 
@@ -175,9 +196,10 @@ build_VIP_df <- function() {
   
   names(vip_df) <- str_to_title(names(vip_df))
   
-  base_url <- "https://www.pharmgkb.org/vip/"
+  # Updated: PharmGKB VIP content now hosted on ClinPGx
+  base_url <- "https://www.clinpgx.org/vip/"
   
-  vip_df$URL <- paste0(base_url,vip_df$Vipid, sep="")
+  vip_df$URL <- paste0(base_url, vip_df$Vipid, "/overview", sep="")
   
   vip_df$QR_Filename <- paste0(vip_df$Gene,".png", sep="")
   
