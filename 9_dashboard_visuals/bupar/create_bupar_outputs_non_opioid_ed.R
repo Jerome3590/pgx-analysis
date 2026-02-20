@@ -732,25 +732,30 @@ if (n_pre > 0L) {
       summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
       group_by(year, trace) %>%
       summarise(frequency = n(), .groups = "drop")
+
     top_traces <- trace_data_by_year %>%
       group_by(trace) %>%
       summarise(total_freq = sum(frequency), .groups = "drop") %>%
       arrange(desc(total_freq)) %>%
       head(30) %>%
       pull(trace)
+
     trace_filtered <- trace_data_by_year %>% filter(trace %in% top_traces)
     trace_all <- trace_filtered %>%
       group_by(trace) %>%
       summarise(frequency = sum(frequency), .groups = "drop") %>%
       mutate(year = 0)
-  trace_combined <- bind_rows(trace_all, trace_filtered) %>%
-    arrange(desc(frequency)) %>%
-    mutate(
-      trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace),
-      trace_display_short = vapply(trace, first_three_trace, character(1))
-    )
+
+    trace_combined <- bind_rows(trace_all, trace_filtered) %>%
+      arrange(desc(frequency)) %>%
+      mutate(
+        trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace),
+        trace_display_short = vapply(trace, first_three_trace, character(1))
+      )
+
     years <- c(0, 2016, 2017, 2018)
     year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
+
     years_with_data <- integer(0)
     year_labels_with_data <- character(0)
     for (idx in seq_along(years)) {
@@ -760,18 +765,26 @@ if (n_pre > 0L) {
         year_labels_with_data <- c(year_labels_with_data, year_labels[idx])
       }
     }
+
     if (length(years_with_data) > 0L) {
       fig <- plot_ly()
+      traces_added <- 0L
+      year_labels_added <- character(0)
+
       for (k in seq_along(years_with_data)) {
         yr <- years_with_data[k]
         data_year <- trace_combined %>%
           filter(year == yr) %>%
           arrange(desc(frequency)) %>%
           head(30)
+
+        if (nrow(data_year) == 0L) next
+
         total_cases <- sum(data_year$frequency, na.rm = TRUE)
         total_cases <- if (total_cases <= 0) 1 else total_cases
         data_year <- data_year %>%
           mutate(relative_pct = frequency / total_cases * 100, cumulative_pct = cumsum(relative_pct))
+
         fig <- fig %>%
           add_trace(
             type = "bar",
@@ -780,46 +793,59 @@ if (n_pre > 0L) {
             name = "Trace Frequency",
             customdata = data_year$trace_display,
             orientation = "h",
-            visible = (k == 1L),
+            visible = (traces_added == 0L),
             marker = list(color = "#3b82f6"),
             text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
-            hovertemplate = paste0("<b>Trace:</b> %{customdata}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>")
-          )
-      }
-      n_traces <- length(years_with_data)
-      updatemenus <- list(
-        list(
-          active = 0,
-          type = "dropdown",
-          x = 0.15, xanchor = "left", y = 1.08, yanchor = "top",
-          buttons = lapply(seq_along(years_with_data), function(k) {
-            visible_vec <- rep(FALSE, n_traces)
-            visible_vec[k] <- TRUE
-            list(
-              label = year_labels_with_data[k],
-              method = "update",
-              args = list(
-                list(visible = visible_vec),
-                list(title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[k]))
-              )
+            hovertemplate = paste0(
+              "<b>Trace:</b> %{customdata}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>"
             )
-          })
+          )
+
+        year_labels_added <- c(year_labels_added, year_labels_with_data[k])
+        traces_added <- traces_added + 1L
+      }
+
+      n_traces <- traces_added
+      if (n_traces > 0L) {
+        updatemenus <- list(
+          list(
+            active = 0,
+            type = "dropdown",
+            x = 0.15, xanchor = "left", y = 1.08, yanchor = "top",
+            buttons = lapply(seq_len(n_traces), function(k) {
+              visible_vec <- rep(FALSE, n_traces)
+              visible_vec[k] <- TRUE
+              list(
+                label = year_labels_added[k],
+                method = "update",
+                args = list(
+                  list(visible = visible_vec),
+                  list(title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_added[k]))
+                )
+              )
+            })
+          )
         )
-      )
-      fig <- fig %>%
-        layout(
-          title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_with_data[1L]),
-          xaxis = list(title = "Frequency (Number of Cases)"),
-          yaxis = list(title = "", categoryorder = "total ascending"),
-          updatemenus = updatemenus,
-          margin = list(l = 300, r = 50, t = 100, b = 50),
-          hovermode = "closest",
-          height = 900
-        )
-      trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
-      # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
-      saveWidget(fig, trace_html_path, selfcontained = TRUE, title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
-      cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
+
+        fig <- fig %>%
+          layout(
+            title = paste("Pre-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_added[1L]),
+            xaxis = list(title = "Frequency (Number of Cases)"),
+            yaxis = list(title = "", categoryorder = "total ascending"),
+            updatemenus = updatemenus,
+            margin = list(l = 300, r = 50, t = 100, b = 50),
+            hovermode = "closest",
+            height = 900
+          )
+
+        trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
+        # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
+        saveWidget(fig, trace_html_path, selfcontained = TRUE,
+                  title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
+        cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
+      } else {
+        cat(" [skip] trace_explorer_interactive: no traces with data (empty pre-HCG)\n")
+      }
     }
   }, error = function(e) cat(" [skip] interactive trace explorer (pre-HCG):", conditionMessage(e), "\n"))
 } else {
