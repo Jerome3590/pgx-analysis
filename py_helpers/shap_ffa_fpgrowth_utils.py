@@ -209,10 +209,14 @@ def get_shap_ffa_important_codes(
     """
     Return the set of item codes (drug/ICD/CPT) for BupaR/DTW/FP-Growth allowed codes.
 
-    Mandatory source only: Step 3b cohort_feature_importance (final feature importances).
-    No fallbacks. If cohort_feature_importance is missing or empty, returns empty set.
+    Primary source: Step 3b cohort_feature_importance (final feature importances).
+    Fallback: notebook 3 combined_importance.csv (10_risk_dashboard/outputs/{cohort}/{age_band}/).
+    Returns empty set if both are missing or empty.
     """
     merged = _load_final_feature_importance(cohort, age_band, project_root, data_root)
+    if merged.empty:
+        # Fallback to notebook 3's combined_importance.csv
+        merged = _load_combined_importance_from_dashboard(cohort, age_band, project_root)
     if merged.empty:
         return set()
     if "importance" not in merged.columns:
@@ -247,7 +251,8 @@ def get_shap_ffa_allowed_codes_combined(
 ) -> Set[str]:
     """
     Return the union of allowed codes (drug + ICD + CPT) for BupaR/DTW/FP-Growth.
-    Mandatory source only: Step 3b cohort_feature_importance. No fallbacks.
+    Primary source: Step 3b cohort_feature_importance.
+    Fallback: notebook 3 combined_importance.csv (10_risk_dashboard/outputs/).
     """
     drug = get_shap_ffa_important_codes(
         cohort, age_band, "drug_name", top_n, project_root, data_root, use_shap, use_ffa
