@@ -47,13 +47,13 @@ sys.path.insert(0, str(REPO_ROOT))
 # CONFIGURATION
 # =============================================================================
 
-# FP-Growth parameters (higher threshold for cohort-specific patterns)
-MIN_SUPPORT = 0.05       # 5% support (items must appear in 5% of patients within cohort)
-MIN_CONFIDENCE = 0.5     # 50% confidence - only strong associations
+# FP-Growth parameters (lower thresholds since data is pre-filtered by SHAP/FFA importance)
+MIN_SUPPORT = 0.03       # 3% support (items must appear in 3% of patients within cohort)
+MIN_CONFIDENCE = 0.4     # 40% confidence - meaningful associations (lowered since working with important features)
 
 # CPT-specific parameters (prevent memory exhaustion from millions of rules)
-MIN_SUPPORT_CPT = 0.15   # 15% support for CPT codes (focuses on common patterns)
-MIN_CONFIDENCE_CPT = 0.6 # 60% confidence for CPT (very strong associations only)
+MIN_SUPPORT_CPT = 0.10   # 10% support for CPT codes (lowered from 15%)
+MIN_CONFIDENCE_CPT = 0.5 # 50% confidence for CPT (lowered from 60%)
 
 # Rule limits (focus on most important rules)
 MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
@@ -78,8 +78,8 @@ TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidati
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
 
-# Itemset filtering (remove common/trivial itemsets)
-MIN_ITEMSET_LIFT = 1.1  # Filter itemsets with lift < 1.1 (items are independent/not interesting)
+# Itemset filtering (lower threshold since data pre-filtered by SHAP/FFA to important features only)
+MIN_ITEMSET_LIFT = 1.02  # Filter itemsets with lift < 1.02 (2% above independence - permissive since working with curated features)
 
 # DRY RUN MODE (only applies when running cohort_fpgrowth.py directly as batch; dashboard uses run_single_cohort_fpgrowth per combo)
 DRY_RUN = False  # Set to True to limit to DRY_RUN_LIMIT when testing batch runs
