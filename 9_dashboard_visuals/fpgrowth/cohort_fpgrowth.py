@@ -14,6 +14,7 @@ Outputs to: s3://pgxdatalake/gold/fpgrowth/cohort/{item_type}/cohort_name={cohor
 """
 
 import os
+import shutil
 import sys
 import time
 import json
@@ -57,6 +58,10 @@ MIN_CONFIDENCE_CPT = 0.3 # 30% confidence for CPT (permissive)
 
 # Rule limits (focus on most important rules)
 MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
+
+# Target-only pass: single pool of target transactions (no density bins), so use lower support
+# to get multi-item itemsets and thus rules (association_rules needs ≥2-item itemsets).
+MIN_SUPPORT_TARGET_ONLY = 0.005  # 0.5% (lower than main run so smaller cohorts still get rules)
 
 # Target-focused rule mining
 TARGET_FOCUSED = True  # Only generate rules that predict target outcomes
@@ -612,8 +617,8 @@ def process_single_cohort(
                 'path': str(parquet_file),
             }
 
-        # Build query based on item type. Always include `target` so we can run
-        # a separate target-only FP-Growth pass (within-case patterns).
+        # Build query based on item type. Target cohort only (target=1); controls would add noise to the network.
+        # We include `target` in the SELECT for the later target-only FP-Growth pass (same cohort, no density stratification).
         if item_type == 'drug_name':
             # 4_model_data already encodes event context; filter directly on drug_name.
             if 'drug_name' not in available_cols:
@@ -753,6 +758,13 @@ def process_single_cohort(
         df = con.execute(query).df()
         log_memory(logger, "After data extraction")
         con.close()
+
+        # Normalize target column so filtering works (Parquet/DuckDB may give int/float/object)
+        if "target" in df.columns:
+            target_orig = df["target"].dtype
+            df["target"] = pd.to_numeric(df["target"], errors="coerce").fillna(0).astype(int)
+            if target_orig != df["target"].dtype:
+                logger.info("Coerced target column from %s to int; value_counts: %s", target_orig, df["target"].value_counts().to_dict())
         
         if len(df) == 0:
             logger.warning(f"✗ No {item_type} data for {cohort_id}")
@@ -892,7 +904,7 @@ def process_single_cohort(
                 logger.error(f"⚠️  Error processing {density} density transactions: {e}")
                 logger.warning(f"   Skipping {density} density transactions")
         
-        # Combine results
+        # Combine results across density bins (low/medium/high/extreme). Data is target cohort only (no controls).
         if len(all_itemsets) == 0:
             logger.warning(f"✗ No frequent itemsets for {cohort_id}")
             return {
@@ -1015,91 +1027,74 @@ def process_single_cohort(
                 json.dumps(metrics, indent=2)
             )
 
-            logger.info(f"Saved local FP-Growth (combined) outputs under {artifact_dir}")
+            logger.info(f"Saved local FP-Growth outputs (target cohort, combined across density bins) under {artifact_dir}")
         except Exception as e:
-            logger.warning(f"Failed to write local FP-Growth combined outputs: {e}")
+            logger.warning(f"Failed to write local FP-Growth outputs: {e}")
 
         # ------------------------------------------------------------------
-        # Target-only FP-Growth: within-target patterns (target == 1)
+        # Target-only outputs: same count as combined when extraction is target-only;
+        # different count when extraction is target+control (we run separate FP-Growth on target=1).
         # ------------------------------------------------------------------
         try:
-            if 'target' in df.columns:
-                logger.info("Running target-only FP-Growth (target == 1)...")
-                df_target = df[df["target"] == 1].copy()
-                if len(df_target) == 0:
-                    logger.warning("No target=1 rows; skipping target-only FP-Growth.")
+            ab_fname = age_band.replace("-", "_")
+            artifact_dir = LOCAL_OUTPUT_ROOT / cohort_name / ab_fname
+            itemsets_path = artifact_dir / f"{item_type}_itemsets.json"
+            rules_path = artifact_dir / f"{item_type}_rules.json"
+            itemsets_to_path = artifact_dir / f"{item_type}_itemsets_target_only.json"
+            rules_to_path = artifact_dir / f"{item_type}_rules_target_only.json"
+
+            # If we have both target and control in df, run separate target-only FP-Growth (different counts).
+            has_control = "target" in df.columns and (df["target"] == 0).any()
+            if has_control:
+                logger.info("Target+control data: running separate target-only FP-Growth (target_only count will differ from combined)")
+                target_mask = df["target"] == 1
+                df_target = df.loc[target_mask].copy()
+                tx_target = (
+                    df_target.groupby("mi_person_key")["item"]
+                    .apply(lambda x: sorted(set(x.tolist())))
+                    .tolist()
+                )
+                if len(tx_target) < 10:
+                    logger.warning("Insufficient target-only transactions (%d); skipping target-only outputs", len(tx_target))
                 else:
-                    # Build transactions for target-only cohort (no density stratification)
-                    tx_target = (
-                        df_target.groupby('mi_person_key')['item']
-                        .apply(lambda x: sorted(set(x.tolist())))
-                        .tolist()
-                    )
-                    if len(tx_target) < 10:
-                        logger.warning(f"Insufficient target-only transactions ({len(tx_target)}); skipping.")
-                    else:
-                        te_t = TransactionEncoder()
-                        te_ary_t = te_t.fit(tx_target).transform(tx_target)
-                        df_enc_t = pd.DataFrame(te_ary_t, columns=te_t.columns_)
-
-                        itemsets_t = fpgrowth(
-                            df_enc_t,
-                            min_support=min_support,
-                            use_colnames=True,
-                        )
-                        if len(itemsets_t) > 0:
-                            itemsets_t = filter_itemsets_by_lift(
-                                itemsets_t, df_enc_t, MIN_ITEMSET_LIFT, logger
-                            )
-
-                        try:
-                            rules_t = association_rules(
-                                itemsets_t,
-                                metric="confidence",
-                                min_threshold=min_confidence,
-                            )
-                        except Exception as e_rules:
-                            logger.warning(f"Target-only association_rules failed: {e_rules}")
-                            rules_t = pd.DataFrame(columns=['antecedents', 'consequents'])
-
-                        # Convert to JSON-friendly forms
-                        itemsets_t_json = itemsets_t.copy()
-                        if 'itemsets' in itemsets_t_json.columns:
-                            itemsets_t_json['itemsets'] = itemsets_t_json['itemsets'].apply(lambda x: list(x))
-
-                        rules_t_json = rules_t.copy()
-                        if 'antecedents' in rules_t_json.columns:
-                            rules_t_json['antecedents'] = rules_t_json['antecedents'].apply(lambda x: list(x))
-                        if 'consequents' in rules_t_json.columns:
-                            rules_t_json['consequents'] = rules_t_json['consequents'].apply(lambda x: list(x))
-
-                        # S3: write alongside combined, with *_target_only.json suffix
-                        s3_client.put_object(
-                            Bucket=bucket,
-                            Key=f"{prefix}/itemsets_target_only.json",
-                            Body=itemsets_t_json.to_json(orient='records', indent=2),
-                        )
-                        s3_client.put_object(
-                            Bucket=bucket,
-                            Key=f"{prefix}/rules_target_only.json",
-                            Body=rules_t_json.to_json(orient='records', indent=2),
-                        )
-
-                        # Local: same cohort/age_band dir (visualization artifacts = cohort then age_band only)
-                        itemsets_t_json.to_json(
-                            artifact_dir / f"{item_type}_itemsets_target_only.json",
-                            orient="records",
-                            indent=2,
-                        )
-                        rules_t_json.to_json(
-                            artifact_dir / f"{item_type}_rules_target_only.json",
-                            orient="records",
-                            indent=2,
-                        )
-
-                        logger.info(f"Saved target-only FP-Growth outputs under {artifact_dir}")
+                    te_t = TransactionEncoder()
+                    te_ary_t = te_t.fit(tx_target).transform(tx_target)
+                    df_enc_t = pd.DataFrame(te_ary_t, columns=te_t.columns_)
+                    support_t = min(min_support, MIN_SUPPORT_TARGET_ONLY)
+                    itemsets_t = fpgrowth(df_enc_t, min_support=support_t, use_colnames=True)
+                    if len(itemsets_t) > 0:
+                        itemsets_t = filter_itemsets_by_lift(itemsets_t, df_enc_t, MIN_ITEMSET_LIFT, logger)
+                    try:
+                        rules_t = association_rules(itemsets_t, metric="confidence", min_threshold=min_confidence)
+                    except Exception as e_rules:
+                        logger.warning("Target-only association_rules failed: %s", e_rules)
+                        rules_t = pd.DataFrame(columns=["antecedents", "consequents"])
+                    itemsets_t_json = itemsets_t.copy()
+                    if "itemsets" in itemsets_t_json.columns:
+                        itemsets_t_json["itemsets"] = itemsets_t_json["itemsets"].apply(lambda x: list(x))
+                    rules_t_json = rules_t.copy()
+                    if "antecedents" in rules_t_json.columns:
+                        rules_t_json["antecedents"] = rules_t_json["antecedents"].apply(lambda x: list(x))
+                    if "consequents" in rules_t_json.columns:
+                        rules_t_json["consequents"] = rules_t_json["consequents"].apply(lambda x: list(x))
+                    itemsets_t_json.to_json(itemsets_to_path, orient="records", indent=2)
+                    rules_t_json.to_json(rules_to_path, orient="records", indent=2)
+                    s3_client.put_object(Bucket=bucket, Key=f"{prefix}/itemsets_target_only.json", Body=itemsets_t_json.to_json(orient="records", indent=2).encode("utf-8"))
+                    s3_client.put_object(Bucket=bucket, Key=f"{prefix}/rules_target_only.json", Body=rules_t_json.to_json(orient="records", indent=2).encode("utf-8"))
+                    logger.info("Saved target-only FP-Growth (target=1 only): %d itemsets, %d rules", len(itemsets_t), len(rules_t))
+            elif itemsets_path.exists() and rules_path.exists():
+                # Target-only extraction: combined already is target cohort → same count
+                shutil.copy2(itemsets_path, itemsets_to_path)
+                shutil.copy2(rules_path, rules_to_path)
+                itemsets_body = itemsets_path.read_bytes()
+                rules_body = rules_path.read_bytes()
+                s3_client.put_object(Bucket=bucket, Key=f"{prefix}/itemsets_target_only.json", Body=itemsets_body)
+                s3_client.put_object(Bucket=bucket, Key=f"{prefix}/rules_target_only.json", Body=rules_body)
+                logger.info("Target-only = combined (same count): copied itemsets and rules to *_target_only.json")
+            else:
+                logger.warning("Target-only: combined files not found; skipping copy to *_target_only.json")
         except Exception as e:
-            logger.warning(f"Target-only FP-Growth encountered an error: {e}")
+            logger.warning("Target-only copy encountered an error: %s", e)
 
         elapsed = time.time() - start_time
         log_memory(logger, "END")
