@@ -41,7 +41,7 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
 
 - **`GET /visualizations/dtw`** - Return URLs to prebuilt DTW assets (no processing)
   - Query params: `cohort`, `age_band`
-  - Returns: `overview_image`, `sample_trajectories_image`, `chart_data_url` (all S3 URLs)
+  - Returns: `overview_image`, `sample_trajectories_image`, `chart_data_url`, `sequence_heatmap_url` (S3 URLs)
 
 - **`GET /visualizations/fpgrowth`** - Return URLs to prebuilt FP-Growth assets
   - Query params: `cohort`, `age_band`, `item_type`
@@ -50,6 +50,10 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
 - **`GET /visualizations/bupar`** - Return URLs to prebuilt BupaR assets
   - Query params: `cohort`, `age_band`
   - Returns: S3 URLs to BupaR plot images
+
+- **`GET /visualizations/bupar/activity_frequency`** - Return activity frequency JSON for bar charts
+  - Query params: `cohort`, `age_band`
+  - Returns: `{ overall, pre_target, post_target }` (each with `year_labels` and `data`); frontend builds Chart.js bar charts with year filter
 
 ## Model Loading
 

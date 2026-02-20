@@ -173,6 +173,7 @@ def main():
     step9_root = REPO_ROOT / "9_dashboard_visuals"
     bupar_script = step9_root / "bupar" / "create_bupar_visuals.py"
     dtw_trajectories_script = step9_root / "dtw" / "create_dtw_trajectories.py"
+    dtw_features_script = step9_root / "dtw" / "create_dtw_features.py"
     dtw_visuals_script = step9_root / "dtw" / "create_dtw_visuals.py"
     fpgrowth_script = step9_root / "fpgrowth" / "create_fpgrowth_visuals.py"
     force_flag = ["--force"] if args.force else []
@@ -212,7 +213,7 @@ def main():
                     sys.exit(1)
     print()
 
-    # DTW: 1) Create trajectory features CSV (N3 time-between metrics, etc.), 2) Create plots and chart_data
+    # DTW: 1) Trajectories CSV, 2) Alignment (DTW distances + common sequences), 3) Visuals
     print("DTW trajectories (create_dtw_trajectories.py)")
     print("-" * 40)
     if not dtw_trajectories_script.exists():
@@ -232,6 +233,29 @@ def main():
                 c, ab = futures[fut]
                 r = fut.result()
                 print(f"  [DTW trajectories] {c} / {ab} -> exit {r.returncode}")
+                if r.returncode != 0 and args.fail_fast:
+                    sys.exit(1)
+    print()
+
+    print("DTW alignment (create_dtw_features.py)")
+    print("-" * 40)
+    if not dtw_features_script.exists():
+        print("  create_dtw_features.py not found; skip.")
+    else:
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futures = {
+                ex.submit(
+                    subprocess.run,
+                    [sys.executable, str(dtw_features_script), "--cohort", c, "--age-band", ab] + force_flag,
+                    cwd=str(REPO_ROOT),
+                    capture_output=False,
+                ): (c, ab)
+                for c, ab in combinations
+            }
+            for fut in as_completed(futures):
+                c, ab = futures[fut]
+                r = fut.result()
+                print(f"  [DTW alignment] {c} / {ab} -> exit {r.returncode}")
                 if r.returncode != 0 and args.fail_fast:
                     sys.exit(1)
     print()

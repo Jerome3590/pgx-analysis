@@ -292,7 +292,7 @@ def upload_bupar_plots_to_dashboard_s3(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Upload BupaR plots dir to the dashboard bucket: PNG, HTML, and plots/lib/ (for interactive HTML deps)."""
+    """Upload BupaR plots dir to the dashboard bucket: PNG, HTML, JSON (activity frequency + pre/post target), and plots/lib/ (for interactive HTML deps)."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():

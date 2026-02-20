@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PGx Risk Assessment Dashboard</title>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -1028,11 +1029,27 @@
         </div>
         <div class="panel">
           <h2>Overall Activity Frequency</h2>
-          <div id="bupar-activity-freq-image"></div>
+          <div class="control-group">
+            <label for="bupar-year-overall">Year:</label>
+            <select id="bupar-year-overall"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-overall"></canvas></div>
         </div>
         <div class="panel">
           <h2>Pre-Target Activity Frequency</h2>
-          <div id="bupar-pre-freq-image"></div>
+          <div class="control-group">
+            <label for="bupar-year-pre">Year:</label>
+            <select id="bupar-year-pre"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-pre"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Post-Target Activity Frequency</h2>
+          <div class="control-group">
+            <label for="bupar-year-post">Year:</label>
+            <select id="bupar-year-post"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-post"></canvas></div>
         </div>
         <div class="panel">
           <h2>Trace Explorer (top 20 traces)</h2>
@@ -1118,6 +1135,21 @@
             <small style="color: #64748b;">Common activity codes in trajectories leading to the target outcome (target=1).</small>
           </p>
           <div id="dtw-target-pathway-container"></div>
+        </div>
+        <div class="panel full-width">
+          <h2>Common Sequences Heatmap</h2>
+          <p class="subtitle" style="margin-bottom: 0.75rem;">
+            <small style="color: #64748b;">How often each code appears at each position in trajectories. Darker = more common. Filter by code type (cohort and age band set above).</small>
+          </p>
+          <div class="control-group">
+            <label for="dtw-heatmap-code-type">Code type:</label>
+            <select id="dtw-heatmap-code-type">
+              <option value="icd">ICD</option>
+              <option value="cpt">CPT</option>
+              <option value="drug">Drug</option>
+            </select>
+          </div>
+          <div id="dtw-sequence-heatmap-container"></div>
         </div>
       </div>
     </div>
@@ -2270,6 +2302,12 @@
           }
         } catch (_) { /* chart_data.json optional */ }
       }
+      if (data.sequence_heatmap_url) {
+        try {
+          const hmResp = await fetch(data.sequence_heatmap_url);
+          if (hmResp.ok) data.sequence_heatmap = await hmResp.json();
+        } catch (_) { /* sequence_heatmap.json optional */ }
+      }
       renderDTWVisualizations(data);
       document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = "status-message success";
@@ -2304,7 +2342,7 @@
     }
   });
 
-  // BupaR Visualizations Tab
+  // BupaR Visualizations Tab: load image URLs + activity frequency JSON (bar charts)
   document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
     const cohort = document.getElementById("bupar-cohort").value;
     const ageBand = document.getElementById("bupar-age-band").value;
@@ -2316,11 +2354,20 @@
     document.getElementById("bupar-status").textContent = "Loading BupaR visualizations...";
     document.getElementById("bupar-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const [urlResp, freqResp] = await Promise.all([
+        fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`),
+        fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}`)
+      ]);
+      if (!urlResp.ok) throw new Error(`HTTP ${urlResp.status}`);
+      const data = await urlResp.json();
       renderBupaRVisualizations(data);
-      document.getElementById("bupar-status").textContent = "BupaR visualizations loaded successfully";
+      if (freqResp.ok) {
+        const freqData = await freqResp.json();
+        renderBupaRActivityFrequencyCharts(freqData);
+        document.getElementById("bupar-status").textContent = "BupaR visualizations loaded (images + activity frequency bar charts).";
+      } else {
+        document.getElementById("bupar-status").textContent = "BupaR images loaded; activity frequency JSON not found (run pipeline to generate).";
+      }
       document.getElementById("bupar-status").className = "status-message success";
     } catch (err) {
       document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
@@ -2547,7 +2594,47 @@
     } else if (targetPathwayEl) {
       targetPathwayEl.innerHTML = '<p class="status-message info">Target pathway patterns will appear here when the pipeline provides this view.</p>';
     }
+
+    // Common sequences heatmap (by cohort/age band; filter by code type)
+    window.dtwSequenceHeatmapData = data.sequence_heatmap || null;
+    const codeType = document.getElementById('dtw-heatmap-code-type')?.value || 'icd';
+    renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, codeType);
   }
+
+  function renderDTWSequenceHeatmap(heatmapData, codeType) {
+    const container = document.getElementById('dtw-sequence-heatmap-container');
+    if (!container) return;
+    if (!heatmapData || !heatmapData[codeType] || !heatmapData[codeType].codes || heatmapData[codeType].codes.length === 0) {
+      container.innerHTML = '<p class="status-message info">Sequence heatmap will appear here when the pipeline provides sequence_heatmap.json (by cohort and age band). Use the code type dropdown to filter ICD, CPT, or Drug.</p>';
+      return;
+    }
+    const slice = heatmapData[codeType];
+    const codes = slice.codes;
+    const positions = slice.positions;
+    const counts = slice.counts;
+    const z = counts;
+    const y = codes;
+    const x = positions.map(p => 'Step ' + (p + 1));
+    container.innerHTML = '<div id="dtw-sequence-heatmap-chart"></div>';
+    Plotly.newPlot('dtw-sequence-heatmap-chart', [{
+      z: z,
+      x: x,
+      y: y,
+      type: 'heatmap',
+      colorscale: 'Blues',
+      hovertemplate: '%{y} at %{x}: %{z} trajectories<extra></extra>'
+    }], {
+      title: 'Common sequences by position (' + codeType.toUpperCase() + ') — darker = more common',
+      xaxis: { title: 'Position in sequence' },
+      yaxis: { title: 'Code', autorange: 'reversed' },
+      margin: { t: 48, r: 120, b: 48, l: 120 }
+    }, { responsive: true });
+  }
+
+  document.getElementById('dtw-heatmap-code-type')?.addEventListener('change', () => {
+    const codeType = document.getElementById('dtw-heatmap-code-type').value;
+    renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, codeType);
+  });
 
   function renderFPGrowthVisualizations(data) {
     // Render itemsets image (HTTPS URL from API)
@@ -2571,10 +2658,8 @@
   }
 
   function renderBupaRVisualizations(data) {
-    // Render all BupaR images
+    // Render BupaR image panels (activity frequency is now JSON bar charts)
     const imageMap = {
-      'bupar-activity-freq-image': data.activity_frequency_image,
-      'bupar-pre-freq-image': data.pre_target_frequency_image,
       'bupar-sequence-image': data.sequence_image,
       'bupar-trace-explorer-image': data.trace_explorer_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
@@ -2582,10 +2667,67 @@
       'bupar-frequency-map-image': data.frequency_map_image
     };
     for (const [elementId, imageUrl] of Object.entries(imageMap)) {
-      if (imageUrl) {
-        document.getElementById(elementId).innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
-      }
+      const el = document.getElementById(elementId);
+      if (el && imageUrl) el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
     }
+  }
+
+  const BUPAR_CHART_COLORS = { Drug: '#3b82f6', Diagnosis: '#ef4444', Procedure: '#10b981', Other: '#64748b' };
+  let buparCharts = { overall: null, pre_target: null, post_target: null };
+
+  function buildBupaRBarChart(canvasId, segmentKey, freqData) {
+    const seg = freqData[segmentKey];
+    if (!seg || !seg.data || seg.data.length === 0) return null;
+    const yearLabels = seg.year_labels || {};
+    const years = Object.keys(yearLabels).map(Number).sort((a, b) => a - b);
+    const selectId = canvasId.replace('bupar-chart-', 'bupar-year-');
+    const select = document.getElementById(selectId);
+    if (select) {
+      select.innerHTML = years.map(y => `<option value="${y}">${yearLabels[String(y)] || y}</option>`).join('');
+    }
+    const filterByYear = (year) => {
+      const y = Number(year);
+      return seg.data.filter(d => Number(d.year) === y).sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 40);
+    };
+    const dataForYear = filterByYear(years[0] ?? 0);
+    const labels = dataForYear.map(d => d.activity_short || d.activity);
+    const counts = dataForYear.map(d => d.count);
+    const colors = dataForYear.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return null;
+    if (buparCharts[segmentKey]) buparCharts[segmentKey].destroy();
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: 'Frequency', data: counts, backgroundColor: colors }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, title: { display: true, text: 'Frequency' } } }
+      }
+    });
+    buparCharts[segmentKey] = chart;
+    if (select) {
+      select.onchange = () => {
+        const data = filterByYear(select.value);
+        chart.data.labels = data.map(d => d.activity_short || d.activity);
+        chart.data.datasets[0].data = data.map(d => d.count);
+        chart.data.datasets[0].backgroundColor = data.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
+        chart.update();
+      };
+    }
+    return chart;
+  }
+
+  function renderBupaRActivityFrequencyCharts(freqData) {
+    if (typeof Chart === 'undefined') return;
+    buildBupaRBarChart('bupar-chart-overall', 'overall', freqData);
+    buildBupaRBarChart('bupar-chart-pre', 'pre_target', freqData);
+    buildBupaRBarChart('bupar-chart-post', 'post_target', freqData);
   }
 
   // Populate age band dropdowns based on cohort (both cohorts use full set)

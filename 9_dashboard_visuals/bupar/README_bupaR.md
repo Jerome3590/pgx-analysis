@@ -76,6 +76,8 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 **Not produced:** overall trace_explorer.png, process_matrix png/html, post-F1120 visuals (opioid_ed), activity_sequence_top.png. Interactive HTMLs use external deps in `plots/lib/`; upload/sync must include the full `plots/` tree.
 
+**Activity frequency (implemented):** Pipeline exports **overall**, **pre-target**, and **post-target** activity frequency as JSON (`*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json`) to the plots dir; uploaded to S3. Lambda `GET /visualizations/bupar/activity_frequency?cohort=&age_band=` returns all three; frontend renders three bar charts (Chart.js) with year filter. No HTML/iframe for these.
+
 **Patient-level metrics** are not displayed in the current dashboard. They are produced for a **follow-on project** (e.g. on-demand patient-level trace/process-matrix views or API). Outputs include:
 
 | Output | Location / pattern | Use |

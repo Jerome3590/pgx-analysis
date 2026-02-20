@@ -58,8 +58,8 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 ## Implementation notes
 
 - **Causal:** Radar chart (top 5–8 features) can be built in frontend from causal_factors + shap_importance.
-- **BupaR:** Trace explorer is **aggregated activity frequency** (one bar per activity, ordered by frequency, aligned to N2/N6). Gantt not produced.
-- **DTW:** Two-step pipeline: `create_dtw_trajectories.py` (features CSV including N3 time-between metrics) then `create_dtw_visuals.py` (plots and chart_data.json).
+- **BupaR:** Trace explorer is **aggregated activity frequency** (one bar per activity, ordered by frequency, aligned to N2/N6). Gantt not produced. **Implemented:** Pipeline exports overall, pre-target, and post-target activity frequency as JSON; `GET /visualizations/bupar/activity_frequency` returns all three; frontend renders three bar charts (Chart.js) with year dropdown. No need for pre-built HTML or iframes—API returns data, frontend visualizes with Chart.js/Plotly.js and applies filters client-side or via query params.
+- **DTW:** Three-step pipeline: `create_dtw_trajectories.py` (trajectory CSV with N3 metrics), `create_dtw_features.py` (alignment: DTW distances to prototype trajectories and export of **common sequences** as `common_sequences_{cohort}_{age_band}.json`), then `create_dtw_visuals.py` (plots and chart_data.json). Alignment uses dtaidistance; high-risk trajectory chart uses `dtw_min_distance` when present.
 - **FP-Growth:** Keep item type selector; co-occurrence network is the main visual. Network HTML loaded via iframe or fetch.
 
 ---

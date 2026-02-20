@@ -540,6 +540,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_visualizations_dtw(event)
             elif path.endswith("/fpgrowth"):
                 return handle_visualizations_fpgrowth(event)
+            elif path.endswith("/activity_frequency") and "bupar" in path:
+                return handle_visualizations_bupar_activity_frequency(event)
             elif path.endswith("/bupar"):
                 return handle_visualizations_bupar(event)
             elif path.endswith("/feature_importance") or path.endswith("/feature_importance/"):
@@ -1395,6 +1397,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             "overview_interactive": f"{base_url}/{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html",
             "sample_trajectories_image": f"{base_url}/{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
             "chart_data_url": f"{base_url}/{prefix}/chart_data.json",
+            "sequence_heatmap_url": f"{base_url}/{prefix}/sequence_heatmap.json",
             "metrics": {},
         }
         return _response(200, payload)
@@ -1487,6 +1490,41 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
 # TODO: Patient-level BupaR visuals (trace explorer, process matrix, frequency map filtered by
 # cohort/age_band/patient subset) require on-demand R execution. Implement when R is available
 # in Lambda (e.g. custom runtime/layer or separate R service) and add POST /visualizations/bupar/patient-level.
+
+
+def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dict[str, Any]:
+    """GET /visualizations/bupar/activity_frequency?cohort=...&age_band=...
+    Returns JSON: { overall, pre_target, post_target } each { year_labels, data } for dashboard bar charts.
+    Pipeline writes activity_frequency.json, pre_target_activity_frequency.json, post_target_activity_frequency.json to S3.
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        cohort = params.get("cohort")
+        age_band = params.get("age_band")
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band parameters required"})
+        age_band_fname = age_band.replace("-", "_")
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar/{cohort}/{age_band}/plots"
+        base = f"{cohort}_{age_band_fname}"
+        keys = {
+            "overall": f"{prefix}/{base}_activity_frequency.json",
+            "pre_target": f"{prefix}/{base}_pre_target_activity_frequency.json",
+            "post_target": f"{prefix}/{base}_post_target_activity_frequency.json",
+        }
+        payload = {}
+        for name, key in keys.items():
+            try:
+                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
+                data = json.loads(obj["Body"].read().decode("utf-8"))
+                payload[name] = data
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+                    payload[name] = None
+                else:
+                    raise
+        return _response(200, payload)
+    except Exception as e:
+        return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
