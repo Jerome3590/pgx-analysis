@@ -13,6 +13,7 @@ prerequisite); we never use all items.
 Outputs to: s3://pgxdatalake/gold/fpgrowth/cohort/{item_type}/cohort_name={cohort}/age_band={age}/event_year={year}/
 """
 
+import os
 import sys
 import time
 import json
@@ -67,8 +68,9 @@ TARGET_HCG_LINES = [
 ]  # ED visits (HCG Line codes)
 TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in transactions
 
-# Processing parameters
-MAX_WORKERS = 1  # Sequential processing to prevent memory issues
+# Processing parameters: one core per (cohort, age_band) combo, capped by CPU count
+_ncpu = getattr(os, "cpu_count", lambda: 4)() or 4
+MAX_WORKERS = min(_ncpu, len(COHORT_NAMES) * len(AGE_BANDS))
 
 # Training window for FP-Growth: consolidate all years in model data to maximize transactions and produce rules
 TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidating produces more itemsets/rules)
@@ -79,9 +81,9 @@ DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
 # Itemset filtering (remove common/trivial itemsets)
 MIN_ITEMSET_LIFT = 1.1  # Filter itemsets with lift < 1.1 (items are independent/not interesting)
 
-# DRY RUN MODE (test with limited cohorts first)
-DRY_RUN = True  # Set to False to process all cohorts
-DRY_RUN_LIMIT = 5  # Number of cohort combinations to process in dry run
+# DRY RUN MODE (only applies when running cohort_fpgrowth.py directly as batch; dashboard uses run_single_cohort_fpgrowth per combo)
+DRY_RUN = False  # Set to True to limit to DRY_RUN_LIMIT when testing batch runs
+DRY_RUN_LIMIT = 5  # Number of cohort combinations to process when DRY_RUN is True
 
 COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 

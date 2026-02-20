@@ -20,7 +20,7 @@ Usage:
   # One cohort/age_band, force re-run
   python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --cohort opioid_ed --age-band 13-24 --force
 
-  # EC2: use more workers to utilize CPU (default is min(32, cpu_count))
+  # Default: all cohorts and age bands, one worker per combo (capped by CPU). Override workers:
   python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --workers 32
 
   # AWS profile for sync
@@ -108,11 +108,10 @@ def main():
     ap.add_argument("--age-band", action="append", dest="age_bands", help="Age band to run (repeatable); default: per-cohort from REQUIRED_COHORTS")
     ap.add_argument("--force", action="store_true", help="Pass --force to BupaR, DTW, FP-Growth")
     _ncpu = getattr(os, "cpu_count", lambda: 4)() or 4
-    _default_workers = min(32, max(4, _ncpu))
-    ap.add_argument("--workers", type=int, default=_default_workers,
-                    help="Parallel workers for BupaR and DTW (default: min(32, cpu_count), use e.g. 32 on EC2)")
+    ap.add_argument("--workers", type=int, default=None,
+                    help="Parallel workers for BupaR and DTW (default: one per cohort/age_band combo, capped by CPU count)")
     ap.add_argument("--fpgrowth-workers", type=int, default=None,
-                    help="Parallel workers for FP-Growth (default: min(8, workers)); lower than BupaR/DTW to limit memory")
+                    help="Parallel workers for FP-Growth (default: one per cohort/age_band combo, capped by CPU count)")
     ap.add_argument("--fail-fast", action="store_true", default=True, help="Stop on first failure (default True)")
     args = ap.parse_args()
 
@@ -129,6 +128,11 @@ def main():
     if not combinations:
         print("No cohort/age_band combinations; check --cohort and --age-band.")
         sys.exit(2)
+
+    # Default: one worker per (cohort, age_band) combo, capped by CPU count
+    if args.workers is None:
+        args.workers = min(_ncpu, len(combinations))
+    fpgrowth_w = args.fpgrowth_workers if args.fpgrowth_workers is not None else min(_ncpu, len(combinations))
 
     # Ensure allowed-codes files exist: try to generate from SHAP/FFA when missing or empty
     try:
@@ -165,7 +169,6 @@ def main():
     print("=" * 60)
     print(f"Repo root: {REPO_ROOT}")
     print(f"Combinations: {len(combinations)}")
-    fpgrowth_w = args.fpgrowth_workers if args.fpgrowth_workers is not None else min(8, args.workers)
     print(f"Parallel workers: BupaR/DTW={args.workers}, FP-Growth={fpgrowth_w}")
     print()
 
