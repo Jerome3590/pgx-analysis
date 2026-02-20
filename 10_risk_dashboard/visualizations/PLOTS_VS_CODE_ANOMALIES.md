@@ -1,5 +1,9 @@
 # Plots vs Code Anomaly Report
 
+**Archived.** For current workflow and outputs see **`10_risk_dashboard/docs/README_visualization_plan.md`**. Lesson: after sync failures (WinError 5 on rename), run **`9_dashboard_visuals/cleanup_aws_temp_files.py`** to remove AWS CLI temp files (`*.png.[0-9A-Za-z]{6,}`). See `archived/dashboard_docs/README.md`.
+
+---
+
 Comparison of synced dashboard visuals (from jerome.dixon.io S3) to the code that generates them.
 
 ## 1. Expected outputs by generator

@@ -34,8 +34,8 @@ This document maps the research questions to the analysis workflow, verifying th
 | Formal causality assessment? | **Updated CatBoost** | Feature attribution and causal inference | SHAP/LIME scores, causal effect estimates |
 | **Additional (Dashboard)** | | | |
 | Routine vs no routine → outcomes? (N1) | **DTW Trajectories** | Compare outcome by trajectory intensity / admin ICDs | Routine vs No Routine chart; trajectory metrics |
-| Sequences to target outcomes? (N2) | **BupaR Pattern Mining** | Top traces and activity sequences before target | Sequences to Target Outcomes, pre-target Gantt |
-| Times between sequences to target? (N3) | **BupaR Pattern Mining** | Time-to-target and inter-activity times | Gantt charts, milestones |
+| Sequences to target outcomes? (N2) | **BupaR Pattern Mining** | Top traces and activity sequences before target | Sequences to Target Outcomes, pre-target activity frequency, trace explorer |
+| Times between sequences to target? (N3) | **BupaR Pattern Mining** | Time-to-target and inter-activity times | Optional: time-between summary (Gantt not produced for dashboard) |
 | ICD/CPT/Drug connections to target? (N4) | **FPGrowth Filtering** | Co-occurrence and association networks | FP-Growth network, itemsets (by item type) |
 | Features drive outcome & how they relate? (N5) | **Updated CatBoost** | FFA + SHAP + radar / interactions | Causal Analysis: FFA, SHAP, radar, interactions |
 | Drug combinations → polypharmacy ED? (N6) | **Updated CatBoost + BupaR** | Causal drug features + sequence patterns | Causal factors + BupaR sequences |
@@ -450,15 +450,15 @@ This document maps the research questions to the analysis workflow, verifying th
 
 ## 📊 Additional Research Questions (Dashboard Visualizations)
 
-The following questions were added to support the risk dashboard visualization tabs and to extend insights from the original two research questions. They are answered using the same cohort configuration and analysis workflow, with results surfaced in the **PGx Risk Assessment Dashboard** (see `10_risk_dashboard/docs/VISUALIZATION_PLAN.md` and `README_implementation_plan_tab_visualizations.md`).
+The following questions were added to support the risk dashboard visualization tabs and to extend insights from the original two research questions. They are answered using the same cohort configuration and analysis workflow, with results surfaced in the **PGx Risk Assessment Dashboard** (see `10_risk_dashboard/docs/README_visualization_plan.md` and `README_implementation_plan_tab_visualizations.md`).
 
 ### Additional Questions → Analysis Methods & Dashboard Tab
 
 | # | Additional Question | Analysis Method | Dashboard Tab | Visual(s) | Status |
 |---|---------------------|-----------------|---------------|-----------|--------|
 | **N1** | Is there a difference in outcomes for patients that don't have routine appointments vs those that do? (Admin ICDs vs number of ICD events.) | **DTW Trajectories** | DTW Trajectories | Trajectory overview, sample trajectories, metrics; **Routine vs No Routine** (outcome rate by trajectory intensity / event count) | ✅ Supported (proxy via trajectory intensity; optional: admin ICD count from 4b filter) |
-| **N2** | What are the sequences that lead to target outcomes? | **BupaR Pattern Mining** | BupaR Process Mining | Sequences to Target Outcomes, pre-target activity frequency, Gantt (pre-target) | ✅ Supported |
-| **N3** | What are the times in between sequences that lead to target outcomes? | **BupaR Pattern Mining** | BupaR Process Mining | Times Between Sequences (Pre-Target Gantt), Activity Milestones Gantt, post-target Gantt | ✅ Supported |
+| **N2** | What are the sequences that lead to target outcomes? | **BupaR Pattern Mining** | BupaR Process Mining | Sequences to Target Outcomes, pre-target activity frequency, trace explorer (aggregated) | ✅ Supported |
+| **N3** | What are the times in between sequences that lead to target outcomes? | **BupaR Pattern Mining** | BupaR Process Mining | Optional future: time-between summary chart. Dashboard does not currently display Gantt; N3 can be enhanced later if needed. | ✅ Supported (enhanceable) |
 | **N4** | What are the connections/relationships between ICD, CPT, and Drugs that lead to target outcome? | **FPGrowth Filtering** | FP-Growth Patterns | Co-occurrence network, top itemsets, support distribution (filter by item type: Drug / ICD / CPT) | ✅ Supported (exploratory only; not model features) |
 | **N5** | What features drive the target outcome and how do they relate to each other? | **Updated CatBoost (FFA/SHAP)** | Causal Analysis | Top Causal Factors (FFA), SHAP Feature Importance, Feature Interactions, **Feature Relations (radar)** | ✅ Supported |
 | **N6** | What combination of drugs drives polypharmacy ED visit? | **Updated CatBoost + BupaR** | Causal Analysis (+ BupaR) | Causal factors (drug features), BupaR sequences / pre-target activity (drug sequences) | ✅ Supported |
@@ -466,7 +466,7 @@ The following questions were added to support the risk dashboard visualization t
 ### Cohort & Data Support for Additional Questions
 
 - **N1 (Routine vs no routine):** DTW trajectory features (`trajectory_length`, `trajectory_diversity`, DTW distances) and target from `gold/feature_engineering/6_dtw/`; optional: admin ICD or protocol-flag from Step 4b filter for a direct routine vs non-routine comparison.
-- **N2–N3 (Sequences and times):** BupaR event logs and trace outputs (process matrices, Gantt, top sequences) from `create_bupar_outputs_*`; S3 `gold/feature_importance/{cohort}/{age_band}/plots/` and `gold/bupar/`.
+- **N2–N3 (Sequences and times):** BupaR event logs and trace outputs (top sequences, activity frequency, trace explorer) from `create_bupar_outputs_*`; S3 `gold/feature_importance/{cohort}/{age_band}/plots/` and `gold/bupar/`. Gantt charts are not produced for the dashboard (see `9_dashboard_visuals/bupar/ARCHIVE_GANTT_REMOVAL.md`).
 - **N4 (ICD/CPT/Drug connections):** FP-Growth itemsets and rules by item type; network and itemset plots in `gold/fpgrowth/{cohort}/{age_band}/plots/`. Visualization only (no model features).
 - **N5 (Features and relations):** FFA causal importance and SHAP from `gold/ffa_analysis/`, `gold/shap_analysis/`; radar chart built in frontend from causal/SHAP API response.
 - **N6 (Drug combinations → polypharmacy ED):** Same FFA/SHAP drug-related features (Causal tab) plus BupaR top sequences and pre-target activity (BupaR tab).
@@ -475,8 +475,8 @@ The following questions were added to support the risk dashboard visualization t
 
 | Scope | Fully covered |
 |-------|----------------|
-| **N2** Sequences to target | ✅ BupaR tab: Sequences to Target Outcomes, pre-target frequency, Gantt |
-| **N3** Times between sequences | ✅ BupaR tab: Pre-target Gantt, milestones Gantt |
+| **N2** Sequences to target | ✅ BupaR tab: Sequences to Target Outcomes, pre-target frequency, trace explorer |
+| **N3** Times between sequences | ✅ BupaR tab: (Optional future: time-between summary; Gantt not produced for dashboard) |
 | **N4** ICD/CPT/Drug connections | ✅ FP-Growth tab: Co-occurrence network, itemsets (item type filter) |
 | **N5** Features & relations | ✅ Causal tab: FFA, SHAP, radar, interactions |
 | **N6** Drug combinations → polypharmacy ED | ✅ Causal tab (drug factors) + BupaR tab (sequences) |

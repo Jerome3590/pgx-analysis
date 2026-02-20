@@ -1,5 +1,9 @@
 # DTW Year Filtering Implementation Plan
 
+**Archived.** Optional enhancement; not part of the final production workflow. DTW creation uses **`create_dtw_trajectories.py`** and **`create_dtw_visuals.py`**. See **`10_risk_dashboard/docs/README_visualization_plan.md`**. See `archived/dashboard_docs/README.md`.
+
+---
+
 ## Current State
 - DTW visualizations already use Plotly (cluster plots in 3D/1D)
 - Data source: `dtw_features_{cohort}_{age_band}.csv` from `create_dtw_features.py`

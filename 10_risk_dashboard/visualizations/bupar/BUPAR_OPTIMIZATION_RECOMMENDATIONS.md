@@ -1,5 +1,9 @@
 # BupaR Visualization Optimization Recommendations
 
+**Archived.** Interactive Plotly (year dropdown) is implemented; Gantt charts are not produced (see `9_dashboard_visuals/bupar/ARCHIVE_GANTT_REMOVAL.md`). For current workflow see **`10_risk_dashboard/docs/README_visualization_plan.md`**. See `archived/dashboard_docs/README.md`.
+
+---
+
 ## Executive Summary
 
 Based on review of current BupaR visualizations and dashboard configuration, this document provides recommendations for optimizing the 5 core visualizations for the PGx risk dashboard:

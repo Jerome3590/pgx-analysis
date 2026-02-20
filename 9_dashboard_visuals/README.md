@@ -13,6 +13,10 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
 
+**Not used in the model:** BupaR and DTW outputs under `outputs/feature_engineering/` (sequence features, trajectory/predictive-time CSVs) are for dashboard visualization only. We do not add them to model data due to concern about target leakage.
+
+**FP-Growth:** This step uses **fpgrowth** (`9_dashboard_visuals/fpgrowth/`) for itemsets and visuals. **4_fpgrowth_analysis** is the template for that code and is **gitignored** (see `.gitignore`: `9_dashboard_visuals/4_fpgrowth_analysis/`); the committed pipeline is `fpgrowth` only.
+
 ## Feature importance sources for visuals
 
 Dashboard visuals use **two different** feature-importance sources so the right inputs drive each workflow:
@@ -45,7 +49,7 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    ```
    Optionally: `--profile NAME`, `--model-data-only`, or `--feature-importance-only`.
 
-2. **Run the same workflow as the notebook** (BupaR → DTW → FP-Growth):
+2. **Run the same workflow as the notebook** (BupaR → DTW trajectories → DTW visuals → FP-Growth):
    ```bash
    python 9_dashboard_visuals/run_dashboard_visuals.py
    ```
@@ -54,8 +58,17 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    - `--cohort X --age-band Y` – restrict to specific combination(s)
    - `--force` – re-run even if outputs exist
    - `--workers N` – parallel workers (default 4)
+   DTW runs in two steps: **create_dtw_trajectories.py** (features CSV including N3 time-between metrics), then **create_dtw_visuals.py** (plots and chart_data.json).
+
+3. **Quick DTW test (one age band, both cohorts):**
+   ```bash
+   python 9_dashboard_visuals/run_dtw_test_one_age_band.py --age-band 25-44
+   ```
+   Requires allowed_codes and model_events for that age band and both opioid_ed and non_opioid_ed. Use `--force` to re-run.
 
 This mirrors [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb) so you can run from VS Code or the terminal.
+
+**See also:** [archived/dtw_restoration_plan.md](../archived/dtw_restoration_plan.md) for DTW restoration/optimization (reference only; current pipeline uses create_dtw_trajectories + create_dtw_visuals); [bupar/README_bupaR.md](bupar/README_bupaR.md) for BupaR scripts and outputs.
 
 ## Pipeline order
 

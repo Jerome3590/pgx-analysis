@@ -15,10 +15,10 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 - `create_bupar_outputs_opioid_ed.R` / `create_bupar_outputs_non_opioid_ed.R`  
   - Run full pre-/post-target sequence analyses for each cohort and age band.  
-  - **Allowed codes:** **SHAP/FFA combined only.** The file `10_risk_dashboard/visualizations/bupar/outputs/allowed_codes_shap_ffa_{cohort}_{age_band_fname}.json` is written by `create_bupar_visuals.py` from merged SHAP + FFA causal importance (Step 7/8). The R scripts use this file only; there are no FP-Growth inputs. If the file is missing, the event log is empty.  
+  - **Allowed codes:** **SHAP/FFA combined only.** The file `10_risk_dashboard/visualizations/bupar/outputs/allowed_codes_shap_ffa_{cohort}_{age_band_fname}.json` is written by `create_bupar_visuals.py` from merged SHAP + FFA (Step 7/8). **Allowed codes are always created on EC2** and uploaded to S3; locally run `python 9_dashboard_visuals/sync_visualization_data_from_s3.py --allowed-codes-only` to download them. The R scripts use this file only; if missing, the event log is empty.  
   - Generate:
     - Trace tables (overall, pre-target, post-target; top and rare sequences).
-    - Process matrices and Gantt-style visualizations.
+    - Process matrices. (Gantt charts are not produced for the dashboard; see ARCHIVE_GANTT_REMOVAL.md.)
     - Per-patient pre-target features, time-to-target features, and (optionally) post-target features.
   - Save per-cohort outputs under `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/...` and upload CSVs to S3 `gold/bupar/...`.
 
@@ -94,13 +94,13 @@ Pipeline logging uses the tag **`[DASHBOARD_AGGREGATED]`** for the artifacts in 
 BupaR needs the **SHAP/FFA allowed-codes** file for each `(cohort, age_band)`. That file is built from Step 7 (SHAP) and Step 8 (FFA) outputs. If BupaR fails for one combination (e.g. `non_opioid_ed` / `75-84`) while others (e.g. `non_opioid_ed` / `65-74`) succeed, common causes are:
 
 1. **Step 7 or Step 8 never ran for that combination**  
-   Notebook 3 runs Step 7 → Step 8 → Combine in a single loop over all `REQUIRED_COHORTS`. If the run was **interrupted** (timeout, crash, manual stop) before that combination’s Step 7 or Step 8 finished, only later combinations will be missing. Order is: `opioid_ed` 0-12 … 85-114, then `non_opioid_ed` 0-12 … 65-74, **75-84**, 85-114. So 75-84 is near the end; an early stop can leave 75-84 (and 85-114) without SHAP/FFA.
+   Phase 3 runs Step 7 → Step 8 → Combine in a single loop over all `REQUIRED_COHORTS`. If the run was **interrupted** (timeout, crash, manual stop) before that combination’s Step 7 or Step 8 finished, only later combinations will be missing. Order is: `opioid_ed` 0-12 … 85-114, then `non_opioid_ed` 0-12 … 65-74, **75-84**, 85-114. So 75-84 is near the end; an early stop can leave 75-84 (and 85-114) without SHAP/FFA.
 
 2. **Step 7 or Step 8 failed for that combination**  
-   If Step 8 (FFA) fails for 75-84, the notebook cell exits and Combine never runs for 75-84. Re-run notebook 3 from Step 7 (or Step 8) for the full loop so 75-84 gets SHAP and FFA outputs.
+   If Step 8 (FFA) fails for 75-84, the notebook cell exits and Combine never runs for 75-84. Re-run Phase 3 from Step 7 (or Step 8) for the full loop so 75-84 gets SHAP and FFA outputs.
 
 3. **Only a subset was run**  
-   If Step 7 / Step 8 / Combine were run manually for a subset (e.g. only 65-74), then 75-84 will have no outputs. Run the full loop in notebook 3 for all combinations.
+   If Step 7 / Step 8 / Combine were run manually for a subset (e.g. only 65-74), then 75-84 will have no outputs. Run the full loop in Phase 3 for all combinations.
 
 4. **Where BupaR looks for SHAP/FFA**  
    Allowed codes are read from:  
@@ -109,7 +109,7 @@ BupaR needs the **SHAP/FFA allowed-codes** file for each `(cohort, age_band)`. T
    - Fallback: `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/combined_importance.csv` (Combine step).  
    If your pipeline writes SHAP/FFA under a data root (e.g. NVMe), ensure BupaR is run with that same layout or that Combine has been run so the fallback file exists.
 
-**Fix:** Run notebook 3 (Model train + SHAP/FFA) so that **Step 7**, **Step 8**, and **Combine** complete for the missing combination (e.g. `non_opioid_ed` / `75-84`), then re-run dashboard visuals (notebook 4).
+**Fix:** Run Phase 3 (Model train + SHAP/FFA) so that **Step 7**, **Step 8**, and **Combine** complete for the missing combination (e.g. `non_opioid_ed` / `75-84`), then re-run dashboard visuals (Phase 4).
 
 ### Typical Workflow
 
@@ -124,7 +124,7 @@ For a given `(cohort, age_band)`:
 4. In R:
    - Run `add_bupar_features_to_model_data.R --cohort-name {cohort} --age-band {age_band}` to produce `bupaR_added_features_{cohort}_{age_band}.csv`.
 
-BupaR feature outputs are for dashboard visualization only; we do not add them to model data (same as DTW and FP-Growth).
+BupaR feature outputs are for dashboard visualization only; we do not add them to model data (same as DTW and FP-Growth) due to concern about target leakage.
 
 **Feature importance source:** BupaR uses **SHAP/FFA combined** only (see [9_dashboard_visuals/README.md](../README.md#feature-importance-sources-for-visuals)). DTW uses the same; FP-Growth uses final feature importances instead.
 

@@ -136,7 +136,7 @@ def run(profile: str | None, show_logs: bool, show_outputs: bool) -> None:
     dtw_cp_objs = _s3_list(s3, REPO_BUCKET, DTW_CHECKPOINT_PREFIX + "/", max_keys=200)
     if not dtw_cp_objs:
         print("  No 6_dtw_checkpoint objects found.")
-        print("  (CSV mirror from create_dtw_visuals; see README_DTW_S3_CHECKPOINTS.md.)")
+        print("  (CSV mirror from create_dtw_visuals; see README_dtw_s3_checkpoints.md.)")
     else:
         by_combo: dict[str, list] = {}
         for o in dtw_cp_objs:

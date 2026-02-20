@@ -8,7 +8,7 @@ The PGx Analysis pipeline uses **S3-based checkpointing** to enable resumable, i
 2. **Refresh Mechanism** - How to update existing outputs and avoid accidental overwrites
 3. **Clearing Workflow** - How to fully reset for fresh runs
 
-**Key Principle:** By default, **feature importance is preserved** across runs. Notebook 2 only adds missing (cohort, age_band) combinations. Use `--clear-feature-importance` only when you need a full recompute.
+**Key Principle:** By default, **feature importance is preserved** across runs. Phase 2 only adds missing (cohort, age_band) combinations. Use `--clear-feature-importance` only when you need a full recompute.
 
 ---
 
@@ -41,7 +41,7 @@ The PGx Analysis pipeline uses **S3-based checkpointing** to enable resumable, i
       - [3. EC2 / Local Artifacts](#3-ec2--local-artifacts)
     - [What Is Preserved](#what-is-preserved)
     - [Clearing Options](#clearing-options)
-  - [Notebook 0: Config and Pipeline](#notebook-0-config-and-pipeline)
+  - [Phase 0: Config and Pipeline](#phase-0-config-and-pipeline)
   - [Best Practices](#best-practices)
     - [Before Running Pipeline](#before-running-pipeline)
     - [During Development](#during-development)
@@ -58,16 +58,16 @@ The PGx Analysis pipeline uses **S3-based checkpointing** to enable resumable, i
 
 ## Quick Start: Clearing for a Fresh Run
 
-**Default behavior:** Feature importance (Step 3a/3b and `gold/feature_importance`) is **preserved**. Notebook 2 will only add missing (cohort, age_band) combinations.
+**Default behavior:** Feature importance (Step 3a/3b and `gold/feature_importance`) is **preserved**. Phase 2 will only add missing (cohort, age_band) combinations.
 
 ```bash
 cd ~/pgx-analysis   # or your project root
 chmod +x utility_scripts/cleanup_cohort_data.sh
 
-# Default: preserves feature importance; notebook 2 only adds missing
+# Default: preserves feature importance; Phase 2 only adds missing
 ./utility_scripts/cleanup_cohort_data.sh
 
-# Full reset including feature importance (full recompute in notebook 2)
+# Full reset including feature importance (full recompute in Phase 2)
 ./utility_scripts/cleanup_cohort_data.sh --clear-feature-importance
 
 # Skip confirmation prompt
@@ -426,7 +426,7 @@ Clearing these forces steps to re-run (unless they also check for output files i
 
 ---
 
-## Notebook 0: Config and Pipeline
+## Phase 0: Config and Pipeline
 
 **[0_config_and_pipeline.ipynb](../0_config_and_pipeline.ipynb)** is the entry point for clearing checkpoints and resetting the workflow.
 
@@ -438,24 +438,24 @@ Clearing these forces steps to re-run (unless they also check for output files i
 
 **Execution order:**
 
-1. Run **Notebook 0** to clear checkpoints (and optionally full cleanup)
-2. Run notebooks **1** → **2** → **3** → **4** → **5** in sequence
-3. Each notebook syncs required inputs from S3 to local via `aws s3 sync` (idempotent)
-4. Each notebook uses S3 checkpoints to skip completed steps
+1. Run **Phase 0** to clear checkpoints (and optionally full cleanup)
+2. Run **Phase 1** → **2** → **3** → **4** → **5** in sequence
+3. Each phase syncs required inputs from S3 to local via `aws s3 sync` (idempotent)
+4. Each phase uses S3 checkpoints to skip completed steps
 
-**Default behavior in Notebook 0:**
+**Default behavior in Phase 0:**
 
 - Runs cleanup script **without** `--clear-feature-importance`
 - Feature importance is **preserved**
-- Notebook 2 only adds missing (cohort, age_band) combinations
-- Set `FORCE_FEATURE_IMPORTANCE = False` in Notebook 2
+- Phase 2 only adds missing (cohort, age_band) combinations
+- Set `FORCE_FEATURE_IMPORTANCE = False` in Phase 2
 
-**Full reset in Notebook 0:**
+**Full reset in Phase 0:**
 
 - Run cleanup script **with** `--clear-feature-importance`
 - All feature importance outputs are cleared
-- Notebook 2 will recompute all (cohort, age_band) combinations
-- Set `FORCE_FEATURE_IMPORTANCE = True` in Notebook 2 if needed
+- Phase 2 will recompute all (cohort, age_band) combinations
+- Set `FORCE_FEATURE_IMPORTANCE = True` in Phase 2 if needed
 
 ---
 
@@ -559,4 +559,4 @@ Clearing these forces steps to re-run (unless they also check for output files i
 - ✅ Fine-grained control over what gets cleared
 - ✅ Safe cleanup with confirmation prompts
 
-**Default behavior:** Run cleanup script without flags to **preserve feature importance** and only add missing (cohort, age_band) in notebook 2. Use `--clear-feature-importance` only when you need a full recompute of feature importance.
+**Default behavior:** Run cleanup script without flags to **preserve feature importance** and only add missing (cohort, age_band) in Phase 2. Use `--clear-feature-importance` only when you need a full recompute of feature importance.

@@ -142,6 +142,8 @@ def create_bupar_outputs(
                     )
                     return False
                 logger.info("Wrote SHAP/FFA allowed codes for BupaR to %s", allowed_path)
+                # Mirror to S3 so others can download via sync_visualization_data_from_s3.py --allowed-codes-only
+                _upload_allowed_codes_to_s3(allowed_path, logger)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Could not write SHAP/FFA allowed codes for BupaR: %s", exc)
                 return False
@@ -266,6 +268,23 @@ def create_bupar_outputs(
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("BupaR outputs script failed with exception: %s", exc)
             return False
+
+
+ALLOWED_CODES_S3_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgxdatalake")
+ALLOWED_CODES_S3_PREFIX = "gold/bupar/allowed_codes"
+
+
+def _upload_allowed_codes_to_s3(allowed_path: Path, logger: logging.Logger) -> None:
+    """Upload allowed_codes JSON to s3://pgxdatalake/gold/bupar/allowed_codes/ for download via --allowed-codes-only."""
+    if not allowed_path.exists() or allowed_path.stat().st_size == 0:
+        return
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        return
+    s3_path = f"s3://{ALLOWED_CODES_S3_BUCKET}/{ALLOWED_CODES_S3_PREFIX}/{allowed_path.name}"
+    if upload_file_to_s3(allowed_path, s3_path, logger=logger, check_exists=True):
+        logger.info("Uploaded allowed_codes to %s", s3_path)
 
 
 def upload_bupar_plots_to_dashboard_s3(

@@ -564,62 +564,36 @@ save_bupar_csv(
   sprintf("%s_%s_train_target_process_matrix_bupar.csv", cohort_name_extreme, age_band_fname)
 )
 
-# Basic activity frequency and Gantt-style plots for extreme cohort
+# Activity frequency plot for extreme cohort (Gantt not produced for dashboard; see ARCHIVE_GANTT_REMOVAL.md)
 plots_dir <- file.path(bup_ar_output_root, cohort_name_extreme, age_band_fname, "plots")
 if (!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE)
 
+# Same event-type color coding as other BupaR activity frequency plots (Drug / Diagnosis / Procedure / Other)
+ACTIVITY_TYPE_COLORS <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
+
 target_activity_freq <- target_eventlog %>%
-  group_by(activity) %>%
-  summarise(count = n(), .groups = "drop") %>%
-  arrange(desc(count)) %>%
-  head(30)
-
-p3 <- ggplot(target_activity_freq, aes(x = reorder(activity, count), y = count)) +
-  geom_bar(stat = "identity", fill = "darkgreen") +
-  coord_flip() +
-  labs(title = paste("Overall Activity Frequency (EXTREME):", cohort_name_extreme, age_band),
-       x = "Activity", y = "Frequency") +
-  theme_bw()
-
-ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name_extreme, age_band_fname)),
-       plot = p3, width = 12, height = 10, dpi = 300)
-
-target_events_df <- as.data.frame(target_eventlog) %>%
-  arrange(case_id, timestamp) %>%
-  mutate(event_type = case_when(
+  mutate(activity_type = case_when(
     grepl("^DRUG:", activity) ~ "Drug",
     grepl("^ICD:", activity) ~ "Diagnosis",
     grepl("^CPT:", activity) ~ "Procedure",
     TRUE ~ "Other"
   )) %>%
-  mutate(start_time = timestamp,
-         end_time = timestamp + lubridate::ddays(1))
+  group_by(activity, activity_type) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(desc(count)) %>%
+  head(30)
 
-sample_cases <- unique(target_events_df$case_id)[1:min(30, length(unique(target_events_df$case_id)))]
-target_events_sample <- target_events_df %>%
-  filter(case_id %in% sample_cases) %>%
-  mutate(case_id_factor = factor(case_id, levels = rev(sample_cases)),
-         entity_num = as.numeric(case_id_factor))
-
-p4 <- ggplot(target_events_sample,
-       aes(ymin = entity_num - 0.4,
-           ymax = entity_num + 0.4,
-           xmin = start_time,
-           xmax = end_time,
-           fill = event_type)) +
-  geom_rect(alpha = 0.8) +
-  scale_y_continuous(breaks = unique(target_events_sample$entity_num),
-                     labels = levels(target_events_sample$case_id_factor)) +
-  scale_x_datetime() +
-  labs(title = paste("Activity Timeline (Gantt, EXTREME):", cohort_name_extreme, age_band),
-       subtitle = "Each patient (row) shows activity codes as horizontal bars",
-       x = "Event Time", y = "Patient ID", fill = "Event Type") +
+p3 <- ggplot(target_activity_freq, aes(x = reorder(activity, count), y = count, fill = activity_type)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = ACTIVITY_TYPE_COLORS, name = "Event Type") +
+  labs(title = paste("Overall Activity Frequency (EXTREME):", cohort_name_extreme, age_band),
+       x = "Activity", y = "Frequency") +
   theme_bw() +
-  theme(legend.position = "right",
-        axis.text.y = element_text(size = 6))
+  theme(legend.position = "top")
 
-ggsave(file.path(plots_dir, sprintf("%s_%s_activity_milestones_gantt.png", cohort_name_extreme, age_band_fname)),
-       plot = p4, width = 16, height = 12, dpi = 300)
+ggsave(file.path(plots_dir, sprintf("%s_%s_overall_activity_frequency.png", cohort_name_extreme, age_band_fname)),
+       plot = p3, width = 12, height = 10, dpi = 300)
 
 if (grDevices::dev.cur() > 1) {
   grDevices::dev.off()

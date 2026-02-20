@@ -13,6 +13,14 @@
 # post-sequences are not used to avoid target leakage.
 #
 
+# Windows-only: add user library to .libPaths; on EC2/Linux use default
+if (.Platform$OS.type == "windows") {
+  user_lib <- file.path(Sys.getenv("USERPROFILE"), "Documents", "R", "win-library", "4.5")
+  if (dir.exists(user_lib)) {
+    .libPaths(c(user_lib, .libPaths()))
+  }
+}
+
 suppressPackageStartupMessages({
   library(duckdb)
   library(arrow)
@@ -29,6 +37,14 @@ suppressPackageStartupMessages({
   library(plotly)
   library(htmlwidgets)
 })
+
+# Ensure htmlwidgets (and plotly) available for interactive HTML output
+if (!requireNamespace("htmlwidgets", quietly = TRUE)) {
+  stop("Package 'htmlwidgets' is required for interactive HTML plots. Install with: install.packages(\"htmlwidgets\")")
+}
+if (!requireNamespace("plotly", quietly = TRUE)) {
+  stop("Package 'plotly' is required for interactive HTML plots. Install with: install.packages(\"plotly\")")
+}
 
 # -------------------------------------------------------------------
 # Configuration
@@ -160,6 +176,54 @@ if (!dir.exists(plots_dir)) {
   dir.create(plots_dir, recursive = TRUE, showWarnings = FALSE)
 }
 
+# Abbreviate activity/trace for display: first 3 characters of Drug/ICD/CPT name; full name in hover/legend
+first_three_activity <- function(act) {
+  if (grepl("^DRUG:", act)) return(substr(sub("^DRUG:", "", act), 1, 3))
+  if (grepl("^ICD:", act))  return(substr(sub("^ICD:", "", act), 1, 3))
+  if (grepl("^CPT:", act))  return(substr(sub("^CPT:", "", act), 1, 3))
+  substr(act, 1, 3)
+}
+first_three_trace <- function(tr) {
+  parts <- strsplit(tr, " -> ", fixed = TRUE)[[1]]
+  paste(vapply(parts, first_three_activity, character(1)), collapse = " -> ")
+}
+
+# Activity-frequency aggregated plot: one bar per unique activity, ordered by frequency (fix trace explorer "tiny tiles")
+# Aligned to research N2/N6: "Which activities appear in pathways leading to target?" (aggregated activity frequency; see README_bupar_dashboard_visualizations.md)
+trace_explorer_activity_frequency_plot <- function(eventlog_obj, title_prefix, top_n = 30) {
+  df <- as.data.frame(eventlog_obj)
+  if (is.null(df) || !"activity" %in% names(df) || nrow(df) == 0) return(NULL)
+  type_from_activity <- function(a) {
+    if (grepl("^DRUG:", a)) return("Drug")
+    if (grepl("^ICD:", a))  return("Diagnosis")
+    if (grepl("^CPT:", a))  return("Procedure")
+    "Other"
+  }
+  agg <- df %>%
+    count(activity, name = "freq") %>%
+    arrange(desc(freq)) %>%
+    mutate(type = vapply(activity, type_from_activity, character(1), USE.NAMES = FALSE))
+  if (nrow(agg) == 0) return(NULL)
+  if (nrow(agg) > top_n) {
+    other_count <- agg %>% slice((top_n + 1):n()) %>% pull(freq) %>% sum()
+    other_label <- paste0("Other (", nrow(agg) - top_n, " activities)")
+    agg <- bind_rows(agg %>% slice(1:top_n), data.frame(activity = other_label, freq = other_count, type = "Other", stringsAsFactors = FALSE))
+  }
+  agg <- agg %>% mutate(activity = reorder(activity, freq))
+  type_colors <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
+  ggplot(agg, aes(x = activity, y = freq, fill = type)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = type_colors, name = "Event Type") +
+    labs(
+      x = "Activity", y = "Frequency",
+      title = paste0(title_prefix, " — Activity frequency (aggregated)"),
+      subtitle = "Which activities appear in pathways? (ordered by frequency; supports research N2/N6)"
+    ) +
+    theme_bw() +
+    theme(legend.position = "top", plot.subtitle = element_text(size = 9))
+}
+
 rplots_path <- file.path(
   plots_dir,
   sprintf("%s_%s_Rplots.pdf", cohort_name, age_band_fname)
@@ -217,7 +281,7 @@ pgx_df_target1 <- pgx_df %>%
 cat("Target=1 rows: ", nrow(pgx_df_target1), "\n", sep = "")
 
 # -------------------------------------------------------------------
-# Load allowed code set: SHAP/FFA causal feature importances only (no FP-Growth, no fallback).
+# Load allowed code set: SHAP/FFA combined (required prerequisite; we never use all codes).
 # -------------------------------------------------------------------
 
 allowed_codes_shap_ffa_path <- file.path(
@@ -225,16 +289,16 @@ allowed_codes_shap_ffa_path <- file.path(
   sprintf("allowed_codes_shap_ffa_%s_%s.json", cohort_name, age_band_fname)
 )
 
-allowed_codes <- character(0)
-
-if (file.exists(allowed_codes_shap_ffa_path)) {
-  allowed_codes <- fromJSON(allowed_codes_shap_ffa_path)
-  if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
-  cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA only (causal feature importances).\n", sep = "")
-} else {
-  cat("No SHAP/FFA allowed codes file; using all codes (event log = dataset filtered by dates only).\n", sep = "")
+if (!file.exists(allowed_codes_shap_ffa_path)) {
+  stop("SHAP/FFA allowed codes file is required (prerequisite). Not found: ", allowed_codes_shap_ffa_path,
+       ". Generate the combined allowed_codes file before running BupaR.")
 }
-
+allowed_codes <- fromJSON(allowed_codes_shap_ffa_path)
+if (!is.character(allowed_codes)) allowed_codes <- as.character(allowed_codes)
+if (length(allowed_codes) == 0L) {
+  stop("SHAP/FFA allowed codes file is empty: ", allowed_codes_shap_ffa_path, ". Cannot run BupaR without allowed codes.")
+}
+cat("Loaded ", length(allowed_codes), " allowed codes from SHAP/FFA (causal feature importances).\n", sep = "")
 cat("Total unique allowed codes: ", length(allowed_codes), "\n", sep = "")
 cat("Sample allowed_codes (first 10): ", paste(head(allowed_codes, 10), collapse = ", "), "\n\n", sep = "")
 
@@ -314,15 +378,9 @@ n_codes_in_data <- length(codes_in_data)
 cat("BupaR diagnostic: long rows before allowed_codes filter: ", n_long_before_allowed,
     " (distinct codes in data: ", n_codes_in_data, ").\n", sep = "")
 
-# Event log = dataset filtered by causal (SHAP/FFA) codes when available, then by valid dates; never empty by design when data exist
+# Event log = dataset filtered by SHAP/FFA allowed codes, then by valid dates
 pgx_df_target1_long <- pgx_df_target1_long %>%
-  {
-    if (length(allowed_codes) > 0) {
-      dplyr::filter(., code %in% allowed_codes)
-    } else {
-      .  # no causal filter; use all codes so event log = dataset with dates
-    }
-  } %>%
+  filter(code %in% allowed_codes) %>%
   mutate(
     activity = dplyr::case_when(
       source == "drug_name" ~ paste0("DRUG:", code),
@@ -465,13 +523,7 @@ pgx_df_all_long <- pgx_df_all %>%
     values_to = "code"
   ) %>%
   filter(!is.na(code), code != "", code != "NA") %>%
-  {
-    if (length(allowed_codes) > 0) {
-      dplyr::filter(., code %in% allowed_codes)
-    } else {
-      .
-    }
-  } %>%
+  filter(code %in% allowed_codes) %>%
   mutate(
     activity = dplyr::case_when(
       source == "drug_name" ~ paste0("DRUG:", code),
@@ -603,21 +655,46 @@ pre_target_eventlog <- events_pre_target %>%
     timestamp            = "timestamp"
   )
 
+# Post-HCG = events at or after first target (ED visit)
+events_post_target <- ev_all %>%
+  filter(!is.na(first_target_index), event_index >= first_target_index) %>%
+  mutate(
+    activity_instance_id = row_number(),
+    lifecycle_id         = dplyr::case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:",  activity) ~ "ICD",
+      grepl("^CPT:",  activity) ~ "CPT",
+      TRUE ~ "Other"
+    ),
+    resource_id          = "Patient"
+  )
+
+post_target_eventlog <- events_post_target %>%
+  eventlog(
+    case_id              = "case_id",
+    activity_id          = "activity",
+    activity_instance_id = "activity_instance_id",
+    lifecycle_id         = "lifecycle_id",
+    resource_id          = "resource_id",
+    timestamp            = "timestamp"
+  )
+
 cat("Pre-HCG eventlog summary:\n")
 print(pre_target_eventlog)
+cat("Post-HCG eventlog summary:\n")
+print(post_target_eventlog)
 
 n_pre <- nrow(events_pre_target)
-# 1) Trace explorer: save as PNG for dashboard
+# 1) Trace explorer: frequency-aggregated activity plot (one bar per activity, ordered by frequency; N2/N6)
 if (n_pre > 0L) {
   p_te_pre <- tryCatch(
-    trace_explorer(pre_target_eventlog, n_traces = 30, label_size = 3.0, abbreviate = TRUE,
-                   coverage_labels = c("relative", "absolute"), show_labels = TRUE),
+    trace_explorer_activity_frequency_plot(pre_target_eventlog, "Pre-HCG", top_n = 30),
     error = function(e) { cat(" [skip] trace_explorer(pre-HCG):", conditionMessage(e), "\n"); NULL }
   )
   if (!is.null(p_te_pre)) {
     ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_pre_hcg.png", cohort_name, age_band_fname)),
-           plot = p_te_pre, width = 16, height = 12, dpi = 300)
-    print(p_te_pre)
+           plot = p_te_pre, width = 14, height = 10, dpi = 300)
+    cat("Saved trace_explorer_pre_hcg.png (activity frequency aggregated)\n")
   }
   # Trace explorer interactive (pre-HCG only)
   tryCatch({
@@ -640,9 +717,12 @@ if (n_pre > 0L) {
       group_by(trace) %>%
       summarise(frequency = sum(frequency), .groups = "drop") %>%
       mutate(year = 0)
-    trace_combined <- bind_rows(trace_all, trace_filtered) %>%
-      arrange(desc(frequency)) %>%
-      mutate(trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace))
+  trace_combined <- bind_rows(trace_all, trace_filtered) %>%
+    arrange(desc(frequency)) %>%
+    mutate(
+      trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace),
+      trace_display_short = vapply(trace, first_three_trace, character(1))
+    )
     years <- c(0, 2016, 2017, 2018)
     year_labels <- c("All Years (2016-2018)", "2016", "2017", "2018")
     years_with_data <- integer(0)
@@ -669,14 +749,15 @@ if (n_pre > 0L) {
         fig <- fig %>%
           add_trace(
             type = "bar",
-            y = data_year$trace_display,
+            y = data_year$trace_display_short,
             x = data_year$frequency,
             name = "Trace Frequency",
+            customdata = data_year$trace_display,
             orientation = "h",
             visible = (k == 1L),
             marker = list(color = "#3b82f6"),
             text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year$relative_pct, data_year$cumulative_pct),
-            hovertemplate = paste0("<b>Trace:</b> %{y}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>")
+            hovertemplate = paste0("<b>Trace:</b> %{customdata}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>")
           )
       }
       n_traces <- length(years_with_data)
@@ -710,13 +791,170 @@ if (n_pre > 0L) {
           height = 900
         )
       trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
-      # selfcontained = FALSE + libdir so dependencies are in plots/lib/; avoids blank HTML from selfcontained bundle
-      saveWidget(fig, trace_html_path, selfcontained = FALSE, libdir = "lib", title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
+      # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
+      saveWidget(fig, trace_html_path, selfcontained = TRUE, title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
       cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
     }
   }, error = function(e) cat(" [skip] interactive trace explorer (pre-HCG):", conditionMessage(e), "\n"))
 } else {
   cat(" [skip] trace_explorer(pre-HCG): no pre-HCG events\n")
+}
+
+# -------------------------------------------------------------------
+# Post-HCG (after first ED visit) plots: trace explorer + activity frequency
+# -------------------------------------------------------------------
+n_post <- nrow(events_post_target)
+if (n_post > 0L) {
+  cat("\n--- Post-HCG (after first ED visit) analysis ---\n")
+  if (!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE)
+
+  # 1) Trace explorer post-HCG PNG
+  p_te_post <- tryCatch(
+    trace_explorer_activity_frequency_plot(post_target_eventlog, "Post-HCG", top_n = 30),
+    error = function(e) { cat(" [skip] trace_explorer(post-HCG):", conditionMessage(e), "\n"); NULL }
+  )
+  if (!is.null(p_te_post)) {
+    ggsave(file.path(plots_dir, sprintf("%s_%s_trace_explorer_post_hcg.png", cohort_name, age_band_fname)),
+           plot = p_te_post, width = 14, height = 10, dpi = 300)
+    cat("Saved trace_explorer_post_hcg.png (activity frequency aggregated)\n")
+  }
+
+  # 2) Trace explorer interactive (post-HCG) HTML
+  tryCatch({
+    trace_data_by_year_post <- post_target_eventlog %>%
+      as.data.frame() %>%
+      mutate(year = lubridate::year(timestamp)) %>%
+      group_by(case_id, year) %>%
+      arrange(timestamp) %>%
+      summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
+      group_by(year, trace) %>%
+      summarise(frequency = n(), .groups = "drop")
+    top_traces_post <- trace_data_by_year_post %>%
+      group_by(trace) %>%
+      summarise(total_freq = sum(frequency), .groups = "drop") %>%
+      arrange(desc(total_freq)) %>%
+      head(30) %>%
+      pull(trace)
+    trace_filtered_post <- trace_data_by_year_post %>% filter(trace %in% top_traces_post)
+    trace_all_post <- trace_filtered_post %>%
+      group_by(trace) %>%
+      summarise(frequency = sum(frequency), .groups = "drop") %>%
+      mutate(year = 0)
+    trace_combined_post <- bind_rows(trace_all_post, trace_filtered_post) %>%
+      arrange(desc(frequency)) %>%
+      mutate(
+        trace_display = ifelse(nchar(trace) > 100, paste0(substr(trace, 1, 97), "..."), trace),
+        trace_display_short = vapply(trace, first_three_trace, character(1))
+      )
+    years_post <- c(0, 2016, 2017, 2018)
+    year_labels_post <- c("All Years (2016-2018)", "2016", "2017", "2018")
+    years_with_data_post <- integer(0)
+    year_labels_with_data_post <- character(0)
+    for (idx in seq_along(years_post)) {
+      n <- nrow(trace_combined_post %>% filter(year == years_post[idx]) %>% head(30))
+      if (n > 0L) {
+        years_with_data_post <- c(years_with_data_post, years_post[idx])
+        year_labels_with_data_post <- c(year_labels_with_data_post, year_labels_post[idx])
+      }
+    }
+    if (length(years_with_data_post) > 0L) {
+      fig_post <- plot_ly()
+      traces_added_post <- 0L
+      year_labels_added_post <- character(0)
+      for (k in seq_along(years_with_data_post)) {
+        yr <- years_with_data_post[k]
+        data_year_post <- trace_combined_post %>%
+          filter(year == yr) %>%
+          arrange(desc(frequency)) %>%
+          head(30)
+        if (nrow(data_year_post) == 0L) next
+        total_cases_post <- sum(data_year_post$frequency, na.rm = TRUE)
+        total_cases_post <- if (total_cases_post <= 0) 1 else total_cases_post
+        data_year_post <- data_year_post %>%
+          mutate(relative_pct = frequency / total_cases_post * 100, cumulative_pct = cumsum(relative_pct))
+        fig_post <- fig_post %>%
+          add_trace(
+            type = "bar",
+            y = data_year_post$trace_display_short,
+            x = data_year_post$frequency,
+            name = "Trace Frequency",
+            customdata = data_year_post$trace_display,
+            orientation = "h",
+            visible = (traces_added_post == 0L),
+            marker = list(color = "#dc2626"),
+            text = sprintf("%.1f%% (cumulative: %.1f%%)", data_year_post$relative_pct, data_year_post$cumulative_pct),
+            hovertemplate = paste0("<b>Trace:</b> %{customdata}<br><b>Frequency:</b> %{x}<br><b>Coverage:</b> %{text}<br><extra></extra>")
+          )
+        year_labels_added_post <- c(year_labels_added_post, year_labels_with_data_post[k])
+        traces_added_post <- traces_added_post + 1L
+      }
+      n_traces_post <- traces_added_post
+      if (n_traces_post > 0L) {
+        updatemenus_post <- list(
+          list(
+            active = 0,
+            type = "dropdown",
+            x = 0.15, xanchor = "left", y = 1.08, yanchor = "top",
+            buttons = lapply(seq_len(n_traces_post), function(k) {
+              visible_vec <- rep(FALSE, n_traces_post)
+              visible_vec[k] <- TRUE
+              list(
+                label = year_labels_added_post[k],
+                method = "update",
+                args = list(
+                  list(visible = visible_vec),
+                  list(title = paste("Post-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_added_post[k]))
+                )
+              }
+            })
+          )
+        )
+        fig_post <- fig_post %>%
+          layout(
+            title = paste("Post-HCG Trace Patterns:", cohort_name, age_band, "-", year_labels_added_post[1L]),
+            xaxis = list(title = "Frequency (Number of Cases)"),
+            yaxis = list(title = "", categoryorder = "total ascending"),
+            updatemenus = updatemenus_post,
+            margin = list(l = 300, r = 50, t = 100, b = 50),
+            hovermode = "closest",
+            height = 900
+          )
+        trace_html_post_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_post_hcg_interactive.html", cohort_name, age_band_fname))
+        # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
+        saveWidget(fig_post, trace_html_post_path, selfcontained = TRUE, title = paste("Trace Explorer (Post-HCG):", cohort_name, age_band))
+        cat("Saved trace_explorer_post_hcg_interactive.html; path=", trace_html_post_path, "\n", sep = "")
+      } else {
+        cat(" [skip] trace_explorer_interactive (post-HCG): no traces with data\n")
+      }
+    }
+  }, error = function(e) cat(" [skip] interactive trace explorer (post-HCG):", conditionMessage(e), "\n"))
+
+  # 3) Post-HCG activity frequency PNG (color-coded by event type)
+  post_activity_freq <- post_target_eventlog %>%
+    as.data.frame() %>%
+    mutate(activity_type = case_when(
+      grepl("^DRUG:", activity) ~ "Drug",
+      grepl("^ICD:", activity) ~ "Diagnosis",
+      grepl("^CPT:", activity) ~ "Procedure",
+      TRUE ~ "Other"
+    )) %>%
+    group_by(activity, activity_type) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    arrange(desc(count)) %>%
+    head(20)
+  p2 <- ggplot(post_activity_freq, aes(x = reorder(activity, count), y = count, fill = activity_type)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b"), name = "Event Type") +
+    labs(title = paste("Post-HCG Activity Frequency:", cohort_name, age_band),
+         x = "Activity", y = "Frequency") +
+    theme_minimal() +
+    theme(legend.position = "top")
+  ggsave(file.path(plots_dir, sprintf("%s_%s_post_hcg_activity_frequency.png", cohort_name, age_band_fname)),
+         plot = p2, width = 10, height = 8, dpi = 300)
+  cat("Saved post_hcg_activity_frequency.png\n")
+} else {
+  cat("\n--- Post-HCG: no events; skipping post-HCG plots ---\n")
 }
 
 # 2) Drug-only sequences before HCG
@@ -846,15 +1084,16 @@ cat("\n--- Target-only global process mining ---\n")
 n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
   # Performance spectrum (aggregated activity trace; requires psmineR)
-  # Explicit segment_coverage and print() so the plot builds before ggsave (avoids blank PNG in batch/headless)
+  # Render to PNG device explicitly so the file is not blank in batch/headless (ggsave can leave it empty)
   tryCatch({
     if (requireNamespace("psmineR", quietly = TRUE)) {
       p_ps <- target_eventlog %>%
         psmineR::ps_aggregated(segment_coverage = 0.2)
       if (!is.null(p_ps) && inherits(p_ps, "ggplot")) {
+        ps_path <- file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname))
+        png(ps_path, width = 12, height = 8, units = "in", res = 300)
+        on.exit(dev.off(), add = TRUE)
         ggplot2::print(p_ps)
-        ggsave(file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname)),
-               plot = p_ps, width = 12, height = 8, dpi = 300)
         cat("Saved performance_spectrum.png\n")
       } else {
         cat(" [skip] performance_spectrum: ps_aggregated() did not return a ggplot\n")
@@ -943,6 +1182,7 @@ if (n_target > 0L) {
         mutate(year = 0)  # Use 0 to represent "All Years"
       
       activity_freq_combined <- bind_rows(activity_freq_all, activity_freq_filtered) %>%
+        mutate(activity_short = vapply(activity, first_three_activity, character(1))) %>%
         arrange(activity, year)
       
       # Diagnostic logging for troubleshooting empty HTML
@@ -986,16 +1226,17 @@ if (n_target > 0L) {
           fig <- fig %>%
             add_trace(
               type = "bar",
-              y = data_type$activity,
+              y = data_type$activity_short,
               x = data_type$count,
               name = act_type,
+              customdata = data_type$activity,
               marker = list(color = colors[act_type]),
               orientation = "h",
               visible = (k == 1L),  # First batch with data is visible by default
               legendgroup = act_type,
               showlegend = (k == 1L),
               hovertemplate = paste0(
-                "<b>Activity:</b> %{y}<br>",
+                "<b>Activity:</b> %{customdata}<br>",
                 "<b>Type:</b> ", act_type, "<br>",
                 "<b>Count:</b> %{x}<br>",
                 "<extra></extra>"
@@ -1043,13 +1284,12 @@ if (n_target > 0L) {
           hovermode = "closest"
         )
       # Save interactive HTML only when we have at least one year with data
-      # selfcontained = FALSE + libdir so dependencies are in plots/lib/; avoids blank HTML from selfcontained bundle
       af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
+      # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
       saveWidget(
         fig,
         af_html_path,
-        selfcontained = FALSE,
-        libdir = "lib",
+        selfcontained = TRUE,
         title = paste("Activity Frequency:", cohort_name, age_band)
       )
       af_html_size <- file.info(af_html_path)$size

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 Wrapper script to create visualizations for FP-Growth analysis.
+Template: 4_fpgrowth_analysis/create_plots.py (same create_all_fpgrowth_plots, same HTML pattern).
 Cross-platform compatible: Works on both Linux EC2 and Windows.
+Outputs: 10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/
+HTML: Production single-file Plotly via py_helpers.create_fpgrowth_visualizations (include_plotlyjs=True).
 """
 
 import os

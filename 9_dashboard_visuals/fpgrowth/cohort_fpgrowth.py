@@ -7,8 +7,8 @@ Processes each cohort separately to find cohort-specific patterns across:
 - icd_code (medical diagnosis codes)
 - cpt_code (medical procedure codes)
 
-FP-Growth uses final feature importances (cohort_feature_importance from Step 3b) to restrict
-items. BupaR and DTW use SHAP/FFA combined; FP-Growth uses this final list instead.
+FP-Growth uses the same SHAP/FFA combined allowed codes file as BupaR and DTW (required
+prerequisite); we never use all items.
 
 Outputs to: s3://pgxdatalake/gold/fpgrowth/cohort/{item_type}/cohort_name={cohort}/age_band={age}/event_year={year}/
 """
@@ -35,14 +35,6 @@ except ImportError:
     AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
     EVENT_YEARS = ["2016", "2017", "2018", "2019", "2020"]
 
-try:
-    from py_helpers.shap_ffa_fpgrowth_utils import (
-        get_final_feature_importance_codes,
-        get_shap_ffa_important_codes,
-    )
-except ImportError:
-    get_final_feature_importance_codes = None
-    get_shap_ffa_important_codes = None
 
 # Script lives in 9_dashboard_visuals/fpgrowth; outputs go to 10_risk_dashboard/visualizations/fpgrowth
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -105,13 +97,89 @@ LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fa
 MODEL_DATA_ROOT = REPO_ROOT / "4_model_data"
 USE_MODEL_DATA_IF_AVAILABLE = True
 
-# Restrict FP-Growth to important items. BupaR/DTW use SHAP/FFA combined; FP-Growth uses final feature importances.
-USE_FINAL_FI_FOR_FPGROWTH = True   # Final (cohort_feature_importance) from Step 3b
-USE_SHAP_FFA_FOR_FPGROWTH = False  # Legacy: SHAP+FFA combined (use for BupaR/DTW only)
-FI_TOP_N = 500  # Max features to take from final FI or SHAP+FFA
+# Restrict FP-Growth to SHAP/FFA combined allowed codes (same prerequisite as BupaR/DTW; we never use all items).
 
 # Local FP-Growth outputs (step 10: risk dashboard visualization outputs only)
 LOCAL_OUTPUT_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth" / "outputs"
+
+
+def _normalize_code(s: str) -> str:
+    """Normalize code for set membership (e.g. F11.20 and F1120 match)."""
+    if not s or (isinstance(s, float) and pd.isna(s)):
+        return ""
+    return str(s).strip().replace(".", "").replace("-", "")
+
+
+def _load_allowed_codes_by_type(
+    cohort_name: str, age_band: str, item_type: str, project_root: Path
+) -> set:
+    """
+    Load SHAP/FFA combined allowed codes from the same JSON as BupaR/DTW (required prerequisite).
+    Returns the set of normalized codes for the given item_type (drug_name, icd_code, cpt_code, medical_code).
+    Raises FileNotFoundError if the file is missing; ValueError if empty.
+    """
+    age_band_fname = age_band.replace("-", "_")
+    path = project_root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    path = path / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"SHAP/FFA allowed codes file is required (prerequisite). Not found: {path}. "
+            "Generate the combined file before running FP-Growth (same as BupaR/DTW)."
+        )
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    allowed_codes = {str(c).strip() for c in raw if c is not None and str(c).strip()}
+    if not allowed_codes:
+        raise ValueError(
+            f"SHAP/FFA allowed codes file is empty: {path}. Cannot run FP-Growth without allowed codes."
+        )
+    try:
+        from py_helpers.shap_ffa_fpgrowth_utils import _parse_feature_name
+    except ImportError:
+        _parse_feature_name = None
+
+    drug_set = set()
+    icd_set = set()
+    cpt_set = set()
+    for c in allowed_codes:
+        s = str(c).strip()
+        norm = _normalize_code(s)
+        if not norm:
+            continue
+        if s.startswith("cpt_"):
+            cpt_set.add(_normalize_code(s[4:]))
+        elif s.startswith("icd_"):
+            icd_set.add(_normalize_code(s[4:]))
+        elif s.startswith("drug_"):
+            drug_set.add(_normalize_code(s[5:]))
+        elif _parse_feature_name:
+            typ, code = _parse_feature_name(s)
+            raw_norm = _normalize_code(code) if code else norm
+            if typ == "cpt":
+                cpt_set.add(raw_norm)
+            elif typ == "icd":
+                icd_set.add(raw_norm)
+            elif typ == "drug":
+                drug_set.add(raw_norm)
+            else:
+                drug_set.add(norm)
+                icd_set.add(norm)
+                cpt_set.add(norm)
+        else:
+            drug_set.add(norm)
+            icd_set.add(norm)
+            cpt_set.add(norm)
+
+    if item_type == "drug_name":
+        return drug_set
+    if item_type == "icd_code":
+        return icd_set
+    if item_type == "cpt_code":
+        return cpt_set
+    if item_type == "medical_code":
+        return drug_set | icd_set | cpt_set
+    return drug_set | icd_set | cpt_set
+
 
 # =============================================================================
 # SETUP LOGGING
@@ -694,57 +762,32 @@ def process_single_cohort(
                 'error': 'No data'
             }
         
-        # Restrict to important items: FP-Growth uses final feature importances (cohort_feature_importance)
-        data_root = None
+        # Restrict to SHAP/FFA combined allowed codes (required; same file as BupaR/DTW)
         try:
-            from py_helpers.env_utils import get_data_root
-            data_root = get_data_root()
-            if data_root is not None:
-                data_root = Path(data_root)
-        except Exception:
-            pass
-        allowed = None
-        if USE_FINAL_FI_FOR_FPGROWTH and get_final_feature_importance_codes is not None:
-            try:
-                allowed = get_final_feature_importance_codes(
-                    cohort_name,
-                    age_band,
-                    item_type,
-                    top_n=FI_TOP_N,
-                    project_root=REPO_ROOT,
-                    data_root=data_root,
-                )
-            except Exception as e:
-                logger.warning(f"Final feature importance filter failed: {e}; using all items")
-        elif USE_SHAP_FFA_FOR_FPGROWTH and get_shap_ffa_important_codes is not None:
-            try:
-                allowed = get_shap_ffa_important_codes(
-                    cohort_name,
-                    age_band,
-                    item_type,
-                    top_n=FI_TOP_N,
-                    project_root=REPO_ROOT,
-                    data_root=data_root,
-                )
-            except Exception as e:
-                logger.warning(f"SHAP/FFA filter failed: {e}; using all items")
-        if allowed:
-            item_upper = df["item"].astype(str).str.strip().str.upper()
-            allowed_upper = {c.strip().upper() for c in allowed}
-            before = len(df)
-            df = df[item_upper.isin(allowed_upper)].copy()
-            logger.info(f"Filtered to FI important items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
-            if len(df) == 0:
-                logger.warning(f"✗ No rows left for {cohort_id} after FI filter")
-                return {
-                    'item_type': item_type,
-                    'cohort_name': cohort_name,
-                    'age_band': age_band,
-                    'event_year': event_year,
-                    'error': 'No data after FI filter'
-                }
-        elif USE_FINAL_FI_FOR_FPGROWTH or USE_SHAP_FFA_FOR_FPGROWTH:
-            logger.warning("FI returned no codes; using all items (ensure cohort_feature_importance or SHAP/FFA outputs exist)")
+            allowed = _load_allowed_codes_by_type(cohort_name, age_band, item_type, REPO_ROOT)
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(str(e))
+            return {
+                'item_type': item_type,
+                'cohort_name': cohort_name,
+                'age_band': age_band,
+                'event_year': event_year,
+                'error': str(e),
+            }
+        item_upper = df["item"].astype(str).str.strip().str.upper().str.replace(".", "").str.replace("-", "")
+        allowed_upper = {c.strip().upper().replace(".", "").replace("-", "") for c in allowed}
+        before = len(df)
+        df = df[item_upper.isin(allowed_upper)].copy()
+        logger.info(f"Filtered to SHAP/FFA allowed items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
+        if len(df) == 0:
+            logger.warning(f"✗ No rows left for {cohort_id} after allowed-codes filter")
+            return {
+                'item_type': item_type,
+                'cohort_name': cohort_name,
+                'age_band': age_band,
+                'event_year': event_year,
+                'error': 'No data after allowed-codes filter'
+            }
         
         # Add item type prefix (like BupaR does: DRUG:, ICD:, CPT:) to ensure proper encoding
         item_prefix = {

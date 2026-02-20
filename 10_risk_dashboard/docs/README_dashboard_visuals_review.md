@@ -4,6 +4,8 @@
 **Reviewer:** GitHub Copilot  
 **Focus:** Verify visual outputs align with research questions; assess DTW performance and optimization needs
 
+**Canonical workflow and tab/RQ mapping:** [README_visualization_plan.md](README_visualization_plan.md) (this folder). This doc is a detailed review with lessons learned; use the visualization plan as the source of truth for production workflow and research questions → tabs.
+
 ---
 
 ## Executive Summary
@@ -53,9 +55,9 @@ The dashboard visuals **effectively address all core research questions** with a
 - Visuals: 
   - "Routine vs No Routine (Outcomes)" comparison chart
   - "High-Risk vs Low-Risk Trajectories" by quartiles
-  - **NEW:** "Common Pathway Patterns in Adverse Events" - shows top codes in target=1 trajectories
+  - "Common Pathway Patterns in Adverse Events" - shows top codes in target=1 trajectories
 - Data: Uses full pipeline data (2016-2019), SHAP/FFA filtered codes
-- **Recommendation:** ✅ Comprehensive coverage; new target=1 pathway analysis directly answers "what leads to adverse events"
+- **Recommendation:** ✅ Comprehensive coverage; target=1 pathway analysis directly answers "what leads to adverse events"
 
 **Sequence Analysis (RQ2 & RQ3)**
 - Location: BupaR Process Mining tab
@@ -80,7 +82,7 @@ The dashboard visuals **effectively address all core research questions** with a
   - SHAP feature importance (from Step 7)
   - Feature interactions
   - Drug combinations emphasis for polypharmacy
-- **Recommendation:** Consider adding radar chart (mentioned in VISUALIZATION_PLAN.md) for top 5-8 features
+- **Recommendation:** Consider adding radar chart (mentioned in README_visualization_plan.md) for top 5-8 features
 
 #### 📋 Enhancement Opportunities
 
@@ -102,7 +104,7 @@ The dashboard visuals **effectively address all core research questions** with a
 
 ### 2. DTW Processing & Performance Issues
 
-#### � Understanding DTW Visualization Requirements
+#### Understanding DTW Visualization Requirements
 
 **Key Discovery:** `create_dtw_plots.py` does **NOT use DTW distances** for clustering!
 
@@ -316,7 +318,7 @@ Based on documentation (`README_DTW_COHORT_ANALYSIS.md`, `DTW_FEATURE_ANALYSIS.m
 7. **[ ] Add Radar Chart to Causal Analysis Tab**
    - Visualize top 5-8 features from FFA + SHAP
    - Show normalized importance in multi-dimensional view
-   - Per VISUALIZATION_PLAN.md recommendation
+   - Per README_visualization_plan.md recommendation
 
 8. **[ ] Implement DTW Year Filtering**
    - Enable 2016/2017/2018/All filtering in cluster plots
@@ -341,11 +343,7 @@ Based on documentation (`README_DTW_COHORT_ANALYSIS.md`, `DTW_FEATURE_ANALYSIS.m
 
 The dashboard visuals **strongly address all six research questions** with appropriate, well-designed visualizations. The SHAP/FFA filtering ensures all visuals are model-driven and interpretable.
 
-**Recent Enhancement:**
-- Added **target=1 pathway patterns analysis** - identifies common codes in adverse event trajectories
-- Answers: "What are the shared clinical pathways leading to adverse outcomes?"
-- Shows prevalence of top codes within target=1 population (not just outcome rates)
-- Complements existing outcome rate comparisons with actionable clinical insights
+**Target=1 pathway patterns:** Identifies common codes in adverse event trajectories; answers "What are the shared clinical pathways leading to adverse outcomes?" Shows prevalence of top codes within target=1 population and complements outcome rate comparisons with actionable clinical insights.
 
 ### DTW Implementation: ✅ RESOLVED
 
@@ -357,7 +355,7 @@ The dashboard visuals **strongly address all six research questions** with appro
 3. Three dashboard charts now created:
    - **routine_comparison**: Outcome rate by routine vs no routine appointments
    - **high_risk_trajectories**: Outcome rate by trajectory quartiles
-   - **target_pathway_patterns**: Common codes in target=1 trajectories (NEW)
+   - **target_pathway_patterns**: Common codes in target=1 trajectories
 
 **Performance:** 1-2 minutes per cohort/age_band (vs 10-20 minutes with full DTW distances)
 
@@ -383,7 +381,7 @@ The dashboard visuals **strongly address all six research questions** with appro
 - `9_dashboard_visuals/dtw/README_DTW_COHORT_ANALYSIS.md` - DTW methodology
 - `9_dashboard_visuals/dtw/DTW_VISUALIZATION_STATUS.md` - Current status
 - `9_dashboard_visuals/dtw/DTW_FEATURE_ANALYSIS.md` - Feature leakage analysis
-- `10_risk_dashboard/docs/VISUALIZATION_PLAN.md` - Research question mapping
+- `README_visualization_plan.md` - Research question mapping (this folder)
 - `10_risk_dashboard/visualizations/bupar/BUPAR_OPTIMIZATION_RECOMMENDATIONS.md` - BupaR enhancements
 
 **Code reviewed:**

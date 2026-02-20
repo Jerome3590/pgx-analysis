@@ -20,8 +20,8 @@ BupaR visualizations help clinicians understand:
 - **Static**: `{cohort}_{age_band_fname}_overall_activity_frequency.png` — bar chart of top activities (drug, ICD, CPT).
 - **Interactive**: `{cohort}_{age_band_fname}_activity_frequency_interactive.html` — same with year dropdown (Plotly). Requires `plots/lib/` deployed with the HTML.
 
-### 2. Trace explorer (pre-target only)
-- **Static**: `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_trace_explorer_pre_hcg.png` (non_opioid_ed) — top trace patterns before target.
+### 2. Trace explorer (pre-target and post-target)
+- **Static**: `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_trace_explorer_pre_hcg.png` (non_opioid_ed) — **activity frequency (aggregated)**: one bar per activity (Drug/ICD/CPT) ordered by frequency, aligned to research N2/N6 (“Which activities appear in pathways leading to target?”). Post-target PNGs: `_trace_explorer_post_f1120.png` / `_trace_explorer_post_hcg.png` use the same aggregated view.
 - **Interactive**: `{cohort}_{age_band_fname}_trace_explorer_interactive.html` — pre-target only, year dropdown. Requires `plots/lib/`.
 
 ### 3. Pre-target activity frequency (opioid_ed only)
@@ -33,7 +33,7 @@ BupaR visualizations help clinicians understand:
 ### 5. Frequency map (optional)
 - **File**: `{cohort}_{age_band_fname}_frequency_map.png` — process map frequency view. Skipped if processmapR::export_map not available.
 
-**Not produced:** overall trace_explorer.png, process_matrix, gantt, post-F1120 visuals, activity_milestones_gantt.
+**Not produced:** overall trace_explorer.png, process_matrix, gantt, post-F1120 visuals, activity_milestones_gantt. (Gantt removal archived: see `9_dashboard_visuals/bupar/ARCHIVE_GANTT_REMOVAL.md`.)
 
 ## Scripts
 
