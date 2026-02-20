@@ -6,6 +6,36 @@
 
 ---
 
+## How to run
+
+**Recommended (all cohorts and age bands):** Run FP-Growth as part of the dashboard workflow from the repo root. Default is all cohorts and all age bands, with one worker per (cohort, age_band) combo (capped by CPU count). No dry run.
+
+```bash
+# From repo root: sync (optional) then BupaR → DTW → FP-Growth for all combos
+python 9_dashboard_visuals/run_dashboard_visuals.py
+
+# Skip S3 sync (data already local)
+python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync
+```
+
+Optional flags: `--cohort` / `--age-band` (repeatable) to limit combos; `--workers N` / `--fpgrowth-workers N` to override parallelism; `--force` to re-run even when outputs exist. See [9_dashboard_visuals/README.md](../README.md) for full workflow and prerequisites (allowed-codes files, fail-fast).
+
+**Single (cohort, age_band):** Run the FP-Growth visuals script for one combination (itemsets + plots):
+
+```bash
+python 9_dashboard_visuals/fpgrowth/create_fpgrowth_visuals.py --cohort-name opioid_ed --age-band 0_12
+```
+
+**Batch (EC2 / direct):** Run `cohort_fpgrowth.py` directly for all cohorts and age bands. Default is no dry run; parallelism is one core per (cohort, age_band), capped by CPU count.
+
+```bash
+python 9_dashboard_visuals/fpgrowth/cohort_fpgrowth.py
+```
+
+Config in `cohort_fpgrowth.py`: `DRY_RUN = False` (full run); `COHORTS_TO_PROCESS` and `AGE_BANDS` define the set; `MAX_WORKERS` is set from cohort×age_band count and CPU count.
+
+---
+
 ## Output Files Manifest
 
 ### Expected Outputs Structure

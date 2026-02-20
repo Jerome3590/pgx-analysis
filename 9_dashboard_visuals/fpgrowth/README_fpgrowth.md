@@ -2,6 +2,8 @@
 
 **Documentation pointer**: See `docs/README_fpgrowth.md` for complete documentation. This file summarizes the expected outputs and how they are used in the downstream pipeline.
 
+**How to run:** See [README.md](README.md#how-to-run) in this directory for commands (dashboard workflow, single combo, and batch `cohort_fpgrowth.py`). Default is all cohorts and age bands, one worker per combo, no dry run.
+
 ---
 
 ## Output Files Manifest

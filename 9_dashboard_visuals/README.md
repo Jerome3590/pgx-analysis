@@ -60,6 +60,11 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    - `--workers N` – parallel workers (default 4)
    DTW runs in three steps: **create_dtw_trajectories.py** (trajectory CSV with N3 time-between metrics), **create_dtw_features.py** (DTW alignment: distances to prototype trajectories + common_sequences.json), then **create_dtw_visuals.py** (plots and chart_data.json). Requires `dtaidistance` for alignment.
 
+**Why might all age bands and both cohorts not get processed?**
+- **Allowed-codes prerequisite:** Before any BupaR/DTW/FP-Growth run, `run_dashboard_visuals.py` checks that every (cohort, age_band) has a non-empty `allowed_codes_shap_ffa_{cohort}_{age_band}.json`. Those files are built only from **Step 3b cohort_feature_importance**. If any combination is missing that CSV (e.g. 0-12 or some bands never ran Step 3b), the allowed-codes file is missing or empty and the script **exits immediately** without running any visuals.
+- **Fail-fast (default):** If any BupaR, DTW, or FP-Growth run fails for one combination, the script exits and does not run the remaining combinations. Fix the failing combo (or run with `--cohort X --age-band Y` to retry that combo only), then re-run.
+- **FP-Growth batch mode:** Running `cohort_fpgrowth.py` directly (batch) used to limit to 5 combinations when `DRY_RUN = True`; that is now `False` so batch runs process all. The dashboard path uses `run_single_cohort_fpgrowth.py` per (cohort, age_band), so it always submits all combinations unless the prerequisite or fail-fast stops earlier.
+
 3. **Quick DTW test (one age band, both cohorts):**
    ```bash
    python 9_dashboard_visuals/run_dtw_test_one_age_band.py --age-band 25-44
