@@ -241,9 +241,9 @@ if (exists("model_data_paths", inherits = FALSE)) {
 
 con <- dbConnect(duckdb::duckdb())
 
-# Normalized target config: cohort uses ICD F1120 as target code and first_opioid_ed_date for pre-target split
+# Normalized target config: cohort uses ICD F1120 as target code; model_events has first_f1120_date for pre-target split
 target_code_label    <- "F1120"
-target_date_column   <- "first_opioid_ed_date"
+target_date_column   <- "first_f1120_date"
 schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
 keys_received_schema <- schema_info$column_name
 keys_expected_target <- c("event_date", "mi_person_key", "target", target_date_column)
@@ -552,23 +552,23 @@ print(sankey_eventlog)
 
 # -------------------------------------------------------------------
 # Target date per case for pre-/post-F1120 split.
-# Step 4 (4_model_data) removes target leakage: only events with event_date < first_opioid_ed_date
-# are kept, so the F1120 (ED) row is NOT in model_events. We must use first_opioid_ed_date
+# Step 4 (4_model_data) removes target leakage: only events with event_date < first_f1120_date
+# are kept, so the F1120 (ED) row is NOT in model_events. We must use first_f1120_date
 # (present on every target row); F1120-in-activity would yield 0 pre-F1120 cases.
 # -------------------------------------------------------------------
 
 target_date_map <- NULL
-if ("first_opioid_ed_date" %in% names(pgx_df_target1)) {
+if ("first_f1120_date" %in% names(pgx_df_target1)) {
   fed <- pgx_df_target1 %>%
-    filter(!is.na(first_opioid_ed_date))
-  fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_opioid_ed_date))
+    filter(!is.na(first_f1120_date))
+  fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_f1120_date))
   target_date_map <- fed %>%
     filter(!is.na(first_ed_parsed)) %>%
     group_by(mi_person_key) %>%
     summarise(target_date = min(first_ed_parsed, na.rm = TRUE), .groups = "drop") %>%
     filter(!is.na(target_date), is.finite(as.numeric(target_date))) %>%
     rename(case_id = mi_person_key)
-  cat("Target dates from first_opioid_ed_date: ", nrow(target_date_map), " cases.\n", sep = "")
+  cat("Target dates from first_f1120_date: ", nrow(target_date_map), " cases.\n", sep = "")
 }
 if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
   # Fallback: no target date column (e.g. after leakage removal). Treat all target-eventlog events as pre-F1120.
@@ -583,8 +583,8 @@ if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
   }
   if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
     target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
-    if (!"first_opioid_ed_date" %in% names(pgx_df_target1)) {
-      cat("No first_opioid_ed_date in model_events; pre-F1120 will be empty.\n")
+    if (!"first_f1120_date" %in% names(pgx_df_target1)) {
+      cat("No first_f1120_date in model_events; pre-F1120 will be empty.\n")
     }
   }
 }

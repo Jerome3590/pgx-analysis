@@ -723,6 +723,7 @@ The pipeline uses two independent target identification methods:
        - **Excludes:** Observation care visits (P51a) - these are not true ED visits for adverse drug event identification
      - `O11 - Emergency Room` (all details)
      - `P33 - Urgent Care Visits` (all details)
+   - **Naming:** We use **O11_P** as the canonical identifier for the model_events target-date column (e.g. `first_o11_p_date` in Step 4), to match the style of F11.20 for opioid_ed. **O11_P includes all qualifying ED HCG codes** (P51b, O11, P33) as defined in the cohort logic above.
    - **Precision:** Uses `hcg_detail` field to distinguish actual ED visits from observation care
    - Identifies ED visits regardless of diagnosis codes
    - Always classified as `'ed_non_opioid'` in event classification

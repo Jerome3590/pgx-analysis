@@ -65,7 +65,7 @@ cat("=== bupaR Analysis: Cohort 2 (POLYPHARMACY_ED, non_opioid_ed) ===\n")
 cat("  Age band: ", age_band, " (control = within-cohort target=0, no HCG)\n\n", sep = "")
 
 # Cohort-specific target: first ED visit (HCG Setting) within 21 days of a drug event.
-# Identified by hcg_line or first_ed_non_opioid_date in model_events, NOT by an ICD code "HCG".
+# Identified by hcg_line or first_o11_p_date in model_events, NOT by an ICD code "HCG".
 # target_date_map below uses those columns; target_icd_patterns is only for allowed_codes.
 target_icd_patterns <- c("HCG")
 # HCG line values that identify ED visits (match cohort creation / 4_model_data)
@@ -250,20 +250,23 @@ con <- dbConnect(duckdb::duckdb())
 
 # Normalized target config: cohort uses target date column (not an ICD code) for pre-target split
 target_code_label   <- "ED visit (HCG)"           # no single ICD; target = first ED within 21d of drug
-target_date_columns <- c("first_ed_non_opioid_date", "hcg_line")  # prefer first, fallback hcg_line
-# Detect if model_events has target date columns (needed for pre-HCG split)
+# Step 4 writes first_o11_p_date; accept legacy first_ed_non_opioid_date for older parquets
+target_date_col_canonical <- "first_o11_p_date"
+target_date_columns <- c(target_date_col_canonical, "first_ed_non_opioid_date", "hcg_line")
 schema_info <- dbGetQuery(con, paste0("DESCRIBE SELECT * FROM ", model_data_from_sql, " LIMIT 0"))
 keys_received_schema <- schema_info$column_name
 keys_expected_target <- c("event_date", "mi_person_key", "target", target_date_columns)
+has_first_o11_p <- "first_o11_p_date" %in% keys_received_schema
 has_first_ed_date <- "first_ed_non_opioid_date" %in% keys_received_schema
+has_target_date_col <- has_first_o11_p || has_first_ed_date
 has_hcg_line <- "hcg_line" %in% keys_received_schema
 cat("cohort=", cohort_name, " target_code=", target_code_label, " target_date_columns_expected=", paste(target_date_columns, collapse = ", "), "\n", sep = "")
 cat("keys_expected (for target date): ", paste(keys_expected_target, collapse = ", "), "\n", sep = "")
 cat("keys_received (model_events schema): ", paste(keys_received_schema, collapse = ", "), "\n", sep = "")
-missing_target <- setdiff(target_date_columns, keys_received_schema)
-if (length(missing_target) > 0L) cat("WARNING: target date columns missing in schema: ", paste(missing_target, collapse = ", "), "\n", sep = "")
-if (has_first_ed_date) cat("Model data has first_ed_non_opioid_date (use for target date after step 4 leakage removal).\n")
-if (has_hcg_line) cat("Model data has hcg_line column (fallback when first_ed_non_opioid_date absent).\n")
+if (!has_target_date_col && !has_hcg_line) cat("WARNING: no target date column (first_o11_p_date or first_ed_non_opioid_date) or hcg_line in schema.\n")
+if (has_first_o11_p) cat("Model data has first_o11_p_date (use for target date after step 4 leakage removal).\n")
+if (has_first_ed_date && !has_first_o11_p) cat("Model data has legacy first_ed_non_opioid_date (use for target date).\n")
+if (has_hcg_line) cat("Model data has hcg_line column (fallback when target date column absent).\n")
 
 query <- sprintf(
   paste0("SELECT * FROM ", model_data_from_sql, " WHERE event_year IN (%s)"),
@@ -565,20 +568,25 @@ print(sankey_eventlog)
 # -------------------------------------------------------------------
 # Pre-HCG (before first ED visit within 21 days of drug event) sequences
 # Target = first ED visit (HCG Setting) within 21 days of a prescription drug event;
-# identified by hcg_line or first_ed_non_opioid_date in model_events.
+# identified by hcg_line or first_o11_p_date (or legacy first_ed_non_opioid_date) in model_events.
 # -------------------------------------------------------------------
 
 cat("\n--- Pre-HCG (before first ED visit within 21d of drug event) analysis ---\n")
 
 # Build target date per case from model_events.
-# Step 4 (4_model_data) removes target leakage: only events with event_date < first_ed_non_opioid_date
-# are kept, so the actual ED visit row (where hcg_line is set) is NOT in model_events. For non_opioid_ed
-# we must use first_ed_non_opioid_date (present on every target row); hcg_line would yield 0 cases.
+# Step 4 (4_model_data) removes target leakage: only events before target date are kept;
+# we use first_o11_p_date (or legacy first_ed_non_opioid_date) on every target row; hcg_line would yield 0 cases.
 target_date_map <- NULL
-if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) {
+target_date_col_used <- NULL
+if (has_first_o11_p && "first_o11_p_date" %in% names(pgx_df_target1)) {
+  target_date_col_used <- "first_o11_p_date"
+} else if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) {
+  target_date_col_used <- "first_ed_non_opioid_date"
+}
+if (!is.null(target_date_col_used)) {
   fed <- pgx_df_target1 %>%
-    filter(!is.na(first_ed_non_opioid_date))
-  fed$first_ed_parsed <- suppressWarnings(as.Date(fed$first_ed_non_opioid_date))
+    filter(!is.na(.data[[target_date_col_used]]))
+  fed$first_ed_parsed <- suppressWarnings(as.Date(fed[[target_date_col_used]]))
   fed_filtered <- fed %>% filter(!is.na(first_ed_parsed))
   if (nrow(fed_filtered) > 0) {
     target_date_map <- fed_filtered %>%
@@ -589,7 +597,7 @@ if (has_first_ed_date && "first_ed_non_opioid_date" %in% names(pgx_df_target1)) 
   } else {
     target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
   }
-  cat("Target dates from first_ed_non_opioid_date: ", nrow(target_date_map), " cases.\n", sep = "")
+  cat("Target dates from ", target_date_col_used, ": ", nrow(target_date_map), " cases.\n", sep = "")
 }
 if ((is.null(target_date_map) || nrow(target_date_map) == 0L) && has_hcg_line && "hcg_line" %in% names(pgx_df_target1)) {
   # Fallback: hcg_line (e.g. when using 3b model_events that still contain ED rows)
@@ -610,12 +618,12 @@ if ((is.null(target_date_map) || nrow(target_date_map) == 0L) && has_hcg_line &&
 }
 if (is.null(target_date_map) || nrow(target_date_map) == 0L) {
   target_date_map <- data.frame(case_id = character(0), target_date = as.Date(integer(0)))
-  if (!has_hcg_line && !has_first_ed_date) {
-    cat("WARNING: model_events has no hcg_line or first_ed_non_opioid_date; pre-HCG events will be empty.\n")
-    cat("  Ensure model_events includes HCG target columns (e.g. from 4_model_data or 3b with HCG). keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
+  if (!has_hcg_line && !has_target_date_col) {
+    cat("WARNING: model_events has no hcg_line or target date column (first_o11_p_date / first_ed_non_opioid_date); pre-HCG events will be empty.\n")
+    cat("  Ensure model_events includes target date column (e.g. from 4_model_data). keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
   } else {
-    cat("WARNING: first_ed_non_opioid_date/hcg_line present but 0 target cases. pre-HCG events will be empty.\n")
-    cat("  For 4_model_data, target date comes from first_ed_non_opioid_date (ED row removed by leakage). keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
+    cat("WARNING: target date column/hcg_line present but 0 target cases. pre-HCG events will be empty.\n")
+    cat("  For 4_model_data, target date comes from first_o11_p_date (ED row removed by leakage). keys_received (schema): ", paste(head(keys_received_schema, 30), collapse = ", "), "\n", sep = "")
   }
 }
 

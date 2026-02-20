@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-One-off: Add first_ed_non_opioid_date to existing non_opioid_ed model_events.parquet
+One-off: Add first_o11_p_date to existing non_opioid_ed model_events.parquet
 when the column is missing. Populates with a date per target=1 patient (max(event_date)+1)
 so BupaR pre-HCG logic sees events; target=0 stays NULL. Use for local testing only.
+Step 4 canonical name is first_o11_p_date (O11_P includes P51b, O11, P33).
 """
 import sys
 from pathlib import Path
@@ -13,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_DATA_ROOT = PROJECT_ROOT / "4_model_data"
 COHORT = "non_opioid_ed"
 AGE_BAND = "85-114"
-TARGET_DATE_COL = "first_ed_non_opioid_date"
+TARGET_DATE_COL = "first_o11_p_date"
 
 
 def main() -> int:
@@ -35,7 +36,7 @@ def main() -> int:
     existing = ", ".join(f'"{c}"' for c in col_names)
     out_tmp = path.parent / "model_events.parquet.tmp"
     out_str = str(out_tmp).replace("'", "''")
-    # Add column: for target=1 set first_ed_non_opioid_date = max(event_date)+1 day per patient
+    # Add column: for target=1 set first_o11_p_date = max(event_date)+1 day per patient
     con.execute(f"""
         COPY (
             WITH with_max_date AS (
@@ -50,7 +51,7 @@ def main() -> int:
                     WHEN target = 1 AND max_event_date IS NOT NULL
                     THEN CAST(DATE_ADD(CAST(max_event_date AS TIMESTAMP), INTERVAL 1 DAY) AS VARCHAR)
                     ELSE NULL
-                END AS {TARGET_DATE_COL}
+                END AS "{TARGET_DATE_COL}"
             FROM with_max_date
         ) TO '{out_str}'
         (FORMAT PARQUET)
@@ -58,7 +59,7 @@ def main() -> int:
     con.close()
     path.unlink()
     out_tmp.replace(path)
-    print(f"[INFO] Added '{TARGET_DATE_COL}' to {path} (target=1: max(event_date)+1 day; target=0: NULL)")
+    print(f"[INFO] Added '{TARGET_DATE_COL}' to {path} (target=1: max(event_date)+1 day; target=0: NULL).")
     return 0
 
 

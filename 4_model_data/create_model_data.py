@@ -91,6 +91,15 @@ except ImportError:
 
 STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
 
+# Explicit target date column names in model_events: first_{cohort_target}_date
+# Opioid-ED: F11.20 = opioid use disorder ICD-10
+# Polypharmacy: O11_P = canonical ED identifier (includes P51b, O11, P33), 21-day drug window
+TARGET_DATE_COL_OPIOID = "first_f1120_date"
+TARGET_DATE_COL_NON_OPIOID = "first_o11_p_date"
+# Cohort (Step 2) column names we read from
+COHORT_SOURCE_COL_OPIOID = "first_opioid_ed_date"
+COHORT_SOURCE_COL_NON_OPIOID = "first_ed_non_opioid_date"
+
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create logger with file and console handlers; log file under logs/4_model_data/."""
@@ -329,15 +338,15 @@ def _validate_model_events_target_date_column(
 ) -> Tuple[bool, str]:
     """
     Validate that model_events.parquet has the required target date column and case rows have it set.
-    Required for BupaR pre-target split (e.g. first_ed_non_opioid_date for non_opioid_ed).
+    Uses explicit names: first_f1120_date (opioid_ed), first_o11_p_date (non_opioid_ed).
 
     Returns:
         (success: bool, message: str)
     """
     target_date_col = (
-        "first_opioid_ed_date"
+        TARGET_DATE_COL_OPIOID
         if "opioid_ed" in cohort_name.lower()
-        else "first_ed_non_opioid_date"
+        else TARGET_DATE_COL_NON_OPIOID
     )
     path_str = str(parquet_path).replace("'", "''")
     con = duckdb.connect()
@@ -717,11 +726,17 @@ def filter_cohort_events_for_items(
         return
 
     # Require target date column in cohort (BupaR/dashboard need it for pre-target split).
-    # Without it, downstream fails with "0 pre-HCG events" for non_opioid_ed.
-    target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
-    if target_date_col not in cohort_cols:
+    # We read cohort source column and write explicit output column: first_f1120_date / first_o11_p_date.
+    is_opioid = "opioid_ed" in cohort_name.lower()
+    output_col = TARGET_DATE_COL_OPIOID if is_opioid else TARGET_DATE_COL_NON_OPIOID
+    source_col = COHORT_SOURCE_COL_OPIOID if is_opioid else COHORT_SOURCE_COL_NON_OPIOID
+    # non_opioid_ed: allow first_opioid_ed_date as fallback if first_ed_non_opioid_date missing (legacy schema)
+    if not is_opioid and source_col not in cohort_cols and COHORT_SOURCE_COL_OPIOID in cohort_cols:
+        source_col = COHORT_SOURCE_COL_OPIOID
+        print(f"[INFO] Using cohort column '{source_col}' AS '{output_col}' (legacy schema).")
+    if source_col not in cohort_cols:
         msg = (
-            f"[ERROR] Cohort schema missing required target date column '{target_date_col}' for {cohort_name}/{age_band}. "
+            f"[ERROR] Cohort schema missing required target date column '{source_col}' for {cohort_name}/{age_band}. "
             f"Cohort parquets must include this column (Step 2). Found columns: {cohort_cols[:20]}{'...' if len(cohort_cols) > 20 else ''}. "
             f"Refusing to write model_events without it (BupaR would get 0 pre-target events)."
         )
@@ -730,13 +745,19 @@ def filter_cohort_events_for_items(
             logger.error(msg)
         con.close()
         return
-    if target_date_col not in common_cols:
-        common_cols = list(common_cols) + [target_date_col]
-        print(f"[INFO] Including cohort-only column in model_events for target date: {target_date_col}")
+    if source_col not in common_cols:
+        common_cols = list(common_cols) + [source_col]
+        print(f"[INFO] Including cohort-only column in model_events for target date (output: {output_col}).")
 
-    common_cols_sql = ", ".join(common_cols)
+    # Output schema uses explicit names (first_f1120_date / first_o11_p_date)
+    output_common_cols = [output_col if c == source_col else c for c in common_cols]
+    # Case SELECT: from cohort, alias source_col -> output_col
+    case_cols_sql = ", ".join(
+        f'"{source_col}" AS "{output_col}"' if c == output_col else c for c in output_common_cols
+    )
     common_cols_sql_control = ", ".join(
-        f"c.{c}" if c in control_cols else f"NULL AS {c}" for c in common_cols
+        f"NULL AS \"{output_col}\"" if c == output_col else (f"c.{c}" if c in control_cols else f"NULL AS {c}")
+        for c in output_common_cols
     )
 
     # 1. Case patients from gold cohorts
@@ -897,14 +918,13 @@ def filter_cohort_events_for_items(
             f"using cases only."
         )
         # In this degenerate case, just build case-only events (with target leakage removal).
+        # Use source_col (same as main path) for leakage filter.
         leakage_condition = "TRUE"
-        if "event_date" in cohort_cols:
-            target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
-            if target_date_col in cohort_cols:
-                leakage_condition = (
-                    f"(event_date IS NULL OR {target_date_col} IS NULL OR "
-                    f"CAST(event_date AS DATE) < CAST({target_date_col} AS DATE))"
-                )
+        if "event_date" in cohort_cols and source_col in cohort_cols:
+            leakage_condition = (
+                f"(event_date IS NULL OR \"{source_col}\" IS NULL OR "
+                f"CAST(event_date AS DATE) < CAST(\"{source_col}\" AS DATE))"
+            )
         final_query = f"""
             COPY (
                 SELECT
@@ -947,19 +967,17 @@ def filter_cohort_events_for_items(
 
     # 4. Construct case and control events and write to Parquet
     # Target leakage removal (Step 4): keep only events strictly before target date for cases.
-    # Events on or after target date are removed here (previously done in 1b; now linear: 3b → 4).
+    # Use source_col (cohort column name) for the filter since we read from cohort.
     leakage_condition = "TRUE"
-    if "event_date" in common_cols:
-        target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
-        if target_date_col in common_cols:
-            leakage_condition = (
-                f"(event_date IS NULL OR {target_date_col} IS NULL OR "
-                f"CAST(event_date AS DATE) < CAST({target_date_col} AS DATE))"
-            )
-            print(f"[INFO] Applying target leakage removal: keep only events before {target_date_col}")
+    if "event_date" in common_cols and source_col in common_cols:
+        leakage_condition = (
+            f"(event_date IS NULL OR \"{source_col}\" IS NULL OR "
+            f"CAST(event_date AS DATE) < CAST(\"{source_col}\" AS DATE))"
+        )
+        print(f"[INFO] Applying target leakage removal: keep only events before {source_col}")
     case_events_query = f"""
         SELECT
-            {common_cols_sql},
+            {case_cols_sql},
             1 AS target
         FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
         WHERE

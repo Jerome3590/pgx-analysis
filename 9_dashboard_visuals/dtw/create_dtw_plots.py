@@ -108,7 +108,7 @@ def _load_event_years_from_model_data(
     """
     Load event years for patients from model_data.
     
-    For target patients: uses target event date (first_ed_opioid_date, first_ed_non_opioid_date)
+    For target patients: uses target event date (first_f1120_date, first_o11_p_date)
     For control patients: uses last observed event date from model_events
     
     Returns dict mapping mi_person_key to event_year (2016, 2017, or 2018)
@@ -127,11 +127,11 @@ def _load_event_years_from_model_data(
     try:
         con = duckdb.connect(":memory:")
         
-        # Determine target event date column based on cohort
+        # Determine target event date column based on cohort (Step 4 canonical names)
         if cohort_name == "opioid_ed":
-            target_date_col = "first_ed_opioid_date"
+            target_date_col = "first_f1120_date"
         elif cohort_name == "non_opioid_ed":
-            target_date_col = "first_ed_non_opioid_date"
+            target_date_col = "first_o11_p_date"
         else:
             target_date_col = "target_event_date"  # fallback
         
