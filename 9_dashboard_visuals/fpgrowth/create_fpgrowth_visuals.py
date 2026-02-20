@@ -76,13 +76,12 @@ def ensure_itemsets(
     Returns True if itemsets exist (pre-existing or created); False if creation was attempted and failed (no outputs).
     """
     age_band_fname = age_band.replace("-", "_")
+    # Visualization artifacts: cohort then age_band only (no target/combined/train)
     itemsets_dir = (
         DASHBOARD_FPGROWTH_OUT
         / "outputs"
         / cohort_name
-        / "target"
         / age_band_fname
-        / "train"
     )
     itemsets_exist = itemsets_dir.exists() and any(
         itemsets_dir.glob("*_itemsets*.json")
@@ -181,6 +180,8 @@ def create_visualizations(
     with step_block("4_fpgrowth", "create_visualizations", logger=logger):
         logger.info("Creating FP-Growth visualizations for %s / %s", cohort_name, age_band)
         script_path = PROJECT_ROOT / "fpgrowth" / "create_plots.py"
+        age_band_fname = age_band.replace("-", "_")
+        # Visualization artifacts: cohort then age_band only
         plots_output_dir = (
             REPO_ROOT
             / "10_risk_dashboard"
@@ -188,7 +189,7 @@ def create_visualizations(
             / "fpgrowth"
             / "outputs"
             / cohort_name
-            / age_band
+            / age_band_fname
             / "plots"
         )
         plots_output_dir.mkdir(parents=True, exist_ok=True)
@@ -242,13 +243,12 @@ def create_fpgrowth_visuals(
     Idempotent: if force is False and itemsets already exist for this cohort/age_band, skips.
     """
     age_band_fname = age_band.replace("-", "_")
+    # Visualization artifacts: cohort then age_band only
     itemsets_dir = (
         DASHBOARD_FPGROWTH_OUT
         / "outputs"
         / cohort_name
-        / "target"
         / age_band_fname
-        / "train"
     )
     itemsets_exist = itemsets_dir.exists() and any(
         itemsets_dir.glob("*_itemsets*.json")

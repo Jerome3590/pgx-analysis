@@ -27,7 +27,7 @@ Dashboard visuals use **two different** feature-importance sources so the right 
 | **DTW** | **SHAP/FFA combined** | Same as BupaR: trajectories and plots are restricted to codes from the combined SHAP/FFA list. |
 | **FP-Growth** | **Final feature importances** | Allowed items come from **cohort feature importance** (Step 3b: `cohort_feature_importance` CSV). FP-Growth does not use SHAP/FFA combined. |
 
-So: **BupaR and DTW** always use the **SHAP/FFA combined** output; **FP-Growth** uses the **final (cohort) feature importance** list. Implemented in `py_helpers/shap_ffa_fpgrowth_utils.py` (`get_shap_ffa_allowed_codes_combined` for BupaR/DTW, `get_final_feature_importance_codes` for FP-Growth).
+Allowed codes for **BupaR, DTW, and FP-Growth** are mandatory from a single source only: **Step 3b cohort_feature_importance** (final feature importances). No fallbacks. Implemented in `py_helpers/shap_ffa_fpgrowth_utils.py` (`get_shap_ffa_allowed_codes_combined`, `write_shap_ffa_allowed_codes_for_bupar`).
 
 ## S3 checkpoint
 

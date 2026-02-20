@@ -70,8 +70,8 @@ TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in 
 # Processing parameters
 MAX_WORKERS = 1  # Sequential processing to prevent memory issues
 
-# Training window for FP-Growth-based feature engineering
-TRAIN_YEARS = [2016, 2017, 2018]  # Aggregate training cohort (2016–2018)
+# Training window for FP-Growth: consolidate all years in model data to maximize transactions and produce rules
+TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidating produces more itemsets/rules)
 
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
@@ -480,7 +480,7 @@ def process_single_cohort(
         else:
             logger.info(f"Resolved model_events for {cohort_name}/{age_band}: none (tried 3b, /mnt/nvme/4_model_data, $PGX_DATA_ROOT, 4_model_data, 4a_model_data; both age_band formats)")
 
-        # Special handling for aggregated training window ("train" = 2016–2018)
+        # Special handling for aggregated training window ("train" = all years, 2016–2019)
         event_label = str(event_year)
         if event_label == "train":
             # Training FP-Growth requires model_data (filtered important items + 5:1 control).
@@ -493,7 +493,7 @@ def process_single_cohort(
                     if len(model_data_paths) == 2:
                         logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (85-114 = 85-94 + 95-114): {model_data_paths[0]} + {model_data_paths[1]}")
                     else:
-                        logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2018): {parquet_file}")
+                        logger.info(f"Using {file_type} model_data for TRAIN FP-Growth (2016–2019): {parquet_file}")
                 else:
                     try:
                         from py_helpers.model_data_paths import get_model_events_paths_checked, get_path_check_listings
@@ -981,39 +981,39 @@ def process_single_cohort(
         )
 
         # ------------------------------------------------------------------
-        # Save local copies for COMBINED view
-        # Directory layout: outputs/{cohort_name}/combined/{age_band_fname}/{event_year}/
+        # Save local copies: visualization artifacts under cohort/age_band only
+        # Directory layout: outputs/{cohort_name}/{age_band_fname}/
         # ------------------------------------------------------------------
         try:
             age_band_fname = age_band.replace("-", "_")
-            combined_dir = LOCAL_OUTPUT_ROOT / cohort_name / "combined" / age_band_fname / str(event_year)
-            combined_dir.mkdir(parents=True, exist_ok=True)
+            artifact_dir = LOCAL_OUTPUT_ROOT / cohort_name / age_band_fname
+            artifact_dir.mkdir(parents=True, exist_ok=True)
 
             # encoding_map
-            (combined_dir / f"{item_type}_encoding_map.json").write_text(
+            (artifact_dir / f"{item_type}_encoding_map.json").write_text(
                 json.dumps(encoding_map, indent=2)
             )
 
             # itemsets
             itemsets_json.to_json(
-                combined_dir / f"{item_type}_itemsets.json",
+                artifact_dir / f"{item_type}_itemsets.json",
                 orient="records",
                 indent=2,
             )
 
             # rules
             rules_json.to_json(
-                combined_dir / f"{item_type}_rules.json",
+                artifact_dir / f"{item_type}_rules.json",
                 orient="records",
                 indent=2,
             )
 
             # metrics
-            (combined_dir / f"{item_type}_metrics.json").write_text(
+            (artifact_dir / f"{item_type}_metrics.json").write_text(
                 json.dumps(metrics, indent=2)
             )
 
-            logger.info(f"Saved local FP-Growth (combined) outputs under {combined_dir}")
+            logger.info(f"Saved local FP-Growth (combined) outputs under {artifact_dir}")
         except Exception as e:
             logger.warning(f"Failed to write local FP-Growth combined outputs: {e}")
 
@@ -1083,22 +1083,19 @@ def process_single_cohort(
                             Body=rules_t_json.to_json(orient='records', indent=2),
                         )
 
-                        # Local: outputs/{cohort_name}/target/{age_band_fname}/{event_year}/
-                        target_dir = LOCAL_OUTPUT_ROOT / cohort_name / "target" / age_band_fname / str(event_year)
-                        target_dir.mkdir(parents=True, exist_ok=True)
-
+                        # Local: same cohort/age_band dir (visualization artifacts = cohort then age_band only)
                         itemsets_t_json.to_json(
-                            target_dir / f"{item_type}_itemsets_target_only.json",
+                            artifact_dir / f"{item_type}_itemsets_target_only.json",
                             orient="records",
                             indent=2,
                         )
                         rules_t_json.to_json(
-                            target_dir / f"{item_type}_rules_target_only.json",
+                            artifact_dir / f"{item_type}_rules_target_only.json",
                             orient="records",
                             indent=2,
                         )
 
-                        logger.info(f"Saved target-only FP-Growth outputs under {target_dir}")
+                        logger.info(f"Saved target-only FP-Growth outputs under {artifact_dir}")
         except Exception as e:
             logger.warning(f"Target-only FP-Growth encountered an error: {e}")
 
@@ -1164,7 +1161,7 @@ def main():
                 # Per-year jobs (2016–2020, etc.)
                 for event_year in EVENT_YEARS:
                     cohort_jobs.append((item_type, cohort_name, age_band, event_year))
-                # Aggregated TRAIN window (2016–2018), label as 'train' for feature engineering
+                # Aggregated TRAIN window (2016–2019), label as 'train' for dashboard visuals
                 cohort_jobs.append((item_type, cohort_name, age_band, "train"))
     
     # Apply DRY_RUN limit if enabled

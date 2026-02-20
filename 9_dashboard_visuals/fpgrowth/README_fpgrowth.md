@@ -8,33 +8,28 @@
 
 ### Expected Outputs Structure
 
-For each `(cohort, age_band, split_type)` combination, the following files should be generated.
+For each `(cohort, age_band)` combination, visualization artifacts use **cohort then age_band only**: `outputs/{cohort}/{age_band_fname}/`.
 
-#### Data Files (`outputs/{cohort}/{split_type}/{age_band}/{year}/`)
+#### Data Files (`outputs/{cohort}/{age_band_fname}/`)
 
 | File Pattern | Description | Required |
 |--------------|-------------|----------|
-| `{item_type}_itemsets.json` | Frequent itemsets for each item type | Yes |
-| `{item_type}_rules.json` | Association rules for each item type | Yes |
-| `{item_type}_metrics.json` | Itemset metrics (support, confidence, lift) | Yes |
-| `{item_type}_encoding_map.json` | Feature encoding map for itemsets | Yes |
+| `{item_type}_itemsets.json` | Frequent itemsets (combined) | Yes |
+| `{item_type}_rules.json` | Association rules (combined) | Yes |
+| `{item_type}_itemsets_target_only.json` | Target-only itemsets | Yes |
+| `{item_type}_rules_target_only.json` | Target-only rules | Yes |
+| `{item_type}_metrics.json`, `{item_type}_encoding_map.json` | Metrics and encoding | Yes |
 
-**Item Types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`  
-**Split Types**: `combined`, `target`
+**Item Types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`
 
 **Example Files**:
-- `outputs/opioid_ed/combined/0_12/train/drug_name_itemsets.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_rules.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_metrics.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_encoding_map.json`
-- `outputs/opioid_ed/target/0_12/train/drug_name_itemsets_target_only.json`
-- `outputs/opioid_ed/target/0_12/train/drug_name_rules_target_only.json`
+- `outputs/opioid_ed/0_12/drug_name_itemsets.json`
+- `outputs/opioid_ed/0_12/drug_name_itemsets_target_only.json`
+- `outputs/opioid_ed/0_12/drug_name_rules_target_only.json`
 
-#### Visualization Files (`outputs/{cohort}/{age_band}/plots/`)
+#### Visualization Files (`outputs/{cohort}/{age_band_fname}/plots/`)
 
-Directory organization uses `cohort` and `age_band` for structure (consistent with feature importance analysis).
-
-- `outputs/{cohort}/{age_band}/plots/` – all visualization files for a cohort/age-band combination
+- `outputs/{cohort}/{age_band_fname}/plots/` – all visualization files for a cohort/age-band combination
 - `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/` – uploaded plots
 
 | File Pattern | Description | Required |
@@ -56,14 +51,14 @@ HTML network plots use Cytoscape.js and include:
 - Filter controls (node centrality, support, edge confidence, max nodes)
 - Interactive zoom/pan, tooltips, PNG export
 
-**Outputs:** Itemsets/rules JSON and plots only under `outputs/{cohort}/combined/`, `outputs/{cohort}/target/`, and `outputs/{cohort}/{age_band}/plots/`. We do **not** use or create `outputs/feature_engineering/`; FP-Growth features are not added to model data.
+**Outputs:** Itemsets/rules JSON and plots under `outputs/{cohort}/{age_band_fname}/` and `.../plots/`. Visualization artifacts use cohort then age_band only. We do **not** use or create `outputs/feature_engineering/`; FP-Growth features are not added to model data.
 
 ---
 
 ## Workflow Overview
 
 1. **Itemsets and Rules**  
-   `9_dashboard_visuals/fpgrowth/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4_model_data` / `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps for all item types (`drug_name`, `icd_code`, `cpt_code`, `medical_code`), split by `combined` and `target`. Outputs go to `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/combined|target/{age_band_fname}/train/`.
+   `9_dashboard_visuals/fpgrowth/cohort_fpgrowth.py` and `global_fpgrowth.py` run FP-Growth over model events (from `4_model_data` / `4a_model_data`) and generate itemsets, rules, metrics, and encoding maps for all item types. Outputs go to `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/` (visualization artifacts = cohort then age_band only).
    
    **Note**: FP-Growth scripts automatically prefer DTW-filtered data (`model_events_no_protocols.parquet`) if available. This ensures itemsets and association rules only capture useful signals (non-protocol events), improving the quality of discovered patterns. See `4b_dtw_filter/DTW_ROLE.md` for details on DTW protocol filtering.
 

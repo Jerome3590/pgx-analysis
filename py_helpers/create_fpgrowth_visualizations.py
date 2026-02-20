@@ -66,13 +66,14 @@ def _load_rules_all_types(
     event_year: str,
 ) -> List[tuple]:
     """
-    Load rules for drug_name, icd_code, cpt_code from the same cohort/age_band/year.
-    Returns list of (item_type, df_rules). Tries both rules_target_only.json and rules_lift_filtered.json.
+    Load rules for drug_name, icd_code, cpt_code from cohort/age_band (visualization artifacts = cohort then age_band only).
+    Returns list of (item_type, df_rules). Tries rules_target_only.json and rules_lift_filtered.json.
+    split_type and event_year are ignored; paths are base_path/cohort_name/age_band_fname/.
     """
     age_band_fname = age_band.replace("-", "_")
+    dir_path = base_path / cohort_name / age_band_fname
     out: List[tuple] = []
     for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
-        dir_path = base_path / cohort_name / split_type / age_band_fname / str(event_year)
         for fname in (f"{item_type}_rules_target_only.json", f"{item_type}_rules_lift_filtered.json"):
             path = dir_path / fname
             df = _load_json_df(path)
@@ -1068,13 +1069,14 @@ def create_all_fpgrowth_plots(
         results["combined"] = {"target_rules_network_combined": combined_net}
         logger.info("Created combined rules network (filter by type) for %s / %s", cohort_name, age_band)
 
-    # Per-type itemsets (top-N bar chart) — optional
+    # Per-type itemsets (top-N bar chart): load from cohort/age_band (target-only or combined)
     for item_type in item_types:
-        combined_dir = (
-            base_path / cohort_name / "combined" / age_band_fname / str(event_year)
-        )
-        combined_itemsets_path = combined_dir / f"{item_type}_itemsets.json"
-        df_itemsets = _load_json_df(combined_itemsets_path)
+        artifact_dir = base_path / cohort_name / age_band_fname
+        itemsets_path = artifact_dir / f"{item_type}_itemsets_target_only.json"
+        df_itemsets = _load_json_df(itemsets_path)
+        if df_itemsets.empty:
+            itemsets_path = artifact_dir / f"{item_type}_itemsets.json"
+            df_itemsets = _load_json_df(itemsets_path)
         top_plot = _top_itemset_plot(
             df_itemsets=df_itemsets,
             cohort_name=cohort_name,
