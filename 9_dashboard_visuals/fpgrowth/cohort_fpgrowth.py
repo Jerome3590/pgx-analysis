@@ -47,13 +47,13 @@ sys.path.insert(0, str(REPO_ROOT))
 # CONFIGURATION
 # =============================================================================
 
-# FP-Growth parameters (lower thresholds since data is pre-filtered by SHAP/FFA importance)
-MIN_SUPPORT = 0.03       # 3% support (items must appear in 3% of patients within cohort)
-MIN_CONFIDENCE = 0.4     # 40% confidence - meaningful associations (lowered since working with important features)
+# FP-Growth parameters (very permissive since data is pre-filtered by SHAP/FFA to important features only)
+MIN_SUPPORT = 0.01       # 1% support (find rare but meaningful patterns in pre-filtered important features)
+MIN_CONFIDENCE = 0.2     # 20% confidence (permissive - we capture weak associations between important features)
 
-# CPT-specific parameters (prevent memory exhaustion from millions of rules)
-MIN_SUPPORT_CPT = 0.10   # 10% support for CPT codes (lowered from 15%)
-MIN_CONFIDENCE_CPT = 0.5 # 50% confidence for CPT (lowered from 60%)
+# CPT-specific parameters (also permissive since working with curated important features)
+MIN_SUPPORT_CPT = 0.05   # 5% support for CPT codes (permissive)
+MIN_CONFIDENCE_CPT = 0.3 # 30% confidence for CPT (permissive)
 
 # Rule limits (focus on most important rules)
 MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
@@ -78,8 +78,8 @@ TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidati
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
 
-# Itemset filtering (lower threshold since data pre-filtered by SHAP/FFA to important features only)
-MIN_ITEMSET_LIFT = 1.02  # Filter itemsets with lift < 1.02 (2% above independence - permissive since working with curated features)
+# Itemset filtering (minimal threshold - data already filtered to important features via SHAP/FFA)
+MIN_ITEMSET_LIFT = 1.0  # No lift filtering (lift=1.0 means independence; we accept all patterns since features are pre-curated)
 
 # DRY RUN MODE (only applies when running cohort_fpgrowth.py directly as batch; dashboard uses run_single_cohort_fpgrowth per combo)
 DRY_RUN = False  # Set to True to limit to DRY_RUN_LIMIT when testing batch runs
