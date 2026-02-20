@@ -58,7 +58,7 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    - `--cohort X --age-band Y` – restrict to specific combination(s)
    - `--force` – re-run even if outputs exist
    - `--workers N` – parallel workers (default 4)
-   DTW runs in two steps: **create_dtw_trajectories.py** (features CSV including N3 time-between metrics), then **create_dtw_visuals.py** (plots and chart_data.json).
+   DTW runs in three steps: **create_dtw_trajectories.py** (trajectory CSV with N3 time-between metrics), **create_dtw_features.py** (DTW alignment: distances to prototype trajectories + common_sequences.json), then **create_dtw_visuals.py** (plots and chart_data.json). Requires `dtaidistance` for alignment.
 
 3. **Quick DTW test (one age band, both cohorts):**
    ```bash
@@ -68,7 +68,7 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
 
 This mirrors [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb) so you can run from VS Code or the terminal.
 
-**See also:** [archived/dtw_restoration_plan.md](../archived/dtw_restoration_plan.md) for DTW restoration/optimization (reference only; current pipeline uses create_dtw_trajectories + create_dtw_visuals); [bupar/README_bupaR.md](bupar/README_bupaR.md) for BupaR scripts and outputs.
+**See also:** [archived/dtw_restoration_plan.md](../archived/dtw_restoration_plan.md) for DTW restoration/optimization (reference only); [bupar/README_bupaR.md](bupar/README_bupaR.md) for BupaR scripts and outputs.
 
 ## Pipeline order
 

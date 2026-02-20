@@ -20,6 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STEP9 = REPO_ROOT / "9_dashboard_visuals"
 DTW_TRAJECTORIES = STEP9 / "dtw" / "create_dtw_trajectories.py"
+DTW_FEATURES = STEP9 / "dtw" / "create_dtw_features.py"
 DTW_VISUALS = STEP9 / "dtw" / "create_dtw_visuals.py"
 BUPAR_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
 COHORTS = ["opioid_ed", "non_opioid_ed"]
@@ -31,6 +32,8 @@ def check_prereqs(age_band: str) -> tuple[bool, str | None]:
     missing = []
     if not DTW_TRAJECTORIES.exists():
         missing.append(str(DTW_TRAJECTORIES))
+    if not DTW_FEATURES.exists():
+        missing.append(str(DTW_FEATURES))
     if not DTW_VISUALS.exists():
         missing.append(str(DTW_VISUALS))
     for c in COHORTS:
@@ -79,13 +82,23 @@ def main() -> int:
             failed.append(f"{cohort} trajectories")
             continue
         print(f"  [OK] {cohort} trajectories")
-        # 2) Visuals
+        # 2) Alignment (DTW distances + common sequences)
         r2 = subprocess.run(
-            [sys.executable, str(DTW_VISUALS), "--cohort-name", cohort, "--age-band", age_band, "--project-root", str(REPO_ROOT)] + force_flag,
+            [sys.executable, str(DTW_FEATURES), "--cohort", cohort, "--age-band", age_band] + force_flag,
             cwd=str(REPO_ROOT),
             capture_output=False,
         )
         if r2.returncode != 0:
+            failed.append(f"{cohort} alignment")
+            continue
+        print(f"  [OK] {cohort} alignment")
+        # 3) Visuals
+        r3 = subprocess.run(
+            [sys.executable, str(DTW_VISUALS), "--cohort-name", cohort, "--age-band", age_band, "--project-root", str(REPO_ROOT)] + force_flag,
+            cwd=str(REPO_ROOT),
+            capture_output=False,
+        )
+        if r3.returncode != 0:
             failed.append(f"{cohort} visuals")
         else:
             print(f"  [OK] {cohort} visuals")

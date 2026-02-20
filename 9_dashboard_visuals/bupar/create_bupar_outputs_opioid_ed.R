@@ -666,6 +666,33 @@ if (!is.null(p_te_pre)) {
   cat("Saved trace_explorer_pre_f1120.png (activity frequency aggregated)\n")
 }
 
+# Export pre-target activity frequency as JSON (dashboard bar chart; no HTML)
+tryCatch({
+  pre_freq_by_year <- pre_target_eventlog %>%
+    as.data.frame() %>%
+    mutate(year = lubridate::year(timestamp),
+           activity_type = case_when(
+             grepl("^DRUG:", activity) ~ "Drug",
+             grepl("^ICD:", activity) ~ "Diagnosis",
+             grepl("^CPT:", activity) ~ "Procedure",
+             TRUE ~ "Other"
+           )) %>%
+    group_by(year, activity, activity_type) %>%
+    summarise(count = n(), .groups = "drop") %>%
+    mutate(activity_short = vapply(activity, first_three_activity, character(1)))
+  pre_freq_all <- pre_freq_by_year %>%
+    group_by(activity, activity_type, activity_short) %>%
+    summarise(count = sum(count), .groups = "drop") %>%
+    mutate(year = 0)
+  pre_freq_combined <- bind_rows(pre_freq_all, pre_freq_by_year) %>%
+    select(activity, activity_short, activity_type, count, year) %>%
+    arrange(year, desc(count))
+  year_labels_list <- list("0" = "All Years (2016-2018)", "2016" = "2016", "2017" = "2017", "2018" = "2018")
+  pre_json_path <- file.path(plots_dir, sprintf("%s_%s_pre_target_activity_frequency.json", cohort_name, age_band_fname))
+  jsonlite::write_json(list(year_labels = year_labels_list, data = pre_freq_combined), pre_json_path, dataframe = "rows", pretty = TRUE)
+  cat("Saved pre_target_activity_frequency.json\n")
+}, error = function(e) cat(" [skip] pre_target_activity_frequency.json:", conditionMessage(e), "\n"))
+
 # Trace explorer interactive (pre-F1120 only)
 tryCatch({
   trace_data_by_year <- pre_target_eventlog %>%
@@ -971,6 +998,32 @@ if (nrow(as.data.frame(post_target_eventlog)) > 0L) {
   ggsave(file.path(plots_dir, sprintf("%s_%s_post_f1120_activity_frequency.png", cohort_name, age_band_fname)),
          plot = p2, width = 10, height = 8, dpi = 300)
   cat("Saved post_f1120_activity_frequency.png\n")
+  # Export post-target activity frequency as JSON (dashboard bar chart)
+  tryCatch({
+    post_freq_by_year <- post_target_eventlog %>%
+      as.data.frame() %>%
+      mutate(year = lubridate::year(timestamp),
+             activity_type = case_when(
+               grepl("^DRUG:", activity) ~ "Drug",
+               grepl("^ICD:", activity) ~ "Diagnosis",
+               grepl("^CPT:", activity) ~ "Procedure",
+               TRUE ~ "Other"
+             )) %>%
+      group_by(year, activity, activity_type) %>%
+      summarise(count = n(), .groups = "drop") %>%
+      mutate(activity_short = vapply(activity, first_three_activity, character(1)))
+    post_freq_all <- post_freq_by_year %>%
+      group_by(activity, activity_type, activity_short) %>%
+      summarise(count = sum(count), .groups = "drop") %>%
+      mutate(year = 0)
+    post_freq_combined <- bind_rows(post_freq_all, post_freq_by_year) %>%
+      select(activity, activity_short, activity_type, count, year) %>%
+      arrange(year, desc(count))
+    year_labels_list <- list("0" = "All Years (2016-2018)", "2016" = "2016", "2017" = "2017", "2018" = "2018")
+    post_json_path <- file.path(plots_dir, sprintf("%s_%s_post_target_activity_frequency.json", cohort_name, age_band_fname))
+    jsonlite::write_json(list(year_labels = year_labels_list, data = post_freq_combined), post_json_path, dataframe = "rows", pretty = TRUE)
+    cat("Saved post_target_activity_frequency.json\n")
+  }, error = function(e) cat(" [skip] post_target_activity_frequency.json:", conditionMessage(e), "\n"))
 } else {
   cat("\n--- Post-F1120: no events; skipping post-F1120 plots ---\n")
 }
@@ -1277,7 +1330,18 @@ tryCatch({
   # Diagnostic logging for troubleshooting empty HTML
   cat("BupaR diagnostic [activity_frequency]: nrow(activity_freq_by_year)=", nrow(activity_freq_by_year),
       " nrow(activity_freq_combined)=", nrow(activity_freq_combined), " nrow(target_activity_freq)=", nrow(target_activity_freq), "\n", sep = "")
-  
+
+  # Export overall activity frequency as JSON (dashboard bar chart; no HTML needed)
+  af_json_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency.json", cohort_name, age_band_fname))
+  export_df <- activity_freq_combined %>%
+    select(activity, activity_short, activity_type, count, year) %>%
+    arrange(year, desc(count))
+  year_labels_list <- list("0" = "All Years (2016-2018)", "2016" = "2016", "2017" = "2017", "2018" = "2018")
+  tryCatch({
+    jsonlite::write_json(list(year_labels = year_labels_list, data = export_df), af_json_path, dataframe = "rows", pretty = TRUE)
+    cat("Saved activity_frequency.json\n")
+  }, error = function(e) cat(" [skip] activity_frequency.json:", conditionMessage(e), "\n"))
+
   # Create color mapping
   colors <- c("Drug" = "#3b82f6", "Diagnosis" = "#ef4444", "Procedure" = "#10b981", "Other" = "#64748b")
   

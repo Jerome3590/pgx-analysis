@@ -25,7 +25,8 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -159,6 +160,11 @@ def create_dtw_visuals(
     chart_data = _build_dtw_chart_data(dtw_df)
     if chart_data:
         _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data)
+
+    # Sequence heatmap (code × position counts by ICD/CPT/Drug) for dashboard heatmap with dynamic code-type filter
+    heatmap_data = _build_sequence_heatmap_data(dtw_df)
+    if heatmap_data:
+        _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data)
 
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
     s3_output_paths = [
@@ -418,6 +424,54 @@ def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any
     }
 
 
+def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """
+    Build heatmap data by code type: for each type (ICD, CPT, Drug), matrix of
+    (code × position) counts. Darker = more trajectories have that code at that position.
+    Returns dict with keys 'icd', 'cpt', 'drug'; each value has codes, positions, counts (2D).
+    """
+    if dtw_df.empty or "seq_pattern_str" not in dtw_df.columns:
+        return None
+    skip = {"nan", "none", "null", ""}
+    # (code_type -> (code -> (position -> count)))
+    by_type: Dict[str, Dict[str, Dict[int, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    max_pos = 0
+    for seq in dtw_df["seq_pattern_str"]:
+        if pd.isna(seq) or not isinstance(seq, str):
+            continue
+        tokens = [t.strip() for t in seq.split("_") if t.strip() and t.strip().lower() not in skip]
+        for pos, token in enumerate(tokens):
+            if ":" in token:
+                prefix, code = token.split(":", 1)
+                prefix = prefix.strip().upper()
+                code_val = code.strip() if code else token
+                if not code_val:
+                    continue
+                if prefix == "ICD":
+                    by_type["icd"][code_val][pos] += 1
+                elif prefix == "CPT":
+                    by_type["cpt"][code_val][pos] += 1
+                elif prefix == "DRUG":
+                    by_type["drug"][code_val][pos] += 1
+            max_pos = max(max_pos, pos)
+        max_pos = max(max_pos, len(tokens) - 1) if tokens else max_pos
+    n_cols = max_pos + 1  # 0-indexed to column count
+    out = {}
+    for code_type in ("icd", "cpt", "drug"):
+        code_to_pos_counts = by_type.get(code_type)
+        if not code_to_pos_counts:
+            out[code_type] = {"codes": [], "positions": list(range(n_cols)), "counts": []}
+            continue
+        codes = sorted(code_to_pos_counts.keys())
+        positions = list(range(n_cols))
+        counts = []
+        for code in codes:
+            row = [code_to_pos_counts[code].get(p, 0) for p in positions]
+            counts.append(row)
+        out[code_type] = {"codes": codes, "positions": positions, "counts": counts}
+    return out
+
+
 def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """Build routine_comparison, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard."""
     if dtw_df.empty:
@@ -464,6 +518,32 @@ def _upload_dtw_chart_data_to_dashboard_s3(
         s3_path = f"s3://{s3_bucket}/{key}"
         if upload_file_to_s3(path, s3_path, logger=None, check_exists=False):
             print(f"[INFO] Uploaded DTW chart_data.json to dashboard S3 {s3_path}")
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def _upload_sequence_heatmap_to_s3(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+    heatmap_data: Dict[str, Any],
+) -> None:
+    """Upload sequence_heatmap.json (icd/cpt/drug by position) for dashboard heatmap."""
+    s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+    base_key = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}"
+    key = f"{base_key}/sequence_heatmap.json"
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        return
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump(heatmap_data, f, indent=0)
+        path = Path(f.name)
+    try:
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(path, s3_path, logger=None, check_exists=False):
+            print(f"[INFO] Uploaded DTW sequence_heatmap.json to dashboard S3 {s3_path}")
     finally:
         path.unlink(missing_ok=True)
 
