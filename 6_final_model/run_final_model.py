@@ -152,9 +152,13 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
             print(f"  ... and {len(interval_features) - 5} more")
 
     # 3. Target time, first time, and cohort target-date columns (not features; must not be used for training)
-    # first_opioid_ed_date / first_ed_non_opioid_date are in model_events for BupaR/leakage removal only.
+    # Step 4 writes first_f1120_date / first_o11_p_date; exclude legacy names if present.
     datetime_features = [
-        c for c in ("target_time", "first_time", "first_opioid_ed_date", "first_ed_non_opioid_date")
+        c for c in (
+            "target_time", "first_time",
+            "first_f1120_date", "first_o11_p_date",
+            "first_opioid_ed_date", "first_ed_non_opioid_date",  # legacy
+        )
         if c in cols
     ]
     leakage.update(datetime_features)
@@ -242,17 +246,16 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
 
         if model_data_path.exists():
             try:
-                # Determine target date field (must exist in model_events.parquet)
+                # Determine target date field (must exist in model_events.parquet; Step 4 uses canonical names)
                 if "opioid" in cohort.lower():
-                    target_date_field = "first_opioid_ed_date"
+                    target_date_field = "first_f1120_date"
                 else:
-                    target_date_field = "first_ed_non_opioid_date"
+                    target_date_field = "first_o11_p_date"
 
                 con = duckdb.connect()
                 model_data_path_str = str(model_data_path).replace("\\", "/")
 
-                # model_events.parquet only has columns common to cohort + gold medical/pharmacy;
-                # target date (first_opioid_ed_date / first_ed_non_opioid_date) is cohort-only, so missing here.
+                # model_events.parquet has target date from Step 4: first_f1120_date / first_o11_p_date.
                 # Step 2 already constrains target events to a 21-day window; temporal filtering is done there.
                 parquet_cols = [
                     row[0]

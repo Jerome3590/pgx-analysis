@@ -71,7 +71,7 @@ log_msg("=", level = "INFO")
 # POLYPHARMACY COHORT: Target definition (consistent with 2_create_cohort and 4_model_data)
 # - Target: First ED visit (identified by HCG Setting: P51/O11/P33) within 21 days of a prescription drug event
 # - NOT F1120; applies to cohorts 5, 6, 7 with age band >= 65
-# - Target events identified by hcg_line or first_ed_non_opioid_date in model_events
+# - Target events identified by hcg_line or first_o11_p_date (or legacy first_ed_non_opioid_date) in model_events
 
 # Path cohort for model_events: this script is for non_opioid_ed only. Python writes to
 # 3b.../outputs/cohort_name=non_opioid_ed/age_band=... and syncs to gold/cohorts_model_data/cohort_name=non_opioid_ed/...
@@ -206,11 +206,13 @@ if (n_threads != "" && !is.na(suppressWarnings(as.integer(n_threads)))) {
   }, error = function(e) {})
 }
 
-# Check if hcg_line or first_ed_non_opioid_date column exists in the parquet file
+# Check if hcg_line or target date column (first_o11_p_date or legacy first_ed_non_opioid_date) exists
 schema_query <- sprintf("DESCRIBE SELECT * FROM read_parquet('%s')", model_data_path)
 schema_info <- dbGetQuery(con, schema_query)
 has_hcg_line <- "hcg_line" %in% schema_info$column_name
+has_first_o11_p <- "first_o11_p_date" %in% schema_info$column_name
 has_first_ed_date <- "first_ed_non_opioid_date" %in% schema_info$column_name
+has_target_date_col <- has_first_o11_p || has_first_ed_date
 
 log_msg(sprintf("Loading target cohort from: %s (target=1, years: %s)", model_data_path, paste(train_years, collapse = ",")))
 
@@ -222,6 +224,7 @@ base_columns <- c(
   "nine_icd_diagnosis_code", "ten_icd_diagnosis_code", "procedure_code"
 )
 if (has_hcg_line) base_columns <- c(base_columns, "hcg_line")
+if (has_first_o11_p) base_columns <- c(base_columns, "first_o11_p_date")
 if (has_first_ed_date) base_columns <- c(base_columns, "first_ed_non_opioid_date")
 query_target_wide <- sprintf(
   "SELECT %s FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1",
@@ -296,7 +299,12 @@ pgx_df_target1_long <- dbGetQuery(con, query_long) %>%
   mutate(timestamp = as.POSIXct(event_date))
 
 # First target date (HCG/first ED) per patient in DuckDB for pre/post split
-if (has_first_ed_date) {
+if (has_first_o11_p) {
+  query_first_target <- sprintf(
+    "SELECT mi_person_key, min(first_o11_p_date) AS first_target_date FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1 AND first_o11_p_date IS NOT NULL GROUP BY 1",
+    model_data_path, paste(train_years, collapse = ",")
+  )
+} else if (has_first_ed_date) {
   query_first_target <- sprintf(
     "SELECT mi_person_key, min(first_ed_non_opioid_date) AS first_target_date FROM read_parquet('%s') WHERE event_year IN (%s) AND target = 1 AND first_ed_non_opioid_date IS NOT NULL GROUP BY 1",
     model_data_path, paste(train_years, collapse = ",")
