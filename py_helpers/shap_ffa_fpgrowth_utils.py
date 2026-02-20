@@ -1,8 +1,9 @@
 """
 Feature importance utilities for dashboard visuals.
 
-- BupaR and DTW: use SHAP/FFA combined (get_shap_ffa_allowed_codes_combined, write_shap_ffa_allowed_codes_for_bupar).
-- FP-Growth: use final feature importances (get_final_feature_importance_codes) from cohort_feature_importance.
+Allowed codes for BupaR, DTW, and FP-Growth are mandatory from a single source only:
+Step 3b cohort_feature_importance (final feature importances). No fallbacks.
+See get_shap_ffa_allowed_codes_combined and write_shap_ffa_allowed_codes_for_bupar.
 """
 
 import json
@@ -206,35 +207,16 @@ def get_shap_ffa_important_codes(
     use_ffa: bool = True,
 ) -> Set[str]:
     """
-    Return the set of item codes (drug/ICD/CPT) to use for BupaR/DTW, from final combined or SHAP+FFA.
+    Return the set of item codes (drug/ICD/CPT) for BupaR/DTW/FP-Growth allowed codes.
 
-    Prefers the final combined importance (Combine step: 10_risk_dashboard/outputs/.../combined_importance.csv).
-    If missing, merges SHAP and FFA importance from gold/shap_analysis and gold/ffa_analysis.
-
-    item_type: 'drug_name', 'icd_code', 'cpt_code', or 'medical_code'.
-    For medical_code, returns union of drug, icd, and cpt codes.
-    top_n: max features to consider (by importance).
+    Mandatory source only: Step 3b cohort_feature_importance (final feature importances).
+    No fallbacks. If cohort_feature_importance is missing or empty, returns empty set.
     """
-    combined = []
-    # Prefer final combined (Combine step output) when present
-    dashboard_df = _load_combined_importance_from_dashboard(
-        cohort, age_band, project_root
-    )
-    if not dashboard_df.empty:
-        combined.append(dashboard_df)
-    if not combined:
-        if use_shap:
-            shap_df = _load_shap_importance(cohort, age_band, project_root, data_root)
-            if not shap_df.empty:
-                combined.append(shap_df)
-        if use_ffa:
-            ffa_df = _load_ffa_importance(cohort, age_band, project_root, data_root)
-            if not ffa_df.empty:
-                combined.append(ffa_df)
-    if not combined:
+    merged = _load_final_feature_importance(cohort, age_band, project_root, data_root)
+    if merged.empty:
         return set()
-    merged = pd.concat(combined, ignore_index=True)
-    # Dedupe by feature, keep max importance
+    if "importance" not in merged.columns:
+        merged["importance"] = 1.0
     merged = merged.groupby("feature", as_index=False)["importance"].max()
     merged = merged.sort_values("importance", ascending=False).head(top_n)
     # Map to code_type and code
@@ -264,7 +246,8 @@ def get_shap_ffa_allowed_codes_combined(
     use_ffa: bool = True,
 ) -> Set[str]:
     """
-    Return the union of all SHAP/FFA important codes (drug + ICD + CPT) for BupaR/DTW.
+    Return the union of allowed codes (drug + ICD + CPT) for BupaR/DTW/FP-Growth.
+    Mandatory source only: Step 3b cohort_feature_importance. No fallbacks.
     """
     drug = get_shap_ffa_important_codes(
         cohort, age_band, "drug_name", top_n, project_root, data_root, use_shap, use_ffa
@@ -289,8 +272,8 @@ def write_shap_ffa_allowed_codes_for_bupar(
     use_ffa: bool = True,
 ) -> bool:
     """
-    Write a JSON array of allowed codes (for BupaR) from SHAP/FFA combined.
-    Returns True if the file was written (at least one code), False otherwise.
+    Write a JSON array of allowed codes for BupaR/DTW/FP-Growth from Step 3b cohort_feature_importance only.
+    Returns True if the file was written (at least one code), False if cohort_feature_importance missing or empty.
     """
     codes = get_shap_ffa_allowed_codes_combined(
         cohort, age_band, top_n, project_root, data_root, use_shap, use_ffa

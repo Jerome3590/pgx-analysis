@@ -23,15 +23,14 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 
 **Item Types:** `drug_name`, `icd_code`, `cpt_code`, `medical_code`
 
-**Split Types:** `combined`, `target`
+**Folder structure:** Visualization artifacts use cohort then age_band only: `outputs/{cohort}/{age_band_fname}/` (no combined/target/train subdirs).
 
 **Example Files:**
-- `outputs/opioid_ed/combined/0_12/train/drug_name_itemsets.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_rules.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_metrics.json`
-- `outputs/opioid_ed/combined/0_12/train/drug_name_encoding_map.json`
-- `outputs/opioid_ed/target/0_12/train/drug_name_itemsets_target_only.json`
-- `outputs/opioid_ed/target/0_12/train/drug_name_rules_target_only.json`
+- `outputs/opioid_ed/0_12/drug_name_itemsets.json`
+- `outputs/opioid_ed/0_12/drug_name_rules.json`
+- `outputs/opioid_ed/0_12/drug_name_itemsets_target_only.json`
+- `outputs/opioid_ed/0_12/drug_name_rules_target_only.json`
+- `outputs/opioid_ed/0_12/plots/` (PNG/HTML)
 
 #### Visualization Files (`outputs/{cohort}/{age_band}/plots/`)
 
@@ -82,7 +81,7 @@ For each cohort/age-band combination:
 
 **Data Files:**
 - [x] All item type files exist (`drug_name`, `icd_code`, `cpt_code`, `medical_code`)
-- [x] Both split types processed (`combined`, `target`)
+- [x] Outputs under cohort/age_band only (no combined/target/train subdirs)
 - [x] All file types generated (`itemsets`, `rules`, `metrics`, `encoding_map`)
 - [x] Files organized in `outputs/{cohort}/{split_type}/{age_band}/{year}/`
 
@@ -99,6 +98,6 @@ For each cohort/age-band combination:
 - [x] All plots follow naming convention: `{cohort}_{age_band}_{event_year}_{item_type}_{plot_type}.{ext}`
 - [x] Directory structure uses cohort/age_band organization (consistent with feature importance)
 
-**Outputs only:** This step produces itemsets/rules JSON and plots under `outputs/{cohort}/combined/`, `outputs/{cohort}/target/`, and `outputs/{cohort}/{age_band}/plots/`. We do **not** use or create `outputs/feature_engineering/`; FP-Growth features are not added to model data.
+**Outputs only:** This step produces itemsets/rules JSON and plots under `outputs/{cohort}/{age_band_fname}/` (and `.../plots/`). Visualization artifacts use cohort then age_band only. We do **not** use or create `outputs/feature_engineering/`; FP-Growth features are not added to model data.
 
 ---
