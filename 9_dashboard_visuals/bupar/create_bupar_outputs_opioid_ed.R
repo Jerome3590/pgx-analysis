@@ -742,17 +742,24 @@ tryCatch({
         arrange(desc(frequency)) %>%
         head(30)
       if (nrow(data_year) == 0L) next
+      data_year <- data_year %>%
+        filter(complete.cases(trace_display_short, trace_display, frequency)) %>%
+        filter(nchar(as.character(trace_display_short)) >= 0L, frequency > 0)
+      if (nrow(data_year) == 0L) next
       total_cases <- sum(data_year$frequency, na.rm = TRUE)
       total_cases <- if (total_cases <= 0) 1 else total_cases
       data_year <- data_year %>%
         mutate(relative_pct = frequency / total_cases * 100, cumulative_pct = cumsum(relative_pct))
+      y_vals <- as.character(data_year$trace_display_short)
+      x_vals <- as.numeric(data_year$frequency)
+      if (length(y_vals) == 0L || length(x_vals) == 0L) next
       fig <- fig %>%
         add_trace(
           type = "bar",
-          y = data_year$trace_display_short,
-          x = data_year$frequency,
+          y = y_vals,
+          x = x_vals,
           name = "Trace Frequency",
-          customdata = data_year$trace_display,
+          customdata = as.character(data_year$trace_display),
           orientation = "h",
           visible = (traces_added == 0L),
           marker = list(color = "#3b82f6"),
@@ -785,9 +792,9 @@ tryCatch({
       )
       fig <- fig %>%
         layout(
-          title = paste("Pre-F1120 Trace Patterns:", cohort_name, age_band, "-", year_labels_added[1L]),
-          xaxis = list(title = "Frequency (Number of Cases)"),
-          yaxis = list(title = "", categoryorder = "total ascending"),
+          title = list(text = paste("Pre-F1120 Trace Patterns:", cohort_name, age_band, "-", year_labels_added[1L])),
+          xaxis = list(title = list(text = "Frequency (Number of Cases)"), type = "linear", zeroline = TRUE),
+          yaxis = list(title = list(text = ""), type = "category", categoryorder = "total ascending"),
           updatemenus = updatemenus,
           margin = list(l = 300, r = 50, t = 100, b = 50),
           hovermode = "closest",
@@ -913,17 +920,24 @@ if (nrow(as.data.frame(post_target_eventlog)) > 0L) {
           arrange(desc(frequency)) %>%
           head(30)
         if (nrow(data_year_post) == 0L) next
+        data_year_post <- data_year_post %>%
+          filter(complete.cases(trace_display_short, trace_display, frequency)) %>%
+          filter(nchar(as.character(trace_display_short)) >= 0L, frequency > 0)
+        if (nrow(data_year_post) == 0L) next
         total_cases_post <- sum(data_year_post$frequency, na.rm = TRUE)
         total_cases_post <- if (total_cases_post <= 0) 1 else total_cases_post
         data_year_post <- data_year_post %>%
           mutate(relative_pct = frequency / total_cases_post * 100, cumulative_pct = cumsum(relative_pct))
+        y_vals_post <- as.character(data_year_post$trace_display_short)
+        x_vals_post <- as.numeric(data_year_post$frequency)
+        if (length(y_vals_post) == 0L || length(x_vals_post) == 0L) next
         fig_post <- fig_post %>%
           add_trace(
             type = "bar",
-            y = data_year_post$trace_display_short,
-            x = data_year_post$frequency,
+            y = y_vals_post,
+            x = x_vals_post,
             name = "Trace Frequency",
-            customdata = data_year_post$trace_display,
+            customdata = as.character(data_year_post$trace_display),
             orientation = "h",
             visible = (traces_added_post == 0L),
             marker = list(color = "#dc2626"),
@@ -956,9 +970,9 @@ if (nrow(as.data.frame(post_target_eventlog)) > 0L) {
         )
         fig_post <- fig_post %>%
           layout(
-            title = paste("Post-F1120 Trace Patterns:", cohort_name, age_band, "-", year_labels_added_post[1L]),
-            xaxis = list(title = "Frequency (Number of Cases)"),
-            yaxis = list(title = "", categoryorder = "total ascending"),
+            title = list(text = paste("Post-F1120 Trace Patterns:", cohort_name, age_band, "-", year_labels_added_post[1L])),
+            xaxis = list(title = list(text = "Frequency (Number of Cases)"), type = "linear", zeroline = TRUE),
+            yaxis = list(title = list(text = ""), type = "category", categoryorder = "total ascending"),
             updatemenus = updatemenus_post,
             margin = list(l = 300, r = 50, t = 100, b = 50),
             hovermode = "closest",
