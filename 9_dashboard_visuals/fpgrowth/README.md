@@ -36,6 +36,33 @@ Config in `cohort_fpgrowth.py`: `DRY_RUN = False` (full run); `COHORTS_TO_PROCES
 
 ---
 
+## Parameters
+
+FP-Growth parameters in `cohort_fpgrowth.py` are **tuned for SHAP/FFA pre-filtered data**. Since we only work with important features (top 500 codes from feature importance), we use lower thresholds to generate meaningful rules without risk of spurious associations:
+
+```python
+MIN_SUPPORT = 0.03            # 3% support (finds patterns in ~3% of patients)
+MIN_CONFIDENCE = 0.4          # 40% confidence for rules
+MIN_ITEMSET_LIFT = 1.02       # 2% lift threshold (permissive since data pre-filtered)
+```
+
+**CPT-specific (higher to prevent memory exhaustion):**
+```python
+MIN_SUPPORT_CPT = 0.10        # 10% support for CPT codes
+MIN_CONFIDENCE_CPT = 0.5      # 50% confidence for CPT rules
+```
+
+**Rationale:**
+- **Pre-filtered data**: Working only with SHAP/FFA important features (not all codes), so lower thresholds are safe
+- **MIN_ITEMSET_LIFT = 1.02**: Permissive lift filter (2% above independence) allows multi-item itemsets needed for rule generation
+- **Lower = more rules**: After filtering to important features, we want to capture meaningful co-occurrence patterns even if less frequent
+
+**Transaction Density:**
+- Data split into 4 bins: `low` (P25), `medium` (P50), `high` (P75), `extreme` (P95+)
+- Extreme density uses adjusted support: `max(MIN_SUPPORT * 0.5, 0.01)` (at least 1%)
+
+---
+
 ## Output Files Manifest
 
 ### Expected Outputs Structure
