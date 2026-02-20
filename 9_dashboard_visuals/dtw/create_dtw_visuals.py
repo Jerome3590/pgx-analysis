@@ -21,27 +21,50 @@ Data flow to visualizations:
 
 import argparse
 import json
+import logging
 import os
 import sys
 import tempfile
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
-import subprocess
 import shutil
 
 # Repo root; outputs go to 10_risk_dashboard/visualizations/dtw (same pattern as final_model, shap, ffa)
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DTW_VIZ_DIR = Path(__file__).resolve().parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from py_helpers.fe_monitor import function_block, mirror_log_to_s3  # noqa: E402
+
+
+def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
+    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth)."""
+    logs_dir = PROJECT_ROOT / "logs" / "dtw"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    age_band_fname = age_band.replace("-", "_")
+    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
+    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    logger.propagate = False
+    return logger, log_path
+
 
 def _dtw_output_root(project_root: Path) -> Path:
     """Dashboard visualization outputs (step 10); creation code lives in 9_dashboard_visuals/dtw."""
     return project_root / "10_risk_dashboard" / "visualizations" / "dtw"
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))  # noqa: E402
 if str(DTW_VIZ_DIR) not in sys.path:
     sys.path.insert(0, str(DTW_VIZ_DIR))  # noqa: E402 — so create_dtw_plots can be imported
 
@@ -53,6 +76,8 @@ def create_dtw_visuals(
     cohort_name: str,
     age_band: str,
     force: bool = False,
+    logger: Optional[logging.Logger] = None,
+    log_path: Optional[Path] = None,
 ) -> None:
     """
     Create and publish DTW visuals for the dashboard. Does not add DTW features to model data.
@@ -60,16 +85,23 @@ def create_dtw_visuals(
     and uploads to the dashboard bucket. DTW CSV files are not uploaded (dashboard only uses plots/chart_data).
     If force is False and plots already exist, skips (idempotent).
     """
+    def _log(level: str, msg: str, *args: Any) -> None:
+        if logger is not None:
+            getattr(logger, level)(msg, *args)
+        else:
+            prefix = "[%s] " % level.upper()
+            print(prefix + (msg % args if args else msg))
+
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
-    
+
     # Idempotency: check if plots directory exists (dashboard deliverables)
     plots_dir = dtw_out / "outputs" / cohort_name / age_band_fname / "plots"
     if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
-        print(f"[INFO] DTW plots exist at {plots_dir}; skipping (use --force to re-run)")
+        _log("info", "DTW plots exist at %s; skipping (use --force to re-run)", plots_dir)
         return
-    if not force and check_step_checkpoint_exists("9_dashboard_visuals", cohort_name, age_band, logger=None):
-        print(f"[INFO] Pipeline checkpoint exists for 9_dashboard_visuals {cohort_name}/{age_band}; skipping (use --force to re-run)")
+    if not force and check_step_checkpoint_exists("9_dashboard_visuals", cohort_name, age_band, logger=logger):
+        _log("info", "Pipeline checkpoint exists for 9_dashboard_visuals %s/%s; skipping (use --force to re-run)", cohort_name, age_band)
         return
 
     # Load DTW features (created by create_dtw_features.py)
@@ -81,40 +113,34 @@ def create_dtw_visuals(
     )
 
     if not dtw_features_csv.exists():
-        print(
-            f"[WARN] DTW features not found: {dtw_features_csv}\n"
-            f"  Skipping (create_dtw_features.py did not produce output—often because 4_model_data for this cohort/age_band is missing)."
-        )
+        _log("warning", "DTW features not found: %s; skipping (create_dtw_features.py did not produce output).", dtw_features_csv)
         try:
             from py_helpers.model_data_paths import get_path_check_listings
             path_listings = get_path_check_listings([str(dtw_features_csv)])
             path_listings_str = " ; ".join(path_listings) if path_listings else ""
         except Exception:  # noqa: BLE001
             path_listings_str = ""
-        print(
-            f"[ERROR_PARAMS] step=6_dtw cohort_name={cohort_name} age_band={age_band} error=DTW features CSV not found "
-            f"expected_path={dtw_features_csv} fix=Run create_dtw_features.py (9_dashboard_visuals/dtw/) for this cohort/age_band first."
-        )
+        _log("error", "step=6_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, dtw_features_csv)
         if path_listings_str:
-            print(f"[ERROR_PARAMS] step=6_dtw path_listings: {path_listings_str}")
+            _log("error", "step=6_dtw path_listings: %s", path_listings_str)
         return
 
-    print(f"[INFO] Reading DTW features from {dtw_features_csv}")
+    _log("info", "Reading DTW features from %s", dtw_features_csv)
     dtw_df = pd.read_csv(dtw_features_csv)
 
     keys_expected_dtw = ["mi_person_key", "target", "seq_pattern_str", "admin_icd_event_count", "dtw_min_distance", "trajectory_length"]
     keys_received_dtw = list(dtw_df.columns)
-    print(f"[INFO] keys_expected (DTW features): {keys_expected_dtw}")
-    print(f"[INFO] keys_received (DTW features): {keys_received_dtw}")
+    _log("info", "keys_expected (DTW features): %s", keys_expected_dtw)
+    _log("info", "keys_received (DTW features): %s", keys_received_dtw)
 
     # --- Validate and coerce data structure for visualizations ---
     if "mi_person_key" not in dtw_df.columns:
-        print(f"[ERROR_PARAMS] step=6_dtw keys_expected={keys_expected_dtw} keys_received={keys_received_dtw}")
+        _log("error", "step=6_dtw keys_expected=%s keys_received=%s", keys_expected_dtw, keys_received_dtw)
         raise ValueError("DTW features CSV must contain 'mi_person_key' column")
     dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
 
     if "target" not in dtw_df.columns:
-        print(f"[WARN] DTW features have no 'target' column; keys_received={keys_received_dtw}. Chart_data (routine_comparison, high_risk_trajectories) will be skipped.")
+        _log("warning", "DTW features have no 'target' column; keys_received=%s. Chart_data will be skipped.", keys_received_dtw)
     else:
         # Coerce target to numeric (0/1) for chart_data
         dtw_df["target"] = pd.to_numeric(dtw_df["target"], errors="coerce").fillna(0).astype(int)
@@ -122,12 +148,12 @@ def create_dtw_visuals(
     if "seq_pattern_str" in dtw_df.columns:
         dtw_df["seq_pattern_str"] = dtw_df["seq_pattern_str"].fillna("").astype(str)
     else:
-        print(f"[WARN] DTW features have no 'seq_pattern_str'; keys_received={keys_received_dtw}. Trajectory cluster plots will be skipped.")
+        _log("warning", "DTW features have no 'seq_pattern_str'; keys_received=%s. Trajectory cluster plots will be skipped.", keys_received_dtw)
 
     if "admin_icd_event_count" in dtw_df.columns:
         dtw_df["admin_icd_event_count"] = pd.to_numeric(dtw_df["admin_icd_event_count"], errors="coerce").fillna(0).astype(int)
 
-    print(f"[INFO] Loaded {len(dtw_df)} patients with {len(dtw_df.columns) - 1} DTW features")
+    _log("info", "Loaded %d patients with %d DTW features", len(dtw_df), len(dtw_df.columns) - 1)
 
     # Create 3D/1D trajectory cluster plots (Plotly) then upload plots to dashboard bucket
     try:
@@ -151,20 +177,20 @@ def create_dtw_visuals(
                     dest = plots_dir / name
                     if dest != src:
                         shutil.copy2(src, dest)
-                        print(f"[INFO] Wrote {name} for API overview/sample URLs")
+                        _log("info", "Wrote %s for API overview/sample URLs", name)
     except Exception as e:
-        print(f"[WARNING] DTW trajectory cluster plots failed: {e}")
-    _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band)
+        _log("warning", "DTW trajectory cluster plots failed: %s", e)
+    _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band, logger=logger)
 
     # Prebuild chart data (routine vs no routine, high-risk trajectories) and upload to dashboard S3 for direct dashboard integration
     chart_data = _build_dtw_chart_data(dtw_df)
     if chart_data:
-        _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data)
+        _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data, logger=logger)
 
     # Sequence heatmap (code × position counts by ICD/CPT/Drug) for dashboard heatmap with dynamic code-type filter
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
     if heatmap_data:
-        _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data)
+        _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data, logger=logger)
 
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
     s3_output_paths = [
@@ -177,16 +203,15 @@ def create_dtw_visuals(
             age_band,
             metadata={"dtw_plots": "uploaded"},
             output_paths=s3_output_paths,
-            logger=None,
+            logger=logger,
         )
     except Exception as exc:  # pragma: no cover
-        print(f"[WARNING] Could not save pipeline checkpoint: {exc}")
+        _log("warning", "Could not save pipeline checkpoint: %s", exc)
 
-    print("[INFO] Done.")
-    print(f"\nDTW visuals complete. Plots and chart_data uploaded to dashboard S3:")
-    print(f"  - Trajectory cluster plots (3D/1D)")
-    print(f"  - chart_data.json: routine_comparison, high_risk_trajectories, target_pathway_patterns, times_between_sequences (N3), time_to_target_sequences (N3)")
-    print(f"  CSV files not uploaded; dashboard uses plots only")
+    _log("info", "Done.")
+    _log("info", "DTW visuals complete. Plots and chart_data uploaded to dashboard S3: trajectory cluster plots (3D/1D), chart_data.json, sequence_heatmap.json. CSV files not uploaded; dashboard uses plots only.")
+    if log_path and logger:
+        mirror_log_to_s3("6_dtw", cohort_name, age_band, log_path, logger)
 
 
 
@@ -194,6 +219,7 @@ def _upload_dtw_plots_to_dashboard_s3(
     project_root: Path,
     cohort_name: str,
     age_band: str,
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
     age_band_fname = age_band.replace("-", "_")
@@ -217,10 +243,10 @@ def _upload_dtw_plots_to_dashboard_s3(
     for p in plot_files:
         key = f"{s3_prefix}/{p.name}"
         s3_path = f"s3://{s3_bucket}/{key}"
-        if upload_file_to_s3(p, s3_path, logger=None, check_exists=True):
+        if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
             uploaded += 1
-    if uploaded:
-        print(f"[INFO] Uploaded {uploaded} DTW plot(s) to dashboard S3 s3://{s3_bucket}/{s3_prefix}/")
+    if uploaded and logger:
+        logger.info("Uploaded %d DTW plot(s) to dashboard S3 s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
 
 
 def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
@@ -501,6 +527,7 @@ def _upload_dtw_chart_data_to_dashboard_s3(
     cohort_name: str,
     age_band: str,
     chart_data: Dict[str, Any],
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """Upload prebuilt DTW chart_data.json to dashboard bucket for direct dashboard integration."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
@@ -516,8 +543,8 @@ def _upload_dtw_chart_data_to_dashboard_s3(
         path = Path(f.name)
     try:
         s3_path = f"s3://{s3_bucket}/{key}"
-        if upload_file_to_s3(path, s3_path, logger=None, check_exists=False):
-            print(f"[INFO] Uploaded DTW chart_data.json to dashboard S3 {s3_path}")
+        if upload_file_to_s3(path, s3_path, logger=logger, check_exists=False) and logger:
+            logger.info("Uploaded DTW chart_data.json to dashboard S3 %s", s3_path)
     finally:
         path.unlink(missing_ok=True)
 
@@ -527,6 +554,7 @@ def _upload_sequence_heatmap_to_s3(
     cohort_name: str,
     age_band: str,
     heatmap_data: Dict[str, Any],
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """Upload sequence_heatmap.json (icd/cpt/drug by position) for dashboard heatmap."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
@@ -542,8 +570,8 @@ def _upload_sequence_heatmap_to_s3(
         path = Path(f.name)
     try:
         s3_path = f"s3://{s3_bucket}/{key}"
-        if upload_file_to_s3(path, s3_path, logger=None, check_exists=False):
-            print(f"[INFO] Uploaded DTW sequence_heatmap.json to dashboard S3 {s3_path}")
+        if upload_file_to_s3(path, s3_path, logger=logger, check_exists=False) and logger:
+            logger.info("Uploaded DTW sequence_heatmap.json to dashboard S3 %s", s3_path)
     finally:
         path.unlink(missing_ok=True)
 
@@ -585,12 +613,17 @@ def main() -> None:
     # If 4_model_data is not under project_root (e.g. cwd was visualizations), use repo root
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
-    create_dtw_visuals(
-        project_root=project_root,
-        cohort_name=args.cohort_name,
-        age_band=args.age_band,
-        force=args.force,
-    )
+    logger, log_path = _get_logger(args.cohort_name, args.age_band)
+    with function_block("6_dtw", "create_dtw_visuals", logger=logger):
+        logger.info("Starting DTW visuals for %s / %s", args.cohort_name, args.age_band)
+        create_dtw_visuals(
+            project_root=project_root,
+            cohort_name=args.cohort_name,
+            age_band=args.age_band,
+            force=args.force,
+            logger=logger,
+            log_path=log_path,
+        )
 
 
 if __name__ == "__main__":

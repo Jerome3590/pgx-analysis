@@ -13,6 +13,7 @@ Run after create_dtw_trajectories.py and before create_dtw_visuals.py.
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,30 @@ except ImportError:
     DTW_AVAILABLE = False
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from py_helpers.fe_monitor import step_block  # noqa: E402
+
+
+def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
+    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth)."""
+    logs_dir = PROJECT_ROOT / "logs" / "dtw"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    age_band_fname = age_band.replace("-", "_")
+    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
+    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    logger.propagate = False
+    return logger, log_path
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -183,45 +208,56 @@ def run_alignment(
     age_band: str,
     n_prototypes: int = 5,
     force: bool = False,
+    logger: Optional[logging.Logger] = None,
 ) -> bool:
     """
     Read trajectory CSV, run DTW alignment, write augmented CSV and common_sequences.json.
     Returns True if alignment was run (and dtw_min_distance filled), False if skipped or failed.
     """
+    def log(level: str, msg: str, *args: Any) -> None:
+        if logger is not None:
+            getattr(logger, level)(msg, *args)
+        else:
+            prefix = "[%s] " % level.upper()
+            print(prefix + (msg % args if args else msg))
+
     age_band_fname = age_band.replace("-", "_")
     fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
     csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
     if not csv_path.exists():
-        print(f"[WARN] DTW features CSV not found: {csv_path}; run create_dtw_trajectories.py first.")
+        log("warning", "DTW features CSV not found: %s; run create_dtw_trajectories.py first.", csv_path)
         return False
     df = pd.read_csv(csv_path)
     if df.empty or "seq_pattern_str" not in df.columns:
-        print("[WARN] CSV empty or missing seq_pattern_str; skipping alignment.")
+        log("warning", "CSV empty or missing seq_pattern_str; skipping alignment.")
         return False
     if not DTW_AVAILABLE:
-        print("[ERROR] dtaidistance is required for DTW alignment. Install with: pip install dtaidistance")
+        if logger:
+            logger.error("dtaidistance is required for DTW alignment. Install with: pip install dtaidistance")
+        else:
+            print("[ERROR] dtaidistance is required for DTW alignment. Install with: pip install dtaidistance")
         sys.exit(1)
 
-    print(f"[INFO] DTW alignment: {len(df)} patients, n_prototypes={n_prototypes}")
+    log("info", "DTW alignment: %d patients, n_prototypes=%d", len(df), n_prototypes)
     df_out, common_sequences = compute_dtw_distances(df, n_prototypes=n_prototypes)
     if common_sequences is None:
-        print("[WARN] No alignment computed (no encoded trajectories or prototypes).")
+        log("warning", "No alignment computed (no encoded trajectories or prototypes).")
         return False
 
     df_out.to_csv(csv_path, index=False)
-    print(f"[INFO] Wrote augmented CSV to {csv_path}")
+    log("info", "Wrote augmented CSV to %s", csv_path)
 
     # Write common_sequences.json next to the CSV (same directory for upload)
     common_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}.json"
     with open(common_path, "w", encoding="utf-8") as f:
         json.dump(common_sequences, f, indent=2)
-    print(f"[INFO] Wrote common sequences to {common_path}")
+    log("info", "Wrote common sequences to %s", common_path)
 
     # Also update dtw_added_features copy if present
     added_path = fe_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
     if added_path.exists():
         df_out.to_csv(added_path, index=False)
-        print(f"[INFO] Updated {added_path}")
+        log("info", "Updated %s", added_path)
     return True
 
 
@@ -236,24 +272,28 @@ def main() -> None:
     parser.add_argument("--project-root", type=Path, default=REPO_ROOT, help="Project root")
     args = parser.parse_args()
     project_root = Path(args.project_root)
+    logger, _ = _get_logger(args.cohort, args.age_band)
 
     age_band_fname = args.age_band.replace("-", "_")
     csv_path = _dtw_output_root(project_root) / "outputs" / "feature_engineering" / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
     if not csv_path.exists():
-        print(f"[ERROR] Not found: {csv_path}. Run create_dtw_trajectories.py first.")
+        logger.error("Not found: %s. Run create_dtw_trajectories.py first.", csv_path)
         sys.exit(1)
     df = pd.read_csv(csv_path)
     if "dtw_min_distance" in df.columns and df["dtw_min_distance"].notna().any() and not args.force:
-        print("[INFO] CSV already has DTW distances; skipping (use --force to re-run).")
+        logger.info("CSV already has DTW distances; skipping (use --force to re-run).")
         sys.exit(0)
 
-    ok = run_alignment(
-        project_root=project_root,
-        cohort_name=args.cohort,
-        age_band=args.age_band,
-        n_prototypes=args.n_prototypes,
-        force=args.force,
-    )
+    with step_block("6_dtw", "create_dtw_features", logger=logger):
+        logger.info("Starting DTW alignment for %s / %s", args.cohort, args.age_band)
+        ok = run_alignment(
+            project_root=project_root,
+            cohort_name=args.cohort,
+            age_band=args.age_band,
+            n_prototypes=args.n_prototypes,
+            force=args.force,
+            logger=logger,
+        )
     if not ok:
         sys.exit(1)
     sys.exit(0)

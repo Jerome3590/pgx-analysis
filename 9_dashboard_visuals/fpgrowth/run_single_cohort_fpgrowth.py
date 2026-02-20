@@ -173,26 +173,40 @@ def main():
         # When only "No frequent itemsets" (e.g. small cohort / insufficient transactions), exit 0 so pipeline continues
         only_no_itemsets = failures and all(e == "No frequent itemsets" for _, e in failures)
         if only_no_itemsets:
-            print(f"\nNo itemsets for any item type (insufficient transactions for {args.cohort_name}/{args.age_band}); exiting 0.")
-            # Write empty-state JSON for dashboard to show a message instead of broken/empty viz
-            dashboard_plots_dir = (
+            print(f"\nNo itemsets for any item type (insufficient transactions for {args.cohort_name}/{args.age_band}); writing empty itemset JSON so workflow continues.")
+            age_band_fname = args.age_band.replace("-", "_")
+            # Itemsets output dir (same path ensure_itemsets checks for *_itemsets*.json)
+            itemsets_dir = (
                 REPO_ROOT
                 / "10_risk_dashboard"
                 / "visualizations"
                 / "fpgrowth"
                 / "outputs"
                 / args.cohort_name
-                / args.age_band
-                / "plots"
+                / age_band_fname
             )
-            dashboard_plots_dir.mkdir(parents=True, exist_ok=True)
+            itemsets_dir.mkdir(parents=True, exist_ok=True)
+            empty_message = "No frequent itemsets or rules for this cohort/age band (insufficient transactions)."
+            for item_type in ITEM_TYPES:
+                for suffix in ("_itemsets.json", "_rules.json", "_itemsets_target_only.json", "_rules_target_only.json"):
+                    path = itemsets_dir / f"{item_type}{suffix}"
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump([], f)
+                    print(f"Wrote empty {path.name}", flush=True)
+            # Optional: write a small metadata JSON so downstream can show a message
+            meta_path = itemsets_dir / "_empty_reason.json"
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump({"empty": True, "message": empty_message, "cohort_name": args.cohort_name, "age_band": args.age_band}, f, indent=2)
+            # Dashboard empty-state in plots/ for frontend to show message
+            plots_dir = itemsets_dir / "plots"
+            plots_dir.mkdir(parents=True, exist_ok=True)
             empty_state = {
                 "empty": True,
-                "message": "No frequent itemsets or rules for this cohort/age band (insufficient transactions).",
+                "message": empty_message,
                 "cohort_name": args.cohort_name,
                 "age_band": args.age_band,
             }
-            empty_path = dashboard_plots_dir / "empty_state.json"
+            empty_path = plots_dir / "empty_state.json"
             with open(empty_path, "w", encoding="utf-8") as f:
                 json.dump(empty_state, f, indent=2)
             print(f"Wrote dashboard empty-state: {empty_path}", flush=True)

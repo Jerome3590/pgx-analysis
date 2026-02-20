@@ -26,19 +26,42 @@ Runtime: ~1-2 minutes per cohort/age_band (fast!)
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Set, Tuple
 
 import duckdb
 import pandas as pd
 
-# Repo root
+# Repo root and step folder (9_dashboard_visuals)
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from py_helpers.model_data_paths import resolve_model_events_path
+from py_helpers.fe_monitor import step_block  # noqa: E402
+from py_helpers.model_data_paths import resolve_model_events_path  # noqa: E402
+
+
+def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
+    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth)."""
+    logs_dir = PROJECT_ROOT / "logs" / "dtw"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    age_band_fname = age_band.replace("-", "_")
+    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
+    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    logger.propagate = False
+    return logger, log_path
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -376,7 +399,7 @@ def extract_patient_trajectories(
 
     df['admin_icd_event_count'] = df['seq_pattern_str'].apply(count_admin_icds)
 
-    print(f"[INFO] Trajectory summary:")
+    print("[INFO] Trajectory summary:")
     print(f"  - Mean length: {df['trajectory_length'].mean():.1f}")
     print(f"  - Mean diversity: {df['trajectory_diversity'].mean():.1f}")
     print(f"  - Admin ICD events (routine): {df['admin_icd_event_count'].sum()}")
@@ -399,6 +422,7 @@ def main():
     args = parser.parse_args()
     project_root = Path(args.project_root)
     age_band_fname = args.age_band.replace("-", "_")
+    logger, _ = _get_logger(args.cohort, args.age_band)
 
     # Output path
     output_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
@@ -407,30 +431,32 @@ def main():
 
     # Idempotency check
     if not args.force and output_path.exists():
-        print(f"[INFO] Output exists at {output_path}; skipping (use --force to re-run)")
+        logger.info("Output exists at %s; skipping (use --force to re-run)", output_path)
         return
 
-    # Extract trajectories
-    df = extract_patient_trajectories(
-        project_root=project_root,
-        cohort_name=args.cohort,
-        age_band=args.age_band,
-        max_lookback_months=args.max_lookback_months,
-    )
+    with step_block("6_dtw", "create_dtw_trajectories", logger=logger):
+        logger.info("Starting DTW trajectories for %s / %s", args.cohort, args.age_band)
+        # Extract trajectories
+        df = extract_patient_trajectories(
+            project_root=project_root,
+            cohort_name=args.cohort,
+            age_band=args.age_band,
+            max_lookback_months=args.max_lookback_months,
+        )
 
-    if df.empty:
-        print("[ERROR] No trajectories extracted. Check inputs and logs.")
-        sys.exit(1)
+        if df.empty:
+            logger.error("No trajectories extracted. Check inputs and logs.")
+            sys.exit(1)
 
-    # Save
-    df.to_csv(output_path, index=False)
-    print(f"\n[SUCCESS] Saved {len(df)} trajectories to {output_path}")
-    print(f"Columns: {list(df.columns)}")
+        # Save
+        df.to_csv(output_path, index=False)
+        logger.info("Saved %d trajectories to %s", len(df), output_path)
+        logger.info("Columns: %s", list(df.columns))
 
-    # Also copy to dtw_added_features (expected by create_dtw_visuals.py)
-    added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
-    df.to_csv(added_path, index=False)
-    print(f"[INFO] Also saved to {added_path} (for create_dtw_visuals.py)")
+        # Also copy to dtw_added_features (expected by create_dtw_visuals.py)
+        added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
+        df.to_csv(added_path, index=False)
+        logger.info("Also saved to %s (for create_dtw_visuals.py)", added_path)
 
 
 if __name__ == "__main__":
