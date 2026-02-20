@@ -91,7 +91,7 @@ The dashboard provides multiple capabilities:
     ├── API.md                         # API endpoint documentation
     ├── DEPLOYMENT.md                  # Deployment guide
     ├── VISUALIZATIONS.md              # Visualization guide
-    ├── VISUALIZATION_PLAN.md          # Research questions → tabs and visuals
+    ├── README_visualization_plan.md   # Research questions → tabs and visuals
     └── README_implementation_plan_tab_visualizations.md  # Per-tab implementation plan for data visuals
 ```
 

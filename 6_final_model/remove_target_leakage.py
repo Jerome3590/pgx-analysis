@@ -92,8 +92,9 @@ def remove_target_leakage(
     if len(interval_features) > 10:
         print(f"  ... and {len(interval_features) - 10} more")
     
-    # 3. Target time and first time (datetime columns, not features but should be removed)
-    datetime_features = ['target_time', 'first_time']
+    # 3. Target time, first time, and cohort target-date columns (not features; must not be used for training)
+    # first_opioid_ed_date / first_ed_non_opioid_date are in model_events for BupaR/leakage removal only.
+    datetime_features = ['target_time', 'first_time', 'first_opioid_ed_date', 'first_ed_non_opioid_date']
     leakage_features.extend([f for f in datetime_features if f in df.columns])
     
     # 4. DTW features (REMOVED - used for protocol filtering, not as features)

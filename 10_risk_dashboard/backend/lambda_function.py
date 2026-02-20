@@ -1435,26 +1435,26 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             pass
 
         age_band_fname = age_band.replace("-", "_")
-        # Legacy filenames (backward compatibility)
+        # Combined network: one graph with Drug / ICD / CPT as node types; filter by type in the graph
+        network_combined_key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
+        # Legacy per-item-type filenames (itemsets + optional legacy network)
         itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
         network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"
         network_png_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.png"
-        
-        # New interactive multi-year visualizations
         itemsets_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_itemsets_interactive.html"
         network_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_network_interactive.html"
-        
+
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
-        return _response(200, {
-            # Legacy static visualizations
+        payload = {
+            "network_combined_html": f"{base_url}/{network_combined_key}",
             "itemsets_image": f"{base_url}/{itemsets_key}",
             "support_image": f"{base_url}/{itemsets_key}",
             "network_html": f"{base_url}/{network_html_key}",
             "network_png": f"{base_url}/{network_png_key}",
-            # New interactive multi-year visualizations
             "itemsets_interactive": f"{base_url}/{itemsets_interactive_key}",
             "network_interactive": f"{base_url}/{network_interactive_key}",
-        })
+        }
+        return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 

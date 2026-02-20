@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Create and publish DTW visuals for the dashboard (we do not add DTW features to model data).
+Create and publish DTW visuals for the dashboard (we do not add DTW features to model data;
+not used in the model due to concern about target leakage).
 
 Data flow to visualizations:
 - Input: dtw_features_{cohort}_{age_band}.csv from create_dtw_features.py (columns: mi_person_key, target,
@@ -178,8 +179,7 @@ def create_dtw_visuals(
     print("[INFO] Done.")
     print(f"\nDTW visuals complete. Plots and chart_data uploaded to dashboard S3:")
     print(f"  - Trajectory cluster plots (3D/1D)")
-    print(f"  - chart_data.json with 3 charts: routine_comparison, high_risk_trajectories, target_pathway_patterns")
-    print(f"  - target_pathway_patterns shows common codes in target=1 trajectories (what leads to adverse events)")
+    print(f"  - chart_data.json: routine_comparison, high_risk_trajectories, target_pathway_patterns, times_between_sequences (N3), time_to_target_sequences (N3)")
     print(f"  CSV files not uploaded; dashboard uses plots only")
 
 
@@ -295,6 +295,74 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
     }
 
 
+def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """N3: Mean days between consecutive events by routine vs no routine (times between sequences)."""
+    if df.empty or "mean_days_between_events" not in df.columns:
+        return None
+    if "admin_icd_event_count" not in df.columns:
+        return None
+    use_df = df[["admin_icd_event_count", "mean_days_between_events"]].copy()
+    use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+        lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
+    )
+    use_df = use_df.dropna(subset=["mean_days_between_events"])
+    if len(use_df) < 10:
+        return None
+    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
+        mean_days=("mean_days_between_events", "mean"),
+        n=("mean_days_between_events", "count"),
+    )
+    order = ["No routine (0 admin ICD events)", "Routine (1+ admin ICD events)"]
+    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+    agg = agg.dropna(subset=["mean_days"])
+    if agg.empty:
+        return None
+    return {
+        "x": agg["bucket"].astype(str).tolist(),
+        "y": [float(round(v, 1)) for v in agg["mean_days"]],
+        "type": "bar",
+        "name": "Mean days between consecutive events",
+        "x_label": "Routine vs no routine (admin ICD filter)",
+        "y_label": "Mean days between consecutive events",
+    }
+
+
+def _compute_time_to_target_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """N3: Mean days from first event to target (target=1 only) by routine vs no routine."""
+    if df.empty or "days_first_event_to_target" not in df.columns or "target" not in df.columns:
+        return None
+    target_df = df[df["target"] == 1].copy()
+    if len(target_df) < 5:
+        return None
+    if "admin_icd_event_count" not in target_df.columns:
+        return None
+    use_df = target_df[["admin_icd_event_count", "days_first_event_to_target"]].dropna(
+        subset=["days_first_event_to_target"]
+    )
+    if len(use_df) < 5:
+        return None
+    use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+        lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
+    )
+    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
+        mean_days=("days_first_event_to_target", "mean"),
+        n=("days_first_event_to_target", "count"),
+    )
+    order = ["No routine (0 admin ICD events)", "Routine (1+ admin ICD events)"]
+    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+    agg = agg.dropna(subset=["mean_days"])
+    if agg.empty:
+        return None
+    return {
+        "x": agg["bucket"].astype(str).tolist(),
+        "y": [float(round(v, 1)) for v in agg["mean_days"]],
+        "type": "bar",
+        "name": "Mean days from first event to target",
+        "x_label": "Routine vs no routine (admin ICD filter)",
+        "y_label": "Mean days from first event to target (target=1 only)",
+    }
+
+
 def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """Analyze target=1 patients to identify common trajectory patterns leading to adverse events. Prebuilt on EC2."""
     if df.empty or "target" not in df.columns or "seq_pattern_str" not in df.columns:
@@ -351,7 +419,7 @@ def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any
 
 
 def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Build routine_comparison, high_risk_trajectories, and target_pathway_patterns chart payloads for dashboard. Prebuilt on EC2."""
+    """Build routine_comparison, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard."""
     if dtw_df.empty:
         return None
     out = {}
@@ -364,6 +432,13 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     target_pathways = _compute_target_pathway_patterns(dtw_df)
     if target_pathways:
         out["target_pathway_patterns"] = target_pathways
+    # N3: times between sequences
+    times_between = _compute_times_between_sequences(dtw_df)
+    if times_between:
+        out["times_between_sequences"] = times_between
+    time_to_target = _compute_time_to_target_sequences(dtw_df)
+    if time_to_target:
+        out["time_to_target_sequences"] = time_to_target
     return out or None
 
 

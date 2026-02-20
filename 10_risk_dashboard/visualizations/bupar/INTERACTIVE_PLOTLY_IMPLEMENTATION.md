@@ -1,5 +1,9 @@
 # Interactive Plotly BupaR Visualizations - Implementation Guide
 
+**Archived.** Implemented; activity frequency and trace explorer have `*_interactive.html` with year dropdown. For current workflow and outputs see **`10_risk_dashboard/docs/README_visualization_plan.md`**. See `archived/dashboard_docs/README.md`.
+
+---
+
 ## Overview
 Converted 3 core BupaR visualizations from static PNG to interactive Plotly HTML with built-in year filtering (2016, 2017, 2018, all years). This eliminates the need to generate 4x PNG files per visualization and provides enhanced user experience with:
 - **Built-in year dropdown filter** (no separate UI controls needed)

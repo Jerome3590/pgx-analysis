@@ -324,6 +324,49 @@ def _validate_model_events_has_controls(parquet_path: Path) -> dict:
         con.close()
 
 
+def _validate_model_events_target_date_column(
+    parquet_path: Path, cohort_name: str
+) -> Tuple[bool, str]:
+    """
+    Validate that model_events.parquet has the required target date column and case rows have it set.
+    Required for BupaR pre-target split (e.g. first_ed_non_opioid_date for non_opioid_ed).
+
+    Returns:
+        (success: bool, message: str)
+    """
+    target_date_col = (
+        "first_opioid_ed_date"
+        if "opioid_ed" in cohort_name.lower()
+        else "first_ed_non_opioid_date"
+    )
+    path_str = str(parquet_path).replace("'", "''")
+    con = duckdb.connect()
+    try:
+        schema = con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{path_str}')"
+        ).fetchall()
+        col_names = [row[0] for row in schema]
+        if target_date_col not in col_names:
+            return (
+                False,
+                f"Output schema missing required column '{target_date_col}' (BupaR needs it for pre-target events).",
+            )
+        # For case rows (target=1), at least one must have non-null target date
+        result = con.execute(
+            f"""SELECT COUNT(*)::BIGINT AS n FROM read_parquet('{path_str}')
+               WHERE target = 1 AND "{target_date_col}" IS NOT NULL"""
+        ).fetchone()
+        n_with_date = int(result[0]) if result and result[0] is not None else 0
+        if n_with_date == 0:
+            return (
+                False,
+                f"Case rows (target=1) have no non-null '{target_date_col}'; BupaR will get 0 pre-target events.",
+            )
+        return True, f"Target date column '{target_date_col}' present; {n_with_date} case rows have it set."
+    finally:
+        con.close()
+
+
 def load_control_exclusions(cohort_name: str, age_band: str, step3b_outputs_dir: Path) -> Optional[List[str]]:
     """
     Load control feature exclusions JSON and return list of item codes to exclude.
@@ -651,10 +694,11 @@ def filter_cohort_events_for_items(
 
     # Derive a common set of columns present in both cohort and control sources,
     # so that set operations (UNION ALL) are well-defined.
+    # Use union_by_name=True so multi-partition cohort (e.g. 85-94 + 95-114) exposes all columns.
     cohort_cols = [
         row[0]
         for row in con.execute(
-            f"DESCRIBE SELECT * FROM read_parquet([{cohort_paths_literal}])"
+            f"DESCRIBE SELECT * FROM read_parquet([{cohort_paths_literal}], union_by_name=True)"
         ).fetchall()
     ]
     control_cols = [
@@ -672,9 +716,21 @@ def filter_cohort_events_for_items(
         con.close()
         return
 
-    # Ensure target date column is in output for BupaR/dashboard (case rows need it; control gets NULL)
+    # Require target date column in cohort (BupaR/dashboard need it for pre-target split).
+    # Without it, downstream fails with "0 pre-HCG events" for non_opioid_ed.
     target_date_col = "first_opioid_ed_date" if "opioid_ed" in cohort_name.lower() else "first_ed_non_opioid_date"
-    if target_date_col in cohort_cols and target_date_col not in common_cols:
+    if target_date_col not in cohort_cols:
+        msg = (
+            f"[ERROR] Cohort schema missing required target date column '{target_date_col}' for {cohort_name}/{age_band}. "
+            f"Cohort parquets must include this column (Step 2). Found columns: {cohort_cols[:20]}{'...' if len(cohort_cols) > 20 else ''}. "
+            f"Refusing to write model_events without it (BupaR would get 0 pre-target events)."
+        )
+        print(msg)
+        if logger:
+            logger.error(msg)
+        con.close()
+        return
+    if target_date_col not in common_cols:
         common_cols = list(common_cols) + [target_date_col]
         print(f"[INFO] Including cohort-only column in model_events for target date: {target_date_col}")
 
@@ -698,7 +754,7 @@ def filter_cohort_events_for_items(
             case_patients_query = f"""
                 CREATE TEMP TABLE case_patients AS
                 SELECT DISTINCT mi_person_key
-                FROM read_parquet([{cohort_paths_literal}])
+                FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
                 WHERE is_target_case = 1
             """
         else:
@@ -706,7 +762,7 @@ def filter_cohort_events_for_items(
                 CREATE TEMP TABLE case_patients AS
                 WITH cohort_cases AS (
                     SELECT DISTINCT mi_person_key
-                    FROM read_parquet([{cohort_paths_literal}])
+                    FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
                     WHERE is_target_case = 1
                 ),
                 pharmacy_events AS (
@@ -760,7 +816,7 @@ def filter_cohort_events_for_items(
         case_patients_query = f"""
             CREATE TEMP TABLE case_patients AS
             SELECT DISTINCT mi_person_key
-            FROM read_parquet([{cohort_paths_literal}])
+            FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
             WHERE is_target_case = 1
         """
     con.execute(case_patients_query)
@@ -854,7 +910,7 @@ def filter_cohort_events_for_items(
                 SELECT
                     *,
                     1 AS target
-                FROM read_parquet([{cohort_paths_literal}])
+                FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
                 WHERE
                     is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
             ) TO '{str(out_path)}'
@@ -865,6 +921,11 @@ def filter_cohort_events_for_items(
         print(
             f"[INFO] Wrote case-only model_events.parquet for {cohort_name}/{age_band}: {out_path}"
         )
+        td_ok, td_msg = _validate_model_events_target_date_column(out_path, cohort_name)
+        if not td_ok:
+            print(f"[ERROR] {td_msg} File: {out_path}")
+            sys.exit(1)
+        print(f"[INFO] {td_msg}")
         return
 
     # 3. Sample control patients to maintain approximate sample_ratio:1 control:case
@@ -900,7 +961,7 @@ def filter_cohort_events_for_items(
         SELECT
             {common_cols_sql},
             1 AS target
-        FROM read_parquet([{cohort_paths_literal}])
+        FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
         WHERE
             is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
     """
@@ -956,6 +1017,13 @@ def filter_cohort_events_for_items(
             f"Cases: {validation_result['n_cases']}, Controls: {validation_result['n_controls']}"
         )
         sys.exit(1)
+
+    # Validate target date column present and set for cases (required for BupaR pre-target split)
+    td_ok, td_msg = _validate_model_events_target_date_column(out_path, cohort_name)
+    if not td_ok:
+        print(f"[ERROR] {td_msg} File: {out_path}")
+        sys.exit(1)
+    print(f"[INFO] {td_msg}")
     
     # Validate control:case ratio (should be approximately sample_ratio:1)
     n_cases = validation_result['n_cases']

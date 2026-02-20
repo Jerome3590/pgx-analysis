@@ -25,6 +25,24 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
 
+# Production HTML pattern: single-file, embedded Plotly.js, so HTML renders in iframes/S3 without external deps.
+# BupaR uses the same pattern via R htmlwidgets::saveWidget(..., selfcontained = TRUE).
+PLOTLY_HTML_CONFIG = {"responsive": True, "displayModeBar": True}
+PLOTLY_INCLUDE_JS = True  # embed full Plotly.js for production rendering
+
+# Item types for FP-Growth: one combined graph with nodes colored/filterable by type.
+# medical_code is the union of these three (allowed_codes); not a separate graph.
+FPGROWTH_GRAPH_ITEM_TYPES = ["drug_name", "icd_code", "cpt_code"]
+# Display labels and colors for filter dropdown and node coloring
+ITEM_TYPE_LABELS = {"drug_name": "Drug", "icd_code": "ICD", "cpt_code": "CPT"}
+ITEM_TYPE_COLORS = {"drug_name": "#3b82f6", "icd_code": "#22c55e", "cpt_code": "#f59e0b"}
+
+
+def write_plotly_html_for_production(fig: "go.Figure", out_path: Path, config: Optional[Dict[str, Any]] = None) -> None:
+    """Write Plotly figure to a single self-contained HTML file for production (iframes, S3, local)."""
+    cfg = config if config is not None else PLOTLY_HTML_CONFIG
+    fig.write_html(str(out_path), config=cfg, include_plotlyjs=PLOTLY_INCLUDE_JS)
+
 
 def _ensure_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
@@ -38,6 +56,250 @@ def _load_json_df(path: Path) -> pd.DataFrame:
     if not data:
         return pd.DataFrame()
     return pd.DataFrame(data)
+
+
+def _load_rules_all_types(
+    base_path: Path,
+    cohort_name: str,
+    age_band: str,
+    split_type: str,
+    event_year: str,
+) -> List[tuple]:
+    """
+    Load rules for drug_name, icd_code, cpt_code from the same cohort/age_band/year.
+    Returns list of (item_type, df_rules). Tries both rules_target_only.json and rules_lift_filtered.json.
+    """
+    age_band_fname = age_band.replace("-", "_")
+    out: List[tuple] = []
+    for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
+        dir_path = base_path / cohort_name / split_type / age_band_fname / str(event_year)
+        for fname in (f"{item_type}_rules_target_only.json", f"{item_type}_rules_lift_filtered.json"):
+            path = dir_path / fname
+            df = _load_json_df(path)
+            if not df.empty and "antecedents" in df.columns and "consequents" in df.columns:
+                out.append((item_type, df))
+                break
+    return out
+
+
+def _build_combined_rules_graph(
+    rules_by_type: List[tuple],
+    min_rules_per_type: int = 2,
+) -> Optional[Any]:
+    """
+    Build one DiGraph from rules for drug_name, icd_code, cpt_code.
+    Node ids are prefixed by type so the same label in different types stays distinct.
+    Each node has attributes: node_type (str), display_label (str).
+    """
+    if not rules_by_type:
+        return None
+    G = nx.DiGraph()
+    for item_type, df_rules in rules_by_type:
+        if len(df_rules) < min_rules_per_type:
+            continue
+        for _, row in df_rules.iterrows():
+            ants = row["antecedents"]
+            cons = row["consequents"]
+            support = float(row.get("support", 0.0) or 0.0)
+            confidence = float(row.get("confidence", 0.0) or 0.0)
+            lift = float(row.get("lift", 0.0) or 0.0)
+            if not isinstance(ants, list) or not isinstance(cons, list):
+                continue
+            for a in ants:
+                for c in cons:
+                    if not a or not c:
+                        continue
+                    u = f"{item_type}::{a}"
+                    v = f"{item_type}::{c}"
+                    if not G.has_node(u):
+                        G.add_node(u, node_type=item_type, display_label=str(a))
+                    if not G.has_node(v):
+                        G.add_node(v, node_type=item_type, display_label=str(c))
+                    if G.has_edge(u, v):
+                        data = G[u][v]
+                        data["support"] = (data["support"] + support) / 2.0
+                        data["confidence"] = (data["confidence"] + confidence) / 2.0
+                        data["lift"] = (data.get("lift", 0) + lift) / 2.0
+                    else:
+                        G.add_edge(u, v, support=support, confidence=confidence, lift=lift)
+    if G.number_of_edges() == 0:
+        return None
+    return G
+
+
+def _network_combined_plotly_with_filter(
+    G: Any,
+    cohort_name: str,
+    age_band: str,
+    output_dir: Path,
+    logger: Optional[logging.Logger] = None,
+    max_nodes: int = 80,
+) -> Optional[Path]:
+    """
+    Build one Plotly network with nodes colored by type (drug_name, icd_code, cpt_code)
+    and a dropdown to filter by type: All | Drug | ICD | CPT.
+    """
+    if not PLOTLY_AVAILABLE or G is None or G.number_of_edges() == 0:
+        return None
+    if G.number_of_nodes() > max_nodes:
+        centrality = nx.degree_centrality(G)
+        top = sorted(centrality, key=centrality.get, reverse=True)[:max_nodes]
+        G = G.subgraph(top).copy()
+    pos = nx.spring_layout(G, seed=42, k=0.6, iterations=50)
+    centrality = nx.degree_centrality(G)
+
+    # Group nodes and edges by type(s) for filter
+    nodes_by_type: Dict[str, List[str]] = {t: [] for t in FPGROWTH_GRAPH_ITEM_TYPES}
+    for n in G.nodes():
+        t = G.nodes[n].get("node_type", "drug_name")
+        if t in nodes_by_type:
+            nodes_by_type[t].append(n)
+    edges_by_type_pair: Dict[tuple, List[tuple]] = {}
+    for u, v in G.edges():
+        tu = G.nodes[u].get("node_type", "drug_name")
+        tv = G.nodes[v].get("node_type", "drug_name")
+        key = (tu, tv)
+        edges_by_type_pair.setdefault(key, []).append((u, v))
+
+    # One node trace per type (for filter visibility)
+    node_traces = []
+    for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
+        nodes = nodes_by_type.get(item_type, [])
+        if not nodes:
+            continue
+        node_x = [pos[n][0] for n in nodes]
+        node_y = [pos[n][1] for n in nodes]
+        node_sizes = [15 + 35 * centrality.get(n, 0.0) for n in nodes]
+        labels = [G.nodes[n].get("display_label", n.split("::", 1)[-1]) for n in nodes]
+        hover = [
+            f"<b>{ITEM_TYPE_LABELS.get(item_type, item_type)}:</b> {lb}<br>"
+            f"<b>Centrality:</b> {centrality.get(n, 0):.4f}"
+            for n, lb in zip(nodes, labels)
+        ]
+        node_traces.append(
+            go.Scatter(
+                x=node_x,
+                y=node_y,
+                mode="markers+text",
+                text=labels,
+                textposition="top center",
+                textfont=dict(size=9),
+                marker=dict(
+                    size=node_sizes,
+                    color=ITEM_TYPE_COLORS.get(item_type, "#94a3b8"),
+                    line=dict(width=1, color="#1e293b"),
+                ),
+                hoverinfo="text",
+                hovertext=hover,
+                name=ITEM_TYPE_LABELS.get(item_type, item_type),
+                legendgrouptitle=dict(text="Filter by type"),
+            )
+        )
+
+    # One edge trace per (source_type, target_type) for filter
+    edge_traces = []
+    for (tu, tv), pairs in edges_by_type_pair.items():
+        edge_x, edge_y = [], []
+        for u, v in pairs:
+            x0, y0 = pos[u]
+            x1, y1 = pos[v]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+        edge_traces.append(
+            go.Scatter(
+                x=edge_x,
+                y=edge_y,
+                line=dict(width=1.2, color="#94a3b8"),
+                hoverinfo="none",
+                mode="lines",
+                name=f"{ITEM_TYPE_LABELS.get(tu, tu)} → {ITEM_TYPE_LABELS.get(tv, tv)}",
+                showlegend=False,
+            )
+        )
+
+    all_traces = edge_traces + node_traces
+    n_edge_traces = len(edge_traces)
+    n_node_traces = len(node_traces)
+    type_to_node_idx = {FPGROWTH_GRAPH_ITEM_TYPES[i]: i for i in range(n_node_traces) if i < len(FPGROWTH_GRAPH_ITEM_TYPES)}
+    type_to_edge_indices = {}
+    for (tu, tv), idx in zip(edges_by_type_pair.keys(), range(n_edge_traces)):
+        type_to_edge_indices[(tu, tv)] = idx
+
+    # Dropdown: All, Drug, ICD, CPT
+    buttons = [
+        dict(
+            label="All",
+            method="update",
+            args=[
+                {"visible": [True] * len(all_traces)},
+                {"title": f"{cohort_name} {age_band} — Association rules (All types)"},
+            ],
+        )
+    ]
+    for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
+        if item_type not in type_to_node_idx:
+            continue
+        vis = [False] * len(all_traces)
+        ni = type_to_node_idx[item_type]
+        vis[n_edge_traces + ni] = True
+        for (tu, tv), ei in type_to_edge_indices.items():
+            if tu == item_type and tv == item_type:
+                vis[ei] = True
+        buttons.append(
+            dict(
+                label=ITEM_TYPE_LABELS.get(item_type, item_type),
+                method="update",
+                args=[
+                    {"visible": vis},
+                    {"title": f"{cohort_name} {age_band} — Association rules ({ITEM_TYPE_LABELS.get(item_type, item_type)} only)"},
+                ],
+            )
+        )
+
+    layout = go.Layout(
+        title=f"{cohort_name} {age_band} — Association rules (All types)",
+        showlegend=True,
+        legend=dict(orientation="h", y=1.12, xanchor="center", x=0.5),
+        hovermode="closest",
+        updatemenus=[
+            dict(
+                buttons=buttons,
+                direction="down",
+                pad={"r": 10, "t": 10},
+                showactive=True,
+                x=0.15,
+                xanchor="left",
+                y=1.18,
+                yanchor="top",
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="#888",
+                borderwidth=1,
+            )
+        ],
+        annotations=[
+            dict(
+                text="<b>Filter by type:</b>",
+                showarrow=False,
+                x=0.02,
+                y=1.18,
+                xref="paper",
+                yref="paper",
+                align="left",
+                font=dict(size=12),
+            )
+        ],
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        height=800,
+        margin=dict(l=20, r=20, t=100, b=20),
+    )
+    fig = go.Figure(data=all_traces, layout=layout)
+    out_path = output_dir / f"{cohort_name}_{age_band.replace('-', '_')}_combined_rules_network.html"
+    _ensure_output_dir(output_dir)
+    write_plotly_html_for_production(fig, out_path)
+    if logger:
+        logger.info("Saved combined rules network (filter by type) to %s", out_path)
+    return out_path
 
 
 def _load_multi_year_data(
@@ -169,7 +431,7 @@ def _top_itemsets_interactive(
         multi_year_data: Dict mapping year -> {"itemsets": df, "rules": df}
         cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
         age_band: Age band (e.g., "1-0-12", "1-13-24")
-        item_type: Type of items (drug_name, icd_code, cpt_code, medical_code)
+        item_type: Type of items for this graph (drug_name, icd_code, or cpt_code)
         top_n: Number of top itemsets to display
         output_dir: Directory to save the output HTML file
         logger: Logger instance
@@ -292,11 +554,11 @@ def _top_itemsets_interactive(
     
     fig = go.Figure(data=traces, layout=layout)
     
-    # Save to HTML
+    # Save to HTML (production: single file, embedded Plotly.js — same pattern as BupaR selfcontained=TRUE)
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_itemsets_interactive.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True}, include_plotlyjs=True)
+    write_plotly_html_for_production(fig, out_path)
     
     if logger:
         logger.info("Saved interactive itemsets visualization to %s", out_path)
@@ -483,7 +745,7 @@ def _network_from_rules_plotly(
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_target_rules_network.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True}, include_plotlyjs=True)
+    write_plotly_html_for_production(fig, out_path)
     if logger:
         logger.info("Saved Plotly network HTML to %s", out_path)
     return out_path
@@ -506,7 +768,7 @@ def _network_interactive_multi_year(
         multi_year_data: Dict mapping year -> {"itemsets": df, "rules": df}
         cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
         age_band: Age band (e.g., "1-0-12", "1-13-24")
-        item_type: Type of items (drug_name, icd_code, cpt_code, medical_code)
+        item_type: Type of items for this graph (drug_name, icd_code, or cpt_code)
         min_rules: Minimum number of rules required to generate network
         max_nodes: Maximum number of nodes to include in the network
         output_dir: Directory to save the output HTML file
@@ -728,11 +990,11 @@ def _network_interactive_multi_year(
     
     fig = go.Figure(data=traces, layout=layout)
     
-    # Save to HTML
+    # Save to HTML (production: single file, embedded Plotly.js)
     fname = f"{cohort_name}_{age_band.replace('-', '_')}_{item_type}_network_interactive.html"
     out_path = output_dir / fname
     _ensure_output_dir(output_dir)
-    fig.write_html(str(out_path), config={"responsive": True, "displayModeBar": True}, include_plotlyjs=True)
+    write_plotly_html_for_production(fig, out_path)
     
     if logger:
         logger.info("Saved interactive network visualization to %s", out_path)
@@ -762,16 +1024,19 @@ def create_all_fpgrowth_plots(
 ) -> Dict[str, Any]:
     """
     Create standard FP-Growth plots for a cohort / age_band.
-    Writes PNG and Plotly HTML (network) to output_dir; optionally uploads to S3.
+    Writes one combined rules network (filter by type: Drug / ICD / CPT) and optional per-type itemsets.
+
+    One graph: drug_name, icd_code, cpt_code as node types in a single network; filter by type in the UI.
+    medical_code is the union of these three (allowed_codes); not a separate graph.
 
     Implemented:
-      - Combined itemsets: top-N itemset support bar chart (PNG)
-      - Target-only rules: network PNG and Plotly interactive HTML
+      - Combined rules network: one HTML with dropdown "Filter by type" (All | Drug | ICD | CPT)
+      - Per-type itemsets: top-N bar chart PNG per type (optional)
 
     Returns:
       Dict with:
-        "plots": mapping item_type -> { plot_name: Path }
-        "s3_urls": (if s3_upload) mapping item_type -> { plot_name: str URL }
+        "plots": "combined" -> { target_rules_network_combined: Path }, and per item_type -> itemsets if any
+        "s3_urls": (if s3_upload) same structure
     """
     # Logging is optional; use a basic logger so messages can be seen when run via CLI.
     logger = logging.getLogger("fpgrowth_plots")
@@ -783,7 +1048,7 @@ def create_all_fpgrowth_plots(
         logger.setLevel(logging.INFO)
 
     if not item_types:
-        item_types = ["drug_name", "icd_code", "cpt_code", "medical_code"]
+        item_types = FPGROWTH_GRAPH_ITEM_TYPES
 
     base_path = Path(base_dir)
     age_band_fname = age_band.replace("-", "_")
@@ -791,17 +1056,20 @@ def create_all_fpgrowth_plots(
 
     results: Dict[str, Dict[str, Path]] = {}
 
-    for item_type in item_types:
-        logger.info(
-            "Creating FP-Growth plots for %s / %s / %s (%s)",
-            cohort_name,
-            age_band,
-            event_year,
-            item_type,
-        )
-        item_results: Dict[str, Path] = {}
+    # One combined network: load rules for all three types, build one graph, save HTML with filter by type
+    rules_by_type = _load_rules_all_types(
+        base_path, cohort_name, age_band, split_type="target", event_year=event_year
+    )
+    G = _build_combined_rules_graph(rules_by_type, min_rules_per_type=2)
+    combined_net = _network_combined_plotly_with_filter(
+        G, cohort_name, age_band, plots_root, logger=logger
+    )
+    if combined_net is not None:
+        results["combined"] = {"target_rules_network_combined": combined_net}
+        logger.info("Created combined rules network (filter by type) for %s / %s", cohort_name, age_band)
 
-        # Combined itemsets (top-N support plot)
+    # Per-type itemsets (top-N bar chart) — optional
+    for item_type in item_types:
         combined_dir = (
             base_path / cohort_name / "combined" / age_band_fname / str(event_year)
         )
@@ -817,41 +1085,7 @@ def create_all_fpgrowth_plots(
             logger=logger,
         )
         if top_plot is not None:
-            item_results["combined_top_itemsets"] = top_plot
-
-        # Target-only rules (network plot)
-        target_dir = (
-            base_path / cohort_name / "target" / age_band_fname / str(event_year)
-        )
-        target_rules_path = target_dir / f"{item_type}_rules_target_only.json"
-        df_rules = _load_json_df(target_rules_path)
-        net_plot = _network_from_rules(
-            df_rules=df_rules,
-            cohort_name=cohort_name,
-            age_band=age_band,
-            item_type=item_type,
-            min_rules=5,
-            output_dir=plots_root,
-            logger=logger,
-        )
-        if net_plot is not None:
-            item_results["target_rules_network"] = net_plot
-
-        # Plotly interactive network HTML (for dashboard iframe by cohort)
-        net_html = _network_from_rules_plotly(
-            df_rules=df_rules,
-            cohort_name=cohort_name,
-            age_band=age_band,
-            item_type=item_type,
-            min_rules=5,
-            output_dir=plots_root,
-            logger=logger,
-        )
-        if net_html is not None:
-            item_results["target_rules_network_html"] = net_html
-
-        if item_results:
-            results[item_type] = item_results
+            results.setdefault(item_type, {})["combined_top_itemsets"] = top_plot
 
     out: Dict[str, Any] = {"plots": results}
 
@@ -916,23 +1150,26 @@ def create_all_fpgrowth_plots_multi_year(
 ) -> Dict[str, Any]:
     """
     Create interactive FP-Growth visualizations with multi-year support (train/, 2016/, 2017/, 2018/).
-    
+
+    One graph per item type: drug_name, icd_code, cpt_code. medical_code is the union
+    of these three and is not used for the graph.
+
     Generates:
       - Interactive itemsets bar chart with year dropdown (combined split)
       - Interactive network graph with year dropdown (target split)
-    
+
     Args:
         base_dir: Root directory containing FP-Growth results
         cohort_name: Name of the cohort (opioid_ed, non_opioid_ed)
         age_band: Age band (e.g., "1-0-12", "1-13-24")
-        item_types: List of item types to process (drug_name, icd_code, cpt_code, medical_code)
+        item_types: Item types to plot (default: drug_name, icd_code, cpt_code only)
         output_dir: Directory to save output files (defaults to base_dir/plots)
         s3_upload: Whether to upload results to S3
         s3_bucket: S3 bucket name for uploads
         s3_prefix: S3 key prefix for uploads
         top_n: Number of top itemsets to display
         max_nodes: Maximum number of nodes in network graph
-    
+
     Returns:
         Dict with:
             "plots": mapping item_type -> { plot_name: Path }
@@ -948,13 +1185,13 @@ def create_all_fpgrowth_plots_multi_year(
         logger.setLevel(logging.INFO)
     
     if not item_types:
-        item_types = ["drug_name", "icd_code", "cpt_code", "medical_code"]
-    
+        item_types = FPGROWTH_GRAPH_ITEM_TYPES
+
     base_path = Path(base_dir)
     plots_root = Path(output_dir) if output_dir else base_path / "plots"
-    
+
     results: Dict[str, Dict[str, Path]] = {}
-    
+
     for item_type in item_types:
         logger.info(
             "Creating multi-year FP-Growth plots for %s / %s (%s)",

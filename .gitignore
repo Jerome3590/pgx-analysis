@@ -37,6 +37,9 @@ from_s3/*
 9_risk_dashboard/visualizations/*/outputs/
 10_risk_dashboard/visualizations/*/outputs/
 
+# 4_fpgrowth_analysis: template for 9_dashboard_visuals/fpgrowth; pipeline uses fpgrowth, this dir is gitignored
+9_dashboard_visuals/4_fpgrowth_analysis/
+
 # Test output files in status directory
 status/*.png
 status/*.pdf

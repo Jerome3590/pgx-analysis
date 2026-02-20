@@ -4,15 +4,16 @@ This folder contains comprehensive documentation for the PGx analysis pipeline, 
 
 ## 📚 Documentation by Workflow Step
 
-### Final Workflow (Five Notebooks)
+### Final Workflow (Phases 0–5)
 
-Run in order: **1** → **2** → **3** → **4** → **5**.
+Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** → **2** → **3** → **4** → **5**.
 
-- **1_cohort_workflow.ipynb** (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
-- **2_feature_importance.ipynb** (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
-- **3_model_train_shap_ffa.ipynb**: Model data → PGx → final model → SHAP → FFA → combine (no deploy). Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
-- **4_dashboard_visuals.ipynb**: BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
-- **5_build_and_deploy.ipynb**: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
+- **Phase 0:** `0_config_and_pipeline.ipynb` — Clear checkpoints, env checks. Run first for full E2E.
+- **Phase 1:** `1_cohort_workflow.ipynb` (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
+- **Phase 2:** `2_feature_importance.ipynb` (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
+- **Phase 3:** `3_model_train_shap_ffa.ipynb`: Model data → PGx → final model → SHAP → FFA → combine (no deploy). Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
+- **Phase 4:** `4_dashboard_visuals.ipynb`: BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
+- **Phase 5:** `5_build_and_deploy.ipynb`: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
 
 ### Step 1-2: Data Pipeline & Cohort Creation
 **Location**: [`Step1-2_DataPipeline/`](Step1-2_DataPipeline/), **Code**: `1a_apcd_input_data/`, `1b_apcd_event_filter/`, `2_create_cohort/`

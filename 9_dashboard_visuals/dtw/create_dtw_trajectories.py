@@ -12,6 +12,9 @@ Output CSV columns (minimal for visualization):
 - admin_icd_event_count: Count of administrative ICD codes (routine vs no routine)
 - trajectory_length: Number of events
 - trajectory_diversity: Number of unique activities
+- dtw_min_distance: Placeholder (NaN); no DTW computation in this script; used for schema compatibility
+- mean_days_between_events: Mean days between consecutive events in the trajectory (N3: times between sequences)
+- days_first_event_to_target: For target=1, days from first event to target date; else NaN (N3)
 
 Requirements:
 - 4_model_data (Step 4) with model_events parquet
@@ -35,7 +38,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from py_helpers.shap_ffa_fpgrowth_utils import get_shap_ffa_allowed_codes_combined
 from py_helpers.model_data_paths import resolve_model_events_path
 
 
@@ -60,7 +62,7 @@ def _split_allowed_codes_by_type(allowed_codes: Set[str]) -> Tuple[Set[str], Set
     drug_set: Set[str] = set()
     icd_set: Set[str] = set()
     cpt_set: Set[str] = set()
-    
+
     try:
         from py_helpers.shap_ffa_fpgrowth_utils import _parse_feature_name
     except ImportError:
@@ -73,7 +75,7 @@ def _split_allowed_codes_by_type(allowed_codes: Set[str]) -> Tuple[Set[str], Set
         norm = _normalize_code_for_match(s)
         if not norm:
             continue
-            
+
         if s.startswith("cpt_"):
             cpt_set.add(_normalize_code_for_match(s[4:]))
         elif s.startswith("icd_"):
@@ -99,7 +101,7 @@ def _split_allowed_codes_by_type(allowed_codes: Set[str]) -> Tuple[Set[str], Set
             drug_set.add(norm)
             icd_set.add(norm)
             cpt_set.add(norm)
-            
+
     return drug_set, icd_set, cpt_set
 
 
@@ -109,7 +111,7 @@ def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
     if not path.exists():
         print(f"[WARN] Administrative codes lookup not found at {path}")
         return set()
-    
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -128,7 +130,7 @@ def extract_patient_trajectories(
 ) -> pd.DataFrame:
     """
     Extract patient trajectories from model_data for visualization.
-    
+
     Returns DataFrame with columns:
     - mi_person_key
     - target
@@ -140,41 +142,51 @@ def extract_patient_trajectories(
     print(f"\n{'='*60}")
     print(f"Extracting trajectories for {cohort_name} / {age_band}")
     print(f"{'='*60}")
-    
+
     # Get model_events path
     try:
         model_data_path = resolve_model_events_path(project_root, cohort_name, age_band)
     except Exception:
         model_data_path = None
-    
+
     if not model_data_path or not model_data_path.exists():
         age_band_fname = age_band.replace("-", "_")
         model_data_dir = project_root / "4_model_data" / cohort_name / age_band_fname
         model_data_path = model_data_dir / "model_events.parquet"
-        
+
     if not model_data_path.exists():
         print(f"[ERROR] Model data not found at {model_data_path}")
         return pd.DataFrame()
-    
+
     print(f"[INFO] Using model_events: {model_data_path}")
-    
-    # Get SHAP/FFA allowed codes (top 500 important features)
-    allowed_codes = get_shap_ffa_allowed_codes_combined(
-        cohort_name, age_band, top_n=500, project_root=project_root
-    )
-    
+
+    # SHAP/FFA combined allowed codes file is required (same prerequisite as BupaR); we never use all events.
+    age_band_fname = age_band.replace("-", "_")
+    bupar_output_root = project_root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    allowed_codes_path = bupar_output_root / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
+    if not allowed_codes_path.exists():
+        print(
+            f"[ERROR] SHAP/FFA allowed codes file is required (prerequisite). Not found: {allowed_codes_path}\n"
+            "  Generate the combined allowed_codes file before running DTW (same as BupaR)."
+        )
+        raise SystemExit(1)
+    with open(allowed_codes_path, encoding="utf-8") as f:
+        allowed_codes_list = json.load(f)
+    allowed_codes = {str(c).strip() for c in allowed_codes_list if c is not None and str(c).strip()}
     if not allowed_codes:
-        print("[WARN] No SHAP/FFA allowed codes; using all events")
-        use_filter = False
-    else:
-        print(f"[INFO] Filtering to {len(allowed_codes)} SHAP/FFA important codes")
-        use_filter = True
-        drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
-    
+        print(
+            f"[ERROR] SHAP/FFA allowed codes file is empty: {allowed_codes_path}\n"
+            "  Cannot run DTW without allowed codes."
+        )
+        raise SystemExit(1)
+    print(f"[INFO] Filtering to {len(allowed_codes)} SHAP/FFA important codes (from combined file)")
+    drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
+    use_filter = True
+
     # Get administrative ICD codes for routine vs no routine analysis
     admin_codes = _load_administrative_icd_codes(project_root)
     print(f"[INFO] Loaded {len(admin_codes)} administrative ICD codes")
-    
+
     # Determine target date column based on cohort
     if cohort_name == "opioid_ed":
         target_date_col = "first_opioid_ed_date"
@@ -182,10 +194,10 @@ def extract_patient_trajectories(
         target_date_col = "first_ed_non_opioid_date"
     else:
         target_date_col = "event_date"  # fallback
-    
+
     # Build SQL query with SHAP/FFA filtering
     con = duckdb.connect(":memory:")
-    
+
     if use_filter:
         # Build filter expressions (OR semantics: drug OR any ICD OR CPT)
         drug_filter = " OR ".join([f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') = '{d}'" for d in list(drug_set)[:50]])
@@ -193,15 +205,15 @@ def extract_patient_trajectories(
             f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') = '{i}'" for i in list(icd_set)[:50]
         ])
         cpt_filter = " OR ".join([f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') = '{c}'" for c in list(cpt_set)[:50]])
-        
+
         filter_clause = f"WHERE ({drug_filter} OR {icd_filter} OR {cpt_filter})"
     else:
         filter_clause = ""
-    
+
     # Extract trajectories with cutoff dates (target = before target event, control = all events)
     query = f"""
     WITH patient_events AS (
-        SELECT 
+        SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
             event_date,
@@ -213,7 +225,7 @@ def extract_patient_trajectories(
         {filter_clause}
     ),
     filtered_events AS (
-        SELECT 
+        SELECT
             mi_person_key,
             target,
             event_date,
@@ -221,30 +233,30 @@ def extract_patient_trajectories(
             primary_icd_diagnosis_code,
             procedure_code
         FROM patient_events
-        WHERE 
+        WHERE
             -- For target patients: only events before target date
-            (target = 1 AND event_date < target_date 
+            (target = 1 AND event_date < target_date
              AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
             -- For control patients: all events
             OR (target = 0)
     ),
     trajectories AS (
-        SELECT 
+        SELECT
             mi_person_key,
             target,
             STRING_AGG(
-                CASE 
+                CASE
                     WHEN drug_name IS NOT NULL AND drug_name != '' THEN 'DRUG:' || drug_name
-                    WHEN primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' 
+                    WHEN primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != ''
                         THEN 'ICD:' || primary_icd_diagnosis_code
                     WHEN procedure_code IS NOT NULL AND procedure_code != '' THEN 'CPT:' || procedure_code
                     ELSE NULL
                 END,
                 '_'
                 ORDER BY event_date
-            ) FILTER (WHERE 
-                drug_name IS NOT NULL OR 
-                primary_icd_diagnosis_code IS NOT NULL OR 
+            ) FILTER (WHERE
+                drug_name IS NOT NULL OR
+                primary_icd_diagnosis_code IS NOT NULL OR
                 procedure_code IS NOT NULL
             ) as seq_pattern_str,
             COUNT(*) as trajectory_length,
@@ -255,20 +267,101 @@ def extract_patient_trajectories(
     SELECT * FROM trajectories
     WHERE seq_pattern_str IS NOT NULL
     """
-    
+
     print("[INFO] Extracting trajectories from model_events...")
     df = con.execute(query).df()
+
+    # Time-between metrics (N3: times between sequences)
+    time_query = f"""
+    WITH patient_events AS (
+        SELECT
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            target,
+            event_date,
+            {target_date_col} as target_date
+        FROM read_parquet('{model_data_path}')
+        {filter_clause}
+    ),
+    filtered_events AS (
+        SELECT mi_person_key, target, event_date, target_date
+        FROM patient_events
+        WHERE
+            (target = 1 AND event_date < target_date
+             AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+            OR (target = 0)
+    ),
+    ordered AS (
+        SELECT
+            mi_person_key,
+            target,
+            target_date,
+            event_date,
+            LAG(event_date) OVER (PARTITION BY mi_person_key ORDER BY event_date) as prev_event_date,
+            FIRST_VALUE(event_date) OVER (PARTITION BY mi_person_key ORDER BY event_date) as first_event_date
+        FROM filtered_events
+    ),
+    gaps AS (
+        SELECT
+            mi_person_key,
+            DATEDIFF('day', prev_event_date, event_date) as gap_days
+        FROM ordered
+        WHERE prev_event_date IS NOT NULL
+    ),
+    mean_gap AS (
+        SELECT mi_person_key, AVG(gap_days)::DOUBLE as mean_days_between_events
+        FROM gaps
+        GROUP BY mi_person_key
+    ),
+    first_to_target AS (
+        SELECT
+            mi_person_key,
+            DATEDIFF('day', MIN(first_event_date), MAX(target_date))::DOUBLE as days_first_event_to_target
+        FROM ordered
+        WHERE target = 1 AND target_date IS NOT NULL
+        GROUP BY mi_person_key
+    )
+    SELECT
+        m.mi_person_key,
+        m.mean_days_between_events,
+        f.days_first_event_to_target
+    FROM mean_gap m
+    LEFT JOIN first_to_target f ON m.mi_person_key = f.mi_person_key
+    """
+    try:
+        time_df = con.execute(time_query).df()
+        if not time_df.empty and "mi_person_key" in time_df.columns:
+            df = df.merge(time_df, on="mi_person_key", how="left")
+        else:
+            df["mean_days_between_events"] = float("nan")
+            df["days_first_event_to_target"] = float("nan")
+    except Exception as e:
+        print(f"[WARN] Time-between query failed: {e}; adding NaN columns")
+        df["mean_days_between_events"] = float("nan")
+        df["days_first_event_to_target"] = float("nan")
+
     con.close()
-    
+
+    # Ensure time columns exist
+    if "mean_days_between_events" not in df.columns:
+        df["mean_days_between_events"] = float("nan")
+    if "days_first_event_to_target" not in df.columns:
+        df["days_first_event_to_target"] = float("nan")
+    # For target=0, days_first_event_to_target should be NaN
+    if "target" in df.columns:
+        df.loc[df["target"] != 1, "days_first_event_to_target"] = float("nan")
+
+    # Schema compatibility: dtw_min_distance (not computed here)
+    df["dtw_min_distance"] = float("nan")
+
     print(f"[INFO] Extracted {len(df)} patient trajectories")
-    
+
     if df.empty:
         print("[WARN] No trajectories extracted")
         return df
-    
+
     # Compute admin_icd_event_count for each patient
     print("[INFO] Computing administrative ICD event counts...")
-    
+
     def count_admin_icds(seq_str):
         """Count administrative ICD codes in sequence."""
         if not seq_str or pd.isna(seq_str):
@@ -280,15 +373,15 @@ def extract_patient_trajectories(
                 if icd_code in admin_codes:
                     count += 1
         return count
-    
+
     df['admin_icd_event_count'] = df['seq_pattern_str'].apply(count_admin_icds)
-    
+
     print(f"[INFO] Trajectory summary:")
     print(f"  - Mean length: {df['trajectory_length'].mean():.1f}")
     print(f"  - Mean diversity: {df['trajectory_diversity'].mean():.1f}")
     print(f"  - Admin ICD events (routine): {df['admin_icd_event_count'].sum()}")
     print(f"  - Target=1: {(df['target']==1).sum()}, Target=0: {(df['target']==0).sum()}")
-    
+
     return df
 
 
@@ -298,25 +391,25 @@ def main():
     )
     parser.add_argument("--cohort", "--cohort-name", dest="cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
-    parser.add_argument("--max-lookback-months", type=int, default=24, 
+    parser.add_argument("--max-lookback-months", type=int, default=24,
                        help="Max lookback months for target patients (default: 24)")
     parser.add_argument("--force", action="store_true", help="Force re-run even if output exists")
     parser.add_argument("--project-root", type=Path, default=REPO_ROOT, help="Project root directory")
-    
+
     args = parser.parse_args()
     project_root = Path(args.project_root)
     age_band_fname = args.age_band.replace("-", "_")
-    
+
     # Output path
     output_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
-    
+
     # Idempotency check
     if not args.force and output_path.exists():
         print(f"[INFO] Output exists at {output_path}; skipping (use --force to re-run)")
         return
-    
+
     # Extract trajectories
     df = extract_patient_trajectories(
         project_root=project_root,
@@ -324,16 +417,16 @@ def main():
         age_band=args.age_band,
         max_lookback_months=args.max_lookback_months,
     )
-    
+
     if df.empty:
         print("[ERROR] No trajectories extracted. Check inputs and logs.")
         sys.exit(1)
-    
+
     # Save
     df.to_csv(output_path, index=False)
     print(f"\n[SUCCESS] Saved {len(df)} trajectories to {output_path}")
     print(f"Columns: {list(df.columns)}")
-    
+
     # Also copy to dtw_added_features (expected by create_dtw_visuals.py)
     added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
     df.to_csv(added_path, index=False)

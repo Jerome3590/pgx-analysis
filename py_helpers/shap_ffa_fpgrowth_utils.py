@@ -206,28 +206,31 @@ def get_shap_ffa_important_codes(
     use_ffa: bool = True,
 ) -> Set[str]:
     """
-    Return the set of item codes (drug/ICD/CPT) to use for FP-Growth, from SHAP and/or FFA.
+    Return the set of item codes (drug/ICD/CPT) to use for BupaR/DTW, from final combined or SHAP+FFA.
+
+    Prefers the final combined importance (Combine step: 10_risk_dashboard/outputs/.../combined_importance.csv).
+    If missing, merges SHAP and FFA importance from gold/shap_analysis and gold/ffa_analysis.
 
     item_type: 'drug_name', 'icd_code', 'cpt_code', or 'medical_code'.
     For medical_code, returns union of drug, icd, and cpt codes.
-    top_n: max features to consider from combined SHAP+FFA (by importance).
+    top_n: max features to consider (by importance).
     """
     combined = []
-    if use_shap:
-        shap_df = _load_shap_importance(cohort, age_band, project_root, data_root)
-        if not shap_df.empty:
-            combined.append(shap_df)
-    if use_ffa:
-        ffa_df = _load_ffa_importance(cohort, age_band, project_root, data_root)
-        if not ffa_df.empty:
-            combined.append(ffa_df)
+    # Prefer final combined (Combine step output) when present
+    dashboard_df = _load_combined_importance_from_dashboard(
+        cohort, age_band, project_root
+    )
+    if not dashboard_df.empty:
+        combined.append(dashboard_df)
     if not combined:
-        # Fallback: use Combine step output (10_risk_dashboard/outputs/.../combined_importance.csv)
-        dashboard_df = _load_combined_importance_from_dashboard(
-            cohort, age_band, project_root
-        )
-        if not dashboard_df.empty:
-            combined.append(dashboard_df)
+        if use_shap:
+            shap_df = _load_shap_importance(cohort, age_band, project_root, data_root)
+            if not shap_df.empty:
+                combined.append(shap_df)
+        if use_ffa:
+            ffa_df = _load_ffa_importance(cohort, age_band, project_root, data_root)
+            if not ffa_df.empty:
+                combined.append(ffa_df)
     if not combined:
         return set()
     merged = pd.concat(combined, ignore_index=True)

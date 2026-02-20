@@ -19,7 +19,7 @@ visualizations/
 
 **Purpose**: Patient trajectory visualizations using Dynamic Time Warping.
 
-**Creation code (step 9):** `9_dashboard_visuals/dtw/` — e.g. `create_dtw_features.py`, `create_dtw_visuals.py`
+**Creation code (step 9):** `9_dashboard_visuals/dtw/` — `create_dtw_trajectories.py` (features CSV, including N3 time-between metrics), then `create_dtw_visuals.py` (plots and chart_data)
 
 **Outputs:**
 - `dtw_trajectory_cluster_3d_{cohort}_{age_band}.html` / `.png` (or `1d` for non_opioid_ed) — trajectory cluster Plotly
@@ -61,7 +61,7 @@ visualizations/
 
 ## Usage
 
-Run the dashboard visuals step from repo root: `python 9_dashboard_visuals/run_dashboard_visuals.py` (or use `4_dashboard_visuals.ipynb`). See `9_dashboard_visuals/README.md` and the READMEs under `9_dashboard_visuals/{bupar,dtw,fpgrowth}/` for creation and usage.
+Run the dashboard visuals step from repo root: `python 9_dashboard_visuals/run_dashboard_visuals.py` (or use `4_dashboard_visuals.ipynb`). See `9_dashboard_visuals/README.md` and `10_risk_dashboard/docs/README_visualization_plan.md` for workflow and outputs. After a sync that fails with WinError 5 on rename, run `9_dashboard_visuals/cleanup_aws_temp_files.py` to remove AWS CLI temp files in `bupar/outputs/.../plots/`.
 
 ## Integration with Dashboard
 
