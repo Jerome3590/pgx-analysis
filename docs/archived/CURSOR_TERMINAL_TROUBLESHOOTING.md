@@ -76,6 +76,30 @@ Look for a `.cursor/` directory in your workspace or user settings directory:
 - Mac: `~/Library/Application Support/Cursor/User/settings.json`
 - Linux: `~/.config/Cursor/User/settings.json`
 
+## Git push failing: proxy redirect to 127.0.0.1:62328
+
+**Symptom:** `git push origin main` fails with:
+`Failed to connect to 127.0.0.1 port 62328 after ... ms: Could not connect to server`
+
+**Cause:** Git (or the terminal) is using an HTTP/HTTPS proxy or credential helper that points at localhost. Something may overwrite this (Cursor, VPN, corporate proxy, or another tool), so the fix may need to be re-run.
+
+**Repeatable fix (run in your own terminal, not Cursor's):**
+```powershell
+# Clear Git proxy so it talks to GitHub directly
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+git config --local --unset http.proxy
+git config --local --unset https.proxy
+# Then push
+cd C:\Projects\pgx-analysis
+git push origin main
+```
+If you use **Git Credential Manager** or another helper that listens on a port, check `git config --list | findstr credential` and adjust auth (e.g. SSH or GCM) if it points at 127.0.0.1.
+
+**If it keeps coming back:** Check Cursor/VS Code settings for terminal environment variables (`terminal.integrated.env.windows` or similar) and system/account environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`). Something may be setting a proxy to `127.0.0.1:62328` for the integrated terminal.
+
+---
+
 ## Workarounds
 
 ### Option 1: Use Your Terminal Directly
