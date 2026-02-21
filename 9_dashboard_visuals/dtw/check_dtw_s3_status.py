@@ -45,9 +45,9 @@ if _creds.exists() and not os.environ.get("AWS_SHARED_CREDENTIALS_FILE"):
 REPO_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgx-repository")
 DATALAKE_BUCKET = os.environ.get("PGX_DATALAKE_BUCKET", "pgxdatalake")
 PIPELINE_CHECKPOINTS_PREFIX = "pipeline_checkpoints"
-DTW_CHECKPOINT_PREFIX = "6_dtw_checkpoint"
+DTW_CHECKPOINT_PREFIX = "5_dtw_checkpoint"
 DTW_LOG_PREFIXES = ("extreme_density_extract_log", "extreme_density_summarize_log")
-DTW_OUTPUTS_PREFIX = "gold/feature_engineering/6_dtw"
+DTW_OUTPUTS_PREFIX = "gold/feature_engineering/5_dtw"
 
 
 def _s3_list(s3_client, bucket: str, prefix: str, max_keys: int = 500):
@@ -130,12 +130,12 @@ def run(profile: str | None, show_logs: bool, show_outputs: bool) -> None:
         print("  Total: {} cohort/age_band combination(s)".format(len(dtw_checkpoint_jsons)))
     print()
 
-    # ----- 2b. DTW artifact mirror (6_dtw_checkpoint/) — optional/legacy -----
-    print("2b. DTW artifact mirror (s3://{}/6_dtw_checkpoint/) [optional]".format(REPO_BUCKET))
+    # ----- 2b. DTW artifact mirror (5_dtw_checkpoint/) — optional/legacy -----
+    print("2b. DTW artifact mirror (s3://{}/5_dtw_checkpoint/) [optional]".format(REPO_BUCKET))
     print("-" * 60)
     dtw_cp_objs = _s3_list(s3, REPO_BUCKET, DTW_CHECKPOINT_PREFIX + "/", max_keys=200)
     if not dtw_cp_objs:
-        print("  No 6_dtw_checkpoint objects found.")
+        print("  No 5_dtw_checkpoint objects found.")
         print("  (CSV mirror from create_dtw_visuals; see README_dtw_s3_checkpoints.md.)")
     else:
         by_combo: dict[str, list] = {}

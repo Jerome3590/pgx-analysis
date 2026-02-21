@@ -409,7 +409,7 @@ def main():
     project_root = Path(args.project_root)
     age_band_fname = args.age_band.replace("-", "_")
     logger = setup_pipeline_logger(
-        step_name="6_dtw",
+        step_name="5_dtw",
         cohort=args.cohort,
         age_band=args.age_band,
         script_name="create_dtw_trajectories"
@@ -425,7 +425,7 @@ def main():
         logger.info("Output exists at %s; skipping (use --force to re-run)", output_path)
         return
 
-    with step_block("6_dtw", "create_dtw_trajectories", logger=logger.logger):
+    with step_block("5_dtw", "create_dtw_trajectories", logger=logger.logger):
         logger.info("Starting DTW trajectories for %s / %s", args.cohort, args.age_band)
         # Extract trajectories
         df = extract_patient_trajectories(

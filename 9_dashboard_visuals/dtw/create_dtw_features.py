@@ -284,7 +284,7 @@ def main() -> None:
         logger.info("CSV already has DTW distances; skipping (use --force to re-run).")
         sys.exit(0)
 
-    with step_block("6_dtw", "create_dtw_features", logger=logger):
+    with step_block("5_dtw", "create_dtw_features", logger=logger):
         logger.info("Starting DTW alignment for %s / %s", args.cohort, args.age_band)
         ok = run_alignment(
             project_root=project_root,

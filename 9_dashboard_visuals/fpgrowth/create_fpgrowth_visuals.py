@@ -63,7 +63,7 @@ def ensure_itemsets(
         itemsets_dir.glob("*_itemsets*.json")
     )
 
-    with step_block("4_fpgrowth", "ensure_itemsets", logger=logger):
+    with step_block("6_fpgrowth", "ensure_itemsets", logger=logger):
         if itemsets_exist and not force:
             logger.info("Itemsets already exist at %s; skipping creation (use --force to re-run)", itemsets_dir)
             return True
@@ -153,7 +153,7 @@ def create_visualizations(
     logger: logging.Logger,
 ) -> bool:
     """Step 3: Create FP-Growth visualizations under 10_risk_dashboard/visualizations/fpgrowth/outputs."""
-    with step_block("4_fpgrowth", "create_visualizations", logger=logger):
+    with step_block("6_fpgrowth", "create_visualizations", logger=logger):
         logger.info("Creating FP-Growth visualizations for %s / %s", cohort_name, age_band)
         script_path = PROJECT_ROOT / "fpgrowth" / "create_plots.py"
         age_band_fname = age_band.replace("-", "_")
@@ -240,7 +240,7 @@ def create_fpgrowth_visuals(
         return True
 
     logger = setup_pipeline_logger(
-        step_name="4_fpgrowth",
+        step_name="6_fpgrowth",
         cohort=cohort_name,
         age_band=age_band,
         script_name="create_fpgrowth_visuals"
@@ -255,7 +255,7 @@ def create_fpgrowth_visuals(
         env.fast_root,
     )
 
-    with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger.logger):
+    with function_block("6_fpgrowth", "create_fpgrowth_visuals", logger=logger.logger):
         logger.info("")
         logger.info("#" * 70)
         logger.info("#  FP-GROWTH VISUAL WORKFLOW: %s / %s", cohort_name, age_band)

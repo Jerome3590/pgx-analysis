@@ -120,9 +120,9 @@ def create_dtw_visuals(
             path_listings_str = " ; ".join(path_listings) if path_listings else ""
         except Exception:  # noqa: BLE001
             path_listings_str = ""
-        _log("error", "step=6_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, dtw_features_csv)
+        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, dtw_features_csv)
         if path_listings_str:
-            _log("error", "step=6_dtw path_listings: %s", path_listings_str)
+            _log("error", "step=5_dtw path_listings: %s", path_listings_str)
         return
 
     _log("info", "Reading DTW features from %s", dtw_features_csv)
@@ -135,7 +135,7 @@ def create_dtw_visuals(
 
     # --- Validate and coerce data structure for visualizations ---
     if "mi_person_key" not in dtw_df.columns:
-        _log("error", "step=6_dtw keys_expected=%s keys_received=%s", keys_expected_dtw, keys_received_dtw)
+        _log("error", "step=5_dtw keys_expected=%s keys_received=%s", keys_expected_dtw, keys_received_dtw)
         raise ValueError("DTW features CSV must contain 'mi_person_key' column")
     dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
 
@@ -211,7 +211,7 @@ def create_dtw_visuals(
     _log("info", "Done.")
     _log("info", "DTW visuals complete. Plots and chart_data uploaded to dashboard S3: trajectory cluster plots (3D/1D), chart_data.json, sequence_heatmap.json. CSV files not uploaded; dashboard uses plots only.")
     if log_path and logger:
-        mirror_log_to_s3("6_dtw", cohort_name, age_band, log_path, logger)
+        mirror_log_to_s3("5_dtw", cohort_name, age_band, log_path, logger)
 
 
 
@@ -614,7 +614,7 @@ def main() -> None:
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
     logger, log_path = _get_logger(args.cohort_name, args.age_band)
-    with function_block("6_dtw", "create_dtw_visuals", logger=logger):
+    with function_block("5_dtw", "create_dtw_visuals", logger=logger):
         logger.info("Starting DTW visuals for %s / %s", args.cohort_name, args.age_band)
         create_dtw_visuals(
             project_root=project_root,

@@ -5,7 +5,7 @@ Sync visualization logs and pipeline status from S3 into logs/viz_sync/ for loca
 Syncs:
 1. Step logs (from mirror_log_to_s3):
    s3://pgx-repository/{step}_log/{cohort}/{age_band}/{filename}
-   Steps: 4_model_data_log, 4_fpgrowth_log, 5_bupar_log, 6_dtw_log, final_model_log.
+   Steps: 4_model_data_log, 4_bupar_log, 5_dtw_log, 6_fpgrowth_log, final_model_log.
 2. Pipeline checkpoints (status):
    s3://pgx-repository/pipeline_checkpoints/{step}/{cohort}/{age_band}/checkpoint.json
    -> logs/viz_sync/pipeline_checkpoints/
@@ -32,9 +32,9 @@ VIZ_SYNC_DIR = REPO_ROOT / "logs" / "viz_sync"
 BUCKET = "pgx-repository"
 LOG_PREFIXES = (
     "4_model_data_log",
-    "4_fpgrowth_log",
-    "5_bupar_log",
-    "6_dtw_log",
+    "4_bupar_log",
+    "5_dtw_log",
+    "6_fpgrowth_log",
     "final_model_log",  # Step 6 model training (run_final_model.py)
 )
 STATUS_PREFIX = "pipeline_checkpoints"

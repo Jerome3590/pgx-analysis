@@ -101,7 +101,7 @@ def create_bupar_outputs(
     local_test: bool = False,
 ) -> bool:
     """Step 1: Run the R script that builds BupaR event logs, features, and plots."""
-    with step_block("5_bupar", "create_bupar_outputs", logger=logger):
+    with step_block("4_bupar", "create_bupar_outputs", logger=logger):
         age_band_arg = age_band
         age_band_fname = age_band.replace("-", "_")
 
@@ -352,7 +352,7 @@ def create_bupar_visuals(
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
         logger_bupar = setup_pipeline_logger(
-            step_name="5_bupar",
+            step_name="4_bupar",
             cohort=cohort_name,
             age_band=age_band,
             script_name="create_bupar_visuals_skip",
@@ -362,7 +362,7 @@ def create_bupar_visuals(
         return True
 
     logger = setup_pipeline_logger(
-        step_name="5_bupar",
+        step_name="4_bupar",
         cohort=cohort_name,
         age_band=age_band,
         script_name="create_bupar_visuals"
@@ -377,7 +377,7 @@ def create_bupar_visuals(
         env.fast_root,
     )
 
-    with function_block("5_bupar", "create_bupar_visuals", logger=logger.logger):
+    with function_block("4_bupar", "create_bupar_visuals", logger=logger.logger):
         logger.info("Starting BupaR visuals for %s / %s", cohort_name, age_band)
 
         if not create_bupar_outputs(cohort_name, age_band, logger=logger.logger, local_test=local_test):
