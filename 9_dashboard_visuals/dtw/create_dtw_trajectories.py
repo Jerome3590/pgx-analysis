@@ -210,13 +210,24 @@ def extract_patient_trajectories(
 
     if use_filter:
         # Build filter expressions (OR semantics: drug OR any ICD OR CPT)
-        drug_filter = " OR ".join([f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') = '{d}'" for d in list(drug_set)[:50]])
-        icd_filter = " OR ".join([
-            f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') = '{i}'" for i in list(icd_set)[:50]
-        ])
-        cpt_filter = " OR ".join([f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') = '{c}'" for c in list(cpt_set)[:50]])
+        # Only include non-empty filters to avoid syntax errors
+        filters = []
+        if drug_set:
+            drug_filter = " OR ".join([f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') = '{d}'" for d in list(drug_set)[:50]])
+            filters.append(drug_filter)
+        if icd_set:
+            icd_filter = " OR ".join([
+                f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') = '{i}'" for i in list(icd_set)[:50]
+            ])
+            filters.append(icd_filter)
+        if cpt_set:
+            cpt_filter = " OR ".join([f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') = '{c}'" for c in list(cpt_set)[:50]])
+            filters.append(cpt_filter)
 
-        filter_clause = f"WHERE ({drug_filter} OR {icd_filter} OR {cpt_filter})"
+        if filters:
+            filter_clause = f"WHERE ({' OR '.join(filters)})"
+        else:
+            filter_clause = ""
     else:
         filter_clause = ""
 
