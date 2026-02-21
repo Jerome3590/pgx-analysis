@@ -56,6 +56,20 @@ def _dtw_output_root(project_root: Path) -> Path:
     return project_root / "10_risk_dashboard" / "visualizations" / "dtw"
 
 
+# Expected CSV columns when writing placeholder (empty) output so downstream steps see the file and skip
+DTW_TRAJECTORY_CSV_COLUMNS = [
+    "mi_person_key",
+    "target",
+    "seq_pattern_str",
+    "admin_icd_event_count",
+    "trajectory_length",
+    "trajectory_diversity",
+    "dtw_min_distance",
+    "mean_days_between_events",
+    "days_first_event_to_target",
+]
+
+
 def _normalize_code_for_match(code: str) -> str:
     """Normalize code for set membership (e.g. F11.20 and F1120 match)."""
     if not code or (isinstance(code, float) and pd.isna(code)):
@@ -481,10 +495,25 @@ def main():
         )
 
         if df.empty:
-            logger.error("No trajectories extracted. Check inputs and logs.")
+            logger.warning("No trajectories extracted; writing placeholder artifacts and continuing pipeline.")
+            # Placeholder CSV (headers only) so create_dtw_features finds the file and skips gracefully
+            placeholder_df = pd.DataFrame(columns=DTW_TRAJECTORY_CSV_COLUMNS)
+            placeholder_df.to_csv(output_path, index=False)
+            added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
+            placeholder_df.to_csv(added_path, index=False)
+            # Status JSON so it's clear why this cohort/age_band has no trajectories
+            status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
+            status = {
+                "skipped": True,
+                "message": "No trajectories extracted. Check inputs and logs (e.g. model_events, allowed_codes, or filter returned no rows).",
+                "cohort": args.cohort,
+                "age_band": args.age_band,
+            }
+            with open(status_path, "w", encoding="utf-8") as f:
+                json.dump(status, f, indent=2)
+            logger.info("Wrote placeholder CSV and %s", status_path.name)
             logger.log_summary()
-            sys.exit(1)
-
+            return
         # Save
         df.to_csv(output_path, index=False)
         logger.info("Saved %d trajectories to %s", len(df), output_path)
