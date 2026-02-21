@@ -94,12 +94,17 @@ class PharmGKBClient:
         print(f"Fetching {len(vip_genes)} VIP genes from PharmGKB API...")
         genes_data = self.get_genes_batch(vip_genes)
         
-        # Add ClinPGx VIP URL for each gene
+        # Add ClinPGx VIP URL for each gene (data may be a single object or a list)
         for gene in genes_data:
-            if "data" in gene and "id" in gene["data"]:
-                gene_id = gene["data"]["id"]  # PA ID
-                gene["clinpgx_vip_url"] = f"{CLINPGX_VIP_BASE}{gene_id}/overview"
-        
+            if "data" not in gene:
+                continue
+            raw = gene["data"]
+            first = raw[0] if isinstance(raw, list) and raw else raw
+            if isinstance(first, dict) and first.get("id"):
+                gene["clinpgx_vip_url"] = f"{CLINPGX_VIP_BASE}{first['id']}/overview"
+            else:
+                gene["clinpgx_vip_url"] = ""
+
         return genes_data
 
 
@@ -121,21 +126,24 @@ def build_vip_dataframe(client: PharmGKBClient) -> List[Dict]:
     for gene_data in vip_genes:
         if "data" not in gene_data:
             continue
-        
-        data = gene_data["data"]
-        
-        # Extract relevant fields
-        vip_entry = {
-            "gene": data.get("symbol", ""),
-            "gene_id": data.get("id", ""),  # PA ID
-            "vip_url": gene_data.get("clinpgx_vip_url", ""),
-            "qr_filename": f"{data.get('symbol', 'unknown')}.png",
-            "summary": data.get("name", ""),  # Full gene name
-            "chromosome": data.get("chromosome", ""),
-        }
-        
-        vip_list.append(vip_entry)
-    
+
+        raw = gene_data["data"]
+        # API may return a single object or a list of objects (e.g. multiple matches)
+        data_items = raw if isinstance(raw, list) else [raw]
+
+        for data in data_items:
+            if not isinstance(data, dict):
+                continue
+            vip_entry = {
+                "gene": data.get("symbol", ""),
+                "gene_id": data.get("id", ""),  # PA ID
+                "vip_url": gene_data.get("clinpgx_vip_url", ""),
+                "qr_filename": f"{data.get('symbol', 'unknown')}.png",
+                "summary": data.get("name", ""),  # Full gene name
+                "chromosome": data.get("chromosome", ""),
+            }
+            vip_list.append(vip_entry)
+
     return vip_list
 
 
