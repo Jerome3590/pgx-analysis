@@ -313,7 +313,8 @@ def main() -> None:
             logger=logger,
         )
     if not ok:
-        sys.exit(1)
+        logger.warning("DTW alignment skipped (empty or invalid trajectories); exiting 0 so pipeline continues.")
+        sys.exit(0)
     sys.exit(0)
 
 
