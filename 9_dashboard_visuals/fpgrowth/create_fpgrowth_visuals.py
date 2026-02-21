@@ -33,37 +33,13 @@ from py_helpers.fe_monitor import (  # noqa: E402
     function_block,
     module_block,
     step_block,
-    mirror_log_to_s3,
 )
-
-
-def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a module-level logger with both console and file handlers."""
-    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "fpgrowth"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-
-    age_band_fname = age_band.replace("-", "_")
-    log_path = logs_dir / f"fpgrowth_{cohort_name}_{age_band_fname}.log"
-
-    logger = logging.getLogger(f"fpgrowth.{cohort_name}.{age_band_fname}")
-    logger.setLevel(logging.INFO)
-
-    # Avoid duplicate handlers if called multiple times
-    if not logger.handlers:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(levelname)s - %(message)s",
-        )
-
-        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-
-    logger.propagate = False
-    return logger, log_path
+from py_helpers.pipeline_logger import (  # noqa: E402
+    setup_pipeline_logger,
+    log_step_start,
+    log_step_complete,
+    PipelineLogger,
+)
 
 
 def ensure_itemsets(
@@ -263,7 +239,12 @@ def create_fpgrowth_visuals(
         )
         return True
 
-    logger, log_path = _get_logger(cohort_name, age_band)
+    logger = setup_pipeline_logger(
+        step_name="4_fpgrowth",
+        cohort=cohort_name,
+        age_band=age_band,
+        script_name="create_fpgrowth_visuals"
+    )
 
     env = detect_runtime_environment(REPO_ROOT)
     logger.info(
@@ -274,7 +255,7 @@ def create_fpgrowth_visuals(
         env.fast_root,
     )
 
-    with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger):
+    with function_block("4_fpgrowth", "create_fpgrowth_visuals", logger=logger.logger):
         logger.info("")
         logger.info("#" * 70)
         logger.info("#  FP-GROWTH VISUAL WORKFLOW: %s / %s", cohort_name, age_band)
@@ -282,7 +263,7 @@ def create_fpgrowth_visuals(
         logger.info("")
 
         logger.info("[STEP 1/2] Creating itemsets...")
-        itemsets_ok = ensure_itemsets(cohort_name, age_band, logger=logger, force=force)
+        itemsets_ok = ensure_itemsets(cohort_name, age_band, logger=logger.logger, force=force)
         if not itemsets_ok:
             logger.warning(
                 "⚠️  No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
@@ -294,7 +275,7 @@ def create_fpgrowth_visuals(
 
         if not skip_visualizations:
             logger.info("[STEP 2/2] Creating visualizations...")
-            ok = create_visualizations(cohort_name, age_band, logger=logger)
+            ok = create_visualizations(cohort_name, age_band, logger=logger.logger)
             if not ok:
                 logger.error("✗ Visualization step failed")
             else:
@@ -308,7 +289,7 @@ def create_fpgrowth_visuals(
         logger.info("#" * 70)
         logger.info("")
 
-    mirror_log_to_s3("4_fpgrowth", cohort_name, age_band, log_path, logger)
+    logger.log_summary()
     # Exit 0 only when we have itemsets (so notebook "exit 0" matches real completion)
     return itemsets_ok
 

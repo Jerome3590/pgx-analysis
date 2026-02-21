@@ -39,7 +39,12 @@ from py_helpers.fe_monitor import (  # noqa: E402
     function_block,
     module_block,
     step_block,
-    mirror_log_to_s3,
+)
+from py_helpers.pipeline_logger import (  # noqa: E402
+    setup_pipeline_logger,
+    log_step_start,
+    log_step_complete,
+    PipelineLogger,
 )
 from py_helpers.model_data_paths import get_model_events_paths_checked, get_path_check_listings, resolve_model_events_paths  # noqa: E402
 
@@ -68,15 +73,6 @@ def _find_rscript() -> str | None:
                 if exe.exists():
                     return str(exe)
     return None
-
-
-def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a module-level logger with both console and file handlers."""
-    logs_dir = PROJECT_ROOT / "logs" / "bupaR"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-
-    age_band_fname = age_band.replace("-", "_")
-    log_path = logs_dir / f"bupar_{cohort_name}_{age_band_fname}.log"
 
     logger = logging.getLogger(f"bupar.{cohort_name}.{age_band_fname}")
     logger.setLevel(logging.INFO)
@@ -355,13 +351,22 @@ def create_bupar_visuals(
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
-        logger_bupar = logging.getLogger(f"bupar.{cohort_name}.{age_band_fname}")
-        if not logger_bupar.handlers:
-            logger_bupar.addHandler(logging.StreamHandler(sys.stdout))
+        logger_bupar = setup_pipeline_logger(
+            step_name="5_bupar",
+            cohort=cohort_name,
+            age_band=age_band,
+            script_name="create_bupar_visuals_skip",
+            mirror_to_s3=False
+        )
         logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", plots_dir)
         return True
 
-    logger, log_path = _get_logger(cohort_name, age_band)
+    logger = setup_pipeline_logger(
+        step_name="5_bupar",
+        cohort=cohort_name,
+        age_band=age_band,
+        script_name="create_bupar_visuals"
+    )
 
     env = detect_runtime_environment(PROJECT_ROOT)
     logger.info(
@@ -372,24 +377,24 @@ def create_bupar_visuals(
         env.fast_root,
     )
 
-    with function_block("5_bupar", "create_bupar_visuals", logger=logger):
+    with function_block("5_bupar", "create_bupar_visuals", logger=logger.logger):
         logger.info("Starting BupaR visuals for %s / %s", cohort_name, age_band)
 
-        if not create_bupar_outputs(cohort_name, age_band, logger=logger, local_test=local_test):
+        if not create_bupar_outputs(cohort_name, age_band, logger=logger.logger, local_test=local_test):
             logger.error("BupaR outputs step failed; aborting")
             if not local_test:
-                mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
+                logger.log_summary()
             return False
 
         if not local_test:
-            upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger)
+            upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger.logger)
         else:
             logger.info("Local test: skipping S3 upload")
 
         logger.info("BupaR visuals completed for %s / %s", cohort_name, age_band)
 
     if not local_test:
-        mirror_log_to_s3("5_bupar", cohort_name, age_band, log_path, logger)
+        logger.log_summary()
     return True
 
 

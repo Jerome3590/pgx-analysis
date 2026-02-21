@@ -42,26 +42,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from py_helpers.fe_monitor import step_block  # noqa: E402
 from py_helpers.model_data_paths import resolve_model_events_path  # noqa: E402
-
-
-def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth)."""
-    logs_dir = PROJECT_ROOT / "logs" / "dtw"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    age_band_fname = age_band.replace("-", "_")
-    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
-    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-    logger.propagate = False
-    return logger, log_path
+from py_helpers.pipeline_logger import (  # noqa: E402
+    setup_pipeline_logger,
+    log_step_start,
+    log_step_complete,
+    PipelineLogger,
+)
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -422,7 +408,12 @@ def main():
     args = parser.parse_args()
     project_root = Path(args.project_root)
     age_band_fname = args.age_band.replace("-", "_")
-    logger, _ = _get_logger(args.cohort, args.age_band)
+    logger = setup_pipeline_logger(
+        step_name="6_dtw",
+        cohort=args.cohort,
+        age_band=args.age_band,
+        script_name="create_dtw_trajectories"
+    )
 
     # Output path
     output_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
@@ -434,7 +425,7 @@ def main():
         logger.info("Output exists at %s; skipping (use --force to re-run)", output_path)
         return
 
-    with step_block("6_dtw", "create_dtw_trajectories", logger=logger):
+    with step_block("6_dtw", "create_dtw_trajectories", logger=logger.logger):
         logger.info("Starting DTW trajectories for %s / %s", args.cohort, args.age_band)
         # Extract trajectories
         df = extract_patient_trajectories(
@@ -446,6 +437,7 @@ def main():
 
         if df.empty:
             logger.error("No trajectories extracted. Check inputs and logs.")
+            logger.log_summary()
             sys.exit(1)
 
         # Save
@@ -457,6 +449,8 @@ def main():
         added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
         df.to_csv(added_path, index=False)
         logger.info("Also saved to %s (for create_dtw_visuals.py)", added_path)
+    
+    logger.log_summary()
 
 
 if __name__ == "__main__":
