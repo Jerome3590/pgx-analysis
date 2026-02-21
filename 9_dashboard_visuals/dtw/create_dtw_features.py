@@ -15,10 +15,11 @@ Run after create_dtw_trajectories.py and before create_dtw_visuals.py.
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
@@ -174,11 +175,12 @@ def compute_dtw_distances(
     if not prototype_trajectories:
         return df, None
 
-    # Compute distances for every patient in parallel (maximize CPU utilization)
+    # Compute distances for every patient in parallel (CPU-bound: use processes, not threads)
     distance_rows = []
-    max_workers = min(len(encoded), 32)  # Cap at 32 to avoid overwhelming the system
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    n_cpus = os.cpu_count() or 4
+    max_workers = min(len(encoded), max(1, n_cpus), 32)  # Cap at 32 to avoid overwhelming the system
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
                 _compute_dtw_for_patient,
