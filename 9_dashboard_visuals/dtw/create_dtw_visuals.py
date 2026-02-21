@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Create and publish DTW visuals for the dashboard (we do not add DTW features to model data;
-not used in the model due to concern about target leakage).
+Create and publish DTW visuals for the dashboard (Step 3 of DTW workflow).
+
+DTW alignment IS computed (via create_dtw_features.py using dtaidistance), but features are not added 
+to model data due to concern about target leakage. Used for dashboard visualization only.
 
 Data flow to visualizations:
 - Input: dtw_features_{cohort}_{age_band}.csv from create_dtw_features.py (columns: mi_person_key, target,

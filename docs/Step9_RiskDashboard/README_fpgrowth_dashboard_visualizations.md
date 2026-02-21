@@ -186,7 +186,7 @@ See `10_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for
 
 ## Notes
 
-1. **Visualization Only**: FP-Growth outputs are for visualization and exploratory analysis only, not model features.
+1. **Visualization and Analysis (Not Feature Engineering)**: FP-Growth itemsets and rules ARE computed for dashboard visualization and exploratory analysis. Results are not used for feature engineering (not added to model data) due to target leakage concerns.
 
 2. **Split Types**: Analysis can be run on:
    - **Combined**: Target + control patients (for general pattern discovery)
