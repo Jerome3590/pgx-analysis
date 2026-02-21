@@ -10,6 +10,7 @@ import json
 import sys
 import argparse
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     import psutil
@@ -106,10 +107,12 @@ def main():
         except Exception:
             pass
 
-    # Process each item type; track if any succeeded; collect failures for summary
+    # Process item types in parallel to maximize CPU utilization (4 types × N cores)
     any_ok = False
     failures = []  # (item_type, error_msg)
-    for idx, item_type in enumerate(ITEM_TYPES, 1):
+    
+    def process_item_type(item_type, idx):
+        """Process single item type; returns (item_type, result_or_error)"""
         _log_resources(f"before {item_type}")
         print("", flush=True)
         print("-" * 70, flush=True)
@@ -127,7 +130,30 @@ def main():
                 min_confidence=MIN_CONFIDENCE,
                 project_root=project_root,
             )
-            if 'error' in result:
+            _log_resources(f"after {item_type}")
+            return (item_type, result, None)
+        except Exception as e:
+            _log_resources(f"after {item_type} (exception)")
+            import traceback
+            tb = traceback.format_exc()
+            return (item_type, None, (e, tb))
+    
+    # Parallelize item type processing (4 workers for 4 item types)
+    with ThreadPoolExecutor(max_workers=len(ITEM_TYPES)) as executor:
+        futures = {executor.submit(process_item_type, item_type, idx): item_type 
+                   for idx, item_type in enumerate(ITEM_TYPES, 1)}
+        
+        for future in as_completed(futures):
+            item_type, result, exception_info = future.result()
+            
+            if exception_info:
+                e, tb = exception_info
+                failures.append((item_type, str(e)))
+                print(f"[ERROR] {item_type} failed: {e}", flush=True)
+                err_params = {"cohort_name": args.cohort_name, "age_band": args.age_band, "item_type": item_type, "error": str(e)}
+                print("[ERROR_PARAMS]", err_params, flush=True)
+                print(tb, flush=True)
+            elif 'error' in result:
                 err_msg = result['error']
                 failures.append((item_type, err_msg))
                 print(f"[ERROR] {item_type}: {err_msg}", flush=True)
@@ -150,15 +176,6 @@ def main():
                     print(f"   Generated {itemset_count} frequent itemsets", flush=True)
                     if rules_count > 0:
                         print(f"   Generated {rules_count} association rules", flush=True)
-            _log_resources(f"after {item_type}")
-        except Exception as e:
-            _log_resources(f"after {item_type} (exception)")
-            failures.append((item_type, str(e)))
-            print(f"[ERROR] {item_type} failed: {e}", flush=True)
-            err_params = {"cohort_name": args.cohort_name, "age_band": args.age_band, "item_type": item_type, "error": str(e)}
-            print("[ERROR_PARAMS]", err_params, flush=True)
-            import traceback
-            traceback.print_exc()
 
     print("", flush=True)
     print("="*70, flush=True)
