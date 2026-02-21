@@ -255,17 +255,23 @@ def extract_patient_trajectories(
     else:
         filter_clause = ""
 
+    # Normalize target_date to DATE (parquet may have VARCHAR, TIMESTAMP, or INTEGER YYYYMMDD)
+    target_date_expr = (
+        f"CASE WHEN typeof({target_date_col}) IN ('INTEGER', 'BIGINT') THEN "
+        f"make_date(CAST({target_date_col}/10000 AS INTEGER), CAST(({target_date_col}%10000)/100 AS INTEGER), CAST({target_date_col}%100 AS INTEGER)) "
+        f"ELSE CAST({target_date_col} AS DATE) END"
+    )
     # Extract trajectories with cutoff dates (target = before target event, control = all events)
     query = f"""
     WITH patient_events AS (
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            event_date,
+            CAST(event_date AS DATE) as event_date,
             drug_name,
             primary_icd_diagnosis_code,
             procedure_code,
-            {target_date_col} as target_date
+            ({target_date_expr}) as target_date
         FROM read_parquet('{model_data_path}')
         {filter_clause}
     ),
@@ -316,14 +322,14 @@ def extract_patient_trajectories(
     print("[INFO] Extracting trajectories from model_events...")
     df = con.execute(query).df()
 
-    # Time-between metrics (N3: times between sequences)
+    # Time-between metrics (N3: times between sequences) — same DATE normalization as main query
     time_query = f"""
     WITH patient_events AS (
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            event_date,
-            {target_date_col} as target_date
+            CAST(event_date AS DATE) as event_date,
+            ({target_date_expr}) as target_date
         FROM read_parquet('{model_data_path}')
         {filter_clause}
     ),
