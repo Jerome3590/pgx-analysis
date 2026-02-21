@@ -195,6 +195,10 @@ def compute_dtw_distances(
     if not distance_rows:
         return df, None
     dist_df = pd.DataFrame(distance_rows)
+    
+    # Ensure mi_person_key dtype matches original df to avoid merge errors
+    if "mi_person_key" in df.columns and "mi_person_key" in dist_df.columns:
+        dist_df["mi_person_key"] = dist_df["mi_person_key"].astype(df["mi_person_key"].dtype)
 
     # Merge back into original df (preserve all columns; add/overwrite DTW columns)
     merge_cols = [c for c in dist_df.columns if c != "mi_person_key"]
