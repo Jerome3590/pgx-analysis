@@ -100,7 +100,7 @@ def setup_logger(
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         if cohort_name is not None and age_band is not None:
-            logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "dtw"
+            logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "5_dtw"
             logs_dir.mkdir(parents=True, exist_ok=True)
             age_band_fname = age_band.replace("-", "_")
             log_path = logs_dir / f"summarize_extreme_density_{cohort_name}_{age_band_fname}.log"

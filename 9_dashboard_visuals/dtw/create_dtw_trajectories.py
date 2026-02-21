@@ -197,7 +197,7 @@ def extract_patient_trajectories(
     admin_codes = _load_administrative_icd_codes(project_root)
     print(f"[INFO] Loaded {len(admin_codes)} administrative ICD codes")
 
-    # Resolve target date column from parquet schema (Step 4 writes canonical names; support legacy)
+    # Resolve target date column from parquet schema: use first candidate that exists (alias to target_date in query)
     path_str = str(model_data_path).replace("'", "''")
     con_schema = duckdb.connect(":memory:")
     schema = con_schema.execute(
@@ -206,22 +206,27 @@ def extract_patient_trajectories(
     col_names = {row[0] for row in schema}
     con_schema.close()
 
+    # Ordered candidates per cohort (canonical first; legacy/fallback names that may exist in parquet)
     if cohort_name == "opioid_ed":
-        # Canonical: first_f1120_date (Step 4); legacy: first_opioid_ed_date
-        target_date_col = "first_f1120_date" if "first_f1120_date" in col_names else "first_opioid_ed_date"
+        candidates = ["first_f1120_date", "first_opioid_ed_date"]
     elif cohort_name == "non_opioid_ed":
-        # Canonical: first_o11_p_date (Step 4); legacy: first_ed_non_opioid_date
-        target_date_col = "first_o11_p_date" if "first_o11_p_date" in col_names else "first_ed_non_opioid_date"
+        candidates = ["first_o11_p_date", "first_ed_non_opioid_date", "first_opioid_ed_date"]  # last: Step 4 legacy fallback
     else:
-        target_date_col = "event_date"  # fallback
+        candidates = ["event_date"]
 
-    if cohort_name in ("opioid_ed", "non_opioid_ed") and target_date_col not in col_names:
+    target_date_col = None
+    for c in candidates:
+        if c in col_names:
+            target_date_col = c
+            break
+    if target_date_col is None and cohort_name in ("opioid_ed", "non_opioid_ed"):
         print(
             f"[ERROR] Model data at {model_data_path} has no target date column. "
-            f"Expected one of: opioid_ed: first_f1120_date/first_opioid_ed_date; "
-            f"non_opioid_ed: first_o11_p_date/first_ed_non_opioid_date. Found columns: {sorted(col_names)}"
+            f"Expected one of {candidates}. Found columns: {sorted(col_names)}"
         )
-        raise SystemExit(1)
+        return pd.DataFrame()
+    if target_date_col is None:
+        target_date_col = "event_date"
     print(f"[INFO] Using target date column: {target_date_col}")
 
     # Build SQL query with SHAP/FFA filtering
