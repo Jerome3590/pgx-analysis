@@ -12,6 +12,7 @@ Creates interactive network visualizations for the Cohort PGx dashboard tab.
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 import argparse
@@ -21,8 +22,16 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 import plotly.graph_objects as go
-import spacy
-import pytextrank
+
+try:
+    import spacy
+    import pytextrank
+    SPACY_AVAILABLE = True
+except ImportError as e:
+    SPACY_AVAILABLE = False
+    spacy = None
+    pytextrank = None
+    _SPACY_IMPORT_ERROR = e
 
 try:
     import boto3
@@ -30,6 +39,12 @@ try:
 except ImportError:
     print("Warning: boto3 not available. AWS Comprehend features disabled.")
     COMPREHEND_AVAILABLE = False
+
+SPACY_INSTALL_MSG = (
+    "spacy and pytextrank are required for network topology. Install with:\n"
+    "  pip install spacy pytextrank\n"
+    "  python -m spacy download en_core_web_sm"
+)
 
 
 class CohortPGxNetworkBuilder:
@@ -876,6 +891,11 @@ class CohortPGxNetworkBuilder:
 
 def main():
     """Build network topology from VIP reports."""
+    if not SPACY_AVAILABLE:
+        print("Error: spacy is not installed.")
+        print(SPACY_INSTALL_MSG)
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(
         description="Build network topology from PharmGKB VIP reports"
     )
