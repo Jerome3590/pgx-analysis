@@ -3,7 +3,7 @@
 Download FP-Growth logs from S3 to local logs dir for inspection.
 
 S3 layout (see py_helpers.fe_monitor.mirror_log_to_s3):
-  s3://{bucket}/4_fpgrowth_log/{cohort}/{age_band}/fpgrowth_{cohort}_{age_band_fname}.log
+  s3://{bucket}/6_fpgrowth_log/{cohort}/{age_band}/fpgrowth_{cohort}_{age_band_fname}.log
 
 Use this to inspect why FP-Growth is not running all age bands for each cohort or
 missing the polypharmacy (non_opioid_ed) cohort. Logs are written to:
@@ -35,7 +35,7 @@ except ImportError:
     }
 
 S3_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgx-repository")
-S3_PREFIX = "4_fpgrowth_log"
+S3_PREFIX = "6_fpgrowth_log"
 
 
 def main() -> int:
