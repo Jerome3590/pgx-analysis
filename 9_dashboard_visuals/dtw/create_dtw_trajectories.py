@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Create lightweight trajectory data for DTW visualizations (NO DTW distance computations).
+Create trajectory data for DTW alignment and dashboard visualizations (Step 1 of DTW workflow).
 
-This script extracts patient trajectories from model_data for visualization/exploration only.
-NOT used for model training - purely for dashboard visual analysis of SHAP/FFA results.
+This script extracts patient trajectories from model_data for DTW alignment and visualization.
+Part 1 of DTW pipeline: trajectories → DTW alignment (create_dtw_features.py) → visuals.
+NOT used for model training - for dashboard visual analysis of SHAP/FFA results.
 
 Output CSV columns (minimal for visualization):
 - mi_person_key: Patient identifier
@@ -12,7 +13,7 @@ Output CSV columns (minimal for visualization):
 - admin_icd_event_count: Count of administrative ICD codes (routine vs no routine)
 - trajectory_length: Number of events
 - trajectory_diversity: Number of unique activities
-- dtw_min_distance: Placeholder (NaN); no DTW computation in this script; used for schema compatibility
+- dtw_min_distance: Placeholder (NaN); DTW distances computed in create_dtw_features.py (Step 2)
 - mean_days_between_events: Mean days between consecutive events in the trajectory (N3: times between sequences)
 - days_first_event_to_target: For target=1, days from first event to target date; else NaN (N3)
 

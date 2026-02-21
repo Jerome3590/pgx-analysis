@@ -146,7 +146,7 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 ## Notes
 
-1. **Feature Engineering**: BupaR features are generated but **NOT** used in the final model. They are for visualization only.
+1. **Visualization and Analysis (Not Feature Engineering)**: BupaR features and process maps ARE generated for dashboard visualization and exploratory analysis. Results are not used for feature engineering (not added to model data) due to target leakage concerns.
 
 2. **Feature Importance EDA Usage**: BupaR is also used in Feature Importance EDA (`3b_feature_importance_eda/`) for post-target analysis to identify leakage features. This is separate from dashboard visualizations.
 

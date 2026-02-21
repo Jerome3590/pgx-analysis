@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-DTW alignment: compute distances to prototype trajectories and export common sequences.
+DTW alignment: compute distances to prototype trajectories and export common sequences (Step 2 of DTW workflow).
 
 Reads the trajectory CSV produced by create_dtw_trajectories.py (dtw_features_{cohort}_{age_band}.csv),
 encodes sequences as numeric series, selects prototype trajectories (evenly spaced by length),
-computes DTW distance from each patient to each prototype using dtaidistance, then:
+computes DTW distance from each patient to each prototype using dtaidistance library, then:
 - Augments the CSV with dtw_min_distance and dtw_distance_to_prototype_0..k
 - Writes common_sequences.json with the prototype sequences (for dashboard/docs)
 
+DTW alignment IS computed for dashboard analysis. Results used for visualization only (not model features).
 Run after create_dtw_trajectories.py and before create_dtw_visuals.py.
 """
 
@@ -17,6 +18,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
@@ -172,14 +174,24 @@ def compute_dtw_distances(
     if not prototype_trajectories:
         return df, None
 
-    # Compute distances for every patient
+    # Compute distances for every patient in parallel (maximize CPU utilization)
     distance_rows = []
-    for pid, encoded_traj in encoded.items():
-        row = _compute_dtw_for_patient(
-            pid, encoded_traj, prototype_trajectories, prototype_order
-        )
-        if row:
-            distance_rows.append(row)
+    max_workers = min(len(encoded), 32)  # Cap at 32 to avoid overwhelming the system
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _compute_dtw_for_patient,
+                pid, encoded_traj, prototype_trajectories, prototype_order
+            ): pid
+            for pid, encoded_traj in encoded.items()
+        }
+        
+        for future in as_completed(futures):
+            row = future.result()
+            if row:
+                distance_rows.append(row)
+    
     if not distance_rows:
         return df, None
     dist_df = pd.DataFrame(distance_rows)
