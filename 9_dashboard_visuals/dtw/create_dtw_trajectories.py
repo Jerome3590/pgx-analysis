@@ -255,10 +255,13 @@ def extract_patient_trajectories(
     else:
         filter_clause = ""
 
-    # Normalize target_date to DATE (parquet may have VARCHAR, TIMESTAMP, or INTEGER YYYYMMDD)
+    # Normalize target_date to DATE (parquet may have VARCHAR, TIMESTAMP, or INTEGER YYYYMMDD).
+    # Use CAST(col AS DOUBLE) in the integer branch so both CASE branches type-check when col is TIMESTAMP.
     target_date_expr = (
         f"CASE WHEN typeof({target_date_col}) IN ('INTEGER', 'BIGINT') THEN "
-        f"make_date(CAST({target_date_col}/10000 AS INTEGER), CAST(({target_date_col}%10000)/100 AS INTEGER), CAST({target_date_col}%100 AS INTEGER)) "
+        f"make_date(CAST(FLOOR(CAST({target_date_col} AS DOUBLE)/10000.0) AS INTEGER), "
+        f"CAST(FLOOR(CAST({target_date_col} AS DOUBLE)/100.0) % 100 AS INTEGER), "
+        f"CAST(FLOOR(CAST({target_date_col} AS DOUBLE)) % 100 AS INTEGER)) "
         f"ELSE CAST({target_date_col} AS DATE) END"
     )
     # Extract trajectories with cutoff dates (target = before target event, control = all events)
