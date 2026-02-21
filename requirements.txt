@@ -24,6 +24,7 @@ plotly>=5.18.0
 networkx>=3.0
 
 # NLP and text analysis (Cohort PGx network topology)
+# After pip install, run: python -m spacy download en_core_web_sm
 spacy>=3.7.0
 pytextrank>=3.2.0
 beautifulsoup4>=4.12.0
