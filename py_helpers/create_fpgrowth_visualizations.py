@@ -128,6 +128,41 @@ def _build_combined_rules_graph(
     return G
 
 
+def _write_empty_network_html(
+    cohort_name: str,
+    age_band: str,
+    output_dir: Path,
+    logger: Optional[logging.Logger] = None,
+) -> Path:
+    """
+    Write a minimal HTML that states 'No rules for this cohort' so the dashboard
+    can show a placeholder instead of a missing asset. Same filename as the real network.
+    """
+    age_band_fname = age_band.replace("-", "_")
+    fname = f"{cohort_name}_{age_band_fname}_combined_rules_network.html"
+    out_path = output_dir / fname
+    _ensure_output_dir(output_dir)
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FP-Growth network — {cohort_name} {age_band}</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 80vh; margin: 0; background: #f8fafc; }}
+    .message {{ text-align: center; padding: 2rem; color: #64748b; font-size: 1.1rem; }}
+  </style>
+</head>
+<body>
+  <div class="message">No rules for this cohort.</div>
+</body>
+</html>
+"""
+    out_path.write_text(html, encoding="utf-8")
+    if logger:
+        logger.info("Saved empty network placeholder (no rules) to %s", out_path)
+    return out_path
+
+
 def _network_combined_plotly_with_filter(
     G: Any,
     cohort_name: str,
@@ -1068,6 +1103,10 @@ def create_all_fpgrowth_plots(
     if combined_net is not None:
         results["combined"] = {"target_rules_network_combined": combined_net}
         logger.info("Created combined rules network (filter by type) for %s / %s", cohort_name, age_band)
+    else:
+        # Return a blank network HTML that states 'No rules for this cohort' so the dashboard can show it
+        empty_path = _write_empty_network_html(cohort_name, age_band, plots_root, logger=logger)
+        results["combined"] = {"target_rules_network_combined": empty_path}
 
     # Per-type itemsets (top-N bar chart): load from cohort/age_band (target-only or combined)
     for item_type in item_types:
