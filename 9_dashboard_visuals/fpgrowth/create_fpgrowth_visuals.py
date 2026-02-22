@@ -17,6 +17,7 @@ import argparse
 import logging
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -91,20 +92,40 @@ def ensure_itemsets(
             str(REPO_ROOT),
         ]
         logger.info(
-            "Starting itemset subprocess: cwd=%s script=%s",
+            "Starting itemset subprocess: cwd=%s script=%s (streaming stdout/stderr to this log)",
             PROJECT_ROOT,
             script_path.name,
         )
         t0 = time.perf_counter()
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 cmd,
                 cwd=PROJECT_ROOT,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                check=True,
+                bufsize=1,
             )
+            # Stream subprocess stdout/stderr to the pipeline log in real time so we have
+            # output even if the process hangs or is killed (log is flushed periodically).
+            def stream_to_log(stream, prefix):
+                for line in iter(stream.readline, ""):
+                    logger.info("%s %s", prefix, line.rstrip())
+
+            out_thread = threading.Thread(target=stream_to_log, args=(proc.stdout, "[stdout]"))
+            err_thread = threading.Thread(target=stream_to_log, args=(proc.stderr, "[stderr]"))
+            out_thread.daemon = True
+            err_thread.daemon = True
+            out_thread.start()
+            err_thread.start()
+            out_thread.join()
+            err_thread.join()
+            returncode = proc.wait()
             elapsed = time.perf_counter() - t0
+
+            if returncode != 0:
+                raise subprocess.CalledProcessError(returncode, cmd, None, None)
+
             logger.info("="*60)
             logger.info(
                 "[OK] FP-Growth itemsets created successfully for %s / %s (returncode=0, duration=%.1fs)",
@@ -113,16 +134,6 @@ def ensure_itemsets(
                 elapsed,
             )
             logger.info("="*60)
-            if result.stdout:
-                # Parse stdout for [OK] lines to show summary
-                ok_lines = [line for line in result.stdout.splitlines() if "[OK]" in line]
-                if ok_lines:
-                    logger.info("Item type results:")
-                    for line in ok_lines:
-                        logger.info("  %s", line.strip())
-                logger.info("Full itemset stdout:\n%s", result.stdout)
-            if result.stderr:
-                logger.info("Itemset stderr:\n%s", result.stderr)
             # Verify outputs exist after run
             itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
             if itemsets_now:
@@ -140,28 +151,15 @@ def ensure_itemsets(
                 elapsed,
             )
             logger.error("="*60)
-            # Log first [ERROR] / [ERROR_PARAMS] line from runner so reason is visible even if full stdout is truncated
-            if exc.stdout:
-                error_summary = []
-                for line in exc.stdout.splitlines():
-                    line = line.strip()
-                    if line.startswith("[ERROR]") or line.startswith("[ERROR_PARAMS]"):
-                        error_summary.append(line)
-                        logger.error("runner: %s", line)
-                        if line.startswith("[ERROR]") and "No frequent itemsets" not in line:
-                            break
-                if error_summary:
-                    logger.error("Error summary: %d error lines found", len(error_summary))
-                logger.error("stdout (errors/params from runner):\n%s", exc.stdout)
-            if exc.stderr:
-                logger.error("stderr:\n%s", exc.stderr)
+            logger.error("Subprocess output was streamed above; check [stdout]/[stderr] lines in this log.")
             logger.warning(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
             itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
             return itemsets_now
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Itemset creation failed with exception: %s", exc)
+            elapsed = time.perf_counter() - t0
+            logger.error("Itemset creation failed with exception after %.1fs: %s", elapsed, exc)
             logger.warning(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
