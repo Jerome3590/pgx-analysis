@@ -17,6 +17,7 @@ import argparse
 import logging
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Step folder (9_dashboard_visuals) and repo root; outputs go to 10_risk_dashboard/visualizations/fpgrowth
@@ -77,28 +78,40 @@ def ensure_itemsets(
         logger.info("="*60)
         logger.info("Processing %d item types: %s", len(item_types), ", ".join(item_types))
         script_path = PROJECT_ROOT / "fpgrowth" / "run_single_cohort_fpgrowth.py"
-
+        cmd = [
+            sys.executable,
+            str(script_path),
+            "--cohort-name",
+            cohort_name,
+            "--age-band",
+            age_band,
+            "--event-year",
+            "train",
+            "--project-root",
+            str(REPO_ROOT),
+        ]
+        logger.info(
+            "Starting itemset subprocess: cwd=%s script=%s",
+            PROJECT_ROOT,
+            script_path.name,
+        )
+        t0 = time.perf_counter()
         try:
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(script_path),
-                    "--cohort-name",
-                    cohort_name,
-                    "--age-band",
-                    age_band,
-                    "--event-year",
-                    "train",
-                    "--project-root",
-                    str(REPO_ROOT),
-                ],
+                cmd,
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
                 check=True,
             )
+            elapsed = time.perf_counter() - t0
             logger.info("="*60)
-            logger.info("[OK] FP-Growth itemsets created successfully for %s / %s", cohort_name, age_band)
+            logger.info(
+                "[OK] FP-Growth itemsets created successfully for %s / %s (returncode=0, duration=%.1fs)",
+                cohort_name,
+                age_band,
+                elapsed,
+            )
             logger.info("="*60)
             if result.stdout:
                 # Parse stdout for [OK] lines to show summary
@@ -117,8 +130,15 @@ def ensure_itemsets(
                 logger.info("Created %d itemset files in %s", len(itemset_files), itemsets_dir)
             return itemsets_now
         except subprocess.CalledProcessError as exc:
+            elapsed = time.perf_counter() - t0
             logger.error("="*60)
-            logger.error("Itemset creation FAILED for %s / %s (returncode=%s)", cohort_name, age_band, exc.returncode)
+            logger.error(
+                "Itemset creation FAILED for %s / %s (returncode=%s, duration=%.1fs)",
+                cohort_name,
+                age_band,
+                exc.returncode,
+                elapsed,
+            )
             logger.error("="*60)
             # Log first [ERROR] / [ERROR_PARAMS] line from runner so reason is visible even if full stdout is truncated
             if exc.stdout:
@@ -188,6 +208,13 @@ def create_visualizations(
         ]
         if item_types:
             cmd += ["--item-types"] + item_types
+        logger.info(
+            "Starting visualization subprocess: cwd=%s script=%s item_types=%s",
+            PROJECT_ROOT,
+            script_path.name,
+            item_types,
+        )
+        t0 = time.perf_counter()
         try:
             result = subprocess.run(
                 cmd,
@@ -196,14 +223,23 @@ def create_visualizations(
                 text=True,
                 check=True,
             )
-            logger.info("Visualizations created")
+            elapsed = time.perf_counter() - t0
+            logger.info(
+                "Visualizations created (returncode=0, duration=%.1fs)",
+                elapsed,
+            )
             if result.stdout:
                 logger.info("Plots stdout:\n%s", result.stdout)
             if result.stderr:
                 logger.info("Plots stderr:\n%s", result.stderr)
             return True
         except subprocess.CalledProcessError as exc:
-            logger.error("Visualization creation failed (returncode=%s)", exc.returncode)
+            elapsed = time.perf_counter() - t0
+            logger.error(
+                "Visualization creation failed (returncode=%s, duration=%.1fs)",
+                exc.returncode,
+                elapsed,
+            )
             if exc.stderr:
                 logger.error("stderr:\n%s", exc.stderr)
             return False
@@ -295,6 +331,7 @@ def create_fpgrowth_visuals(
         logger.info("#" * 70)
         logger.info("")
 
+    logger.info("Calling log_summary (log will be mirrored to S3)...")
     logger.log_summary()
     # Exit 0 only when we have itemsets (so notebook "exit 0" matches real completion)
     return itemsets_ok

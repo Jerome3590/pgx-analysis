@@ -2,12 +2,14 @@
 """
 Download FP-Growth logs from S3 to local logs dir for inspection.
 
-S3 layout (see py_helpers.fe_monitor.mirror_log_to_s3):
-  s3://{bucket}/6_fpgrowth_log/{cohort}/{age_band}/fpgrowth_{cohort}_{age_band_fname}.log
+S3 layout (see py_helpers.fe_monitor.mirror_log_to_s3, pipeline_logger):
+  s3://{bucket}/6_fpgrowth_log/{cohort}/{age_band}/{filename}
+  (filename is timestamped, e.g. create_fpgrowth_visuals_opioid_ed_13_24_20260219_123456.log)
 
-Use this to inspect why FP-Growth is not running all age bands for each cohort or
-missing the polypharmacy (non_opioid_ed) cohort. Logs are written to:
-  9_dashboard_visuals/logs/fpgrowth/
+This script lists objects under each cohort/age_band prefix and downloads the latest log.
+Local files are saved as: fpgrowth_{cohort}_{age_band_fname}.log
+
+Logs are written to: 9_dashboard_visuals/logs/fpgrowth/
 
 Usage (from repo root):
   python 9_dashboard_visuals/download_fpgrowth_logs.py
@@ -111,22 +113,27 @@ def main() -> int:
     for cohort_name, age_band in combinations:
         age_band_fname = age_band.replace("-", "_")
         log_fname = f"fpgrowth_{cohort_name}_{age_band_fname}.log"
-        s3_key = f"{S3_PREFIX}/{cohort_name}/{age_band}/{log_fname}"
         local_path = logs_dir / log_fname
+        prefix = f"{S3_PREFIX}/{cohort_name}/{age_band}/"
 
         if args.dry_run:
-            print(s3_key)
+            print(prefix)
             continue
 
         try:
+            resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
+            contents = resp.get("Contents") or []
+            if not contents:
+                missing.append(f"{cohort_name}/{age_band}")
+                continue
+            # Latest by LastModified
+            latest = max(contents, key=lambda o: o["LastModified"])
+            s3_key = latest["Key"]
             s3.download_file(S3_BUCKET, s3_key, str(local_path))
-            print(f"  OK  {cohort_name}/{age_band} -> {local_path.name}")
+            print(f"  OK  {cohort_name}/{age_band} -> {local_path.name} (from {latest['Key'].split('/')[-1]})")
             downloaded += 1
         except ClientError as e:
-            if e.response["Error"]["Code"] == "404" or "Not Found" in str(e):
-                missing.append(f"{cohort_name}/{age_band}")
-            else:
-                errors.append(f"{cohort_name}/{age_band}: {e}")
+            errors.append(f"{cohort_name}/{age_band}: {e}")
         except Exception as e:
             errors.append(f"{cohort_name}/{age_band}: {e}")
 
