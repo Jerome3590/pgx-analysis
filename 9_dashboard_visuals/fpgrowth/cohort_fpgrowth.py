@@ -92,8 +92,22 @@ DRY_RUN_LIMIT = 5  # Number of cohort combinations to process when DRY_RUN is Tr
 
 COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 
-# FP-Growth item types: drugs, ICD diagnosis codes, CPT procedure codes, and combined medical_code
-ITEM_TYPES = ['drug_name', 'icd_code', 'cpt_code', 'medical_code']
+# FP-Growth item types by cohort:
+# - non_opioid_ed (polypharmacy): drug relationships only
+# - opioid_ed: drug, ICD, and CPT (no combined medical_code)
+COHORT_ITEM_TYPES = {
+    "non_opioid_ed": ["drug_name"],
+    "opioid_ed": ["drug_name", "icd_code", "cpt_code"],
+}
+# All item types (for validation and batch summary; medical_code kept for backward compat if added later)
+ALL_ITEM_TYPES = ["drug_name", "icd_code", "cpt_code", "medical_code"]
+# Default for unknown cohort: drug + icd + cpt (same as opioid_ed)
+ITEM_TYPES = ALL_ITEM_TYPES  # used where a single list is expected (e.g. batch summary iteration)
+
+
+def get_item_types_for_cohort(cohort_name: str) -> list:
+    """Return item types to run for this cohort. Polypharmacy = drugs only; opioid_ed = drug, icd, cpt."""
+    return COHORT_ITEM_TYPES.get(cohort_name, ["drug_name", "icd_code", "cpt_code"])
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
 LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fast I/O)
 
@@ -1172,7 +1186,7 @@ def main():
     logger.info(f"Min Confidence: {MIN_CONFIDENCE}")
     logger.info(f"Min Itemset Lift: {MIN_ITEMSET_LIFT} (filtering common/trivial itemsets)")
     logger.info(f"Max Workers: {MAX_WORKERS}")
-    logger.info(f"Item Types: {ITEM_TYPES}")
+    logger.info("Item types by cohort: %s", {c: get_item_types_for_cohort(c) for c in COHORT_NAMES})
     logger.info(f"S3 Output: {S3_OUTPUT_BASE}")
     logger.info(f"Local Data: {LOCAL_DATA_PATH}")
     logger.info(f"Local Data Exists: {LOCAL_DATA_PATH.exists()}")
@@ -1195,10 +1209,11 @@ def main():
         )
         sys.exit(1)
     
-    # Generate all cohort combinations
+    # Generate all cohort combinations (item types depend on cohort)
     cohort_jobs = []
-    for item_type in ITEM_TYPES:
-        for cohort_name in COHORT_NAMES:
+    for cohort_name in COHORT_NAMES:
+        item_types = get_item_types_for_cohort(cohort_name)
+        for item_type in item_types:
             for age_band in AGE_BANDS:
                 # Per-year jobs (2016–2020, etc.)
                 for event_year in EVENT_YEARS:
@@ -1273,13 +1288,14 @@ def main():
     logger.info(f"Failed: {failed} ({failed/total_jobs*100:.1f}%)")
     logger.info("="*80)
     
-    # Summary by item type
-    for item_type in ITEM_TYPES:
+    # Summary by item type (only types that were run)
+    item_types_seen = sorted(set(m['item_type'] for m in all_metrics))
+    for item_type in item_types_seen:
         item_metrics = [m for m in all_metrics if m['item_type'] == item_type and 'error' not in m]
         if item_metrics:
-            total_itemsets = sum(m['frequent_itemsets'] for m in item_metrics)
-            total_rules = sum(m['association_rules'] for m in item_metrics)
-            logger.info(f"  {item_type}: {len(item_metrics)} cohorts, {total_itemsets:,} itemsets, {total_rules:,} rules")
+            total_itemsets = sum(m.get('frequent_itemsets', 0) for m in item_metrics)
+            total_rules = sum(m.get('association_rules', 0) for m in item_metrics)
+            logger.info("  %s: %d cohorts, %s itemsets, %s rules", item_type, len(item_metrics), f"{total_itemsets:,}", f"{total_rules:,}")
     
     # EC2 Auto-Shutdown (optional)
     shutdown_ec2(logger)

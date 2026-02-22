@@ -40,6 +40,7 @@ from py_helpers.pipeline_logger import (  # noqa: E402
     log_step_complete,
     PipelineLogger,
 )
+from fpgrowth.cohort_fpgrowth import get_item_types_for_cohort  # noqa: E402
 
 
 def ensure_itemsets(
@@ -70,10 +71,11 @@ def ensure_itemsets(
         if itemsets_exist and force:
             logger.info("Itemsets exist at %s; re-running due to --force", itemsets_dir)
 
+        item_types = get_item_types_for_cohort(cohort_name)
         logger.info("="*60)
         logger.info("CREATING FP-GROWTH ITEMSETS: %s / %s", cohort_name, age_band)
         logger.info("="*60)
-        logger.info("Processing 4 item types: drug_name, icd_code, cpt_code, medical_code")
+        logger.info("Processing %d item types: %s", len(item_types), ", ".join(item_types))
         script_path = PROJECT_ROOT / "fpgrowth" / "run_single_cohort_fpgrowth.py"
 
         try:
@@ -157,6 +159,7 @@ def create_visualizations(
         logger.info("Creating FP-Growth visualizations for %s / %s", cohort_name, age_band)
         script_path = PROJECT_ROOT / "fpgrowth" / "create_plots.py"
         age_band_fname = age_band.replace("-", "_")
+        item_types = get_item_types_for_cohort(cohort_name)
         # Visualization artifacts: cohort then age_band only
         plots_output_dir = (
             REPO_ROOT
@@ -171,20 +174,23 @@ def create_visualizations(
         plots_output_dir.mkdir(parents=True, exist_ok=True)
 
         fpgrowth_outputs_root = DASHBOARD_FPGROWTH_OUT / "outputs"
+        cmd = [
+            sys.executable,
+            str(script_path),
+            "--base-dir",
+            str(fpgrowth_outputs_root),
+            "--cohort-name",
+            cohort_name,
+            "--age-band",
+            age_band,
+            "--output-dir",
+            str(plots_output_dir),
+        ]
+        if item_types:
+            cmd += ["--item-types"] + item_types
         try:
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(script_path),
-                    "--base-dir",
-                    str(fpgrowth_outputs_root),
-                    "--cohort-name",
-                    cohort_name,
-                    "--age-band",
-                    age_band,
-                    "--output-dir",
-                    str(plots_output_dir),
-                ],
+                cmd,
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
