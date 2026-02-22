@@ -171,7 +171,7 @@ def main():
                 any_ok = True
                 itemset_count = result.get('itemsets_count', 0)
                 rules_count = result.get('rules_count', 0)
-                print(f"✓ [OK] {item_type}: {itemset_count} itemsets, {rules_count} rules", flush=True)
+                print(f"[OK] {item_type}: {itemset_count} itemsets, {rules_count} rules", flush=True)
                 if itemset_count > 0:
                     print(f"   Generated {itemset_count} frequent itemsets", flush=True)
                     if rules_count > 0:
@@ -181,11 +181,11 @@ def main():
     print("="*70, flush=True)
     if any_ok:
         success_count = len(ITEM_TYPES) - len(failures)
-        print(f"✓ FP-GROWTH COMPLETE: {success_count}/{len(ITEM_TYPES)} item types successful", flush=True)
+        print(f"[OK] FP-GROWTH COMPLETE: {success_count}/{len(ITEM_TYPES)} item types successful", flush=True)
         if failures:
             print(f"   {len(failures)} item types failed (see errors above)", flush=True)
     else:
-        print(f"✗ FP-GROWTH FAILED: All {len(ITEM_TYPES)} item types failed", flush=True)
+        print(f"[FAIL] FP-GROWTH FAILED: All {len(ITEM_TYPES)} item types failed", flush=True)
         summary = "; ".join(f"{t}={e}" for t, e in failures) if failures else "no item types produced itemsets"
         # When only "No frequent itemsets" (e.g. small cohort / insufficient transactions), exit 0 so pipeline continues
         only_no_itemsets = failures and all(e == "No frequent itemsets" for _, e in failures)

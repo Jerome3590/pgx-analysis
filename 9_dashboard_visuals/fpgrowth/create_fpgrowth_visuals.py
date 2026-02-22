@@ -96,7 +96,7 @@ def ensure_itemsets(
                 check=True,
             )
             logger.info("="*60)
-            logger.info("✓ FP-Growth itemsets created successfully for %s / %s", cohort_name, age_band)
+            logger.info("[OK] FP-Growth itemsets created successfully for %s / %s", cohort_name, age_band)
             logger.info("="*60)
             if result.stdout:
                 # Parse stdout for [OK] lines to show summary
@@ -116,7 +116,7 @@ def ensure_itemsets(
             return itemsets_now
         except subprocess.CalledProcessError as exc:
             logger.error("="*60)
-            logger.error("✗ Itemset creation FAILED for %s / %s (returncode=%s)", cohort_name, age_band, exc.returncode)
+            logger.error("Itemset creation FAILED for %s / %s (returncode=%s)", cohort_name, age_band, exc.returncode)
             logger.error("="*60)
             # Log first [ERROR] / [ERROR_PARAMS] line from runner so reason is visible even if full stdout is truncated
             if exc.stdout:
@@ -266,20 +266,20 @@ def create_fpgrowth_visuals(
         itemsets_ok = ensure_itemsets(cohort_name, age_band, logger=logger.logger, force=force)
         if not itemsets_ok:
             logger.warning(
-                "⚠️  No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
+                "No itemsets produced for %s / %s (e.g. model_data missing or no transactions). Check log.",
                 cohort_name,
                 age_band,
             )
         else:
-            logger.info("✓ Itemsets ready")
+            logger.info("[OK] Itemsets ready")
 
         if not skip_visualizations:
             logger.info("[STEP 2/2] Creating visualizations...")
             ok = create_visualizations(cohort_name, age_band, logger=logger.logger)
             if not ok:
-                logger.error("✗ Visualization step failed")
+                logger.error("Visualization step failed")
             else:
-                logger.info("✓ Visualizations complete")
+                logger.info("[OK] Visualizations complete")
         else:
             logger.info("[STEP 2/2] Skipping visualization creation")
 

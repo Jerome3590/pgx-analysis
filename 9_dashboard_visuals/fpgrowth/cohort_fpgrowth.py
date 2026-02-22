@@ -259,7 +259,7 @@ def log_memory_cpu(logger, stage: str = ""):
             f"cpu_process={cpu_proc:.1f}% cpu_system={cpu_sys:.1f}%"
         )
         if mem_percent > 85:
-            logger.warning(f"⚠️  HIGH MEMORY: {mem_percent:.1f}% - may cause OOM")
+            logger.warning("WARNING: HIGH MEMORY: %.1f%% - may cause OOM", mem_percent)
         return mem_percent
     except Exception as e:
         logger.error(f"Error getting resource info: {e}")
@@ -511,9 +511,8 @@ def process_single_cohort(
                         paths_checked = []
                         path_listings = []
                     logger.warning(
-                        f"✗ TRAIN FP-Growth requested for {cohort_name}/{age_band} "
-                        f"but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data (for 85-114 also 85-94+95-114). "
-                        "Run create_model_data.py first for this cohort/age_band."
+                        "TRAIN FP-Growth requested for %s/%s but model_data file not found. Checked: 3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data (for 85-114 also 85-94+95-114). Run create_model_data.py first for this cohort/age_band.",
+                        cohort_name, age_band,
                     )
                     logger.error(
                         "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=TRAIN model_data not found paths_checked=%s",
@@ -568,7 +567,7 @@ def process_single_cohort(
                 )
 
         if model_data_from is None and not parquet_file.exists():
-            logger.warning(f"✗ Cohort file not found: {parquet_file}")
+            logger.warning("Cohort file not found: %s", parquet_file)
             logger.error(
                 "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=File not found path=%s",
                 cohort_name, age_band, item_type, str(parquet_file),
@@ -767,7 +766,7 @@ def process_single_cohort(
                 logger.info("Coerced target column from %s to int; value_counts: %s", target_orig, df["target"].value_counts().to_dict())
         
         if len(df) == 0:
-            logger.warning(f"✗ No {item_type} data for {cohort_id}")
+            logger.warning("No %s data for %s", item_type, cohort_id)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -794,7 +793,7 @@ def process_single_cohort(
         df = df[item_upper.isin(allowed_upper)].copy()
         logger.info(f"Filtered to SHAP/FFA allowed items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
         if len(df) == 0:
-            logger.warning(f"✗ No rows left for {cohort_id} after allowed-codes filter")
+            logger.warning("No rows left for %s after allowed-codes filter", cohort_id)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -826,7 +825,7 @@ def process_single_cohort(
             logger.info(f"Filtered out {before_filter - after_filter:,} empty/invalid items")
         
         if len(df) == 0:
-            logger.warning(f"✗ No valid items remaining after cleanup for {cohort_id}")
+            logger.warning("No valid items remaining after cleanup for %s", cohort_id)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -856,7 +855,7 @@ def process_single_cohort(
             density_counts[density] = len(transactions)
 
             if len(transactions) < 10:
-                logger.warning(f"⚠️  Insufficient {density} density transactions ({len(transactions)}) - skipping")
+                logger.warning("Insufficient %s density transactions (%d) - skipping", density, len(transactions))
                 continue
 
             try:
@@ -907,15 +906,15 @@ def process_single_cohort(
                     continue
                     
             except MemoryError as e:
-                logger.error(f"⚠️  Memory error processing {density} density transactions: {e}")
+                logger.error("Memory error processing %s density transactions: %s", density, e)
                 logger.warning(f"   Skipping {density} density transactions due to memory constraints")
             except Exception as e:
-                logger.error(f"⚠️  Error processing {density} density transactions: {e}")
+                logger.error("Error processing %s density transactions: %s", density, e)
                 logger.warning(f"   Skipping {density} density transactions")
         
         # Combine results across density bins (low/medium/high/extreme). Data is target cohort only (no controls).
         if len(all_itemsets) == 0:
-            logger.warning(f"✗ No frequent itemsets for {cohort_id}")
+            logger.warning("No frequent itemsets for %s", cohort_id)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -1144,12 +1143,12 @@ def process_single_cohort(
 
         elapsed = time.time() - start_time
         log_memory(logger, "END")
-        logger.info(f"✓ {cohort_id} {item_type}: {len(itemsets):,} itemsets, {len(rules):,} rules in {elapsed:.1f}s")
+        logger.info("[OK] %s %s: %d itemsets, %d rules in %.1fs", cohort_id, item_type, len(itemsets), len(rules), elapsed)
 
         return metrics
         
     except Exception as e:
-        logger.error(f"✗ Failed {cohort_id} {item_type}: {e}")
+        logger.error("Failed %s %s: %s", cohort_id, item_type, e)
         return {
             'item_type': item_type,
             'cohort_name': cohort_name,
@@ -1183,8 +1182,8 @@ def main():
     # Check if at least one data source exists (either raw cohorts or model_data)
     model_data_exists = _model_data_path("opioid_ed", "13_24") is not None  # Test with one cohort
     if not LOCAL_DATA_PATH.exists() and not model_data_exists:
-        logger.error(f"✗ Local data path does not exist: {LOCAL_DATA_PATH}")
-        logger.error(f"✗ Model data not found in any fallback location (3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data)")
+        logger.error("Local data path does not exist: %s", LOCAL_DATA_PATH)
+        logger.error("Model data not found in any fallback location (3b, $PGX_DATA_ROOT, /mnt/nvme/, 4_model_data, 4a_model_data)")
         logger.error(
             "  On EC2, sync from S3 with:\n"
             "    aws s3 sync s3://pgxdatalake/gold/cohorts_F1120/ /mnt/nvme/cohorts/"
@@ -1209,7 +1208,7 @@ def main():
     
     # Apply DRY_RUN limit if enabled
     if DRY_RUN and len(cohort_jobs) > DRY_RUN_LIMIT:
-        logger.info(f"⚠️  DRY RUN: Limiting from {len(cohort_jobs)} to {DRY_RUN_LIMIT} cohort combinations")
+        logger.info("DRY RUN: Limiting from %d to %d cohort combinations", len(cohort_jobs), DRY_RUN_LIMIT)
         cohort_jobs = cohort_jobs[:DRY_RUN_LIMIT]
     
     total_jobs = len(cohort_jobs)
@@ -1258,7 +1257,7 @@ def main():
                     logger.info(f"Progress: {completed}/{total_jobs} ({completed/total_jobs*100:.1f}%) - "
                               f"ETA: {remaining/60:.1f} min")
             except Exception as e:
-                logger.error(f"✗ Job {job} raised exception: {e}")
+                logger.error("Job %s raised exception: %s", job, e)
                 failed += 1
     
     # Final summary
@@ -1342,33 +1341,33 @@ def shutdown_ec2(logger: logging.Logger, enable: bool = False):
                 result = subprocess.run(shutdown_cmd, capture_output=True, text=True)
                 
                 if result.returncode == 0:
-                    logger.info("✓ EC2 instance stop command sent successfully")
+                    logger.info("[OK] EC2 instance stop command sent successfully")
                     logger.info("Instance will stop in a few moments.")
                     logger.info("Note: This is a STOP (not terminate), so you can restart it later.")
                     if result.stdout:
                         logger.info(f"\nAWS Response:\n{result.stdout}")
                 else:
-                    logger.error(f"✗ EC2 stop command failed with exit code {result.returncode}")
+                    logger.error("EC2 stop command failed with exit code %s", result.returncode)
                     if result.stderr:
                         logger.error(f"Error: {result.stderr}")
                     logger.error("Check AWS credentials and IAM permissions.")
             else:
-                logger.error("✗ AWS CLI not found. Cannot shutdown instance.")
+                logger.error("AWS CLI not found. Cannot shutdown instance.")
                 logger.error("Install AWS CLI or ensure it's in your PATH.")
                 logger.error("Manual shutdown: aws ec2 stop-instances --instance-ids " + instance_id)
         else:
-            logger.error(f"✗ Metadata service returned status code {response.status_code}")
+            logger.error("Metadata service returned status code %s", response.status_code)
             logger.error("Could not retrieve instance ID.")
     
     except requests.exceptions.RequestException as e:
-        logger.error("✗ Could not retrieve instance ID from metadata service.")
+        logger.error("Could not retrieve instance ID from metadata service.")
         logger.error(f"Error: {e}")
         logger.error("If running on EC2, check that metadata service is accessible.")
         logger.error("\nManual shutdown command:")
         logger.error("  aws ec2 stop-instances --instance-ids <your-instance-id>")
     
     except Exception as e:
-        logger.error(f"✗ Unexpected error during shutdown: {e}")
+        logger.error("Unexpected error during shutdown: %s", e)
 
 
 if __name__ == "__main__":
