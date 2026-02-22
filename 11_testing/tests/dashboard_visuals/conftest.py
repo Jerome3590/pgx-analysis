@@ -1,4 +1,4 @@
-"""Pytest config for dashboard visuals tests."""
+"""Pytest config for dashboard visuals tests (under 11_testing/tests/dashboard_visuals)."""
 
 
 def pytest_configure(config):

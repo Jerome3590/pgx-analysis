@@ -662,6 +662,7 @@
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
+      <button class="tab-button" data-tab="cohort-pgx-visualizations" onclick="switchTab('cohort-pgx-visualizations')">PGx Cohort</button>
     </div>
 
     <!-- Risk Assessment Tab -->
@@ -965,7 +966,7 @@
     <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW; final model refines further) -->
     <div id="feature-importance-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Aggregated feature importance by age band.</strong> Heatmaps from Step 3a (Monte Carlo CV, permutation importance) built in <code>2_feature_importance.ipynb</code>. One heatmap per cohort: rows = top features, columns = age bands (0-12 through 85-114). Initial input for BupaR, FP-Growth, and DTW; final model will refine these further.
+        <strong>Aggregated feature importance by age band.</strong> Heatmaps from Step 3a (Monte Carlo CV, permutation importance) built in <code>2_feature_importance.ipynb</code>. One heatmap per cohort: rows = top features, columns = age bands (13-24 through 85-114). Initial input for BupaR, FP-Growth, and DTW; final model will refine these further.
         <br>
         <small style="color: #64748b;">Select cohort and click Load to view the aggregated FI heatmap. Upload heatmaps to the dashboard bucket under <code>feature_importance/{cohort}/aggregated_fi_heatmap.png</code> for them to appear here.</small>
       </p>
@@ -1007,7 +1008,7 @@
       </p>
       <div class="controls">
         <div class="control-group">
-          <label for="bupar-cohort">Cohort:</label>
+          <label for="bupar-cohort">Research question (cohort):</label>
           <select id="bupar-cohort">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
@@ -1020,14 +1021,35 @@
         <div class="control-group full-width">
           <button id="btnLoadBupaR">Load BupaR Visualizations</button>
         </div>
+        <div class="control-group full-width" style="margin-top: 12px;">
+          <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
+            <legend style="font-weight: 600;">Show visuals (per research question)</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which BupaR visuals to display. Selection is saved per cohort.</p>
+            <div id="bupar-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
+            <div style="margin-top: 8px;">
+              <label for="bupar-typepair-select">Process matrix type-pair:</label>
+              <select id="bupar-typepair-select">
+                <option value="drug_drug">Drug × Drug</option>
+                <option value="drug_icd">Drug × ICD</option>
+                <option value="drug_cpt">Drug × CPT</option>
+                <option value="icd_icd">ICD × ICD</option>
+                <option value="icd_drug">ICD × Drug</option>
+                <option value="icd_cpt">ICD × CPT</option>
+                <option value="cpt_cpt">CPT × CPT</option>
+                <option value="cpt_drug">CPT × Drug</option>
+                <option value="cpt_icd">CPT × ICD</option>
+              </select>
+            </div>
+          </fieldset>
+        </div>
       </div>
       <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
       <div class="panels">
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="sequence">
           <h2>Sequences to Target Outcomes</h2>
           <div id="bupar-sequence-image"></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="activity_frequency">
           <h2>Overall Activity Frequency</h2>
           <div class="control-group">
             <label for="bupar-year-overall">Year:</label>
@@ -1035,7 +1057,7 @@
           </div>
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-overall"></canvas></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="pre_target_frequency">
           <h2>Pre-Target Activity Frequency</h2>
           <div class="control-group">
             <label for="bupar-year-pre">Year:</label>
@@ -1043,7 +1065,7 @@
           </div>
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-pre"></canvas></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="post_target_activity">
           <h2>Post-Target Activity Frequency</h2>
           <div class="control-group">
             <label for="bupar-year-post">Year:</label>
@@ -1051,19 +1073,24 @@
           </div>
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-post"></canvas></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="trace_explorer">
           <h2>Trace Explorer (top 20 traces)</h2>
           <div id="bupar-trace-explorer-image"></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="trace_explorer_pre">
           <h2>Trace Explorer Pre-Target</h2>
           <div id="bupar-trace-explorer-pre-image"></div>
         </div>
-        <div class="panel">
-          <h2>Performance Spectrum (aggregated activity trace)</h2>
-          <div id="bupar-performance-spectrum-image"></div>
+        <div class="panel bupar-panel" data-visual-key="process_matrix">
+          <h2>Process Matrix (flows between activities)</h2>
+          <div id="bupar-process-matrix-image"></div>
         </div>
-        <div class="panel">
+        <div class="panel bupar-panel" data-visual-key="process_matrix_typepair">
+          <h2>Process Matrix (type-pair)</h2>
+          <p style="font-size: 0.9em; color: #64748b;">Flows by type pair (e.g. Drug×Drug). Choose type-pair above.</p>
+          <div id="bupar-process-matrix-typepair-image"></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="frequency_map">
           <h2>Frequency Map (directly-follows process map)</h2>
           <div id="bupar-frequency-map-image"></div>
         </div>
@@ -1202,6 +1229,40 @@
       </div>
     </div>
 
+    <!-- PGx Cohort Tab (Cohort PGx: VIP reports + network topology per cohort/age_band) -->
+    <div id="cohort-pgx-visualizations-tab" class="tab-content">
+      <p class="subtitle">
+        <strong>Research focus:</strong> Gene–drug–phenotype network topology from top PGx genes (SHAP/FFA) and PharmGKB VIP reports.
+        <br>
+        <small style="color: #64748b;">Select cohort and age band, then load to view the interactive network (genes, drugs, phenotypes). Built by 4_dashboard_visuals (Cohort PGx).</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="cohort-pgx-cohort">Cohort:</label>
+          <select id="cohort-pgx-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="cohort-pgx-age-band">Age Band:</label>
+          <select id="cohort-pgx-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadCohortPgx">Load PGx Cohort Network</button>
+        </div>
+      </div>
+      <div id="cohort-pgx-status" class="status-message">Select cohort and age band, then click 'Load PGx Cohort Network'</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>Gene–Drug–Phenotype Network Topology</h2>
+          <div id="cohort-pgx-iframe-container" style="min-height: 600px;">
+            <iframe id="cohort-pgx-iframe" style="width: 100%; height: 700px; border: 1px solid #e2e8f0; border-radius: 0.5rem;" title="Cohort PGx network topology"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Documentation Tab (same-page content, no navigation away) -->
     <div id="documentation-tab" class="tab-content">
       <p class="subtitle">
@@ -1210,18 +1271,18 @@
       <div class="doc-content tab-content-inner">
         <h2>Overview</h2>
         <p>
-          This dashboard supports <strong>F1120 Opioid ED Visit</strong> risk (ages 13–64) and <strong>Polypharmacy</strong> risk (ages 65–114).
-          Model selection is automatic based on the age you enter. Use the Opioid ED or Polypharmacy tab to switch cohort context.
+          This dashboard supports <strong>F1120 Opioid ED Visit</strong> risk and <strong>Polypharmacy</strong> risk.
+          Each cohort supports <strong>age bands 13–114</strong> (13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114). Use the Opioid ED or Polypharmacy tab to switch cohort; age selects the age band within that cohort.
         </p>
 
         <h2>Tabs</h2>
-        <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata).</p>
-        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | Feature Importance | PGx Patient Card | Documentation</p>
+        <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata). Both cohorts support age bands 13–114.</p>
+        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Cohort | Feature Importance | PGx Patient Card | Documentation</p>
         <ul>
           <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
           <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
-          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. For Opioid ED patients only (ages 13-64). Selections are used for the risk calculation.</li>
-          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. For Opioid ED patients only (ages 13-64). Selections are used for the risk calculation.</li>
+          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
+          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
           <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort and age band.</li>
           <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations.</li>
           <li><strong>FP-Growth Patterns</strong> — Frequent itemset and network visualizations.</li>
@@ -1254,9 +1315,9 @@
 
         <h2>Workflow</h2>
         <ol>
-          <li>Set <strong>Age</strong> on Risk Assessment (this loads metadata and determines cohort/age band).</li>
+          <li>Set <strong>Age</strong> on Risk Assessment (this loads metadata and determines age band; age 13–114 supported for both cohorts).</li>
           <li>Open <strong>Drugs</strong> tab, search and add the drugs you need. View selected drugs in the display area.</li>
-          <li>For Opioid ED patients (ages 13-64), also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
+          <li>For the <strong>Opioid ED</strong> cohort, also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
           <li>Return to <strong>Risk Assessment</strong> and click <em>Calculate Risk Score</em>.</li>
           <li>Use <em>Compare Scenarios</em> to compare different code sets.</li>
           <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
@@ -1289,7 +1350,7 @@
           All tabs use the same page; nothing here navigates you away to a separate doc page.
         </p>
         <p>
-          <strong>Note for Polypharmacy patients (ages 65-114):</strong> Only drugs are used for risk calculation. ICD and CPT code tabs are hidden for these patients.
+          <strong>Note for Polypharmacy cohort:</strong> Only drugs are used for risk calculation. ICD and CPT code tabs are hidden for this cohort. Both cohorts support age bands 13–114.
         </p>
       </div>
     </div>
@@ -2342,6 +2403,36 @@
     }
   });
 
+  // PGx Cohort Tab: load network topology URL and show in iframe
+  document.getElementById("btnLoadCohortPgx")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("cohort-pgx-cohort").value;
+    const ageBand = document.getElementById("cohort-pgx-age-band").value;
+    if (!cohort || !ageBand) {
+      document.getElementById("cohort-pgx-status").textContent = "Please select cohort and age band";
+      document.getElementById("cohort-pgx-status").className = "status-message error";
+      return;
+    }
+    document.getElementById("cohort-pgx-status").textContent = "Loading PGx Cohort network...";
+    document.getElementById("cohort-pgx-status").className = "status-message info";
+    try {
+      const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const iframe = document.getElementById("cohort-pgx-iframe");
+      if (iframe && data.network_topology_url) {
+        iframe.src = data.network_topology_url;
+        document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
+        document.getElementById("cohort-pgx-status").className = "status-message success";
+      } else {
+        document.getElementById("cohort-pgx-status").textContent = "No network URL returned. Run 4_dashboard_visuals (Cohort PGx) and sync to S3.";
+        document.getElementById("cohort-pgx-status").className = "status-message error";
+      }
+    } catch (err) {
+      document.getElementById("cohort-pgx-status").textContent = `Error: ${err.message}`;
+      document.getElementById("cohort-pgx-status").className = "status-message error";
+    }
+  });
+
   // BupaR Visualizations Tab: load image URLs + activity frequency JSON (bar charts)
   document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
     const cohort = document.getElementById("bupar-cohort").value;
@@ -2360,7 +2451,8 @@
       ]);
       if (!urlResp.ok) throw new Error(`HTTP ${urlResp.status}`);
       const data = await urlResp.json();
-      renderBupaRVisualizations(data);
+      const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
+      renderBupaRVisualizations(data, selected.length ? selected : undefined);
       if (freqResp.ok) {
         const freqData = await freqResp.json();
         renderBupaRActivityFrequencyCharts(freqData);
@@ -2401,6 +2493,7 @@
       if (data.combined_url) {
         fiCombinedImg.src = data.combined_url;
         fiCombinedImg.style.display = "block";
+        fiCombinedImg.onerror = () => { document.getElementById("fi-status").textContent = "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket."; document.getElementById("fi-status").className = "status-message error"; };
       }
       document.getElementById("fi-status").textContent = "Feature importance heatmaps loaded (if images 404, upload them to the dashboard bucket).";
       document.getElementById("fi-status").className = "status-message success";
@@ -2461,14 +2554,15 @@
     }
   }
 
+  const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
   function renderDTWVisualizations(data) {
     // Render DTW overview image
     if (data.overview_image) {
-      document.getElementById("dtw-overview-image").innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" />`;
+      document.getElementById("dtw-overview-image").innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
     }
     // Render sample trajectories image
     if (data.sample_trajectories_image) {
-      document.getElementById("dtw-sample-trajectories-image").innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" />`;
+      document.getElementById("dtw-sample-trajectories-image").innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
     }
     // Render trajectory metrics chart
     if (data.metrics) {
@@ -2489,7 +2583,7 @@
     const routineEl = document.getElementById("dtw-routine-comparison-container");
     if (routineEl) {
       if (data.routine_comparison_image) {
-        routineEl.innerHTML = `<img src="${data.routine_comparison_image}" style="max-width: 100%;" />`;
+        routineEl.innerHTML = `<img src="${data.routine_comparison_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
       } else if (data.routine_comparison && data.routine_comparison.x && data.routine_comparison.y) {
         const trace = {
           x: data.routine_comparison.x,
@@ -2513,7 +2607,7 @@
     const highRiskEl = document.getElementById("dtw-high-risk-trajectories-container");
     if (highRiskEl) {
       if (data.high_risk_trajectories_image) {
-        highRiskEl.innerHTML = `<img src="${data.high_risk_trajectories_image}" style="max-width: 100%;" />`;
+        highRiskEl.innerHTML = `<img src="${data.high_risk_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
       } else if (data.high_risk_trajectories && data.high_risk_trajectories.x && data.high_risk_trajectories.y) {
         const trace = {
           x: data.high_risk_trajectories.x,
@@ -2657,18 +2751,105 @@
     }
   }
 
-  function renderBupaRVisualizations(data) {
-    // Render BupaR image panels (activity frequency is now JSON bar charts)
+  const BUPAR_VISUAL_KEYS_INDEX = [
+    { key: 'activity_frequency', label: 'Overall Activity Frequency' },
+    { key: 'pre_target_frequency', label: 'Pre-Target Activity Frequency' },
+    { key: 'post_target_activity', label: 'Post-Target Activity Frequency' },
+    { key: 'sequence', label: 'Sequences to Target' },
+    { key: 'trace_explorer', label: 'Trace Explorer' },
+    { key: 'trace_explorer_pre', label: 'Trace Explorer Pre-Target' },
+    { key: 'process_matrix', label: 'Process Matrix (combined)' },
+    { key: 'process_matrix_typepair', label: 'Process Matrix (type-pair)' },
+    { key: 'frequency_map', label: 'Frequency Map' }
+  ];
+  const BUPAR_STORAGE_KEY_INDEX = 'bupar_visuals_selection';
+
+  function getBupaRVisualSelectionIndex(cohort) {
+    try {
+      const raw = localStorage.getItem(BUPAR_STORAGE_KEY_INDEX);
+      if (!raw) return BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
+      const obj = JSON.parse(raw);
+      return Array.isArray(obj[cohort]) ? obj[cohort] : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
+    } catch (_) {
+      return BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
+    }
+  }
+  function setBupaRVisualSelectionIndex(cohort, keys) {
+    try {
+      const raw = localStorage.getItem(BUPAR_STORAGE_KEY_INDEX);
+      const obj = raw ? JSON.parse(raw) : {};
+      obj[cohort] = keys;
+      localStorage.setItem(BUPAR_STORAGE_KEY_INDEX, JSON.stringify(obj));
+    } catch (_) {}
+  }
+  function buildBupaRVisualCheckboxesIndex(cohort) {
+    const container = document.getElementById('bupar-visual-checkboxes');
+    if (!container) return;
+    const selected = getBupaRVisualSelectionIndex(cohort);
+    container.innerHTML = BUPAR_VISUAL_KEYS_INDEX.map(({ key, label }) => {
+      const checked = selected.includes(key) ? ' checked' : '';
+      return `<label style="white-space: nowrap;"><input type="checkbox" class="bupar-visual-cb" data-visual-key="${key}"${checked}> ${label}</label>`;
+    }).join('');
+    container.querySelectorAll('.bupar-visual-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const keys = Array.from(container.querySelectorAll('.bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
+        setBupaRVisualSelectionIndex(cohort, keys);
+        document.querySelectorAll('.bupar-panel').forEach(p => {
+          p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+        });
+      });
+    });
+  }
+
+  function renderBupaRVisualizations(data, selectedKeys) {
+    const keys = selectedKeys && selectedKeys.length ? selectedKeys : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
+    document.querySelectorAll('.bupar-panel').forEach(p => {
+      p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+    });
+    const typepairSelect = document.getElementById('bupar-typepair-select');
+    const typepairKey = typepairSelect ? typepairSelect.value : 'drug_drug';
     const imageMap = {
       'bupar-sequence-image': data.sequence_image,
-      'bupar-trace-explorer-image': data.trace_explorer_image,
+      'bupar-trace-explorer-image': data.trace_explorer_interactive || data.trace_explorer_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-performance-spectrum-image': data.performance_spectrum_image,
+      'bupar-process-matrix-image': data.process_matrix_interactive || data.process_matrix_image,
+      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey],
       'bupar-frequency-map-image': data.frequency_map_image
     };
-    for (const [elementId, imageUrl] of Object.entries(imageMap)) {
+    const keyToElement = {
+      activity_frequency: null,
+      pre_target_frequency: null,
+      post_target_activity: null,
+      sequence: 'bupar-sequence-image',
+      trace_explorer: 'bupar-trace-explorer-image',
+      trace_explorer_pre: 'bupar-trace-explorer-pre-image',
+      process_matrix: 'bupar-process-matrix-image',
+      process_matrix_typepair: 'bupar-process-matrix-typepair-image',
+      frequency_map: 'bupar-frequency-map-image'
+    };
+    for (const visualKey of keys) {
+      const elementId = keyToElement[visualKey];
+      if (!elementId) continue;
+      const imageUrl = imageMap[elementId];
       const el = document.getElementById(elementId);
-      if (el && imageUrl) el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" />`;
+      if (!el) continue;
+      if (!imageUrl) {
+        el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available.</p>';
+        continue;
+      }
+      if (imageUrl.endsWith('.html')) {
+        el.innerHTML = `<iframe src="${imageUrl}" style="width: 100%; height: 700px; border: 1px solid #ddd;" title="${elementId}"></iframe>`;
+      } else {
+        el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" onerror="this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found.</p>';" />`;
+      }
+    }
+    for (const visualKey of BUPAR_VISUAL_KEYS_INDEX.map(v => v.key)) {
+      if (keys.includes(visualKey)) continue;
+      const elementId = keyToElement[visualKey];
+      if (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) el.innerHTML = '';
+      }
     }
   }
 
@@ -2740,7 +2921,7 @@
   function syncVisualizationCohortContext(cohort) {
     const defaultAgeBand = cohort === "opioid_ed" ? "25-44" : "65-74";
     const ageBandToSelect = currentAgeBand || defaultAgeBand;
-    ['causal', 'dtw', 'fpgrowth', 'bupar'].forEach(prefix => {
+    ['causal', 'dtw', 'fpgrowth', 'bupar', 'cohort-pgx'].forEach(prefix => {
       const cohortSelect = document.getElementById(`${prefix}-cohort`);
       const ageBandSelect = document.getElementById(`${prefix}-age-band`);
       if (cohortSelect && ageBandSelect) {
@@ -2755,18 +2936,33 @@
     });
   }
 
-  // Update age bands when cohort changes on a visualization tab
-  ['causal', 'dtw', 'fpgrowth', 'bupar'].forEach(prefix => {
+  // Update age bands when cohort changes on a visualization tab; BupaR: rebuild visual checkboxes per research question
+  ['causal', 'dtw', 'fpgrowth', 'bupar', 'cohort-pgx'].forEach(prefix => {
     const cohortSelect = document.getElementById(`${prefix}-cohort`);
     const ageBandSelect = document.getElementById(`${prefix}-age-band`);
     if (cohortSelect && ageBandSelect) {
       cohortSelect.addEventListener('change', () => {
         populateAgeBands(cohortSelect.value, ageBandSelect);
+        if (prefix === 'bupar') {
+          buildBupaRVisualCheckboxesIndex(cohortSelect.value);
+          const keys = getBupaRVisualSelectionIndex(cohortSelect.value);
+          document.querySelectorAll('.bupar-panel').forEach(p => {
+            p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+          });
+        }
       });
       // Initialize
       populateAgeBands(cohortSelect.value, ageBandSelect);
     }
   });
+  const buparCohortElIndex = document.getElementById('bupar-cohort');
+  if (buparCohortElIndex) {
+    buildBupaRVisualCheckboxesIndex(buparCohortElIndex.value);
+    const keys = getBupaRVisualSelectionIndex(buparCohortElIndex.value);
+    document.querySelectorAll('.bupar-panel').forEach(p => {
+      p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+    });
+  }
 
   // Initialize the dashboard
   console.log("Initializing PGx Risk Dashboard...");
