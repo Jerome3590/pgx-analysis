@@ -2,7 +2,9 @@
 """
 Run FP-Growth analysis for a single cohort/age_band combination.
 
-Item types (from cohort_fpgrowth.ITEM_TYPES): drug_name, icd_code, cpt_code, medical_code.
+Item types are cohort-dependent (from cohort_fpgrowth.get_item_types_for_cohort):
+- non_opioid_ed (polypharmacy): drug_name only
+- opioid_ed: drug_name, icd_code, cpt_code
 This script calls process_single_cohort directly for a specific cohort/age_band.
 """
 
@@ -33,9 +35,9 @@ spec.loader.exec_module(cohort_fpgrowth)
 
 process_single_cohort = cohort_fpgrowth.process_single_cohort
 _model_data_paths = cohort_fpgrowth._model_data_paths
+get_item_types_for_cohort = cohort_fpgrowth.get_item_types_for_cohort
 MIN_SUPPORT = cohort_fpgrowth.MIN_SUPPORT
 MIN_CONFIDENCE = cohort_fpgrowth.MIN_CONFIDENCE
-ITEM_TYPES = cohort_fpgrowth.ITEM_TYPES
 S3_OUTPUT_BASE = cohort_fpgrowth.S3_OUTPUT_BASE
 MODEL_DATA_ROOT = cohort_fpgrowth.MODEL_DATA_ROOT
 LOCAL_DATA_PATH = cohort_fpgrowth.LOCAL_DATA_PATH
@@ -87,11 +89,12 @@ def main():
     else:
         local_data_path = MODEL_DATA_ROOT if MODEL_DATA_ROOT.exists() else LOCAL_DATA_PATH
 
+    item_types = get_item_types_for_cohort(args.cohort_name)
     print("="*70, flush=True)
     print(f"FP-GROWTH ITEMSET MINING: {args.cohort_name} / {args.age_band} / {args.event_year}", flush=True)
     print("="*70, flush=True)
     print(f"Data path: {local_data_path}", flush=True)
-    print(f"Item types: {', '.join(ITEM_TYPES)}", flush=True)
+    print(f"Item types: {', '.join(item_types)}", flush=True)
     print(f"Min support: {MIN_SUPPORT}, Min confidence: {MIN_CONFIDENCE}", flush=True)
     print("", flush=True)
     
@@ -107,7 +110,7 @@ def main():
         except Exception:
             pass
 
-    # Process item types in parallel to maximize CPU utilization (4 types × N cores)
+    # Process item types in parallel (count = len(item_types) for this cohort)
     any_ok = False
     failures = []  # (item_type, error_msg)
     
@@ -116,7 +119,7 @@ def main():
         _log_resources(f"before {item_type}")
         print("", flush=True)
         print("-" * 70, flush=True)
-        print(f"[ITEM TYPE {idx}/{len(ITEM_TYPES)}] Processing {item_type}...", flush=True)
+        print(f"[ITEM TYPE {idx}/{len(item_types)}] Processing {item_type}...", flush=True)
         print("-" * 70, flush=True)
         try:
             result = process_single_cohort(
@@ -139,9 +142,9 @@ def main():
             return (item_type, None, (e, tb))
     
     # Parallelize item type processing (4 workers for 4 item types)
-    with ThreadPoolExecutor(max_workers=len(ITEM_TYPES)) as executor:
-        futures = {executor.submit(process_item_type, item_type, idx): item_type 
-                   for idx, item_type in enumerate(ITEM_TYPES, 1)}
+    with ThreadPoolExecutor(max_workers=len(item_types)) as executor:
+        futures = {executor.submit(process_item_type, item_type, idx): item_type
+                   for idx, item_type in enumerate(item_types, 1)}
         
         for future in as_completed(futures):
             item_type, result, exception_info = future.result()
@@ -169,8 +172,8 @@ def main():
                     print(f"[ERROR_PARAMS] {params}", flush=True)
             else:
                 any_ok = True
-                itemset_count = result.get('itemsets_count', 0)
-                rules_count = result.get('rules_count', 0)
+                itemset_count = result.get('frequent_itemsets', result.get('itemsets_count', 0))
+                rules_count = result.get('association_rules', result.get('rules_count', 0))
                 print(f"[OK] {item_type}: {itemset_count} itemsets, {rules_count} rules", flush=True)
                 if itemset_count > 0:
                     print(f"   Generated {itemset_count} frequent itemsets", flush=True)
@@ -180,12 +183,12 @@ def main():
     print("", flush=True)
     print("="*70, flush=True)
     if any_ok:
-        success_count = len(ITEM_TYPES) - len(failures)
-        print(f"[OK] FP-GROWTH COMPLETE: {success_count}/{len(ITEM_TYPES)} item types successful", flush=True)
+        success_count = len(item_types) - len(failures)
+        print(f"[OK] FP-GROWTH COMPLETE: {success_count}/{len(item_types)} item types successful", flush=True)
         if failures:
             print(f"   {len(failures)} item types failed (see errors above)", flush=True)
     else:
-        print(f"[FAIL] FP-GROWTH FAILED: All {len(ITEM_TYPES)} item types failed", flush=True)
+        print(f"[FAIL] FP-GROWTH FAILED: All {len(item_types)} item types failed", flush=True)
         summary = "; ".join(f"{t}={e}" for t, e in failures) if failures else "no item types produced itemsets"
         # When only "No frequent itemsets" (e.g. small cohort / insufficient transactions), exit 0 so pipeline continues
         only_no_itemsets = failures and all(e == "No frequent itemsets" for _, e in failures)
@@ -204,7 +207,7 @@ def main():
             )
             itemsets_dir.mkdir(parents=True, exist_ok=True)
             empty_message = "No frequent itemsets or rules for this cohort/age band (insufficient transactions)."
-            for item_type in ITEM_TYPES:
+            for item_type in item_types:
                 for suffix in ("_itemsets.json", "_rules.json", "_itemsets_target_only.json", "_rules_target_only.json"):
                     path = itemsets_dir / f"{item_type}{suffix}"
                     with open(path, "w", encoding="utf-8") as f:
