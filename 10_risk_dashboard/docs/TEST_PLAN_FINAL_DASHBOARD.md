@@ -147,3 +147,51 @@ The suite:
 2. For each of **Causal Analysis**, **Feature Importance**, **BupaR**, **DTW**, **FP-Growth**, **PGx Cohort**: select a valid cohort and age band, click Load.
 3. Confirm either (a) visualizations load, or (b) a clear status message is shown (e.g. "Plot not found", "Upload ... to the dashboard bucket", "Error: ..."). No blank panels or uncaught console errors.
 4. Compare with any screenshots in `status/dashboard_errors/` to ensure the same error no longer appears.
+
+---
+
+## 7. Dashboard Error Resolution Guide
+
+This section addresses the two primary errors that have surfaced in the PGx Risk Assessment Dashboard UI and the remediation steps (implemented where applicable; operational steps for pipeline operators).
+
+### 7.1 Error 1: Causal Analysis Tab (HTTP 500)
+
+**Symptom:** Loading Causal Analysis for a cohort/age band (e.g. Opioid ED, 25-44) returns a red banner: `Error: HTTP 500`.
+
+**Root cause:** The Lambda backend failed while processing `GET /visualizations/causal`. The Causal tab depends on **Step 7 (SHAP)** and **Step 8 (FFA)** outputs. If those artifacts are missing from S3, or the combination/consensus step was not run for that cohort/age band, the handler can raise and return 500.
+
+**Fixes implemented:**
+- Lambda’s `load_causal_importance` and `load_shap_importance` return empty DataFrames on S3 `NoSuchKey`, so missing SHAP/FFA files no longer cause a 500; the API returns 200 with empty `causal_factors` / `shap_importance`.
+- Frontend uses `try/catch` on the Load button and sets the tab status to an error message on fetch failure.
+
+**Operational checks (if 500 persists or data is empty):**
+1. **Verify Step 7 and Step 8 outputs** for the cohort/age band. Required objects (examples for `opioid_ed` / `25-44`):
+   - **SHAP:** `s3://pgxdatalake/gold/shap_analysis/opioid_ed/25-44/*_shap_global_importance_xgboost.csv` (or equivalent model type).
+   - **FFA:** `s3://pgxdatalake/gold/ffa_analysis/opioid_ed/25_44/<model_type>/causal_importance.parquet` (and optionally `interaction_analysis.parquet`).
+2. **Run combination/consensus** if your pipeline has a script that merges SHAP and FFA for the dashboard. Ensure it is run for the cohort/age band in question.
+3. **Check CloudWatch logs** for the Lambda function for tracebacks if files exist but 500 still occurs.
+
+### 7.2 Error 2: Feature Importance Tab (Missing Heatmaps)
+
+**Symptom:** The dashboard shows: *"Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket."* and broken images for "Aggregated Feature Importance by Age Band" and "Combined Cohorts".
+
+**Root cause:** The dashboard bucket does not have the heatmap objects at the paths the API returns, or the pipeline did not produce/upload them. The Lambda and frontend expect:
+- Per-cohort: `{S3_DASHBOARD_PREFIX}/feature_importance/{cohort}/aggregated_fi_heatmap.png`
+- Combined: `{S3_DASHBOARD_PREFIX}/feature_importance/combined_cohorts_feature_importance_heatmap.png`
+
+**Fixes implemented:**
+- Frontend sets status `className` and assigns `onerror` on both heatmap and combined images so that a 404 shows the message above instead of a broken image with no feedback.
+- Lambda returns 200 with `heatmap_url` and `combined_url`; missing objects result in 404 when the browser loads the image; `onerror` then displays the message.
+
+**Operational checks (to populate heatmaps):**
+1. **Generate aggregated heatmaps.** The repo uses `py_helpers/feature_importance_heatmap.py` which writes `{cohort}_aggregated_fi_heatmap.png` under `outputs_base/{cohort}/plots/`. The deploy notebook (5_build_and_deploy) uploads from there to `feature_importance/{cohort}/aggregated_fi_heatmap.png`. Ensure the feature importance step and deploy upload have been run.
+2. **If using the R cross-age-band script** (`r_helpers/create_cross_ageband_heatmap.R`): it outputs `{cohort}_{year}_ageband_heatmap_top50.png`. Either copy/rename to `aggregated_fi_heatmap.png` and upload to `feature_importance/{cohort}/aggregated_fi_heatmap.png`, or use the Python pipeline which already produces the expected filename.
+3. **Combined heatmap:** Deploy notebook uploads `combined_cohorts_feature_importance_heatmap.png` from the local path produced by the Python helper.
+
+### 7.3 General dashboard deployment verification
+
+After applying fixes or re-running pipelines:
+1. **Run the visualization pipeline:** `4_dashboard_visuals.ipynb` or `python 9_dashboard_visuals/run_dashboard_visuals.py` (BupaR, DTW, FP-Growth upload to the dashboard bucket from within the pipeline).
+2. **Run the deploy step:** `5_build_and_deploy.ipynb` (frontend sync, feature importance upload, cohort_pgx sync).
+3. **Confirm S3** has the expected prefixes under the dashboard prefix: `bupar/`, `dtw/`, `fpgrowth/`, `feature_importance/`, `cohort_pgx/` (see Section 1.3).
+4. **Clear browser cache** and reload the dashboard; re-run the Section 6.3 manual regression pass.
