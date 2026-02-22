@@ -834,7 +834,11 @@ def process_single_cohort(
                 'event_year': event_year,
                 'error': 'No valid items after cleanup'
             }
-        
+
+        n_persons = df["mi_person_key"].nunique()
+        n_rows = len(df)
+        logger.info(f"Target cohort size for {cohort_id} ({item_type}): {n_persons:,} persons, {n_rows:,} item rows")
+
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
         df = assign_transaction_density(df, logger)
@@ -885,13 +889,18 @@ def process_single_cohort(
                     log_memory(logger, f"After filtering itemsets by lift ({density})")
                 
                 if len(itemsets_density) > 0:
+                    # Diagnostic: association_rules requires itemsets of size >= 2
+                    n_single = sum(1 for _, r in itemsets_density.iterrows() if len(r["itemsets"]) == 1)
+                    n_multi = len(itemsets_density) - n_single
                     all_itemsets.append(itemsets_density)
                     log_memory(logger, f"After FP-Growth ({density})")
-                    
-                    # Generate association rules
+
                     rules_density = association_rules(itemsets_density, metric="confidence", min_threshold=min_confidence)
-                    rules_density = rules_density.sort_values('lift', ascending=False).reset_index(drop=True)
+                    rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                     all_rules.append(rules_density)
+                    logger.info(
+                        f"  {density}: {len(itemsets_density):,} itemsets ({n_single} single-item, {n_multi} multi-item) → {len(rules_density):,} rules"
+                    )
                     log_memory(logger, f"After rule generation ({density})")
                 else:
                     logger.warning(f"No itemsets remaining after lift filtering for {density} density")
@@ -927,7 +936,44 @@ def process_single_cohort(
             rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
         else:
             rules = pd.DataFrame()
-        
+
+        # Diagnostic when 0 rules: association_rules needs itemsets of size >= 2
+        n_single_total = sum(1 for _, r in itemsets.iterrows() if len(r["itemsets"]) == 1)
+        n_multi_total = len(itemsets) - n_single_total
+        if len(rules) == 0:
+            logger.warning(
+                "0 rules for %s: %d single-item and %d multi-item itemsets at min_support=%.4f. "
+                "association_rules requires 2+ item itemsets. Trying fallback with lower support (%.4f).",
+                cohort_id, n_single_total, n_multi_total, min_support, MIN_SUPPORT_TARGET_ONLY,
+            )
+            # Fallback: run on all target transactions (no density split) with lower support
+            tx_all = (
+                df.groupby("mi_person_key")["item"]
+                .apply(lambda x: sorted(set(x.tolist())))
+                .tolist()
+            )
+            tx_all = [t for t in tx_all if len(t) > 0]
+            if len(tx_all) >= 10:
+                te_f = TransactionEncoder()
+                te_ary_f = te_f.fit(tx_all).transform(tx_all)
+                df_enc_f = pd.DataFrame(te_ary_f, columns=te_f.columns_)
+                support_f = min(min_support, MIN_SUPPORT_TARGET_ONLY)
+                itemsets_f = fpgrowth(df_enc_f, min_support=support_f, use_colnames=True)
+                if len(itemsets_f) > 0:
+                    itemsets_f = filter_itemsets_by_lift(itemsets_f, df_enc_f, MIN_ITEMSET_LIFT, logger)
+                if len(itemsets_f) > 0:
+                    rules_f = association_rules(itemsets_f, metric="confidence", min_threshold=min_confidence)
+                    if len(rules_f) > 0:
+                        rules_f = rules_f.sort_values("lift", ascending=False).reset_index(drop=True)
+                        rules = rules_f
+                        itemsets = itemsets_f.drop_duplicates(subset=["itemsets"]).sort_values("support", ascending=False).reset_index(drop=True)
+                        logger.info(
+                            "Fallback (all target transactions, support=%.4f): %d itemsets → %d rules",
+                            support_f, len(itemsets_f), len(rules),
+                        )
+            else:
+                logger.warning("Fallback skipped: insufficient transactions (%d) for %s", len(tx_all), cohort_id)
+
         # Create encoding map
         encoding_map = {}
         for idx, row in itemsets.iterrows():

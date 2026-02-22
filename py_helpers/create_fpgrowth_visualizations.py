@@ -232,34 +232,38 @@ def _network_combined_plotly_with_filter(
             )
         )
 
-    # One edge trace per (source_type, target_type) for filter
+    # One edge trace per edge so width can be based on support (frequency)
+    # Width = 0.5 + 6*support, clamped to [0.5, 4]
     edge_traces = []
+    edge_trace_type: List[tuple] = []  # (tu, tv) per trace for filter
     for (tu, tv), pairs in edges_by_type_pair.items():
-        edge_x, edge_y = [], []
         for u, v in pairs:
+            support = G[u][v].get("support", 0.0) or 0.0
+            width = max(0.5, min(4.0, 0.5 + 6.0 * support))
             x0, y0 = pos[u]
             x1, y1 = pos[v]
-            edge_x.extend([x0, x1, None])
-            edge_y.extend([y0, y1, None])
-        edge_traces.append(
-            go.Scatter(
-                x=edge_x,
-                y=edge_y,
-                line=dict(width=1.2, color="#94a3b8"),
-                hoverinfo="none",
-                mode="lines",
-                name=f"{ITEM_TYPE_LABELS.get(tu, tu)} → {ITEM_TYPE_LABELS.get(tv, tv)}",
-                showlegend=False,
+            edge_traces.append(
+                go.Scatter(
+                    x=[x0, x1, None],
+                    y=[y0, y1, None],
+                    line=dict(width=width, color="#94a3b8"),
+                    hoverinfo="text",
+                    hovertext=f"Support: {support:.3f}",
+                    mode="lines",
+                    name=f"{ITEM_TYPE_LABELS.get(tu, tu)} → {ITEM_TYPE_LABELS.get(tv, tv)}",
+                    showlegend=False,
+                )
             )
-        )
+            edge_trace_type.append((tu, tv))
 
     all_traces = edge_traces + node_traces
     n_edge_traces = len(edge_traces)
     n_node_traces = len(node_traces)
     type_to_node_idx = {FPGROWTH_GRAPH_ITEM_TYPES[i]: i for i in range(n_node_traces) if i < len(FPGROWTH_GRAPH_ITEM_TYPES)}
-    type_to_edge_indices = {}
-    for (tu, tv), idx in zip(edges_by_type_pair.keys(), range(n_edge_traces)):
-        type_to_edge_indices[(tu, tv)] = idx
+    # Which edge traces belong to which (tu, tv) for filter
+    type_to_edge_indices: Dict[tuple, List[int]] = {}
+    for i, tt in enumerate(edge_trace_type):
+        type_to_edge_indices.setdefault(tt, []).append(i)
 
     # Dropdown: All, Drug, ICD, CPT
     buttons = [
@@ -278,9 +282,8 @@ def _network_combined_plotly_with_filter(
         vis = [False] * len(all_traces)
         ni = type_to_node_idx[item_type]
         vis[n_edge_traces + ni] = True
-        for (tu, tv), ei in type_to_edge_indices.items():
-            if tu == item_type and tv == item_type:
-                vis[ei] = True
+        for ei in type_to_edge_indices.get((item_type, item_type), []):
+            vis[ei] = True
         buttons.append(
             dict(
                 label=ITEM_TYPE_LABELS.get(item_type, item_type),
