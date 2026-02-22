@@ -13,6 +13,8 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
 
+**Logs** are written under **`pgx-analysis/9_dashboard_visuals/logs/`** (e.g. `logs/5_dtw/`, `logs/bupaR/`, `logs/fpgrowth/`). Paths are resolved from the repo root (`REPO_ROOT`). Run the pipeline from **inside the repo** (e.g. `cd pgx-analysis && python 9_dashboard_visuals/run_dashboard_visuals.py`) so that logs end up in `pgx-analysis/9_dashboard_visuals/logs/` and not in a sibling directory.
+
 **Not used for feature engineering:** BupaR, DTW, and FP-Growth outputs under `outputs/feature_engineering/` (sequence features, trajectory/predictive-time CSVs, DTW alignment distances, itemsets/rules) are computed for dashboard visualization and analysis. Results are not added to model data due to concern about target leakage. DTW alignment IS computed using dtaidistance library; FP-Growth and BupaR also perform full analyses for dashboard insights.
 
 **FP-Growth:** This step uses **fpgrowth** (`9_dashboard_visuals/fpgrowth/`) for itemsets and visuals. **4_fpgrowth_analysis** is the template for that code and is **gitignored** (see `.gitignore`: `9_dashboard_visuals/4_fpgrowth_analysis/`); the committed pipeline is `fpgrowth` only.

@@ -38,8 +38,8 @@ from py_helpers.fe_monitor import step_block  # noqa: E402
 
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth)."""
-    logs_dir = PROJECT_ROOT / "logs" / "5_dtw"
+    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth). Logs under repo root: pgx-analysis/9_dashboard_visuals/logs/5_dtw."""
+    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "5_dtw"
     logs_dir.mkdir(parents=True, exist_ok=True)
     age_band_fname = age_band.replace("-", "_")
     log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
