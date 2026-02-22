@@ -11,8 +11,10 @@ Runs the BupaR workflow for a given cohort and age band (outputs and plots only;
 
 Outputs:
 - Interactive plots: 2 HTML files with year dropdown filtering (activity_frequency, trace_explorer)
-- Static plots: Multiple PNG files for process maps and activity analysis
-- Note: process_matrix visualization was removed due to consistent bupaR library errors
+- Static plots: Multiple PNG files for process maps and activity analysis, including process_matrix
+  and optional type-pair process matrices (drug_drug, drug_icd, drug_cpt, icd_icd, icd_drug, icd_cpt,
+  cpt_cpt, cpt_drug, cpt_icd). Run the full pipeline (run_dashboard_visuals.py or 4_dashboard_visuals
+  notebook) for all cohort/age_band combinations to generate all outputs.
 """
 
 import argparse

@@ -2,11 +2,11 @@
 """
 Local tests for dashboard visuals: assert each pipeline produces expected file types.
 
-- BupaR: at least one .png and one .html under plots/ (trace_explorer, activity_frequency_interactive, etc.)
+- BupaR: at least one .png and one .html under plots/
 - DTW: .png and/or chart_data.json under plots/
 - FP-Growth: .png and/or .html under plots/
 
-Structure tests run against real output dirs when present, else a temp fixture dir (so tests always run).
+Structure tests run against real output dirs when present, else a temp fixture dir.
 Integration tests run pipelines when RUN_VISUALS_INTEGRATION=1.
 """
 
@@ -20,7 +20,8 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# 11_testing/tests/dashboard_visuals/test_*.py -> parents[3] = repo root
+REPO_ROOT = Path(__file__).resolve().parents[3]
 STEP9 = REPO_ROOT / "9_dashboard_visuals"
 VISUAL_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations"
 if str(REPO_ROOT) not in sys.path:
@@ -32,7 +33,6 @@ RUN_INTEGRATION = os.environ.get("RUN_VISUALS_INTEGRATION", "").strip().lower() 
 
 
 def _bupar_plots_dirs_to_check():
-    """Return list of (plots_path, label). Uses real dirs or one temp fixture so test always has something to check."""
     out = []
     base = VISUAL_ROOT / "bupar" / "outputs"
     if base.exists():
@@ -55,7 +55,6 @@ def _bupar_plots_dirs_to_check():
 
 
 def _dtw_plots_dirs_to_check():
-    """Return list of (plots_path, label). Uses real dirs or one temp fixture."""
     out = []
     base = VISUAL_ROOT / "dtw" / "outputs"
     if base.exists():
@@ -77,7 +76,6 @@ def _dtw_plots_dirs_to_check():
 
 
 def _fpgrowth_plots_dirs_to_check():
-    """Return list of (plots_path, label). Uses real dirs or one temp fixture."""
     out = []
     base = VISUAL_ROOT / "fpgrowth" / "outputs"
     if base.exists():
@@ -115,7 +113,6 @@ def _model_events_path(cohort: str, age_band: str) -> Path:
 
 
 def _find_one_combo_with_prereqs():
-    """First (cohort, age_band) with non-empty allowed_codes and model_events, else None."""
     try:
         from py_helpers.constants import REQUIRED_COHORTS
     except ImportError:
@@ -137,15 +134,10 @@ def _find_one_combo_with_prereqs():
     return None
 
 
-# ---------------------------------------------------------------------------
-# BupaR: expect .png and .html in plots/
-# ---------------------------------------------------------------------------
-
 class TestBupaRVisualsOutputs(unittest.TestCase):
     """BupaR must produce at least one PNG and one HTML in each cohort/age_band plots dir."""
 
     def test_bupar_plots_dir_has_png_and_html(self):
-        """Plots dir contains at least one .png and one .html (real outputs or fixture)."""
         dirs = _bupar_plots_dirs_to_check()
         self.assertTrue(dirs, "No BupaR plots dirs to check")
         plots_dir, label = dirs[0]
@@ -156,7 +148,6 @@ class TestBupaRVisualsOutputs(unittest.TestCase):
 
     @pytest.mark.integration
     def test_bupar_integration_produces_png_and_html(self):
-        """Run BupaR for one combo; assert plots/ gets .png and .html."""
         if not RUN_INTEGRATION:
             self.skipTest("Set RUN_VISUALS_INTEGRATION=1 to run")
         combo = _find_one_combo_with_prereqs()
@@ -183,15 +174,10 @@ class TestBupaRVisualsOutputs(unittest.TestCase):
         self.assertGreater(len(htmls), 0, f"BupaR should produce at least one .html in {plots_dir}")
 
 
-# ---------------------------------------------------------------------------
-# DTW: expect .png and/or chart_data.json in plots/
-# ---------------------------------------------------------------------------
-
 class TestDTWVisualsOutputs(unittest.TestCase):
-    """DTW must produce .png and/or chart_data.json (and related) in plots/."""
+    """DTW must produce .png and/or chart_data.json in plots/."""
 
     def test_dtw_plots_dir_has_expected_files(self):
-        """Plots dir contains .png and/or .json (real outputs or fixture)."""
         dirs = _dtw_plots_dirs_to_check()
         self.assertTrue(dirs, "No DTW plots dirs to check")
         plots_dir, label = dirs[0]
@@ -204,7 +190,6 @@ class TestDTWVisualsOutputs(unittest.TestCase):
 
     @pytest.mark.integration
     def test_dtw_integration_produces_outputs(self):
-        """Run DTW trajectories + visuals for one combo; assert plots/ has outputs."""
         if not RUN_INTEGRATION:
             self.skipTest("Set RUN_VISUALS_INTEGRATION=1 to run")
         combo = _find_one_combo_with_prereqs()
@@ -243,15 +228,10 @@ class TestDTWVisualsOutputs(unittest.TestCase):
         self.assertGreater(len(files), 0, f"DTW should produce .png or .json in {plots_dir}")
 
 
-# ---------------------------------------------------------------------------
-# FP-Growth: expect .png and/or .html in plots/
-# ---------------------------------------------------------------------------
-
 class TestFPGrowthVisualsOutputs(unittest.TestCase):
     """FP-Growth must produce .png and/or .html in plots/."""
 
     def test_fpgrowth_plots_dir_has_png_or_html(self):
-        """Plots dir contains at least one .png or .html (real outputs or fixture)."""
         dirs = _fpgrowth_plots_dirs_to_check()
         self.assertTrue(dirs, "No FP-Growth plots dirs to check")
         plots_dir, label = dirs[0]
@@ -264,7 +244,6 @@ class TestFPGrowthVisualsOutputs(unittest.TestCase):
 
     @pytest.mark.integration
     def test_fpgrowth_integration_produces_outputs(self):
-        """Run FP-Growth visuals for one combo; assert plots/ has .png or .html."""
         if not RUN_INTEGRATION:
             self.skipTest("Set RUN_VISUALS_INTEGRATION=1 to run")
         combo = _find_one_combo_with_prereqs()

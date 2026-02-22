@@ -14,6 +14,7 @@ Handles:
 - POST /causal/importance - Returns causal importance filtered by selected drugs/features (prebuilt data)
 - POST /causal/interactions - Returns interaction results filtered by selection (prebuilt data)
 - GET /visualizations/* - Returns URLs to prebuilt S3 assets only (no processing)
+- GET /visualizations/cohort_pgx - Returns network_topology_url for PGx Cohort tab
 
 Environment Variables:
 - PGX_RESULTS_BUCKET: S3 bucket name (default: pgxdatalake)
@@ -546,6 +547,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_visualizations_bupar(event)
             elif path.endswith("/feature_importance") or path.endswith("/feature_importance/"):
                 return handle_visualizations_feature_importance(event)
+            elif path.endswith("/cohort_pgx"):
+                return handle_visualizations_cohort_pgx(event)
             else:
                 return _response(404, {"error": "Unknown visualization endpoint"})
         
@@ -1555,10 +1558,40 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             "trace_explorer_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer.png",
             "trace_explorer_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_interactive.html",
             "trace_explorer_pre_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_{pre_suffix}.png",
-            "performance_spectrum_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_performance_spectrum.png",
             "process_matrix_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix.png",
             "process_matrix_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix_interactive.html",
             "frequency_map_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_frequency_map.png",
+        }
+        # Type-pair process matrices (optional; only present if R pipeline generated them)
+        for pair in ("drug_drug", "drug_icd", "drug_cpt", "icd_icd", "icd_drug", "icd_cpt", "cpt_cpt", "cpt_drug", "cpt_icd"):
+            payload[f"process_matrix_{pair}"] = f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix_{pair}.png"
+        return _response(200, payload)
+    except Exception as e:
+        return _response(500, {"error": str(e)})
+
+
+def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    GET /visualizations/cohort_pgx?cohort=...&age_band=...
+
+    Returns HTTPS URL to prebuilt Cohort PGx network topology HTML. Built by 4_dashboard_visuals
+    (fetch_vip_reports + build_network_topology); stored under
+    {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html.
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        cohort = params.get("cohort")
+        age_band = params.get("age_band")
+
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band parameters required"})
+
+        age_band_fname = age_band.replace("-", "_")
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/cohort_pgx"
+        base_key = f"{prefix}/networks/{cohort}/{age_band_fname}"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
+        payload = {
+            "network_topology_url": f"{base_url}/{base_key}/network_topology.html",
         }
         return _response(200, payload)
     except Exception as e:

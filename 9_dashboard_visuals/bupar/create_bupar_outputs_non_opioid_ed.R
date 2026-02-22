@@ -1183,25 +1183,61 @@ cat("\n--- Target-only global process mining ---\n")
 # Trace explorer is pre-target only (see pre-HCG block above).
 n_target <- nrow(as.data.frame(target_eventlog))
 if (n_target > 0L) {
-  # Performance spectrum (aggregated activity trace; requires psmineR)
-  # Render to PNG device explicitly so the file is not blank in batch/headless (ggsave can leave it empty)
+  # Process matrix (flows between activities; see https://bupaverse.github.io/docs/process_matrix.html)
+  pm_df <- NULL
   tryCatch({
-    if (requireNamespace("psmineR", quietly = TRUE)) {
-      p_ps <- target_eventlog %>%
-        psmineR::ps_aggregated(segment_coverage = 0.2)
-      if (!is.null(p_ps) && inherits(p_ps, "ggplot")) {
-        ps_path <- file.path(plots_dir, sprintf("%s_%s_performance_spectrum.png", cohort_name, age_band_fname))
-        png(ps_path, width = 12, height = 8, units = "in", res = 300)
-        on.exit(dev.off(), add = TRUE)
-        ggplot2::print(p_ps)
-        cat("Saved performance_spectrum.png\n")
-      } else {
-        cat(" [skip] performance_spectrum: ps_aggregated() did not return a ggplot\n")
-      }
+    pm_df <- target_eventlog %>%
+      process_matrix(type = frequency("absolute"))
+    p_pm <- plot(pm_df)
+    if (!is.null(p_pm) && inherits(p_pm, "ggplot")) {
+      ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix.png", cohort_name, age_band_fname)),
+             plot = p_pm, width = 12, height = 10, dpi = 300)
+      cat("Saved process_matrix.png\n")
     } else {
-      cat(" [skip] performance_spectrum: psmineR not installed\n")
+      pm_path <- file.path(plots_dir, sprintf("%s_%s_process_matrix.png", cohort_name, age_band_fname))
+      png(pm_path, width = 12, height = 10, units = "in", res = 300)
+      on.exit(dev.off(), add = TRUE)
+      print(p_pm)
+      cat("Saved process_matrix.png (via png device)\n")
     }
-  }, error = function(e) cat(" [skip] performance_spectrum:", conditionMessage(e), "\n"))
+  }, error = function(e) cat(" [skip] process_matrix:", conditionMessage(e), "\n"))
+  # Optional type-pair process matrices (Drug x Drug, Drug x ICD, Drug x CPT, etc.)
+  if (!is.null(pm_df) && nrow(pm_df) > 0L && "antecedent" %in% names(pm_df) && "consequent" %in% names(pm_df)) {
+    type_pairs <- list(
+      c("DRUG:", "DRUG:"),
+      c("DRUG:", "ICD:"),
+      c("DRUG:", "CPT:"),
+      c("ICD:", "ICD:"),
+      c("ICD:", "DRUG:"),
+      c("ICD:", "CPT:"),
+      c("CPT:", "CPT:"),
+      c("CPT:", "DRUG:"),
+      c("CPT:", "ICD:")
+    )
+    pair_names <- c("drug_drug", "drug_icd", "drug_cpt", "icd_icd", "icd_drug", "icd_cpt", "cpt_cpt", "cpt_drug", "cpt_icd")
+    for (i in seq_along(type_pairs)) {
+      pre_from <- type_pairs[[i]][1]
+      pre_to   <- type_pairs[[i]][2]
+      name     <- pair_names[i]
+      tryCatch({
+        pm_sub <- pm_df %>%
+          filter(
+            startsWith(as.character(antecedent), pre_from),
+            startsWith(as.character(consequent), pre_to)
+          )
+        if (nrow(pm_sub) == 0L) next
+        p_sub <- ggplot(pm_sub, aes(x = antecedent, y = consequent, fill = n)) +
+          geom_tile() +
+          scale_fill_viridis_c(option = "plasma", na.value = NA) +
+          labs(title = sprintf("Process matrix: %s", gsub("_", " x ", name)), x = "Antecedent", y = "Consequent") +
+          theme_minimal(base_size = 11) +
+          theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(size = 9))
+        ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix_%s.png", cohort_name, age_band_fname, name)),
+               plot = p_sub, width = 10, height = 8, dpi = 300)
+        cat("Saved process_matrix_", name, ".png\n", sep = "")
+      }, error = function(e) cat(" [skip] process_matrix_", name, ": ", conditionMessage(e), "\n", sep = ""))
+    }
+  }
   # Frequency map (process_map with render = F then export_map to PNG; may be Plotly/HTML in some versions)
   freq_map_path <- file.path(plots_dir, sprintf("%s_%s_frequency_map.png", cohort_name, age_band_fname))
   tryCatch({

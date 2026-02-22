@@ -54,7 +54,7 @@ visualizations/
 - `*_trace_explorer_pre_f1120.png` (opioid_ed) / `*_trace_explorer_pre_hcg.png` (non_opioid_ed) — pre-target trace patterns
 - `*_trace_explorer_interactive.html` — pre-target trace explorer with year dropdown (requires `plots/lib/`)
 - `*_pre_f1120_activity_frequency.png` (opioid_ed only)
-- `*_performance_spectrum.png` (optional, psmineR)
+- `*_process_matrix.png` (flows between activities; [bupaR Process Matrix](https://bupaverse.github.io/docs/process_matrix.html))
 - `*_frequency_map.png` (optional)
 
 **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/` (full tree including `lib/`)

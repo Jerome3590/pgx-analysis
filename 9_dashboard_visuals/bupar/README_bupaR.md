@@ -71,8 +71,11 @@ This directory contains scripts to run process-mining analysis on cohort traject
 | Trace explorer (pre-target only, image) | `{cohort}_{age_band_fname}_trace_explorer_pre_f1120.png` (opioid_ed) or `_trace_explorer_pre_hcg.png` (non_opioid_ed) | Pre-target trace patterns |
 | Trace explorer (interactive) | `{cohort}_{age_band_fname}_trace_explorer_interactive.html` | Pre-target only; year dropdown (Plotly); requires `plots/lib/` |
 | Pre-target activity frequency | `{cohort}_{age_band_fname}_pre_f1120_activity_frequency.png` (opioid_ed only) | Pre-target activity frequency |
-| Performance spectrum | `{cohort}_{age_band_fname}_performance_spectrum.png` | Aggregated activity trace (psmineR; optional) |
+| Process matrix | `{cohort}_{age_band_fname}_process_matrix.png` | Flows between activities ([bupaR Process Matrix](https://bupaverse.github.io/docs/process_matrix.html)) |
+| Process matrix (type-pair) | `{cohort}_{age_band_fname}_process_matrix_{pair}.png` | Optional; pairs: drug_drug, drug_icd, drug_cpt, icd_icd, icd_drug, icd_cpt, cpt_cpt, cpt_drug, cpt_icd |
 | Frequency map | `{cohort}_{age_band_fname}_frequency_map.png` | Process map frequency view (optional; requires processmapR::export_map) |
+
+**Generating all outputs:** Run the full dashboard visuals pipeline for all cohort/age_band combinations (e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py` or the BupaR step in `4_dashboard_visuals.ipynb`) to produce every visual, including type-pair process matrices. The dashboard lets users choose which visuals to show per research question (cohort).
 
 **Not produced:** overall trace_explorer.png, process_matrix png/html, post-F1120 visuals (opioid_ed), activity_sequence_top.png. Interactive HTMLs use external deps in `plots/lib/`; upload/sync must include the full `plots/` tree.
 
