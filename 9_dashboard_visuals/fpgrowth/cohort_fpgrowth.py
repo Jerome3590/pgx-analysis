@@ -950,10 +950,75 @@ def process_single_cohort(
 
         # For opioid_ed, only use events from the current event_year for rule mining
         if cohort_name == "opioid_ed":
-            logger.info(f"Filtering opioid_ed cohort to only use events from the current year: {event_year}")
-            before_count = len(df)
-            df = df[df['event_year'] == event_year].copy()
-            logger.info(f"Filtered opioid_ed events: {before_count:,} -> {len(df):,} rows for event_year={event_year}")
+            logger.info(f"Running FP-Growth for opioid_ed cohort for each year in TRAIN_YEARS: {TRAIN_YEARS}")
+            all_year_itemsets = []
+            all_year_rules = []
+            for year in TRAIN_YEARS:
+                logger.info(f"Processing opioid_ed for year {year}")
+                df_year = df[df['event_year'] == year].copy()
+                logger.info(f"Year {year}: {len(df_year):,} rows")
+                if len(df_year) == 0:
+                    logger.warning(f"No data for opioid_ed in year {year}")
+                    continue
+                # Assign Transaction_Density for this year
+                df_year = assign_transaction_density(df_year, logger)
+                for density in DENSITY_BINS:
+                    transactions = get_transactions_by_density(df_year, density, logger)
+                    if len(transactions) == 0:
+                        continue
+                    te = TransactionEncoder()
+                    te_ary = te.fit(transactions).transform(transactions)
+                    df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+                    density_support = min_support
+                    if density == 'extreme':
+                        density_support = max(min_support * 0.5, 0.01)
+                    itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
+                    itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
+                    itemsets_original = itemsets_density.copy()
+                    if len(itemsets_density) > 0:
+                        itemsets_density = filter_itemsets_by_lift(
+                            itemsets_density,
+                            df_encoded,
+                            MIN_ITEMSET_LIFT,
+                            logger
+                        )
+                    if len(itemsets_density) > 0:
+                        n_single = sum(1 for _, r in itemsets_density.iterrows() if len(r["itemsets"]) == 1)
+                        n_multi = len(itemsets_density) - n_single
+                        all_year_itemsets.append(itemsets_density)
+                        itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
+                        rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
+                        rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
+                        all_year_rules.append(rules_density)
+            # Combine all years' results
+            if len(all_year_itemsets) == 0:
+                logger.warning("No frequent itemsets for opioid_ed in any TRAIN_YEARS")
+                return {
+                    'item_type': item_type,
+                    'cohort_name': cohort_name,
+                    'age_band': age_band,
+                    'event_year': event_year,
+                    'error': 'No frequent itemsets in any year'
+                }
+            itemsets = pd.concat(all_year_itemsets, ignore_index=True).drop_duplicates(subset=['itemsets']).sort_values('support', ascending=False).reset_index(drop=True)
+            if len(all_year_rules) > 0:
+                rules = pd.concat(all_year_rules, ignore_index=True).drop_duplicates().sort_values('lift', ascending=False).reset_index(drop=True)
+            else:
+                rules = pd.DataFrame()
+            # Continue with the rest of the pipeline using combined itemsets/rules
+            # Assign Transaction_Density to the combined df for downstream compatibility
+            df = assign_transaction_density(df, logger)
+            log_memory(logger, "After density assignment (all years)")
+            # Replace all_itemsets/all_rules for downstream
+            all_itemsets = [itemsets]
+            all_rules = [rules]
+            density_counts = {d: 0 for d in DENSITY_BINS}  # Not meaningful in this context
+            logger.info(f"Combined opioid_ed itemsets: {len(itemsets):,}, rules: {len(rules):,}")
+        else:
+            # Assign Transaction_Density based on histogram/percentiles
+            logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
+            df = assign_transaction_density(df, logger)
+            log_memory(logger, "After density assignment")
 
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
