@@ -63,6 +63,12 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 - Data split into 4 bins: `low` (P25), `medium` (P50), `high` (P75), `extreme` (P95+)
 - Extreme density uses adjusted support: `max(MIN_SUPPORT * 0.5, 0.01)` (at least 1%)
 
+**Rule persistence across years (business rule):**
+- We use a **4-year** training window (2016–2019). Rules must not be driven by rare or single-year patterns.
+- **Rule patterns must exist in at least 2 of the 4 years.** After association rules are generated, we filter out any rule whose (antecedent ∪ consequent) pattern does not appear in at least 2 distinct calendar years in the data. This avoids rules that depend on a single year or on rare `mi_person_key` patients whose pattern does not recur.
+- **Applies to all cohorts** (e.g. `opioid_ed`, `non_opioid_ed`): the same logic runs for every cohort and age band when using the aggregated `train` run.
+- Implemented in `filter_rules_by_year_support()`; controlled by `MIN_YEARS_FOR_RULE = 2` in `cohort_fpgrowth.py`. Applied only for the aggregated `train` run (single-year runs are not filtered by year count).
+
 ---
 
 ## Output Files Manifest
