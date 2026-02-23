@@ -580,6 +580,7 @@ def process_single_cohort(
     logger = setup_logger(f'cohort_{cohort_name}_{age_band}_{event_year}_{item_type}')
     
     cohort_id = f"{cohort_name}/{age_band}/{event_year}"
+    logger.info("[ACTIVITY_START] item_type=%s cohort=%s age_band=%s", item_type, cohort_name, age_band)
     logger.info(f"Processing {item_type} for {cohort_id}")
     log_memory(logger, "START")
     
@@ -643,6 +644,7 @@ def process_single_cohort(
                             "[ERROR_PARAMS] step=4_fpgrowth path_listings: %s",
                             " ; ".join(path_listings),
                         )
+                    logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=TRAIN model_data not found", item_type, cohort_name, age_band)
                     return {
                         'item_type': item_type,
                         'cohort_name': cohort_name,
@@ -658,6 +660,7 @@ def process_single_cohort(
                     "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=TRAIN requires model_data but USE_MODEL_DATA_IF_AVAILABLE is False",
                     cohort_name, age_band, item_type,
                 )
+                logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=TRAIN requires model_data", item_type, cohort_name, age_band)
                 return {
                     'item_type': item_type,
                     'cohort_name': cohort_name,
@@ -687,6 +690,7 @@ def process_single_cohort(
 
         if model_data_from is None and not parquet_file.exists():
             logger.warning("Cohort file not found: %s", parquet_file)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=File not found", item_type, cohort_name, age_band)
             logger.error(
                 "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=File not found path=%s",
                 cohort_name, age_band, item_type, str(parquet_file),
@@ -722,6 +726,7 @@ def process_single_cohort(
             logger.info("Parquet schema has %s columns: %s...", len(available_cols), keys_received[:20])
         except Exception as e:
             logger.error("Failed to read parquet schema from %s: %s", parquet_file, e)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=Schema read failure", item_type, cohort_name, age_band)
             logger.error(
                 "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=Schema read failure "
                 "keys_expected=parquet_schema keys_received=N/A (read failed) path=%s exception=%s",
@@ -744,6 +749,7 @@ def process_single_cohort(
                 keys_expected = ["drug_name", "mi_person_key", "target", "event_year"]
                 keys_received = sorted(available_cols)
                 logger.error("Column 'drug_name' not found. keys_expected=%s keys_received=%s", keys_expected, keys_received[:40])
+                logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=Column drug_name not in parquet", item_type, cohort_name, age_band)
                 logger.error(
                     "[ERROR_PARAMS] step=4_fpgrowth cohort_name=%s age_band=%s item_type=%s error=Column drug_name not in parquet keys_expected=%s keys_received=%s path=%s",
                     cohort_name, age_band, item_type, keys_expected, keys_received[:40], str(parquet_file),
@@ -900,6 +906,7 @@ def process_single_cohort(
         
         if len(df) == 0:
             logger.warning("No %s data for %s", item_type, cohort_id)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No data", item_type, cohort_name, age_band)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -913,6 +920,7 @@ def process_single_cohort(
             allowed = _load_allowed_codes_by_type(cohort_name, age_band, item_type, REPO_ROOT)
         except (FileNotFoundError, ValueError) as e:
             logger.error(str(e))
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=%s", item_type, cohort_name, age_band, str(e))
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -927,6 +935,7 @@ def process_single_cohort(
         logger.info(f"Filtered to SHAP/FFA allowed items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
         if len(df) == 0:
             logger.warning("No rows left for %s after allowed-codes filter", cohort_id)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No data after allowed-codes filter", item_type, cohort_name, age_band)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -959,6 +968,7 @@ def process_single_cohort(
         
         if len(df) == 0:
             logger.warning("No valid items remaining after cleanup for %s", cohort_id)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No valid items after cleanup", item_type, cohort_name, age_band)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -981,11 +991,13 @@ def process_single_cohort(
             all_year_itemsets = []
             all_year_rules = []
             for year in TRAIN_YEARS:
+                logger.info("[ACTIVITY_START] opioid_ed year=%s item_type=%s", year, item_type)
                 logger.info(f"Processing opioid_ed for year {year}")
                 df_year = df[(df['event_year'] == year) & (df['mi_person_key'].isin(patients_multi_year))].copy()
                 logger.info(f"Year {year}: {len(df_year):,} rows, {df_year['mi_person_key'].nunique():,} patients")
                 if len(df_year) == 0:
                     logger.warning(f"No data for opioid_ed in year {year}")
+                    logger.info("[ACTIVITY_COMPLETE] opioid_ed year=%s item_type=%s skipped=no_data", year, item_type)
                     continue
                 # Assign Transaction_Density for this year
                 df_year = assign_transaction_density(df_year, logger)
@@ -1020,9 +1032,11 @@ def process_single_cohort(
                         rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                         rules_density['event_year'] = year
                         all_year_rules.append(rules_density)
+                logger.info("[ACTIVITY_COMPLETE] opioid_ed year=%s item_type=%s", year, item_type)
             # Combine all years' results, keeping patient linkage
             if len(all_year_itemsets) == 0:
                 logger.warning("No frequent itemsets for opioid_ed in any TRAIN_YEARS")
+                logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No frequent itemsets in any year", item_type, cohort_name, age_band)
                 return {
                     'item_type': item_type,
                     'cohort_name': cohort_name,
@@ -1064,6 +1078,7 @@ def process_single_cohort(
                     continue
 
                 try:
+                    logger.info("[ACTIVITY_START] density=%s item_type=%s n_transactions=%d", density, item_type, len(transactions))
                     logger.info(f"Processing {density} density transactions (n={len(transactions):,})...")
 
                     # Encode transactions
@@ -1108,20 +1123,25 @@ def process_single_cohort(
                             f"  {density}: {len(itemsets_density):,} itemsets ({n_single} single-item, {n_multi} multi-item) → {len(rules_density):,} rules"
                         )
                         log_memory(logger, f"After rule generation ({density})")
+                        logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s itemsets=%d rules=%d", density, item_type, len(itemsets_density), len(rules_density))
                     else:
                         logger.warning(f"No itemsets remaining after lift filtering for {density} density")
+                        logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s itemsets=0 rules=0 skipped=no_itemsets", density, item_type)
                         continue
                         
                 except MemoryError as e:
                     logger.error("Memory error processing %s density transactions: %s", density, e)
+                    logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s status=failed error=MemoryError", density, item_type)
                     logger.warning(f"   Skipping {density} density transactions due to memory constraints")
                 except Exception as e:
                     logger.error("Error processing %s density transactions: %s", density, e)
+                    logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s status=failed error=%s", density, item_type, str(e))
                     logger.warning(f"   Skipping {density} density transactions")
 
         # Combine results across density bins (low/medium/high/extreme). Data is target cohort only (no controls).
         if len(all_itemsets) == 0:
             logger.warning("No frequent itemsets for %s", cohort_id)
+            logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No frequent itemsets", item_type, cohort_name, age_band)
             return {
                 'item_type': item_type,
                 'cohort_name': cohort_name,
@@ -1385,11 +1405,16 @@ def process_single_cohort(
 
         elapsed = time.time() - start_time
         log_memory(logger, "END")
+        logger.info(
+            "[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s itemsets=%d rules=%d duration_sec=%.1f",
+            item_type, cohort_name, age_band, len(itemsets), len(rules), elapsed,
+        )
         logger.info("[OK] %s %s: %d itemsets, %d rules in %.1fs", cohort_id, item_type, len(itemsets), len(rules), elapsed)
 
         return metrics
         
     except Exception as e:
+        logger.error("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=%s", item_type, cohort_name, age_band, str(e))
         logger.error("Failed %s %s: %s", cohort_id, item_type, e)
         return {
             'item_type': item_type,
