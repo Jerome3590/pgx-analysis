@@ -543,11 +543,10 @@ def filter_rules_by_year_support(
 
     kept = sum(keep)
     dropped = len(rules) - kept
-    if dropped > 0:
-        logger.info(
-            "Filtered rules by year support (pattern in >= %d years): kept %d, dropped %d",
-            min_years, kept, dropped,
-        )
+    logger.info(
+        "Rule year filter (pattern in >= %d of 4 train years): kept %d, dropped %d",
+        min_years, kept, dropped,
+    )
     return rules.loc[np.array(keep)].reset_index(drop=True)
 
 
