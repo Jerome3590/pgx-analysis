@@ -302,10 +302,19 @@ def assign_transaction_density(df: pd.DataFrame, logger: logging.Logger) -> pd.D
     Returns:
         DataFrame with Transaction_Density column added
     """
+    if len(df) == 0:
+        df = df.copy()
+        df["Transaction_Density"] = pd.Series(dtype=object)
+        return df
+
     # Calculate transaction size per patient
     logger.info(f"Calculating transaction sizes per patient...")
     transaction_sizes = df.groupby('mi_person_key')['item'].size().reset_index(name='transaction_size')
-    
+    if len(transaction_sizes) == 0:
+        df = df.copy()
+        df["Transaction_Density"] = pd.Series(dtype=object)
+        return df
+
     # Calculate percentiles for binning
     sizes = transaction_sizes['transaction_size'].values
     p25 = np.percentile(sizes, 25)
@@ -694,10 +703,11 @@ def process_single_cohort(
             model_data_from = f"read_parquet('{str(parquet_file).replace(chr(92), '/')}')"
 
         # Determine event_year filter (single year vs aggregated TRAIN window).
+        # When "train", accept numeric years 2016-2019 or literal 'train' (some model_data uses event_year='train').
         event_label = str(event_year)
         if event_label == "train":
             year_list = ", ".join(str(y) for y in TRAIN_YEARS)
-            event_filter = f"event_year IN ({year_list})"
+            event_filter = f"(event_year IN ({year_list}) OR event_year = 'train')"
         else:
             event_filter = f"event_year = {event_year}"
 
@@ -874,6 +884,19 @@ def process_single_cohort(
             df["target"] = pd.to_numeric(df["target"], errors="coerce").fillna(0).astype(int)
             if target_orig != df["target"].dtype:
                 logger.info("Coerced target column from %s to int; value_counts: %s", target_orig, df["target"].value_counts().to_dict())
+
+        # Coerce event_year so TRAIN_YEARS comparison works (parquet may have int, string "2016", or "train").
+        if "event_year" in df.columns and len(df) > 0:
+            event_year_orig = df["event_year"].dtype
+            # Map literal "train" to first training year so rows are kept and comparable to TRAIN_YEARS
+            train_mask = df["event_year"].astype(str).str.strip().str.lower() == "train"
+            if train_mask.any():
+                df.loc[train_mask, "event_year"] = TRAIN_YEARS[0]
+            df["event_year"] = pd.to_numeric(df["event_year"], errors="coerce")
+            if event_year_orig != df["event_year"].dtype:
+                logger.info("Coerced event_year from %s to numeric for TRAIN_YEARS comparison", event_year_orig)
+            df = df[df["event_year"].notna()].copy()
+            df["event_year"] = df["event_year"].astype(int)
         
         if len(df) == 0:
             logger.warning("No %s data for %s", item_type, cohort_id)
@@ -950,13 +973,17 @@ def process_single_cohort(
 
         # For opioid_ed, only use events from the current event_year for rule mining
         if cohort_name == "opioid_ed":
-            logger.info(f"Running FP-Growth for opioid_ed cohort for each year in TRAIN_YEARS: {TRAIN_YEARS}")
+            logger.info(f"Running FP-Growth for opioid_ed cohort for each year in TRAIN_YEARS: {TRAIN_YEARS}, aggregating at patient level (mi_person_key)")
+            # Find patients present in any year, but keep linkage by mi_person_key
+            patient_years = df[df['event_year'].isin(TRAIN_YEARS)][['mi_person_key', 'event_year']].drop_duplicates()
+            patients_multi_year = patient_years['mi_person_key'].unique()
+            logger.info(f"Total unique patients in TRAIN_YEARS: {len(patients_multi_year):,}")
             all_year_itemsets = []
             all_year_rules = []
             for year in TRAIN_YEARS:
                 logger.info(f"Processing opioid_ed for year {year}")
-                df_year = df[df['event_year'] == year].copy()
-                logger.info(f"Year {year}: {len(df_year):,} rows")
+                df_year = df[(df['event_year'] == year) & (df['mi_person_key'].isin(patients_multi_year))].copy()
+                logger.info(f"Year {year}: {len(df_year):,} rows, {df_year['mi_person_key'].nunique():,} patients")
                 if len(df_year) == 0:
                     logger.warning(f"No data for opioid_ed in year {year}")
                     continue
@@ -985,12 +1012,15 @@ def process_single_cohort(
                     if len(itemsets_density) > 0:
                         n_single = sum(1 for _, r in itemsets_density.iterrows() if len(r["itemsets"]) == 1)
                         n_multi = len(itemsets_density) - n_single
+                        # Attach year and patient info for aggregation
+                        itemsets_density['event_year'] = year
                         all_year_itemsets.append(itemsets_density)
                         itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
                         rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
                         rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
+                        rules_density['event_year'] = year
                         all_year_rules.append(rules_density)
-            # Combine all years' results
+            # Combine all years' results, keeping patient linkage
             if len(all_year_itemsets) == 0:
                 logger.warning("No frequent itemsets for opioid_ed in any TRAIN_YEARS")
                 return {
@@ -1000,103 +1030,95 @@ def process_single_cohort(
                     'event_year': event_year,
                     'error': 'No frequent itemsets in any year'
                 }
-            itemsets = pd.concat(all_year_itemsets, ignore_index=True).drop_duplicates(subset=['itemsets']).sort_values('support', ascending=False).reset_index(drop=True)
+            itemsets = pd.concat(all_year_itemsets, ignore_index=True).drop_duplicates(subset=['itemsets', 'event_year']).sort_values(['event_year', 'support'], ascending=[True, False]).reset_index(drop=True)
             if len(all_year_rules) > 0:
-                rules = pd.concat(all_year_rules, ignore_index=True).drop_duplicates().sort_values('lift', ascending=False).reset_index(drop=True)
+                rules = pd.concat(all_year_rules, ignore_index=True).drop_duplicates(subset=['antecedents', 'consequents', 'event_year']).sort_values(['event_year', 'lift'], ascending=[True, False]).reset_index(drop=True)
             else:
                 rules = pd.DataFrame()
-            # Continue with the rest of the pipeline using combined itemsets/rules
             # Assign Transaction_Density to the combined df for downstream compatibility
             df = assign_transaction_density(df, logger)
-            log_memory(logger, "After density assignment (all years)")
+            log_memory(logger, "After density assignment (all years, patient-linked)")
             # Replace all_itemsets/all_rules for downstream
             all_itemsets = [itemsets]
             all_rules = [rules]
             density_counts = {d: 0 for d in DENSITY_BINS}  # Not meaningful in this context
-            logger.info(f"Combined opioid_ed itemsets: {len(itemsets):,}, rules: {len(rules):,}")
+            logger.info(f"Combined opioid_ed itemsets: {len(itemsets):,}, rules: {len(rules):,} (patient-linked)")
         else:
-            # Assign Transaction_Density based on histogram/percentiles
+            # non_opioid_ed (and any other cohort): assign density and process by density bins
             logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
             df = assign_transaction_density(df, logger)
             log_memory(logger, "After density assignment")
 
-        # Assign Transaction_Density based on histogram/percentiles
-        logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
-        df = assign_transaction_density(df, logger)
-        log_memory(logger, "After density assignment")
+            all_itemsets = []
+            all_rules = []
+            density_counts = {}
 
-        # Process transactions by density in order: low -> medium -> high -> extreme
-        all_itemsets = []
-        all_rules = []
-        density_counts = {}
+            logger.info(f"Processing transactions by density level...")
+            for density in DENSITY_BINS:
+                log_memory_cpu(logger, f"Start density={density}")
+                transactions = get_transactions_by_density(df, density, logger)
+                density_counts[density] = len(transactions)
 
-        # Same logic for all cohorts (non_opioid_ed, opioid_ed): process every non-empty density bin; no min transaction count
-        logger.info(f"Processing transactions by density level...")
-        for density in DENSITY_BINS:
-            log_memory_cpu(logger, f"Start density={density}")
-            transactions = get_transactions_by_density(df, density, logger)
-            density_counts[density] = len(transactions)
-
-            if len(transactions) == 0:
-                logger.info("No %s density transactions - skipping", density)
-                continue
-
-            try:
-                logger.info(f"Processing {density} density transactions (n={len(transactions):,})...")
-
-                # Encode transactions
-                te = TransactionEncoder()
-                te_ary = te.fit(transactions).transform(transactions)
-                df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
-                log_memory(logger, f"After encoding ({density})")
-
-                # Adjust support threshold based on density (lower support for extreme)
-                density_support = min_support
-                if density == 'extreme':
-                    density_support = max(min_support * 0.5, 0.01)  # At least 1% support
-                    logger.info(f"Using adjusted support threshold {density_support:.4f} for {density} density")
-
-                # Run FP-Growth
-                itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
-                itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
-                itemsets_original = itemsets_density.copy()  # needed so association_rules can look up subset supports after lift filter
-
-                # Filter out common/trivial itemsets by lift BEFORE generating rules
-                if len(itemsets_density) > 0:
-                    itemsets_density = filter_itemsets_by_lift(
-                        itemsets_density,
-                        df_encoded,
-                        MIN_ITEMSET_LIFT,
-                        logger
-                    )
-                    log_memory(logger, f"After filtering itemsets by lift ({density})")
-                
-                if len(itemsets_density) > 0:
-                    # Diagnostic: association_rules requires itemsets of size >= 2
-                    n_single = sum(1 for _, r in itemsets_density.iterrows() if len(r["itemsets"]) == 1)
-                    n_multi = len(itemsets_density) - n_single
-                    all_itemsets.append(itemsets_density)
-                    log_memory(logger, f"After FP-Growth ({density})")
-                    # association_rules needs every antecedent/consequent in the itemsets DataFrame; lift filter may have removed subsets
-                    itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
-                    rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
-                    rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
-                    all_rules.append(rules_density)
-                    logger.info(
-                        f"  {density}: {len(itemsets_density):,} itemsets ({n_single} single-item, {n_multi} multi-item) → {len(rules_density):,} rules"
-                    )
-                    log_memory(logger, f"After rule generation ({density})")
-                else:
-                    logger.warning(f"No itemsets remaining after lift filtering for {density} density")
+                if len(transactions) == 0:
+                    logger.info("No %s density transactions - skipping", density)
                     continue
+
+                try:
+                    logger.info(f"Processing {density} density transactions (n={len(transactions):,})...")
+
+                    # Encode transactions
+                    te = TransactionEncoder()
+                    te_ary = te.fit(transactions).transform(transactions)
+                    df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+                    log_memory(logger, f"After encoding ({density})")
+
+                    # Adjust support threshold based on density (lower support for extreme)
+                    density_support = min_support
+                    if density == 'extreme':
+                        density_support = max(min_support * 0.5, 0.01)  # At least 1% support
+                        logger.info(f"Using adjusted support threshold {density_support:.4f} for {density} density")
+
+                    # Run FP-Growth
+                    itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
+                    itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
+                    itemsets_original = itemsets_density.copy()  # needed so association_rules can look up subset supports after lift filter
+
+                    # Filter out common/trivial itemsets by lift BEFORE generating rules
+                    if len(itemsets_density) > 0:
+                        itemsets_density = filter_itemsets_by_lift(
+                            itemsets_density,
+                            df_encoded,
+                            MIN_ITEMSET_LIFT,
+                            logger
+                        )
+                        log_memory(logger, f"After filtering itemsets by lift ({density})")
                     
-            except MemoryError as e:
-                logger.error("Memory error processing %s density transactions: %s", density, e)
-                logger.warning(f"   Skipping {density} density transactions due to memory constraints")
-            except Exception as e:
-                logger.error("Error processing %s density transactions: %s", density, e)
-                logger.warning(f"   Skipping {density} density transactions")
-        
+                    if len(itemsets_density) > 0:
+                        # Diagnostic: association_rules requires itemsets of size >= 2
+                        n_single = sum(1 for _, r in itemsets_density.iterrows() if len(r["itemsets"]) == 1)
+                        n_multi = len(itemsets_density) - n_single
+                        all_itemsets.append(itemsets_density)
+                        log_memory(logger, f"After FP-Growth ({density})")
+                        # association_rules needs every antecedent/consequent in the itemsets DataFrame; lift filter may have removed subsets
+                        itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
+                        rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
+                        rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
+                        all_rules.append(rules_density)
+                        logger.info(
+                            f"  {density}: {len(itemsets_density):,} itemsets ({n_single} single-item, {n_multi} multi-item) → {len(rules_density):,} rules"
+                        )
+                        log_memory(logger, f"After rule generation ({density})")
+                    else:
+                        logger.warning(f"No itemsets remaining after lift filtering for {density} density")
+                        continue
+                        
+                except MemoryError as e:
+                    logger.error("Memory error processing %s density transactions: %s", density, e)
+                    logger.warning(f"   Skipping {density} density transactions due to memory constraints")
+                except Exception as e:
+                    logger.error("Error processing %s density transactions: %s", density, e)
+                    logger.warning(f"   Skipping {density} density transactions")
+
         # Combine results across density bins (low/medium/high/extreme). Data is target cohort only (no controls).
         if len(all_itemsets) == 0:
             logger.warning("No frequent itemsets for %s", cohort_id)
@@ -1221,11 +1243,24 @@ def process_single_cohort(
             Body=rules_json.to_json(orient='records', indent=2)
         )
         
+        # Self-describing metadata: target-only, SHAP/FFA-gated; per FFA/SHAP these rules predict risk
         metrics = {
             'item_type': item_type,
             'cohort_name': cohort_name,
             'age_band': age_band,
             'event_year': event_year,
+            'population': 'target_only',
+            'feature_source': 'shap_ffa_allowed_codes',
+            'purpose': 'shap_ffa_risk_cooccurrence',
+            'density_binning': True,
+            'train_years': list(TRAIN_YEARS) if str(event_year) == 'train' else None,
+            'min_years_for_rule': MIN_YEARS_FOR_RULE if str(event_year) == 'train' else None,
+            'density_bin_definitions': {
+                'low': '<=P25 transaction size',
+                'medium': 'P25-P50',
+                'high': 'P50-P95',
+                'extreme': '>P95',
+            },
             'unique_items': len(df['item'].unique()),
             'total_transactions': sum(density_counts.values()),
             'density_distribution': density_counts,

@@ -72,10 +72,25 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 - **Applies to all cohorts** (e.g. `opioid_ed`, `non_opioid_ed`): the same logic runs for every cohort and age band when using the aggregated `train` run.
 - Implemented in `filter_rules_by_year_support()`; controlled by `MIN_YEARS_FOR_RULE = 2` in `cohort_fpgrowth.py`. Applied only for the aggregated `train` run (single-year runs are not filtered by year count).
 
+**Year-stability filter semantics:** A rule passes the year filter if there exists at least one patient in at least `MIN_YEARS_FOR_RULE` distinct years such that all items in (antecedent ∪ consequent) appear in that patient-year transaction set.
+
+**Intent and interpretation (target-only, SHAP/FFA-gated):**
+- Features and codes are restricted to **SHAP/FFA allowed codes** (model-salient drivers). Per FFA and SHAP, the co-occurrence rules mined in this step **do predict risk**: they surface bundles of features that the model already uses as important for the outcome, within the **target cohort** (`target = 1`).
+- **Support / confidence** are conditional on the target cohort: “Among target patients, A frequently appears with B”; together with the SHAP/FFA gate, these patterns are interpretable as risk-relevant. We do **not** compare support in target vs control (no contrastive prediction).
+- Outputs are for explainability-focused exploration and are **not** fed back into model training. Each `{item_type}_metrics.json` includes self-describing metadata (`population`, `feature_source`, `purpose`, `density_binning`, `train_years`, `min_years_for_rule`, `density_bin_definitions`).
+
+**What to tell dashboard users:** “These networks show co-occurrence bundles among features that FFA and SHAP rank as important for risk; these rules are risk-predictive in that framing.”
+
 **EC2 / capacity setup:**
 - **DuckDB threads:** Each item-type connection uses **3 threads** (`DUCKDB_THREADS = 3` in `cohort_fpgrowth.py`). Per (cohort, age_band), item types (e.g. drug_name, icd_code, cpt_code for opioid_ed) run in parallel; each type gets its own graph network and the user selects which to view.
 - **Item-type parallelism:** Within each (cohort, age_band), item types are run with **ProcessPoolExecutor** (see `run_single_cohort_fpgrowth.py`), so each item type runs in its own process and can use a full core for Python/pandas/mlxtend (avoids GIL limits that kept utilization low with threads).
 - **FP-Growth workers:** The dashboard workflow runs FP-Growth with **all (cohort, age_band) combinations in parallel** by default (max EC2 capacity). Override with `--fpgrowth-workers N` to cap parallelism, e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --fpgrowth-workers 8`.
+
+**Operating notes and recommendations:**
+- **CPU oversubscription:** ProcessPoolExecutor (item types) × DuckDB threads × many (cohort, age_band) workers can over-subscribe cores. To avoid “looks hung” under heavy load, cap item-type workers or DuckDB threads (e.g. `--fpgrowth-workers N`) or set `DUCKDB_THREADS` lower when running many cohorts in parallel.
+- **Density bins:** Support/confidence are computed within each bin; `density_distribution` and `density_bin_definitions` in metrics make clear that “high support” in an `extreme` bin is conditional on that bin, not “common in target overall.”
+- **Optional extension:** A future `MODE="case_control_enrichment"` could mine target and controls and report rules by support difference or enrichment; current mode is target-only, SHAP/FFA-gated co-occurrence (risk-predictive per FFA/SHAP).
+- **Testing:** Lightweight unit/smoke tests (allowed-codes normalization, rule subset closure for `association_rules()`, year-stability filter on synthetic person-year data) are recommended to guard refactors.
 
 ---
 
@@ -91,7 +106,7 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 |--------------|-------------|----------|
 | `{item_type}_itemsets.json` | Frequent itemsets for each item type | ✅ Yes |
 | `{item_type}_rules.json` | Association rules for each item type | ✅ Yes |
-| `{item_type}_metrics.json` | Itemset metrics (support, confidence, lift) | ✅ Yes |
+| `{item_type}_metrics.json` | Itemset metrics + self-describing metadata (`population`, `feature_source`, `purpose`, `density_binning`, `train_years`, `min_years_for_rule`, `density_bin_definitions`) | ✅ Yes |
 | `{item_type}_encoding_map.json` | Feature encoding map for itemsets | ✅ Yes |
 
 **Item types:** `drug_name` (both cohorts); `icd_code`, `cpt_code` (opioid_ed only). Each type has a **separate graph network**; the dashboard lets the user select which type to view (Drug / ICD / CPT).

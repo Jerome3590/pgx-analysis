@@ -27,7 +27,7 @@ This document is the **single source of truth** for the final production workflo
 | 1 | **Causal Analysis** | Features driving outcome; relations; drug combinations → polypharmacy ED | FFA + SHAP importance, feature interactions, radar (optional). Data: Lambda `/causal/importance`, S3 gold/ffa_analysis, gold/shap_analysis. |
 | 2 | **BupaR Process Mining** | Sequences to target (N2); times between sequences (N3 optional) | Activity frequency (overall, pre-target), trace explorer (aggregated), activity sequence top. Static PNG + interactive HTML (year dropdown). No Gantt (see `9_dashboard_visuals/bupar/ARCHIVE_GANTT_REMOVAL.md`). |
 | 3 | **DTW Trajectories** | Routine vs no routine (N1); times between sequences (N3) | Trajectory cluster plots (1D/3D), routine vs no routine chart, high-risk trajectories, times-between-sequences (N3), time-to-target (N3), target pathway patterns. chart_data.json. |
-| 4 | **FP-Growth Patterns** | ICD/CPT/Drug connections → target (N4) | Co-occurrence network, top itemsets, support distribution. Item type = Drug / ICD / CPT. |
+| 4 | **FP-Growth Patterns** | Risk-predictive co-occurrence (N4): ICD/CPT/Drug connections in target, SHAP/FFA-gated | Co-occurrence network, top itemsets, support distribution. Item type = Drug / ICD / CPT (opioid_ed); Drug only (non_opioid_ed). |
 
 **Creation code:** All visualization creation lives in **`9_dashboard_visuals/`** (step 9). Outputs are written under **`10_risk_dashboard/visualizations/`** and uploaded to the dashboard S3 bucket. See `10_risk_dashboard/visualizations/README.md` for directory layout and script names per tab.
 
@@ -40,7 +40,7 @@ This document is the **single source of truth** for the final production workflo
 | **N1** | Routine vs no routine appointments → outcomes? | DTW | Routine vs no routine (admin ICD), high-risk trajectories, trajectory overview. |
 | **N2** | What sequences lead to target outcomes? | BupaR | Sequences to target, pre-target activity frequency, trace explorer (aggregated). |
 | **N3** | What times between sequences lead to target outcomes? | DTW, BupaR | DTW: times-between-sequences and time-to-target charts (by routine bucket). BupaR: optional future time-between summary. |
-| **N4** | ICD/CPT/Drug connections → target? | FP-Growth | Co-occurrence network, itemsets (filter by item type). |
+| **N4** | ICD/CPT/Drug connections → target? | FP-Growth | Risk-predictive co-occurrence (SHAP/FFA-gated, target-only). Co-occurrence network, itemsets (filter by item type). |
 | **N5** | What features drive outcome and how do they relate? | Causal | FFA, SHAP, feature interactions, radar (recommended). |
 | **N6** | What drug combinations drive polypharmacy ED? | Causal + BupaR | Causal drug factors; BupaR sequences / pre-target activity. |
 
