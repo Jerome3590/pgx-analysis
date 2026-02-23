@@ -1,0 +1,266 @@
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ================================================================================
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | PIPELINE STEP: 6_fpgrowth
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ================================================================================
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Script:   create_fpgrowth_visuals
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Cohort:   opioid_ed
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Age Band: 65-74
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Started:  2026-02-23 03:56:05
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Log File: /home/pgx3874/pgx-analysis/9_dashboard_visuals/logs/6_fpgrowth/create_fpgrowth_visuals_opioid_ed_65_74_20260223_035605.log
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ================================================================================
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | 
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Runtime environment: os=linux logical_cores=32 ram_gb=1024 fast_root=/mnt/nvme
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [FUNCTION][6_fpgrowth][create_fpgrowth_visuals] START time=2026-02-23 03:56:05 mem_mb=2457.4 cpu_pct=0.0
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | 
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ######################################################################
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | #  FP-GROWTH VISUAL WORKFLOW: opioid_ed / 65-74
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ######################################################################
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | 
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [STEP 1/2] Creating itemsets...
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [STEP][6_fpgrowth][ensure_itemsets] START time=2026-02-23 03:56:05 mem_mb=2457.9 cpu_pct=0.0
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ============================================================
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | CREATING FP-GROWTH ITEMSETS: opioid_ed / 65-74
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | ============================================================
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Processing 3 item types: drug_name, icd_code, cpt_code
+2026-02-23 03:56:05 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | Starting itemset subprocess: cwd=/home/pgx3874/pgx-analysis/9_dashboard_visuals script=run_single_cohort_fpgrowth.py (streaming stdout/stderr to this log)
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] [PATH_CONFIRM] /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet -> exists=True size=99903814
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] [PATH_CONFIRM]   parent contents: ['extreme_density_patients_65_74.csv', 'model_events.parquet', 'model_events_with_extreme.parquet']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] ======================================================================
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] FP-GROWTH ITEMSET MINING: opioid_ed / 65-74 / train
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] ======================================================================
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] Data path: /mnt/nvme/4_model_data
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] Item types: drug_name, icd_code, cpt_code
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] Min support: 0.01, Min confidence: 0.2
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] 
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,696 - INFO - Processing drug_name for opioid_ed/65-74/train
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,696 - INFO - Processing cpt_code for opioid_ed/65-74/train
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,696 - INFO - Processing icd_code for opioid_ed/65-74/train
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,797 - INFO - [RESOURCE START] mem_used=4.3GB/1003.5GB (1.0%) avail=993.0GB | cpu_process=0.0% cpu_system=48.6%
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,798 - INFO - [RESOURCE START] mem_used=4.3GB/1003.5GB (1.0%) avail=993.0GB | cpu_process=0.0% cpu_system=48.5%
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,798 - INFO - [RESOURCE START] mem_used=4.3GB/1003.5GB (1.0%) avail=993.0GB | cpu_process=0.0% cpu_system=48.5%
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,811 - INFO - Resolved model_events for opioid_ed/65-74: /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,811 - INFO - Using regular model_data for TRAIN FP-Growth (2016–2019): /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,815 - INFO - keys_expected (parquet, for item_type=drug_name): ['mi_person_key', 'target', 'event_year', 'drug_name']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,816 - INFO - keys_received (parquet): ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key', 'nine_icd_diagnosis_code', 'nine_icd_procedure_code', 'primary_icd_diagnosis_code', 'procedure_code', 'seven_icd_diagnosis_code', 'seven_icd_procedure_code', 'six_icd_diagnosis_code', 'six_icd_procedure_code', 'target', 'ten_icd_diagnosis_code']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,816 - INFO - Parquet schema has 35 columns: ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key']...
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,817 - INFO - Resolved model_events for opioid_ed/65-74: /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,818 - INFO - Using regular model_data for TRAIN FP-Growth (2016–2019): /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,818 - INFO - Resolved model_events for opioid_ed/65-74: /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,818 - INFO - Using regular model_data for TRAIN FP-Growth (2016–2019): /mnt/nvme/4_model_data/cohort_name=opioid_ed/age_band=65-74/model_events.parquet
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - keys_expected (parquet, for item_type=icd_code): ['mi_person_key', 'target', 'event_year', 'icd_code']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - keys_received (parquet): ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key', 'nine_icd_diagnosis_code', 'nine_icd_procedure_code', 'primary_icd_diagnosis_code', 'procedure_code', 'seven_icd_diagnosis_code', 'seven_icd_procedure_code', 'six_icd_diagnosis_code', 'six_icd_procedure_code', 'target', 'ten_icd_diagnosis_code']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - Parquet schema has 35 columns: ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key']...
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - keys_expected (parquet, for item_type=cpt_code): ['mi_person_key', 'target', 'event_year', 'cpt_code']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - keys_received (parquet): ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key', 'nine_icd_diagnosis_code', 'nine_icd_procedure_code', 'primary_icd_diagnosis_code', 'procedure_code', 'seven_icd_diagnosis_code', 'seven_icd_procedure_code', 'six_icd_diagnosis_code', 'six_icd_procedure_code', 'target', 'ten_icd_diagnosis_code']
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,824 - INFO - Parquet schema has 35 columns: ['age_band', 'cohort_name', 'cpt_mod_1_code', 'cpt_mod_2_code', 'drug_name', 'eight_icd_diagnosis_code', 'eight_icd_procedure_code', 'event_date', 'event_year', 'first_opioid_ed_date', 'five_icd_diagnosis_code', 'five_icd_procedure_code', 'four_icd_diagnosis_code', 'four_icd_procedure_code', 'hcg_detail', 'hcg_line', 'hcg_setting', 'member_gender', 'member_race', 'mi_person_key']...
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,954 - INFO - [RESOURCE After data extraction] mem_used=5.5GB/1003.5GB (1.2%) avail=991.8GB | cpu_process=0.0% cpu_system=54.7%
+2026-02-23 03:56:07 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:07,963 - INFO - Coerced target column from int32 to int; value_counts: {1: 68921}
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,021 - INFO - [RESOURCE After data extraction] mem_used=6.0GB/1003.5GB (1.2%) avail=991.3GB | cpu_process=0.0% cpu_system=47.6%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,029 - INFO - Coerced target column from int32 to int; value_counts: {1: 287599}
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,038 - INFO - Filtered to SHAP/FFA allowed items: 68,921 -> 48,213 rows (103 codes)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,038 - INFO - Adding DRUG: prefix to items for proper encoding
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,058 - INFO - Target cohort size for opioid_ed/65-74/train (drug_name): 3,491 persons, 48,213 item rows
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,058 - INFO - Assigning Transaction_Density to 48,213 rows...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,058 - INFO - Calculating transaction sizes per patient...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,063 - INFO - Transaction size percentiles:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,064 - INFO -   P25: 4.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,064 - INFO -   P50 (median): 8.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,064 - INFO -   P75: 17.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,064 - INFO -   P95: 44.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,064 - INFO -   Max: 179 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,065 - INFO - Transaction density distribution:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,065 - INFO -   low: 1,062 (30.4%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,065 - INFO -   medium: 686 (19.7%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,065 - INFO -   high: 1,572 (45.0%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,065 - INFO -   extreme: 171 (4.9%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,119 - INFO - [RESOURCE After data extraction] mem_used=6.4GB/1003.5GB (1.3%) avail=990.8GB | cpu_process=0.0% cpu_system=47.2%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,129 - INFO - Coerced target column from int32 to int; value_counts: {1: 311573}
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,175 - INFO - [RESOURCE After density assignment] mem_used=6.6GB/1003.5GB (1.3%) avail=990.7GB | cpu_process=0.0% cpu_system=47.7%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,175 - INFO - Processing transactions by density level...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,206 - INFO - Filtered to SHAP/FFA allowed items: 287,599 -> 176,880 rows (193 codes)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,206 - INFO - Adding CPT: prefix to items for proper encoding
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,275 - INFO - [RESOURCE Start density=low] mem_used=6.8GB/1003.5GB (1.3%) avail=990.4GB | cpu_process=0.0% cpu_system=39.1%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,289 - INFO - Target cohort size for opioid_ed/65-74/train (cpt_code): 4,712 persons, 176,880 item rows
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,289 - INFO - Assigning Transaction_Density to 176,880 rows...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,289 - INFO - Calculating transaction sizes per patient...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,295 - INFO -   low: 1,062 transactions
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,295 - INFO - Processing low density transactions (n=1,062)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,299 - INFO - Filtered to SHAP/FFA allowed items: 311,573 -> 127,448 rows (206 codes)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,299 - INFO - Adding ICD: prefix to items for proper encoding
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO - Transaction size percentiles:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO -   P25: 10.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO -   P50 (median): 24.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO -   P75: 50.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO -   P95: 120.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,304 - INFO -   Max: 739 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,306 - INFO - Transaction density distribution:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,306 - INFO -   low: 1,285 (27.3%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,306 - INFO -   medium: 1,108 (23.5%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,306 - INFO -   high: 2,084 (44.2%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,306 - INFO -   extreme: 235 (5.0%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,367 - INFO - Target cohort size for opioid_ed/65-74/train (icd_code): 4,430 persons, 127,448 item rows
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,367 - INFO - Assigning Transaction_Density to 127,448 rows...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,367 - INFO - Calculating transaction sizes per patient...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,377 - INFO - Transaction size percentiles:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,377 - INFO -   P25: 7.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,378 - INFO -   P50 (median): 17.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,378 - INFO -   P75: 38.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,378 - INFO -   P95: 96.0 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,378 - INFO -   Max: 452 items
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,379 - INFO - Transaction density distribution:
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,379 - INFO -   low: 1,216 (27.4%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,379 - INFO -   medium: 1,007 (22.7%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,379 - INFO -   high: 1,986 (44.8%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,380 - INFO -   extreme: 221 (5.0%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,397 - INFO - [RESOURCE After encoding (low)] mem_used=7.2GB/1003.5GB (1.3%) avail=990.1GB | cpu_process=0.0% cpu_system=52.0%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,420 - INFO - Filtering 42 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,423 - INFO -   Original itemsets: 42
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,423 - INFO -   Filtered itemsets: 38 (lift >= 1.0)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,423 - INFO -   Removed common/trivial: 4 (9.5%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,423 - INFO -   Lift range: 1.000 - 1.409
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,437 - INFO - [RESOURCE After density assignment] mem_used=7.4GB/1003.5GB (1.4%) avail=989.9GB | cpu_process=0.0% cpu_system=49.4%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,437 - INFO - Processing transactions by density level...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,501 - INFO - [RESOURCE After density assignment] mem_used=7.6GB/1003.5GB (1.4%) avail=989.6GB | cpu_process=0.0% cpu_system=44.5%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,501 - INFO - Processing transactions by density level...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,524 - INFO - [RESOURCE After filtering itemsets by lift (low)] mem_used=7.6GB/1003.5GB (1.4%) avail=989.6GB | cpu_process=0.0% cpu_system=43.0%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,538 - INFO - [RESOURCE Start density=low] mem_used=7.7GB/1003.5GB (1.4%) avail=989.6GB | cpu_process=0.0% cpu_system=41.9%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,575 - INFO -   low: 1,285 transactions
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,576 - INFO - Processing low density transactions (n=1,285)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,601 - INFO - [RESOURCE Start density=low] mem_used=7.8GB/1003.5GB (1.4%) avail=989.5GB | cpu_process=0.0% cpu_system=41.0%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,626 - INFO - [RESOURCE After FP-Growth (low)] mem_used=7.8GB/1003.5GB (1.4%) avail=989.5GB | cpu_process=0.0% cpu_system=41.7%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,629 - INFO -   low: 38 itemsets (35 single-item, 3 multi-item) → 0 rules
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,659 - INFO -   low: 1,216 transactions
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,660 - INFO - Processing low density transactions (n=1,216)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,678 - INFO - [RESOURCE After encoding (low)] mem_used=7.9GB/1003.5GB (1.4%) avail=989.3GB | cpu_process=0.0% cpu_system=43.5%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,729 - INFO - [RESOURCE After rule generation (low)] mem_used=8.0GB/1003.5GB (1.4%) avail=989.3GB | cpu_process=0.0% cpu_system=43.4%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,762 - INFO - [RESOURCE After encoding (low)] mem_used=8.1GB/1003.5GB (1.4%) avail=989.2GB | cpu_process=0.0% cpu_system=41.8%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,780 - INFO - Filtering 55 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,785 - INFO -   Original itemsets: 55
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,785 - INFO -   Filtered itemsets: 54 (lift >= 1.0)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,785 - INFO -   Removed common/trivial: 1 (1.8%)
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,785 - INFO -   Lift range: 1.000 - 1.885
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,830 - INFO - [RESOURCE Start density=medium] mem_used=8.1GB/1003.5GB (1.4%) avail=989.1GB | cpu_process=0.0% cpu_system=38.8%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,855 - INFO -   medium: 686 transactions
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,855 - INFO - Processing medium density transactions (n=686)...
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,886 - INFO - [RESOURCE After filtering itemsets by lift (low)] mem_used=8.2GB/1003.5GB (1.4%) avail=989.1GB | cpu_process=0.0% cpu_system=36.2%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,957 - INFO - [RESOURCE After encoding (medium)] mem_used=8.2GB/1003.5GB (1.4%) avail=989.1GB | cpu_process=0.0% cpu_system=35.7%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,990 - INFO - [RESOURCE After FP-Growth (low)] mem_used=8.2GB/1003.5GB (1.4%) avail=989.1GB | cpu_process=0.0% cpu_system=37.8%
+2026-02-23 03:56:08 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:08,994 - INFO -   low: 54 itemsets (53 single-item, 1 multi-item) → 0 rules
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,072 - INFO - Filtering 109 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,076 - INFO -   Original itemsets: 109
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,076 - INFO -   Filtered itemsets: 72 (lift >= 1.0)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,076 - INFO -   Removed common/trivial: 37 (33.9%)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,077 - INFO -   Lift range: 1.000 - 3.671
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,094 - INFO - [RESOURCE After rule generation (low)] mem_used=8.3GB/1003.5GB (1.4%) avail=989.0GB | cpu_process=0.0% cpu_system=44.9%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,178 - INFO - [RESOURCE After filtering itemsets by lift (medium)] mem_used=8.4GB/1003.5GB (1.5%) avail=988.9GB | cpu_process=0.0% cpu_system=41.7%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,195 - INFO - [RESOURCE Start density=medium] mem_used=8.4GB/1003.5GB (1.5%) avail=988.9GB | cpu_process=0.0% cpu_system=41.2%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,237 - INFO -   medium: 1,007 transactions
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,237 - INFO - Processing medium density transactions (n=1,007)...
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,280 - INFO - [RESOURCE After FP-Growth (medium)] mem_used=8.4GB/1003.5GB (1.5%) avail=988.8GB | cpu_process=0.0% cpu_system=42.8%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,287 - INFO -   medium: 72 itemsets (37 single-item, 35 multi-item) → 32 rules
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,340 - INFO - [RESOURCE After encoding (medium)] mem_used=8.5GB/1003.5GB (1.5%) avail=988.8GB | cpu_process=0.0% cpu_system=36.0%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,387 - INFO - [RESOURCE After rule generation (medium)] mem_used=8.6GB/1003.5GB (1.5%) avail=988.7GB | cpu_process=0.0% cpu_system=35.9%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,488 - INFO - [RESOURCE Start density=high] mem_used=8.7GB/1003.5GB (1.5%) avail=988.6GB | cpu_process=0.0% cpu_system=52.6%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,518 - INFO - Filtering 160 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,520 - INFO - Filtering 372 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,524 - INFO -   Original itemsets: 160
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,524 - INFO -   Filtered itemsets: 132 (lift >= 1.0)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,524 - INFO -   Removed common/trivial: 28 (17.5%)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,524 - INFO -   Lift range: 1.000 - 12.880
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,529 - INFO -   Original itemsets: 372
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,529 - INFO -   Filtered itemsets: 335 (lift >= 1.0)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,529 - INFO -   Removed common/trivial: 37 (9.9%)
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,529 - INFO -   Lift range: 1.000 - 1284.086
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,563 - INFO -   high: 1,572 transactions
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,563 - INFO - Processing high density transactions (n=1,572)...
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,625 - INFO - [RESOURCE After filtering itemsets by lift (medium)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=65.4%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,630 - INFO - [RESOURCE After filtering itemsets by lift (low)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=64.1%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,667 - INFO - [RESOURCE After encoding (high)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=58.8%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,729 - INFO - [RESOURCE After FP-Growth (medium)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=67.5%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,739 - INFO - [RESOURCE After FP-Growth (low)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=69.1%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,741 - INFO -   medium: 132 itemsets (98 single-item, 34 multi-item) → 29 rules
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,773 - INFO -   low: 335 itemsets (61 single-item, 274 multi-item) → 1,640 rules
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,842 - INFO - [RESOURCE After rule generation (medium)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=73.8%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,874 - INFO - [RESOURCE After rule generation (low)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=69.7%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,942 - INFO - [RESOURCE Start density=high] mem_used=8.9GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=77.7%
+2026-02-23 03:56:09 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:09,974 - INFO - [RESOURCE Start density=medium] mem_used=8.8GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=89.4%
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,022 - INFO -   medium: 1,108 transactions
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,023 - INFO - Processing medium density transactions (n=1,108)...
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,048 - INFO -   high: 1,986 transactions
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,050 - INFO - Processing high density transactions (n=1,986)...
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,129 - INFO - [RESOURCE After encoding (medium)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=98.5%
+2026-02-23 03:56:10 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:10,158 - INFO - [RESOURCE After encoding (high)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=98.4%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,222 - INFO - Filtering 315 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,229 - INFO -   Original itemsets: 315
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,229 - INFO -   Filtered itemsets: 185 (lift >= 1.0)
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,229 - INFO -   Removed common/trivial: 130 (41.3%)
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,230 - INFO -   Lift range: 1.000 - 3.088
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,331 - INFO - [RESOURCE After filtering itemsets by lift (high)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.5GB | cpu_process=0.0% cpu_system=93.8%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,440 - INFO - [RESOURCE After FP-Growth (high)] mem_used=8.8GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=84.1%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,461 - INFO -   high: 185 itemsets (39 single-item, 146 multi-item) → 197 rules
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,562 - INFO - [RESOURCE After rule generation (high)] mem_used=8.9GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=100.0%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,662 - INFO - [RESOURCE Start density=extreme] mem_used=8.9GB/1003.5GB (1.5%) avail=988.4GB | cpu_process=0.0% cpu_system=96.6%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,691 - INFO -   extreme: 171 transactions
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,691 - INFO - Processing extreme density transactions (n=171)...
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,792 - INFO - [RESOURCE After encoding (extreme)] mem_used=9.0GB/1003.5GB (1.5%) avail=988.3GB | cpu_process=0.0% cpu_system=100.0%
+2026-02-23 03:56:11 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:11,793 - INFO - Using adjusted support threshold 0.0100 for extreme density
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,143 - INFO - Filtering 3,217 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,181 - INFO -   Original itemsets: 3,217
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,181 - INFO -   Filtered itemsets: 2,794 (lift >= 1.0)
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,181 - INFO -   Removed common/trivial: 423 (13.1%)
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,182 - INFO -   Lift range: 1.000 - 1116.501
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,283 - INFO - [RESOURCE After filtering itemsets by lift (extreme)] mem_used=10.1GB/1003.5GB (1.6%) avail=987.2GB | cpu_process=0.0% cpu_system=90.0%
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,510 - INFO - [RESOURCE After FP-Growth (extreme)] mem_used=9.9GB/1003.5GB (1.6%) avail=987.3GB | cpu_process=0.0% cpu_system=85.0%
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,883 - INFO -   extreme: 2,794 itemsets (39 single-item, 2755 multi-item) → 18,536 rules
+2026-02-23 03:56:14 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:14,984 - INFO - [RESOURCE After rule generation (extreme)] mem_used=9.4GB/1003.5GB (1.6%) avail=987.9GB | cpu_process=0.0% cpu_system=82.2%
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,489 - INFO - Filtering 981 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,499 - INFO -   Original itemsets: 981
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,499 - INFO -   Filtered itemsets: 774 (lift >= 1.0)
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,499 - INFO -   Removed common/trivial: 207 (21.1%)
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,499 - INFO -   Lift range: 1.000 - 60.827
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,599 - INFO - [RESOURCE After filtering itemsets by lift (high)] mem_used=9.2GB/1003.5GB (1.5%) avail=988.1GB | cpu_process=0.0% cpu_system=65.6%
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,719 - INFO - [RESOURCE After FP-Growth (high)] mem_used=9.2GB/1003.5GB (1.5%) avail=988.1GB | cpu_process=0.0% cpu_system=71.0%
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,770 - INFO -   high: 774 itemsets (132 single-item, 642 multi-item) → 891 rules
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,871 - INFO - [RESOURCE After rule generation (high)] mem_used=9.2GB/1003.5GB (1.5%) avail=988.1GB | cpu_process=0.0% cpu_system=72.1%
+2026-02-23 03:56:16 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:16,971 - INFO - [RESOURCE Start density=extreme] mem_used=9.2GB/1003.5GB (1.5%) avail=988.0GB | cpu_process=0.0% cpu_system=68.7%
+2026-02-23 03:56:17 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:17,012 - INFO -   extreme: 221 transactions
+2026-02-23 03:56:17 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:17,013 - INFO - Processing extreme density transactions (n=221)...
+2026-02-23 03:56:17 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:17,115 - INFO - [RESOURCE After encoding (extreme)] mem_used=9.3GB/1003.5GB (1.6%) avail=987.9GB | cpu_process=0.0% cpu_system=67.9%
+2026-02-23 03:56:17 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:17,115 - INFO - Using adjusted support threshold 0.0100 for extreme density
+2026-02-23 03:56:20 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:20,848 - INFO - Rule year filter (pattern in >= 2 of 4 train years): kept 9967, dropped 8576
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:21,342 - INFO - Saved local FP-Growth outputs (target cohort, combined across density bins) under /home/pgx3874/pgx-analysis/10_risk_dashboard/visualizations/fpgrowth/outputs/opioid_ed/65_74
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:21,540 - INFO - Target-only = combined (same count): copied itemsets and rules to *_target_only.json
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:21,641 - INFO - [RESOURCE END] mem_used=9.8GB/1003.5GB (1.6%) avail=987.4GB | cpu_process=0.0% cpu_system=59.9%
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:21,641 - INFO - [OK] opioid_ed/65-74/train drug_name: 2850 itemsets, 9967 rules in 13.7s
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] [OK] drug_name: 2850 itemsets, 9967 rules
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout]    Generated 2850 frequent itemsets
+2026-02-23 03:56:21 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout]    Generated 9967 association rules
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,140 - INFO - Filtering 25,707 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,286 - INFO -   Original itemsets: 25,707
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,287 - INFO -   Filtered itemsets: 24,417 (lift >= 1.0)
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,287 - INFO -   Removed common/trivial: 1,290 (5.0%)
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,287 - INFO -   Lift range: 1.000 - 4964.394
+2026-02-23 03:56:32 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:32,388 - INFO - [RESOURCE After filtering itemsets by lift (extreme)] mem_used=13.0GB/1003.5GB (1.9%) avail=984.2GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:33 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:33,072 - INFO - [RESOURCE After FP-Growth (extreme)] mem_used=13.1GB/1003.5GB (1.9%) avail=984.1GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:35 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:35,585 - INFO -   extreme: 24,417 itemsets (137 single-item, 24280 multi-item) → 236,721 rules
+2026-02-23 03:56:35 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:35,685 - INFO - [RESOURCE After rule generation (extreme)] mem_used=14.4GB/1003.5GB (2.1%) avail=982.9GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,386 - INFO - Filtering 9,289 itemsets by lift (min_lift=1.0)...
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,442 - INFO -   Original itemsets: 9,289
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,442 - INFO -   Filtered itemsets: 8,167 (lift >= 1.0)
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,442 - INFO -   Removed common/trivial: 1,122 (12.1%)
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,442 - INFO -   Lift range: 1.000 - 2494.188
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,543 - INFO - [RESOURCE After filtering itemsets by lift (medium)] mem_used=15.0GB/1003.5GB (2.1%) avail=982.3GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:37 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:37,839 - INFO - [RESOURCE After FP-Growth (medium)] mem_used=15.1GB/1003.5GB (2.1%) avail=982.1GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,057 - INFO -   medium: 8,167 itemsets (134 single-item, 8033 multi-item) → 116,192 rules
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,158 - INFO - [RESOURCE After rule generation (medium)] mem_used=15.7GB/1003.5GB (2.2%) avail=981.6GB | cpu_process=0.0% cpu_system=59.2%
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,258 - INFO - [RESOURCE Start density=high] mem_used=15.7GB/1003.5GB (2.2%) avail=981.6GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,416 - INFO -   high: 2,084 transactions
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,418 - INFO - Processing high density transactions (n=2,084)...
+2026-02-23 03:56:39 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:56:39,539 - INFO - [RESOURCE After encoding (high)] mem_used=15.7GB/1003.5GB (2.2%) avail=981.5GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:58:22 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:58:22,885 - INFO - Rule year filter (pattern in >= 2 of 4 train years): kept 167672, dropped 69126
+2026-02-23 03:58:27 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:58:27,804 - INFO - Saved local FP-Growth outputs (target cohort, combined across density bins) under /home/pgx3874/pgx-analysis/10_risk_dashboard/visualizations/fpgrowth/outputs/opioid_ed/65_74
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:58:29,020 - INFO - Target-only = combined (same count): copied itemsets and rules to *_target_only.json
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:58:29,120 - INFO - [RESOURCE END] mem_used=45.6GB/1003.5GB (5.2%) avail=951.6GB | cpu_process=0.0% cpu_system=59.4%
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stderr] 2026-02-23 03:58:29,121 - INFO - [OK] opioid_ed/65-74/train icd_code: 24601 itemsets, 167672 rules in 141.2s
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout] [OK] icd_code: 24601 itemsets, 167672 rules
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout]    Generated 24601 frequent itemsets
+2026-02-23 03:58:29 | INFO     | 6_fpgrowth.opioid_ed.65-74.create_fpgrowth_visuals | [stdout]    Generated 167672 association rules
