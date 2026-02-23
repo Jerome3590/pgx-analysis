@@ -98,21 +98,21 @@ DRY_RUN_LIMIT = 5  # Number of cohort combinations to process when DRY_RUN is Tr
 
 COHORTS_TO_PROCESS = ['opioid_ed', 'non_opioid_ed']  # Specify cohorts to process
 
-# FP-Growth item types by cohort:
-# - non_opioid_ed (polypharmacy): drug relationships only
-# - opioid_ed: drug, ICD, and CPT (no combined medical_code)
+# FP-Growth item types by cohort. Each type gets a separate graph network; user selects which to view.
+# - non_opioid_ed (polypharmacy): drug_name only
+# - opioid_ed: drug_name, icd_code, cpt_code (each has its own network)
 COHORT_ITEM_TYPES = {
     "non_opioid_ed": ["drug_name"],
     "opioid_ed": ["drug_name", "icd_code", "cpt_code"],
 }
 # All item types (for validation and batch summary; medical_code kept for backward compat if added later)
 ALL_ITEM_TYPES = ["drug_name", "icd_code", "cpt_code", "medical_code"]
-# Default for unknown cohort: drug + icd + cpt (same as opioid_ed)
+# Default for unknown cohort: drug + icd + cpt
 ITEM_TYPES = ALL_ITEM_TYPES  # used where a single list is expected (e.g. batch summary iteration)
 
 
 def get_item_types_for_cohort(cohort_name: str) -> list:
-    """Return item types to run for this cohort. Polypharmacy = drugs only; opioid_ed = drug, icd, cpt."""
+    """Return item types to run for this cohort. Each type produces a distinct graph network (user selects which to view)."""
     return COHORT_ITEM_TYPES.get(cohort_name, ["drug_name", "icd_code", "cpt_code"])
 S3_OUTPUT_BASE = "s3://pgxdatalake/gold/fpgrowth/cohort"
 LOCAL_DATA_PATH = Path("/mnt/nvme/cohorts")  # Instance storage (NVMe SSD for fast I/O)

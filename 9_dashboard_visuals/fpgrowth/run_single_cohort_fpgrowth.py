@@ -3,8 +3,9 @@
 Run FP-Growth analysis for a single cohort/age_band combination.
 
 Item types are cohort-dependent (from cohort_fpgrowth.get_item_types_for_cohort):
-- non_opioid_ed (polypharmacy): drug_name only
+- non_opioid_ed: drug_name only
 - opioid_ed: drug_name, icd_code, cpt_code
+Each item type produces a separate graph network; the dashboard lets the user select which to view.
 This script calls process_single_cohort directly for a specific cohort/age_band.
 """
 
