@@ -8,11 +8,12 @@ Item types are cohort-dependent (from cohort_fpgrowth.get_item_types_for_cohort)
 This script calls process_single_cohort directly for a specific cohort/age_band.
 """
 
+import argparse
+import importlib.util
 import json
 import sys
-import argparse
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 try:
     import psutil
@@ -26,8 +27,7 @@ FPGROWTH_CODE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(FPGROWTH_CODE_DIR))
 
-# Import cohort_fpgrowth from same directory
-import importlib.util
+# Load cohort_fpgrowth from same directory (path above required when run as script)
 cohort_fpgrowth_path = FPGROWTH_CODE_DIR / "cohort_fpgrowth.py"
 spec = importlib.util.spec_from_file_location("cohort_fpgrowth", cohort_fpgrowth_path)
 cohort_fpgrowth = importlib.util.module_from_spec(spec)
@@ -41,6 +41,39 @@ MIN_CONFIDENCE = cohort_fpgrowth.MIN_CONFIDENCE
 S3_OUTPUT_BASE = cohort_fpgrowth.S3_OUTPUT_BASE
 MODEL_DATA_ROOT = cohort_fpgrowth.MODEL_DATA_ROOT
 LOCAL_DATA_PATH = cohort_fpgrowth.LOCAL_DATA_PATH
+
+
+def _run_one_item_type(
+    item_type: str,
+    cohort_name: str,
+    age_band: str,
+    event_year: str,
+    local_data_path_str: str,
+    s3_output_base: str,
+    min_support: float,
+    min_confidence: float,
+    project_root_str: str | None,
+) -> tuple:
+    """Module-level worker for ProcessPoolExecutor (picklable). Returns (item_type, result, exception_info)."""
+    local_path = Path(local_data_path_str) if local_data_path_str else LOCAL_DATA_PATH
+    proot = Path(project_root_str).resolve() if project_root_str else None
+    try:
+        result = process_single_cohort(
+            item_type=item_type,
+            cohort_name=cohort_name,
+            age_band=age_band,
+            event_year=event_year,
+            local_data_path=local_path,
+            s3_output_base=s3_output_base,
+            min_support=min_support,
+            min_confidence=min_confidence,
+            project_root=proot,
+        )
+        return (item_type, result, None)
+    except Exception as e:
+        import traceback
+        return (item_type, None, (e, traceback.format_exc()))
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run FP-Growth for a single cohort/age_band")
@@ -110,41 +143,29 @@ def main():
         except Exception:
             pass
 
-    # Process item types in parallel (count = len(item_types) for this cohort)
+    # Process item types in parallel (processes = true multi-core; threads would be GIL-limited)
     any_ok = False
     failures = []  # (item_type, error_msg)
-    
-    def process_item_type(item_type, idx):
-        """Process single item type; returns (item_type, result_or_error)"""
-        _log_resources(f"before {item_type}")
-        print("", flush=True)
-        print("-" * 70, flush=True)
-        print(f"[ITEM TYPE {idx}/{len(item_types)}] Processing {item_type}...", flush=True)
-        print("-" * 70, flush=True)
-        try:
-            result = process_single_cohort(
-                item_type=item_type,
-                cohort_name=args.cohort_name,
-                age_band=args.age_band,
-                event_year=args.event_year,
-                local_data_path=local_data_path,
-                s3_output_base=S3_OUTPUT_BASE,
-                min_support=MIN_SUPPORT,
-                min_confidence=MIN_CONFIDENCE,
-                project_root=project_root,
-            )
-            _log_resources(f"after {item_type}")
-            return (item_type, result, None)
-        except Exception as e:
-            _log_resources(f"after {item_type} (exception)")
-            import traceback
-            tb = traceback.format_exc()
-            return (item_type, None, (e, tb))
-    
-    # Parallelize item type processing (4 workers for 4 item types)
-    with ThreadPoolExecutor(max_workers=len(item_types)) as executor:
-        futures = {executor.submit(process_item_type, item_type, idx): item_type
-                   for idx, item_type in enumerate(item_types, 1)}
+
+    local_data_path_str = str(local_data_path) if local_data_path else ""
+    project_root_str = str(project_root) if project_root else None
+
+    with ProcessPoolExecutor(max_workers=len(item_types)) as executor:
+        futures = {
+            executor.submit(
+                _run_one_item_type,
+                item_type,
+                args.cohort_name,
+                args.age_band,
+                args.event_year,
+                local_data_path_str,
+                S3_OUTPUT_BASE,
+                MIN_SUPPORT,
+                MIN_CONFIDENCE,
+                project_root_str,
+            ): item_type
+            for item_type in item_types
+        }
         
         for future in as_completed(futures):
             item_type, result, exception_info = future.result()
@@ -156,8 +177,8 @@ def main():
                 err_params = {"cohort_name": args.cohort_name, "age_band": args.age_band, "item_type": item_type, "error": str(e)}
                 print("[ERROR_PARAMS]", err_params, flush=True)
                 print(tb, flush=True)
-            elif 'error' in result:
-                err_msg = result['error']
+            elif result is not None and isinstance(result, dict) and "error" in result:
+                err_msg = result["error"]
                 failures.append((item_type, err_msg))
                 print(f"[ERROR] {item_type}: {err_msg}", flush=True)
                 # Log missing/mismatched params so follow-on runs can correct (paths_checked, path, path_listings, etc.)

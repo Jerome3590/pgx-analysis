@@ -71,6 +71,7 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 
 **EC2 / capacity setup:**
 - **DuckDB threads:** Each item-type connection uses **3 threads** (`DUCKDB_THREADS = 3` in `cohort_fpgrowth.py`). Per (cohort, age_band), item types (e.g. drug_name, icd_code, cpt_code) run in parallel, each with its own DuckDB connection, so parquet reads and SQL use multiple cores.
+- **Item-type parallelism:** Within each (cohort, age_band), item types are run with **ProcessPoolExecutor** (see `run_single_cohort_fpgrowth.py`), so each item type runs in its own process and can use a full core for Python/pandas/mlxtend (avoids GIL limits that kept utilization low with threads).
 - **FP-Growth workers:** The dashboard workflow runs FP-Growth with **all (cohort, age_band) combinations in parallel** by default (max EC2 capacity). Override with `--fpgrowth-workers N` to cap parallelism, e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --fpgrowth-workers 8`.
 
 ---
