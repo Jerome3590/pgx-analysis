@@ -132,7 +132,8 @@ def main():
     # Default: one worker per (cohort, age_band) combo, capped by CPU count
     if args.workers is None:
         args.workers = min(_ncpu, len(combinations))
-    fpgrowth_w = args.fpgrowth_workers if args.fpgrowth_workers is not None else min(_ncpu, len(combinations))
+    # FP-Growth: default = all combos in parallel (max EC2 capacity); each subprocess uses 3 DuckDB threads per item type
+    fpgrowth_w = args.fpgrowth_workers if args.fpgrowth_workers is not None else len(combinations)
 
     # Ensure allowed-codes files exist: try to generate from SHAP/FFA when missing or empty
     try:

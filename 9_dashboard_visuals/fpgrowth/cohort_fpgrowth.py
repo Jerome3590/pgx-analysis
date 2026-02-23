@@ -77,6 +77,8 @@ TARGET_PREFIXES = ['TARGET_ICD:', 'TARGET_ED:']  # Prefixes for target items in 
 # Processing parameters: one core per (cohort, age_band) combo, capped by CPU count
 _ncpu = getattr(os, "cpu_count", lambda: 4)() or 4
 MAX_WORKERS = min(_ncpu, len(COHORT_NAMES) * len(AGE_BANDS))
+# DuckDB threads per connection (each item type has its own connection; 3 threads per item type)
+DUCKDB_THREADS = 3
 
 # Training window for FP-Growth: consolidate all years in model data to maximize transactions and produce rules
 TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidating produces more itemsets/rules)
@@ -581,7 +583,7 @@ def process_single_cohort(
     try:
         # Simple in-memory connection (no AWS needed for local parquet reads)
         con = duckdb.connect(':memory:')
-        con.sql("SET threads = 1")
+        con.sql(f"SET threads = {DUCKDB_THREADS}")
 
         # Prefer DTW-filtered model_data (protocol events removed) if available,
         # then fall back to regular model_data, then raw GOLD cohorts parquet.

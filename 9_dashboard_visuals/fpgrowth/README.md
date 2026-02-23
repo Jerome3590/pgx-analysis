@@ -69,6 +69,10 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 - **Applies to all cohorts** (e.g. `opioid_ed`, `non_opioid_ed`): the same logic runs for every cohort and age band when using the aggregated `train` run.
 - Implemented in `filter_rules_by_year_support()`; controlled by `MIN_YEARS_FOR_RULE = 2` in `cohort_fpgrowth.py`. Applied only for the aggregated `train` run (single-year runs are not filtered by year count).
 
+**EC2 / capacity setup:**
+- **DuckDB threads:** Each item-type connection uses **3 threads** (`DUCKDB_THREADS = 3` in `cohort_fpgrowth.py`). Per (cohort, age_band), item types (e.g. drug_name, icd_code, cpt_code) run in parallel, each with its own DuckDB connection, so parquet reads and SQL use multiple cores.
+- **FP-Growth workers:** The dashboard workflow runs FP-Growth with **all (cohort, age_band) combinations in parallel** by default (max EC2 capacity). Override with `--fpgrowth-workers N` to cap parallelism, e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --fpgrowth-workers 8`.
+
 ---
 
 ## Output Files Manifest

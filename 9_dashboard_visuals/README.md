@@ -59,7 +59,8 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    - `--sync-only` – only run sync, then exit
    - `--cohort X --age-band Y` – restrict to specific combination(s)
    - `--force` – re-run even if outputs exist
-   - `--workers N` – parallel workers (default 4)
+   - `--workers N` – parallel workers for BupaR/DTW (default: min(CPU count, combo count))
+   - `--fpgrowth-workers N` – parallel FP-Growth combos (default: all combos in parallel for max EC2 capacity; use N to cap)
    DTW runs in three steps: **create_dtw_trajectories.py** (trajectory CSV with N3 time-between metrics), **create_dtw_features.py** (DTW alignment: distances to prototype trajectories + common_sequences.json), then **create_dtw_visuals.py** (plots and chart_data.json). Requires `dtaidistance` for alignment.
 
 **Why might all age bands and both cohorts not get processed?**
