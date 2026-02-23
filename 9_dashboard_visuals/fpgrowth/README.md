@@ -86,6 +86,8 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 - **Item-type parallelism:** Within each (cohort, age_band), item types are run with **ProcessPoolExecutor** (see `run_single_cohort_fpgrowth.py`), so each item type runs in its own process and can use a full core for Python/pandas/mlxtend (avoids GIL limits that kept utilization low with threads).
 - **FP-Growth workers:** The dashboard workflow runs FP-Growth with **all (cohort, age_band) combinations in parallel** by default (max EC2 capacity). Override with `--fpgrowth-workers N` to cap parallelism, e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --fpgrowth-workers 8`.
 
+**Activity logging:** Each major step logs `[ACTIVITY_START]` and `[ACTIVITY_COMPLETE]` with `item_type`, `cohort`, `age_band` (and for opioid_ed per `year`, for non_opioid_ed per `density`). Grep logs for these tags to see when each activity kicks off and when it completes (e.g. `grep ACTIVITY_ status/*.txt` or in `9_dashboard_visuals/logs/`).
+
 **Operating notes and recommendations:**
 - **CPU oversubscription:** ProcessPoolExecutor (item types) × DuckDB threads × many (cohort, age_band) workers can over-subscribe cores. To avoid “looks hung” under heavy load, cap item-type workers or DuckDB threads (e.g. `--fpgrowth-workers N`) or set `DUCKDB_THREADS` lower when running many cohorts in parallel.
 - **Density bins:** Support/confidence are computed within each bin; `density_distribution` and `density_bin_definitions` in metrics make clear that “high support” in an `extreme` bin is conditional on that bin, not “common in target overall.”
