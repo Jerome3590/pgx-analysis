@@ -948,16 +948,23 @@ def process_single_cohort(
         n_rows = len(df)
         logger.info(f"Target cohort size for {cohort_id} ({item_type}): {n_persons:,} persons, {n_rows:,} item rows")
 
+        # For opioid_ed, only use events from the current event_year for rule mining
+        if cohort_name == "opioid_ed":
+            logger.info(f"Filtering opioid_ed cohort to only use events from the current year: {event_year}")
+            before_count = len(df)
+            df = df[df['event_year'] == event_year].copy()
+            logger.info(f"Filtered opioid_ed events: {before_count:,} -> {len(df):,} rows for event_year={event_year}")
+
         # Assign Transaction_Density based on histogram/percentiles
         logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
         df = assign_transaction_density(df, logger)
         log_memory(logger, "After density assignment")
-        
+
         # Process transactions by density in order: low -> medium -> high -> extreme
         all_itemsets = []
         all_rules = []
         density_counts = {}
-        
+
         # Same logic for all cohorts (non_opioid_ed, opioid_ed): process every non-empty density bin; no min transaction count
         logger.info(f"Processing transactions by density level...")
         for density in DENSITY_BINS:
@@ -971,30 +978,30 @@ def process_single_cohort(
 
             try:
                 logger.info(f"Processing {density} density transactions (n={len(transactions):,})...")
-                
+
                 # Encode transactions
                 te = TransactionEncoder()
                 te_ary = te.fit(transactions).transform(transactions)
                 df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
                 log_memory(logger, f"After encoding ({density})")
-                
+
                 # Adjust support threshold based on density (lower support for extreme)
                 density_support = min_support
                 if density == 'extreme':
                     density_support = max(min_support * 0.5, 0.01)  # At least 1% support
                     logger.info(f"Using adjusted support threshold {density_support:.4f} for {density} density")
-                
+
                 # Run FP-Growth
                 itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
                 itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
                 itemsets_original = itemsets_density.copy()  # needed so association_rules can look up subset supports after lift filter
-                
+
                 # Filter out common/trivial itemsets by lift BEFORE generating rules
                 if len(itemsets_density) > 0:
                     itemsets_density = filter_itemsets_by_lift(
-                        itemsets_density, 
-                        df_encoded, 
-                        MIN_ITEMSET_LIFT, 
+                        itemsets_density,
+                        df_encoded,
+                        MIN_ITEMSET_LIFT,
                         logger
                     )
                     log_memory(logger, f"After filtering itemsets by lift ({density})")
