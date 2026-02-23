@@ -66,6 +66,9 @@ def ensure_itemsets(
         itemsets_dir.glob("*_itemsets*.json")
     )
 
+
+    import json
+
     with step_block("6_fpgrowth", "ensure_itemsets", logger=logger):
         if itemsets_exist and not force:
             logger.info("Itemsets already exist at %s; skipping creation (use --force to re-run)", itemsets_dir)
@@ -106,8 +109,6 @@ def ensure_itemsets(
                 text=True,
                 bufsize=1,
             )
-            # Stream subprocess stdout/stderr to the pipeline log in real time so we have
-            # output even if the process hangs or is killed (log is flushed periodically).
             def stream_to_log(stream, prefix):
                 for line in iter(stream.readline, ""):
                     logger.info("%s %s", prefix, line.rstrip())
@@ -139,7 +140,25 @@ def ensure_itemsets(
             if itemsets_now:
                 itemset_files = list(itemsets_dir.glob("*_itemsets*.json"))
                 logger.info("Created %d itemset files in %s", len(itemset_files), itemsets_dir)
-            return itemsets_now
+                return True
+            else:
+                # No itemsets produced: write empty JSON files for each expected item type
+                logger.warning("No itemsets produced for %s / %s; writing empty JSON files for downstream compatibility.", cohort_name, age_band)
+                itemsets_dir.mkdir(parents=True, exist_ok=True)
+                for item_type in item_types:
+                    empty_files = [
+                        f"{item_type}_itemsets.json",
+                        f"{item_type}_rules.json",
+                        f"{item_type}_metrics.json",
+                        f"{item_type}_encoding_map.json",
+                        f"{item_type}_itemsets_target_only.json",
+                        f"{item_type}_rules_target_only.json",
+                    ]
+                    for fname in empty_files:
+                        fpath = itemsets_dir / fname
+                        with open(fpath, "w") as f:
+                            json.dump([], f)
+                return True
         except subprocess.CalledProcessError as exc:
             elapsed = time.perf_counter() - t0
             logger.error("="*60)
@@ -156,6 +175,24 @@ def ensure_itemsets(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
             itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            if not itemsets_now:
+                # No itemsets produced: write empty JSON files for each expected item type
+                logger.warning("No itemsets produced for %s / %s after failure; writing empty JSON files for downstream compatibility.", cohort_name, age_band)
+                itemsets_dir.mkdir(parents=True, exist_ok=True)
+                for item_type in item_types:
+                    empty_files = [
+                        f"{item_type}_itemsets.json",
+                        f"{item_type}_rules.json",
+                        f"{item_type}_metrics.json",
+                        f"{item_type}_encoding_map.json",
+                        f"{item_type}_itemsets_target_only.json",
+                        f"{item_type}_rules_target_only.json",
+                    ]
+                    for fname in empty_files:
+                        fpath = itemsets_dir / fname
+                        with open(fpath, "w") as f:
+                            json.dump([], f)
+                return True
             return itemsets_now
         except Exception as exc:  # pragma: no cover - defensive
             elapsed = time.perf_counter() - t0
@@ -164,6 +201,24 @@ def ensure_itemsets(
                 "Continuing; itemsets may already exist locally or be available from S3"
             )
             itemsets_now = itemsets_dir.exists() and any(itemsets_dir.glob("*_itemsets*.json"))
+            if not itemsets_now:
+                # No itemsets produced: write empty JSON files for each expected item type
+                logger.warning("No itemsets produced for %s / %s after exception; writing empty JSON files for downstream compatibility.", cohort_name, age_band)
+                itemsets_dir.mkdir(parents=True, exist_ok=True)
+                for item_type in item_types:
+                    empty_files = [
+                        f"{item_type}_itemsets.json",
+                        f"{item_type}_rules.json",
+                        f"{item_type}_metrics.json",
+                        f"{item_type}_encoding_map.json",
+                        f"{item_type}_itemsets_target_only.json",
+                        f"{item_type}_rules_target_only.json",
+                    ]
+                    for fname in empty_files:
+                        fpath = itemsets_dir / fname
+                        with open(fpath, "w") as f:
+                            json.dump([], f)
+                return True
             return itemsets_now
 
 
