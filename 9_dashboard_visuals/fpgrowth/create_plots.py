@@ -100,6 +100,12 @@ if __name__ == "__main__":
         default=None,
         help='S3 key prefix (default: {S3_DASHBOARD_PREFIX}/fpgrowth, e.g. vcu/pgx-risk-calculator/fpgrowth)'
     )
+    parser.add_argument(
+        '--code-mapping',
+        type=str,
+        default=None,
+        help='Path to CSV with code,description for viewable labels (default: 9_dashboard_visuals/fpgrowth/code_mappings/fpgrowth_code_descriptions.csv)'
+    )
     
     args = parser.parse_args()
     
@@ -126,6 +132,7 @@ if __name__ == "__main__":
         s3_bucket=s3_bucket,
         s3_prefix=s3_prefix,
         top_n=args.top_n,
+        code_mapping_path=args.code_mapping,
     )
     all_plots = result.get("plots", result) if isinstance(result, dict) else result
     total_plots = sum(len(plots) for plots in all_plots.values())
