@@ -80,6 +80,8 @@ MAX_WORKERS = min(_ncpu, len(COHORT_NAMES) * len(AGE_BANDS))
 
 # Training window for FP-Growth: consolidate all years in model data to maximize transactions and produce rules
 TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidating produces more itemsets/rules)
+# Business rule: rules must reflect patterns that persist across years (not rare/single-year flukes)
+MIN_YEARS_FOR_RULE = 2  # Pattern must appear in at least 2 of the 4 TRAIN years (see README)
 
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
@@ -495,6 +497,58 @@ def ensure_subsets_for_association_rules(
     return pd.concat([itemsets_filtered, extra], ignore_index=True)
 
 
+def filter_rules_by_year_support(
+    rules: pd.DataFrame,
+    df: pd.DataFrame,
+    min_years: int,
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """
+    Keep only rules whose pattern appears in at least min_years distinct years.
+    Ensures rules are not driven by rare/single-year flukes (business rule: 2 of 4 years).
+    df must have columns: mi_person_key, item, event_year (item = prefixed, e.g. DRUG:xxx).
+    """
+    if len(rules) == 0 or "antecedents" not in rules.columns or "consequents" not in rules.columns:
+        return rules
+    if "event_year" not in df.columns or min_years < 1:
+        return rules
+
+    # (mi_person_key, event_year) -> set of items in that person-year
+    df_yr = df[["mi_person_key", "event_year", "item"]].dropna(subset=["event_year"])
+    person_year_items = (
+        df_yr.groupby(["mi_person_key", "event_year"])["item"]
+        .apply(lambda x: set(x.dropna().astype(str)))
+        .to_dict()
+    )
+
+    keep = []
+    for _, row in rules.iterrows():
+        ant = row["antecedents"]
+        con = row["consequents"]
+        if not isinstance(ant, (set, frozenset)):
+            ant = frozenset(ant) if hasattr(ant, "__iter__") and not isinstance(ant, str) else frozenset()
+        if not isinstance(con, (set, frozenset)):
+            con = frozenset(con) if hasattr(con, "__iter__") and not isinstance(con, str) else frozenset()
+        needed = ant | con
+        if not needed:
+            keep.append(False)
+            continue
+        years_with_pattern = set()
+        for (_, yr), items in person_year_items.items():
+            if needed <= items:
+                years_with_pattern.add(yr)
+        keep.append(len(years_with_pattern) >= min_years)
+
+    kept = sum(keep)
+    dropped = len(rules) - kept
+    if dropped > 0:
+        logger.info(
+            "Filtered rules by year support (pattern in >= %d years): kept %d, dropped %d",
+            min_years, kept, dropped,
+        )
+    return rules.loc[np.array(keep)].reset_index(drop=True)
+
+
 def process_single_cohort(
     item_type: str,
     cohort_name: str,
@@ -691,7 +745,7 @@ def process_single_cohort(
                     'error': f"Column 'drug_name' not in parquet (has: {len(available_cols)} columns)"
                 }
             query = f"""
-            SELECT mi_person_key, drug_name as item, target
+            SELECT mi_person_key, drug_name as item, target, event_year
             FROM {model_data_from}
             WHERE
                 drug_name IS NOT NULL
@@ -703,51 +757,51 @@ def process_single_cohort(
             # Collect from ALL ICD diagnosis columns (primary through ten)
             query = f"""
             WITH all_icds AS (
-                SELECT mi_person_key, primary_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, primary_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE primary_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, two_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, two_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE two_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, three_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, three_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE three_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, four_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, four_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE four_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, five_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, five_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE five_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, six_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, six_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE six_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, seven_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, seven_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE seven_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, eight_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, eight_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE eight_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, nine_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, nine_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE nine_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, ten_icd_diagnosis_code as icd, target
-                FROM {model_data_from} 
+                SELECT mi_person_key, ten_icd_diagnosis_code as icd, target, event_year
+                FROM {model_data_from}
                 WHERE ten_icd_diagnosis_code IS NOT NULL AND target = 1 AND {event_filter}
             )
-            SELECT mi_person_key, icd as item, target FROM all_icds WHERE icd != ''
+            SELECT mi_person_key, icd as item, target, event_year FROM all_icds WHERE icd != ''
             """
         elif item_type == 'cpt_code':
             query = f"""
-            SELECT mi_person_key, procedure_code as item, target
+            SELECT mi_person_key, procedure_code as item, target, event_year
             FROM {model_data_from}
             WHERE
                 procedure_code IS NOT NULL
@@ -759,51 +813,51 @@ def process_single_cohort(
             # Combined ICD (all 10 diagnosis positions) + CPT codes in a single transaction space
             query = f"""
             WITH all_med_codes AS (
-                SELECT mi_person_key, primary_icd_diagnosis_code as code, target
+                SELECT mi_person_key, primary_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, two_icd_diagnosis_code as code, target
+                SELECT mi_person_key, two_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE two_icd_diagnosis_code IS NOT NULL AND two_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, three_icd_diagnosis_code as code, target
+                SELECT mi_person_key, three_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE three_icd_diagnosis_code IS NOT NULL AND three_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, four_icd_diagnosis_code as code, target
+                SELECT mi_person_key, four_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE four_icd_diagnosis_code IS NOT NULL AND four_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, five_icd_diagnosis_code as code, target
+                SELECT mi_person_key, five_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE five_icd_diagnosis_code IS NOT NULL AND five_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, six_icd_diagnosis_code as code, target
+                SELECT mi_person_key, six_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE six_icd_diagnosis_code IS NOT NULL AND six_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, seven_icd_diagnosis_code as code, target
+                SELECT mi_person_key, seven_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE seven_icd_diagnosis_code IS NOT NULL AND seven_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, eight_icd_diagnosis_code as code, target
+                SELECT mi_person_key, eight_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE eight_icd_diagnosis_code IS NOT NULL AND eight_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, nine_icd_diagnosis_code as code, target
+                SELECT mi_person_key, nine_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE nine_icd_diagnosis_code IS NOT NULL AND nine_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, ten_icd_diagnosis_code as code, target
+                SELECT mi_person_key, ten_icd_diagnosis_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE ten_icd_diagnosis_code IS NOT NULL AND ten_icd_diagnosis_code != '' AND target = 1 AND {event_filter}
                 UNION ALL
-                SELECT mi_person_key, procedure_code as code, target
+                SELECT mi_person_key, procedure_code as code, target, event_year
                 FROM {model_data_from}
                 WHERE procedure_code IS NOT NULL AND procedure_code != '' AND target = 1 AND {event_filter}
             )
-            SELECT mi_person_key, code as item, target FROM all_med_codes WHERE code != ''
+            SELECT mi_person_key, code as item, target, event_year FROM all_med_codes WHERE code != ''
             """
         else:
             raise ValueError(f"Unknown item_type: {item_type}")
@@ -981,19 +1035,24 @@ def process_single_cohort(
                 'error': 'No frequent itemsets'
             }
         
-        # Combine itemsets (deduplicate if needed); skip empty to avoid concat deprecation warning
+        # Combine itemsets (deduplicate if needed); use consistent columns to avoid concat FutureWarning
         non_empty_itemsets = [x for x in all_itemsets if x is not None and len(x) > 0]
         if non_empty_itemsets:
-            itemsets = pd.concat(non_empty_itemsets, ignore_index=True)
-            itemsets = itemsets.drop_duplicates(subset=['itemsets'])
-            itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
+            cols = ['support', 'itemsets']
+            to_concat = [df[cols] for df in non_empty_itemsets if set(cols).issubset(df.columns)]
+            itemsets = pd.concat(to_concat, ignore_index=True) if to_concat else pd.DataFrame()
+            if len(itemsets) > 0:
+                itemsets = itemsets.drop_duplicates(subset=['itemsets'])
+                itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
         else:
             itemsets = pd.DataFrame()
 
-        # Combine rules; skip empty to avoid concat deprecation warning
+        # Combine rules; use consistent columns to avoid concat FutureWarning
         non_empty_rules = [r for r in all_rules if r is not None and len(r) > 0]
         if non_empty_rules:
-            rules = pd.concat(non_empty_rules, ignore_index=True)
+            rule_cols = list(non_empty_rules[0].columns)
+            to_concat = [r.reindex(columns=rule_cols) for r in non_empty_rules]
+            rules = pd.concat(to_concat, ignore_index=True)
             rules = rules.drop_duplicates(subset=['antecedents', 'consequents'])
             rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
         else:
@@ -1037,6 +1096,11 @@ def process_single_cohort(
                         )
             else:
                 logger.warning("Fallback skipped: insufficient transactions (%d) for %s", len(tx_all), cohort_id)
+
+        # Business rule (all cohorts): exclude rules that appear in only one year (pattern must exist in 2 of 4 years)
+        event_label = str(event_year)
+        if event_label == "train" and "event_year" in df.columns and len(rules) > 0:
+            rules = filter_rules_by_year_support(rules, df, MIN_YEARS_FOR_RULE, logger)
 
         # Create encoding map
         encoding_map = {}
