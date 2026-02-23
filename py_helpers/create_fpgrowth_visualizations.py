@@ -5,10 +5,14 @@ This module reads FP-Growth JSON outputs (itemsets and rules) and creates:
 - Top-N itemset support bar charts (combined cohort) — PNG and optional Plotly HTML
 - Network-style graphs from target-only rules (targets only) — PNG and Plotly HTML
 
+Optional code mapping table (code -> description) makes node and itemset labels
+human-readable; see 9_dashboard_visuals/fpgrowth/code_mappings/README.md.
+
 Outputs are written to a local output directory and can be uploaded to S3
 (same bucket as dashboard, under fpgrowth/{cohort}/{age_band}/plots/) for the dashboard to serve by cohort.
 """
 
+import csv
 import json
 import logging
 from pathlib import Path
@@ -46,6 +50,40 @@ def write_plotly_html_for_production(fig: "go.Figure", out_path: Path, config: O
 
 def _ensure_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
+
+
+def _load_code_mapping(mapping_path: Optional[Path] = None) -> Dict[str, str]:
+    """
+    Load code -> description mapping from CSV (columns: code, description).
+    Used to show human-readable labels in network graph and itemset plots.
+    If path is None, tries default: 9_dashboard_visuals/fpgrowth/code_mappings/fpgrowth_code_descriptions.csv.
+    """
+    if mapping_path is None:
+        # Default: repo root is parent of py_helpers
+        repo_root = Path(__file__).resolve().parent.parent
+        mapping_path = (
+            repo_root
+            / "9_dashboard_visuals"
+            / "fpgrowth"
+            / "code_mappings"
+            / "fpgrowth_code_descriptions.csv"
+        )
+    if not mapping_path.exists():
+        return {}
+    out: Dict[str, str] = {}
+    try:
+        with mapping_path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            if "code" not in (reader.fieldnames or []):
+                return {}
+            for row in reader:
+                code = (row.get("code") or "").strip()
+                desc = (row.get("description") or "").strip()
+                if code:
+                    out[code] = desc
+    except Exception:
+        return {}
+    return out
 
 
 def _load_json_df(path: Path) -> pd.DataFrame:
@@ -86,11 +124,13 @@ def _load_rules_all_types(
 def _build_combined_rules_graph(
     rules_by_type: List[tuple],
     min_rules_per_type: int = 2,
+    code_mapping: Optional[Dict[str, str]] = None,
 ) -> Optional[Any]:
     """
     Build one DiGraph from rules for drug_name, icd_code, cpt_code.
     Node ids are prefixed by type so the same label in different types stays distinct.
     Each node has attributes: node_type (str), display_label (str).
+    If code_mapping is provided, display_label uses description when available for viewable labels.
     """
     if not rules_by_type:
         return None
@@ -112,10 +152,12 @@ def _build_combined_rules_graph(
                         continue
                     u = f"{item_type}::{a}"
                     v = f"{item_type}::{c}"
+                    label_a = (code_mapping.get(str(a).strip(), str(a))) if code_mapping else str(a)
+                    label_c = (code_mapping.get(str(c).strip(), str(c))) if code_mapping else str(c)
                     if not G.has_node(u):
-                        G.add_node(u, node_type=item_type, display_label=str(a))
+                        G.add_node(u, node_type=item_type, display_label=label_a)
                     if not G.has_node(v):
-                        G.add_node(v, node_type=item_type, display_label=str(c))
+                        G.add_node(v, node_type=item_type, display_label=label_c)
                     if G.has_edge(u, v):
                         data = G[u][v]
                         data["support"] = (data["support"] + support) / 2.0
@@ -411,15 +453,21 @@ def _top_itemset_plot(
     top_n: int,
     output_dir: Path,
     logger: Optional[logging.Logger] = None,
+    code_mapping: Optional[Dict[str, str]] = None,
 ) -> Optional[Path]:
     if df_itemsets.empty or "support" not in df_itemsets.columns:
         return None
 
-    # Derive a simple label for each itemset
+    # Derive a simple label for each itemset; use description when mapping exists for viewable labels
     def _label(items) -> str:
         if not isinstance(items, list):
-            return str(items)
-        return ", ".join(str(x) for x in items)
+            x = items
+            return (code_mapping.get(str(x).strip(), str(x))) if code_mapping else str(x)
+        parts = [
+            (code_mapping.get(str(x).strip(), str(x)) if code_mapping else str(x))
+            for x in items
+        ]
+        return ", ".join(parts)
 
     df = df_itemsets.copy()
     df["label"] = df["itemsets"].apply(_label)
@@ -1060,6 +1108,7 @@ def create_all_fpgrowth_plots(
     s3_bucket: Optional[str] = None,
     s3_prefix: str = "fpgrowth",
     top_n: int = 30,
+    code_mapping_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create standard FP-Growth plots for a cohort / age_band.
@@ -1095,11 +1144,19 @@ def create_all_fpgrowth_plots(
 
     results: Dict[str, Dict[str, Path]] = {}
 
+    # Optional code mapping for viewable labels (code -> description)
+    code_mapping_path_val = Path(code_mapping_path) if code_mapping_path else None
+    code_mapping = _load_code_mapping(code_mapping_path_val)
+    if code_mapping:
+        logger.info("Loaded %d code descriptions for viewable labels", len(code_mapping))
+
     # One combined network: load rules for all three types, build one graph, save HTML with filter by type
     rules_by_type = _load_rules_all_types(
         base_path, cohort_name, age_band, split_type="target", event_year=event_year
     )
-    G = _build_combined_rules_graph(rules_by_type, min_rules_per_type=2)
+    G = _build_combined_rules_graph(
+        rules_by_type, min_rules_per_type=2, code_mapping=code_mapping
+    )
     combined_net = _network_combined_plotly_with_filter(
         G, cohort_name, age_band, plots_root, logger=logger
     )
@@ -1127,6 +1184,7 @@ def create_all_fpgrowth_plots(
             top_n=top_n,
             output_dir=plots_root,
             logger=logger,
+            code_mapping=code_mapping,
         )
         if top_plot is not None:
             results.setdefault(item_type, {})["combined_top_itemsets"] = top_plot

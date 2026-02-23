@@ -49,13 +49,14 @@ sys.path.insert(0, str(REPO_ROOT))
 # CONFIGURATION
 # =============================================================================
 
-# FP-Growth parameters (very permissive since data is pre-filtered by SHAP/FFA to important features only)
-MIN_SUPPORT = 0.01       # 1% support (find rare but meaningful patterns in pre-filtered important features)
-MIN_CONFIDENCE = 0.2     # 20% confidence (permissive - we capture weak associations between important features)
+# FP-Growth parameters (pre-filtered by SHAP/FFA; raised support/confidence to keep rule counts manageable)
+MIN_SUPPORT = 0.02       # 2% support (was 0.01; higher to reduce rule volume while keeping meaningful patterns)
+MIN_CONFIDENCE = 0.25    # 25% confidence (was 0.2; reduces weak associations)
 
-# CPT-specific parameters (also permissive since working with curated important features)
-MIN_SUPPORT_CPT = 0.05   # 5% support for CPT codes (permissive)
-MIN_CONFIDENCE_CPT = 0.3 # 30% confidence for CPT (permissive)
+# CPT-specific parameters
+# CPT: process as normal (same transaction = per person); only use higher support/confidence to reduce rule volume
+MIN_SUPPORT_CPT = 0.08   # 8% support for CPT codes
+MIN_CONFIDENCE_CPT = 0.35  # 35% confidence for CPT
 
 # Rule limits (focus on most important rules)
 MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
@@ -377,7 +378,7 @@ def get_transactions_by_density(df: pd.DataFrame, density: str, logger: logging.
     if len(df_density) == 0:
         return []
     
-    # Ensure all items are strings and valid before creating transactions
+    # Ensure all items are strings, valid, and sorted alphabetically so structure is consistent across patients (e.g. CPT order)
     transactions = (
         df_density.groupby('mi_person_key')['item']
         .apply(lambda x: sorted(set(str(item).strip() for item in x.tolist() if pd.notna(item) and str(item).strip())))
@@ -580,6 +581,11 @@ def process_single_cohort(
     logger = setup_logger(f'cohort_{cohort_name}_{age_band}_{event_year}_{item_type}')
     
     cohort_id = f"{cohort_name}/{age_band}/{event_year}"
+    # CPT uses higher support/confidence to reduce rule volume (procedure codes can explode rule count)
+    if item_type == "cpt_code":
+        min_support = MIN_SUPPORT_CPT
+        min_confidence = MIN_CONFIDENCE_CPT
+        logger.info("Using CPT-specific thresholds: min_support=%.2f min_confidence=%.2f", min_support, min_confidence)
     logger.info("[ACTIVITY_START] item_type=%s cohort=%s age_band=%s", item_type, cohort_name, age_band)
     logger.info(f"Processing {item_type} for {cohort_id}")
     log_memory(logger, "START")
@@ -817,6 +823,7 @@ def process_single_cohort(
             SELECT mi_person_key, icd as item, target, event_year FROM all_icds WHERE icd != ''
             """
         elif item_type == 'cpt_code':
+            # Same transaction shape as drug_name/icd_code (per person); higher support/confidence applied in process_single_cohort
             query = f"""
             SELECT mi_person_key, procedure_code as item, target, event_year
             FROM {model_data_from}
@@ -1056,7 +1063,7 @@ def process_single_cohort(
             all_itemsets = [itemsets]
             all_rules = [rules]
             density_counts = {d: 0 for d in DENSITY_BINS}  # Not meaningful in this context
-            logger.info(f"Combined opioid_ed itemsets: {len(itemsets):,}, rules: {len(rules):,} (patient-linked)")
+            logger.info(f"Combined opioid_ed itemsets: {len(itemsets):,}, rules: {len(rules):,} (patient-linked) item_type={item_type}")
         else:
             # non_opioid_ed (and any other cohort): assign density and process by density bins
             logger.info(f"Assigning Transaction_Density to {len(df):,} rows...")
@@ -1182,10 +1189,10 @@ def process_single_cohort(
                 "association_rules requires 2+ item itemsets. Trying fallback with lower support (%.4f).",
                 cohort_id, n_single_total, n_multi_total, min_support, MIN_SUPPORT_TARGET_ONLY,
             )
-            # Fallback: run on all target transactions (no density split) with lower support
+            # Fallback: run on all target transactions (no density split) with lower support; sort alphabetically for consistent structure
             tx_all = (
                 df.groupby("mi_person_key")["item"]
-                .apply(lambda x: sorted(set(x.tolist())))
+                .apply(lambda x: sorted(set(str(i).strip() for i in x.tolist() if pd.notna(i) and str(i).strip())))
                 .tolist()
             )
             tx_all = [t for t in tx_all if len(t) > 0]
@@ -1214,8 +1221,23 @@ def process_single_cohort(
 
         # Business rule (all cohorts): exclude rules that appear in only one year (pattern must exist in 2 of 4 years)
         event_label = str(event_year)
+        n_rules_before_year_filter = len(rules)
+        logger.info(
+            "[RULES_BEFORE_SAVE] before year filter: item_type=%s cohort=%s age_band=%s n_rules=%d",
+            item_type, cohort_name, age_band, n_rules_before_year_filter,
+        )
         if event_label == "train" and "event_year" in df.columns and len(rules) > 0:
             rules = filter_rules_by_year_support(rules, df, MIN_YEARS_FOR_RULE, logger)
+            logger.info(
+                "[RULES_BEFORE_SAVE] after year filter (min_years=%d): item_type=%s cohort=%s age_band=%s n_rules=%d",
+                MIN_YEARS_FOR_RULE, item_type, cohort_name, age_band, len(rules),
+            )
+        else:
+            skip_reason = "event_label!=train" if event_label != "train" else "no event_year in df" if "event_year" not in df.columns else "no rules"
+            logger.info(
+                "[RULES_BEFORE_SAVE] year filter skipped (%s): item_type=%s cohort=%s age_band=%s n_rules=%d",
+                skip_reason, item_type, cohort_name, age_band, len(rules),
+            )
 
         # Create encoding map
         encoding_map = {}
@@ -1239,6 +1261,28 @@ def process_single_cohort(
         if len(rules) > 0:
             rules_json['antecedents'] = rules_json['antecedents'].apply(lambda x: list(x))
             rules_json['consequents'] = rules_json['consequents'].apply(lambda x: list(x))
+
+        # Log rules count and sample before writing to JSON (confirms filters applied)
+        n_rules_saving = len(rules)
+        logger.info(
+            "[RULES_BEFORE_SAVE] saving to JSON: item_type=%s cohort=%s age_band=%s n_rules=%d",
+            item_type, cohort_name, age_band, n_rules_saving,
+        )
+        if n_rules_saving > 0:
+            sample_n = min(5, n_rules_saving)
+            for i in range(sample_n):
+                row = rules.iloc[i]
+                ant = row.get("antecedents", set())
+                con = row.get("consequents", set())
+                ant_s = list(ant)[:5] if isinstance(ant, (set, frozenset)) else (ant[:5] if hasattr(ant, "__getitem__") else str(ant)[:80])
+                con_s = list(con)[:5] if isinstance(con, (set, frozenset)) else (con[:5] if hasattr(con, "__getitem__") else str(con)[:80])
+                logger.info(
+                    "[RULES_BEFORE_SAVE]   sample rule %d: antecedents=%s -> consequents=%s (support=%.4f confidence=%.4f lift=%.4f)",
+                    i + 1, ant_s, con_s,
+                    float(row.get("support", 0)), float(row.get("confidence", 0)), float(row.get("lift", 0)),
+                )
+        else:
+            logger.info("[RULES_BEFORE_SAVE]   (no rules to save)")
         
         # Upload to S3
         s3_client = boto3.client('s3')
@@ -1353,7 +1397,7 @@ def process_single_cohort(
                 df_target = df.loc[target_mask].copy()
                 tx_target = (
                     df_target.groupby("mi_person_key")["item"]
-                    .apply(lambda x: sorted(set(x.tolist())))
+                    .apply(lambda x: sorted(set(str(i).strip() for i in x.tolist() if pd.notna(i) and str(i).strip())))
                     .tolist()
                 )
                 if len(tx_target) < 10:
