@@ -82,6 +82,7 @@ TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidati
 
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
+# No minimum transaction count per bin: data is already filtered by SHAP/FFA feature importance; process every non-empty bin to maximize rules
 
 # Itemset filtering (minimal threshold - data already filtered to important features via SHAP/FFA)
 MIN_ITEMSET_LIFT = 1.0  # No lift filtering (lift=1.0 means independence; we accept all patterns since features are pre-curated)
@@ -868,8 +869,8 @@ def process_single_cohort(
             transactions = get_transactions_by_density(df, density, logger)
             density_counts[density] = len(transactions)
 
-            if len(transactions) < 10:
-                logger.warning("Insufficient %s density transactions (%d) - skipping", density, len(transactions))
+            if len(transactions) == 0:
+                logger.info("No %s density transactions - skipping", density)
                 continue
 
             try:
@@ -937,14 +938,19 @@ def process_single_cohort(
                 'error': 'No frequent itemsets'
             }
         
-        # Combine itemsets (deduplicate if needed)
-        itemsets = pd.concat(all_itemsets, ignore_index=True)
-        itemsets = itemsets.drop_duplicates(subset=['itemsets'])
-        itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
-        
-        # Combine rules
-        if len(all_rules) > 0:
-            rules = pd.concat(all_rules, ignore_index=True)
+        # Combine itemsets (deduplicate if needed); skip empty to avoid concat deprecation warning
+        non_empty_itemsets = [x for x in all_itemsets if x is not None and len(x) > 0]
+        if non_empty_itemsets:
+            itemsets = pd.concat(non_empty_itemsets, ignore_index=True)
+            itemsets = itemsets.drop_duplicates(subset=['itemsets'])
+            itemsets = itemsets.sort_values('support', ascending=False).reset_index(drop=True)
+        else:
+            itemsets = pd.DataFrame()
+
+        # Combine rules; skip empty to avoid concat deprecation warning
+        non_empty_rules = [r for r in all_rules if r is not None and len(r) > 0]
+        if non_empty_rules:
+            rules = pd.concat(non_empty_rules, ignore_index=True)
             rules = rules.drop_duplicates(subset=['antecedents', 'consequents'])
             rules = rules.sort_values('lift', ascending=False).reset_index(drop=True)
         else:
