@@ -37,6 +37,9 @@ Config in `cohort_fpgrowth.py`: `DRY_RUN = False` (full run); `COHORTS_TO_PROCES
 ---
 
 ## Parameters
+### Special logic for opioid_ed cohort
+
+For the `opioid_ed` cohort, only events from the **current year** are used for FP-Growth rule mining (i.e., only events where `event_year == current year` are included in the transaction set for mining frequent itemsets and rules). However, the **multi-year stability filter** is still applied: any rule pattern must exist in at least 2 of the 4 years (2016–2019) to be retained. This reduces spurious rules while ensuring patterns are stable across years.
 
 FP-Growth parameters in `cohort_fpgrowth.py` are **very permissive** since data is **pre-filtered to SHAP/FFA important features only**. Working with only the top ~500 most important codes (not all codes) allows us to use minimal thresholds without risk of spurious associations:
 
