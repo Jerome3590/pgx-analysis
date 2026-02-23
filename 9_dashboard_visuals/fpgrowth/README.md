@@ -70,7 +70,7 @@ MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
 - Implemented in `filter_rules_by_year_support()`; controlled by `MIN_YEARS_FOR_RULE = 2` in `cohort_fpgrowth.py`. Applied only for the aggregated `train` run (single-year runs are not filtered by year count).
 
 **EC2 / capacity setup:**
-- **DuckDB threads:** Each item-type connection uses **3 threads** (`DUCKDB_THREADS = 3` in `cohort_fpgrowth.py`). Per (cohort, age_band), item types (e.g. drug_name, icd_code, cpt_code) run in parallel, each with its own DuckDB connection, so parquet reads and SQL use multiple cores.
+- **DuckDB threads:** Each item-type connection uses **3 threads** (`DUCKDB_THREADS = 3` in `cohort_fpgrowth.py`). Per (cohort, age_band), item types (e.g. drug_name, icd_code, cpt_code for opioid_ed) run in parallel; each type gets its own graph network and the user selects which to view.
 - **Item-type parallelism:** Within each (cohort, age_band), item types are run with **ProcessPoolExecutor** (see `run_single_cohort_fpgrowth.py`), so each item type runs in its own process and can use a full core for Python/pandas/mlxtend (avoids GIL limits that kept utilization low with threads).
 - **FP-Growth workers:** The dashboard workflow runs FP-Growth with **all (cohort, age_band) combinations in parallel** by default (max EC2 capacity). Override with `--fpgrowth-workers N` to cap parallelism, e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py --no-sync --fpgrowth-workers 8`.
 
@@ -91,7 +91,7 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 | `{item_type}_metrics.json` | Itemset metrics (support, confidence, lift) | ✅ Yes |
 | `{item_type}_encoding_map.json` | Feature encoding map for itemsets | ✅ Yes |
 
-**Item Types:** `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+**Item types:** `drug_name` (both cohorts); `icd_code`, `cpt_code` (opioid_ed only). Each type has a **separate graph network**; the dashboard lets the user select which type to view (Drug / ICD / CPT).
 
 **Folder structure:** Visualization artifacts use cohort then age_band only: `outputs/{cohort}/{age_band_fname}/` (no combined/target/train subdirs).
 
@@ -123,7 +123,7 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 | `{cohort}_{age_band}_{event_year}_{item_type}_rule_confidence.png` | Rule confidence distribution (if rules available) | ⚠️ Optional |
 | `{cohort}_{age_band}_{event_year}_{item_type}_top_rules.png` | Top N rules by confidence (if rules available) | ⚠️ Optional |
 
-**Item Types:** `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+**Item types:** Drug, ICD, CPT (per cohort; non_opioid_ed = drug only). One network per type; user selects which graph to view.
 
 **HTML Network Plots:**
 - Interactive network visualizations using Cytoscape.js
@@ -150,14 +150,14 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 For each cohort/age-band combination:
 
 **Data Files:**
-- [x] All item type files exist (`drug_name`, `icd_code`, `cpt_code`, `medical_code`)
+- [x] Item type files exist (drug_name for both; icd_code, cpt_code for opioid_ed)
 - [x] Outputs under cohort/age_band only (no combined/target/train subdirs)
 - [x] All file types generated (`itemsets`, `rules`, `metrics`, `encoding_map`)
 - [x] Files organized in `outputs/{cohort}/{split_type}/{age_band}/{year}/`
 
 **Visualization Files:**
-- [x] All PNG plots generated for each item type (top itemsets, support distribution, size distribution, support vs size)
-- [x] HTML network plots generated (co-occurrence networks for all item types)
+- [x] PNG plots generated per item type (top itemsets, support distribution, size distribution, support vs size)
+- [x] HTML network plots generated per item type (separate graph per Drug / ICD / CPT; user selects which to view)
 - [x] HTML rules network plots generated (if rules available)
 - [x] All plots organized in `outputs/{cohort}/{age_band}/plots/`
 - [x] Network plots include filter controls (node centrality, edge support, max nodes)
