@@ -19,6 +19,7 @@ import sys
 import time
 import json
 import logging
+from itertools import combinations
 from pathlib import Path
 from typing import Dict, List
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -455,6 +456,45 @@ def filter_itemsets_by_lift(
     return itemsets_filtered.drop(columns=['lift'])  # Remove lift column (not needed in output)
 
 
+def ensure_subsets_for_association_rules(
+    itemsets_filtered: pd.DataFrame,
+    itemsets_original: pd.DataFrame,
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """
+    Ensure every subset of every kept itemset is present so mlxtend association_rules
+    can look up antecedent/consequent support (it raises KeyError otherwise).
+    Adds missing subsets from itemsets_original; does not change lift filtering.
+    """
+    if len(itemsets_filtered) == 0:
+        return itemsets_filtered
+    original_by_itemset = {}
+    for _, row in itemsets_original.iterrows():
+        k = row["itemsets"]
+        original_by_itemset[frozenset(k) if not isinstance(k, frozenset) else k] = row["support"]
+    kept = set()
+    for v in itemsets_filtered["itemsets"].values:
+        kept.add(frozenset(v) if not isinstance(v, frozenset) else v)
+    to_add = []
+    for itemset in list(kept):
+        n = len(itemset)
+        if n <= 1:
+            continue
+        for r in range(1, n):
+            for sub in combinations(itemset, r):
+                sub_fs = frozenset(sub)
+                if sub_fs not in kept:
+                    support = original_by_itemset.get(sub_fs)
+                    if support is not None:
+                        to_add.append({"support": support, "itemsets": sub_fs})
+                        kept.add(sub_fs)
+    if not to_add:
+        return itemsets_filtered
+    logger.debug("Adding %d subset itemsets so association_rules can look up antecedent/consequent support", len(to_add))
+    extra = pd.DataFrame(to_add)
+    return pd.concat([itemsets_filtered, extra], ignore_index=True)
+
+
 def process_single_cohort(
     item_type: str,
     cohort_name: str,
@@ -863,6 +903,7 @@ def process_single_cohort(
         all_rules = []
         density_counts = {}
         
+        # Same logic for all cohorts (non_opioid_ed, opioid_ed): process every non-empty density bin; no min transaction count
         logger.info(f"Processing transactions by density level...")
         for density in DENSITY_BINS:
             log_memory_cpu(logger, f"Start density={density}")
@@ -891,6 +932,7 @@ def process_single_cohort(
                 # Run FP-Growth
                 itemsets_density = fpgrowth(df_encoded, min_support=density_support, use_colnames=True)
                 itemsets_density = itemsets_density.sort_values('support', ascending=False).reset_index(drop=True)
+                itemsets_original = itemsets_density.copy()  # needed so association_rules can look up subset supports after lift filter
                 
                 # Filter out common/trivial itemsets by lift BEFORE generating rules
                 if len(itemsets_density) > 0:
@@ -908,8 +950,9 @@ def process_single_cohort(
                     n_multi = len(itemsets_density) - n_single
                     all_itemsets.append(itemsets_density)
                     log_memory(logger, f"After FP-Growth ({density})")
-
-                    rules_density = association_rules(itemsets_density, metric="confidence", min_threshold=min_confidence)
+                    # association_rules needs every antecedent/consequent in the itemsets DataFrame; lift filter may have removed subsets
+                    itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
+                    rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
                     rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                     all_rules.append(rules_density)
                     logger.info(
@@ -978,10 +1021,12 @@ def process_single_cohort(
                 df_enc_f = pd.DataFrame(te_ary_f, columns=te_f.columns_)
                 support_f = min(min_support, MIN_SUPPORT_TARGET_ONLY)
                 itemsets_f = fpgrowth(df_enc_f, min_support=support_f, use_colnames=True)
+                itemsets_f_original = itemsets_f.copy() if len(itemsets_f) > 0 else itemsets_f
                 if len(itemsets_f) > 0:
                     itemsets_f = filter_itemsets_by_lift(itemsets_f, df_enc_f, MIN_ITEMSET_LIFT, logger)
                 if len(itemsets_f) > 0:
-                    rules_f = association_rules(itemsets_f, metric="confidence", min_threshold=min_confidence)
+                    itemsets_for_rules_f = ensure_subsets_for_association_rules(itemsets_f, itemsets_f_original, logger)
+                    rules_f = association_rules(itemsets_for_rules_f, metric="confidence", min_threshold=min_confidence)
                     if len(rules_f) > 0:
                         rules_f = rules_f.sort_values("lift", ascending=False).reset_index(drop=True)
                         rules = rules_f
@@ -1127,10 +1172,15 @@ def process_single_cohort(
                     df_enc_t = pd.DataFrame(te_ary_t, columns=te_t.columns_)
                     support_t = min(min_support, MIN_SUPPORT_TARGET_ONLY)
                     itemsets_t = fpgrowth(df_enc_t, min_support=support_t, use_colnames=True)
+                    itemsets_t_original = itemsets_t.copy() if len(itemsets_t) > 0 else itemsets_t
                     if len(itemsets_t) > 0:
                         itemsets_t = filter_itemsets_by_lift(itemsets_t, df_enc_t, MIN_ITEMSET_LIFT, logger)
                     try:
-                        rules_t = association_rules(itemsets_t, metric="confidence", min_threshold=min_confidence)
+                        if len(itemsets_t) > 0:
+                            itemsets_for_rules_t = ensure_subsets_for_association_rules(itemsets_t, itemsets_t_original, logger)
+                            rules_t = association_rules(itemsets_for_rules_t, metric="confidence", min_threshold=min_confidence)
+                        else:
+                            rules_t = pd.DataFrame(columns=["antecedents", "consequents"])
                     except Exception as e_rules:
                         logger.warning("Target-only association_rules failed: %s", e_rules)
                         rules_t = pd.DataFrame(columns=["antecedents", "consequents"])
