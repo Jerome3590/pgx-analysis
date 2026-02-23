@@ -1,8 +1,10 @@
 # FPGrowth Analysis
 
-**Documentation pointer**: See `docs/README_fpgrowth.md` for complete documentation. This file summarizes the expected outputs and how they are used in the downstream pipeline.
+**Documentation pointer**: See [README.md](README.md) in this directory for run commands, parameters, and intent. This file summarizes the expected outputs and how they are used in the downstream pipeline.
 
 **How to run:** See [README.md](README.md#how-to-run) in this directory for commands (dashboard workflow, single combo, and batch `cohort_fpgrowth.py`). Default is all cohorts and age bands, one worker per combo, no dry run.
+
+**Intent:** FP-Growth is restricted to **SHAP/FFA allowed codes** (model-salient features) and mines co-occurrence in the **target cohort** only. Per FFA and SHAP, the resulting rules **predict risk**: they surface bundles of features that the model ranks as important for the outcome. Outputs are for dashboard visualization and are not fed back into model training. Each `{item_type}_metrics.json` includes self-describing metadata (`population`, `feature_source`, `purpose`, `train_years`, `min_years_for_rule`, `density_bin_definitions`).
 
 ---
 
@@ -22,7 +24,7 @@ For each `(cohort, age_band)` combination, visualization artifacts use **cohort 
 | `{item_type}_rules_target_only.json` | Target-only rules | Yes |
 | `{item_type}_metrics.json`, `{item_type}_encoding_map.json` | Metrics and encoding | Yes |
 
-**Item Types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+**Item types:** `drug_name` (both cohorts); `icd_code`, `cpt_code` (opioid_ed only). Each type has a separate graph network; the dashboard lets the user select which to view.
 
 **Example Files**:
 - `outputs/opioid_ed/0_12/drug_name_itemsets.json`
@@ -45,7 +47,7 @@ For each `(cohort, age_band)` combination, visualization artifacts use **cohort 
 | `{cohort}_{age_band}_{event_year}_{item_type}_rule_confidence.png` | Rule confidence distribution (if rules available) | Optional |
 | `{cohort}_{age_band}_{event_year}_{item_type}_top_rules.png` | Top N rules by confidence (if rules available) | Optional |
 
-**Item Types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+**Item types:** Drug, ICD, CPT (opioid_ed); drug only (non_opioid_ed).
 
 HTML network plots use Cytoscape.js and include:
 - Co-occurrence networks (itemsets)
@@ -74,8 +76,8 @@ HTML network plots use Cytoscape.js and include:
 For each `(cohort, age_band)`:
 
 - **Data Files**
-  - [ ] All item types present (`drug_name`, `icd_code`, `cpt_code`, `medical_code`)
-  - [ ] Both `combined` and `target` split types processed
+  - [ ] Item type files present (drug_name for both cohorts; icd_code, cpt_code for opioid_ed)
+  - [ ] Combined and target-only itemsets/rules as applicable
   - [ ] `itemsets`, `rules`, `metrics`, and `encoding_map` JSONs exist
 
 - **Visualizations**

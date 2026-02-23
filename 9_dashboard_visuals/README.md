@@ -9,7 +9,7 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 
 - **BupaR** – Process mining sequences and plots → `10_risk_dashboard/visualizations/bupar/`
 - **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`
-- **FP-Growth** – Itemsets, Plotly network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
+- **FP-Growth** – Risk-predictive co-occurrence (SHAP/FFA-gated, target-only): itemsets, network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
 

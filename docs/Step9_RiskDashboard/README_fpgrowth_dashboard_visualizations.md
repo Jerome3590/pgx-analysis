@@ -2,15 +2,15 @@
 
 ## Overview
 
-FP-Growth frequent pattern mining visualizations for the risk dashboard. These visualizations show association rules, frequent itemsets, and co-occurrence patterns to complement risk predictions.
+FP-Growth frequent pattern mining visualizations for the risk dashboard. Items are restricted to **SHAP/FFA allowed codes** (model-salient features), and mining runs on the **target cohort** only. Per FFA and SHAP, the resulting rules **predict risk**: they surface co-occurrence among features the model ranks as important for the outcome. These visualizations complement risk predictions by showing which risk-relevant codes tend to appear together.
 
-**⚠️ Important**: FP-Growth visualizations are for **exploratory analysis only**. FP-Growth features are **NOT** used in the final model due to target leakage concerns.
+**Note:** FP-Growth outputs are used for **dashboard visualization only**; they are not fed back into model training. Rules describe co-occurrence in the target population and are not contrastive (we do not compare support in target vs control).
 
 ## Purpose
 
 FP-Growth visualizations help clinicians understand:
-- **Frequent Patterns**: Which drugs, diagnoses, and procedures frequently occur together
-- **Association Rules**: Predictive relationships between codes (antecedent → consequent)
+- **Risk-relevant co-occurrence**: Which drugs, diagnoses, and procedures (that drive model risk) frequently occur together in the target population
+- **Association Rules**: Relationships between codes (antecedent → consequent) among SHAP/FFA-important features
 - **Co-occurrence Networks**: Visual representation of code relationships
 - **Pattern Strength**: Support, confidence, and lift metrics for patterns
 
@@ -170,13 +170,7 @@ The HTML network visualizations include:
 
 ## Target Leakage Note
 
-**⚠️ Important**: FP-Growth features are **NOT** used in the final model due to target leakage concerns:
-
-1. **Pattern Mining from Combined Data**: FP-Growth mines patterns from target + control data
-2. **Target Information Encoding**: Patterns can encode target-specific information
-3. **Direct Leakage Risk**: Rules may include target codes (e.g., F1120) as consequents
-
-See `10_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for detailed target leakage analysis.
+**⚠️ Important**: FP-Growth outputs are **not** added to model data (no feature engineering from itemsets/rules). Mining uses **target-only** data and **SHAP/FFA allowed codes** only, so patterns describe co-occurrence among model-important features in the target population. For details on why FP-Growth is visualization-only, see `10_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` (if present).
 
 ## Dependencies
 
@@ -186,17 +180,13 @@ See `10_risk_dashboard/visualizations/fpgrowth/README_VISUALIZATION_ONLY.md` for
 
 ## Notes
 
-1. **Visualization and Analysis (Not Feature Engineering)**: FP-Growth itemsets and rules ARE computed for dashboard visualization and exploratory analysis. Results are not used for feature engineering (not added to model data) due to target leakage concerns.
+1. **Visualization only (not feature engineering)**: FP-Growth itemsets and rules are computed for dashboard visualization. Results are not added to model data. Rules are risk-predictive in the sense that they describe co-occurrence among SHAP/FFA-important features in the target population.
 
-2. **Split Types**: Analysis can be run on:
-   - **Combined**: Target + control patients (for general pattern discovery)
-   - **Target**: Target patients only (for target-specific patterns)
+2. **Population**: Mining uses **target cohort** only (no contrastive target vs control support comparison).
 
-3. **Item Types**: Separate analyses for:
-   - `drug_name`: Drug prescriptions
-   - `icd_code`: ICD diagnosis codes
-   - `cpt_code`: CPT procedure codes
-   - `medical_code`: Combined ICD + CPT codes
+3. **Item types**: Separate analyses and graphs per type; user selects in dashboard:
+   - `drug_name`: Drug prescriptions (both opioid_ed and non_opioid_ed)
+   - `icd_code`, `cpt_code`: ICD/CPT codes (opioid_ed only)
 
 4. **Network Size**: Large networks can be computationally expensive. Use filter controls to manage visualization size.
 
