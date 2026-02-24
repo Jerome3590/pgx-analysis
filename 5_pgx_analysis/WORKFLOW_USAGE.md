@@ -1,8 +1,14 @@
 # How Drug-Gene Mappings Are Used in PGx Analysis
 
-## Complete Workflow Overview
+**Current pipeline:** Step 5 uses **CPIC drug counts only** (`pgx_num_drugs`, `pgx_num_cpic_drugs`). No alleles or allele frequencies are used in this analysis; alleles are used in the **PGx card** when patients submit SNP data with alleles encoded. See `5_pgx_analysis/README.md` for the active workflow.
 
-The drug-gene mappings created by `map_drugs_to_genes.py` flow through a multi-step pipeline to create patient-level features for machine learning models.
+The sections below describe a **legacy** workflow that included allele frequency integration; the codebase may still contain references or optional scripts for that path.
+
+---
+
+## Legacy Workflow Overview
+
+The drug-gene mappings created by `map_drugs_to_genes.py` can flow through a multi-step pipeline; the **current** production path only uses CPIC drug counts (see README.md).
 
 ## Step-by-Step Usage
 

@@ -4,9 +4,11 @@
 
 **Status:** ✅ Active
 
-**Current Approach:** Simple drug counting (no gene/SNP data required)
+**Current Approach:** CPIC drug counts only (no alleles, no gene/SNP data in this pipeline)
 - `pgx_num_drugs`: Total number of unique drugs per patient
 - `pgx_num_cpic_drugs`: Number of CPIC drugs per patient
+
+**Alleles:** Not used in this analysis step. Alleles are used in the **PGx card** when patients submit SNP data with alleles encoded (dashboard/Lambda flow).
 
 ---
 
@@ -31,12 +33,12 @@ This analysis step creates simple drug count features:
 2. **CPIC Drug Identification**: Use global drug-to-CPIC mapping to identify which drugs have CPIC pharmacogenomic guidelines
 3. **Patient-Level Aggregation**: Count total drugs and CPIC drugs per patient
 
-### Why Simple Drug Counts?
+### Why CPIC Drug Counts Only?
 
-- **No Gene/SNP Data Available**: We don't have patient genetic/genotype data
-- **Race Data Not Accurate**: Patient-reported race is not a reliable proxy for genetic ancestry
-- **Focus on Drug Effects**: Simple approach to identify if drugs/CPIC drugs influence target outcomes
-- **Model-Driven**: Let the model determine if drug counts are predictive
+- **No Gene/SNP Data in This Pipeline**: This step does not use alleles or genotype data; those are used in the PGx card when patients submit SNP data with alleles encoded.
+- **Race Data Not Accurate**: Patient-reported race is not a reliable proxy for genetic ancestry.
+- **Focus on Drug Effects**: Simple approach to identify if drugs/CPIC drugs influence target outcomes.
+- **Model-Driven**: Let the model determine if drug counts are predictive.
 
 ---
 
@@ -152,8 +154,8 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 ├── update_cpic_drug_list.py           # Update CPIC drug list from pairs file
 ├── fetch_cpic_drug_list.py            # Fetch CPIC drug list (fallback)
 ├── search_pubmed_drug_gene.py         # PubMed search for drug-gene relationships (optional)
-├── WORKFLOW_USAGE.md                  # How drug-gene mappings are used (outdated - references allele frequencies)
-├── README_pgx.md                      # Legacy documentation (outdated - references old workflow)
+├── WORKFLOW_USAGE.md                  # Legacy workflow description (current pipeline: CPIC drug counts only; no alleles)
+├── README_pgx.md                      # Legacy doc (current: README.md — CPIC drug counts only; alleles in PGx card)
 ├── outputs/                           # Analysis outputs
 │   ├── feature_engineering/           # Final PGx features
 │   │   └── pgx_features_{cohort}_{age_band}.csv
@@ -288,16 +290,9 @@ See `docs/README_analysis_workflow.md` for the complete workflow framework.
 
 ---
 
-## Future Enhancements (If Genetic Data Available)
+## Alleles and the PGx Card
 
-If patient gene markers/SNPs become available, we could enhance the analysis to:
-
-1. **Fetch Allele Frequencies**: Use CPIC API to get population-specific frequencies
-2. **Calculate Phenotypes**: Convert genotypes to phenotypes using CPIC mappings
-3. **Create Risk Scores**: Combine drug exposure with phenotype predictions
-4. **Population-Specific Features**: Create features for different ancestry groups
-
-See the "CPIC Website Resources" section above for details on available resources.
+Alleles are **not** used in this analysis pipeline. They are used in the **PGx card** (risk dashboard) when patients submit SNP data with alleles encoded; the card then uses CPIC guidelines and allele/diplotype information to provide personalized guidance. This step (Step 5) only adds CPIC drug counts to model data.
 
 ---
 
