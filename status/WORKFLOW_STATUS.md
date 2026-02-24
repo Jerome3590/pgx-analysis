@@ -64,11 +64,11 @@ bash archived/utility_scripts/run_all_cohorts_workflow.sh
 **Note:** FP-Growth, BupaR, and DTW are used for dashboard visualizations only (Step 9, `10_risk_dashboard/`), not as pipeline steps. Main pipeline: 3a → 4 → 5 → 6 → 7 → 8 → 9.
 
 ### Step 5: PGx Feature Engineering ✅
-- **Goal:** Build PGx patient-level features from drug-gene mappings and allele frequencies.
+- **Goal:** Build PGx patient-level features (CPIC drug counts only; no alleles in this pipeline).
 - **Script:** `5_pgx_analysis/run_analysis.py`
 - **Inputs:**  
   - Aggregated feature importance (`3a_feature_importance/outputs/...`)  
-  - Drug–gene mappings, allele frequencies (`5_pgx_analysis/outputs/...`)  
+  - Global drug-to-CPIC mapping, model events (`5_pgx_analysis/outputs/...`)  
   - Model events from `4_model_data/...` (for exposure linking)
 - **Outputs:**  
   - `5_pgx_analysis/outputs/feature_engineering/pgx_features_{cohort}_{age_band}.csv`  

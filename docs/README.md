@@ -45,7 +45,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 ### Step 5: PGx Feature Engineering
 **Location**: [`Step5_PGxAnalysis/`](Step5_PGxAnalysis/)
 
-- **[README_pgx_analysis_overview.md](Step5_PGxAnalysis/README_pgx_analysis_overview.md)** – PGx mapping, allele frequencies, and PGx feature integration.
+- **[README_pgx_analysis_overview.md](Step5_PGxAnalysis/README_pgx_analysis_overview.md)** – PGx CPIC drug counts only (no alleles in this pipeline; alleles used in PGx card via patient-submitted SNP data).
 
 ### Step 6: Final Model Development
 **Code**: `6_final_model/` | **Location**: [`Step6_FinalModel/`](Step6_FinalModel/)

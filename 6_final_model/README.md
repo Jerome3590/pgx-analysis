@@ -45,7 +45,7 @@ The complete feature schema is defined in `final_feature_schema.json` (JSON Sche
 |----------|---------------|-------------|
 | **FPGrowth** | ~100-500 | Frequent itemsets, association rules, itemset metrics |
 | **BupaR** | ~50-200 | Process flow patterns, sequence features, temporal metrics |
-| **PGx** | ~20 | Pharmacogenomics features (allele frequencies, drug-gene mappings) |
+| **PGx** | 2 | CPIC drug counts only (`pgx_num_drugs`, `pgx_num_cpic_drugs`); alleles used in PGx card via patient-submitted SNP data |
 | **Pre-event counts** | ~5-10 | Event counts before target (drugs, ICDs, CPTs, unique activities) |
 | **Demographics** | ~10-15 | Age, gender, race, location, payer |
 | **Temporal** | ~5-10 | Event dates, temporal windows, seasonality |
