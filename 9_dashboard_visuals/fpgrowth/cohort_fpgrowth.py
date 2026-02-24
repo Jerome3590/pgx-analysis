@@ -98,6 +98,8 @@ MIN_YEARS_FOR_RULE = 2  # Pattern must appear in at least 2 of the 4 TRAIN years
 
 # Transaction density bins (based on histogram/percentiles)
 DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
+# opioid_ed: use only low and medium (exclude high/extreme) to focus on lower-utilization patterns and reduce rule volume
+DENSITY_BINS_OPIOID_ED = ['low', 'medium']
 # No minimum transaction count per bin: data is already filtered by SHAP/FFA feature importance; process every non-empty bin to maximize rules
 
 # Itemset filtering (minimal threshold - data already filtered to important features via SHAP/FFA)
@@ -1067,7 +1069,7 @@ def process_single_cohort(
                     continue
                 # Assign Transaction_Density for this year
                 df_year = assign_transaction_density(df_year, logger)
-                for density in DENSITY_BINS:
+                for density in DENSITY_BINS_OPIOID_ED:
                     transactions = get_transactions_by_density(df_year, density, logger)
                     if len(transactions) == 0:
                         continue
