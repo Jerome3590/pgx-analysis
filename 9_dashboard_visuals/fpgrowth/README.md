@@ -49,11 +49,12 @@ MIN_CONFIDENCE = 0.2          # 20% confidence (permissive - capture weak associ
 MIN_ITEMSET_LIFT = 1.0        # No lift filtering (accept all patterns since features pre-curated)
 ```
 
-**CPT-specific (also permissive):**
+**CPT-specific (higher thresholds + category-level codes for manageable network):**
 ```python
-MIN_SUPPORT_CPT = 0.05        # 5% support for CPT codes
-MIN_CONFIDENCE_CPT = 0.3      # 30% confidence for CPT rules
+MIN_SUPPORT_CPT = 0.12        # 12% support for CPT (fewer, stronger patterns)
+MIN_CONFIDENCE_CPT = 0.45     # 45% confidence for CPT rules
 ```
+- **CPT first 3 characters:** Procedure codes are normalized to the **first 3 characters** (category level) before mining (e.g. 99213 → 992, 10004 → 100). The first digits indicate category (e.g. 99xxx = E/M, 10004–69990 = Surgery, 70010–79999 = Radiology). This keeps the CPT network and itemsets manageable and meaningful.
 
 **Rationale:**
 - **Pre-filtered to important features**: Working only with SHAP/FFA top ~500 codes (not all 50K+ codes), so aggressive lowering is safe
@@ -167,13 +168,14 @@ For each `(cohort, age_band, split_type)` combination, the following files shoul
 
 #### Code mapping table (viewable labels)
 
-To show **human-readable labels** (e.g. procedure/diagnosis descriptions) instead of raw codes in the network graph and itemset bar charts, use the optional mapping table:
+A **mapping table** turns raw codes into human-readable labels in the network graph and itemset bar charts.
 
 - **Path:** `9_dashboard_visuals/fpgrowth/code_mappings/fpgrowth_code_descriptions.csv`
-- **Format:** CSV with columns `code`, `description`. `code` must match the value in the JSON (e.g. `CPT:99213`, `ICD:J069`, `DRUG:oxycodone`).
+- **Format:** CSV with columns `code`, `description`.
+  - `code`: exact string as in the FP-Growth JSON (with prefix). For **CPT we use first 3 characters** (e.g. `CPT:992`, `CPT:100`), so the mapping table must use the same 3-char form.
+  - `description`: short label for display (e.g. `E/M office`, `Surgery range`).
 - **Override:** `create_plots.py ... --code-mapping /path/to/your_mapping.csv`
-
-See `code_mappings/README.md` for how to populate the table (CPT, ICD, drug sources).
+- **Details and how to populate:** See `code_mappings/README.md` (CPT 3-char categories, ICD, drug sources).
 
 ### Completion Checklist
 

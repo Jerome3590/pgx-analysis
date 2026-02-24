@@ -19,6 +19,7 @@ import sys
 import time
 import json
 import logging
+import warnings
 from itertools import combinations
 from pathlib import Path
 from typing import Dict, List
@@ -30,6 +31,14 @@ import psutil
 import duckdb
 from mlxtend.frequent_patterns import fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
+
+# mlxtend association_rules() computes a "certainty" metric; when consequent support sC == 1,
+# certainty_denom = 1 - sC is 0 and NumPy emits RuntimeWarning: invalid value in divide.
+# We suppress that warning when calling association_rules (library does not use np.errstate there).
+def _association_rules(itemsets, metric="confidence", min_threshold=0.8, **kwargs):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="invalid value encountered in divide", category=RuntimeWarning)
+        return association_rules(itemsets, metric=metric, min_threshold=min_threshold, **kwargs)
 
 try:
     from py_helpers.constants import COHORT_NAMES, AGE_BANDS, EVENT_YEARS
@@ -54,9 +63,10 @@ MIN_SUPPORT = 0.02       # 2% support (was 0.01; higher to reduce rule volume wh
 MIN_CONFIDENCE = 0.25    # 25% confidence (was 0.2; reduces weak associations)
 
 # CPT-specific parameters
-# CPT: process as normal (same transaction = per person); only use higher support/confidence to reduce rule volume
-MIN_SUPPORT_CPT = 0.08   # 8% support for CPT codes
-MIN_CONFIDENCE_CPT = 0.35  # 35% confidence for CPT
+# CPT: process as normal (same transaction = per person); higher thresholds keep network visual manageable/meaningful.
+# CPT code structure: first digits indicate category (e.g. 99xxx = E/M, 10004-69990 = Surgery, 70010-79999 = Radiology).
+MIN_SUPPORT_CPT = 0.12   # 12% support for CPT (raised from 8% for fewer, stronger patterns)
+MIN_CONFIDENCE_CPT = 0.45  # 45% confidence for CPT (raised from 35%)
 
 # Rule limits (focus on most important rules)
 MAX_RULES_PER_COHORT = 1000  # Keep top 1000 rules by lift (practical limit)
@@ -203,7 +213,8 @@ def _load_allowed_codes_by_type(
     if item_type == "icd_code":
         return icd_set
     if item_type == "cpt_code":
-        return cpt_set
+        # Use first 3 characters (category level) so network is more manageable.
+        return {_normalize_code(c)[:3] for c in cpt_set if _normalize_code(c)}
     if item_type == "medical_code":
         return drug_set | icd_set | cpt_set
     return drug_set | icd_set | cpt_set
@@ -936,6 +947,12 @@ def process_single_cohort(
                 'error': 'No data'
             }
         
+        # CPT: use first 3 characters (category level) so itemsets/network are more manageable.
+        if item_type == "cpt_code":
+            df["item"] = df["item"].astype(str).str.strip().apply(lambda x: _normalize_code(x)[:3])
+            df = df[df["item"].str.len() >= 3].copy()
+            logger.info("CPT codes normalized to first 3 characters (category level) for manageable network")
+        
         # Restrict to SHAP/FFA combined allowed codes (required; same file as BupaR/DTW)
         try:
             allowed = _load_allowed_codes_by_type(cohort_name, age_band, item_type, REPO_ROOT)
@@ -1077,7 +1094,7 @@ def process_single_cohort(
                         itemsets_density['event_year'] = year
                         all_year_itemsets.append(itemsets_density)
                         itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
-                        rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
+                        rules_density = _association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
                         rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                         rules_density['event_year'] = year
                         all_year_rules.append(rules_density)
@@ -1165,7 +1182,7 @@ def process_single_cohort(
                         log_memory(logger, f"After FP-Growth ({density})")
                         # association_rules needs every antecedent/consequent in the itemsets DataFrame; lift filter may have removed subsets
                         itemsets_for_rules = ensure_subsets_for_association_rules(itemsets_density, itemsets_original, logger)
-                        rules_density = association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
+                        rules_density = _association_rules(itemsets_for_rules, metric="confidence", min_threshold=min_confidence)
                         rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                         all_rules.append(rules_density)
                         logger.info(
@@ -1249,7 +1266,7 @@ def process_single_cohort(
                     itemsets_f = filter_itemsets_by_lift(itemsets_f, df_enc_f, MIN_ITEMSET_LIFT, logger)
                 if len(itemsets_f) > 0:
                     itemsets_for_rules_f = ensure_subsets_for_association_rules(itemsets_f, itemsets_f_original, logger)
-                    rules_f = association_rules(itemsets_for_rules_f, metric="confidence", min_threshold=min_confidence)
+                    rules_f = _association_rules(itemsets_for_rules_f, metric="confidence", min_threshold=min_confidence)
                     if len(rules_f) > 0:
                         rules_f = rules_f.sort_values("lift", ascending=False).reset_index(drop=True)
                         rules = rules_f
@@ -1456,7 +1473,7 @@ def process_single_cohort(
                     try:
                         if len(itemsets_t) > 0:
                             itemsets_for_rules_t = ensure_subsets_for_association_rules(itemsets_t, itemsets_t_original, logger)
-                            rules_t = association_rules(itemsets_for_rules_t, metric="confidence", min_threshold=min_confidence)
+                            rules_t = _association_rules(itemsets_for_rules_t, metric="confidence", min_threshold=min_confidence)
                         else:
                             rules_t = pd.DataFrame(columns=["antecedents", "consequents"])
                     except Exception as e_rules:
