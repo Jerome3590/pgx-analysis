@@ -890,6 +890,12 @@ def process_single_cohort(
         df = con.execute(query).df()
         log_memory(logger, "After data extraction")
         con.close()
+        # Trace: cohort -> FP-Growth pipeline (grep [TRACE] to find where rows are lost)
+        _ey = df["event_year"].value_counts().to_dict() if "event_year" in df.columns and len(df) > 0 else {}
+        logger.info(
+            "[TRACE] cohort=%s age_band=%s item_type=%s step=after_query rows=%s event_year_value_counts=%s",
+            cohort_name, age_band, item_type, len(df), _ey,
+        )
 
         # Normalize target column so filtering works (Parquet/DuckDB may give int/float/object)
         if "target" in df.columns:
@@ -908,9 +914,17 @@ def process_single_cohort(
             df["event_year"] = pd.to_numeric(df["event_year"], errors="coerce")
             if event_year_orig != df["event_year"].dtype:
                 logger.info("Coerced event_year from %s to numeric for TRAIN_YEARS comparison", event_year_orig)
+            before_ey_drop = len(df)
             df = df[df["event_year"].notna()].copy()
             df["event_year"] = df["event_year"].astype(int)
-        
+            _ey_after = df["event_year"].value_counts().to_dict()
+            logger.info(
+                "[TRACE] cohort=%s age_band=%s item_type=%s step=after_event_year_coerce rows=%s (dropped_non_numeric=%s) event_year_value_counts=%s",
+                cohort_name, age_band, item_type, len(df), before_ey_drop - len(df), _ey_after,
+            )
+        else:
+            logger.info("[TRACE] cohort=%s age_band=%s item_type=%s step=after_event_year_coerce rows=%s (no_event_year_column_or_empty)", cohort_name, age_band, item_type, len(df))
+
         if len(df) == 0:
             logger.warning("No %s data for %s", item_type, cohort_id)
             logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No data", item_type, cohort_name, age_band)
@@ -940,6 +954,10 @@ def process_single_cohort(
         before = len(df)
         df = df[item_upper.isin(allowed_upper)].copy()
         logger.info(f"Filtered to SHAP/FFA allowed items: {before:,} -> {len(df):,} rows ({len(allowed_upper)} codes)")
+        logger.info(
+            "[TRACE] cohort=%s age_band=%s item_type=%s step=after_allowed_codes_filter rows=%s (dropped=%s)",
+            cohort_name, age_band, item_type, len(df), before - len(df),
+        )
         if len(df) == 0:
             logger.warning("No rows left for %s after allowed-codes filter", cohort_id)
             logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No data after allowed-codes filter", item_type, cohort_name, age_band)
@@ -972,7 +990,11 @@ def process_single_cohort(
         after_filter = len(df)
         if before_filter != after_filter:
             logger.info(f"Filtered out {before_filter - after_filter:,} empty/invalid items")
-        
+        logger.info(
+            "[TRACE] cohort=%s age_band=%s item_type=%s step=after_item_cleanup rows=%s (dropped=%s)",
+            cohort_name, age_band, item_type, len(df), before_filter - after_filter,
+        )
+
         if len(df) == 0:
             logger.warning("No valid items remaining after cleanup for %s", cohort_id)
             logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No valid items after cleanup", item_type, cohort_name, age_band)
@@ -988,13 +1010,33 @@ def process_single_cohort(
         n_rows = len(df)
         logger.info(f"Target cohort size for {cohort_id} ({item_type}): {n_persons:,} persons, {n_rows:,} item rows")
 
-        # For opioid_ed, only use events from the current event_year for rule mining
+        # For opioid_ed, only use events from numeric years in TRAIN_YEARS (never filter by event_year == "train").
+        # non_opioid_ed does not filter by event_year here; it uses all rows from the query.
         if cohort_name == "opioid_ed":
+            # Ensure event_year is int so .isin(TRAIN_YEARS) and == year comparisons work (parquet may have string "2016").
+            if "event_year" in df.columns and len(df) > 0:
+                df["event_year"] = pd.to_numeric(df["event_year"], errors="coerce")
+                df = df[df["event_year"].notna()].copy()
+                df["event_year"] = df["event_year"].astype(int)
             logger.info(f"Running FP-Growth for opioid_ed cohort for each year in TRAIN_YEARS: {TRAIN_YEARS}, aggregating at patient level (mi_person_key)")
-            # Find patients present in any year, but keep linkage by mi_person_key
+            # Find patients present in any year, but keep linkage by mi_person_key (use numeric years only, never "train").
             patient_years = df[df['event_year'].isin(TRAIN_YEARS)][['mi_person_key', 'event_year']].drop_duplicates()
             patients_multi_year = patient_years['mi_person_key'].unique()
             logger.info(f"Total unique patients in TRAIN_YEARS: {len(patients_multi_year):,}")
+            if len(patients_multi_year) == 0:
+                logger.warning(
+                    "opioid_ed: no rows with event_year in %s (event_year in df may be string or wrong values). "
+                    "Ensure parquet has event_year in 2016-2019 or literal 'train' (coerced to 2016).",
+                    TRAIN_YEARS,
+                )
+                logger.info("[ACTIVITY_COMPLETE] item_type=%s cohort=%s age_band=%s status=failed error=No patients in TRAIN_YEARS", item_type, cohort_name, age_band)
+                return {
+                    'item_type': item_type,
+                    'cohort_name': cohort_name,
+                    'age_band': age_band,
+                    'event_year': event_year,
+                    'error': 'No patients with event_year in TRAIN_YEARS (check event_year column is numeric 2016-2019 or "train")',
+                }
             all_year_itemsets = []
             all_year_rules = []
             for year in TRAIN_YEARS:
