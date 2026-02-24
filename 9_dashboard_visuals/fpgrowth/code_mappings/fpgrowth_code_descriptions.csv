@@ -1,7 +1,11 @@
 code,description
-CPT:99213,Office visit, established patient 15-29 min
-CPT:99214,Office visit, established patient 30-39 min
-CPT:99285,Emergency dept visit, high severity
+CPT:992,E/M (evaluation and management)
+CPT:993, Nursing facility / E&M
+CPT:994, E&M other
+CPT:100,Surgery (integumentary / general)
+CPT:364,Venipuncture / transfusion
+CPT:700,Radiology
+CPT:800,Pathology and laboratory
 ICD:J069,Acute upper respiratory infection, unspecified
 ICD:F119,Opioid use disorder, unspecified
 DRUG:oxycodone,Oxycodone (opioid analgesic)
