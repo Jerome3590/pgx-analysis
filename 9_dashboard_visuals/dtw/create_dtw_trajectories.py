@@ -30,7 +30,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Set, Tuple
+from typing import Optional, Set, Tuple
 
 import duckdb
 import pandas as pd
@@ -42,7 +42,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from py_helpers.fe_monitor import step_block  # noqa: E402
-from py_helpers.model_data_paths import resolve_model_events_path  # noqa: E402
+from py_helpers.model_data_paths import (  # noqa: E402
+    resolve_model_events_path,
+    resolve_model_events_paths,
+)
 from py_helpers.pipeline_logger import (  # noqa: E402
     setup_pipeline_logger,
     log_step_start,
@@ -151,21 +154,23 @@ def extract_patient_trajectories(
     cohort_name: str,
     age_band: str,
     max_lookback_months: int = 24,
-) -> pd.DataFrame:
+    logger: Optional[PipelineLogger] = None,
+) -> Tuple[pd.DataFrame, int]:
     """
     Extract patient trajectories from model_data for visualization.
 
-    Returns DataFrame with columns:
-    - mi_person_key
-    - target
-    - seq_pattern_str
-    - admin_icd_event_count
-    - trajectory_length
-    - trajectory_diversity
+    Returns (DataFrame, n_events_analyzed). DataFrame has columns:
+    - mi_person_key, target, seq_pattern_str, admin_icd_event_count,
+    - trajectory_length, trajectory_diversity, ...
+    n_events_analyzed is the count of events (rows) that matched the filter and lookback.
     """
-    print(f"\n{'='*60}")
-    print(f"Extracting trajectories for {cohort_name} / {age_band}")
-    print(f"{'='*60}")
+    def _log(level: str, msg: str, *args: object) -> None:
+        if logger is not None:
+            getattr(logger, level)(msg, *args)
+        else:
+            print("[%s] " % level.upper() + (msg % args if args else msg))
+
+    _log("info", "Extracting trajectories for %s / %s", cohort_name, age_band)
 
     # Get model_events path
     try:
@@ -179,10 +184,10 @@ def extract_patient_trajectories(
         model_data_path = model_data_dir / "model_events.parquet"
 
     if not model_data_path.exists():
-        print(f"[ERROR] Model data not found at {model_data_path}")
-        return pd.DataFrame()
+        _log("error", "Model data not found at %s", model_data_path)
+        return pd.DataFrame(), 0
 
-    print(f"[INFO] Using model_events: {model_data_path}")
+    _log("info", "Using model_events: %s", model_data_path)
 
     # SHAP/FFA combined allowed codes file is required (same prerequisite as BupaR); we never use all events.
     age_band_fname = age_band.replace("-", "_")
@@ -203,13 +208,13 @@ def extract_patient_trajectories(
             "  Cannot run DTW without allowed codes."
         )
         raise SystemExit(1)
-    print(f"[INFO] Filtering to {len(allowed_codes)} SHAP/FFA important codes (from combined file)")
+    _log("info", "Filtering to %d SHAP/FFA important codes (from combined file)", len(allowed_codes))
     drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
     use_filter = True
 
     # Get administrative ICD codes for routine vs no routine analysis
     admin_codes = _load_administrative_icd_codes(project_root)
-    print(f"[INFO] Loaded {len(admin_codes)} administrative ICD codes")
+    _log("info", "Loaded %d administrative ICD codes", len(admin_codes))
 
     # Resolve target date column from parquet schema: use first candidate that exists (alias to target_date in query)
     path_str = str(model_data_path).replace("'", "''")
@@ -228,44 +233,79 @@ def extract_patient_trajectories(
     else:
         candidates = ["event_date"]
 
+    # DTW expected vs have: log to DTW logs for debugging (e.g. target column / 85-114)
+    DTW_EXPECTED_COLUMNS = [
+        "target",  # 1=case (target cohort), 0=control; required
+        "event_date",
+        "mi_person_key",
+        "drug_name",
+        "primary_icd_diagnosis_code",
+        "procedure_code",
+    ]
+    sorted_cols = sorted(col_names)
+    _log("info", "DTW expected (model_events): %s; plus one of target_date: %s", DTW_EXPECTED_COLUMNS, candidates)
+    _log("info", "DTW have (model_events columns, %d): %s", len(sorted_cols), sorted_cols)
+    missing_expected = [c for c in DTW_EXPECTED_COLUMNS if c not in col_names]
+    if missing_expected:
+        _log("warning", "DTW model_events missing expected columns: %s", missing_expected)
+    if "target" not in col_names:
+        _log("error", "model_events has no 'target' column (required: 1=case, 0=control). Columns: %s", sorted_cols)
+        return pd.DataFrame(), 0
+
     target_date_col = None
     for c in candidates:
         if c in col_names:
             target_date_col = c
             break
+    _log("info", "DTW target_date: expected one of %s; chosen: %s", candidates, target_date_col)
     if target_date_col is None and cohort_name in ("opioid_ed", "non_opioid_ed"):
-        print(
-            f"[ERROR] Model data at {model_data_path} has no target date column. "
-            f"Expected one of {candidates}. Found columns: {sorted(col_names)}"
-        )
-        return pd.DataFrame()
+        _log("error", "Model data has no target date column. Expected one of %s. Found columns: %s", candidates, sorted_cols)
+        return pd.DataFrame(), 0
     if target_date_col is None:
         target_date_col = "event_date"
-    print(f"[INFO] Using target date column: {target_date_col}")
+
+    # Log target distribution in source (row counts) to verify case/control mapping
+    con_count = duckdb.connect(":memory:")
+    try:
+        r = con_count.execute(
+            f"SELECT target, COUNT(*) as n FROM read_parquet('{path_str}') GROUP BY target ORDER BY target"
+        ).fetchall()
+        for (t, n) in r:
+            _log("info", "DTW model_events target=%s row count: %s", t, n)
+    except Exception as e:
+        _log("warning", "Could not get target counts from parquet: %s", e)
+    con_count.close()
 
     # Build SQL query with SHAP/FFA filtering
     con = duckdb.connect(":memory:")
 
     if use_filter:
-        # Build filter expressions (OR semantics: drug OR any ICD OR CPT)
-        # Only include non-empty filters to avoid syntax errors
+        # Build filter expressions (OR semantics: drug OR any ICD OR CPT). Use ALL allowed codes
+        # (no limit) so drug-heavy cohorts (e.g. non_opioid_ed 65-74, 75-84) get trajectories.
+        def safe_sql_list(codes: Set[str]) -> str:
+            # Escape single quotes for SQL; return ('a','b',...)
+            escaped = [f"'{str(c).replace(chr(39), chr(39)+chr(39))}'" for c in codes if c]
+            return "(" + ",".join(escaped) + ")" if escaped else "(NULL)"
+
         filters = []
         if drug_set:
-            drug_filter = " OR ".join([f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') = '{d}'" for d in list(drug_set)[:50]])
-            filters.append(drug_filter)
+            filters.append(
+                f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') IN {safe_sql_list(drug_set)}"
+            )
         if icd_set:
-            icd_filter = " OR ".join([
-                f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') = '{i}'" for i in list(icd_set)[:50]
-            ])
-            filters.append(icd_filter)
+            filters.append(
+                f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') IN {safe_sql_list(icd_set)}"
+            )
         if cpt_set:
-            cpt_filter = " OR ".join([f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') = '{c}'" for c in list(cpt_set)[:50]])
-            filters.append(cpt_filter)
+            filters.append(
+                f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') IN {safe_sql_list(cpt_set)}"
+            )
 
         if filters:
             filter_clause = f"WHERE ({' OR '.join(filters)})"
         else:
             filter_clause = ""
+        _log("info", "Filter: drugs=%d, ICD=%d, CPT=%d (all used)", len(drug_set), len(icd_set), len(cpt_set))
     else:
         filter_clause = ""
 
@@ -336,8 +376,31 @@ def extract_patient_trajectories(
     WHERE seq_pattern_str IS NOT NULL
     """
 
-    print("[INFO] Extracting trajectories from model_events...")
+    _log("info", "Extracting trajectories from model_events...")
     df = con.execute(query).df()
+
+    # Count events analyzed (filtered_events row count) for logging and status JSON
+    count_query = f"""
+    WITH patient_events AS (
+        SELECT CAST(mi_person_key AS VARCHAR) as mi_person_key, target,
+               CAST(event_date AS DATE) as event_date, ({target_date_expr}) as target_date
+        FROM read_parquet('{path_str}')
+        {filter_clause}
+    ),
+    filtered_events AS (
+        SELECT * FROM patient_events
+        WHERE
+            (target = 1 AND event_date < target_date
+             AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+            OR (target = 0)
+    )
+    SELECT COUNT(*) as n_events FROM filtered_events
+    """
+    try:
+        n_events_analyzed = int(con.execute(count_query).fetchone()[0])
+    except Exception as e:
+        _log("warning", "Could not get event count: %s; using 0", e)
+        n_events_analyzed = 0
 
     # Time-between metrics (N3: times between sequences) — same DATE normalization as main query
     time_query = f"""
@@ -403,7 +466,7 @@ def extract_patient_trajectories(
             df["mean_days_between_events"] = float("nan")
             df["days_first_event_to_target"] = float("nan")
     except Exception as e:
-        print(f"[WARN] Time-between query failed: {e}; adding NaN columns")
+        _log("warning", "Time-between query failed: %s; adding NaN columns", e)
         df["mean_days_between_events"] = float("nan")
         df["days_first_event_to_target"] = float("nan")
 
@@ -421,14 +484,14 @@ def extract_patient_trajectories(
     # Schema compatibility: dtw_min_distance (not computed here)
     df["dtw_min_distance"] = float("nan")
 
-    print(f"[INFO] Extracted {len(df)} patient trajectories")
+    _log("info", "Extracted %d patient trajectories", len(df))
 
     if df.empty:
-        print("[WARN] No trajectories extracted")
-        return df
+        _log("warning", "No trajectories extracted")
+        return df, n_events_analyzed
 
     # Compute admin_icd_event_count for each patient
-    print("[INFO] Computing administrative ICD event counts...")
+    _log("info", "Computing administrative ICD event counts...")
 
     def count_admin_icds(seq_str):
         """Count administrative ICD codes in sequence."""
@@ -444,13 +507,11 @@ def extract_patient_trajectories(
 
     df['admin_icd_event_count'] = df['seq_pattern_str'].apply(count_admin_icds)
 
-    print("[INFO] Trajectory summary:")
-    print(f"  - Mean length: {df['trajectory_length'].mean():.1f}")
-    print(f"  - Mean diversity: {df['trajectory_diversity'].mean():.1f}")
-    print(f"  - Admin ICD events (routine): {df['admin_icd_event_count'].sum()}")
-    print(f"  - Target=1: {(df['target']==1).sum()}, Target=0: {(df['target']==0).sum()}")
+    _log("info", "Trajectory summary: events_analyzed=%d, alignments_found=%d", n_events_analyzed, len(df))
+    _log("info", "  Mean length: %.1f; mean diversity: %.1f; admin_icd_event_count sum: %s", df["trajectory_length"].mean(), df["trajectory_diversity"].mean(), df["admin_icd_event_count"].sum())
+    _log("info", "  DTW output target=1: %d, target=0: %d", (df["target"] == 1).sum(), (df["target"] == 0).sum())
 
-    return df
+    return df, n_events_analyzed
 
 
 def main():
@@ -486,13 +547,15 @@ def main():
 
     with step_block("5_dtw", "create_dtw_trajectories", logger=logger.logger):
         logger.info("Starting DTW trajectories for %s / %s", args.cohort, args.age_band)
-        # Extract trajectories
-        df = extract_patient_trajectories(
+        df, n_events_analyzed = extract_patient_trajectories(
             project_root=project_root,
             cohort_name=args.cohort,
             age_band=args.age_band,
             max_lookback_months=args.max_lookback_months,
+            logger=logger,
         )
+        n_alignments_found = len(df)
+        logger.info("Drug events analyzed: %d; trajectories (alignments) found: %d", n_events_analyzed, n_alignments_found)
 
         if df.empty:
             logger.warning("No trajectories extracted; writing placeholder artifacts and continuing pipeline.")
@@ -501,23 +564,38 @@ def main():
             placeholder_df.to_csv(output_path, index=False)
             added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
             placeholder_df.to_csv(added_path, index=False)
-            # Status JSON so it's clear why this cohort/age_band has no trajectories
+            # Status JSON with event/alignment counts so downstream and logs are clear
             status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
             status = {
                 "skipped": True,
-                "message": "No trajectories extracted. Check inputs and logs (e.g. model_events, allowed_codes, or filter returned no rows).",
+                "n_events_analyzed": n_events_analyzed,
+                "n_alignments_found": 0,
+                "message": f"Events analyzed: {n_events_analyzed}; alignments (trajectories) found: 0. No trajectories extracted (check model_events, allowed_codes, or filter).",
                 "cohort": args.cohort,
                 "age_band": args.age_band,
             }
             with open(status_path, "w", encoding="utf-8") as f:
                 json.dump(status, f, indent=2)
-            logger.info("Wrote placeholder CSV and %s", status_path.name)
+            logger.info("Wrote placeholder CSV and %s (events=%d, alignments=0)", status_path.name, n_events_analyzed)
             logger.log_summary()
             return
         # Save
         df.to_csv(output_path, index=False)
         logger.info("Saved %d trajectories to %s", len(df), output_path)
         logger.info("Columns: %s", list(df.columns))
+
+        # Status JSON with counts (for create_dtw_features and reporting)
+        status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
+        status = {
+            "skipped": False,
+            "n_events_analyzed": n_events_analyzed,
+            "n_alignments_found": n_alignments_found,
+            "message": f"Events analyzed: {n_events_analyzed}; alignments (trajectories) found: {n_alignments_found}.",
+            "cohort": args.cohort,
+            "age_band": args.age_band,
+        }
+        with open(status_path, "w", encoding="utf-8") as f:
+            json.dump(status, f, indent=2)
 
         # Also copy to dtw_added_features (expected by create_dtw_visuals.py)
         added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
