@@ -1467,10 +1467,8 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/feature_importance?cohort=...
-    Returns HTTPS URLs for aggregated feature importance heatmaps (from Step 3a / 2_feature_importance).
-    Heatmaps: per-cohort (feature × age band) and optional combined. Stored in dashboard bucket
-    under {S3_DASHBOARD_PREFIX}/feature_importance/{cohort}/aggregated_fi_heatmap.png and
-    feature_importance/combined_cohorts_feature_importance_heatmap.png.
+    Returns heatmap_data (JSON) for client-side Plotly when available in S3; else heatmap_url/combined_url (PNG).
+    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json (preferred) or .png.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1481,10 +1479,20 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
+        json_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.json"
+
         payload = {
             "heatmap_url": f"{base_url}/{heatmap_key}",
             "combined_url": f"{base_url}/{combined_key}",
         }
+
+        try:
+            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=json_key)
+            body = obj.get("Body").read().decode("utf-8")
+            payload["heatmap_data"] = json.loads(body)
+        except (ClientError, json.JSONDecodeError, TypeError):
+            pass
+
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})

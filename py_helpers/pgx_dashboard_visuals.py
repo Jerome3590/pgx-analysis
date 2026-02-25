@@ -233,6 +233,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
         uploaded_fi = 0
         for cohort in COHORT_NAMES:
             local_png = fi_base / cohort / "plots" / f"{cohort}_aggregated_fi_heatmap.png"
+            local_json = fi_base / cohort / "plots" / f"{cohort}_aggregated_fi_heatmap.json"
             if local_png.exists():
                 s3_key = f"{fi_prefix}/{cohort}/aggregated_fi_heatmap.png"
                 r2 = subprocess.run(
@@ -242,6 +243,15 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
                 if r2.returncode == 0:
                     uploaded_fi += 1
                     print(f"  Uploaded FI heatmap: {s3_key}")
+            if local_json.exists():
+                s3_key_json = f"{fi_prefix}/{cohort}/aggregated_fi_heatmap.json"
+                r2j = subprocess.run(
+                    ["aws", "s3", "cp", str(local_json), f"s3://{s3_bucket}/{s3_key_json}", "--region", "us-east-1"],
+                    capture_output=True, text=True,
+                )
+                if r2j.returncode == 0:
+                    uploaded_fi += 1
+                    print(f"  Uploaded FI heatmap data: {s3_key_json}")
         combined_png = fi_base / "plots" / "combined_cohorts_feature_importance_heatmap.png"
         if combined_png.exists():
             s3_key_combined = f"{fi_prefix}/combined_cohorts_feature_importance_heatmap.png"
