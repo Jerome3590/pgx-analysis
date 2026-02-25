@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Upload Cohort PGx network topology outputs to the dashboard S3 bucket.
+Re-upload Cohort PGx network topology outputs to the dashboard S3 bucket.
 
-Run after building networks (notebook 4 or build_network_topology.py). Uses the same
-S3_DASHBOARD_BUCKET and S3_DASHBOARD_PREFIX as BupaR/DTW/FP-Growth so Lambda can
-return network_topology_url for the PGx Cohort tab.
+build_network_topology.py uploads each cohort/age_band output to S3 automatically
+(same pattern as BupaR/DTW/FP-Growth). Use this script only to re-sync existing
+local outputs without rebuilding (e.g. after manual edits or different bucket/prefix).
 
 Usage:
   python upload_cohort_pgx_to_s3.py [--project-root PATH] [--dry-run]

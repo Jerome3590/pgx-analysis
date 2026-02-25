@@ -3,9 +3,10 @@
 Local Python workflow for dashboard visuals (pipeline step 9).
 
 Emulates [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb): optional S3 sync of model data,
-then BupaR, DTW (trajectories then visuals), and FP-Growth for configured cohort/age_band combinations.
+then BupaR, DTW (trajectories then visuals), FP-Growth, and Cohort PGx for configured cohort/age_band combinations.
 DTW trajectories (create_dtw_trajectories.py) produce the features CSV including N3 time-between metrics;
-DTW visuals (create_dtw_visuals.py) produce plots and chart_data.json. Run from repo root.
+DTW visuals (create_dtw_visuals.py) produce plots and chart_data.json. Cohort PGx: fetch VIP reports,
+build network topology, upload to dashboard S3. Run from repo root.
 
 Usage:
   # Sync from S3 then run all visuals (default combinations)
@@ -28,6 +29,12 @@ Usage:
 
   # Quick test: one age band, both cohorts (DTW only)
   python 9_dashboard_visuals/run_dtw_test_one_age_band.py --age-band 25-44
+
+  # Skip Cohort PGx (no PharmGKB fetch / network build)
+  python 9_dashboard_visuals/run_dashboard_visuals.py --skip-cohort-pgx
+
+  # Run Cohort PGx fetch and build but do not upload to S3
+  python 9_dashboard_visuals/run_dashboard_visuals.py --no-cohort-pgx-upload
 """
 
 from __future__ import annotations
@@ -114,6 +121,8 @@ def main():
                     help="Parallel workers for FP-Growth (default: one per cohort/age_band combo, capped by CPU count)")
     ap.add_argument("--fail-fast", action="store_true", default=True, help="Stop on first failure (default True)")
     ap.add_argument("--export-bupar-csv-to-json", action="store_true", help="Pass --export-csv-to-json to BupaR so feature CSVs are exported as JSON in plots/ and uploaded")
+    ap.add_argument("--skip-cohort-pgx", action="store_true", help="Skip Cohort PGx (fetch VIP reports, build network topology, upload to S3)")
+    ap.add_argument("--no-cohort-pgx-upload", action="store_true", help="Run Cohort PGx fetch and build but do not upload to S3")
     args = ap.parse_args()
 
     # Combinations (same logic as 4_dashboard_visuals.ipynb)
@@ -314,6 +323,81 @@ def main():
                 print(f"  [FP-Growth {completed}/{len(combinations)}] {c} / {ab} -> exit {r.returncode}")
                 if r.returncode != 0 and args.fail_fast:
                     sys.exit(1)
+
+    # Cohort PGx: fetch VIP reports, then build network topology (upload is inside build script, same as BupaR/DTW/FP-Growth)
+    if not args.skip_cohort_pgx:
+        cohort_pgx_dir = step9_root / "cohort_pgx"
+        fetch_pgx_script = cohort_pgx_dir / "fetch_vip_reports.py"
+        build_pgx_script = cohort_pgx_dir / "build_network_topology.py"
+        reports_dir = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "cohort_pgx" / "reports"
+        networks_dir = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "cohort_pgx" / "networks"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        networks_dir.mkdir(parents=True, exist_ok=True)
+
+        if fetch_pgx_script.exists() and build_pgx_script.exists():
+            print("Cohort PGx: fetch VIP reports")
+            print("-" * 40)
+            pgx_fetch_workers = min(2, len(combinations))  # API rate limit
+            with ThreadPoolExecutor(max_workers=pgx_fetch_workers) as ex:
+                futures = {
+                    ex.submit(
+                        subprocess.run,
+                        [
+                            sys.executable, str(fetch_pgx_script),
+                            "--cohort", c, "--age-band", ab,
+                            "--top-n", "50",
+                            "--project-root", str(REPO_ROOT),
+                            "--output-dir", str(reports_dir),
+                        ],
+                        cwd=str(REPO_ROOT),
+                        capture_output=False,
+                    ): (c, ab)
+                    for c, ab in combinations
+                }
+                for fut in as_completed(futures):
+                    c, ab = futures[fut]
+                    r = fut.result()
+                    print(f"  [Cohort PGx fetch] {c} / {ab} -> exit {r.returncode}")
+                    if r.returncode != 0 and args.fail_fast:
+                        sys.exit(1)
+            print()
+
+            print("Cohort PGx: build network topology (upload to S3 inside script)")
+            print("-" * 40)
+            pgx_build_workers = min(4, len(combinations))
+            pgx_no_upload = ["--no-upload"] if args.no_cohort_pgx_upload else []
+            with ThreadPoolExecutor(max_workers=pgx_build_workers) as ex:
+                futures = {}
+                for c, ab in combinations:
+                    age_band_fname = ab.replace("-", "_")
+                    reports_file = reports_dir / f"{c}_{age_band_fname}_vip_reports.json"
+                    out_dir = networks_dir / c / age_band_fname
+                    if not reports_file.exists():
+                        print(f"  [Cohort PGx build] {c} / {ab} -> skip (no reports file)")
+                        continue
+                    futures[
+                        ex.submit(
+                            subprocess.run,
+                            [
+                                sys.executable, str(build_pgx_script),
+                                "--reports", str(reports_file),
+                                "--output-dir", str(out_dir),
+                                "--cohort", c, "--age-band", ab,
+                            ] + pgx_no_upload,
+                            cwd=str(REPO_ROOT),
+                            capture_output=False,
+                        )
+                    ] = (c, ab)
+                for fut in as_completed(futures):
+                    c, ab = futures[fut]
+                    r = fut.result()
+                    print(f"  [Cohort PGx build] {c} / {ab} -> exit {r.returncode}")
+                    if r.returncode != 0 and args.fail_fast:
+                        sys.exit(1)
+            print()
+        else:
+            print("Cohort PGx: scripts not found; skip.")
+            print()
 
     print()
     print("Dashboard visuals workflow done.")
