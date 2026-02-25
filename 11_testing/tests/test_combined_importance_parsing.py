@@ -6,8 +6,8 @@ Run this on EC2 to verify the CSV files can be read and codes extracted.
 import sys
 from pathlib import Path
 
-# Add repo root to path
-REPO_ROOT = Path(__file__).parent
+# Add repo root to path (script lives in 11_testing/tests/)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from py_helpers.shap_ffa_fpgrowth_utils import (

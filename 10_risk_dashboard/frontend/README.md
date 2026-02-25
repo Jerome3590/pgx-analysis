@@ -31,7 +31,7 @@ The frontend communicates with the Lambda backend via API Gateway:
 
 ## Validating frontend updates
 
-When changing `index.html`, use the checklist in **[docs/README_validate_frontend_updates.md](../docs/README_validate_frontend_updates.md)** to ensure tabs, visual headings, BupaR copy, S3 path-style URLs, and API usage stay aligned with the path mapping and research-question artifacts.
+When changing `index.html`, use the checklist in **[README_dashboard_validation.md](../../README_dashboard_validation.md) (project root)** to ensure tabs, visual headings, BupaR copy, S3 path-style URLs, and API usage stay aligned with the path mapping and research-question artifacts.
 
 ## Deployment
 
