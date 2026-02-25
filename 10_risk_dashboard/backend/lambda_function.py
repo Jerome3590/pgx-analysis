@@ -57,7 +57,13 @@ S3_BUCKET = os.environ.get("PGX_RESULTS_BUCKET", "pgxdatalake")
 # Dashboard frontend bucket/prefix (where FP-Growth assets are uploaded so they render with the app)
 S3_DASHBOARD_BUCKET = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
 S3_DASHBOARD_PREFIX = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+S3_DASHBOARD_REGION = os.environ.get("S3_DASHBOARD_REGION", "us-east-1")
 MODEL_CACHE_TTL = int(os.environ.get("MODEL_CACHE_TTL", "3600"))
+
+
+def _dashboard_s3_url(key: str) -> str:
+    """Build path-style S3 URL for dashboard assets: https://s3.{region}.amazonaws.com/{bucket}/{key}"""
+    return f"https://s3.{S3_DASHBOARD_REGION}.amazonaws.com/{S3_DASHBOARD_BUCKET}/{key}"
 METADATA_PREFIX = "gold/dashboard/metadata"
 MODEL_PREFIX = "gold/dashboard/models"
 
@@ -1325,8 +1331,7 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
 
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band_fname}"
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
-        causal_data_url = f"{base_url}/{prefix}/causal_data.json"
+        causal_data_url = _dashboard_s3_url(f"{prefix}/causal_data.json")
 
         return _response(200, {
             "causal_data_url": causal_data_url,
@@ -1353,14 +1358,13 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/dtw/{cohort}/{age_band}"
         plots_key = f"{prefix}/plots"
         bucket = S3_DASHBOARD_BUCKET
 
         payload = {
-            "chart_data_url": f"{base_url}/{prefix}/chart_data.json",
-            "sequence_heatmap_url": f"{base_url}/{prefix}/sequence_heatmap.json",
+            "chart_data_url": _dashboard_s3_url(f"{prefix}/chart_data.json"),
+            "sequence_heatmap_url": _dashboard_s3_url(f"{prefix}/sequence_heatmap.json"),
             "metrics": {},
         }
 
@@ -1397,11 +1401,11 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"
         overview_html_key = f"{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html"
         if _s3_object_exists(bucket, overview_key):
-            payload["overview_image"] = f"{base_url}/{overview_key}"
+            payload["overview_image"] = _dashboard_s3_url(overview_key)
         if _s3_object_exists(bucket, sample_key):
-            payload["sample_trajectories_image"] = f"{base_url}/{sample_key}"
+            payload["sample_trajectories_image"] = _dashboard_s3_url(sample_key)
         if _s3_object_exists(bucket, overview_html_key):
-            payload["overview_interactive"] = f"{base_url}/{overview_html_key}"
+            payload["overview_interactive"] = _dashboard_s3_url(overview_html_key)
 
         return _response(200, payload)
     except Exception as e:
@@ -1450,15 +1454,14 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         itemsets_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_itemsets_interactive.html"
         network_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_network_interactive.html"
 
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         payload = {
-            "network_combined_html": f"{base_url}/{network_combined_key}",
-            "itemsets_image": f"{base_url}/{itemsets_key}",
-            "support_image": f"{base_url}/{itemsets_key}",
-            "network_html": f"{base_url}/{network_html_key}",
-            "network_png": f"{base_url}/{network_png_key}",
-            "itemsets_interactive": f"{base_url}/{itemsets_interactive_key}",
-            "network_interactive": f"{base_url}/{network_interactive_key}",
+            "network_combined_html": _dashboard_s3_url(network_combined_key),
+            "itemsets_image": _dashboard_s3_url(itemsets_key),
+            "support_image": _dashboard_s3_url(itemsets_key),
+            "network_html": _dashboard_s3_url(network_html_key),
+            "network_png": _dashboard_s3_url(network_png_key),
+            "itemsets_interactive": _dashboard_s3_url(itemsets_interactive_key),
+            "network_interactive": _dashboard_s3_url(network_interactive_key),
         }
         return _response(200, payload)
     except Exception as e:
@@ -1480,7 +1483,6 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
         if model not in ("aggregated", "catboost", "xgboost", "xgboost_rf"):
             model = "aggregated"
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
         if model == "aggregated":
@@ -1489,8 +1491,8 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
             json_key = f"{prefix}/{cohort}/{model}_fi_heatmap.json"
 
         payload = {
-            "heatmap_url": f"{base_url}/{heatmap_key}",
-            "combined_url": f"{base_url}/{combined_key}",
+            "heatmap_url": _dashboard_s3_url(heatmap_key),
+            "combined_url": _dashboard_s3_url(combined_key),
         }
 
         try:
@@ -1562,7 +1564,6 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
         base = f"{cohort}_{age_band_fname}"
 
@@ -1585,7 +1586,7 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
         payload: Dict[str, str] = {}
         for payload_key, s3_key in candidates:
             if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
-                payload[payload_key] = f"{base_url}/{s3_key}"
+                payload[payload_key] = _dashboard_s3_url(s3_key)
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1611,11 +1612,10 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/cohort_pgx"
         base_key = f"{prefix}/networks/{cohort}/{age_band_fname}"
-        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         html_key = f"{base_key}/network_topology.html"
         payload = {}
         if _s3_object_exists(S3_DASHBOARD_BUCKET, html_key):
-            payload["network_topology_url"] = f"{base_url}/{html_key}"
+            payload["network_topology_url"] = _dashboard_s3_url(html_key)
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
