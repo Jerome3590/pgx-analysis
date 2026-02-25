@@ -2,6 +2,8 @@
 
 Mapping of each dashboard tab to the **EC2 folder path** (where artifacts are deployed from), the API endpoint, and the S3 path. All paths below are relative to **repo root on EC2** (e.g. `/home/pgx3874/pgx-analysis`). S3 prefix is `vcu/pgx-risk-calculator/` (or `S3_DASHBOARD_PREFIX`); bucket is `jerome-dixon.io` (or `S3_DASHBOARD_BUCKET`).
 
+**We only save and use artifacts tied to research questions.** See **[RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md)** for the canonical RQ → tab → artifact list. Unused artifacts are in [ARCHIVED_ARTIFACTS_NO_LONGER_USED.md](ARCHIVED_ARTIFACTS_NO_LONGER_USED.md). **Visual → artifact → EC2/S3 paths:** [README_dashboard_visual_artifact_paths.md](README_dashboard_visual_artifact_paths.md).
+
 **Data pattern:** We use **JSON as much as possible** for visuals: pipeline exports JSON → Lambda returns inline when present → frontend renders from JSON (Plotly/chart) with fallback to image/iframe. **Exception:** FP-Growth network and PGx Cohort network are processed on EC2 and served as **HTML only** (no JSON). See [VISUALIZATION_DATA_PATTERN.md](VISUALIZATION_DATA_PATTERN.md).
 
 ## S3 URL format for assets (required)

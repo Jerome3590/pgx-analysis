@@ -4,6 +4,8 @@
 
 This document is the **single source of truth** for the final production workflow, data visualization outputs, and research-question alignment. Prefer **full-dataset, filter-to-features**: pipeline produces cohort/age_band (and item_type where applicable) outputs; dashboard and Lambda only filter.
 
+**We only save and use visuals/artifacts tied to research questions.** The canonical mapping (RQ → tab → exact artifacts) is in **[RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md)**. Artifacts no longer used are documented in **[ARCHIVED_ARTIFACTS_NO_LONGER_USED.md](ARCHIVED_ARTIFACTS_NO_LONGER_USED.md)**.
+
 **See also:** [README_dashboard_visuals_review.md](README_dashboard_visuals_review.md) (this folder) for a detailed RQ-alignment and DTW-optimization review and lessons learned; that doc references this plan as the canonical workflow.
 
 ---
@@ -69,10 +71,13 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 
 | Doc | Use |
 |-----|-----|
+| **`10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md`** | **Canonical:** RQ → tab → exact artifacts we keep and use. Only these are saved/displayed. |
+| **`10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md`** | Map: dashboard visual → data artifact → EC2 file path → S3 path (path-style). |
+| **`10_risk_dashboard/docs/ARCHIVED_ARTIFACTS_NO_LONGER_USED.md`** | Artifacts no longer used; archived for documentation and pipeline cleanup. |
 | **`9_dashboard_visuals/README.md`** | Step 9 pipeline, run commands, quick DTW test. |
 | **`10_risk_dashboard/visualizations/README.md`** | Output directories (bupar, dtw, fpgrowth) and creation script names. |
 | **`docs/Step9_RiskDashboard/README_bupar_dashboard_visualizations.md`** | BupaR file names and S3 layout. |
 | **`10_risk_dashboard/docs/README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md`** | Per-tab implementation, API, checklists. |
 | **`10_risk_dashboard/docs/README_CALCULATOR_WORKFLOW.md`** | Deployment workflow (metadata, models, Lambda, deploy). |
 | **`10_risk_dashboard/docs/TAB_ARCHITECTURE_PHTS_VS_PGX.md`** | Tab layout comparison (PHTS vs PGx). |
-| **`archived/dashboard_docs/README.md`** | Index of archived planning/historical docs and lessons learned. |
+| **`archived/dashboard_feature_engineering/README.md`** | Archived feature-engineering code and historical docs. |

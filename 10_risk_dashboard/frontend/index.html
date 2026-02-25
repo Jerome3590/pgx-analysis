@@ -835,59 +835,6 @@
       </div>
     </div>
 
-    <!-- Feature Interactions Tab -->
-    <div id="interactions-tab" class="tab-content">
-      <p class="subtitle">
-        Analyze multi-feature interactions to identify synergies and antagonisms between features.
-        <br>
-        <small style="color: #64748b;">Shows how combinations of features interact beyond their individual effects.</small>
-      </p>
-
-      <div class="controls">
-        <div class="control-group">
-          <label for="max-interaction-size">Max Interaction Size:</label>
-          <select id="max-interaction-size">
-            <option value="2">Pairs (2 features)</option>
-            <option value="3">Triplets (3 features)</option>
-            <option value="4">Quadruplets (4 features)</option>
-          </select>
-        </div>
-
-        <div class="control-group">
-          <label for="synergy-filter">Filter by Synergy:</label>
-          <select id="synergy-filter">
-            <option value="all">All Interactions</option>
-            <option value="positive">Positive Synergies</option>
-            <option value="negative">Antagonisms</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        </div>
-
-        <div class="control-group full-width">
-          <button id="btnAnalyzeInteractions">Analyze Interactions</button>
-          <button id="btnResetInteractions" class="button-secondary">Reset</button>
-        </div>
-      </div>
-
-      <div id="interactions-status" class="status-message">Click 'Analyze Interactions' to view feature interactions</div>
-
-      <div class="panels">
-        <div class="panel">
-          <h2>Interaction Matrix</h2>
-          <div id="interaction-matrix-chart"></div>
-        </div>
-        <div class="panel">
-          <h2>Top Interactions</h2>
-          <div id="top-interactions-table"></div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Interaction Network</h2>
-        <div id="interaction-network-chart"></div>
-      </div>
-    </div>
-
     <!-- PGx Patient Card Tab -->
     <div id="pgx-card-tab" class="tab-content">
       <p class="subtitle">
@@ -1031,37 +978,40 @@
       </div>
     </div>
 
-    <!-- BupaR Visualizations Tab: drug-only (sequences, activity frequency, trace explorer, Drug × Drug process matrix) -->
+    <!-- BupaR Visualizations Tab: drug-specific visuals (dropdowns) + event-to-target visuals (all activity types) -->
     <div id="bupar-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Research focus: drugs only.</strong> What drug sequences lead to target outcomes? All visuals use drug-only event logs; process matrix is Drug × Drug flows only.
+        <strong>Drug-specific visuals</strong> (below): cohort and age band select which pipeline output to load; show/hide applies to drug-only panels only (sequences, activity frequency, trace explorer, Drug × Drug process matrix).
+        <strong>Event-to-target</strong> BupaR visuals use <strong>all activity types</strong> (Drug, ICD, CPT) and are kept separate from the drug-only set.
         <br>
-        <small style="color: #64748b;">Cohort and age band select which pipeline output to load. Only drug-only visuals are shown.</small>
+        <small style="color: #64748b;">Dropdowns and checkboxes below control only drug-specific visuals. Event-to-target visuals are not filtered by these controls.</small>
       </p>
       <div class="controls">
         <div class="control-group">
-          <label for="bupar-cohort">Cohort (drug-only analysis):</label>
-          <select id="bupar-cohort" aria-label="BupaR cohort">
+          <label for="bupar-cohort">Cohort (drug-specific visuals only):</label>
+          <select id="bupar-cohort" aria-label="BupaR cohort for drug-specific visuals">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
-          <label for="bupar-age-band">Age Band:</label>
-          <select id="bupar-age-band" aria-label="BupaR age band"></select>
+          <label for="bupar-age-band">Age band (drug-specific visuals only):</label>
+          <select id="bupar-age-band" aria-label="BupaR age band for drug-specific visuals"></select>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadBupaR">Load BupaR Visualizations</button>
         </div>
         <div class="control-group full-width" style="margin-top: 12px;">
           <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
-            <legend style="font-weight: 600;">Show visuals (drug-only)</legend>
-            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which visuals to display. All use drug-only data; process matrix is Drug × Drug.</p>
+            <legend style="font-weight: 600;">Show visuals (drug-specific only)</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which drug-specific panels to display. These use drug-only data; process matrix is Drug × Drug. Event-to-target visuals use all activity types and are not controlled here.</p>
             <div id="bupar-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
           </fieldset>
         </div>
       </div>
-      <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
+      <div id="bupar-status" class="status-message">Select cohort and age band (for drug-specific visuals), then click 'Load BupaR Visualizations'</div>
+      <h3 class="panel-section-label" style="margin-top: 1rem; margin-bottom: 0.5rem; font-weight: 600;">Drug-specific visuals</h3>
+      <p class="subtitle" style="margin-bottom: 0.75rem;"><small style="color: #64748b;">These panels are driven by the cohort and age band dropdowns above. Event-to-target BupaR visuals (all activity types) are kept separate.</small></p>
       <div class="panels">
         <div class="panel bupar-panel" data-visual-key="sequence">
           <h2>Sequences to Target Outcomes (drugs)</h2>

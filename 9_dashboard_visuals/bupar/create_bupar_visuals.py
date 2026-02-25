@@ -7,13 +7,12 @@ is for dashboard visualization only.
 
 Runs the BupaR workflow for a given cohort and age band (outputs and plots only; no feature engineering):
 1. Create BupaR outputs and plots via R scripts
-2. Upload interactive HTML and static PNG plots to the dashboard bucket
+2. Upload only RQ-used artifacts to the dashboard bucket (see RESEARCH_QUESTIONS_ARTIFACTS.md)
 
-Outputs:
-- Interactive plots: 2 HTML files with year dropdown filtering (activity_frequency, trace_explorer)
-- Static plots: Multiple PNG files for process maps and activity analysis, including process_matrix
-  and process_matrix_drug_drug.png (Drug × Drug only; production pipeline).
-  Run the full pipeline (run_dashboard_visuals.py or 4_dashboard_visuals notebook) for all cohort/age_band combinations.
+We only produce/save artifacts tied to research questions (N2, N6). Upload allowlist: activity frequency
+JSON/PNG/HTML, trace explorer pre-target, process_matrix_drug_drug, activity_sequence_top, and plots/lib/.
+Archived artifacts (process_matrix.png, frequency_map.png, trace_explorer.png, post-target trace, etc.)
+may still be written by R locally but are not uploaded.
 """
 
 import argparse
@@ -257,13 +256,32 @@ def create_bupar_outputs(
 ALLOWED_CODES_S3_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgxdatalake")
 ALLOWED_CODES_S3_PREFIX = "gold/bupar/allowed_codes"
 
-# Expected BupaR outputs for deploy/check. Filenames use cohort and age_band_fname (underscore).
-# Required: at least one PNG and the three activity-frequency JSONs for dashboard charts.
-# Optional: type-pair process matrices, frequency_map, trace_explorer post, etc.
-def _bupar_expected_plots(cohort_name: str, age_band_fname: str):
-    """Return (filename, required) for plots_dir. Filenames only (no path)."""
+# RQ-only artifacts (RESEARCH_QUESTIONS_ARTIFACTS.md): we only produce/save these for the dashboard.
+# Archived artifacts (process_matrix.png, frequency_map.png, trace_explorer.png, post trace, etc.) are not uploaded.
+def _bupar_rq_artifact_basenames(cohort_name: str, age_band_fname: str) -> set:
+    """Return set of plot dir basenames we upload (RQ-only). Includes lib/ for interactive HTML deps."""
     pre = "pre_f1120" if cohort_name == "opioid_ed" else "pre_hcg"
-    post = "post_f1120" if cohort_name == "opioid_ed" else "post_hcg"
+    base = f"{cohort_name}_{age_band_fname}"
+    return {
+        f"{base}_activity_frequency.json",
+        f"{base}_pre_target_activity_frequency.json",
+        f"{base}_post_target_activity_frequency.json",
+        f"{base}_overall_activity_frequency.png",
+        f"{base}_activity_frequency_interactive.html",
+        f"{base}_{pre}_activity_frequency.png",
+        f"{base}_trace_explorer_{pre}.png",
+        f"{base}_trace_explorer_interactive.html",
+        f"{base}_trace_explorer_plot.json",
+        f"{base}_process_matrix_drug_drug.png",
+        f"{base}_process_matrix_drug_drug.json",
+        f"{base}_activity_sequence_top.png",
+    }
+
+
+# Expected BupaR outputs for deploy/check. Aligned to RQ artifacts only (see RESEARCH_QUESTIONS_ARTIFACTS.md).
+def _bupar_expected_plots(cohort_name: str, age_band_fname: str):
+    """Return (filename, required) for plots_dir. Only RQ-used artifacts; archived ones omitted."""
+    pre = "pre_f1120" if cohort_name == "opioid_ed" else "pre_hcg"
     base = f"{cohort_name}_{age_band_fname}"
     return [
         (f"{base}_overall_activity_frequency.png", True),
@@ -271,17 +289,13 @@ def _bupar_expected_plots(cohort_name: str, age_band_fname: str):
         (f"{base}_activity_frequency.json", True),
         (f"{base}_pre_target_activity_frequency.json", True),
         (f"{base}_{pre}_activity_frequency.png", True),
-        (f"{base}_process_matrix.png", True),
         (f"{base}_trace_explorer_{pre}.png", True),
         (f"{base}_trace_explorer_interactive.html", True),
+        (f"{base}_process_matrix_drug_drug.png", True),
         (f"{base}_post_target_activity_frequency.json", False),
-        (f"{base}_{post}_activity_frequency.png", False),
-        (f"{base}_trace_explorer_{post}.png", False),
-        (f"{base}_trace_explorer_{post}_interactive.html", False),
-        (f"{base}_frequency_map.png", False),
+        (f"{base}_trace_explorer_plot.json", False),
+        (f"{base}_process_matrix_drug_drug.json", False),
         (f"{base}_activity_sequence_top.png", False),
-        (f"{base}_trace_explorer.png", False),
-        (f"{base}_process_matrix_interactive.html", False),
     ]
 
 
@@ -411,7 +425,9 @@ def upload_bupar_plots_to_dashboard_s3(
     age_band: str,
     logger: logging.Logger,
 ) -> bool:
-    """Upload BupaR plots dir to the dashboard bucket: PNG, HTML, JSON (activity frequency + pre/post target), and plots/lib/ (for interactive HTML deps)."""
+    """Upload only RQ-used BupaR artifacts to the dashboard bucket (see RESEARCH_QUESTIONS_ARTIFACTS.md).
+    Includes: activity frequency JSON/PNG/HTML, trace explorer pre-target, process_matrix_drug_drug, lib/ for HTML deps.
+    Archived artifacts (process_matrix.png, frequency_map.png, trace_explorer.png, post trace, etc.) are not uploaded."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
@@ -425,6 +441,7 @@ def upload_bupar_plots_to_dashboard_s3(
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
     s3_prefix = f"{dashboard_prefix.rstrip('/')}/bupar/{cohort_name}/{age_band}/plots"
+    allowed_basenames = _bupar_rq_artifact_basenames(cohort_name, age_band_fname)
 
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
@@ -432,10 +449,20 @@ def upload_bupar_plots_to_dashboard_s3(
         logger.warning("checkpoint_utils not available; skipping BupaR plot upload to dashboard S3")
         return True
 
-    # Upload entire plots tree (PNG, HTML, and lib/ for interactive HTML) so relative paths work on S3
     uploaded = 0
+    skipped = 0
     for p in sorted(plots_dir.rglob("*")):
         if not p.is_file():
+            continue
+        rel = p.relative_to(plots_dir)
+        # Allow anything under lib/ (interactive HTML deps) and only RQ artifact basenames in plots root
+        if len(rel.parts) >= 1 and rel.parts[0] == "lib":
+            pass  # allow
+        elif len(rel.parts) == 1 and rel.name in allowed_basenames:
+            pass  # allow
+        else:
+            skipped += 1
+            logger.debug("Skipping non-RQ artifact (not uploaded): %s", rel.as_posix())
             continue
         try:
             size = p.stat().st_size
@@ -447,16 +474,18 @@ def upload_bupar_plots_to_dashboard_s3(
                 )
         except OSError:
             pass
-        rel = p.relative_to(plots_dir)
         key = f"{s3_prefix}/{rel.as_posix()}"
         s3_path = f"s3://{s3_bucket}/{key}"
         if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
             uploaded += 1
             logger.debug("Uploaded %s to %s", rel.as_posix(), s3_path)
     if uploaded:
-        logger.info("Uploaded %s BupaR file(s) (plots + lib) to s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
+        msg = f"Uploaded {uploaded} BupaR file(s) (RQ artifacts + lib) to s3://{s3_bucket}/{s3_prefix}"
+        if skipped:
+            msg += f" (skipped {skipped} non-RQ)"
+        logger.info("%s", msg)
     else:
-        logger.warning("No files found in %s (check R stdout for BupaR diagnostic and empty event log)", plots_dir)
+        logger.warning("No RQ artifact files found in %s (check R stdout for BupaR diagnostic and empty event log)", plots_dir)
     return True
 
 
