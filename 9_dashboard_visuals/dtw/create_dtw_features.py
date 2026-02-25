@@ -230,6 +230,30 @@ def run_alignment(
     df = pd.read_csv(csv_path)
     if df.empty or "seq_pattern_str" not in df.columns:
         log("warning", "CSV empty or missing seq_pattern_str; skipping alignment.")
+        # Read trajectory_status for event/alignment counts; write empty common_sequences with message
+        n_events_analyzed: Optional[int] = None
+        status_path = fe_dir / f"trajectory_status_{cohort_name}_{age_band_fname}.json"
+        if status_path.exists():
+            try:
+                with open(status_path, encoding="utf-8") as f:
+                    status = json.load(f)
+                n_events_analyzed = status.get("n_events_analyzed")
+            except Exception:
+                pass
+        n_ev = n_events_analyzed if n_events_analyzed is not None else 0
+        n_align = 0
+        msg = f"Events analyzed: {n_ev}; alignments (trajectories) found: {n_align}. Alignment skipped (empty or invalid trajectories)."
+        log("info", "Drug events analyzed: %s; alignments found: 0", n_ev)
+        common_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}.json"
+        empty_payload = {
+            "message": msg,
+            "n_events_analyzed": n_ev,
+            "n_alignments_found": n_align,
+            "prototypes": [],
+        }
+        with open(common_path, "w", encoding="utf-8") as f:
+            json.dump(empty_payload, f, indent=2)
+        log("info", "Wrote empty common_sequences with message to %s", common_path)
         return False
     if not DTW_AVAILABLE:
         if logger:
@@ -242,6 +266,16 @@ def run_alignment(
     df_out, common_sequences = compute_dtw_distances(df, n_prototypes=n_prototypes)
     if common_sequences is None:
         log("warning", "No alignment computed (no encoded trajectories or prototypes).")
+        common_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}.json"
+        empty_payload = {
+            "message": f"Events analyzed: {len(df)} trajectories; alignments found: 0. No encoded trajectories or prototypes.",
+            "n_events_analyzed": len(df),
+            "n_alignments_found": 0,
+            "prototypes": [],
+        }
+        with open(common_path, "w", encoding="utf-8") as f:
+            json.dump(empty_payload, f, indent=2)
+        log("info", "Wrote empty common_sequences to %s", common_path)
         return False
 
     df_out.to_csv(csv_path, index=False)
@@ -301,7 +335,10 @@ def main() -> None:
             logger=logger,
         )
     if not ok:
-        logger.warning("DTW alignment skipped (empty or invalid trajectories); exiting 0 so pipeline continues.")
+        logger.warning(
+            "DTW alignment skipped (empty or invalid trajectories); exiting 0 so pipeline continues. "
+            "This is expected for cohort/age_band where only drug names exist (no ICD/CPT trajectories)."
+        )
     pl.log_summary()
     sys.exit(0)
 

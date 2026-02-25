@@ -78,14 +78,22 @@ def create_dtw_visuals(
 
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
+    out_dir = dtw_out / "outputs" / cohort_name / age_band_fname
 
-    # Idempotency: check if plots directory exists (dashboard deliverables)
-    plots_dir = dtw_out / "outputs" / cohort_name / age_band_fname / "plots"
-    if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
-        _log("info", "DTW plots exist at %s; skipping (use --force to re-run)", plots_dir)
+    # Idempotency: skip only when all dashboard artifacts exist (plots + chart_data + sequence_heatmap)
+    plots_dir = out_dir / "plots"
+    chart_path = out_dir / "chart_data.json"
+    heatmap_path = out_dir / "sequence_heatmap.json"
+    all_exist = (
+        plots_dir.exists() and list(plots_dir.glob("*.png"))
+        and chart_path.exists()
+        and heatmap_path.exists()
+    )
+    if not force and all_exist:
+        _log("info", "DTW artifacts exist at %s (plots + chart_data + sequence_heatmap); skipping (use --force to re-run)", out_dir)
         return
-    if not force and check_step_checkpoint_exists("9_dashboard_visuals", cohort_name, age_band, logger=logger):
-        _log("info", "Pipeline checkpoint exists for 9_dashboard_visuals %s/%s; skipping (use --force to re-run)", cohort_name, age_band)
+    if not force and check_step_checkpoint_exists("9_dashboard_visuals", cohort_name, age_band, logger=logger) and all_exist:
+        _log("info", "Pipeline checkpoint exists for 9_dashboard_visuals %s/%s and artifacts present; skipping (use --force to re-run)", cohort_name, age_band)
         return
 
     # Load DTW features (created by create_dtw_features.py)
@@ -167,24 +175,28 @@ def create_dtw_visuals(
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band, logger=logger)
 
     # Prebuild chart data (routine vs no routine, high-risk trajectories); write locally and upload to S3
-    out_dir = dtw_out / "outputs" / cohort_name / age_band_fname
     out_dir.mkdir(parents=True, exist_ok=True)
     chart_data = _build_dtw_chart_data(dtw_df)
-    if chart_data:
-        chart_path = out_dir / "chart_data.json"
-        with open(chart_path, "w", encoding="utf-8") as f:
-            json.dump(chart_data, f, indent=0)
-        _log("info", "Wrote %s", chart_path)
-        _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data, logger=logger)
+    if chart_data is None:
+        _log("warning", "DTW chart_data not produced for %s/%s: empty dataframe (writing minimal file so artifact path exists)", cohort_name, age_band)
+        chart_data = {}
+    elif not chart_data:
+        _log("warning", "DTW chart_data empty for %s/%s: no routine_comparison, high_risk, or N3 data (check admin_icd_event_count, target, seq_pattern_str, row count)", cohort_name, age_band)
+    # Write always so artifact path check passes; dashboard can show empty state
+    with open(chart_path, "w", encoding="utf-8") as f:
+        json.dump(chart_data, f, indent=0)
+    _log("info", "Wrote %s", chart_path)
+    _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data, logger=logger)
 
     # Sequence heatmap (code × position counts by ICD/CPT/Drug); write locally and upload to S3
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
-    if heatmap_data:
-        heatmap_path = out_dir / "sequence_heatmap.json"
-        with open(heatmap_path, "w", encoding="utf-8") as f:
-            json.dump(heatmap_data, f, indent=0)
-        _log("info", "Wrote %s", heatmap_path)
-        _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data, logger=logger)
+    if heatmap_data is None:
+        _log("warning", "DTW sequence_heatmap not produced for %s/%s: empty dataframe or missing seq_pattern_str (writing minimal file so artifact path exists)", cohort_name, age_band)
+        heatmap_data = {"drug": {"codes": [], "positions": [], "counts": []}}
+    with open(heatmap_path, "w", encoding="utf-8") as f:
+        json.dump(heatmap_data, f, indent=0)
+    _log("info", "Wrote %s", heatmap_path)
+    _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data, logger=logger)
 
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
     s3_output_paths = [
