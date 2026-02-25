@@ -1,0 +1,62 @@
+{
+  "repo_root": "",
+  "s3_prefix": "vcu/pgx-risk-calculator",
+  "visual_objects": [
+    {
+      "visual_name": "Feature importance heatmap (per cohort)",
+      "dashboard_tab": "Feature Importance",
+      "path_type": "file_pattern",
+      "path": "3a_feature_importance/outputs/{cohort}/plots/{cohort}_aggregated_fi_heatmap.png",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png",
+      "notes": "per cohort; notebook 5 uploads to visualizations/feature_importance/{cohort}/"
+    },
+    {
+      "visual_name": "Feature importance heatmap (combined)",
+      "dashboard_tab": "Feature Importance",
+      "path_type": "file",
+      "path": "3a_feature_importance/outputs/plots/combined_cohorts_feature_importance_heatmap.png",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png",
+      "notes": "combined cohorts"
+    },
+    {
+      "visual_name": "BupaR process matrix and activity frequency",
+      "dashboard_tab": "BupaR Process Mining",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/bupar/outputs",
+      "s3_path": "vcu/pgx-risk-calculator/bupar/{cohort}/{age_band}/plots/",
+      "notes": "{cohort}/{age_band_fname}/plots/; uploaded by 4_dashboard_visuals"
+    },
+    {
+      "visual_name": "DTW chart_data.json + sequence_heatmap + plots",
+      "dashboard_tab": "DTW Trajectories",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/dtw/outputs",
+      "s3_path": "vcu/pgx-risk-calculator/dtw/{cohort}/{age_band}/",
+      "notes": "{cohort}/{age_band_fname}/chart_data.json, sequence_heatmap.json, plots/; uploaded by 4_dashboard_visuals"
+    },
+    {
+      "visual_name": "FP-Growth itemsets and drug network",
+      "dashboard_tab": "FP-Growth Patterns",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/fpgrowth/outputs",
+      "s3_path": "vcu/pgx-risk-calculator/fpgrowth/{cohort}/{age_band}/plots/",
+      "notes": "{cohort}/{age_band_fname}/plots/, data/; uploaded by 4_dashboard_visuals"
+    },
+    {
+      "visual_name": "Cohort PGx network topology",
+      "dashboard_tab": "PGx Cohort",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/cohort_pgx/networks",
+      "s3_path": "vcu/pgx-risk-calculator/cohort_pgx/networks/{cohort}/{age_band}/",
+      "notes": "EC2 {age_band_fname}; Step 6 sync_cohort_pgx_to_s3 → S3 hyphen"
+    },
+    {
+      "visual_name": "Causal dashboard JSON",
+      "dashboard_tab": "Causal Analysis",
+      "path_type": "file_pattern",
+      "path": "10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/causal/{cohort}/{age_band}/causal_data.json",
+      "notes": "upload_causal_outputs_to_s3 → visualizations/causal/ (S3 hyphen)"
+    }
+  ]
+}

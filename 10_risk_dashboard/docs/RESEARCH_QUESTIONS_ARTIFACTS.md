@@ -14,7 +14,7 @@
 | **N2** | What sequences lead to target outcomes? | BupaR Process Mining | Sequences to target: `*_activity_sequence_top.png`. Pre-target activity: `*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json`; `*_overall_activity_frequency.png` (optional fallback). Trace explorer: `*_trace_explorer_plot.json` or `*_trace_explorer_interactive.html`, `*_trace_explorer_pre_f1120.png` / `*_trace_explorer_pre_hcg.png`. |
 | **N3** | What times between sequences lead to target outcomes? | DTW Trajectories | `chart_data.json`: `times_between_sequences`, `time_to_target_sequences` (when present). DTW overview/sample images for trajectory context. |
 | **N4** | Drug connections → target? (Risk-predictive co-occurrence) | FP-Growth Patterns | `*_combined_rules_network.html` (drug association network). `*_drug_name_combined_top_itemsets.png`. `.../data/drug_name_itemsets.json` (client Plotly). |
-| **N5** | What features drive outcome and how do they relate? | Causal Analysis, Feature Importance | **Causal:** `dashboard_data.json` → `causal_data`, `chart_data` (causal_factors, shap_importance, feature_interactions, radar). S3: `causal/{cohort}/{age_band}/causal_data.json` (age_band with hyphen). **Feature Importance:** `aggregated_fi_heatmap.png`, `aggregated_fi_heatmap.json` (per cohort or combined). |
+| **N5** | What features drive outcome and how do they relate? | Causal Analysis, Feature Importance | **Causal:** `dashboard_data.json` → `causal_data`, `chart_data` (causal_factors, shap_importance, feature_interactions, radar). S3: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (age_band with hyphen). **Feature Importance:** `aggregated_fi_heatmap.png`, `aggregated_fi_heatmap.json` (per cohort or combined). S3: `visualizations/feature_importance/{cohort}/...`, `visualizations/feature_importance/combined/...`. |
 | **N6** | What drug combinations drive polypharmacy ED? | Causal Analysis, BupaR | **Causal:** Same as N5 (drug-focused factors). **BupaR:** Drug × Drug process matrix: `*_process_matrix_drug_drug.png`, `*_process_matrix_drug_drug.json` (when present). Sequences and pre-target activity (same as N2). |
 
 **Cohort-level (RQ1/RQ2):** Risk Assessment, Drugs, ICD, CPT, Causal, and the above tabs together address RQ1 (polypharmacy) and RQ2 (opioid ED). No separate artifact list; they use the same tabs and metadata (e.g. `metadata_{cohort}.json`, models).
@@ -27,11 +27,11 @@
 - **Data:** Ensemble models (container or S3), `GET /metadata` (drugs, icd_codes, cpt_codes). No visualization artifacts; score and band from `POST /risk`.
 
 ### Feature Importance (N5)
-- **Keep:** `feature_importance/{cohort}/aggregated_fi_heatmap.png`, `.json`; `feature_importance/combined_cohorts_feature_importance_heatmap.png` (and JSON when present).
+- **Keep:** `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png`, `.json`; `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` (and JSON when present).
 - **API:** `GET /visualizations/feature_importance?cohort=`
 
 ### Causal Analysis (N5, N6)
-- **Keep:** `causal/{cohort}/{age_band}/causal_data.json` (S3 path uses hyphen; EC2 has `{age_band_fname}`). Lambda returns `chart_data` (causal_factors, shap_importance, feature_interactions, whatif).
+- **Keep:** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (S3 path uses hyphen; EC2 has `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/`). Lambda returns `chart_data` (causal_factors, shap_importance, feature_interactions, whatif).
 - **API:** `GET /visualizations/causal?cohort=&age_band=`
 
 ### BupaR Process Mining (N2, N6)

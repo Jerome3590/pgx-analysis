@@ -106,7 +106,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Subtitle:** Research focus (features drive outcome; drug combinations); uses same cohort, age, and code selections as Risk Assessment.
 - [ ] **Controls:** What-if scenario input (`#causal-whatif-codes`), Load Causal Analysis, Clear filters. Cohort/age from Risk Assessment context.
 - [ ] **Headings (path README):** Top Causal Factors (FFA), SHAP Feature Importance, **Feature Interactions** (panel within this tab, not a separate tab), Effect on outcome (by feature). Interactions come from Lambda `chart_data.feature_interactions` (causal_data.json).
-- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `causal/{cohort}/{age_band}/causal_data.json` (hyphen).
+- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (hyphen).
 - [ ] **Element IDs / chart containers:** Match script (e.g. causal factors chart, SHAP chart, `#interactions-chart` for Feature Interactions, radar).
 
 ---

@@ -156,7 +156,7 @@ def _load_combined_importance_from_dashboard(
     """
     Load combined SHAP+FFA importance from the Combine step output.
     Used as fallback when 7_shap_analysis / 8_ffa_analysis paths are missing.
-    Location: 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/combined_importance.csv
+    Location: 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/combined_importance.csv
     Returns DataFrame with columns: feature, importance.
     """
     if not project_root:
@@ -165,7 +165,8 @@ def _load_combined_importance_from_dashboard(
     path = (
         project_root
         / "10_risk_dashboard"
-        / "outputs"
+        / "visualizations"
+        / "causal"
         / cohort
         / age_band_fname
         / "combined_importance.csv"

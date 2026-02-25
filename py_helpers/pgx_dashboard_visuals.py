@@ -230,7 +230,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
         # Upload feature importance heatmaps (Step 3a / 2_feature_importance) for dashboard tab
         fi_base = REPO_ROOT / "3a_feature_importance" / "outputs"
         prefix_clean = s3_prefix.strip("/")
-        fi_prefix = f"{prefix_clean}/feature_importance"
+        fi_prefix = f"{prefix_clean}/visualizations/feature_importance"
         uploaded_fi = 0
         for cohort in COHORT_NAMES:
             plots_dir = fi_base / cohort / "plots"
@@ -291,7 +291,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
             print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
         elif fi_base.exists():
             print("  No feature importance heatmaps found under 3a_feature_importance/outputs (run 2_feature_importance to generate).")
-        # Upload causal dashboard JSON (Causal Analysis tab): 10_risk_dashboard/outputs -> S3 causal/
+        # Upload causal dashboard JSON (Causal Analysis tab): visualizations/causal -> S3 visualizations/causal/
         causal_script = DASHBOARD_DIR / "data_preparation" / "upload_causal_outputs_to_s3.py"
         if causal_script.exists():
             r_causal = subprocess.run([str(get_workflow_python_bin()), str(causal_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
