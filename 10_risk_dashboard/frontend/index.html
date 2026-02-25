@@ -576,23 +576,32 @@
     .code-subpanel.active {
       display: block;
     }
-    /* DTW tab sub-tabs: Overview & Trajectories | Routine vs No Routine */
-    #dtw-visualizations-tab .dtw-subtabs {
-      display: flex;
-      gap: 0.5rem;
-      margin: 1rem 0 1rem 0;
+    /* DTW tab sub-tabs: Overview & Trajectories | Routine vs No Routine (clearly visible) */
+    #dtw-visualizations-tab .dtw-subtabs-wrapper {
+      margin: 1rem 0 1.25rem 0;
+      padding: 0.5rem 0;
       border-bottom: 2px solid #e2e8f0;
     }
-    #dtw-visualizations-tab .dtw-subtab {
-      padding: 0.5rem 1rem;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      cursor: pointer;
-      font-size: 0.95rem;
+    #dtw-visualizations-tab .dtw-subtabs-wrapper .dtw-subtabs-label {
+      font-size: 0.85rem;
       font-weight: 600;
       color: #64748b;
-      margin-bottom: -2px;
+      margin-bottom: 0.5rem;
+    }
+    #dtw-visualizations-tab .dtw-subtabs {
+      display: flex;
+      gap: 0.25rem;
+    }
+    #dtw-visualizations-tab .dtw-subtab {
+      padding: 0.6rem 1.25rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #64748b;
     }
     #dtw-visualizations-tab .dtw-subtab:hover {
       color: #0f172a;
@@ -600,7 +609,10 @@
     }
     #dtw-visualizations-tab .dtw-subtab.active {
       color: #3b82f6;
-      border-bottom-color: #3b82f6;
+      background: #fff;
+      border-color: #e2e8f0;
+      border-bottom: 2px solid #fff;
+      margin-bottom: -2px;
     }
     #dtw-visualizations-tab .dtw-subpanel {
       display: none;
@@ -999,10 +1011,10 @@
       <div class="controls">
         <div class="control-group">
           <label for="fi-cohort">View:</label>
-          <select id="fi-cohort">
+          <select id="fi-cohort" aria-label="Feature importance view">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
-            <option value="combined">Combined</option>
+            <option value="combined">Combined cohorts</option>
           </select>
         </div>
         <div class="control-group full-width">
@@ -1019,45 +1031,44 @@
       </div>
     </div>
 
-    <!-- BupaR Visualizations Tab (drug-focused: sequences and Drug × Drug process matrix) -->
+    <!-- BupaR Visualizations Tab: drug-only (sequences, activity frequency, trace explorer, Drug × Drug process matrix) -->
     <div id="bupar-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Research focus:</strong> What drug sequences lead to target outcomes? Drug-only process matrix for clearer interpretation.
+        <strong>Research focus: drugs only.</strong> What drug sequences lead to target outcomes? All visuals use drug-only event logs; process matrix is Drug × Drug flows only.
         <br>
-        <small style="color: #64748b;">Process mining: activity frequency, trace explorer, and Process Matrix (Drug × Drug) only.</small>
+        <small style="color: #64748b;">Cohort and age band select which pipeline output to load. Only drug-only visuals are shown.</small>
       </p>
       <div class="controls">
         <div class="control-group">
-          <label for="bupar-cohort">Research question (cohort):</label>
-          <select id="bupar-cohort">
+          <label for="bupar-cohort">Cohort (drug-only analysis):</label>
+          <select id="bupar-cohort" aria-label="BupaR cohort">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
           <label for="bupar-age-band">Age Band:</label>
-          <select id="bupar-age-band"></select>
+          <select id="bupar-age-band" aria-label="BupaR age band"></select>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadBupaR">Load BupaR Visualizations</button>
         </div>
         <div class="control-group full-width" style="margin-top: 12px;">
           <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
-            <legend style="font-weight: 600;">Show visuals (per research question)</legend>
-            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which BupaR visuals to display. Selection is saved per cohort.</p>
+            <legend style="font-weight: 600;">Show visuals (drug-only)</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which visuals to display. All use drug-only data; process matrix is Drug × Drug.</p>
             <div id="bupar-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
-            <p style="font-size: 0.85em; color: #64748b; margin: 8px 0 0 0;">Research focus: drugs only — process matrix shows Drug × Drug flows.</p>
           </fieldset>
         </div>
       </div>
       <div id="bupar-status" class="status-message">Select cohort and age band, then click 'Load BupaR Visualizations'</div>
       <div class="panels">
         <div class="panel bupar-panel" data-visual-key="sequence">
-          <h2>Sequences to Target Outcomes</h2>
+          <h2>Sequences to Target Outcomes (drugs)</h2>
           <div id="bupar-sequence-image"></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="activity_frequency">
-          <h2>Overall Activity Frequency</h2>
+          <h2>Overall Activity Frequency (drugs)</h2>
           <div class="control-group">
             <label for="bupar-year-overall">Year:</label>
             <select id="bupar-year-overall"><option value="0">All Years (2016-2018)</option></select>
@@ -1065,7 +1076,7 @@
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-overall"></canvas></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="pre_target_frequency">
-          <h2>Pre-Target Activity Frequency</h2>
+          <h2>Pre-Target Activity Frequency (drugs)</h2>
           <div class="control-group">
             <label for="bupar-year-pre">Year:</label>
             <select id="bupar-year-pre"><option value="0">All Years (2016-2018)</option></select>
@@ -1073,7 +1084,7 @@
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-pre"></canvas></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="post_target_activity">
-          <h2>Post-Target Activity Frequency</h2>
+          <h2>Post-Target Activity Frequency (drugs)</h2>
           <div class="control-group">
             <label for="bupar-year-post">Year:</label>
             <select id="bupar-year-post"><option value="0">All Years (2016-2018)</option></select>
@@ -1081,65 +1092,61 @@
           <div style="position: relative; height: 400px;"><canvas id="bupar-chart-post"></canvas></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="trace_explorer">
-          <h2>Trace Explorer (top 20 traces)</h2>
+          <h2>Trace Explorer (top 20 traces, drugs)</h2>
           <div id="bupar-trace-explorer-image"></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="trace_explorer_pre">
-          <h2>Trace Explorer Pre-Target</h2>
+          <h2>Trace Explorer Pre-Target (drugs)</h2>
           <div id="bupar-trace-explorer-pre-image"></div>
-        </div>
-        <div class="panel bupar-panel" data-visual-key="process_matrix">
-          <h2>Process Matrix (flows between activities)</h2>
-          <div id="bupar-process-matrix-image"></div>
         </div>
         <div class="panel bupar-panel" data-visual-key="process_matrix_typepair">
           <h2>Process Matrix (Drug × Drug)</h2>
           <p style="font-size: 0.9em; color: #64748b;">Flows between drug activities only.</p>
           <div id="bupar-process-matrix-typepair-image"></div>
         </div>
-        <div class="panel bupar-panel" data-visual-key="frequency_map">
-          <h2>Frequency Map (directly-follows process map)</h2>
-          <div id="bupar-frequency-map-image"></div>
-        </div>
       </div>
     </div>
 
-    <!-- DTW Visualizations Tab: trajectories, drug sequences, and routine vs no routine (admin codes) -->
+    <!-- DTW Visualizations Tab: drug-only trajectories/sequences + Routine vs No Routine (admin codes) -->
     <div id="dtw-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Research focus:</strong> Drug trajectories and sequences; and <strong>how routine screenings (admin codes) relate to outcomes</strong> — including in high-utilizer (extreme) cohorts.
+        <strong>Research focus: drug trajectories and sequences</strong>; and <strong>how routine screenings (admin codes) relate to outcomes</strong>. Overview uses drug-only sequence data; heatmap is drugs only. Routine sub-tab: outcome rate and event counts by routine vs no routine.
         <br>
-        <small style="color: #64748b;">Use sub-tabs: <strong>Overview &amp; Trajectories</strong> (overview, sample trajectories, metrics, high-risk, times between, target pathway, heatmap) or <strong>Routine vs No Routine</strong> (outcome rate and medical/prescription event counts by admin ICD). Data: full pipeline (2016–2019).</small>
+        <small style="color: #64748b;">Select cohort and age band, then load. Use the sub-tabs below to switch between <strong>Overview &amp; Trajectories</strong> (drug-focused) and <strong>Routine vs No Routine</strong>. Data: full pipeline (2016–2019).</small>
       </p>
       <div class="controls">
         <div class="control-group">
-          <label for="dtw-cohort">Cohort:</label>
-          <select id="dtw-cohort">
+          <label for="dtw-cohort">Cohort (drug-only trajectories):</label>
+          <select id="dtw-cohort" aria-label="DTW cohort">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
         <div class="control-group">
           <label for="dtw-age-band">Age Band:</label>
-          <select id="dtw-age-band"></select>
+          <select id="dtw-age-band" aria-label="DTW age band"></select>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadDTW">Load DTW Visualizations</button>
         </div>
       </div>
       <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
-      <div class="dtw-subtabs" role="tablist">
-        <button type="button" class="dtw-subtab active" data-dtw-subtab="overview" onclick="switchDTWSubtab('overview')" aria-selected="true">Overview &amp; Trajectories</button>
-        <button type="button" class="dtw-subtab" data-dtw-subtab="routine" onclick="switchDTWSubtab('routine')" aria-selected="false">Routine vs No Routine</button>
+      <div class="dtw-subtabs-wrapper">
+        <div class="dtw-subtabs-label">Sub-tab:</div>
+        <div class="dtw-subtabs" role="tablist">
+          <button type="button" class="dtw-subtab active" data-dtw-subtab="overview" onclick="switchDTWSubtab('overview')" aria-selected="true">Overview &amp; Trajectories (drugs)</button>
+          <button type="button" class="dtw-subtab" data-dtw-subtab="routine" onclick="switchDTWSubtab('routine')" aria-selected="false">Routine vs No Routine</button>
+        </div>
       </div>
       <div class="panels">
         <div id="dtw-subpanel-overview" class="dtw-subpanel active">
           <div class="panel">
-            <h2>Trajectory Analysis Overview</h2>
+            <h2>Trajectory Analysis Overview (drugs)</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;">Cluster overview of drug sequences; drug-only trajectories.</small></p>
             <div id="dtw-overview-image"></div>
           </div>
           <div class="panel">
-            <h2>Sample Trajectories</h2>
+            <h2>Sample Trajectories (drugs)</h2>
             <div id="dtw-sample-trajectories-image"></div>
           </div>
           <div class="panel">
@@ -1147,29 +1154,29 @@
             <div id="dtw-metrics-chart"></div>
           </div>
           <div class="panel full-width">
-            <h2>High-Risk vs Low-Risk Trajectories</h2>
+            <h2>High-Risk vs Low-Risk Trajectories (drugs)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">Identify trajectory archetypes stratified by outcome/risk (high-risk vs low-risk).</small>
+              <small style="color: #64748b;">Trajectory archetypes stratified by outcome/risk; drug-only.</small>
             </p>
             <div id="dtw-high-risk-trajectories-container"></div>
           </div>
           <div class="panel full-width">
             <h2>Times Between Sequences (N3)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">What are the times in between sequences that lead to target outcomes? Mean days between consecutive events and mean days from first event to target, by routine vs no routine.</small>
+              <small style="color: #64748b;">Mean days between consecutive events and mean days to target, by routine vs no routine. Drug sequence context.</small>
             </p>
             <div id="dtw-times-between-container"></div>
             <div id="dtw-time-to-target-container"></div>
           </div>
           <div class="panel full-width">
-            <h2>Target Pathway Patterns</h2>
+            <h2>Target Pathway Patterns (drugs)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">Common activity codes in trajectories leading to the target outcome (target=1).</small>
+              <small style="color: #64748b;">Common drug codes in trajectories leading to the target outcome (target=1).</small>
             </p>
             <div id="dtw-target-pathway-container"></div>
           </div>
           <div class="panel full-width">
-            <h2>Common Sequences Heatmap (Drugs)</h2>
+            <h2>Common Sequences Heatmap (Drugs only)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">How often each drug appears at each position in trajectories. Darker = more common. Research focus: drug names only.</small>
             </p>
@@ -1180,11 +1187,11 @@
           <div class="panel full-width">
             <h2>Routine vs No Routine (Outcomes)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">Core analysis: Do routine screenings (administrative ICD codes) associate with better outcomes? Outcome rate by routine appointments (1+ admin ICD events) vs no routine (0 admin ICD). This highlights how routine care may reduce extreme outcomes; relevant for main and extreme-density cohorts. Data: full pipeline (2016–2019).</small>
+              <small style="color: #64748b;">Core analysis: Do routine screenings (administrative ICD codes) associate with better outcomes? Outcome rate by routine appointments (1+ admin ICD events) vs no routine (0 admin ICD). Highlights how routine care may reduce extreme outcomes. Data: full pipeline (2016–2019).</small>
             </p>
             <div id="dtw-routine-comparison-container"></div>
             <p class="subtitle" style="margin-top: 1rem; margin-bottom: 0.5rem;">
-              <small style="color: #64748b;">Mean medical events (ICD/CPT) and prescription events (drugs) per patient by routine vs no routine — shows how routine screenings decrease both medical and prescription event counts.</small>
+              <small style="color: #64748b;">Mean medical events (ICD/CPT) and prescription events (drugs) per patient by routine vs no routine.</small>
             </p>
             <div id="dtw-routine-comparison-counts-container"></div>
           </div>
@@ -2612,12 +2619,27 @@
 
       if (data.heatmap_data) {
         renderFIHeatmapFromData(data.heatmap_data);
-        document.getElementById("fi-status").textContent = "Feature importance heatmap loaded.";
-        document.getElementById("fi-status").className = "status-message success";
+        // If JSON didn't render (e.g. wrong shape), fall back to image so we always show one visual
+        var chartVisible = fiHeatmapChart && fiHeatmapChart.style.display !== "none" && fiHeatmapChart.innerHTML !== "";
+        if (!chartVisible && data.heatmap_url) {
+          if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
+          fiHeatmapImg.src = data.heatmap_url;
+          fiHeatmapImg.style.display = "block";
+          fiHeatmapImg.onerror = function() { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
+          document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (image).";
+          document.getElementById("fi-status").className = "status-message success";
+        } else if (chartVisible) {
+          document.getElementById("fi-status").textContent = "Feature importance heatmap loaded.";
+          document.getElementById("fi-status").className = "status-message success";
+        } else {
+          document.getElementById("fi-status").textContent = "Heatmap data format not recognized. Try image fallback or run pipeline.";
+          document.getElementById("fi-status").className = "status-message error";
+        }
       } else if (data.heatmap_url) {
+        if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
         fiHeatmapImg.src = data.heatmap_url;
         fiHeatmapImg.style.display = "block";
-        fiHeatmapImg.onerror = () => { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
+        fiHeatmapImg.onerror = function() { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
         document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (image).";
         document.getElementById("fi-status").className = "status-message success";
       } else {
@@ -3034,16 +3056,15 @@
     }
   }
 
+  // Drug-only: no combined process matrix or frequency map (research focus = Drug × Drug only)
   const BUPAR_VISUAL_KEYS_INDEX = [
-    { key: 'activity_frequency', label: 'Overall Activity Frequency' },
-    { key: 'pre_target_frequency', label: 'Pre-Target Activity Frequency' },
-    { key: 'post_target_activity', label: 'Post-Target Activity Frequency' },
-    { key: 'sequence', label: 'Sequences to Target' },
-    { key: 'trace_explorer', label: 'Trace Explorer' },
-    { key: 'trace_explorer_pre', label: 'Trace Explorer Pre-Target' },
-    { key: 'process_matrix', label: 'Process Matrix (combined)' },
-    { key: 'process_matrix_typepair', label: 'Process Matrix (Drug × Drug)' },
-    { key: 'frequency_map', label: 'Frequency Map' }
+    { key: 'activity_frequency', label: 'Overall Activity Frequency (drugs)' },
+    { key: 'pre_target_frequency', label: 'Pre-Target Activity Frequency (drugs)' },
+    { key: 'post_target_activity', label: 'Post-Target Activity Frequency (drugs)' },
+    { key: 'sequence', label: 'Sequences to Target (drugs)' },
+    { key: 'trace_explorer', label: 'Trace Explorer (drugs)' },
+    { key: 'trace_explorer_pre', label: 'Trace Explorer Pre-Target (drugs)' },
+    { key: 'process_matrix_typepair', label: 'Process Matrix (Drug × Drug)' }
   ];
   const BUPAR_STORAGE_KEY_INDEX = 'bupar_visuals_selection';
 
@@ -3086,22 +3107,19 @@
 
   // Map BupaR panel element id -> proxy visual param (for HTML iframes so they render instead of download)
   const BUPAR_HTML_PROXY_VISUAL = {
-    'bupar-trace-explorer-image': 'trace_explorer_interactive',
-    'bupar-process-matrix-image': 'process_matrix_interactive'
+    'bupar-trace-explorer-image': 'trace_explorer_interactive'
   };
   function renderBupaRVisualizations(data, selectedKeys, opts) {
     const keys = selectedKeys && selectedKeys.length ? selectedKeys : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
     document.querySelectorAll('.bupar-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
     });
-    const typepairKey = 'drug_drug';  // Research focus: drugs only
+    const typepairKey = 'drug_drug';  // Drug-only: only Drug × Drug process matrix
     const imageMap = {
       'bupar-sequence-image': data.sequence_image,
       'bupar-trace-explorer-image': data.trace_explorer_interactive || data.trace_explorer_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-process-matrix-image': data.process_matrix_interactive || data.process_matrix_image,
-      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey],
-      'bupar-frequency-map-image': data.frequency_map_image
+      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey]
     };
     const keyToElement = {
       activity_frequency: null,
@@ -3110,9 +3128,7 @@
       sequence: 'bupar-sequence-image',
       trace_explorer: 'bupar-trace-explorer-image',
       trace_explorer_pre: 'bupar-trace-explorer-pre-image',
-      process_matrix: 'bupar-process-matrix-image',
-      process_matrix_typepair: 'bupar-process-matrix-typepair-image',
-      frequency_map: 'bupar-frequency-map-image'
+      process_matrix_typepair: 'bupar-process-matrix-typepair-image'
     };
     const cohort = opts && opts.cohort;
     const ageBand = opts && opts.ageBand;
