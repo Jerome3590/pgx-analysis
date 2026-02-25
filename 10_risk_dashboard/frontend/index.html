@@ -966,9 +966,11 @@
     <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW; final model refines further) -->
     <div id="feature-importance-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Aggregated feature importance by age band.</strong> Heatmaps from Step 3a (Monte Carlo CV, permutation importance) built in <code>2_feature_importance.ipynb</code>. One heatmap per cohort: rows = top features, columns = age bands (13-24 through 85-114). Initial input for BupaR, FP-Growth, and DTW; final model will refine these further.
+        <strong>Feature importance by age band.</strong> Filter by <strong>cohort</strong> and <strong>model</strong>. Heatmaps from Step 3a (Monte Carlo CV) in <code>2_feature_importance.ipynb</code>: rows = top features, columns = age bands.
         <br>
-        <small style="color: #64748b;">Select cohort and click Load to view the aggregated FI heatmap. Upload heatmaps to the dashboard bucket under <code>feature_importance/{cohort}/aggregated_fi_heatmap.png</code> for them to appear here.</small>
+        <small style="color: #64748b;"><strong>Final (aggregated, used for training)</strong> = aggregated feature importance with admin/Z and target-leakage removed — the final features used for model training. Other options show per-model views (CatBoost, XGBoost, XGBoost RF) of the same final feature set.</small>
+        <br>
+        <small style="color: #64748b;">All importance values are from <strong>25 Monte Carlo CV runs</strong> (Step 3a).</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -978,6 +980,15 @@
             <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
+        <div class="control-group">
+          <label for="fi-model">Model:</label>
+          <select id="fi-model">
+            <option value="aggregated">Final (aggregated, used for training)</option>
+            <option value="catboost">CatBoost</option>
+            <option value="xgboost">XGBoost</option>
+            <option value="xgboost_rf">XGBoost RF</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadFeatureImportance">Load Feature Importance Heatmap</button>
         </div>
@@ -985,7 +996,7 @@
       <div id="fi-status" class="status-message">Select cohort and click 'Load Feature Importance Heatmap'</div>
       <div class="panels">
         <div class="panel full-width">
-          <h2>Aggregated Feature Importance by Age Band</h2>
+          <h2>Feature Importance by Age Band</h2>
           <div id="fi-heatmap-container">
             <div id="fi-heatmap-chart" style="display: none; width: 100%; min-height: 400px;"></div>
             <img id="fi-heatmap-image" alt="Aggregated feature importance heatmap" style="max-width: 100%; height: auto;" />
@@ -2486,8 +2497,9 @@
       colorscale: "YlOrRd",
       hovertemplate: "%{y} | %{x}: %{z:.3f}<extra></extra>"
     };
+    const modelLabel = heatmapData.model ? " (" + heatmapData.model + ")" : "";
     Plotly.newPlot(fiHeatmapChart, [trace], {
-      title: "Aggregated Feature Importance by Age Band — " + (heatmapData.cohort || ""),
+      title: "Feature Importance by Age Band — " + (heatmapData.cohort || "") + modelLabel,
       xaxis: { title: "Age Band", tickangle: -45 },
       yaxis: { title: "Feature", autorange: "reversed" },
       margin: { t: 50, r: 120, b: 80, l: 200 },
@@ -2499,6 +2511,7 @@
 
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
+    const model = (document.getElementById("fi-model")?.value || "aggregated");
     if (!cohort) {
       document.getElementById("fi-status").textContent = "Please select a cohort";
       document.getElementById("fi-status").className = "status-message error";
@@ -2509,7 +2522,7 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
+      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}&model=${encodeURIComponent(model)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 

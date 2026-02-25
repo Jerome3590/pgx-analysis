@@ -232,8 +232,9 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
         fi_prefix = f"{prefix_clean}/feature_importance"
         uploaded_fi = 0
         for cohort in COHORT_NAMES:
-            local_png = fi_base / cohort / "plots" / f"{cohort}_aggregated_fi_heatmap.png"
-            local_json = fi_base / cohort / "plots" / f"{cohort}_aggregated_fi_heatmap.json"
+            plots_dir = fi_base / cohort / "plots"
+            local_png = plots_dir / f"{cohort}_aggregated_fi_heatmap.png"
+            local_json = plots_dir / f"{cohort}_aggregated_fi_heatmap.json"
             if local_png.exists():
                 s3_key = f"{fi_prefix}/{cohort}/aggregated_fi_heatmap.png"
                 r2 = subprocess.run(
@@ -252,6 +253,18 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
                 if r2j.returncode == 0:
                     uploaded_fi += 1
                     print(f"  Uploaded FI heatmap data: {s3_key_json}")
+            # Per-model heatmap JSONs (same pattern: row_labels, column_labels, matrix) for model filter
+            for model in ("catboost", "xgboost", "xgboost_rf"):
+                m_json = plots_dir / f"{cohort}_{model}_fi_heatmap.json"
+                if m_json.exists():
+                    m_key = f"{fi_prefix}/{cohort}/{model}_fi_heatmap.json"
+                    r2m = subprocess.run(
+                        ["aws", "s3", "cp", str(m_json), f"s3://{s3_bucket}/{m_key}", "--region", "us-east-1"],
+                        capture_output=True, text=True,
+                    )
+                    if r2m.returncode == 0:
+                        uploaded_fi += 1
+                        print(f"  Uploaded FI heatmap data: {m_key}")
         combined_png = fi_base / "plots" / "combined_cohorts_feature_importance_heatmap.png"
         if combined_png.exists():
             s3_key_combined = f"{fi_prefix}/combined_cohorts_feature_importance_heatmap.png"
