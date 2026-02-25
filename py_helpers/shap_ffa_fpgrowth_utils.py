@@ -313,14 +313,12 @@ def _load_final_feature_importance(
     )
     path = resolver.resolve()
     if not path or not path.exists():
-        age_band_fname = age_band.replace("-", "_")
-        expected = (
-            project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname
-            / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
-        )
+        paths_checked = resolver.get_candidate_paths()
+        paths_str = "\n  ".join(str(p) for p in paths_checked) if paths_checked else "(none)"
         raise FileNotFoundError(
             f"Step 3b cohort_feature_importance required (same input as Step 4 model training and SHAP/FFA) but not found for {cohort}/{age_band}. "
-            f"Expected: {expected} — Run 3b_feature_importance_eda first. No fallback."
+            f"Checked:\n  {paths_str}\n"
+            "Run 3b_feature_importance_eda first. No fallback."
         )
     df = pd.read_csv(path)
     if "feature" not in df.columns and len(df.columns) >= 1:

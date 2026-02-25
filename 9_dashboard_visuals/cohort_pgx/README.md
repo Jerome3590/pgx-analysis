@@ -192,19 +192,18 @@ Upload to the dashboard S3 bucket happens **inside** `build_network_topology.py`
 - **Notebook 4_dashboard_visuals.ipynb**: Runs fetch → build. Each build uploads to S3 (same pattern as BupaR/DTW/FP-Growth). **Notebook 5** (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` to S3 when you deploy.
 - **run_dashboard_visuals.py**: Runs full step-9 pipeline including Cohort PGx (fetch VIP reports, build network topology; each build uploads to S3). Use `--skip-cohort-pgx` to omit Cohort PGx; use `--no-cohort-pgx-upload` to build but not upload.
 
-Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (e.g. `network_topology.html`) and are uploaded to `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/`.
+Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (EC2: underscore). Step 6 runs `sync_cohort_pgx_to_s3.py`, which uploads to `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/` (S3: hyphen).
 
 **Logs (Cohort PGx):** When you run `fetch_vip_reports.py` from the command line, logs are written to **`9_dashboard_visuals/logs/cohort_pgx/fetch_vip_reports_{cohort}_{age_band_fname}.log`** (and to stderr). Use `--log-file PATH` to override. `build_network_topology.py` uses `print()` only; its output appears in the terminal or notebook cell output.
 
 ### Upload to S3 (production)
 
-Build step uploads to S3; **notebook 5** (Step 6: Sync Dashboard Frontend) syncs `10_risk_dashboard/visualizations/cohort_pgx/` to S3 when you deploy. Lambda expects objects at `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`.
+**Notebook 5** (Step 6) runs `sync_cohort_pgx_to_s3.py`, which maps EC2 dirs `25_44` to S3 keys `25-44`. Lambda expects `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (hyphen in age_band).
 
 To re-sync without a full deploy (e.g. manual or CI):
 
 ```bash
-aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ \
-  s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/
+python 10_risk_dashboard/deployment/sync_cohort_pgx_to_s3.py
 ```
 
 ### Lambda API Endpoint
@@ -215,8 +214,8 @@ Add to `lambda_function.py`:
 @app.get("/visualizations/cohort-pgx")
 def get_cohort_pgx_viz(cohort: str, age_band: str):
     """Get Cohort PGx network topology visualization URLs."""
-    age_band_fname = age_band.replace("-", "_")
-    base_url = f"https://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/{cohort}/{age_band_fname}"
+    # S3 path uses hyphen (25-44); no conversion needed for URL
+    base_url = f"https://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}"
     
     return {
         "network_topology": f"{base_url}/network_topology.html",

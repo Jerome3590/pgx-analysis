@@ -955,8 +955,8 @@ def _upload_network_to_dashboard_s3(
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    age_band_fname = age_band.replace("-", "_")
-    s3_prefix = f"{dashboard_prefix}/cohort_pgx/networks/{cohort_name}/{age_band_fname}"
+    # S3 paths use hyphen (25-44); EC2 output_dir uses underscore (25_44)
+    s3_prefix = f"{dashboard_prefix}/cohort_pgx/networks/{cohort_name}/{age_band}"
 
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3

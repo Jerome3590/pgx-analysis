@@ -27,6 +27,8 @@ from typing import Optional
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from py_helpers.env_utils import get_workflow_python_bin
+
 import logging
 
 # Setup simple logging
@@ -45,7 +47,7 @@ def run_script(script_path: Path, args: list, description: str) -> bool:
     
     try:
         result = subprocess.run(
-            [sys.executable, str(script_path)] + args,
+            [str(get_workflow_python_bin()), str(script_path)] + args,
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,

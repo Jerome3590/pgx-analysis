@@ -33,6 +33,7 @@ DATA_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "cpic"
 
 # Required cohorts and age bands (each cohort has all age bands)
 from py_helpers.constants import REQUIRED_COHORTS
+from py_helpers.env_utils import get_workflow_python_bin
 
 # S3 paths
 S3_BUCKET = "pgxdatalake"
@@ -241,7 +242,7 @@ def prepare_data(download_s3: bool = False) -> bool:
         log("  CPIC file missing; running prepare_cpic_data.py...")
         try:
             r = subprocess.run(
-                [sys.executable, str(PROJECT_ROOT / "10_risk_dashboard" / "data_preparation" / "prepare_cpic_data.py")],
+                [str(get_workflow_python_bin()), str(PROJECT_ROOT / "10_risk_dashboard" / "data_preparation" / "prepare_cpic_data.py")],
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
                 text=True,

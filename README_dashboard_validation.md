@@ -14,6 +14,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 |------------|--------------------------|--------|
 | 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Causal Analysis tab. |
 | 2025-02-25 | Validation README        | Added per-tab and main-page sections; this updates log for tracking. |
+| 2025-02-25 | CORS & static paths      | Documented same-origin path URLs (metadata, doc metrics); added CORS checklist and S3_CORS_SETUP reference; fixed s3-cors-config.json to CORSRules format for put-bucket-cors. |
 
 ---
 
@@ -105,7 +106,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Subtitle:** Research focus (features drive outcome; drug combinations); uses same cohort, age, and code selections as Risk Assessment.
 - [ ] **Controls:** What-if scenario input (`#causal-whatif-codes`), Load Causal Analysis, Clear filters. Cohort/age from Risk Assessment context.
 - [ ] **Headings (path README):** Top Causal Factors (FFA), SHAP Feature Importance, **Feature Interactions** (panel within this tab, not a separate tab), Effect on outcome (by feature). Interactions come from Lambda `chart_data.feature_interactions` (causal_data.json).
-- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). Path README: `causal/{cohort}/{age_band_fname}/causal_data.json`.
+- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `causal/{cohort}/{age_band}/causal_data.json` (hyphen).
 - [ ] **Element IDs / chart containers:** Match script (e.g. causal factors chart, SHAP chart, `#interactions-chart` for Feature Interactions, radar).
 
 ---
@@ -155,8 +156,21 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 - [ ] **Path-style S3 only:** All iframe/image URLs for S3 use path-style:  
   `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. No virtual-hosted style.
-- [ ] **Metadata endpoints:** References to `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json` match backend and path README.
+- [ ] **Same-origin (path) URLs:** Metadata and doc metrics use **path URLs only** (no full S3 URL). Frontend uses `staticJsonPath(relativePath)` so requests go to same origin (e.g. `https://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json`). No CORS needed for those.
+- [ ] **Metadata endpoints:** References to `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json` match backend and path README. Deploy uploads local `metadata_opioid_ed.json` → S3 key `metadata/opioid_ed.json` (and non_opioid_ed) so same-origin fetch works.
 - [ ] **Visualization API keys:** BupaR and other handlers request only RQ artifact keys; no archived keys (e.g. trace_explorer_image, process_matrix_image, frequency_map_image).
+
+---
+
+## CORS (direct S3 fetches)
+
+When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 URLs** (path-style, e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/dtw/opioid_ed/25-44/chart_data.json`), the request is **cross-origin**. S3 must return `Access-Control-Allow-Origin` or the browser blocks the response (CORS error).
+
+- [ ] **Dashboard bucket CORS applied:** Bucket `jerome-dixon.io` has CORS configured so `AllowedOrigins` includes `https://jerome-dixon.io` (and any dev origins). See [10_risk_dashboard/docs/S3_CORS_SETUP.md](10_risk_dashboard/docs/S3_CORS_SETUP.md).
+- [ ] **Config file:** `10_risk_dashboard/docs/s3-cors-config.json` is in the format required by `aws s3api put-bucket-cors` (object with `CORSRules` array). Apply with:  
+  `aws s3api put-bucket-cors --bucket jerome-dixon.io --cors-configuration file://10_risk_dashboard/docs/s3-cors-config.json`
+- [ ] **What needs CORS:** Any asset the frontend loads via a **direct S3 URL** (e.g. `chart_data_url`, `sequence_heatmap_url`, `causal_data_url`, BupaR/DTW/FP-Growth image or HTML URLs returned by the API). Same-origin requests (e.g. `metadata/opioid_ed.json` via CloudFront) do **not** require S3 CORS.
+- [ ] **Deploy workflow:** Notebook 5 **Step 6** runs `apply_dashboard_bucket_cors.py` before syncing frontend/assets so CORS is applied idempotently on every deploy and when adding new visuals.
 
 ---
 
@@ -166,6 +180,11 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] Cohort/age_band query params and dropdown values match backend (e.g. age band `25_44` in URLs vs `25-44` in labels).
 
 ---
+
+## Causal Analysis artifact locations (validate with code)
+
+- **EC2:** `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json`. Written by `combine_shap_ffa_results.py` (default `--output-dir 10_risk_dashboard/outputs`). Checked by `check_dashboard_artifact_paths.py`.
+- **S3:** `causal/{cohort}/{age_band}/causal_data.json` (hyphen). Uploaded by `upload_causal_outputs_to_s3.py` (reads from EC2 path above) or `combine_shap_ffa_results.py --upload-to-dashboard`. Lambda reads from this S3 key.
 
 ## After frontend changes
 
@@ -180,12 +199,14 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 | Data visual | Tab | EC2 path | S3 path | Data visual type | File extension | Plot type |
 |-------------|-----|----------|--------|------------------|----------------|----------|
 | Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `feature_importance/{cohort}/` or `feature_importance/combined/` | image or JSON | `.png`, `.json` | heatmap |
-| Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band_fname}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
+| Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
 | BupaR sequences, frequency, trace explorer, process matrix | BupaR Process Mining | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `bupar/{cohort}/{age_band}/plots/` | image, JSON, HTML | `.png`, `.json`, `.html` | sequence, frequency, matrix, iframe |
 | DTW chart_data, sequence_heatmap, plots | DTW Trajectories | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` | `dtw/{cohort}/{age_band}/` | JSON, image | `.json`, `.png` | trajectory, heatmap, Plotly |
 | FP-Growth itemsets, network | FP-Growth Patterns | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` | `fpgrowth/{cohort}/{age_band}/plots/`, `.../data/` | image, JSON, HTML | `.png`, `.json`, `.html` | itemsets, network (iframe) |
-| Gene–Drug–Phenotype network | PGx Cohort | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `cohort_pgx/networks/{cohort}/{age_band_fname}/` | HTML | `.html` | network (iframe) |
+| Gene–Drug–Phenotype network | PGx Cohort | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `cohort_pgx/networks/{cohort}/{age_band}/` | HTML | `.html` | network (iframe) |
 | Metadata, model metrics | Risk Assessment, Drugs, ICD, CPT, Documentation | `10_risk_dashboard/outputs/metadata/`, `.../models/`, `.../cpic/` | `metadata/*.json` or Lambda | JSON / API | `.json` | — |
+
+**Age bands:** EC2/file paths use underscore (`age_band_fname`, e.g. `25_44`); **S3 paths use hyphen** (`age_band`, e.g. `25-44`). BupaR, DTW, FP-Growth S3 paths already use hyphen; causal and cohort_pgx use hyphen in S3.
 
 **Full per-artifact paths:** [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md).
 
@@ -198,3 +219,4 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 | README_dashboard_visual_artifact_paths.md | Tab name, visual heading, EC2 path, S3 key (path-style) |
 | RESEARCH_QUESTIONS_ARTIFACTS.md | Which artifacts we keep; per-tab list; pipeline/Lambda alignment |
 | ARCHIVED_ARTIFACTS_NO_LONGER_USED.md | Do not add panels or API requests for these |
+| **10_risk_dashboard/docs/S3_CORS_SETUP.md** | **CORS and 403:** Apply CORS to dashboard bucket for direct S3 URL fetches (DTW chart_data.json, causal_data_url, etc.); bucket policy for public read if using direct S3 |

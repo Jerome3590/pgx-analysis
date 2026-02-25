@@ -32,6 +32,20 @@ if not matplotlib.get_backend().startswith("module://"):
         pass
 
 
+def _feature_label_for_display(name: str) -> str:
+    """
+    Convert feature name to display label: strip item_drug_ prefix and normalize drug names
+    (underscores to spaces, title case). Other features returned unchanged.
+    """
+    if not name or not isinstance(name, str):
+        return name
+    s = name.strip()
+    if s.startswith("item_drug_"):
+        rest = s.replace("item_drug_", "", 1)
+        return rest.replace("_", " ").strip().title()
+    return s
+
+
 def _resolve_project_root(outputs_base: Path) -> Optional[Path]:
     """Infer repo root from 3a_feature_importance/outputs when possible."""
     try:
@@ -48,8 +62,9 @@ def _resolve_aggregated_fi_csv_3b(project_root: Path, cohort: str, age_band: str
     No fallback to 3a. Raises FileNotFoundError if 3b artifact is missing (pipeline breaks until 3b is run).
     """
     if not project_root or not project_root.exists():
+        checked = str(project_root) if project_root else "(project_root not set)"
         raise FileNotFoundError(
-            "project_root is required and must exist to load Step 3b cohort_feature_importance. "
+            f"project_root is required and must exist to load Step 3b cohort_feature_importance. Checked: {checked}. "
             "Run 3b_feature_importance_eda (BupaR + filter_and_refine_features) first."
         )
     age_band_fname = age_band.replace("-", "_")
@@ -63,7 +78,7 @@ def _resolve_aggregated_fi_csv_3b(project_root: Path, cohort: str, age_band: str
     )
     if not path_3b.exists():
         raise FileNotFoundError(
-            f"Step 3b artifact required but not found: {path_3b}. "
+            f"Step 3b artifact required but not found. Checked: {path_3b}. "
             "Run 3b_feature_importance_eda for this cohort/age_band (BupaR + filter_and_refine_features). No fallback to 3a."
         )
     return path_3b
@@ -108,9 +123,9 @@ def get_aggregated_fi_heatmap_data(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 50,
+    top_n: int = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 80,
+    max_rows: int = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Dict[str, Any]]:
@@ -193,7 +208,7 @@ def get_aggregated_fi_heatmap_data(
     if len(pivot) > max_rows:
         pivot = pivot.iloc[:max_rows]
 
-    row_labels = list(pivot.index.astype(str))
+    row_labels = [_feature_label_for_display(str(i)) for i in pivot.index]
     column_labels = list(pivot.columns.astype(str))
     matrix = pivot.values.tolist()
 
@@ -227,9 +242,9 @@ def get_fi_heatmap_data_for_model(
     age_bands: List[str],
     outputs_base: Path,
     model: str,
-    top_n: int = 50,
+    top_n: int = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 80,
+    max_rows: int = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Dict[str, Any]]:
@@ -306,7 +321,7 @@ def get_fi_heatmap_data_for_model(
     return {
         "cohort": cohort,
         "model": model,
-        "row_labels": list(pivot.index.astype(str)),
+        "row_labels": [_feature_label_for_display(str(i)) for i in pivot.index],
         "column_labels": list(pivot.columns.astype(str)),
         "matrix": pivot.values.tolist(),
         "metric": "importance",
@@ -356,7 +371,10 @@ def get_single_age_band_fi(
         return None
     df = df[["feature", col]].copy()
     df = df.nlargest(top_n, col)
-    features = [{"feature": str(row["feature"]), "importance": float(row[col])} for _, row in df.iterrows()]
+    features = [
+        {"feature": _feature_label_for_display(str(row["feature"])), "importance": float(row[col])}
+        for _, row in df.iterrows()
+    ]
     return {
         "cohort": cohort,
         "model": model,
@@ -425,10 +443,10 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
 
 def build_fi_dashboard_jsons(
     outputs_base: Path,
-    top_n: int = 50,
-    single_band_top_n: int = 100,
+    top_n: int = 200,
+    single_band_top_n: int = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 80,
+    max_rows: int = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Dict[str, Any]:
@@ -496,9 +514,9 @@ def write_aggregated_fi_heatmap_json(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 50,
+    top_n: int = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 80,
+    max_rows: int = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Path]:
@@ -522,7 +540,7 @@ def create_aggregated_fi_heatmap(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 50,
+    top_n: int = 200,
     importance_col: Optional[str] = None,
 ) -> Optional[Path]:
     """
@@ -538,7 +556,7 @@ def create_aggregated_fi_heatmap(
         cohort: Cohort name (e.g. opioid_ed, non_opioid_ed).
         age_bands: List of age bands (e.g. ["13-24", "25-44"]).
         outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance/outputs). Input CSVs are from Step 3b only.
-        top_n: Number of top features per age band to include in union (default 50).
+        top_n: Number of top features per age band to include in union (default 200).
         importance_col: Column name for importance (default: first of scaled_importance_mean,
             importance_mean, importance_scaled, importance_normalized).
 
@@ -692,7 +710,7 @@ def create_combined_cohorts_fi_heatmap(
     combined_json_path = combined_dir / "aggregated_fi_heatmap.json"
     heatmap_data = {
         "cohort": "combined",
-        "row_labels": list(pivot.index.astype(str)),
+        "row_labels": [_feature_label_for_display(str(i)) for i in pivot.index],
         "column_labels": list(pivot.columns.astype(str)),
         "matrix": pivot.values.tolist(),
         "metric": "importance",
@@ -702,6 +720,7 @@ def create_combined_cohorts_fi_heatmap(
 
     heatmap_path = plots_dir / "combined_cohorts_feature_importance_heatmap.png"
 
+    pivot.index = [_feature_label_for_display(str(i)) for i in pivot.index]
     fig, ax = plt.subplots(figsize=(max(6, len(cohort_names) * 3), max(10, len(pivot) * 0.2)))
     sns.heatmap(
         pivot,

@@ -36,6 +36,7 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
+from py_helpers.env_utils import get_workflow_python_bin
 from py_helpers.rscript_utils import find_rscript, print_rscript_version
 
 
@@ -95,7 +96,7 @@ def run_bupar_analysis(
     elif build_script.exists():
         print(f"[INFO] Building BupaR input from cohort data + 3a aggregated FI + target...")
         build_result = subprocess.run(
-            [sys.executable, str(build_script), "--cohort", cohort, "--age-band", age_band],
+            [str(get_workflow_python_bin()), str(build_script), "--cohort", cohort, "--age-band", age_band],
             cwd=str(project_root),
             capture_output=True,
             text=True,
@@ -271,7 +272,7 @@ def run_bupar_analysis(
             if create_analysis_script.exists():
                 # Note: subprocess already imported at top of file
                 cmd = [
-                    sys.executable,
+                    str(get_workflow_python_bin()),
                     str(create_analysis_script),
                     "--cohort", cohort,
                     "--age-band", age_band

@@ -8,9 +8,14 @@ Scripts and configurations for deploying the dashboard to AWS.
 
 - **`docker_build.sh`** - Build and push Docker image to ECR
 - **`prepare_lambda_dir.py`** - Prepare Lambda deployment package
+- **`apply_dashboard_bucket_cors.py`** - Apply CORS to the dashboard S3 bucket (idempotent). Run by Step 6 in notebook 5; can also be run standalone or with `--check` to print current CORS.
 - **`scripts/`** - Additional deployment helper scripts
 
-**Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}` (e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`).
+**Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. **Age bands:** EC2 paths use underscore (e.g. `25_44`); S3 paths use hyphen (e.g. `25-44`). Use `sync_cohort_pgx_to_s3.py` for Cohort PGx so S3 keys use hyphen.
+
+**Static-first JSON (fast/cheap):** Pre-built JSON (metadata, feature importance) is loaded from same-origin paths (S3/CloudFront) first; Lambda API is fallback. See [../docs/STATIC_FIRST_JSON.md](../docs/STATIC_FIRST_JSON.md) for the pattern and S3 layout.
+
+**S3 CORS and public read:** When the frontend fetches direct S3 URLs (e.g. `causal_data_url`), the dashboard bucket must have (1) **CORS** configured and (2) **bucket policy** allowing public `GetObject` for the dashboard prefix (or serve assets only via CloudFront). See [../docs/S3_CORS_SETUP.md](../docs/S3_CORS_SETUP.md) (CORS + 403 troubleshooting) and `../docs/s3-public-read-policy.json`. **CORS is applied automatically** in the deployment workflow: notebook 5 **Step 6** runs `apply_dashboard_bucket_cors.py` before syncing frontend/assets so the bucket CORS is idempotent and repeatable for production and new visuals.
 
 ## Deployment Steps
 

@@ -7,10 +7,10 @@ to create comprehensive patient-level explanations. Note: Consensus is already r
 in FFA's causal importance scores, which use SHAP-prioritized rules.
 
 Usage:
-    python 10_results/combine_shap_ffa_results.py \
-        --cohort non_opioid_ed \
-        --age-band 65-74 \
-        --output-dir 10_results/outputs
+    python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \\
+        --cohort opioid_ed --age-band 25-44
+    # Writes to 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json (EC2 path).
+    # Upload to S3: causal/{cohort}/{age_band}/causal_data.json (use --upload-to-dashboard or upload_causal_outputs_to_s3.py).
 """
 
 import os
@@ -568,8 +568,9 @@ def generate_dashboard_outputs_phts_style(
     return dashboard_data
 
 
-def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band_fname: str) -> bool:
-    """Upload dashboard_data.json to S3 dashboard bucket as causal_data.json for GET /visualizations/causal."""
+def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str) -> bool:
+    """Upload dashboard_data.json to S3 dashboard bucket as causal_data.json for GET /visualizations/causal.
+    S3 paths use age_band with hyphen (e.g. 25-44); EC2 paths use underscore (25_44)."""
     try:
         import boto3
     except ImportError:
@@ -577,7 +578,7 @@ def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band_fname
         return False
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    key = f"{prefix}/causal/{cohort}/{age_band_fname}/causal_data.json"
+    key = f"{prefix}/causal/{cohort}/{age_band}/causal_data.json"
     try:
         s3 = boto3.client("s3")
         s3.upload_file(
@@ -597,7 +598,7 @@ def main():
     parser = argparse.ArgumentParser(description="Combine SHAP and FFA results for final reporting")
     parser.add_argument("--cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
-    parser.add_argument("--output-dir", default="10_results/outputs", help="Output directory")
+    parser.add_argument("--output-dir", default="10_risk_dashboard/outputs", help="Output directory (EC2: .../outputs/{cohort}/{age_band_fname}/)")
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
     parser.add_argument("--weight-shap", type=float, default=0.5, help="Weight for SHAP (0-1)")
     parser.add_argument("--weight-ffa", type=float, default=0.5, help="Weight for FFA (0-1)")
@@ -625,6 +626,7 @@ def main():
         # TODO: Implement batch processing
         return
     
+    # EC2 path: 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/ (README_dashboard_validation.md)
     output_dir = Path(args.output_dir) / args.cohort / args.age_band.replace("-", "_")
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -772,11 +774,11 @@ def main():
         logger.info(f"Saved combined importance to {combined_path}")
         # PHTS-style outputs for dashboard/Lambda compatibility
         generate_dashboard_outputs_phts_style(
-            combined_importance, output_dir, args.cohort, args.age_band.replace("-", "_"), args.top_k
+            combined_importance, output_dir, args.cohort, args.age_band, args.top_k
         )
         if getattr(args, "upload_to_dashboard", False):
             upload_causal_data_to_dashboard(
-                output_dir / "dashboard_data.json", args.cohort, age_band_fname
+                output_dir / "dashboard_data.json", args.cohort, args.age_band
             )
     
     if patient_explanations is not None:

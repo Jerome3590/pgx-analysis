@@ -24,6 +24,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname
+from py_helpers.env_utils import get_workflow_python_bin
+
+_PYTHON_BIN = get_workflow_python_bin()
 
 
 def run_final_model_analysis(
@@ -208,7 +211,7 @@ def run_final_model_analysis(
                 script_path = PROJECT_ROOT / "8_final_model" / "create_model_plots.py"
             result = subprocess.run(
                 [
-                    sys.executable,
+                    str(_PYTHON_BIN),
                     str(script_path),
                     "--cohort-name", cohort_name,
                     "--age-band", age_band,

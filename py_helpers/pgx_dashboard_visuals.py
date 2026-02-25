@@ -29,6 +29,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from py_helpers.constants import AGE_BANDS, COHORT_NAMES  # noqa: E402
+from py_helpers.env_utils import get_workflow_python_bin  # noqa: E402
 
 VISUAL_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations"
 BUPAR_VISUALS_SCRIPT = VISUAL_ROOT / "bupar" / "create_bupar_visuals.py"
@@ -71,7 +72,7 @@ force_flag = ["--force"] if FORCE_RERUN else []
 
 def _run_bupar_one(cohort_name, age_band):
     return (cohort_name, age_band, subprocess.run(
-        [sys.executable, str(BUPAR_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
+        [str(get_workflow_python_bin()), str(BUPAR_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     ).returncode)
@@ -89,7 +90,7 @@ print("BupaR done.")
 # --- Run DTW visuals only (parallel; idempotent unless FORCE_RERUN). We do not create DTW features here. ---
 def _run_dtw_one(cohort_name, age_band):
     r = subprocess.run(
-        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
+        [str(get_workflow_python_bin()), str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
@@ -109,7 +110,7 @@ print("DTW done.")
 # Extract top ~5% by medical_code density into {cohort}_extreme_density, then run DTW visuals for that subgroup.
 def _run_extreme_one(cohort_name, age_band):
     r0 = subprocess.run(
-        [sys.executable, str(EXTREME_EXTRACT_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
+        [str(get_workflow_python_bin()), str(EXTREME_EXTRACT_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band],
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
@@ -117,7 +118,7 @@ def _run_extreme_one(cohort_name, age_band):
         return (cohort_name, age_band, r0.returncode, None)
     extreme_name = f"{cohort_name}_extreme_density"
     r2 = subprocess.run(
-        [sys.executable, str(DTW_VISUALS_SCRIPT), "--cohort-name", extreme_name, "--age-band", age_band,
+        [str(get_workflow_python_bin()), str(DTW_VISUALS_SCRIPT), "--cohort-name", extreme_name, "--age-band", age_band,
          "--project-root", str(REPO_ROOT)] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
@@ -143,7 +144,7 @@ else:
 for cohort_name, age_band in combinations:
     print(f"\n[FP-Growth] {cohort_name} / {age_band}")
     result = subprocess.run(
-        [sys.executable, str(FPGROWTH_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
+        [str(get_workflow_python_bin()), str(FPGROWTH_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
@@ -293,7 +294,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
         # Upload causal dashboard JSON (Causal Analysis tab): 10_risk_dashboard/outputs -> S3 causal/
         causal_script = DASHBOARD_DIR / "data_preparation" / "upload_causal_outputs_to_s3.py"
         if causal_script.exists():
-            r_causal = subprocess.run([sys.executable, str(causal_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
+            r_causal = subprocess.run([str(get_workflow_python_bin()), str(causal_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
             if r_causal.returncode == 0 and r_causal.stdout:
                 for line in r_causal.stdout.strip().split("\n"):
                     print(f"  {line}")

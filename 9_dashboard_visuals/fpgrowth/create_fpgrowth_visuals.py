@@ -30,6 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from py_helpers.env_utils import get_workflow_python_bin  # noqa: E402
 from py_helpers.fe_monitor import (  # noqa: E402
     detect_runtime_environment,
     function_block,
@@ -83,7 +84,7 @@ def ensure_itemsets(
         logger.info("Processing %d item types: %s", len(item_types), ", ".join(item_types))
         script_path = PROJECT_ROOT / "fpgrowth" / "run_single_cohort_fpgrowth.py"
         cmd = [
-            sys.executable,
+            str(get_workflow_python_bin()),
             str(script_path),
             "--cohort-name",
             cohort_name,
@@ -248,7 +249,7 @@ def create_visualizations(
 
         fpgrowth_outputs_root = DASHBOARD_FPGROWTH_OUT / "outputs"
         cmd = [
-            sys.executable,
+            str(get_workflow_python_bin()),
             str(script_path),
             "--base-dir",
             str(fpgrowth_outputs_root),

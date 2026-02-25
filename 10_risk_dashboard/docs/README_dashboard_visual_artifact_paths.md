@@ -6,7 +6,7 @@ This README documents the mapping from **dashboard tab** and **visual (heading)*
 `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}`  
 Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-dixon.io`), prefix = `S3_DASHBOARD_PREFIX` (e.g. `vcu/pgx-risk-calculator`).
 
-**EC2 paths** are relative to repo root on EC2 (e.g. `/home/pgx3874/pgx-analysis`). **S3 object key** = prefix + path below (no leading slash).
+**EC2 paths** are relative to repo root on EC2 (e.g. `/home/pgx3874/pgx-analysis`). **Age bands:** EC2/file paths use underscore (e.g. `25_44`); **S3 paths use hyphen** (e.g. `25-44`). **S3 object key** = prefix + path below (no leading slash).
 
 **Related:** [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md), [DASHBOARD_TABS.md](DASHBOARD_TABS.md).
 
@@ -24,7 +24,7 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| Causal Analysis | Top Causal Factors (FFA) | `dashboard_data.json` → Lambda `chart_data.causal_factors` | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band_fname}/causal_data.json` |
+| Causal Analysis | Top Causal Factors (FFA) | `dashboard_data.json` → Lambda `chart_data.causal_factors` | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band}/causal_data.json` |
 | Causal Analysis | SHAP Feature Importance | `dashboard_data.json` → Lambda `chart_data.shap_importance` | (same) | (same) |
 | Causal Analysis | Feature Interactions | `dashboard_data.json` → Lambda `chart_data.feature_interactions` | (same) | (same) |
 | Causal Analysis | Effect on outcome (by feature) | `dashboard_data.json` → Lambda `chart_data` (radar) | (same) | (same) |
@@ -83,7 +83,7 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| PGx Cohort | Gene–Drug–Phenotype Network Topology | `network_topology.html` | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` | `cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` |
+| PGx Cohort | Gene–Drug–Phenotype Network Topology | `network_topology.html` | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` | `cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` |
 
 ---
 
@@ -110,8 +110,8 @@ https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}
 
 Example (PGx Cohort network):
 
-- **Object key:** `cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`
-- **Full URL:** `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`
+- **Object key:** `cohort_pgx/networks/non_opioid_ed/55-64/network_topology.html` (S3 uses hyphen in age_band)
+- **Full URL:** `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55-64/network_topology.html`
 
 Example (BupaR process matrix):
 

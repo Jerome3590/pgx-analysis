@@ -22,6 +22,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from py_helpers.cohort_utils import check_existing_cohorts
+from py_helpers.env_utils import get_workflow_python_bin
 
 # Recommended order: heavy partitions first
 AGE_BANDS_ORDERED = [
@@ -55,8 +56,8 @@ def main():
     )
     parser.add_argument(
         "--python-bin",
-        default=sys.executable,
-        help="Python executable path (default: current interpreter)"
+        default=None,
+        help="Python executable path (default: EC2 jupyter-env or current interpreter)"
     )
     parser.add_argument(
         "--no-event-filter",
@@ -64,6 +65,8 @@ def main():
         help="Skip running the event filter (Step 1b) after cohort creation"
     )
     args = parser.parse_args()
+    if args.python_bin is None:
+        args.python_bin = str(get_workflow_python_bin())
 
     script_path = Path(__file__).parent / "0_create_cohort.py"
     filter_script = project_root / "1b_apcd_event_filter" / "filter_protocol_events.py"
