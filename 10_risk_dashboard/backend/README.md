@@ -43,13 +43,13 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
   - Query params: `cohort`, `age_band`
   - Returns: `overview_image`, `sample_trajectories_image`, `chart_data_url`, `sequence_heatmap_url` (S3 URLs)
 
-- **`GET /visualizations/fpgrowth`** - Return URLs to prebuilt FP-Growth assets
-  - Query params: `cohort`, `age_band`, `item_type`
-  - Returns: S3 URLs to itemsets/network images and HTML
+- **`GET /visualizations/fpgrowth`** - Return URLs to prebuilt FP-Growth assets (drug names only)
+  - Query params: `cohort`, `age_band` (item_type is fixed to `drug_name`)
+  - Returns: S3 URLs to drug itemsets, network HTML, and itemsets JSON when present
 
 - **`GET /visualizations/bupar`** - Return URLs to prebuilt BupaR assets
   - Query params: `cohort`, `age_band`
-  - Returns: S3 URLs to BupaR plot images
+  - Returns: S3 URLs to BupaR plot images; process matrix type-pair is **Drug × Drug** only (`process_matrix_drug_drug.png`)
 
 - **`GET /visualizations/bupar/activity_frequency`** - Return activity frequency JSON for bar charts
   - Query params: `cohort`, `age_band`

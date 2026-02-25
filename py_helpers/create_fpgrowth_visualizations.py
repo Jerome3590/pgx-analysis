@@ -34,12 +34,10 @@ except ImportError:
 PLOTLY_HTML_CONFIG = {"responsive": True, "displayModeBar": True}
 PLOTLY_INCLUDE_JS = True  # embed full Plotly.js for production rendering
 
-# Item types for FP-Growth: one combined graph with nodes colored/filterable by type.
-# medical_code is the union of these three (allowed_codes); not a separate graph.
-FPGROWTH_GRAPH_ITEM_TYPES = ["drug_name", "icd_code", "cpt_code"]
-# Display labels and colors for filter dropdown and node coloring
-ITEM_TYPE_LABELS = {"drug_name": "Drug", "icd_code": "ICD", "cpt_code": "CPT"}
-ITEM_TYPE_COLORS = {"drug_name": "#3b82f6", "icd_code": "#22c55e", "cpt_code": "#f59e0b"}
+# Item types for FP-Growth: drugs only (research focus on drug sequences/combinations).
+FPGROWTH_GRAPH_ITEM_TYPES = ["drug_name"]
+ITEM_TYPE_LABELS = {"drug_name": "Drug"}
+ITEM_TYPE_COLORS = {"drug_name": "#3b82f6"}
 
 
 def write_plotly_html_for_production(fig: "go.Figure", out_path: Path, config: Optional[Dict[str, Any]] = None) -> None:

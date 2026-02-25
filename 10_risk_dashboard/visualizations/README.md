@@ -17,44 +17,39 @@ visualizations/
 
 ## DTW (`dtw/`)
 
-**Purpose**: Patient trajectory visualizations using Dynamic Time Warping.
+**Purpose**: Patient trajectory visualizations using Dynamic Time Warping. **Dashboard sequence heatmap shows drug slice only.**
 
 **Creation code (step 9):** `9_dashboard_visuals/dtw/` — `create_dtw_trajectories.py` (features CSV, including N3 time-between metrics), then `create_dtw_visuals.py` (plots and chart_data)
 
-**Outputs:**
-- `dtw_trajectory_cluster_3d_{cohort}_{age_band}.html` / `.png` (or `1d` for non_opioid_ed) — trajectory cluster Plotly
-- `dtw_trajectory_analysis_{cohort}_{age_band}.png` — overview (optional)
-- `dtw_sample_trajectories_{cohort}_{age_band}.png` — sample trajectories (optional)
-- `chart_data.json` at parent of `plots/`
+**Outputs used by dashboard:**
+- `chart_data.json`, `sequence_heatmap.json` (dashboard uses **drug** slice only for the common-sequences heatmap)
+- Overview and sample trajectory images when present
 
 **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/`
 
 ## FP-Growth (`fpgrowth/`)
 
-**Purpose**: Frequent pattern mining visualizations.
+**Purpose**: Frequent pattern mining visualizations (**drug names only**; research focus on drug sequences/combinations).
 
-**Creation code (step 9):** `9_dashboard_visuals/fpgrowth/` — e.g. `create_fpgrowth_visuals.py`, `create_plots.py`
+**Creation code (step 9):** `9_dashboard_visuals/fpgrowth/` — e.g. `create_fpgrowth_visuals.py`, `create_plots.py`. Pipeline runs only `drug_name` for both cohorts.
 
-**Outputs:**
-- `{cohort}_{age_band}_{item_type}_combined_top_itemsets.png` — top itemsets
-- `*_itemsets_interactive.html` — interactive itemsets
-- `*_target_rules_network.png` / `*_target_rules_network.html`, `*_network_interactive.html` (item_type: drug_name, icd_code, cpt_code, medical_code)
+**Outputs used by dashboard:**
+- `{cohort}_{age_band}_drug_name_combined_top_itemsets.png` — top drug itemsets
+- `*_drug_name_*_itemsets_interactive.html`, `*_combined_rules_network.html` — network and itemsets
+- `.../data/drug_name_itemsets.json` — itemsets JSON for client-side Plotly
 
-**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/`
+**S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/` and `.../data/`
 
 ## BupaR (`bupar/`)
 
-**Purpose**: Process mining visualizations (pathways, trace patterns, activity frequency).
+**Purpose**: Process mining visualizations (pathways, trace patterns, activity frequency). **Dashboard shows Drug × Drug process matrix only.**
 
 **Creation code (step 9):** `9_dashboard_visuals/bupar/` — e.g. `create_bupar_visuals.py`, `create_bupar_outputs_*_ed.R`
 
-**Outputs (final):**
-- `*_overall_activity_frequency.png` — activity frequency (static)
-- `*_activity_frequency_interactive.html` — same with year dropdown (requires `plots/lib/`)
-- `*_trace_explorer_pre_f1120.png` (opioid_ed) / `*_trace_explorer_pre_hcg.png` (non_opioid_ed) — pre-target trace patterns
-- `*_trace_explorer_interactive.html` — pre-target trace explorer with year dropdown (requires `plots/lib/`)
-- `*_pre_f1120_activity_frequency.png` (opioid_ed only)
-- `*_process_matrix.png` (flows between activities; [bupaR Process Matrix](https://bupaverse.github.io/docs/process_matrix.html))
+**Outputs used by dashboard:**
+- `*_overall_activity_frequency.png`, `*_activity_frequency_interactive.html` — activity frequency
+- `*_trace_explorer_pre_f1120.png` (opioid_ed) / `*_trace_explorer_pre_hcg.png` (non_opioid_ed), `*_trace_explorer_interactive.html`
+- `*_process_matrix_drug_drug.png` — **Drug × Drug flows only** (other type-pair PNGs are not used by the dashboard)
 - `*_frequency_map.png` (optional)
 
 **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/` (full tree including `lib/`)
@@ -70,4 +65,4 @@ Visualizations are loaded via the Lambda API endpoints:
 - `GET /visualizations/fpgrowth`
 - `GET /visualizations/bupar`
 
-The frontend displays these visualizations in their respective tabs.
+The frontend displays these visualizations in their respective tabs. The pipeline produces only these artifacts (final production for research-question exploration).

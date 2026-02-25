@@ -1476,7 +1476,8 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        item_type = params.get("item_type", "drug_name")
+        # Research focus: drugs only; ignore other item_type for cleaner drug-sequence visuals.
+        item_type = "drug_name"
         
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
@@ -1684,8 +1685,8 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             ("process_matrix_interactive", f"{base_key}/{base}_process_matrix_interactive.html"),
             ("frequency_map_image", f"{base_key}/{base}_frequency_map.png"),
         ]
-        for pair in ("drug_drug", "drug_icd", "drug_cpt", "icd_icd", "icd_drug", "icd_cpt", "cpt_cpt", "cpt_drug", "cpt_icd"):
-            candidates.append((f"process_matrix_{pair}", f"{base_key}/{base}_process_matrix_{pair}.png"))
+        # Research focus: drugs only — only expose Drug × Drug process matrix.
+        candidates.append((f"process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"))
 
         payload: Dict[str, str] = {}
         for payload_key, s3_key in candidates:

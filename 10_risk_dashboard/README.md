@@ -311,9 +311,9 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
   - Query params: `cohort`, `age_band`
   - Returns: S3 paths to DTW visualization images
 
-- **`GET /visualizations/fpgrowth`** - Get FP-Growth pattern visualizations
-  - Query params: `cohort`, `age_band`, `item_type`
-  - Returns: S3 paths to FP-Growth visualization images
+- **`GET /visualizations/fpgrowth`** - Get FP-Growth pattern visualizations (drug names only)
+  - Query params: `cohort`, `age_band` (item_type is fixed to `drug_name`)
+  - Returns: S3 paths to FP-Growth itemsets and drug association network
 
 - **`GET /visualizations/bupar`** - Get BupaR process mining visualizations
   - Query params: `cohort`, `age_band`
@@ -341,13 +341,13 @@ See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboar
 - **S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
 - **Files**: `dtw_trajectory_analysis_{cohort}_{age_band}.png`, `dtw_sample_trajectories_{cohort}_{age_band}.png`
 
-**FP-Growth Visualizations**:
-- **S3 Location**: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
-- **Files**: `*_top20_itemsets.png`, `*_itemset_support.png`, `*_network.html`
+**FP-Growth Visualizations** (drug names only):
+- **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/`
+- **Files used by dashboard**: `*_drug_name_combined_top_itemsets.png`, `*_drug_name_*_network*.html`, `*_combined_rules_network.html`; itemsets JSON under `.../data/drug_name_itemsets.json`
 
 **BupaR Visualizations**:
-- **S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
-- **Files**: `*_overall_activity_frequency.png`, `*_gantt.png`, `*_activity_sequence_top.png`, etc.
+- **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/`
+- **Files used by dashboard**: `*_activity_frequency*.png|.html`, `*_trace_explorer*.png|.html`, `*_process_matrix_drug_drug.png` (Drug × Drug only), `*_frequency_map.png`
 
 **Note**: The Lambda function loads data from S3, so visualization files must be uploaded to S3 before deployment.
 
@@ -359,10 +359,10 @@ See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboar
 
 ### Overview
 
-FP-Growth network visualizations show:
-- **Co-occurrence patterns**: Which drugs, ICD codes, or CPT codes frequently appear together
-- **Association rules**: Directed relationships between items (antecedent → consequent)
-- **Pattern strength**: Support, confidence, and lift metrics for patterns
+FP-Growth network visualizations show (**drug names only**; research focus on drug sequences/combinations):
+- **Co-occurrence patterns**: Which drugs frequently appear together
+- **Association rules**: Directed relationships between drug items (antecedent → consequent)
+- **Pattern strength**: Support, confidence, and lift metrics for drug patterns
 
 ### Integration with Causal Analysis
 
@@ -377,11 +377,9 @@ FP-Growth networks complement FFA/SHAP causal analysis by:
 - Local: `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/`
 - S3: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`
 
-**Files**:
-- `{cohort}_{age_band}_{item_type}_network.html`: Interactive co-occurrence network
-- `{cohort}_{age_band}_{item_type}_rules_network.html`: Interactive association rules network
-
-**Item Types**: `drug_name`, `icd_code`, `cpt_code`, `medical_code`
+**Files** (dashboard uses **drug_name** only):
+- `{cohort}_{age_band}_drug_name_network.html` (or `*_combined_rules_network.html`): Interactive drug association network
+- `{cohort}_{age_band}_drug_name_*_rules_network.html`: Association rules network
 
 ### Dashboard Integration
 
@@ -399,39 +397,11 @@ FP-Growth networks complement FFA/SHAP causal analysis by:
 
 #### Option 2: Load via API Endpoint
 
-```javascript
-// In dashboard JavaScript
-async function loadFPGrowthNetwork(cohort, ageBand, itemType) {
-  const url = `https://s3.amazonaws.com/pgxdatalake/gold/fpgrowth/${cohort}/${ageBand}/plots/${cohort}_${ageBand}_${itemType}_network.html`;
-  
-  // Load and embed in dashboard
-  const response = await fetch(url);
-  const html = await response.text();
-  document.getElementById('fpgrowth-network-container').innerHTML = html;
-}
-```
+The dashboard calls `GET /visualizations/fpgrowth?cohort=&age_band=`; the API returns S3 URLs for **drug_name** itemsets and network only (no item_type selector).
 
 #### Option 3: Combine with Causal Analysis
 
-```javascript
-// Show FP-Growth network alongside FFA/SHAP results
-function displayCausalAnalysis(patientData, ffaResults, shapResults) {
-  // Display FFA/SHAP feature importance
-  displayFeatureImportance(ffaResults, shapResults);
-  
-  // Load and display FP-Growth network for context
-  loadFPGrowthNetwork(
-    patientData.cohort,
-    patientData.ageBand,
-    'drug_name'  // or 'icd_code', 'cpt_code'
-  );
-  
-  // Highlight features in network that match high-importance features
-  highlightFeaturesInNetwork(
-    getTopFeatures(ffaResults, shapResults, topN=20)
-  );
-}
-```
+Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern context.
 
 ### Network Features
 

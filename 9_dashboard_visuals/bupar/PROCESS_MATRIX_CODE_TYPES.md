@@ -35,8 +35,4 @@ The BupaR event log has a **single `activity` column** with values prefixed by t
 ## Implementation
 
 - **Combined matrix:** One process matrix from the full event log → `{cohort}_{age_band}_process_matrix.png` (used on the main dashboard).
-- **Type-pair matrices (implemented):** After computing the full process matrix (data.frame with `antecedent`, `consequent`, `n`), the R scripts filter by prefix and save separate PNGs:
-  - `{cohort}_{age_band}_process_matrix_drug_drug.png`, `_drug_icd.png`, `_drug_cpt.png`
-  - `_icd_icd.png`, `_icd_drug.png`, `_icd_cpt.png`
-  - `_cpt_cpt.png`, `_cpt_drug.png`, `_cpt_icd.png`
-  Only pairs with at least one flow are written; empty pairs are skipped. The dashboard currently shows only the combined matrix; type-pair PNGs are available in the BupaR output folder for ad-hoc analysis or future dropdown/panels.
+- **Type-pair (production):** The R scripts save only **Drug × Drug**: `{cohort}_{age_band}_process_matrix_drug_drug.png`. Filter is antecedent/consequent prefix `DRUG:` / `DRUG:`. This is the only type-pair produced for the final production pipeline (research-question focus on drug sequences).
