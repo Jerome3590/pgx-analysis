@@ -1249,43 +1249,29 @@ tryCatch({
   }
 }, error = function(e) cat(" [skip] process_matrix:", conditionMessage(e), "\n"))
 
-# Optional type-pair process matrices (Drug x Drug, Drug x ICD, Drug x CPT, etc.)
-# Filter full matrix by antecedent/consequent prefix and save separate PNGs for focused analysis.
+# Process matrix type-pair: Drug x Drug only (production pipeline for research questions).
 if (!is.null(pm_df) && nrow(pm_df) > 0L && "antecedent" %in% names(pm_df) && "consequent" %in% names(pm_df)) {
-  type_pairs <- list(
-    c("DRUG:", "DRUG:"),
-    c("DRUG:", "ICD:"),
-    c("DRUG:", "CPT:"),
-    c("ICD:", "ICD:"),
-    c("ICD:", "DRUG:"),
-    c("ICD:", "CPT:"),
-    c("CPT:", "CPT:"),
-    c("CPT:", "DRUG:"),
-    c("CPT:", "ICD:")
-  )
-  pair_names <- c("drug_drug", "drug_icd", "drug_cpt", "icd_icd", "icd_drug", "icd_cpt", "cpt_cpt", "cpt_drug", "cpt_icd")
-  for (i in seq_along(type_pairs)) {
-    pre_from <- type_pairs[[i]][1]
-    pre_to   <- type_pairs[[i]][2]
-    name     <- pair_names[i]
-    tryCatch({
-      pm_sub <- pm_df %>%
-        filter(
-          startsWith(as.character(antecedent), pre_from),
-          startsWith(as.character(consequent), pre_to)
-        )
-      if (nrow(pm_sub) == 0L) next
+  pre_from <- "DRUG:"
+  pre_to   <- "DRUG:"
+  name     <- "drug_drug"
+  tryCatch({
+    pm_sub <- pm_df %>%
+      filter(
+        startsWith(as.character(antecedent), pre_from),
+        startsWith(as.character(consequent), pre_to)
+      )
+    if (nrow(pm_sub) > 0L) {
       p_sub <- ggplot(pm_sub, aes(x = antecedent, y = consequent, fill = n)) +
         geom_tile() +
         scale_fill_viridis_c(option = "plasma", na.value = NA) +
-        labs(title = sprintf("Process matrix: %s", gsub("_", " x ", name)), x = "Antecedent", y = "Consequent") +
+        labs(title = "Process matrix: Drug x Drug", x = "Antecedent", y = "Consequent") +
         theme_minimal(base_size = 11) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text.y = element_text(size = 9))
       ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix_%s.png", cohort_name, age_band_fname, name)),
              plot = p_sub, width = 10, height = 8, dpi = 300)
-      cat("Saved process_matrix_", name, ".png\n", sep = "")
-    }, error = function(e) cat(" [skip] process_matrix_", name, ": ", conditionMessage(e), "\n", sep = ""))
-  }
+      cat("Saved process_matrix_drug_drug.png\n")
+    }
+  }, error = function(e) cat(" [skip] process_matrix_drug_drug: ", conditionMessage(e), "\n"))
 }
 
 # Frequency map (process_map with frequency; render = F then export_map to PNG; else saves HTML if only Plotly/HTML)

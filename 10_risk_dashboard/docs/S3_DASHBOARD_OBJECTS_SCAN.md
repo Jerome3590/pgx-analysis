@@ -61,10 +61,10 @@ Once one of these is in place, the same HTML and image URLs (or their proxy/pres
 
 ## Image objects (dashboard-relevant)
 
-### FP-Growth – Top Itemsets
+### FP-Growth – Top Itemsets (drug_name only)
 
-- **Path pattern:** `vcu/pgx-risk-calculator/fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_{drug_name|cpt_code|icd_code}_combined_top_itemsets.png`
-- **Count:** 28 (non_opioid_ed: 8 drug_name; opioid_ed: 9 age bands × up to 3 types).
+- **Path pattern:** `vcu/pgx-risk-calculator/fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`
+- **Production:** Pipeline produces `drug_name` only.
 - **Example:** `fpgrowth/opioid_ed/25-44/plots/opioid_ed_25_44_drug_name_combined_top_itemsets.png`
 
 ### Feature importance
@@ -77,8 +77,8 @@ Once one of these is in place, the same HTML and image URLs (or their proxy/pres
 ### BupaR
 
 - **Path pattern:** `bupar/{cohort}/{age_band}/plots/*.png` and `*.html`.
-- **Dashboard only shows URLs for objects that exist:** Lambda does a HEAD check per key and returns only existing S3 URLs. Missing assets show as “Visual not available” in the UI.
-- **Produced by 9_dashboard_visuals/bupar R scripts:** `overall_activity_frequency.png`, `pre_f1120_activity_frequency.png` / `pre_hcg_activity_frequency.png`, `activity_frequency_interactive.html`, `process_matrix.png`, `process_matrix_*.png`, `trace_explorer_interactive.html`, `trace_explorer_pre_f1120.png` / `trace_explorer_pre_hcg.png`, `frequency_map.png` (when `processmapR::export_map` exists). For **opioid_ed** also: `trace_explorer_post_f1120.png`, `trace_explorer_post_f1120_interactive.html`, `post_f1120_activity_frequency.png`; for **non_opioid_ed**: `trace_explorer_post_hcg.png`, etc.
+- **Production:** Pipeline produces **Drug × Drug** process matrix only (`process_matrix_drug_drug.png`). Missing assets show as “Visual not available” in the UI.
+- **Produced by 9_dashboard_visuals/bupar R scripts:** `overall_activity_frequency.png`, `pre_f1120_activity_frequency.png` / `pre_hcg_activity_frequency.png`, `activity_frequency_interactive.html`, `process_matrix.png`, `process_matrix_drug_drug.png`, `trace_explorer_interactive.html`, `trace_explorer_pre_f1120.png` / `trace_explorer_pre_hcg.png`, `frequency_map.png` (when `processmapR::export_map` exists). For **opioid_ed** also: `trace_explorer_post_f1120.png`, `trace_explorer_post_f1120_interactive.html`, `post_f1120_activity_frequency.png`; for **non_opioid_ed**: `trace_explorer_post_hcg.png`, etc.
 - **Not produced by this pipeline:** `activity_sequence_top.png`, standalone `trace_explorer.png`, `process_matrix_interactive.html`. If those keys are missing on S3, Lambda omits them and the dashboard shows “Visual not available.”
 
 ---

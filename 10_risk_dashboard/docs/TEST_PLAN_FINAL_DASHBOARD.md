@@ -61,7 +61,7 @@ All paths below are relative to the deployed stage (e.g. `/prod/...`). API Gatew
 | POST | `/causal/interactions` | Body: cohort, age_band, ... | 200 + interactions or 4xx/5xx |
 | GET | `/visualizations/causal` | cohort, age_band | 200 + causal/SHAP URLs or data |
 | GET | `/visualizations/dtw` | cohort, age_band | 200 + DTW URLs (overview_image, chart_data_url, …) |
-| GET | `/visualizations/fpgrowth` | cohort, age_band, item_type? | 200 + FP-Growth URLs or empty_state |
+| GET | `/visualizations/fpgrowth` | cohort, age_band (item_type fixed to drug_name) | 200 + FP-Growth URLs or empty_state |
 | GET | `/visualizations/bupar` | cohort, age_band | 200 + BupaR plot URLs |
 | GET | `/visualizations/bupar/activity_frequency` | cohort, age_band | 200 + { overall, pre_target, post_target } |
 | GET | `/visualizations/feature_importance` | cohort | 200 + heatmap_url, combined_url |

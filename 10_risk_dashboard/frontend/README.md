@@ -14,8 +14,8 @@ The frontend dashboard is a single-page application (SPA) built with vanilla HTM
 1. **Risk Assessment** - Calculate risk scores for opioid ED visits or polypharmacy
 2. **Causal Analysis** - Explore FFA causal factors and SHAP importance
 3. **DTW Trajectories** - View patient trajectory patterns
-4. **FP-Growth Patterns** - Explore frequent itemsets and association rules
-5. **BupaR Process Mining** - View process flows and activity sequences
+4. **FP-Growth Patterns** - Explore drug-name itemsets and association rules (drugs only)
+5. **BupaR Process Mining** - View process flows, activity sequences, and Drug × Drug process matrix
 6. **PGx Patient Card** - Generate pharmacogenomic cards
 
 ## Dependencies

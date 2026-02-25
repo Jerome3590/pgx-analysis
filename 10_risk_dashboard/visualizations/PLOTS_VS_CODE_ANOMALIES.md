@@ -53,7 +53,7 @@ Trace explorer is **pre target (HCG) only**; no overall target trace explorer.
 
 ### FP-Growth (`create_fpgrowth_visualizations.py`)
 
-- **Patterns:** `{cohort}_{age}_{item_type}_combined_top_itemsets.png`, `*_itemsets_interactive.html`, `*_target_rules_network.png`, `*_target_rules_network.html`, `*_network_interactive.html` (item_type: drug_name, icd_code, cpt_code, medical_code).
+- **Patterns:** `{cohort}_{age}_drug_name_combined_top_itemsets.png`, `*_itemsets_interactive.html`, `*_target_rules_network.png`, `*_network_interactive.html`. Production pipeline produces **drug_name** only.
 - **Location:** `outputs/{cohort}/{age_band_fname}/plots/`.
 
 ---

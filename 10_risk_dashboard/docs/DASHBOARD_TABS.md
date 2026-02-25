@@ -42,3 +42,5 @@ https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}
 **Step 6** = 5_build_and_deploy.ipynb "Step 6: Sync Dashboard Frontend to S3" (frontend sync + metadata + metrics + feature importance heatmaps + Cohort PGx sync + causal upload).
 
 **4_dashboard_visuals** = BupaR, DTW, and FP-Growth pipelines write to the EC2 paths above and upload to the dashboard bucket when run; Step 6 does not re-upload those.
+
+**Research focus (BupaR, DTW, FP-Growth):** Final production pipeline produces **drug-only** artifacts for BupaR/FP-Growth and drug sequence heatmap for DTW. **Routine vs no routine (admin codes)** remains a core analysis on the DTW tab: outcome rate by routine screenings (admin ICD) to highlight how routine care may reduce extreme outcomes; data comes from `chart_data.json` (`routine_comparison`).

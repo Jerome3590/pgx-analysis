@@ -9,8 +9,8 @@ This directory contains **outputs only** for DTW dashboard visualizations (featu
 |----------|----------|----------------|
 | `outputs/feature_engineering/` | `dtw_features_*.csv`, `common_sequences_*.json`, `trajectory_status_*.json` | **Inputs** to `create_dtw_visuals`; not served directly. |
 | `outputs/{cohort}/{age_band_fname}/plots/` | `dtw_trajectory_analysis_*.png`, `dtw_sample_trajectories_*.png`, interactive HTML | Uploaded to S3 `dtw/{cohort}/{age_band}/plots/`; overview and sample images. |
-| S3 `dtw/{cohort}/{age_band}/chart_data.json` | routine_comparison, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns | **JSON preferred.** Lambda may return inline; frontend uses for Routine vs No Routine, N3, Target Pathway, Trajectory Metrics. |
-| S3 `dtw/{cohort}/{age_band}/sequence_heatmap.json` | icd/cpt/drug codes × position counts | **JSON preferred.** Common Sequences Heatmap. |
+| S3 `dtw/{cohort}/{age_band}/chart_data.json` | routine_comparison, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns | **JSON preferred.** Lambda may return inline. **routine_comparison** is the core analysis: outcome rate by routine vs no routine (admin ICD), highlighting how routine screenings may reduce extreme outcomes. Frontend uses for Routine vs No Routine, N3, Target Pathway, Trajectory Metrics. |
+| S3 `dtw/{cohort}/{age_band}/sequence_heatmap.json` | drug codes × position counts | **JSON preferred.** Common Sequences Heatmap (drug slice only). |
 
 **Run order:** `create_dtw_features` → writes CSV + common_sequences in feature_engineering. Then **`create_dtw_visuals`** reads that CSV, builds chart_data and sequence_heatmap, creates plots, and uploads chart_data.json, sequence_heatmap.json, and plots to the dashboard S3 prefix. If create_dtw_visuals is not run, the DTW tab will show “no data” for metrics/routine/N3/heatmap and “not available” for overview/sample images.
 

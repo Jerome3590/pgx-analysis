@@ -12,11 +12,12 @@ Data flow to visualizations:
 - Cluster plots: create_dtw_plots.create_trajectory_cluster_plots(dtw_df) uses seq_pattern_str -> code counts
   -> top_codes (excluding nan/none/null) -> Plotly 1D/3D scatter; writes dtw_trajectory_cluster_*.png/html.
   We also copy that PNG to dtw_trajectory_analysis_*.png and dtw_sample_trajectories_*.png so API URLs work.
-- chart_data.json: _build_dtw_chart_data(dtw_df) builds three charts:
-  1. routine_comparison: outcome rate by routine vs no routine appointments (admin ICD filter)
-  2. high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
-  3. target_pathway_patterns: common codes in target=1 trajectories (shows what leads to adverse events)
-  Frontend (index.html) expects chart_data_url -> JSON with these three chart objects (x, y, type, name, x_label, y_label).
+- chart_data.json: _build_dtw_chart_data(dtw_df) builds charts including:
+  1. routine_comparison: outcome rate by routine vs no routine (admin ICD). Core production analysis: highlights how routine screenings (admin codes) may reduce extreme outcomes; always built when admin_icd_event_count is present.
+  2. routine_comparison_counts: mean medical events (ICD/CPT) and mean prescription events (drugs) per patient by routine vs no routine; shows routine screenings associate with lower medical and prescription event counts.
+  3. high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
+  4. target_pathway_patterns: common codes in target=1 trajectories
+  Frontend (index.html) expects chart_data JSON with these chart objects (x, y, type, name, x_label, y_label; routine_comparison_counts uses series: [{ name, y }]).
 - Outputs: outputs/{cohort}/{age_band}/plots/*.png/html + chart_data.json uploaded to S3 dashboard bucket.
   DTW CSV files (dtw_features, dtw_added_features) are NOT uploaded; dashboard only uses plots and chart_data.
 """
@@ -230,6 +231,16 @@ def _upload_dtw_plots_to_dashboard_s3(
         logger.info("Uploaded %d DTW plot(s) to dashboard S3 s3://%s/%s/", uploaded, s3_bucket, s3_prefix)
 
 
+def _count_drug_events_in_sequence(seq_str: Any) -> int:
+    """Count prescription (DRUG:) events in seq_pattern_str. Used to show routine vs drug/medical counts."""
+    if seq_str is None or (isinstance(seq_str, float) and pd.isna(seq_str)):
+        return 0
+    s = str(seq_str).strip()
+    if not s:
+        return 0
+    return sum(1 for t in s.split("_") if t.strip().upper().startswith("DRUG:"))
+
+
 def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """Outcome rate by routine vs no routine (admin ICD filter) or by trajectory intensity. Prebuilt on EC2."""
     if df.empty or "target" not in df.columns:
@@ -274,6 +285,45 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
         "name": "Outcome rate",
         "x_label": x_label,
         "y_label": "Target outcome rate",
+    }
+
+
+def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Mean medical events and mean prescription (drug) events by routine vs no routine. Shows that routine screenings associate with lower medical and prescription event counts."""
+    if df.empty or "admin_icd_event_count" not in df.columns:
+        return None
+    need = ["admin_icd_event_count", "trajectory_length"]
+    if "seq_pattern_str" not in df.columns or not all(c in df.columns for c in need):
+        return None
+    use_df = df[["admin_icd_event_count", "trajectory_length", "seq_pattern_str"]].copy()
+    use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+        lambda x: "No routine appointments (0 admin ICD events)" if x == 0 else "Routine appointments (1+ admin ICD events)"
+    )
+    use_df["drug_event_count"] = use_df["seq_pattern_str"].apply(_count_drug_events_in_sequence)
+    use_df["medical_event_count"] = (use_df["trajectory_length"] - use_df["drug_event_count"]).clip(lower=0)
+    use_df = use_df.dropna(subset=["bucket", "trajectory_length"])
+    if len(use_df) < 10:
+        return None
+    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
+        mean_medical=("medical_event_count", "mean"),
+        mean_drug=("drug_event_count", "mean"),
+        n=("trajectory_length", "count"),
+    )
+    order = ["No routine appointments (0 admin ICD events)", "Routine appointments (1+ admin ICD events)"]
+    agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+    agg = agg.dropna(subset=["mean_medical", "mean_drug"])
+    if agg.empty or agg["n"].sum() == 0:
+        return None
+    # Frontend: multi-series bar chart (same x, two y series)
+    return {
+        "x": agg["bucket"].astype(str).tolist(),
+        "series": [
+            {"name": "Mean medical events (ICD/CPT) per patient", "y": [float(round(v, 2)) for v in agg["mean_medical"]]},
+            {"name": "Mean prescription events (drugs) per patient", "y": [float(round(v, 2)) for v in agg["mean_drug"]]},
+        ],
+        "type": "bar",
+        "x_label": "Routine vs no routine (admin ICD filter)",
+        "y_label": "Mean events per patient",
     }
 
 
@@ -433,15 +483,15 @@ def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any
 
 def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """
-    Build heatmap data by code type: for each type (ICD, CPT, Drug), matrix of
-    (code × position) counts. Darker = more trajectories have that code at that position.
-    Returns dict with keys 'icd', 'cpt', 'drug'; each value has codes, positions, counts (2D).
+    Build heatmap data for drug codes only (production pipeline for research questions).
+    Returns dict with key 'drug'; value has codes, positions, counts (code × position).
+    Dashboard uses only the drug slice for the common-sequences heatmap.
     """
     if dtw_df.empty or "seq_pattern_str" not in dtw_df.columns:
         return None
     skip = {"nan", "none", "null", ""}
-    # (code_type -> (code -> (position -> count)))
-    by_type: Dict[str, Dict[str, Dict[int, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    # drug -> (code -> (position -> count))
+    drug_pos_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: defaultdict(int))
     max_pos = 0
     for seq in dtw_df["seq_pattern_str"]:
         if pd.isna(seq) or not isinstance(seq, str):
@@ -450,43 +500,32 @@ def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any
         for pos, token in enumerate(tokens):
             if ":" in token:
                 prefix, code = token.split(":", 1)
-                prefix = prefix.strip().upper()
-                code_val = code.strip() if code else token
-                if not code_val:
-                    continue
-                if prefix == "ICD":
-                    by_type["icd"][code_val][pos] += 1
-                elif prefix == "CPT":
-                    by_type["cpt"][code_val][pos] += 1
-                elif prefix == "DRUG":
-                    by_type["drug"][code_val][pos] += 1
+                if prefix.strip().upper() == "DRUG":
+                    code_val = code.strip() if code else token
+                    if code_val:
+                        drug_pos_counts[code_val][pos] += 1
             max_pos = max(max_pos, pos)
         max_pos = max(max_pos, len(tokens) - 1) if tokens else max_pos
-    n_cols = max_pos + 1  # 0-indexed to column count
-    out = {}
-    for code_type in ("icd", "cpt", "drug"):
-        code_to_pos_counts = by_type.get(code_type)
-        if not code_to_pos_counts:
-            out[code_type] = {"codes": [], "positions": list(range(n_cols)), "counts": []}
-            continue
-        codes = sorted(code_to_pos_counts.keys())
-        positions = list(range(n_cols))
-        counts = []
-        for code in codes:
-            row = [code_to_pos_counts[code].get(p, 0) for p in positions]
-            counts.append(row)
-        out[code_type] = {"codes": codes, "positions": positions, "counts": counts}
-    return out
+    n_cols = max_pos + 1
+    if not drug_pos_counts:
+        return {"drug": {"codes": [], "positions": list(range(n_cols)), "counts": []}}
+    codes = sorted(drug_pos_counts.keys())
+    positions = list(range(n_cols))
+    counts = [[drug_pos_counts[code].get(p, 0) for p in positions] for code in codes]
+    return {"drug": {"codes": codes, "positions": positions, "counts": counts}}
 
 
 def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Build routine_comparison, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard."""
+    """Build routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard."""
     if dtw_df.empty:
         return None
     out = {}
     routine = _compute_dtw_routine_comparison(dtw_df)
     if routine:
         out["routine_comparison"] = routine
+    routine_counts = _compute_dtw_routine_comparison_counts(dtw_df)
+    if routine_counts:
+        out["routine_comparison_counts"] = routine_counts
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:
         out["high_risk_trajectories"] = high_risk
@@ -537,7 +576,7 @@ def _upload_sequence_heatmap_to_s3(
     heatmap_data: Dict[str, Any],
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload sequence_heatmap.json (icd/cpt/drug by position) for dashboard heatmap."""
+    """Upload sequence_heatmap.json (drug slice only) for dashboard common-sequences heatmap."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
     base_key = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}"
