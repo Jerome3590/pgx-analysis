@@ -91,6 +91,15 @@ def _s3_object_exists(bucket: str, key: str) -> bool:
         raise
 
 
+def _paths_checked_from_error(e: FileNotFoundError) -> List[str]:
+    """Extract paths from 'Checked: a; b; c' in FileNotFoundError message for frontend display."""
+    msg = str(e)
+    if "Checked:" in msg:
+        rest = msg.split("Checked:", 1)[1].strip()
+        return [p.strip() for p in rest.split(";") if p.strip()]
+    return [msg] if msg else []
+
+
 def _cors_headers() -> Dict[str, str]:
     """CORS headers so browser allows fetch from S3/dashboard origin."""
     return {
@@ -194,7 +203,10 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code")
         if code in ("NoSuchKey", "404", "NotFound"):
-            raise FileNotFoundError(f"Metadata not found: s3://{S3_BUCKET}/{key} or {container_path}")
+            paths_checked = [str(container_path), f"s3://{S3_BUCKET}/{key}"]
+            raise FileNotFoundError(
+                f"Metadata not found. Checked: {'; '.join(paths_checked)}"
+            )
         raise
 
 
@@ -324,7 +336,15 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Any:
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code")
         if code in ("NoSuchKey", "404", "NotFound"):
-            raise FileNotFoundError(f"Model not found: s3://{S3_BUCKET}/{key}")
+            paths_checked = []
+            if USE_CONTAINER_MODELS:
+                paths_checked.append(container_model_path)
+                if model_type == 'catboost':
+                    paths_checked.append(os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "catboost.json"))
+            paths_checked.append(f"s3://{S3_BUCKET}/{key}")
+            raise FileNotFoundError(
+                f"Model not found. Checked: {'; '.join(paths_checked)}"
+            )
         raise
 
 
@@ -611,7 +631,7 @@ def handle_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
         metadata = load_metadata(cohort)
         return _response(200, metadata)
     except FileNotFoundError as e:
-        return _response(404, {"error": str(e)})
+        return _response(404, {"error": str(e), "paths_checked": _paths_checked_from_error(e)})
     except Exception as e:
         return _response(500, {"error": str(e)})
 
@@ -1357,7 +1377,7 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     Lambda applies optional filters (drugs, icds, cpts, whatif) and returns chart_data
     (causal_factors, shap_importance, whatif variants, feature_interactions) so the
     frontend can render without re-filtering. Radar plot uses top N of causal_factors.
-    S3 key: {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band_fname}/causal_data.json.
+    S3 key: {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band}/causal_data.json (age_band with hyphen, e.g. 25-44).
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1367,8 +1387,8 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
-        age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band_fname}"
+        # S3 paths use hyphen (25-44); EC2/file paths use underscore (25_44)
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band}"
         causal_key = f"{prefix}/causal_data.json"
         payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key)}
 
@@ -1543,7 +1563,8 @@ def handle_fpgrowth_network_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
         return _response_html(200, html_body)
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
-            return _response_html(404, "<!DOCTYPE html><html><body><p>Network visualization not found. Run the FP-Growth pipeline to build it.</p></body></html>")
+            checked = f"s3://{S3_DASHBOARD_BUCKET}/{key}"
+            return _response_html(404, f"<!DOCTYPE html><html><body><p>Network visualization not found. Run the FP-Growth pipeline to build it.</p><p>Checked: {checked}</p></body></html>")
         raise
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1697,7 +1718,8 @@ def handle_visualizations_bupar_html_proxy(event: Dict[str, Any]) -> Dict[str, A
         return _response_html(200, html_body)
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
-            return _response_html(404, "<!DOCTYPE html><html><body><p>BupaR visualization not found. Run the BupaR pipeline to build it.</p></body></html>")
+            checked = f"s3://{S3_DASHBOARD_BUCKET}/{key}"
+            return _response_html(404, f"<!DOCTYPE html><html><body><p>BupaR visualization not found. Run the BupaR pipeline to build it.</p><p>Checked: {checked}</p></body></html>")
         raise
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1799,8 +1821,8 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns network_topology_url only when the S3 object exists (HEAD check). Built by
     Cohort PGx pipeline (fetch_vip_reports + build_network_topology); expected key:
-    {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html.
-    Sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3 after building.
+    {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html (age_band with hyphen).
+    Sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3 after building (use hyphen in S3 path).
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1810,9 +1832,9 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
-        age_band_fname = age_band.replace("-", "_")
+        # S3 paths use hyphen (25-44); EC2 dirs use underscore (25_44)
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/cohort_pgx"
-        base_key = f"{prefix}/networks/{cohort}/{age_band_fname}"
+        base_key = f"{prefix}/networks/{cohort}/{age_band}"
         html_key = f"{base_key}/network_topology.html"
         payload = {}
         if _s3_object_exists(S3_DASHBOARD_BUCKET, html_key):

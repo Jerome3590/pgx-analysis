@@ -38,6 +38,8 @@ FFA_DIR = PROJECT_ROOT / "8_ffa_analysis"
 if str(FFA_DIR) not in sys.path:
     sys.path.insert(0, str(FFA_DIR))
 
+from py_helpers.env_utils import get_workflow_python_bin
+
 
 def _age_band_fname(age_band: str) -> str:
     return age_band.replace("-", "_")
@@ -54,7 +56,7 @@ def _ensure_shap_artifacts(cohort: str, age_band: str) -> None:
     logger.info(f"Running Step 7 (SHAP) for {cohort}/{age_band}...")
     script = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
     r = subprocess.run(
-        [sys.executable, str(script), "--cohort", cohort, "--age_band", age_band],
+        [str(get_workflow_python_bin()), str(script), "--cohort", cohort, "--age_band", age_band],
         cwd=PROJECT_ROOT,
     )
     if r.returncode != 0:
@@ -334,7 +336,7 @@ def main() -> None:
         combine_script = Path(__file__).parent / "combine_shap_ffa_results.py"
         dashboard_out = PROJECT_ROOT / "10_risk_dashboard" / "outputs"
         combine_cmd = [
-            sys.executable,
+            str(get_workflow_python_bin()),
             str(combine_script),
             "--cohort",
             args.cohort,

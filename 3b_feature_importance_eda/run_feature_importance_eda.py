@@ -39,6 +39,7 @@ else:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname, REQUIRED_COHORTS
+from py_helpers.env_utils import get_workflow_python_bin
 
 try:
     from py_helpers.feature_importance_eda_utils import (
@@ -68,7 +69,7 @@ def run_bupar_analysis(cohort: str, age_band: str, script_dir: Path) -> bool:
     
     script_path = script_dir / "1_bupaR" / "run_bupar_post_target_analysis.py"
     cmd = [
-        sys.executable,
+        str(get_workflow_python_bin()),
         str(script_path),
         "--cohort", cohort,
         "--age-band", age_band
@@ -97,7 +98,7 @@ def run_create_safe_feature_filter(cohort: str, age_band: str, script_dir: Path)
     print(f"{'='*80}")
     script_path = script_dir / "2_filtering" / "create_safe_feature_filter_json.py"
     cmd = [
-        sys.executable,
+        str(get_workflow_python_bin()),
         str(script_path),
         "--cohort", cohort,
         "--age-band", age_band,
@@ -133,7 +134,7 @@ def ensure_aggregated_fi(cohort: str, age_band: str, script_dir: Path) -> bool:
     if not script_3a.exists():
         print(f"[ERROR] Step 3a script not found: {script_3a}")
         return False
-    cmd = [sys.executable, str(script_3a), "--cohort", cohort, "--age_band", age_band]
+    cmd = [str(get_workflow_python_bin()), str(script_3a), "--cohort", cohort, "--age_band", age_band]
     try:
         result = subprocess.run(cmd, check=True, cwd=str(PROJECT_ROOT))
         if result.returncode != 0:
@@ -153,7 +154,7 @@ def run_filter_and_refine(cohort: str, age_band: str, script_dir: Path) -> bool:
     
     script_path = script_dir / "2_filtering" / "filter_and_refine_features.py"
     cmd = [
-        sys.executable,
+        str(get_workflow_python_bin()),
         str(script_path),
         "--cohort", cohort,
         "--age-band", age_band
@@ -175,7 +176,7 @@ def create_bupar_visualizations(cohort: str, age_band: str, script_dir: Path) ->
     
     script_path = script_dir / "1_bupaR" / "create_bupar_visualizations.py"
     cmd = [
-        sys.executable,
+        str(get_workflow_python_bin()),
         str(script_path),
         "--cohort", cohort,
         "--age-band", age_band

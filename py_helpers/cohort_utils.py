@@ -26,6 +26,7 @@ from py_helpers.common_imports import (
     S3_BUCKET, 
     pd
 )
+from py_helpers.env_utils import get_workflow_python_bin
 
 from py_helpers.s3_utils import (
     parse_s3_path,
@@ -344,7 +345,7 @@ def check_and_reprocess_all_cohorts(
             return False
 
         cmd = [
-            sys.executable,
+            str(get_workflow_python_bin()),
             os.path.join(os.path.dirname(__file__), "create_cohort.py"),
             "--cohort", cohort_type,
             "--age-band", age_band,
@@ -531,6 +532,9 @@ def run_cohort(job, script_path, python_bin=sys.executable, target_icd=None, con
         concurrent_workers: Number of concurrent workers (for memory limit calculation).
                            If None, will detect from MAX_WORKERS or PGX_COHORT_WORKERS env vars.
     """
+    if python_bin is None:
+        python_bin = get_workflow_python_bin()
+    python_bin = str(python_bin)
     target_icd = target_icd or os.environ.get("PGX_TARGET_ICD_CODES", "F1120")
     
     # Detect concurrent workers if not provided

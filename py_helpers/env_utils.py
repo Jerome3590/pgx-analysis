@@ -17,9 +17,28 @@ from __future__ import annotations
 
 import os
 import platform
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
+
+# EC2 Jupyter env Python (docs/CrossStep_Development/README_ec2_runtime.md)
+EC2_PYTHON_PATH = Path("/home/pgx3874/jupyter-env/bin/python3.11")
+
+
+def get_workflow_python_bin() -> Path:
+    """Return Python executable for workflow subprocess calls (notebooks, scripts).
+
+    Prefer PGX_PYTHON env, then EC2 path if it exists, else sys.executable.
+    Use this when invoking Python scripts from notebooks or other scripts so the
+    same environment (e.g. Jupyter kernel env on EC2) is used.
+    """
+    env_bin = os.environ.get("PGX_PYTHON")
+    if env_bin and Path(env_bin).exists():
+        return Path(env_bin)
+    if EC2_PYTHON_PATH.exists():
+        return EC2_PYTHON_PATH
+    return Path(sys.executable)
 
 
 @dataclass

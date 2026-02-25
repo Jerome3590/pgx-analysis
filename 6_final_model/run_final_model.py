@@ -52,7 +52,7 @@ from py_helpers.fe_monitor import (  # noqa: E402
     mirror_log_to_s3,
 )
 from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
-from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, get_model_data_root, is_linux
+from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, get_model_data_root, get_workflow_python_bin, is_linux
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
@@ -2809,7 +2809,7 @@ def main() -> None:
         if prepare_script.exists():
             logger.info("Uploading model training input data to S3 (required for SHAP/FFA)...")
             subprocess.run(
-                [sys.executable, str(prepare_script), "--cohort-name", args.cohort, "--age-band", args.age_band, "--project-root", str(PROJECT_ROOT)],
+                [str(get_workflow_python_bin()), str(prepare_script), "--cohort-name", args.cohort, "--age-band", args.age_band, "--project-root", str(PROJECT_ROOT)],
                 check=True,
                 cwd=PROJECT_ROOT,
             )

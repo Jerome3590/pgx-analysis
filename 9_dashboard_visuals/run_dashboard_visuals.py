@@ -47,6 +47,8 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from py_helpers.env_utils import get_workflow_python_bin
+
 # Repo root
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -97,7 +99,7 @@ def run_sync(profile: str | None) -> bool:
     if not script.exists():
         print("sync_visualization_data_from_s3.py not found; skip sync.")
         return False
-    cmd = [sys.executable, str(script)]
+    cmd = [str(get_workflow_python_bin()), str(script)]
     if profile:
         cmd.extend(["--profile", profile])
     r = subprocess.run(cmd, cwd=str(REPO_ROOT))
@@ -214,7 +216,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(bupar_script), "--cohort-name", c, "--age-band", ab] + force_flag + bupar_extra,
+                    [str(get_workflow_python_bin()), str(bupar_script), "--cohort-name", c, "--age-band", ab] + force_flag + bupar_extra,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)
@@ -238,7 +240,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(dtw_trajectories_script), "--cohort", c, "--age-band", ab] + force_flag,
+                    [str(get_workflow_python_bin()), str(dtw_trajectories_script), "--cohort", c, "--age-band", ab] + force_flag,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)
@@ -261,7 +263,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(dtw_features_script), "--cohort", c, "--age-band", ab] + force_flag,
+                    [str(get_workflow_python_bin()), str(dtw_features_script), "--cohort", c, "--age-band", ab] + force_flag,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)
@@ -284,7 +286,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(dtw_visuals_script), "--cohort-name", c, "--age-band", ab, "--project-root", str(REPO_ROOT)] + force_flag,
+                    [str(get_workflow_python_bin()), str(dtw_visuals_script), "--cohort-name", c, "--age-band", ab, "--project-root", str(REPO_ROOT)] + force_flag,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)
@@ -309,7 +311,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(fpgrowth_script), "--cohort-name", c, "--age-band", ab] + force_flag,
+                    [str(get_workflow_python_bin()), str(fpgrowth_script), "--cohort-name", c, "--age-band", ab] + force_flag,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)
@@ -344,7 +346,7 @@ def main():
                     ex.submit(
                         subprocess.run,
                         [
-                            sys.executable, str(fetch_pgx_script),
+                            str(get_workflow_python_bin()), str(fetch_pgx_script),
                             "--cohort", c, "--age-band", ab,
                             "--top-n", "50",
                             "--project-root", str(REPO_ROOT),
@@ -380,7 +382,7 @@ def main():
                         ex.submit(
                             subprocess.run,
                             [
-                                sys.executable, str(build_pgx_script),
+                                str(get_workflow_python_bin()), str(build_pgx_script),
                                 "--reports", str(reports_file),
                                 "--output-dir", str(out_dir),
                                 "--cohort", c, "--age-band", ab,

@@ -620,6 +620,17 @@
     #dtw-visualizations-tab .dtw-subpanel.active {
       display: block;
     }
+    /* FP-Growth: 2×1 grid — row 1: Top Itemsets + Itemset Support; row 2: Drug Association Network (full width) */
+    #fpgrowth-visualizations-tab .panels {
+      grid-template-columns: 1fr 1fr;
+    }
+    #fpgrowth-visualizations-tab .panels .panel.full-width {
+      grid-column: 1 / -1;
+    }
+    #fpgrowth-visualizations-tab #fpgrowth-network-container {
+      width: 100%;
+      min-height: 600px;
+    }
     #documentation-tab .doc-content {
       max-height: 70vh;
       min-height: 200px;
@@ -1339,6 +1350,12 @@
   })();
   const API_BASE = window.API_BASE_URL || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod";
 
+  // Static-first JSON: same-origin paths (S3/CloudFront) are tried first; Lambda API is fallback. See docs/STATIC_FIRST_JSON.md.
+  function staticJsonPath(relativePath) {
+    const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
+    return (base ? base + "/" : "") + relativePath.replace(/^\//, "");
+  }
+
   /** Log 4xx/5xx API response to console (error + paths_checked) and return parsed body for throwing. */
   async function logApiErrorResponseAndParse(resp, context) {
     let body = null;
@@ -1443,30 +1460,36 @@
   }
 
   // ==============================
-  // METADATA LOADING
+  // METADATA LOADING (static-first: S3/CloudFront then Lambda)
   // ==============================
-  // Prefer same-origin static asset (no API call); fallback to GET /metadata if missing
+  // Use ?metadata=api in the URL to skip the static request and avoid 404 when metadata/ is not deployed.
+  function preferApiMetadata() {
+    return (new URLSearchParams(window.location.search)).get("metadata") === "api";
+  }
   async function loadMetadata(cohort) {
     setStatus(`Loading metadata for ${cohort}...`, "info");
-    const staticUrl = `metadata/${cohort}.json`;
     try {
       let data = null;
-      const staticResp = await fetch(staticUrl);
-      if (staticResp.ok) {
-        data = await staticResp.json();
+      if (!preferApiMetadata()) {
+        const staticUrl = staticJsonPath(`metadata/${cohort}.json`);
+        const staticResp = await fetch(staticUrl);
+        if (staticResp.ok) data = await staticResp.json();
       }
       if (!data) {
-        const metadataUrl = `${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`;
-        const resp = await fetch(metadataUrl);
-        if (!resp.ok) {
-          const text = await resp.text();
-          let detail = text;
-          let j = null;
-          try { j = JSON.parse(text); detail = j.error || j.message || text; } catch (_) {}
-          if (j) console.error("[Dashboard API]", resp.status, "Metadata", detail, j.paths_checked ? { paths_checked: j.paths_checked } : "");
+        const metadataApiUrl = `${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`;
+        const resp = await fetch(metadataApiUrl);
+        if (resp.ok) data = await resp.json();
+        if (!data) {
+          let detail = resp.statusText;
+          if (!resp.ok) {
+            try {
+              const text = await resp.text();
+              let j = null;
+              try { j = JSON.parse(text); detail = j.error || j.message || text; if (j && j.paths_checked) console.error("[Dashboard API]", resp.status, "Metadata", detail, { paths_checked: j.paths_checked }); } catch (_) { detail = text || detail; }
+            } catch (_) {}
+          }
           throw new Error(`HTTP ${resp.status}: ${detail}`);
         }
-        data = await resp.json();
       }
       currentMetadata = data;
       currentCohort = cohort;
@@ -2608,14 +2631,20 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
-      if (!resp.ok) {
-        const body = await logApiErrorResponseAndParse(resp, "Feature Importance");
-        throw new Error(body && body.error ? body.error : `HTTP ${resp.status}`);
+      let data = null;
+      const staticUrl = staticJsonPath(`feature_importance/${cohort}.json`);
+      const staticResp = await fetch(staticUrl);
+      if (staticResp.ok) data = await staticResp.json();
+      if (!data) {
+        const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
+        if (!resp.ok) {
+          const body = await logApiErrorResponseAndParse(resp, "Feature Importance");
+          throw new Error(body && body.error ? body.error : `HTTP ${resp.status}`);
+        }
+        data = await resp.json();
       }
-      const data = await resp.json();
 
-      if (data.heatmap_data) {
+      if (data && data.heatmap_data) {
         renderFIHeatmapFromData(data.heatmap_data);
         // If JSON didn't render (e.g. wrong shape), fall back to image so we always show one visual
         var chartVisible = fiHeatmapChart && fiHeatmapChart.style.display !== "none" && fiHeatmapChart.innerHTML !== "";

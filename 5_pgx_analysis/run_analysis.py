@@ -24,6 +24,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))  # noqa: E402
 
+from py_helpers.env_utils import get_workflow_python_bin  # noqa: E402
 from py_helpers.fe_monitor import (  # noqa: E402
     detect_runtime_environment,
     function_block,
@@ -110,7 +111,7 @@ def create_pgx_features_step(
         try:
             result = subprocess.run(
                 [
-                    sys.executable,
+                    str(get_workflow_python_bin()),
                     str(script_path),
                     "--cohort",
                     cohort_name,
@@ -159,7 +160,7 @@ def add_pgx_features_to_model_data(
         try:
             result = subprocess.run(
                 [
-                    sys.executable,
+                    str(get_workflow_python_bin()),
                     str(script_path),
                     "--cohort-name",
                     cohort_name,

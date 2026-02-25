@@ -38,51 +38,10 @@ else:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Set Python binary path based on OS
-if IS_WINDOWS:
-    # Windows: Check PYTHON_HOME or PYTHON env vars first, then use sys.executable
-    PYTHON_BIN = None
-    
-    # First, try PYTHON_HOME environment variable (if set)
-    python_home = os.environ.get('PYTHON_HOME')
-    if python_home:
-        # PYTHON_HOME typically points to the Python installation directory
-        python_from_home = Path(python_home) / 'python.exe'
-        if python_from_home.exists():
-            PYTHON_BIN = python_from_home
-            print(f"   Found Python via PYTHON_HOME: {PYTHON_BIN}")
-        else:
-            # Try pythonw.exe as alternative
-            pythonw_from_home = Path(python_home) / 'pythonw.exe'
-            if pythonw_from_home.exists():
-                PYTHON_BIN = pythonw_from_home
-                print(f"   Found Python via PYTHON_HOME (pythonw): {PYTHON_BIN}")
-    
-    # If not found via PYTHON_HOME, try PYTHON environment variable (direct path)
-    if not PYTHON_BIN:
-        python_env = os.environ.get('PYTHON')
-        if python_env:
-            python_from_env = Path(python_env)
-            if python_from_env.exists():
-                PYTHON_BIN = python_from_env
-                print(f"   Found Python via PYTHON env var: {PYTHON_BIN}")
-    
-    # Fallback to sys.executable (most reliable - uses current Python)
-    if not PYTHON_BIN:
-        PYTHON_BIN = Path(sys.executable)
-        print(f"   Using current Python interpreter: {PYTHON_BIN}")
-elif IS_LINUX:
-    # Linux/EC2: Try EC2 Jupyter environment first, fallback to sys.executable
-    PYTHON_BIN = Path('/home/pgx3874/jupyter-env/bin/python3.11')
-    if not PYTHON_BIN.exists():
-        PYTHON_BIN = Path(sys.executable)
-        print(f"⚠️  EC2 Python path not found, using: {PYTHON_BIN}")
-    else:
-        print(f"   Using Linux/EC2 Python: {PYTHON_BIN}")
-else:
-    # Fallback: Use sys.executable
-    PYTHON_BIN = Path(sys.executable)
-    print(f"   Using fallback Python: {PYTHON_BIN}")
+# Use centralized workflow Python (EC2 jupyter-env or PGX_PYTHON or sys.executable)
+from py_helpers.env_utils import get_workflow_python_bin
+PYTHON_BIN = get_workflow_python_bin()
+print(f"   Using workflow Python: {PYTHON_BIN}")
 
 # Set Rscript path based on OS
 if IS_WINDOWS:

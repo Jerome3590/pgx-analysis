@@ -8,6 +8,17 @@
 
 ---
 
+## EC2 paths (reference)
+
+| Purpose | Path |
+|--------|------|
+| **Python (Jupyter env)** | `/home/pgx3874/jupyter-env/bin/python3.11` |
+| **Project root** | `/home/pgx3874/pgx-analysis` |
+
+Use the Python path when invoking scripts from notebooks (e.g. `subprocess.run([str(PYTHON_BIN), script, ...])`) so the same environment as the kernel is used.
+
+---
+
 ## Key Assumptions
 
 1. **DuckDB Configuration:**

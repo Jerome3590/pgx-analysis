@@ -2,8 +2,8 @@
 """
 Upload causal dashboard JSON to S3 for the Causal Analysis tab.
 
-Scans 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/ for dashboard_data.json
-and uploads each to the dashboard bucket as causal/{cohort}/{age_band_fname}/causal_data.json.
+Scans 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/ for dashboard_data.json (EC2 uses underscore)
+and uploads each to the dashboard bucket as causal/{cohort}/{age_band}/causal_data.json (S3 uses hyphen).
 Lambda (GET /visualizations/causal) reads from S3; this script is run during deployment
 (5_build_and_deploy.ipynb or pgx_dashboard_visuals.py) so the tab has data.
 
@@ -46,11 +46,12 @@ def main() -> int:
         for age_dir in cohort_dir.iterdir():
             if not age_dir.is_dir() or age_dir.name.startswith("."):
                 continue
-            age_band_fname = age_dir.name
+            age_band_fname = age_dir.name  # EC2 dir: 25_44
+            age_band_s3 = age_band_fname.replace("_", "-")  # S3 path: 25-44
             json_path = age_dir / "dashboard_data.json"
             if not json_path.exists():
                 continue
-            key = f"{prefix}/causal/{cohort}/{age_band_fname}/causal_data.json"
+            key = f"{prefix}/causal/{cohort}/{age_band_s3}/causal_data.json"
             try:
                 s3.upload_file(
                     str(json_path),
@@ -58,10 +59,10 @@ def main() -> int:
                     key,
                     ExtraArgs={"ContentType": "application/json"},
                 )
-                print(f"  ✓ Causal data: {cohort}/{age_band_fname} -> s3://{bucket}/{key}")
+                print(f"  ✓ Causal data: {cohort}/{age_band_s3} -> s3://{bucket}/{key}")
                 uploaded += 1
             except Exception as e:
-                print(f"  ⚠ Upload failed {cohort}/{age_band_fname}: {e}", file=sys.stderr)
+                print(f"  ⚠ Upload failed {cohort}/{age_band_s3}: {e}", file=sys.stderr)
 
     if uploaded:
         print(f"Causal dashboard JSON: {uploaded} file(s) uploaded to S3.")

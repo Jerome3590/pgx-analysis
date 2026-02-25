@@ -240,6 +240,10 @@ class FileResolver:
         pattern = self.config.get("filename_pattern", "")
         return self._format_path(pattern, include_filename=False)
     
+    def get_candidate_paths(self) -> List[Path]:
+        """Return all paths that resolve() checks (for inclusion in FileNotFoundError messages)."""
+        return self._get_candidate_paths()
+
     def _get_candidate_paths(self) -> List[Path]:
         """Get all candidate paths to check in order."""
         candidates = []
@@ -440,8 +444,11 @@ def load_cohort_feature_importance(
     )
     df = resolver.load()
     if df is None:
+        paths_checked = resolver.get_candidate_paths()
+        paths_str = "\n  ".join(str(p) for p in paths_checked) if paths_checked else "(none)"
         raise FileNotFoundError(
             f"Could not find cohort_feature_importance for {cohort}/{age_band}. "
+            f"Checked:\n  {paths_str}\n"
             "Check that Step 3b has completed for this cohort/age_band."
         )
 
@@ -497,8 +504,11 @@ def load_aggregated_feature_importance(
     )
     df = resolver.load()
     if df is None:
+        paths_checked = resolver.get_candidate_paths()
+        paths_str = "\n  ".join(str(p) for p in paths_checked) if paths_checked else "(none)"
         raise FileNotFoundError(
             f"Could not find aggregated_feature_importance for {cohort}/{age_band}. "
+            f"Checked:\n  {paths_str}\n"
             "Run Step 3a for this cohort/age_band to produce the file."
         )
     
