@@ -113,6 +113,7 @@ def main():
     ap.add_argument("--fpgrowth-workers", type=int, default=None,
                     help="Parallel workers for FP-Growth (default: one per cohort/age_band combo, capped by CPU count)")
     ap.add_argument("--fail-fast", action="store_true", default=True, help="Stop on first failure (default True)")
+    ap.add_argument("--export-bupar-csv-to-json", action="store_true", help="Pass --export-csv-to-json to BupaR so feature CSVs are exported as JSON in plots/ and uploaded")
     args = ap.parse_args()
 
     # Combinations (same logic as 4_dashboard_visuals.ipynb)
@@ -181,6 +182,7 @@ def main():
     dtw_visuals_script = step9_root / "dtw" / "create_dtw_visuals.py"
     fpgrowth_script = step9_root / "fpgrowth" / "create_fpgrowth_visuals.py"
     force_flag = ["--force"] if args.force else []
+    bupar_extra = ["--export-csv-to-json"] if getattr(args, "export_bupar_csv_to_json", False) else []
 
     # Sync
     if not args.no_sync:
@@ -203,7 +205,7 @@ def main():
             futures = {
                 ex.submit(
                     subprocess.run,
-                    [sys.executable, str(bupar_script), "--cohort-name", c, "--age-band", ab] + force_flag,
+                    [sys.executable, str(bupar_script), "--cohort-name", c, "--age-band", ab] + force_flag + bupar_extra,
                     cwd=str(REPO_ROOT),
                     capture_output=False,
                 ): (c, ab)

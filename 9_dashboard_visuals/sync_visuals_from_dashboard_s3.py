@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Sync dashboard visualization artifacts FROM the live dashboard S3 bucket (jerome.dixon.io)
+Sync dashboard visualization artifacts FROM the live dashboard S3 bucket (jerome-dixon.io)
 into the repo so you have local copies of BupaR, DTW, and FP-Growth plots/HTML.
 
 S3 layout (same as upload): s3://jerome-dixon.io/vcu/pgx-risk-calculator/
-  - bupar/{cohort}/{age_band}/plots/  (includes plots/lib/ for interactive HTML deps)
+  - bupar/{cohort}/{age_band}/plots/  (PNG, HTML, JSON, plots/lib/ for interactive HTML deps)
   - dtw/{cohort}/{age_band}/plots/ and chart_data.json
   - fpgrowth/{cohort}/{age_band}/plots/
+
+BupaR plots/ contents checked by create_bupar_visuals.check_bupar_paths():
+  - Visualization: *_overall_activity_frequency.png, *_activity_frequency_interactive.html,
+    *_process_matrix.png, *_trace_explorer_*.png/html, *_frequency_map.png, etc. (cohort/age use underscore in filenames)
+  - JSON (dashboard charts): *_activity_frequency.json, *_pre_target_activity_frequency.json, *_post_target_activity_frequency.json
+  - Optional JSON (if --export-csv-to-json): *_traces_top.json, *_traces_rare.json, *_pre_target_traces_top.json, etc.
+  - features/ CSVs are not uploaded to dashboard S3; they stay local or on gold/bupar.
 
 Local layout (canonical):
   - 10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/
