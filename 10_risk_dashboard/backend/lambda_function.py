@@ -1295,81 +1295,28 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GET /visualizations/causal?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...]
+    GET /visualizations/causal?cohort=...&age_band=...
 
-    Optional filter by user-selected codes: drugs, icds, cpts (each comma-separated).
-    When provided, causal and SHAP results are restricted to features matching those codes (item_<CODE>).
+    Returns URL to prebuilt causal_data.json (same pattern as DTW chart_data_url).
+    Data is produced by combine_shap_ffa_results --upload-to-dashboard and stored in
+    the dashboard bucket under {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band}/causal_data.json.
+    Frontend fetches that URL and maps top_causal_factors to causal_factors / shap_importance.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        drugs_param = params.get("drugs", "")
-        icds_param = params.get("icds", "")
-        cpts_param = params.get("cpts", "")
 
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
-        # Build optional feature filter from user-selected codes (same naming as risk model: item_<CODE>)
-        selected_features: Optional[Set[str]] = None
-        if drugs_param or icds_param or cpts_param:
-            selected_features = set()
-            for code in (c.strip() for c in drugs_param.split(",") if c.strip()):
-                selected_features.add(f"item_{code.upper()}")
-            for code in (c.strip() for c in icds_param.split(",") if c.strip()):
-                selected_features.add(f"item_{code.upper()}")
-            for code in (c.strip() for c in cpts_param.split(",") if c.strip()):
-                selected_features.add(f"item_{code.upper()}")
-            if not selected_features:
-                selected_features = None  # no valid codes; don't filter
-
-        # Load causal importance and SHAP data
-        causal_df = load_causal_importance(cohort, age_band)
-        shap_df = load_shap_importance(cohort, age_band)
-
-        # When no user selection, restrict to SHAP/FFA important features (top 500 by combined importance)
-        if selected_features is None and (not causal_df.empty or not shap_df.empty):
-            causal_col = "causal_importance" if "causal_importance" in (causal_df.columns if not causal_df.empty else []) else causal_df.columns[1] if not causal_df.empty and len(causal_df.columns) > 1 else None
-            shap_col = "shap_importance" if not shap_df.empty and "shap_importance" in shap_df.columns else (shap_df.columns[1] if not shap_df.empty and len(shap_df.columns) > 1 else None)
-            merged = []
-            if not causal_df.empty and causal_col:
-                merged.append(causal_df[["feature", causal_col]].rename(columns={causal_col: "importance"}))
-            if not shap_df.empty and shap_col:
-                merged.append(shap_df[["feature", shap_col]].rename(columns={shap_col: "importance"}))
-            if merged:
-                combined = pd.concat(merged, ignore_index=True)
-                combined = combined.groupby("feature", as_index=False)["importance"].max()
-                combined = combined.sort_values("importance", ascending=False).head(500)
-                selected_features = set(combined["feature"].astype(str).tolist())
-
-        if selected_features and not causal_df.empty:
-            causal_df = causal_df[causal_df["feature"].isin(selected_features)].copy()
-        if selected_features and not shap_df.empty:
-            shap_df = shap_df[shap_df["feature"].isin(selected_features)].copy()
-
-        # Format for frontend (top 20 each)
-        causal_factors = []
-        if not causal_df.empty:
-            causal_df = causal_df.sort_values("causal_importance", ascending=False).head(20)
-            causal_factors = causal_df.apply(
-                lambda row: {"feature": row["feature"], "importance": float(row["causal_importance"])},
-                axis=1
-            ).tolist()
-
-        shap_importance = []
-        if not shap_df.empty:
-            shap_df = shap_df.sort_values("shap_importance", ascending=False).head(20)
-            shap_importance = shap_df.apply(
-                lambda row: {"feature": row["feature"], "importance": float(row["shap_importance"])},
-                axis=1
-            ).tolist()
+        age_band_fname = age_band.replace("-", "_")
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band_fname}"
+        base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
+        causal_data_url = f"{base_url}/{prefix}/causal_data.json"
 
         return _response(200, {
-            "causal_factors": causal_factors,
-            "shap_importance": shap_importance,
-            "interactions": [],
-            "filtered_by_codes": bool(selected_features),
+            "causal_data_url": causal_data_url,
         })
     except Exception as e:
         return _response(500, {"error": str(e)})

@@ -283,6 +283,11 @@ def main() -> None:
         default=0,
         help="Combine step: parallel workers for patient explanations (0=auto from CPU count, 1=sequential). Always passed to combine.",
     )
+    parser.add_argument(
+        "--upload-to-dashboard",
+        action="store_true",
+        help="After combine, upload causal_data.json to S3 dashboard bucket (for GET /visualizations/causal).",
+    )
     args = parser.parse_args()
     age_band_fname = _age_band_fname(args.age_band)
 
@@ -340,6 +345,8 @@ def main() -> None:
             "--workers",
             str(args.workers),
         ]
+        if getattr(args, "upload_to_dashboard", False):
+            combine_cmd.append("--upload-to-dashboard")
         r = subprocess.run(combine_cmd, cwd=Path(__file__).parent)
         if r.returncode != 0:
             raise SystemExit(r.returncode)

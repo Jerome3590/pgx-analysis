@@ -558,6 +558,7 @@ def generate_dashboard_outputs_phts_style(
     with open(json_path, "w") as f:
         json.dump(dashboard_data, f, indent=2)
     logger.info(f"Saved dashboard_data.json (PHTS-style) to {json_path}")
+    # Caller may upload this to dashboard S3 via --upload-to-dashboard (same shape as causal_data.json)
     csv_path = output_dir / "top_causal_factors.csv"
     top_causal.to_csv(csv_path, index=False)
     logger.info(f"Saved top_causal_factors.csv to {csv_path}")
@@ -565,6 +566,31 @@ def generate_dashboard_outputs_phts_style(
     combined_importance.to_csv(combined_shap_path, index=False)
     logger.info(f"Saved combined_shap_importance.csv to {combined_shap_path}")
     return dashboard_data
+
+
+def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band_fname: str) -> bool:
+    """Upload dashboard_data.json to S3 dashboard bucket as causal_data.json for GET /visualizations/causal."""
+    try:
+        import boto3
+    except ImportError:
+        logger.warning("boto3 not available; skipping upload to dashboard S3")
+        return False
+    bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
+    key = f"{prefix}/causal/{cohort}/{age_band_fname}/causal_data.json"
+    try:
+        s3 = boto3.client("s3")
+        s3.upload_file(
+            str(json_path),
+            bucket,
+            key,
+            ExtraArgs={"ContentType": "application/json"},
+        )
+        logger.info("Uploaded causal_data.json to s3://%s/%s", bucket, key)
+        return True
+    except Exception as e:
+        logger.warning("Failed to upload causal_data.json to S3: %s", e)
+        return False
 
 
 def main():
@@ -583,7 +609,11 @@ def main():
         help="Parallel workers for patient explanations (0=auto from CPU count, 1=sequential)",
     )
     parser.add_argument("--all-cohorts", action="store_true", help="Process all cohorts")
-    
+    parser.add_argument(
+        "--upload-to-dashboard",
+        action="store_true",
+        help="Upload dashboard_data.json to S3 dashboard bucket as causal/{cohort}/{age_band}/causal_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
+    )
     args = parser.parse_args()
     
     # This script is in 10_risk_dashboard/data_preparation/; project root is 3 levels up
@@ -744,6 +774,10 @@ def main():
         generate_dashboard_outputs_phts_style(
             combined_importance, output_dir, args.cohort, args.age_band.replace("-", "_"), args.top_k
         )
+        if getattr(args, "upload_to_dashboard", False):
+            upload_causal_data_to_dashboard(
+                output_dir / "dashboard_data.json", args.cohort, age_band_fname
+            )
     
     if patient_explanations is not None:
         explanations_path = output_dir / 'patient_explanations.csv'

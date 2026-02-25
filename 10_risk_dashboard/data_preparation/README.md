@@ -104,7 +104,9 @@ python combine_shap_ffa_results.py --cohort opioid_ed --age-band 25-44
 4. Creates combined analysis files
 
 **Outputs:**
-- Combined SHAP/FFA analysis files
+- `dashboard_data.json` (PHTS-style) and CSV under `--output-dir/{cohort}/{age_band}/`
+
+**Dashboard S3 (optional):** Use `--upload-to-dashboard` to upload `dashboard_data.json` as `causal_data.json` to the dashboard bucket (`S3_DASHBOARD_BUCKET` / `S3_DASHBOARD_PREFIX`). The Causal Analysis tab then loads it via `GET /visualizations/causal` (prebuilt JSON pattern, same as DTW).
 
 ## Input Sources
 
