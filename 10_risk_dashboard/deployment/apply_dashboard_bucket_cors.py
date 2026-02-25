@@ -102,7 +102,7 @@ def main() -> int:
             return 0
 
         apply_cors(bucket, args.config, args.region)
-        print(f"✓ CORS applied to bucket {bucket} (visualization folders can pass/receive objects)")
+        print(f"CORS applied to bucket {bucket} (visualization folders can pass/receive objects)")
         return 0
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)

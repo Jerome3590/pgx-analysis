@@ -1377,7 +1377,7 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     Lambda applies optional filters (drugs, icds, cpts, whatif) and returns chart_data
     (causal_factors, shap_importance, whatif variants, feature_interactions) so the
     frontend can render without re-filtering. Radar plot uses top N of causal_factors.
-    S3 key: {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band}/causal_data.json (age_band with hyphen, e.g. 25-44).
+    S3 key: {S3_DASHBOARD_PREFIX}/visualizations/causal/{cohort}/{age_band}/causal_data.json (age_band with hyphen, e.g. 25-44).
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1388,7 +1388,7 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         # S3 paths use hyphen (25-44); EC2/file paths use underscore (25_44)
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band}"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/causal/{cohort}/{age_band}"
         causal_key = f"{prefix}/causal_data.json"
         payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key)}
 
@@ -1642,7 +1642,7 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
     """GET /visualizations/feature_importance?cohort=...
     Cohort: opioid_ed, non_opioid_ed, or combined. Always returns aggregated heatmap (no model filter).
     Prefer JSON over PNG: returns heatmap_data when available; frontend falls back to heatmap_url (PNG).
-    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json|png; combined uses combined_cohorts_*.
+    S3: {prefix}/visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json|png; combined uses combined_cohorts_*.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1651,7 +1651,7 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
             return _response(400, {"error": "cohort parameter required"})
         if cohort not in ("opioid_ed", "non_opioid_ed", "combined"):
             cohort = "opioid_ed"
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/feature_importance"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
         if cohort == "combined":
             heatmap_key = combined_key

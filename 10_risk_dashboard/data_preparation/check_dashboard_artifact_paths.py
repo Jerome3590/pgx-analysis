@@ -68,9 +68,9 @@ def check_feature_importance(root: Path) -> list[tuple[str, bool, str]]:
 
 
 def check_causal(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
-    """Causal Analysis tab: dashboard_data.json per cohort/age_band."""
+    """Causal Analysis tab: dashboard_data.json per cohort/age_band (visualizations/causal)."""
     results = []
-    out = root / "10_risk_dashboard" / "outputs"
+    out = root / "10_risk_dashboard" / "visualizations" / "causal"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         path = out / cohort / ab_fname / "dashboard_data.json"

@@ -2,8 +2,8 @@
 """
 Upload causal dashboard JSON to S3 for the Causal Analysis tab.
 
-Scans 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/ for dashboard_data.json (EC2 uses underscore)
-and uploads each to the dashboard bucket as causal/{cohort}/{age_band}/causal_data.json (S3 uses hyphen).
+Scans 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/ for dashboard_data.json (EC2 uses underscore)
+and uploads each to the dashboard bucket as visualizations/causal/{cohort}/{age_band}/causal_data.json (S3 uses hyphen).
 Lambda (GET /visualizations/causal) reads from S3; this script is run during deployment
 (5_build_and_deploy.ipynb or pgx_dashboard_visuals.py) so the tab has data.
 
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUTPUTS_DIR = REPO_ROOT / "10_risk_dashboard" / "outputs"
+CAUSAL_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 
 
 def main() -> int:
@@ -51,7 +51,7 @@ def main() -> int:
             json_path = age_dir / "dashboard_data.json"
             if not json_path.exists():
                 continue
-            key = f"{prefix}/causal/{cohort}/{age_band_s3}/causal_data.json"
+            key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/causal_data.json"
             try:
                 s3.upload_file(
                     str(json_path),
@@ -67,7 +67,7 @@ def main() -> int:
     if uploaded:
         print(f"Causal dashboard JSON: {uploaded} file(s) uploaded to S3.")
     else:
-        print("No dashboard_data.json found under 10_risk_dashboard/outputs/ (run combine_shap_ffa_results or run_shap_ffa_workflow first).")
+        print("No dashboard_data.json found under 10_risk_dashboard/visualizations/causal/ (run combine_shap_ffa_results or run_shap_ffa_workflow first).")
     return 0
 
 

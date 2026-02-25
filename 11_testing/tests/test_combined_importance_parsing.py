@@ -27,7 +27,7 @@ print(f"Testing combined_importance.csv parsing for {cohort}/{age_band}")
 print("=" * 80)
 
 # Check if file exists
-csv_path = REPO_ROOT / "10_risk_dashboard" / "outputs" / cohort / age_band_fname / "combined_importance.csv"
+csv_path = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "causal" / cohort / age_band_fname / "combined_importance.csv"
 print(f"\n1. Checking file existence:")
 print(f"   Path: {csv_path}")
 print(f"   Exists: {csv_path.exists()}")

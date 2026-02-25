@@ -9,8 +9,8 @@ in FFA's causal importance scores, which use SHAP-prioritized rules.
 Usage:
     python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \\
         --cohort opioid_ed --age-band 25-44
-    # Writes to 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json (EC2 path).
-    # Upload to S3: causal/{cohort}/{age_band}/causal_data.json (use --upload-to-dashboard or upload_causal_outputs_to_s3.py).
+    # Writes to 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json (EC2 path).
+    # Upload to S3: visualizations/causal/{cohort}/{age_band}/causal_data.json (use --upload-to-dashboard or upload_causal_outputs_to_s3.py).
 """
 
 import os
@@ -578,7 +578,7 @@ def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str)
         return False
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    key = f"{prefix}/causal/{cohort}/{age_band}/causal_data.json"
+    key = f"{prefix}/visualizations/causal/{cohort}/{age_band}/causal_data.json"
     try:
         s3 = boto3.client("s3")
         s3.upload_file(
@@ -598,7 +598,7 @@ def main():
     parser = argparse.ArgumentParser(description="Combine SHAP and FFA results for final reporting")
     parser.add_argument("--cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
-    parser.add_argument("--output-dir", default="10_risk_dashboard/outputs", help="Output directory (EC2: .../outputs/{cohort}/{age_band_fname}/)")
+    parser.add_argument("--output-dir", default="10_risk_dashboard/visualizations/causal", help="Output directory (EC2: .../visualizations/causal/{cohort}/{age_band_fname}/)")
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
     parser.add_argument("--weight-shap", type=float, default=0.5, help="Weight for SHAP (0-1)")
     parser.add_argument("--weight-ffa", type=float, default=0.5, help="Weight for FFA (0-1)")
@@ -613,7 +613,7 @@ def main():
     parser.add_argument(
         "--upload-to-dashboard",
         action="store_true",
-        help="Upload dashboard_data.json to S3 dashboard bucket as causal/{cohort}/{age_band}/causal_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
+        help="Upload dashboard_data.json to S3 dashboard bucket as visualizations/causal/{cohort}/{age_band}/causal_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
     )
     args = parser.parse_args()
     
@@ -626,7 +626,7 @@ def main():
         # TODO: Implement batch processing
         return
     
-    # EC2 path: 10_risk_dashboard/outputs/{cohort}/{age_band_fname}/ (README_dashboard_validation.md)
+    # EC2 path: 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/ (README_dashboard_validation.md)
     output_dir = Path(args.output_dir) / args.cohort / args.age_band.replace("-", "_")
     output_dir.mkdir(parents=True, exist_ok=True)
     
