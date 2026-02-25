@@ -11,10 +11,12 @@ Creates interactive network visualizations for the Cohort PGx dashboard tab.
 """
 
 import json
+import logging
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import argparse
 from collections import defaultdict, Counter
 
@@ -49,27 +51,66 @@ SPACY_INSTALL_MSG = (
 
 class CohortPGxNetworkBuilder:
     """Build network topology from VIP reports."""
-    
-    def __init__(self, reports_file: Path, use_comprehend: bool = True):
+
+    def __init__(
+        self,
+        reports_file: Path,
+        use_comprehend: bool = True,
+        logger: Optional[logging.Logger] = None,
+    ):
         """
         Initialize network builder.
-        
+
         Args:
             reports_file: Path to VIP reports JSON
             use_comprehend: Whether to use AWS Comprehend (requires boto3)
+            logger: Optional logger (e.g. pipeline logger); when set, log instead of print.
         """
         self.reports_file = reports_file
         self.use_comprehend = use_comprehend and COMPREHEND_AVAILABLE
-        
-        # Load reports
-        with open(reports_file, "r", encoding="utf-8") as f:
-            self.reports = json.load(f)
-        
+        self.log = logger
+
+        def _out(msg: str, *args, level: str = "info"):
+            if self.log:
+                getattr(self.log, level)(msg, *args)
+            else:
+                print(msg % args if args else msg)
+
+        self._out = _out
+
+        # Load and validate reports JSON
+        try:
+            with open(reports_file, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            self._out("Failed to load reports file %s: %s", reports_file, e, level="error")
+            raise
+        if not isinstance(raw, list):
+            self._out("Reports file root is not a list (type=%s); expecting list of report objects", type(raw).__name__, level="warning")
+            self.reports = [raw] if isinstance(raw, dict) else []
+        else:
+            self.reports = []
+            for i, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    self._out("Report[%d] is not a dict (type=%s); skipping", i, type(item).__name__, level="warning")
+                    continue
+                # Validation checks consistent with fetch_vip_reports output
+                sym = item.get("gene_symbol") or item.get("gene_name")
+                if not sym or not isinstance(sym, str) or not sym.strip():
+                    self._out("Report[%d] missing or empty gene_symbol/gene_name; skipping", i, level="warning")
+                    continue
+                if not item.get("vip_summary_text") and not item.get("vip_summary_html"):
+                    self._out("Report[%d] (%s) has no vip_summary_text or vip_summary_html; will add node but no text edges", i, sym, level="warning")
+                self.reports.append(item)
+            if len(self.reports) < len(raw):
+                self._out("Loaded %d valid reports (skipped %d invalid)", len(self.reports), len(raw) - len(self.reports), level="warning")
+        self._out("Reports loaded: %d", len(self.reports))
+
         # Initialize spaCy + pytextrank
         try:
             self.nlp = spacy.load("en_core_web_sm")
         except OSError:
-            print("Downloading spaCy model en_core_web_sm...")
+            self._out("Downloading spaCy model en_core_web_sm...")
             import subprocess
             subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
             self.nlp = spacy.load("en_core_web_sm")
@@ -83,9 +124,9 @@ class CohortPGxNetworkBuilder:
         if self.use_comprehend:
             try:
                 self.comprehend_client = boto3.client("comprehend", region_name="us-east-1")
-                print("✓ AWS Comprehend initialized")
+                self._out("AWS Comprehend initialized")
             except Exception as e:
-                print(f"Warning: Could not initialize AWS Comprehend: {e}")
+                self._out("Could not initialize AWS Comprehend: %s", e, level="warning")
                 self.use_comprehend = False
         
         # Network storage
@@ -126,9 +167,9 @@ class CohortPGxNetworkBuilder:
         """Extract metadata from report (tier, CPIC status, etc.)."""
         gene_symbol = report.get("gene_symbol", "Unknown")
         
-        # Get tier information
+        # Get tier information (fetch_vip_reports uses amp_gene; support both)
         cpic_gene = report.get("cpic_gene", False)
-        amp = report.get("amp", False)
+        amp = report.get("amp_gene", report.get("amp", False))
         vip_tier = report.get("vip_tier", "Unknown")
         
         # Store for later use
@@ -223,8 +264,8 @@ class CohortPGxNetworkBuilder:
                     interactions.append((drug1, drug2, interaction_type, evidence))
         
         return interactions
-    
 
+    def extract_entities_pytextrank(self, text: str, gene_symbol: str) -> Dict:
         """Extract entities and key phrases using pytextrank."""
         if not text or len(text) < 10:
             return {"phrases": [], "entities": []}
@@ -315,7 +356,7 @@ class CohortPGxNetworkBuilder:
             }
         
         except Exception as e:
-            print(f"  Warning: Comprehend error for {gene_symbol}: {e}")
+            self._out("Comprehend error for %s: %s", gene_symbol, e, level="warning")
             return {}
     
     def extract_drug_names(self, text: str) -> Set[str]:
@@ -341,16 +382,16 @@ class CohortPGxNetworkBuilder:
     
     def build_network(self) -> nx.Graph:
         """Build network graph from all reports."""
-        print(f"\n{'='*80}")
-        print(f"Building network topology from {len(self.reports)} reports")
-        print(f"{'='*80}\n")
-        
+        self._out("\n%s", "=" * 80)
+        self._out("Building network topology from %d reports", len(self.reports))
+        self._out("%s\n", "=" * 80)
+
         # Process each report
         for i, report in enumerate(self.reports, 1):
             gene_symbol = report.get("gene_symbol", f"GENE_{i}")
             gene_name = report.get("gene_name", gene_symbol)
-            
-            print(f"[{i}/{len(self.reports)}] Processing {gene_symbol}...", end=" ")
+
+            self._out("[%d/%d] Processing %s...", i, len(self.reports), gene_symbol)
             
             # Extract metadata (tier, CPIC status)
             metadata = self.extract_metadata(report)
@@ -371,7 +412,7 @@ class CohortPGxNetworkBuilder:
             text = self.extract_text_from_report(report)
             
             if not text:
-                print("✗ No text")
+                self._out("No text for %s", gene_symbol, level="warning")
                 continue
             
             # Extract entities with pytextrank
@@ -426,10 +467,16 @@ class CohortPGxNetworkBuilder:
             drug_interactions = self.extract_drug_interactions(text, drugs)
             self.drug_interactions.extend(drug_interactions)
             
-            print(f"✓ {len(pytextrank_results['phrases'])} phrases, {len(drugs)} drugs, {len(phenotypes)} phenotypes, {len(drug_interactions)} interactions")
-        
+            self._out(
+                "Phrases=%d drugs=%d phenotypes=%d interactions=%d",
+                len(pytextrank_results["phrases"]),
+                len(drugs),
+                len(phenotypes),
+                len(drug_interactions),
+            )
+
         # Add drug-drug interaction edges
-        print(f"\nAdding {len(self.drug_interactions)} drug-drug interactions...")
+        self._out("Adding %d drug-drug interactions...", len(self.drug_interactions))
         for drug1, drug2, interaction_type, evidence in self.drug_interactions:
             if drug1 in self.entities["drug"] and drug2 in self.entities["drug"]:
                 # Weight based on evidence text length (proxy for detail)
@@ -445,18 +492,13 @@ class CohortPGxNetworkBuilder:
         
         # Add cross-gene relationships based on shared drugs
         self._add_shared_entity_relationships()
-        
-        print(f"\n{'='*80}")
-        print(f"Network built:")
-        print(f"  Nodes: {self.graph.number_of_nodes()}")
-        print(f"  Edges: {self.graph.number_of_edges()}")
-        print(f"  Genes: {len(self.entities['gene'])}")
-        print(f"  Drugs: {len(self.entities['drug'])}")
-        print(f"  Phenotypes: {len(self.entities['phenotype'])}")
-        print(f"  Drug-Drug Interactions: {len(self.drug_interactions)}")
-        print(f"  CPIC Genes: {len(self.cpic_genes)}")
-        print(f"{'='*80}\n")
-        
+
+        self._out("Network built: nodes=%d edges=%d genes=%d drugs=%d phenotypes=%d ddi=%d cpic=%d",
+                  self.graph.number_of_nodes(), self.graph.number_of_edges(),
+                  len(self.entities["gene"]), len(self.entities["drug"]),
+                  len(self.entities["phenotype"]), len(self.drug_interactions),
+                  len(self.cpic_genes))
+
         return self.graph
     
     def _add_shared_entity_relationships(self):
@@ -480,7 +522,7 @@ class CohortPGxNetworkBuilder:
     
     def create_interactive_visualization(self, output_file: Path):
         """Create interactive Plotly network visualization with filters."""
-        print(f"Creating interactive visualization...")
+        self._out("Creating interactive visualization...")
         
         # Use spring layout for positioning
         pos = nx.spring_layout(self.graph, k=1, iterations=50, seed=42)
@@ -779,11 +821,9 @@ class CohortPGxNetworkBuilder:
         # Save
         output_file.parent.mkdir(parents=True, exist_ok=True)
         fig.write_html(str(output_file))
-        print(f"✓ Saved interactive visualization to {output_file}")
-        print(f"  - {len(node_trace_dict)} node types")
-        print(f"  - {len(edge_trace_dict)} edge types")
-        print(f"  - Interactive filters enabled")
-        
+        self._out("Saved interactive visualization to %s (%d node types, %d edge types)",
+                  output_file, len(node_trace_dict), len(edge_trace_dict))
+
         return fig
     
     def export_network_data(self, output_dir: Path):
@@ -814,7 +854,7 @@ class CohortPGxNetworkBuilder:
         nodes_df = pd.DataFrame(nodes_data)
         nodes_file = output_dir / "network_nodes.csv"
         nodes_df.to_csv(nodes_file, index=False)
-        print(f"✓ Saved {len(nodes_df)} nodes to {nodes_file}")
+        self._out("Saved %d nodes to %s", len(nodes_df), nodes_file)
         
         # Export edges with weights and evidence
         edges_data = []
@@ -832,7 +872,7 @@ class CohortPGxNetworkBuilder:
         edges_df = pd.DataFrame(edges_data)
         edges_file = output_dir / "network_edges.csv"
         edges_df.to_csv(edges_file, index=False)
-        print(f"✓ Saved {len(edges_df)} edges to {edges_file}")
+        self._out("Saved %d edges to %s", len(edges_df), edges_file)
         
         # Export drug-drug interactions separately
         if self.drug_interactions:
@@ -848,13 +888,13 @@ class CohortPGxNetworkBuilder:
             ddi_df = pd.DataFrame(ddi_data)
             ddi_file = output_dir / "drug_interactions.csv"
             ddi_df.to_csv(ddi_file, index=False)
-            print(f"✓ Saved {len(ddi_df)} drug-drug interactions to {ddi_file}")
+            self._out("Saved %d drug-drug interactions to %s", len(ddi_df), ddi_file)
         
         # Export key phrases
         phrases_file = output_dir / "key_phrases.json"
         with open(phrases_file, "w", encoding="utf-8") as f:
             json.dump(dict(self.key_phrases), f, indent=2, ensure_ascii=False)
-        print(f"✓ Saved key phrases to {phrases_file}")
+        self._out("Saved key phrases to %s", phrases_file)
         
         # Export network statistics
         stats = {
@@ -876,7 +916,7 @@ class CohortPGxNetworkBuilder:
         stats_file = output_dir / "network_stats.json"
         with open(stats_file, "w", encoding="utf-8") as f:
             json.dump(stats, f, indent=2)
-        print(f"✓ Saved network statistics to {stats_file}")
+        self._out("Saved network statistics to %s", stats_file)
         
         # Export tier and CPIC information
         tier_info = {
@@ -886,11 +926,54 @@ class CohortPGxNetworkBuilder:
         tier_file = output_dir / "gene_metadata.json"
         with open(tier_file, "w", encoding="utf-8") as f:
             json.dump(tier_info, f, indent=2)
-        print(f"✓ Saved gene metadata to {tier_file}")
+        self._out("Saved gene metadata to %s", tier_file)
+
+
+def _upload_network_to_dashboard_s3(
+    output_dir: Path,
+    cohort_name: str,
+    age_band: str,
+    logger: Optional[logging.Logger] = None,
+) -> int:
+    """
+    Upload network topology outputs to the dashboard S3 bucket (same pattern as BupaR/DTW/FP-Growth).
+    Puts files under {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/.
+    Returns number of files uploaded.
+    """
+    if not output_dir.exists():
+        return 0
+    files = [p for p in output_dir.iterdir() if p.is_file()]
+    if not files:
+        return 0
+
+    s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+    dashboard_prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
+    age_band_fname = age_band.replace("-", "_")
+    s3_prefix = f"{dashboard_prefix}/cohort_pgx/networks/{cohort_name}/{age_band_fname}"
+
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        if logger:
+            logger.warning("py_helpers.checkpoint_utils not available; skipping dashboard S3 upload")
+        return 0
+
+    uploaded = 0
+    for p in files:
+        key = f"{s3_prefix}/{p.name}"
+        s3_path = f"s3://{s3_bucket}/{key}"
+        if upload_file_to_s3(p, s3_path, logger=logger, check_exists=True):
+            uploaded += 1
+    if uploaded and logger:
+        logger.info(
+            "Uploaded %d Cohort PGx file(s) to dashboard S3 s3://%s/%s/",
+            uploaded, s3_bucket, s3_prefix,
+        )
+    return uploaded
 
 
 def main():
-    """Build network topology from VIP reports."""
+    """Build network topology from VIP reports. Uses same logging pattern as BupaR/DTW: logs to 9_dashboard_visuals/logs/cohort_pgx/."""
     if not SPACY_AVAILABLE:
         print("Error: spacy is not installed.")
         print(SPACY_INSTALL_MSG)
@@ -901,32 +984,55 @@ def main():
     )
     parser.add_argument("--reports", type=Path, required=True, help="Path to VIP reports JSON")
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory")
+    parser.add_argument("--cohort", type=str, default="unknown", help="Cohort name for log path (e.g. opioid_ed)")
+    parser.add_argument("--age-band", type=str, default="unknown", help="Age band for log path (e.g. 25-44)")
     parser.add_argument("--no-comprehend", action="store_true", help="Disable AWS Comprehend")
-    
+    parser.add_argument("--no-upload", action="store_true", help="Do not upload outputs to dashboard S3 (default: upload like BupaR/DTW/FP-Growth)")
+
     args = parser.parse_args()
-    
+
     if not args.reports.exists():
         print(f"Error: Reports file not found: {args.reports}")
         return
-    
-    # Build network
-    builder = CohortPGxNetworkBuilder(
-        reports_file=args.reports,
-        use_comprehend=not args.no_comprehend
+
+    # Same pattern as BupaR/DTW: pipeline logger -> file under 9_dashboard_visuals/logs/cohort_pgx/
+    repo_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(repo_root))
+    from py_helpers.fe_monitor import function_block  # noqa: E402
+    from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
+
+    pl = setup_pipeline_logger(
+        step_name="cohort_pgx",
+        cohort=args.cohort,
+        age_band=args.age_band,
+        script_name="build_network_topology",
     )
-    
-    graph = builder.build_network()
-    
-    # Create visualization
-    viz_file = args.output_dir / "network_topology.html"
-    builder.create_interactive_visualization(viz_file)
-    
-    # Export data
-    builder.export_network_data(args.output_dir)
-    
-    print("\n" + "="*80)
-    print("Network topology build complete!")
-    print("="*80)
+
+    with function_block("cohort_pgx", "build_network_topology", logger=pl.logger):
+        pl.logger.info("Logs: %s", pl.log_file_path)
+        builder = CohortPGxNetworkBuilder(
+            reports_file=args.reports,
+            use_comprehend=not args.no_comprehend,
+            logger=pl.logger,
+        )
+        graph = builder.build_network()
+        viz_file = args.output_dir / "network_topology.html"
+        builder.create_interactive_visualization(viz_file)
+        builder.export_network_data(args.output_dir)
+        if not args.no_upload:
+            n = _upload_network_to_dashboard_s3(
+                args.output_dir, args.cohort, args.age_band, logger=pl.logger,
+            )
+            if n:
+                pl.logger.info("Cohort PGx upload complete: %d file(s) to dashboard S3", n)
+        else:
+            pl.logger.info("Skipping dashboard S3 upload (--no-upload)")
+        pl.logger.info("Network topology build complete. Output: %s", args.output_dir)
+        print("\n" + "=" * 80)
+        print("Network topology build complete!")
+        print(f"Logs saved to: {pl.log_file_path}")
+        print("=" * 80)
+    pl.log_summary()
 
 
 if __name__ == "__main__":

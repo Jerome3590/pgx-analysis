@@ -120,7 +120,13 @@ Processes VIP reports to extract entities, relationships, interactions, and buil
 python build_network_topology.py \
   --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
   --output-dir outputs/networks/opioid_ed/25_44
-  
+
+# Skip upload to dashboard S3 (local-only)
+python build_network_topology.py \
+  --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
+  --output-dir outputs/networks/opioid_ed/25_44 \
+  --no-upload
+
 # Skip AWS Comprehend (use pytextrank only)
 python build_network_topology.py \
   --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
@@ -163,14 +169,22 @@ If using AWS Comprehend for enhanced medical entity recognition:
 Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.ipynb)):
 
 1. **Fetch VIP reports**: Parallel fetch for all cohort/age_band combinations (max 2 workers for API rate limiting)
-2. **Build networks**: Parallel network building (max 4 workers)
+2. **Build networks**: Parallel network building (max 4 workers); each build **uploads to dashboard S3** automatically (same as BupaR/DTW/FP-Growth)
 3. **View outputs**: Interactive visualization previews
+4. **Re-upload to S3** (optional): Run the **Step 3: Upload Cohort PGx to S3** cell only if you need to re-sync existing outputs without rebuilding
 
 ## Dashboard Integration
 
-### Build (notebook 4 or scripts)
+### Build and upload (same pattern as BupaR/DTW/FP-Growth)
 
-Notebook **4_dashboard_visuals.ipynb** runs `fetch_vip_reports.py` then `build_network_topology.py` per cohort/age_band. Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (e.g. `network_topology.html`). **run_dashboard_visuals.py** does not run Cohort PGx; only the notebook does.
+Upload to the dashboard S3 bucket happens **inside** `build_network_topology.py` after writing outputs (same as BupaR, DTW, and FP-Growth). No separate upload step is required.
+
+- **Notebook 4_dashboard_visuals.ipynb**: Runs fetch → build. Each build uploads its output to S3. The optional **Step 3: Upload Cohort PGx to S3** cell runs `upload_cohort_pgx_to_s3.py` only if you need to re-upload without rebuilding.
+- **run_dashboard_visuals.py**: Runs full step-9 pipeline including Cohort PGx (fetch VIP reports, build network topology; each build uploads to S3). Use `--skip-cohort-pgx` to omit Cohort PGx; use `--no-cohort-pgx-upload` to build but not upload.
+
+Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (e.g. `network_topology.html`) and are uploaded to `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/`.
+
+**Logs (Cohort PGx):** When you run `fetch_vip_reports.py` from the command line, logs are written to **`9_dashboard_visuals/logs/cohort_pgx/fetch_vip_reports_{cohort}_{age_band_fname}.log`** (and to stderr). Use `--log-file PATH` to override. `build_network_topology.py` uses `print()` only; its output appears in the terminal or notebook cell output.
 
 ### Upload to S3
 
