@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Build a global drug-to-CPIC mapping table from all aggregated feature importance files.
+Build a global APCD drug name -> CPIC drug name mapping from final feature importances.
 
 This script:
-1. Scans all aggregated feature importance CSV files (across all cohorts/age bands)
-2. Extracts unique drug names (features starting with "DRUG:")
-3. Matches them to CPIC drug names using fuzzy matching (95%+ threshold)
-4. For matches below 95%, searches cpic_drug_list.json for better matches
-5. Creates a global lookup table saved to: 5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv
-6. Generates a validation file for manual review of low-score matches
+1. Scans final (cohort) feature importance CSVs (cohort_feature_importance.csv) across cohorts/age bands;
+   falls back to aggregated feature importance if no cohort FI found.
+2. Extracts unique drug names (features with DRUG:, item_drug_*, etc. — APCD drug names from the pipeline).
+3. Matches them to CPIC drug names using fuzzy matching (95%+ threshold).
+4. Creates a global lookup table: 5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv
+5. Idempotent: skips rebuild if output exists and is newer than all source FI files (use --force to rebuild).
 
 Usage:
     python 5_pgx_analysis/build_global_drug_cpic_mapping.py [--cohort <cohort>] [--age-band <age_band>]
+    python 5_pgx_analysis/build_global_drug_cpic_mapping.py --force   # rebuild even if output is current
 """
 
 import sys
@@ -116,30 +117,52 @@ def extract_drugs_from_aggregated_fi(fi_path: Path, cpic_drug_list: Optional[Lis
         return set()
 
 
+def find_all_cohort_fi_files(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
+    """
+    Find all final (cohort) feature importance CSV files (cohort_feature_importance.csv).
+    Same sources as Cohort PGx and dashboard (Step 3b / 3a refined). APCD drug names come from these.
+    """
+    pattern = "*_cohort_feature_importance.csv"
+    fi_files: List[Path] = []
+    for base in [
+        PROJECT_ROOT / "3a_feature_importance" / "outputs",
+        PROJECT_ROOT / "3b_feature_importance_eda" / "outputs",
+    ]:
+        if not base.exists():
+            continue
+        for fi_file in base.rglob(pattern):
+            if cohort and cohort not in str(fi_file):
+                continue
+            if age_band:
+                ab = age_band.replace("-", "_")
+                if ab not in fi_file.stem and ab not in str(fi_file):
+                    continue
+            fi_files.append(fi_file)
+    from_s3 = PROJECT_ROOT / "3a_feature_importance" / "from_s3" / "by_cohort"
+    if from_s3.exists():
+        for fi_file in from_s3.rglob(pattern):
+            if cohort and cohort not in str(fi_file):
+                continue
+            if age_band:
+                if age_band.replace("-", "_") not in fi_file.stem:
+                    continue
+            fi_files.append(fi_file)
+    return sorted(set(fi_files))
+
+
 def find_all_aggregated_fi_files(cohort: Optional[str] = None, age_band: Optional[str] = None) -> List[Path]:
     """
-    Find all aggregated feature importance CSV files.
-    
-    Parameters:
-    -----------
-    cohort : str, optional
-        Filter by specific cohort
-    age_band : str, optional
-        Filter by specific age band
-        
-    Returns:
-    --------
-    List[Path]
-        List of paths to aggregated feature importance CSV files
+    Find all aggregated feature importance CSV files (fallback when no cohort FI).
     """
-    fi_outputs_dir = PROJECT_ROOT / "3_feature_importance" / "outputs"
-    fi_files = []
-    
-    # Search local outputs directory (recursively)
-    if fi_outputs_dir.exists():
-        # Search recursively for aggregated feature importance files
-        pattern = "*_aggregated_feature_importance.csv"
-        for fi_file in fi_outputs_dir.rglob(pattern):
+    pattern = "*_aggregated_feature_importance.csv"
+    fi_files: List[Path] = []
+    for base in [
+        PROJECT_ROOT / "3_feature_importance" / "outputs",
+        PROJECT_ROOT / "3a_feature_importance" / "outputs",
+    ]:
+        if not base.exists():
+            continue
+        for fi_file in base.rglob(pattern):
             if cohort:
                 # Check if file path contains the cohort name
                 if cohort not in str(fi_file):
@@ -176,32 +199,20 @@ def build_global_drug_mapping(
     age_band: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Build global drug-to-CPIC mapping table from all aggregated feature importance files.
-    
-    Parameters:
-    -----------
-    cpic_drug_list : List[Dict]
-        List of CPIC drug dictionaries from JSON file
-    fuzzy_threshold : int
-        Minimum fuzzy match score threshold (default: 95)
-    cohort : str, optional
-        Filter by specific cohort
-    age_band : str, optional
-        Filter by specific age band
-        
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame with columns: drug_name, cpic_drug_name, fuzzy_score, match_method, needs_review, google_search_url
+    Build global APCD drug -> CPIC drug mapping from final (cohort) or aggregated feature importance files.
+    Prefers cohort_feature_importance.csv (final FI); falls back to aggregated if none found.
     """
-    logger.info("Finding all aggregated feature importance files...")
-    fi_files = find_all_aggregated_fi_files(cohort=cohort, age_band=age_band)
-    
+    # Prefer final (cohort) feature importance — same source as Cohort PGx
+    fi_files = find_all_cohort_fi_files(cohort=cohort, age_band=age_band)
+    source_label = "cohort (final) feature importance"
     if not fi_files:
-        logger.warning("No aggregated feature importance files found")
+        logger.info("No cohort feature importance files found; using aggregated feature importance.")
+        fi_files = find_all_aggregated_fi_files(cohort=cohort, age_band=age_band)
+        source_label = "aggregated feature importance"
+    if not fi_files:
+        logger.warning("No feature importance files found")
         return pd.DataFrame(columns=['drug_name', 'cpic_drug_name', 'fuzzy_score', 'match_method', 'needs_review', 'google_search_url'])
-    
-    logger.info(f"Found {len(fi_files)} aggregated feature importance files")
+    logger.info("Found %d %s files", len(fi_files), source_label)
     
     # Extract all unique drug names
     all_drugs: Set[str] = set()
@@ -334,9 +345,31 @@ def main():
         "--validation-output",
         help="Output path for validation CSV (default: 5_pgx_analysis/outputs/global/drug_cpic_mapping_validation.csv)"
     )
-    
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rebuild even if output exists and is newer than all source FI files (default: skip when up-to-date)",
+    )
     args = parser.parse_args()
-    
+
+    global_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global"
+    output_path = Path(args.output) if args.output else global_out_dir / "drug_cpic_mapping_global.csv"
+
+    # Idempotent: skip if output exists and is newer than all source FI files
+    if not args.force and output_path.exists():
+        fi_files = find_all_cohort_fi_files(cohort=args.cohort, age_band=args.age_band)
+        if not fi_files:
+            fi_files = find_all_aggregated_fi_files(cohort=args.cohort, age_band=args.age_band)
+        if fi_files:
+            out_mtime = output_path.stat().st_mtime
+            if all(p.stat().st_mtime <= out_mtime for p in fi_files):
+                logger.info(
+                    "Output %s is up-to-date (newer than all %d source FI files); skipping. Use --force to rebuild.",
+                    output_path,
+                    len(fi_files),
+                )
+                sys.exit(0)
+
     # Load CPIC drug list
     logger.info("Loading CPIC drug list...")
     cpic_drug_list = load_cpic_drug_list_from_file()
@@ -344,7 +377,7 @@ def main():
         logger.error("Failed to load CPIC drug list. Please ensure cpic_drug_list.json exists.")
         sys.exit(1)
     logger.info(f"Loaded {len(cpic_drug_list)} CPIC drugs")
-    
+
     # Build global mapping
     mapping_df = build_global_drug_mapping(
         cpic_drug_list=cpic_drug_list,
@@ -353,11 +386,7 @@ def main():
         age_band=args.age_band,
     )
     
-    # Set output paths
-    global_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global"
     global_out_dir.mkdir(parents=True, exist_ok=True)
-    
-    output_path = Path(args.output) if args.output else global_out_dir / "drug_cpic_mapping_global.csv"
     validation_path = Path(args.validation_output) if args.validation_output else global_out_dir / "drug_cpic_mapping_validation.csv"
     
     # Save mapping table

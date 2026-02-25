@@ -59,9 +59,18 @@ Edge thickness represents evidence strength:
 
 Extracts top N genes from feature importance data (Step 3b or notebook 3 combined_importance.csv) and fetches VIP reports from PharmGKB API with comprehensive clinical data.
 
+**Drug names vs gene symbols (BupaR activity-type logic)**: The script uses the same logic as the BupaR visual: only **drug_name** codes from final feature importance are considered (via `get_shap_ffa_important_codes(..., "drug_name")`). Activity type = drug → token = drug name; only those tokens are resolved to genes. ICD/CPT codes are never passed to CPIC. PharmGKB gene API expects gene symbols (e.g. CYP2D6). The script resolves those drug names to genes using:
+- **CPIC drug list** (`5_pgx_analysis/data/cpic_drug_list.json`): known pharmacogene symbols pass through; drug names are mapped to their CPIC genes.
+- **Global drug–CPIC mapping** (optional, `5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv`): APCD drug name → CPIC drug name → genes. Built from **final (cohort) feature importances** (`cohort_feature_importance.csv`) by `build_global_drug_cpic_mapping.py` (idempotent; use `--force` to rebuild).
+- **Fuzzy match** (optional): if `5_pgx_analysis.map_drugs_to_genes` is available, unresolved tokens are fuzzy-matched to CPIC drugs. Only resolved gene symbols are sent to PharmGKB.
+
 **Input**:
 - `3a_feature_importance/outputs/{cohort}/{age_band}/cohort_feature_importance.csv` (primary)
 - `10_risk_dashboard/outputs/{cohort}/{age_band}/combined_importance.csv` (fallback)
+- `5_pgx_analysis/data/cpic_drug_list.json` (for drug→gene resolution)
+- `5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv` (optional, for better drug-name coverage)
+
+**Idempotent**: If `{cohort}_{age_band}_vip_reports.json` already exists, fetch is skipped unless `--force` is used.
 
 **Output**:
 - `{cohort}_{age_band}_vip_reports.json` - VIP reports including:
@@ -415,6 +424,15 @@ Use the **Filter View** dropdown (top-left) to explore different layers:
 **Solution**: Ensure feature importance exists:
 - Step 3b: `3a_feature_importance/outputs/{cohort}/{age_band}/cohort_feature_importance.csv`
 - Notebook 3: `10_risk_dashboard/outputs/{cohort}/{age_band}/combined_importance.csv`
+
+### Drug Names Passed as Genes (404 from PharmGKB)
+
+**Error**: "No results matching criteria" for tokens like AMOXICILLIN, AZITHROMYCIN (drug names, not gene symbols).
+
+**Solution**: The script now resolves drug names to genes via CPIC. Ensure:
+- `5_pgx_analysis/data/cpic_drug_list.json` exists (from CPIC / `fetch_cpic_drug_list.py` or `cpicPairs.csv`).
+- Optionally run `5_pgx_analysis/build_global_drug_cpic_mapping.py` to build `outputs/global/drug_cpic_mapping_global.csv` so feature drug names (e.g. from your cohort) map to CPIC drugs and thus to genes.
+- Logs will show "Resolved drug name to genes (CPIC exact|global mapping|fuzzy): …" for each resolution; unresolved tokens are skipped and not sent to PharmGKB.
 
 ### API Rate Limiting
 
