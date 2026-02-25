@@ -10,6 +10,8 @@ Scripts and configurations for deploying the dashboard to AWS.
 - **`prepare_lambda_dir.py`** - Prepare Lambda deployment package
 - **`scripts/`** - Additional deployment helper scripts
 
+**Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}` (e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`).
+
 ## Deployment Steps
 
 1. **Prepare Models and Metadata**:

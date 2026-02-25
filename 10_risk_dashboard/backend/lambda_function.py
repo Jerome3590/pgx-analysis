@@ -117,6 +117,18 @@ def _response(status_code: int, body: Dict[str, Any], headers: Optional[Dict[str
     }
 
 
+def _response_html(status_code: int, html_body: str) -> Dict[str, Any]:
+    """Return HTML for iframe embedding (Content-Type: text/html, no Content-Disposition)."""
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "text/html; charset=utf-8",
+            **_cors_headers(),
+        },
+        "body": html_body,
+    }
+
+
 def determine_cohort_and_age_band(age: int) -> Tuple[str, str]:
     """
     Determine cohort and age band from age (when cohort/age_band not provided).
@@ -558,10 +570,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_visualizations_causal(event)
             elif path.endswith("/dtw"):
                 return handle_visualizations_dtw(event)
+            elif path.endswith("/fpgrowth/network_html"):
+                return handle_fpgrowth_network_html_proxy(event)
             elif path.endswith("/fpgrowth"):
                 return handle_visualizations_fpgrowth(event)
             elif path.endswith("/activity_frequency") and "bupar" in path:
                 return handle_visualizations_bupar_activity_frequency(event)
+            elif path.endswith("/bupar/html"):
+                return handle_visualizations_bupar_html_proxy(event)
             elif path.endswith("/bupar"):
                 return handle_visualizations_bupar(event)
             elif path.endswith("/feature_importance") or path.endswith("/feature_importance/"):
@@ -1316,10 +1332,10 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     GET /visualizations/causal?cohort=...&age_band=...
 
-    Returns URL to prebuilt causal_data.json (same pattern as DTW chart_data_url).
-    Data is produced by combine_shap_ffa_results --upload-to-dashboard and stored in
-    the dashboard bucket under {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band}/causal_data.json.
-    Frontend fetches that URL and maps top_causal_factors to causal_factors / shap_importance.
+    Fetches causal_data.json from the dashboard bucket and returns it inline as causal_data
+    (same pattern as DTW chart_data) so the frontend works without a second request and when
+    the bucket is not public. Also returns causal_data_url for fallback.
+    S3 key: {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band_fname}/causal_data.json.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1331,11 +1347,20 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
 
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band_fname}"
-        causal_data_url = _dashboard_s3_url(f"{prefix}/causal_data.json")
+        causal_key = f"{prefix}/causal_data.json"
+        payload = {"causal_data_url": _dashboard_s3_url(causal_key)}
 
-        return _response(200, {
-            "causal_data_url": causal_data_url,
-        })
+        try:
+            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=causal_key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+            payload["causal_data"] = data
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
+                raise
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 
@@ -1412,9 +1437,37 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         return _response(500, {"error": str(e)})
 
 
+def handle_fpgrowth_network_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
+    """GET /visualizations/fpgrowth/network_html?cohort=...&age_band=...
+    Fetches combined_rules_network.html from S3 and returns it with Content-Type: text/html
+    so the dashboard iframe renders it instead of triggering a download.
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        cohort = params.get("cohort")
+        age_band = params.get("age_band")
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band parameters required"})
+        age_band_fname = age_band.replace("-", "_")
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
+        base_key = f"{prefix}/{cohort}/{age_band}/plots"
+        key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
+        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
+        html_body = obj["Body"].read().decode("utf-8")
+        return _response_html(200, html_body)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
+            return _response_html(404, "<!DOCTYPE html><html><body><p>Network visualization not found. Run the FP-Growth pipeline to build it.</p></body></html>")
+        raise
+    except Exception as e:
+        return _response(500, {"error": str(e)})
+
+
 def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/fpgrowth?cohort=...&age_band=...&item_type=...
     Returns HTTPS URLs for dashboard: itemsets PNG, network Plotly HTML (iframe by cohort).
+    Prefer network_html_proxy_url for the iframe so HTML is served with Content-Type: text/html.
+    When itemsets JSON is present in S3, returns itemsets_data for client-side Plotly rendering.
     If itemsets/rules were empty, returns JSON with empty=True and message for dashboard to show.
     Files are built by 4_dashboard_visuals / create_plots and uploaded to the dashboard bucket
     (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/.
@@ -1463,32 +1516,41 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             "itemsets_interactive": _dashboard_s3_url(itemsets_interactive_key),
             "network_interactive": _dashboard_s3_url(network_interactive_key),
         }
+        # Itemsets JSON for client-side Plotly rendering (when uploaded by pipeline)
+        data_prefix = f"{prefix}/{cohort}/{age_band}/data"
+        itemsets_json_key = f"{data_prefix}/{item_type}_itemsets.json"
+        try:
+            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=itemsets_json_key)
+            raw = obj["Body"].read().decode("utf-8")
+            payload["itemsets_data"] = json.loads(raw)
+        except (ClientError, json.JSONDecodeError, TypeError):
+            pass
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/feature_importance?cohort=...&model=...
-    Prefer JSON over PNG: returns heatmap_data (row_labels, column_labels, matrix) when available for
-    client Plotly; frontend uses heatmap_data first, falls back to heatmap_url (PNG) if no JSON.
-    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json or {model}_fi_heatmap.json.
+    """GET /visualizations/feature_importance?cohort=...
+    Cohort: opioid_ed, non_opioid_ed, or combined. Always returns aggregated heatmap (no model filter).
+    Prefer JSON over PNG: returns heatmap_data when available; frontend falls back to heatmap_url (PNG).
+    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json|png; combined uses combined_cohorts_*.
     """
     try:
         params = event.get("queryStringParameters") or {}
-        cohort = params.get("cohort")
+        cohort = (params.get("cohort") or "").strip()
         if not cohort:
             return _response(400, {"error": "cohort parameter required"})
-        model = (params.get("model") or "aggregated").strip().lower()
-        if model not in ("aggregated", "catboost", "xgboost", "xgboost_rf"):
-            model = "aggregated"
+        if cohort not in ("opioid_ed", "non_opioid_ed", "combined"):
+            cohort = "opioid_ed"
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
-        heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
-        if model == "aggregated":
-            json_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.json"
+        if cohort == "combined":
+            heatmap_key = combined_key
+            json_key = f"{prefix}/combined/aggregated_fi_heatmap.json"
         else:
-            json_key = f"{prefix}/{cohort}/{model}_fi_heatmap.json"
+            heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
+            json_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.json"
 
         payload = {
             "heatmap_url": _dashboard_s3_url(heatmap_key),
@@ -1498,7 +1560,10 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=json_key)
             body = obj.get("Body").read().decode("utf-8")
-            payload["heatmap_data"] = json.loads(body)
+            data = json.loads(body)
+            if isinstance(data, dict) and "cohort" not in data:
+                data["cohort"] = cohort
+            payload["heatmap_data"] = data
         except (ClientError, json.JSONDecodeError, TypeError):
             pass
 
@@ -1510,6 +1575,45 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
 # TODO: Patient-level BupaR visuals (trace explorer, process matrix, frequency map filtered by
 # cohort/age_band/patient subset) require on-demand R execution. Implement when R is available
 # in Lambda (e.g. custom runtime/layer or separate R service) and add POST /visualizations/bupar/patient-level.
+
+
+# Allowed BupaR HTML visual names for proxy (must match S3 object suffix: base_<visual>.html)
+BUPAR_HTML_VISUALS = frozenset({
+    "activity_frequency_interactive",
+    "trace_explorer_interactive",
+    "process_matrix_interactive",
+})
+
+
+def handle_visualizations_bupar_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
+    """GET /visualizations/bupar/html?cohort=...&age_band=...&visual=...
+    Fetches BupaR interactive HTML from S3 and returns it with Content-Type: text/html
+    so the dashboard iframe renders it instead of triggering a download.
+    visual: one of activity_frequency_interactive, trace_explorer_interactive, process_matrix_interactive.
+    """
+    try:
+        params = event.get("queryStringParameters") or {}
+        cohort = params.get("cohort")
+        age_band = params.get("age_band")
+        visual = (params.get("visual") or "").strip()
+        if not cohort or not age_band:
+            return _response(400, {"error": "cohort and age_band parameters required"})
+        if visual not in BUPAR_HTML_VISUALS:
+            return _response(400, {"error": f"visual must be one of: {sorted(BUPAR_HTML_VISUALS)}"})
+        age_band_fname = age_band.replace("-", "_")
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
+        base_key = f"{prefix}/{cohort}/{age_band}/plots"
+        base = f"{cohort}_{age_band_fname}"
+        key = f"{base_key}/{base}_{visual}.html"
+        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
+        html_body = obj["Body"].read().decode("utf-8")
+        return _response_html(200, html_body)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
+            return _response_html(404, "<!DOCTYPE html><html><body><p>BupaR visualization not found. Run the BupaR pipeline to build it.</p></body></html>")
+        raise
+    except Exception as e:
+        return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dict[str, Any]:

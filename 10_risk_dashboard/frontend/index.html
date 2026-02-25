@@ -961,11 +961,7 @@
     <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW; final model refines further) -->
     <div id="feature-importance-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Feature importance by age band.</strong> Filter by <strong>cohort</strong> and <strong>model</strong>. Heatmaps from Step 3a (Monte Carlo CV) in <code>2_feature_importance.ipynb</code>: rows = top features, columns = age bands.
-        <br>
-        <small style="color: #64748b;"><strong>Final (aggregated, used for training)</strong> = aggregated feature importance with admin/Z and target-leakage removed — the final features used for model training. Other options show per-model views (CatBoost, XGBoost, XGBoost RF) of the same final feature set.</small>
-        <br>
-        <small style="color: #64748b;">All importance values are from <strong>25 Monte Carlo CV runs</strong> (Step 3a).</small>
+        <strong>Feature importance by age band.</strong> Filter by <strong>cohort</strong>. Heatmaps from Step 3a (Monte Carlo CV): rows = top features, columns = age bands. Aggregated importance with admin/Z and target-leakage removed (25 Monte Carlo CV runs).
       </p>
       <div class="controls">
         <div class="control-group">
@@ -973,15 +969,7 @@
           <select id="fi-cohort">
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label for="fi-model">Model:</label>
-          <select id="fi-model">
-            <option value="aggregated">Final (aggregated, used for training)</option>
-            <option value="catboost">CatBoost</option>
-            <option value="xgboost">XGBoost</option>
-            <option value="xgboost_rf">XGBoost RF</option>
+            <option value="combined">Combined</option>
           </select>
         </div>
         <div class="control-group full-width">
@@ -2335,55 +2323,46 @@
       const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      // Prebuilt JSON pattern: API returns causal_data_url; frontend fetches and maps to chart shape
+      // Prefer inline causal_data (Lambda fetches from S3); fallback to fetching causal_data_url
       let chartData = data;
-      if (data.causal_data_url) {
+      let prebuilt = data.causal_data || null;
+      if (!prebuilt && data.causal_data_url) {
         try {
           const jsonResp = await fetch(data.causal_data_url);
-          if (jsonResp.ok) {
-            const prebuilt = await jsonResp.json();
-            const top = prebuilt.top_causal_factors || [];
-            const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
-            const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
-            // Filter to user-selected features (Drugs/ICD/CPT). Feature names in data are item_<CODE>.
-            const selectedFeatureSet = new Set([
-              ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
-              ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
-              ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
-            ]);
-            const filtered = selectedFeatureSet.size > 0;
-            let causalCurrent, shapCurrent;
-            if (filtered) {
-              causalCurrent = causalFactors.filter(f => selectedFeatureSet.has(f.feature));
-              shapCurrent = shapImportance.filter(f => selectedFeatureSet.has(f.feature));
-              chartData = {
-                causal_factors: causalCurrent,
-                shap_importance: shapCurrent,
-                filtered_by_codes: true
-              };
-            } else {
-              causalCurrent = causalFactors;
-              shapCurrent = shapImportance;
-              chartData = {
-                causal_factors: causalCurrent,
-                shap_importance: shapCurrent,
-                filtered_by_codes: false
-              };
-            }
-            if (whatIfFeatureSet.size > 0) {
-              chartData.causal_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
-              chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
-            }
-          } else {
-            document.getElementById("causal-status").textContent = "Causal data file not found (run combine_shap_ffa_results --upload-to-dashboard)";
-            document.getElementById("causal-status").className = "status-message error";
-            return;
-          }
-        } catch (e) {
-          document.getElementById("causal-status").textContent = `Could not load causal data: ${e.message}`;
-          document.getElementById("causal-status").className = "status-message error";
-          return;
+          if (jsonResp.ok) prebuilt = await jsonResp.json();
+        } catch (_) { /* ignore */ }
+      }
+      if (prebuilt) {
+        const top = prebuilt.top_causal_factors || [];
+        const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
+        const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
+        const selectedFeatureSet = new Set([
+          ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
+          ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
+          ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
+        ]);
+        const filtered = selectedFeatureSet.size > 0;
+        if (filtered) {
+          chartData = {
+            causal_factors: causalFactors.filter(f => selectedFeatureSet.has(f.feature)),
+            shap_importance: shapImportance.filter(f => selectedFeatureSet.has(f.feature)),
+            filtered_by_codes: true
+          };
+        } else {
+          chartData = {
+            causal_factors: causalFactors,
+            shap_importance: shapImportance,
+            filtered_by_codes: false
+          };
         }
+        if (whatIfFeatureSet.size > 0) {
+          chartData.causal_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
+          chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
+        }
+      } else {
+        document.getElementById("causal-status").textContent = "Causal data not found. Run combine_shap_ffa_results --upload-to-dashboard for this cohort/age band.";
+        document.getElementById("causal-status").className = "status-message error";
+        return;
       }
       renderCausalCharts(chartData);
       const nCausal = (chartData.causal_factors || []).length;
@@ -2474,7 +2453,7 @@
       const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=${itemType}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      renderFPGrowthVisualizations(data);
+      renderFPGrowthVisualizations(data, { cohort, ageBand });
       document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
       document.getElementById("fpgrowth-status").className = "status-message success";
     } catch (err) {
@@ -2535,7 +2514,7 @@
       if (!urlResp.ok) throw new Error(`HTTP ${urlResp.status}`);
       const data = await urlResp.json();
       const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
-      renderBupaRVisualizations(data, selected.length ? selected : undefined);
+      renderBupaRVisualizations(data, selected.length ? selected : undefined, { cohort, ageBand });
       // Prefer JSON over PNG for activity frequency: render Chart.js from JSON (flexible); fallback message if JSON missing
       if (freqResp.ok) {
         const freqData = await freqResp.json();
@@ -2583,7 +2562,6 @@
 
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
-    const model = (document.getElementById("fi-model")?.value || "aggregated");
     if (!cohort) {
       document.getElementById("fi-status").textContent = "Please select a cohort";
       document.getElementById("fi-status").className = "status-message error";
@@ -2594,7 +2572,7 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}&model=${encodeURIComponent(model)}`);
+      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
@@ -2910,21 +2888,65 @@
     renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, codeType);
   });
 
-  function renderFPGrowthVisualizations(data) {
-    // Render itemsets image (HTTPS URL from API)
-    if (data.itemsets_image) {
-      document.getElementById("fpgrowth-itemsets-image").innerHTML = `<img src="${data.itemsets_image}" style="max-width: 100%;" alt="Top itemsets" onerror="this.parentElement.innerHTML='<p class=\'status-message info\'>Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'" />`;
+  function renderFPGrowthVisualizations(data, opts) {
+    const TOP_N = 30;
+    // Itemsets: prefer JSON for client-side Plotly; fallback to image URL
+    const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
+    if (itemsetsEl) {
+      if (data.itemsets_data && Array.isArray(data.itemsets_data) && data.itemsets_data.length > 0) {
+        const rows = data.itemsets_data
+          .map(function (r) {
+            const label = Array.isArray(r.itemsets) ? r.itemsets.slice(0, 5).join(", ") : String(r.itemsets || "");
+            return { label: label || "(empty)", support: Number(r.support) };
+          })
+          .filter(function (r) { return r.label && !isNaN(r.support); })
+          .sort(function (a, b) { return b.support - a.support; })
+          .slice(0, TOP_N);
+        if (rows.length) {
+          const y = rows.map(function (r) { return r.label; });
+          const x = rows.map(function (r) { return r.support; });
+          const divId = "fpgrowth-itemsets-plotly";
+          itemsetsEl.innerHTML = "<div id=\"" + divId + "\" style=\"width:100%;height:500px;\"></div>";
+          if (window.Plotly) {
+            Plotly.newPlot(divId, [{
+              type: "bar",
+              x: x,
+              y: y,
+              orientation: "h",
+              marker: { color: "steelblue" },
+              hovertext: rows.map(function (r) { return "Support: " + r.support.toFixed(4); }),
+              hoverinfo: "text"
+            }], {
+              margin: { l: 200, r: 50, t: 40, b: 50 },
+              xaxis: { title: "Support", showgrid: true },
+              yaxis: { title: "Itemset", autorange: "reversed" },
+              height: 500
+            }, { responsive: true });
+          }
+        } else {
+          itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data to display.</p>";
+        }
+      } else if (data.itemsets_image) {
+        itemsetsEl.innerHTML = "<img src=\"" + data.itemsets_image + "\" style=\"max-width: 100%;\" alt=\"Top itemsets\" onerror=\"this.parentElement.innerHTML='<p class=\'status-message info\'>Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'\" />";
+      } else {
+        itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data. Run pipeline and upload itemsets JSON, or use image URL.</p>";
+      }
     }
-    // Render support distribution image (same as itemsets or separate)
+    // Support image (fallback; itemsets JSON covers the main chart)
     if (data.support_image) {
-      document.getElementById("fpgrowth-support-image").innerHTML = `<img src="${data.support_image}" style="max-width: 100%;" alt="Itemset support" onerror="this.parentElement.innerHTML=''" />`;
+      document.getElementById("fpgrowth-support-image").innerHTML = "<img src=\"" + data.support_image + "\" style=\"max-width: 100%;\" alt=\"Itemset support\" onerror=\"this.parentElement.innerHTML=''\" />";
+    } else {
+      document.getElementById("fpgrowth-support-image").innerHTML = "";
     }
-    // Render network: prefer combined graph (Drug · ICD · CPT in one graph, filter by type in dropdown)
+    // Network: use proxy URL so HTML is served with Content-Type text/html (renders in iframe instead of download)
     const networkEl = document.getElementById("fpgrowth-network-container");
-    const networkUrl = data.network_combined_html || data.network_html;
+    let networkUrl = data.network_combined_html || data.network_html;
+    if (networkEl && (opts && opts.cohort && opts.ageBand)) {
+      networkUrl = API_BASE + "/visualizations/fpgrowth/network_html?cohort=" + encodeURIComponent(opts.cohort) + "&age_band=" + encodeURIComponent(opts.ageBand);
+    }
     if (networkEl && networkUrl) {
       if (networkUrl.startsWith("http://") || networkUrl.startsWith("https://")) {
-        networkEl.innerHTML = `<iframe src="${networkUrl}" style="width: 100%; height: 820px; border: 1px solid #ddd;" title="FP-Growth network (filter by type: Drug / ICD / CPT)"></iframe>`;
+        networkEl.innerHTML = "<iframe src=\"" + networkUrl + "\" style=\"width: 100%; height: 820px; border: 1px solid #ddd;\" title=\"FP-Growth network (filter by type: Drug / ICD / CPT)\"></iframe>";
       } else {
         networkEl.innerHTML = networkUrl;
       }
@@ -2981,7 +3003,12 @@
     });
   }
 
-  function renderBupaRVisualizations(data, selectedKeys) {
+  // Map BupaR panel element id -> proxy visual param (for HTML iframes so they render instead of download)
+  const BUPAR_HTML_PROXY_VISUAL = {
+    'bupar-trace-explorer-image': 'trace_explorer_interactive',
+    'bupar-process-matrix-image': 'process_matrix_interactive'
+  };
+  function renderBupaRVisualizations(data, selectedKeys, opts) {
     const keys = selectedKeys && selectedKeys.length ? selectedKeys : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
     document.querySelectorAll('.bupar-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
@@ -3007,20 +3034,25 @@
       process_matrix_typepair: 'bupar-process-matrix-typepair-image',
       frequency_map: 'bupar-frequency-map-image'
     };
+    const cohort = opts && opts.cohort;
+    const ageBand = opts && opts.ageBand;
     for (const visualKey of keys) {
       const elementId = keyToElement[visualKey];
       if (!elementId) continue;
-      const imageUrl = imageMap[elementId];
+      let imageUrl = imageMap[elementId];
       const el = document.getElementById(elementId);
       if (!el) continue;
       if (!imageUrl) {
-        el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available.</p>';
+        el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available. Run the BupaR pipeline for this cohort/age band.</p>';
         continue;
       }
-      if (imageUrl.endsWith('.html')) {
-        el.innerHTML = `<iframe src="${imageUrl}" style="width: 100%; height: 700px; border: 1px solid #ddd;" title="${elementId}"></iframe>`;
+      if (imageUrl.endsWith('.html') && cohort && ageBand && BUPAR_HTML_PROXY_VISUAL[elementId]) {
+        imageUrl = API_BASE + '/visualizations/bupar/html?cohort=' + encodeURIComponent(cohort) + '&age_band=' + encodeURIComponent(ageBand) + '&visual=' + encodeURIComponent(BUPAR_HTML_PROXY_VISUAL[elementId]);
+      }
+      if (imageUrl.endsWith('.html') || imageUrl.indexOf('/bupar/html?') !== -1) {
+        el.innerHTML = '<iframe src="' + imageUrl + '" style="width: 100%; height: 700px; border: 1px solid #ddd;" title="' + elementId + '"></iframe>';
       } else {
-        el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" onerror="this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found.</p>';" />`;
+        el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" onerror="this.parentElement.innerHTML=\'<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found.</p>\';" />';
       }
     }
     for (const visualKey of BUPAR_VISUAL_KEYS_INDEX.map(v => v.key)) {

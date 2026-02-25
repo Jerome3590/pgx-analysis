@@ -7,7 +7,7 @@ Full listing: see agent-tools output file used for this summary.
 
 ## Why HTML and image objects don’t render in the dashboard
 
-**Cause:** The dashboard uses **direct S3 object URLs** (e.g. `https://jerome-dixon.io.s3.amazonaws.com/vcu/pgx-risk-calculator/.../network_topology.html`). The frontend loads them in iframes (`iframe.src`) and images (`<img src>`). When the bucket or those objects are **not public**, S3 responds with **403 Forbidden** to the browser. The browser then shows “might be temporarily down or it may have moved permanently” instead of the HTML or image.
+**Cause:** The dashboard uses **direct S3 object URLs** in path-style form (e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/.../network_topology.html`). The frontend loads them in iframes (`iframe.src`) and images (`<img src>`). When the bucket or those objects are **not public**, S3 responds with **403 Forbidden** to the browser. The browser then shows “might be temporarily down or it may have moved permanently” instead of the HTML or image.
 
 **So:** Objects exist in S3 and URLs are correct; they don’t render because **unauthenticated (public) read is not allowed** on the bucket/objects.
 
@@ -83,9 +83,13 @@ Once one of these is in place, the same HTML and image URLs (or their proxy/pres
 
 ---
 
-## URL format (Lambda)
+## URL format (required: path-style)
 
-- **Base URL:** `https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com`
-- **Object URL:** `{base_url}/{prefix}/{key}` e.g. `https://jerome-dixon.io.s3.amazonaws.com/vcu/pgx-risk-calculator/cohort_pgx/networks/opioid_ed/25_44/network_topology.html`
+We **must** use **path-style** S3 URLs for dashboard assets (HTML and images), not virtual-hosted style.
+
+- **Template:** `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}`
+- **Example:** `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`
+
+Lambda builds these via `_dashboard_s3_url(key)` in `lambda_function.py`. Use this same format for any manual links or frontend URLs to S3 objects in the dashboard bucket.
 
 For browser access, bucket or object ACL/policy must allow public read, or use presigned URLs / Lambda proxy.
