@@ -9,16 +9,18 @@ Uses PharmGKB REST API v1:
 https://www.postman.com/pharmgkb/pharmgkb-api/documentation/g9rp4zr/pharmgkb-rest-api
 """
 
+import argparse
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set
-import argparse
 
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
 
 # API Configuration
 PHARMGKB_API_BASE = "https://api.pharmgkb.org/v1"
@@ -26,6 +28,10 @@ CLINPGX_VIP_BASE = "https://www.clinpgx.org/vip/"
 
 # Rate limiting
 REQUEST_DELAY = 0.5  # seconds between API requests
+
+# Minimum lengths to consider VIP summary "valid" (log warning below this)
+MIN_VIP_SUMMARY_HTML_CHARS = 100
+SAMPLE_TEXT_CHARS = 120  # chars of vip_summary_text to log as sample
 
 
 class PharmGKBReportFetcher:
@@ -47,9 +53,35 @@ class PharmGKBReportFetcher:
         try:
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            # Log valid JSON response shape (no full body) for debugging/audit
+            if data is not None:
+                keys = list(data.keys()) if isinstance(data, dict) else []
+                data_preview = ""
+                if isinstance(data, dict) and "data" in data:
+                    val = data["data"]
+                    if isinstance(val, list):
+                        data_preview = f"data=list(len={len(val)})"
+                    else:
+                        data_preview = f"data={type(val).__name__}"
+                logger.info(
+                    "PharmGKB API response: url=%s params=%s status=%s keys=%s %s",
+                    url, params, response.status_code, keys, data_preview,
+                )
+            return data
         except requests.exceptions.RequestException as e:
+            # Log what was actually returned so EC2/CI can diagnose (throttling, 403, empty body, etc.)
+            resp = getattr(e, "response", None)
+            status = resp.status_code if resp is not None else None
+            body = (resp.text[:500] if resp is not None else "") or str(e)
+            logger.error(
+                "PharmGKB API request failed: url=%s params=%s error=%s status=%s body=%s",
+                url, params, e, status, body,
+                exc_info=False,
+            )
             print(f"Error fetching {url}: {e}")
+            if resp is not None:
+                print(f"  Status: {resp.status_code}  Body: {resp.text[:300]}")
             return {}
     
     def get_gene_report(self, gene_symbol: str) -> Dict:
@@ -64,7 +96,14 @@ class PharmGKBReportFetcher:
         endpoint = "/data/gene"
         gene_data = self._get(endpoint, params={"symbol": gene_symbol})
         
-        if not gene_data or "data" not in gene_data:
+        if not gene_data:
+            logger.warning("PharmGKB returned empty response for gene=%s", gene_symbol)
+            return {}
+        if "data" not in gene_data:
+            logger.warning(
+                "PharmGKB response missing 'data' for gene=%s keys=%s",
+                gene_symbol, list(gene_data.keys()),
+            )
             return {}
         
         data_result = gene_data["data"]
@@ -72,6 +111,7 @@ class PharmGKBReportFetcher:
         # Handle list response (API returns list even for single gene)
         if isinstance(data_result, list):
             if not data_result:
+                logger.warning("PharmGKB response data=[] for gene=%s", gene_symbol)
                 return {}
             data = data_result[0]  # Use first match
         else:
@@ -79,18 +119,42 @@ class PharmGKBReportFetcher:
         
         gene_id = data.get("id", "")
         vip_id = data.get("vipId", "")
+        # Log valid gene payload we got from API (confirms parsing succeeded)
+        logger.info(
+            "PharmGKB gene report parsed: symbol=%s id=%s vipId=%s vipTier=%s has_vipSummary=%s",
+            gene_symbol, gene_id, vip_id, data.get("vipTier"), "vipSummary" in data and isinstance(data.get("vipSummary"), dict),
+        )
         
         # Extract VIP summary (contains rich HTML text)
         vip_summary_obj = data.get("vipSummary", {})
         vip_summary_html = ""
         vip_summary_text = ""
         if isinstance(vip_summary_obj, dict):
-            vip_summary_html = vip_summary_obj.get("html", "")
+            vip_summary_html = vip_summary_obj.get("html", "") or ""
             # Convert HTML to plain text for NLP
             if vip_summary_html:
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(vip_summary_html, "html.parser")
                 vip_summary_text = soup.get_text(separator=" ", strip=True)
+        
+        # Validate and log data element sizes + sample (so we can confirm valid content)
+        gene_name = (data.get("name") or "") if isinstance(data.get("name"), str) else ""
+        n_html = len(vip_summary_html)
+        n_text = len(vip_summary_text)
+        sample = (vip_summary_text or vip_summary_html or "")[:SAMPLE_TEXT_CHARS]
+        if sample:
+            sample = sample.replace("\n", " ").strip()
+        logger.info(
+            "PharmGKB data elements: symbol=%s id_len=%s name_len=%s vipSummary_html_len=%s vipSummary_text_len=%s sample=%s",
+            gene_symbol, len(str(gene_id)), len(gene_name), n_html, n_text, repr(sample) if sample else "",
+        )
+        if n_html > 0 and n_html < MIN_VIP_SUMMARY_HTML_CHARS:
+            logger.warning(
+                "PharmGKB vipSummary very short for gene=%s: html_len=%s (min %s)",
+                gene_symbol, n_html, MIN_VIP_SUMMARY_HTML_CHARS,
+            )
+        if not gene_id:
+            logger.warning("PharmGKB gene_id missing for symbol=%s", gene_symbol)
         
         # Extract citation information
         citation = data.get("vipCitation", {})
@@ -156,6 +220,13 @@ class PharmGKBReportFetcher:
             response.raise_for_status()
             return response.text
         except requests.exceptions.RequestException as e:
+            resp = getattr(e, "response", None)
+            status = resp.status_code if resp is not None else None
+            body = (resp.text[:300] if resp is not None else "") or str(e)
+            logger.warning(
+                "ClinPGx VIP page fetch failed: url=%s gene_id=%s error=%s status=%s body=%s",
+                vip_url, gene_id, e, status, body,
+            )
             print(f"Error fetching ClinPGx page {vip_url}: {e}")
             return ""
     
@@ -215,6 +286,7 @@ def load_cohort_genes(cohort_name: str, age_band: str, project_root: Path, top_n
         )
     
     if not feature_importance_path.exists():
+        logger.warning("No feature importance found for cohort=%s age_band=%s (tried %s)", cohort_name, age_band, feature_importance_path)
         print(f"Warning: No feature importance found for {cohort_name}/{age_band}")
         return []
     
@@ -297,6 +369,7 @@ def fetch_cohort_reports(
         report = fetcher.get_gene_report(gene)
         
         if not report:
+            logger.debug("PharmGKB returned no data for gene=%s (API may have failed or empty data)", gene)
             print("✗ Not found")
             continue
         
@@ -335,6 +408,12 @@ def fetch_cohort_reports(
     with open(summary_file, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     
+    logger.info(
+        "VIP reports fetch complete: cohort=%s age_band=%s genes_requested=%s reports_fetched=%s genes_with_vip_text=%s",
+        cohort_name, age_band, summary["genes_requested"], summary["reports_fetched"], summary["genes_with_vip_text"],
+    )
+    if summary["reports_fetched"] == 0 and summary["genes_requested"] > 0:
+        logger.warning("No reports fetched despite %s genes requested; check PharmGKB API errors above", summary["genes_requested"])
     print(f"✓ Saved summary to {summary_file}")
     
     return summary
@@ -342,6 +421,11 @@ def fetch_cohort_reports(
 
 def main():
     """Fetch VIP reports for a cohort."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
     parser = argparse.ArgumentParser(
         description="Fetch PharmGKB VIP reports for cohort PGx analysis"
     )

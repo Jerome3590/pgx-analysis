@@ -36,6 +36,10 @@ from_s3/*
 # Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
 9_risk_dashboard/visualizations/*/outputs/
 10_risk_dashboard/visualizations/*/outputs/
+# Synced from S3 testing prefix for local analysis (sync_testing_from_s3.py)
+10_risk_dashboard/visualizations/s3_sync_testing/
+# PharmGKB API sample response (test_pharmgkb_throttle.py --inspect)
+9_dashboard_visuals/cohort_pgx/pharmgkb_response_sample.json
 
 # 4_fpgrowth_analysis: template for 9_dashboard_visuals/fpgrowth; pipeline uses fpgrowth, this dir is gitignored
 9_dashboard_visuals/4_fpgrowth_analysis/

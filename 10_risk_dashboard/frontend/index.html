@@ -2499,13 +2499,16 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const iframe = document.getElementById("cohort-pgx-iframe");
-      if (iframe && data.network_topology_url) {
-        iframe.src = data.network_topology_url;
-        document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
-        document.getElementById("cohort-pgx-status").className = "status-message success";
-      } else {
-        document.getElementById("cohort-pgx-status").textContent = "No network URL returned. Run 4_dashboard_visuals (Cohort PGx) and sync to S3.";
-        document.getElementById("cohort-pgx-status").className = "status-message error";
+      if (iframe) {
+        if (data.network_topology_url) {
+          iframe.src = data.network_topology_url;
+          document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
+          document.getElementById("cohort-pgx-status").className = "status-message success";
+        } else {
+          iframe.src = "about:blank";
+          document.getElementById("cohort-pgx-status").textContent = "Network topology not available. Run Cohort PGx pipeline (build_network_topology) and sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3.";
+          document.getElementById("cohort-pgx-status").className = "status-message error";
+        }
       }
     } catch (err) {
       document.getElementById("cohort-pgx-status").textContent = `Error: ${err.message}`;

@@ -73,12 +73,14 @@ s3_client = boto3.client("s3")
 
 
 def _s3_object_exists(bucket: str, key: str) -> bool:
-    """Return True if the S3 object exists (HEAD)."""
+    """Return True if the S3 object exists (HEAD). Treat 403/AccessDenied as not found so
+    we return empty payloads instead of 500 when the dashboard bucket is not accessible (e.g. from EC2)."""
     try:
         s3_client.head_object(Bucket=bucket, Key=key)
         return True
     except ClientError as e:
-        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey"):
+        code = e.response.get("Error", {}).get("Code")
+        if code in ("404", "NoSuchKey", "403", "AccessDenied"):
             return False
         raise
 
@@ -1372,7 +1374,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
                 data = json.loads(obj["Body"].read().decode("utf-8"))
                 payload[key] = data
             except ClientError as e:
-                if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404"):
+                if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
                     raise
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -1433,7 +1435,7 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             payload = json.loads(body)
             return _response(200, payload)
         except ClientError as e:
-            if e.response["Error"]["Code"] != "NoSuchKey":
+            if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
                 raise
         except (json.JSONDecodeError, KeyError):
             pass
@@ -1535,7 +1537,7 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
                 data = json.loads(obj["Body"].read().decode("utf-8"))
                 payload[name] = data
             except ClientError as e:
-                if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+                if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "403", "AccessDenied"):
                     payload[name] = None
                 else:
                     raise
@@ -1593,9 +1595,10 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     GET /visualizations/cohort_pgx?cohort=...&age_band=...
 
-    Returns HTTPS URL to prebuilt Cohort PGx network topology HTML. Built by 4_dashboard_visuals
-    (fetch_vip_reports + build_network_topology); stored under
+    Returns network_topology_url only when the S3 object exists (HEAD check). Built by
+    Cohort PGx pipeline (fetch_vip_reports + build_network_topology); expected key:
     {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html.
+    Sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3 after building.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1609,9 +1612,10 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/cohort_pgx"
         base_key = f"{prefix}/networks/{cohort}/{age_band_fname}"
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
-        payload = {
-            "network_topology_url": f"{base_url}/{base_key}/network_topology.html",
-        }
+        html_key = f"{base_key}/network_topology.html"
+        payload = {}
+        if _s3_object_exists(S3_DASHBOARD_BUCKET, html_key):
+            payload["network_topology_url"] = f"{base_url}/{html_key}"
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
