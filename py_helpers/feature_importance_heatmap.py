@@ -388,6 +388,12 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
                 paths_to_scan.append(p)
             elif p.is_dir() and not p.name.startswith("_"):
                 paths_to_scan.extend(q for q in p.iterdir() if q.is_file() and q.suffix == ".csv")
+        def _is_canonical_age_band(age_band: str) -> bool:
+            """Exclude checkpoint/run artifacts (e.g. 0_1225_checkpoint) and keep only real bands."""
+            if "checkpoint" in age_band.lower():
+                return False
+            return age_band in CANONICAL_AGE_BAND_ORDER
+
         for p in paths_to_scan:
             stem = p.stem
             # aggregated: {cohort}_{age_band_fname}_aggregated_feature_importance
@@ -396,7 +402,8 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
                 rest = stem.replace(f"{cohort}_", "").replace("_aggregated_feature_importance", "")
                 if "_" in rest:
                     age_band = rest.replace("_", "-")
-                    age_bands_set.add(age_band)
+                    if _is_canonical_age_band(age_band):
+                        age_bands_set.add(age_band)
             # per-model: {cohort}_{age_band_fname}_{model}_feature_importance_mc*
             for m in ("catboost", "xgboost", "xgboost_rf"):
                 if f"_{m}_feature_importance_mc" in stem:
@@ -405,7 +412,8 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
                     rest = re.sub(r"_\d+$", "", rest)  # drop mc run suffix e.g. _25
                     if "_" in rest:
                         age_band = rest.replace("_", "-")
-                        age_bands_set.add(age_band)
+                        if _is_canonical_age_band(age_band):
+                            age_bands_set.add(age_band)
                     break
         age_bands_sorted = sorted(age_bands_set, key=lambda b: (CANONICAL_AGE_BAND_ORDER.index(b) if b in CANONICAL_AGE_BAND_ORDER else 99))
         result["cohorts"][cohort] = {
