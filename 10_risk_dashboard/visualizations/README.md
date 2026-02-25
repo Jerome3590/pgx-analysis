@@ -6,6 +6,8 @@ This directory holds **data visualization outputs** (plots, CSVs, JSON, HTML) fo
 
 **Outputs are not in the repo.** They are generated on EC2 (or locally when running the dashboard visuals step) and uploaded to the dashboard S3 bucket. The repo only contains READMEs and docs; `*/outputs/` under this tree is in `.gitignore`.
 
+**Data pattern:** Prefer **JSON** for dashboard visuals so Lambda can return inline data and the frontend can render with Plotly. **Exception:** FP-Growth network and PGx Cohort network are built on EC2 and served as HTML only. See `10_risk_dashboard/docs/VISUALIZATION_DATA_PATTERN.md`.
+
 ## Directory Structure
 
 ```

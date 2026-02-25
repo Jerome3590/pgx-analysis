@@ -858,6 +858,13 @@ if (n_pre > 0L) {
         saveWidget(fig, trace_html_path, selfcontained = TRUE,
                   title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
         cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
+        # JSON for dashboard: frontend builds Plotly from this (same pattern as DTW)
+        tryCatch({
+          trace_json_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_plot.json", cohort_name, age_band_fname))
+          j <- plotly::plotly_json(fig, FALSE)
+          write(j, trace_json_path)
+          cat("Saved trace_explorer_plot.json\n")
+        }, error = function(e) cat(" [skip] trace_explorer_plot.json:", conditionMessage(e), "\n"))
       } else {
         cat(" [skip] trace_explorer_interactive: no traces with data (empty pre-HCG)\n")
       }
@@ -1222,6 +1229,16 @@ if (n_target > 0L) {
         ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix_%s.png", cohort_name, age_band_fname, name)),
                plot = p_sub, width = 10, height = 8, dpi = 300)
         cat("Saved process_matrix_drug_drug.png\n")
+        # JSON for dashboard: frontend builds Plotly heatmap from this
+        tryCatch({
+          pm_json_path <- file.path(plots_dir, sprintf("%s_%s_process_matrix_drug_drug.json", cohort_name, age_band_fname))
+          write(jsonlite::toJSON(list(
+            antecedent = as.character(pm_sub$antecedent),
+            consequent = as.character(pm_sub$consequent),
+            n = as.numeric(pm_sub$n)
+          ), dataframe = "columns", auto_unbox = TRUE), pm_json_path)
+          cat("Saved process_matrix_drug_drug.json\n")
+        }, error = function(e) cat(" [skip] process_matrix_drug_drug.json:", conditionMessage(e), "\n"))
       }
     }, error = function(e) cat(" [skip] process_matrix_drug_drug: ", conditionMessage(e), "\n"))
   }

@@ -804,6 +804,13 @@ tryCatch({
       # Production HTML: selfcontained = TRUE (same pattern as fpgrowth include_plotlyjs=True). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
       saveWidget(fig, trace_html_path, selfcontained = TRUE, title = paste("Trace Explorer (Pre-F1120):", cohort_name, age_band))
       cat("Saved trace_explorer_interactive.html (pre-F1120); path=", trace_html_path, "\n", sep = "")
+      # JSON for dashboard: frontend builds Plotly from this (same pattern as DTW)
+      tryCatch({
+        trace_json_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_plot.json", cohort_name, age_band_fname))
+        j <- plotly::plotly_json(fig, FALSE)
+        write(j, trace_json_path)
+        cat("Saved trace_explorer_plot.json\n")
+      }, error = function(e) cat(" [skip] trace_explorer_plot.json:", conditionMessage(e), "\n"))
     } else {
       cat(" [skip] trace_explorer_interactive: no traces with data (empty pre-F1120)\n")
     }
@@ -1270,6 +1277,16 @@ if (!is.null(pm_df) && nrow(pm_df) > 0L && "antecedent" %in% names(pm_df) && "co
       ggsave(file.path(plots_dir, sprintf("%s_%s_process_matrix_%s.png", cohort_name, age_band_fname, name)),
              plot = p_sub, width = 10, height = 8, dpi = 300)
       cat("Saved process_matrix_drug_drug.png\n")
+      # JSON for dashboard: frontend builds Plotly heatmap from this
+      tryCatch({
+        pm_json_path <- file.path(plots_dir, sprintf("%s_%s_process_matrix_drug_drug.json", cohort_name, age_band_fname))
+        write(jsonlite::toJSON(list(
+          antecedent = as.character(pm_sub$antecedent),
+          consequent = as.character(pm_sub$consequent),
+          n = as.numeric(pm_sub$n)
+        ), dataframe = "columns", auto_unbox = TRUE), pm_json_path)
+        cat("Saved process_matrix_drug_drug.json\n")
+      }, error = function(e) cat(" [skip] process_matrix_drug_drug.json:", conditionMessage(e), "\n"))
     }
   }, error = function(e) cat(" [skip] process_matrix_drug_drug: ", conditionMessage(e), "\n"))
 }

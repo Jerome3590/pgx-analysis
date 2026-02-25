@@ -208,7 +208,7 @@ def _upload_dtw_plots_to_dashboard_s3(
     plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
         return
-    plot_files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html"))
+    plot_files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html")) + list(plots_dir.glob("*.json"))
     if not plot_files:
         return
 
