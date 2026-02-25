@@ -707,6 +707,14 @@ class CohortPGxNetworkBuilder:
         # Combine all traces
         all_traces = all_edge_traces + list(node_trace_dict.values())
         
+        # Helper: trace names are "Gene (Tier 1)", "Drugs", "Phenotypes", "edge_metabolizes", etc.
+        def is_gene_trace(t):
+            return isinstance(t.name, str) and t.name.startswith("Gene (")
+        def is_drug_trace(t):
+            return getattr(t, "name", None) == "Drugs"
+        def is_phenotype_trace(t):
+            return getattr(t, "name", None) == "Phenotypes"
+
         # Create filter buttons
         filter_buttons = [
             # Show all
@@ -720,21 +728,20 @@ class CohortPGxNetworkBuilder:
                 label="Genes Only",
                 method="update",
                 args=[{"visible": [
-                    False if "edge" in trace.name else 
-                    (True if "gene_" in trace.name else False)
-                    for trace in all_traces
+                    is_gene_trace(t) or ("edge_" in getattr(t, "name", "") and "co_metabolizes" in getattr(t, "name", ""))
+                    for t in all_traces
                 ]}]
             ),
-            # Genes + Drugs
+            # Genes + Drugs (gene-drug metabolizes edges + gene nodes + drug nodes)
             dict(
                 label="Genes + Drugs",
                 method="update",
                 args=[{"visible": [
-                    ("edge_metabolizes" in trace.name or 
-                     "edge_co_metabolizes" in trace.name or
-                     "gene_" in trace.name or 
-                     trace.name == "drugs")
-                    for trace in all_traces
+                    ("edge_metabolizes" in getattr(t, "name", "") or
+                     "edge_co_metabolizes" in getattr(t, "name", "") or
+                     is_gene_trace(t) or
+                     is_drug_trace(t))
+                    for t in all_traces
                 ]}]
             ),
             # Genes + Phenotypes
@@ -742,10 +749,10 @@ class CohortPGxNetworkBuilder:
                 label="Genes + Phenotypes",
                 method="update",
                 args=[{"visible": [
-                    ("edge_affects_risk" in trace.name or 
-                     "gene_" in trace.name or 
-                     trace.name == "phenotypes")
-                    for trace in all_traces
+                    ("edge_affects_risk" in getattr(t, "name", "") or
+                     is_gene_trace(t) or
+                     is_phenotype_trace(t))
+                    for t in all_traces
                 ]}]
             ),
             # Drug-Drug Interactions
@@ -753,13 +760,13 @@ class CohortPGxNetworkBuilder:
                 label="Drug-Drug Interactions",
                 method="update",
                 args=[{"visible": [
-                    ("edge_metabolic" in trace.name or
-                     "edge_inhibition" in trace.name or
-                     "edge_induction" in trace.name or
-                     "edge_combination" in trace.name or
-                     "edge_enhancement" in trace.name or
-                     trace.name == "drugs")
-                    for trace in all_traces
+                    ("edge_metabolic" in getattr(t, "name", "") or
+                     "edge_inhibition" in getattr(t, "name", "") or
+                     "edge_induction" in getattr(t, "name", "") or
+                     "edge_combination" in getattr(t, "name", "") or
+                     "edge_enhancement" in getattr(t, "name", "") or
+                     is_drug_trace(t))
+                    for t in all_traces
                 ]}]
             ),
             # Tier 1 Genes Only
@@ -767,8 +774,8 @@ class CohortPGxNetworkBuilder:
                 label="Tier 1 Only",
                 method="update",
                 args=[{"visible": [
-                    ("edge" in trace.name or trace.name == "Gene (Tier 1)")
-                    for trace in all_traces
+                    "edge_" in getattr(t, "name", "") or t.name == "Gene (Tier 1)"
+                    for t in all_traces
                 ]}]
             ),
         ]
