@@ -18,8 +18,8 @@ Data flow to visualizations:
   3. high_risk_trajectories: outcome rate by trajectory archetype (quartiles)
   4. target_pathway_patterns: common codes in target=1 trajectories
   Frontend (index.html) expects chart_data JSON with these chart objects (x, y, type, name, x_label, y_label; routine_comparison_counts uses series: [{ name, y }]).
-- Outputs: outputs/{cohort}/{age_band}/plots/*.png/html + chart_data.json uploaded to S3 dashboard bucket.
-  DTW CSV files (dtw_features, dtw_added_features) are NOT uploaded; dashboard only uses plots and chart_data.
+- Outputs: outputs/{cohort}/{age_band_fname}/plots/*.png/html, chart_data.json, sequence_heatmap.json written
+  locally (so check_dashboard_artifact_paths.py can validate) and uploaded to S3. DTW CSV files are NOT uploaded.
 """
 
 import argparse
@@ -166,14 +166,24 @@ def create_dtw_visuals(
         _log("warning", "DTW trajectory cluster plots failed: %s", e)
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band, logger=logger)
 
-    # Prebuild chart data (routine vs no routine, high-risk trajectories) and upload to dashboard S3 for direct dashboard integration
+    # Prebuild chart data (routine vs no routine, high-risk trajectories); write locally and upload to S3
+    out_dir = dtw_out / "outputs" / cohort_name / age_band_fname
+    out_dir.mkdir(parents=True, exist_ok=True)
     chart_data = _build_dtw_chart_data(dtw_df)
     if chart_data:
+        chart_path = out_dir / "chart_data.json"
+        with open(chart_path, "w", encoding="utf-8") as f:
+            json.dump(chart_data, f, indent=0)
+        _log("info", "Wrote %s", chart_path)
         _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data, logger=logger)
 
-    # Sequence heatmap (code × position counts by ICD/CPT/Drug) for dashboard heatmap with dynamic code-type filter
+    # Sequence heatmap (code × position counts by ICD/CPT/Drug); write locally and upload to S3
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
     if heatmap_data:
+        heatmap_path = out_dir / "sequence_heatmap.json"
+        with open(heatmap_path, "w", encoding="utf-8") as f:
+            json.dump(heatmap_data, f, indent=0)
+        _log("info", "Wrote %s", heatmap_path)
         _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data, logger=logger)
 
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
