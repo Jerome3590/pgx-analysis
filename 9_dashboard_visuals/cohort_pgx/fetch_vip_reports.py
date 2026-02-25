@@ -34,6 +34,160 @@ REQUEST_DELAY = 0.5  # seconds between API requests
 MIN_VIP_SUMMARY_HTML_CHARS = 100
 SAMPLE_TEXT_CHARS = 120  # chars of vip_summary_text to log as sample
 
+# CPIC paths (relative to project root) for drug-name -> gene resolution
+CPIC_DRUG_LIST_PATH = "5_pgx_analysis/data/cpic_drug_list.json"
+DRUG_CPIC_MAPPING_GLOBAL_PATH = "5_pgx_analysis/outputs/global/drug_cpic_mapping_global.csv"
+
+
+def _load_cpic_drug_to_genes(project_root: Path) -> Tuple[set, Dict[str, List[str]], List[Dict]]:
+    """
+    Load CPIC drug list and build known-gene set and drug-name -> genes mapping.
+    Returns (known_genes, drug_to_genes, cpic_drug_list).
+    drug_to_genes keys are uppercase drug names; values are lists of gene symbols.
+    """
+    known_genes: set = set()
+    drug_to_genes: Dict[str, List[str]] = {}
+    cpic_drug_list: List[Dict] = []
+
+    cpic_path = project_root / CPIC_DRUG_LIST_PATH
+    if not cpic_path.exists():
+        logger.warning("CPIC drug list not found at %s; drug names will not be resolved to genes", cpic_path)
+        return known_genes, drug_to_genes, cpic_drug_list
+
+    try:
+        with open(cpic_path, "r", encoding="utf-8") as f:
+            cpic_drug_list = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Could not load CPIC drug list from %s: %s", cpic_path, e)
+        return known_genes, drug_to_genes, cpic_drug_list
+
+    if not isinstance(cpic_drug_list, list):
+        logger.warning("CPIC drug list root is not a list")
+        return known_genes, drug_to_genes, cpic_drug_list
+
+    for entry in cpic_drug_list:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name") or entry.get("drugName") or ""
+        if not name or not isinstance(name, str):
+            continue
+        genes = entry.get("genes")
+        if isinstance(genes, list):
+            gene_list = [str(g).strip() for g in genes if g]
+        elif isinstance(genes, str) and genes.strip():
+            gene_list = [genes.strip()]
+        else:
+            gene_list = []
+        for g in gene_list:
+            known_genes.add(g.upper())
+        drug_to_genes[name.upper().strip()] = gene_list
+
+    logger.info(
+        "Loaded CPIC drug list: %d drugs, %d known gene symbols",
+        len(drug_to_genes),
+        len(known_genes),
+    )
+    return known_genes, drug_to_genes, cpic_drug_list
+
+
+def _load_global_drug_mapping(project_root: Path) -> Optional[pd.DataFrame]:
+    """Load global drug_name -> cpic_drug_name mapping CSV if present."""
+    path = project_root / DRUG_CPIC_MAPPING_GLOBAL_PATH
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path)
+        if "drug_name" not in df.columns or "cpic_drug_name" not in df.columns:
+            logger.warning("Global drug mapping missing drug_name or cpic_drug_name columns")
+            return None
+        logger.info("Loaded global drug-to-CPIC mapping from %s (%d rows)", path, len(df))
+        return df
+    except Exception as e:
+        logger.warning("Could not load global drug mapping from %s: %s", path, e)
+        return None
+
+
+def _resolve_token_to_genes(
+    token: str,
+    known_genes: set,
+    drug_to_genes: Dict[str, List[str]],
+    global_mapping_df: Optional[pd.DataFrame],
+    cpic_drug_list: List[Dict],
+    project_root: Path,
+    log: logging.Logger,
+) -> List[str]:
+    """
+    Resolve a feature token (gene symbol or drug name) to a list of gene symbols for PharmGKB.
+    Uses CPIC: known genes pass through; drug names are mapped to genes via CPIC list or global mapping.
+    """
+    if not token or not isinstance(token, str):
+        return []
+    upper = token.strip().upper()
+    if not upper or len(upper) < 2:
+        return []
+
+    # 1) Token is a known pharmacogene symbol -> use as-is
+    if upper in known_genes:
+        return [upper]
+
+    # 2) Exact match as CPIC drug name -> return its genes
+    if upper in drug_to_genes:
+        genes = drug_to_genes[upper]
+        log.info("Resolved drug name to genes (CPIC exact): %s -> %s", token, genes)
+        return genes
+
+    # 3) Global mapping: feature token (drug name) -> cpic_drug_name -> genes
+    if global_mapping_df is not None and not global_mapping_df.empty:
+        match = global_mapping_df[
+            global_mapping_df["drug_name"].astype(str).str.strip().str.upper() == upper
+        ]
+        if not match.empty:
+            cpic_name = match.iloc[0].get("cpic_drug_name")
+            if pd.notna(cpic_name) and cpic_name:
+                cpic_upper = str(cpic_name).strip().upper()
+                if cpic_upper in drug_to_genes:
+                    genes = drug_to_genes[cpic_upper]
+                    log.info(
+                        "Resolved drug name to genes (global mapping): %s -> %s -> %s",
+                        token,
+                        cpic_name,
+                        genes,
+                    )
+                    return genes
+
+    # 4) Optional: fuzzy match via 5_pgx_analysis map_drugs_to_genes
+    try:
+        sys.path.insert(0, str(project_root))
+        sys.path.insert(0, str(project_root / "5_pgx_analysis"))
+        from map_drugs_to_genes import fuzzy_match_drug  # noqa: E402
+        if cpic_drug_list:
+            result = fuzzy_match_drug(token, cpic_drug_list, threshold=90)
+            if result:
+                matched_name, drug_dict, _ = result
+                gene_list = drug_dict.get("genes")
+                if isinstance(gene_list, list):
+                    genes = [str(g).strip() for g in gene_list if g]
+                elif isinstance(gene_list, str) and gene_list.strip():
+                    genes = [gene_list.strip()]
+                else:
+                    genes = []
+                if genes:
+                    log.info(
+                        "Resolved drug name to genes (CPIC fuzzy): %s -> %s -> %s",
+                        token,
+                        matched_name,
+                        genes,
+                    )
+                    return genes
+    except ImportError:
+        pass
+    except Exception as e:
+        log.debug("Fuzzy match for %s failed: %s", token, e)
+
+    # Not a known gene and not a resolved drug -> skip (do not pass to PharmGKB as gene symbol)
+    log.debug("Token not resolved to genes (skipping): %s", token)
+    return []
+
 
 def _validate_pharmgkb_gene_data(data: Any, gene_symbol: str, log: Any) -> Tuple[bool, List[str]]:
     """
@@ -323,61 +477,73 @@ class PharmGKBReportFetcher:
         return text_sections
 
 
-def load_cohort_genes(cohort_name: str, age_band: str, project_root: Path, top_n: int = 50) -> List[str]:
+def load_cohort_genes(
+    cohort_name: str,
+    age_band: str,
+    project_root: Path,
+    top_n: int = 50,
+    pipeline_logger: Optional[Any] = None,
+) -> List[str]:
     """
     Load top N important genes for a cohort from SHAP/FFA analysis.
-    
-    Returns list of gene symbols extracted from feature names (item_DRUG_<GENE>).
+
+    Uses the same activity-type logic as BupaR: only **drug_name** codes from final feature
+    importance are considered (via get_shap_ffa_important_codes(..., "drug_name")). Those tokens
+    are drug names and are resolved to gene symbols via CPIC; only gene symbols are sent to
+    PharmGKB. ICD/CPT codes are never passed to CPIC name match.
     """
-    age_band_fname = age_band.replace("-", "_")
-    
-    # Try Step 3b feature importance first
-    feature_importance_path = (
-        project_root / "3a_feature_importance" / "outputs" / 
-        cohort_name / age_band_fname / "cohort_feature_importance.csv"
-    )
-    
-    # Fallback to notebook 3 combined importance
-    if not feature_importance_path.exists():
-        feature_importance_path = (
-            project_root / "10_risk_dashboard" / "outputs" / 
-            cohort_name / age_band_fname / "combined_importance.csv"
-        )
-    
-    if not feature_importance_path.exists():
-        logger.warning("No feature importance found for cohort=%s age_band=%s (tried %s)", cohort_name, age_band, feature_importance_path)
-        print(f"Warning: No feature importance found for {cohort_name}/{age_band}")
+    log = pipeline_logger.logger if pipeline_logger is not None and hasattr(pipeline_logger, "logger") else logger
+
+    try:
+        from py_helpers.shap_ffa_fpgrowth_utils import get_shap_ffa_important_codes
+    except ImportError:
+        log.warning("py_helpers.shap_ffa_fpgrowth_utils not available; cannot load drug_name codes for cohort genes.")
         return []
-    
-    # Load feature importance
-    df = pd.read_csv(feature_importance_path)
-    
-    # Get feature column
-    feature_col = next((c for c in df.columns if "feature" in c.lower()), df.columns[0])
-    importance_col = next((c for c in df.columns if "importance" in c.lower()), df.columns[1])
-    
-    # Sort by importance and get top N
-    df = df.sort_values(importance_col, ascending=False).head(top_n)
-    
-    # Extract gene symbols from feature names
-    # Pattern: item_DRUG_<GENE>, item_ICD_<CODE>, item_CPT_<CODE>
-    # We want only DRUG features for PGx analysis
+
+    # Same as BupaR: only drug_name codes from final (cohort) feature importance
+    drug_names = get_shap_ffa_important_codes(
+        cohort_name,
+        age_band,
+        "drug_name",
+        top_n=top_n,
+        project_root=project_root,
+        data_root=None,
+    )
+    if not drug_names:
+        log.warning(
+            "No drug_name codes from feature importance for cohort=%s age_band=%s",
+            cohort_name,
+            age_band,
+        )
+        return []
+
+    # Load CPIC drug -> genes for resolving drug names to genes
+    known_genes, drug_to_genes, cpic_drug_list = _load_cpic_drug_to_genes(project_root)
+    global_mapping_df = _load_global_drug_mapping(project_root)
+
     genes = set()
-    for feature in df[feature_col]:
-        if isinstance(feature, str):
-            # Extract gene from DRUG features
-            if "DRUG" in feature.upper():
-                parts = feature.split("_")
-                if len(parts) >= 3:
-                    # item_DRUG_GENENAME or DRUG:GENENAME
-                    gene_part = parts[2] if parts[0].lower() == "item" else parts[1]
-                    gene_part = gene_part.split(":")[1] if ":" in gene_part else gene_part
-                    # Clean and validate gene symbol
-                    gene = gene_part.strip().upper()
-                    if gene and len(gene) >= 3 and gene.isalpha():
-                        genes.add(gene)
-    
-    print(f"Extracted {len(genes)} genes from top {top_n} features for {cohort_name}/{age_band}")
+    for drug_name in drug_names:
+        token = drug_name.strip().upper() if isinstance(drug_name, str) else ""
+        if not token or len(token) < 2:
+            continue
+        resolved = _resolve_token_to_genes(
+            token,
+            known_genes,
+            drug_to_genes,
+            global_mapping_df,
+            cpic_drug_list,
+            project_root,
+            log,
+        )
+        genes.update(resolved)
+
+    log.info(
+        "Resolved %d gene symbols from %d drug_name codes (BupaR activity-type logic) for %s/%s",
+        len(genes),
+        len(drug_names),
+        cohort_name,
+        age_band,
+    )
     return sorted(genes)
 
 
@@ -389,9 +555,12 @@ def fetch_cohort_reports(
     top_n: int = 50,
     include_vip_pages: bool = True,
     pipeline_logger: Optional[Any] = None,
+    force: bool = False,
 ) -> Dict:
     """
     Fetch PharmGKB VIP reports for all important genes in a cohort.
+
+    Idempotent: if reports file already exists, skips fetch unless force=True.
 
     Args:
         cohort_name: Cohort name (opioid_ed, non_opioid_ed)
@@ -400,13 +569,55 @@ def fetch_cohort_reports(
         output_dir: Output directory for reports
         top_n: Number of top features to analyze
         include_vip_pages: Whether to fetch ClinPGx VIP page content
-        pipeline_logger: Optional PipelineLogger (or object with .info/.warning/.logger) for consistent logging
+        pipeline_logger: Optional PipelineLogger for consistent logging
+        force: If True, re-fetch even when reports file exists
 
     Returns:
         Dict with reports metadata
     """
     pl = pipeline_logger
     log = pl.logger if pl is not None and hasattr(pl, "logger") else logger
+    output_dir.mkdir(parents=True, exist_ok=True)
+    age_band_fname = age_band.replace("-", "_")
+    reports_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports.json"
+    summary_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports_summary.json"
+
+    if not force and reports_file.exists():
+        if summary_file.exists():
+            try:
+                with open(summary_file, "r", encoding="utf-8") as f:
+                    summary = json.load(f)
+                log.info(
+                    "Reports already exist for %s/%s (%d reports); skipping. Use --force to re-fetch.",
+                    cohort_name,
+                    age_band,
+                    summary.get("reports_fetched", 0),
+                )
+                return summary
+            except (json.JSONDecodeError, OSError):
+                pass
+        # No summary file: build minimal summary from reports file
+        try:
+            with open(reports_file, "r", encoding="utf-8") as f:
+                reports = json.load(f)
+            summary = {
+                "cohort": cohort_name,
+                "age_band": age_band,
+                "genes_requested": len(reports),
+                "reports_fetched": len(reports),
+                "genes_with_vip_text": sum(1 for r in reports if "vip_text" in r),
+                "genes": [r.get("gene_symbol", "") for r in reports if isinstance(r, dict)],
+                "output_file": str(reports_file),
+            }
+            log.info(
+                "Reports already exist for %s/%s (%d reports); skipping. Use --force to re-fetch.",
+                cohort_name,
+                age_band,
+                len(reports),
+            )
+            return summary
+        except (json.JSONDecodeError, OSError):
+            pass
 
     if pl is not None and hasattr(pl, "info"):
         pl.info("=" * 80)
@@ -415,7 +626,13 @@ def fetch_cohort_reports(
     else:
         log.info("Fetching VIP reports for %s / %s", cohort_name, age_band)
 
-    genes = load_cohort_genes(cohort_name, age_band, project_root, top_n=top_n)
+    genes = load_cohort_genes(
+        cohort_name,
+        age_band,
+        project_root,
+        top_n=top_n,
+        pipeline_logger=pl,
+    )
 
     if not genes:
         log.warning("No genes found for cohort=%s age_band=%s; exiting", cohort_name, age_band)
@@ -447,10 +664,6 @@ def fetch_cohort_reports(
         reports.append(report)
         log.info("  %s -> %s", gene, report.get("gene_name", "N/A"))
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    age_band_fname = age_band.replace("-", "_")
-
-    reports_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports.json"
     with open(reports_file, "w", encoding="utf-8") as f:
         json.dump(reports, f, indent=2, ensure_ascii=False)
 
@@ -469,7 +682,6 @@ def fetch_cohort_reports(
         "output_file": str(reports_file)
     }
 
-    summary_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports_summary.json"
     with open(summary_file, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
@@ -494,6 +706,7 @@ def main():
     parser.add_argument("--age-band", required=True, help="Age band (0-12, 13-24, etc.)")
     parser.add_argument("--top-n", type=int, default=50, help="Number of top features to analyze")
     parser.add_argument("--no-vip-pages", action="store_true", help="Skip fetching ClinPGx VIP pages")
+    parser.add_argument("--force", action="store_true", help="Re-fetch even when reports file already exists (default: skip if exists)")
     parser.add_argument("--project-root", type=Path, help="Project root directory")
     parser.add_argument("--output-dir", type=Path, help="Output directory")
     args = parser.parse_args()
@@ -530,6 +743,7 @@ def main():
             top_n=args.top_n,
             include_vip_pages=not args.no_vip_pages,
             pipeline_logger=pl,
+            force=args.force,
         )
         pl.info("=" * 80)
         pl.info("PIPELINE STEP SUMMARY (fetch_vip_reports)")

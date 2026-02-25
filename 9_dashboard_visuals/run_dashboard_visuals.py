@@ -339,6 +339,7 @@ def main():
             print("-" * 40)
             pgx_fetch_workers = min(2, len(combinations))  # API rate limit
             with ThreadPoolExecutor(max_workers=pgx_fetch_workers) as ex:
+                pgx_fetch_force = ["--force"] if args.force else []
                 futures = {
                     ex.submit(
                         subprocess.run,
@@ -348,7 +349,7 @@ def main():
                             "--top-n", "50",
                             "--project-root", str(REPO_ROOT),
                             "--output-dir", str(reports_dir),
-                        ],
+                        ] + pgx_fetch_force,
                         cwd=str(REPO_ROOT),
                         capture_output=False,
                     ): (c, ab)
