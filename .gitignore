@@ -82,6 +82,10 @@ archived/*
 # Preserve archived dashboard feature-engineering scripts in version control
 !archived/dashboard_feature_engineering/
 
+# Other archived (non-production) dirs: cohort_pgx standalone upload, status artifacts
+9_dashboard_visuals/cohort_pgx/archived/
+status/archived/
+
 # Log files
 *.log
 

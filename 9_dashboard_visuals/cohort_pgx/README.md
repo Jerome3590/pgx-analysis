@@ -180,7 +180,8 @@ Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.i
 1. **Fetch VIP reports**: Parallel fetch for all cohort/age_band combinations (max 2 workers for API rate limiting)
 2. **Build networks**: Parallel network building (max 4 workers); each build **uploads to dashboard S3** automatically (same as BupaR/DTW/FP-Growth)
 3. **View outputs**: Interactive visualization previews
-4. **Re-upload to S3** (optional): Run the **Step 3: Upload Cohort PGx to S3** cell only if you need to re-sync existing outputs without rebuilding
+
+Notebook 5 (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` to S3 when you deploy, same as other dashboard visuals.
 
 ## Dashboard Integration
 
@@ -188,33 +189,22 @@ Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.i
 
 Upload to the dashboard S3 bucket happens **inside** `build_network_topology.py` after writing outputs (same as BupaR, DTW, and FP-Growth). No separate upload step is required.
 
-- **Notebook 4_dashboard_visuals.ipynb**: Runs fetch → build. Each build uploads its output to S3. The optional **Step 3: Upload Cohort PGx to S3** cell runs `upload_cohort_pgx_to_s3.py` only if you need to re-upload without rebuilding.
+- **Notebook 4_dashboard_visuals.ipynb**: Runs fetch → build. Each build uploads to S3 (same pattern as BupaR/DTW/FP-Growth). **Notebook 5** (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` to S3 when you deploy.
 - **run_dashboard_visuals.py**: Runs full step-9 pipeline including Cohort PGx (fetch VIP reports, build network topology; each build uploads to S3). Use `--skip-cohort-pgx` to omit Cohort PGx; use `--no-cohort-pgx-upload` to build but not upload.
 
 Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (e.g. `network_topology.html`) and are uploaded to `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/`.
 
 **Logs (Cohort PGx):** When you run `fetch_vip_reports.py` from the command line, logs are written to **`9_dashboard_visuals/logs/cohort_pgx/fetch_vip_reports_{cohort}_{age_band_fname}.log`** (and to stderr). Use `--log-file PATH` to override. `build_network_topology.py` uses `print()` only; its output appears in the terminal or notebook cell output.
 
-### Upload to S3
+### Upload to S3 (production)
 
-After building, upload so the PGx Cohort tab can load the network iframe. Lambda expects objects at `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`.
+Build step uploads to S3; **notebook 5** (Step 6: Sync Dashboard Frontend) syncs `10_risk_dashboard/visualizations/cohort_pgx/` to S3 when you deploy. Lambda expects objects at `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`.
 
-**Option A – script (same bucket/prefix as BupaR/DTW):**
-
-```bash
-# From repo root; uses S3_DASHBOARD_BUCKET and S3_DASHBOARD_PREFIX
-python 9_dashboard_visuals/cohort_pgx/upload_cohort_pgx_to_s3.py
-python 9_dashboard_visuals/cohort_pgx/upload_cohort_pgx_to_s3.py --dry-run  # preview
-```
-
-**Option B – AWS CLI sync (e.g. in deploy):**
+To re-sync without a full deploy (e.g. manual or CI):
 
 ```bash
 aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ \
-  s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/ \
-  --exclude "*.csv" --exclude "*.json" --include "*.html"
-# Or sync everything (HTML + optional CSV/JSON for other endpoints):
-aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/
+  s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/
 ```
 
 ### Lambda API Endpoint
