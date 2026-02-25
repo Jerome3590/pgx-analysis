@@ -69,9 +69,11 @@ Models are loaded from:
 - `MODEL_BASE_PATH` - Path to models in container (default: `/var/task/models`)
 - `MODEL_CACHE_TTL` - Model cache TTL in seconds (default: `3600`)
 
+**Empty visualization responses:** Notebook 4 (**4_dashboard_visuals.ipynb**) and **run_dashboard_visuals.py** both **build** the artifacts (BupaR, DTW, FP-Growth) and **upload** them to the dashboard bucket using the same `S3_DASHBOARD_BUCKET` and `S3_DASHBOARD_PREFIX`. Lambda reads from that same bucket/prefix. So in the normal flow, notebook 4 builds and uploads; the API then returns URLs to those objects. If you still see empty responses: (1) Lambda may not have permission to read the bucket (403) — we return 200 with empty payload instead of 500 so the frontend shows "not available"; (2) Lambda env `S3_DASHBOARD_BUCKET` / `S3_DASHBOARD_PREFIX` must match the bucket/prefix used when running the notebook on EC2; (3) **PGx Cohort network visuals**: Built in notebook 4 (fetch_vip_reports + build_network_topology) → outputs under `10_risk_dashboard/visualizations/cohort_pgx/networks/`. They are **not** uploaded by the notebook. After building, either run `python 9_dashboard_visuals/cohort_pgx/upload_cohort_pgx_to_s3.py` (uses same S3_DASHBOARD_* as Lambda) or run deploy / `aws s3 sync .../cohort_pgx/ s3://.../cohort_pgx/`. Lambda returns `network_topology_url` only when `{prefix}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` exists.
+
 ## Generating visualization artifacts
 
-All visualization **artifacts** (BupaR plots, DTW images and chart data, FP-Growth itemsets/plots) are **prebuilt on EC2** and **saved to S3** for **direct dashboard integration**. The API returns only URLs to these prebuilt assets (no computation at request time). To (re)generate from repo root:
+All visualization **artifacts** (BupaR plots, DTW images and chart data, FP-Growth itemsets/plots) are **built and uploaded to S3** by notebook 4 (or run_dashboard_visuals.py) on EC2. The scripts use `S3_DASHBOARD_BUCKET` and `S3_DASHBOARD_PREFIX`; Lambda uses the same env vars to return URLs. The API returns only URLs to these prebuilt assets (no computation at request time). To (re)generate from repo root:
 
 - **Notebook:** `4_dashboard_visuals.ipynb` (run from repo root)
 - **Script (VS Code Jupyter format):** `pgx_dashboard_visuals.py` (run as script or by cell with `# %%`)

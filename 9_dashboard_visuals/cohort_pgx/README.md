@@ -168,13 +168,30 @@ Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.i
 
 ## Dashboard Integration
 
+### Build (notebook 4 or scripts)
+
+Notebook **4_dashboard_visuals.ipynb** runs `fetch_vip_reports.py` then `build_network_topology.py` per cohort/age_band. Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (e.g. `network_topology.html`). **run_dashboard_visuals.py** does not run Cohort PGx; only the notebook does.
+
 ### Upload to S3
 
+After building, upload so the PGx Cohort tab can load the network iframe. Lambda expects objects at `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`.
+
+**Option A – script (same bucket/prefix as BupaR/DTW):**
+
 ```bash
-# Upload network visualizations to dashboard bucket
+# From repo root; uses S3_DASHBOARD_BUCKET and S3_DASHBOARD_PREFIX
+python 9_dashboard_visuals/cohort_pgx/upload_cohort_pgx_to_s3.py
+python 9_dashboard_visuals/cohort_pgx/upload_cohort_pgx_to_s3.py --dry-run  # preview
+```
+
+**Option B – AWS CLI sync (e.g. in deploy):**
+
+```bash
 aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ \
   s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/ \
   --exclude "*.csv" --exclude "*.json" --include "*.html"
+# Or sync everything (HTML + optional CSV/JSON for other endpoints):
+aws s3 sync 10_risk_dashboard/visualizations/cohort_pgx/ s3://{DASHBOARD_BUCKET}/{S3_PREFIX}/cohort_pgx/
 ```
 
 ### Lambda API Endpoint
