@@ -35,33 +35,14 @@ import numpy as np
 import pandas as pd
 import shutil
 
-# Repo root; outputs go to 10_risk_dashboard/visualizations/dtw (same pattern as final_model, shap, ffa)
+# Same pattern as BupaR/FP-Growth: use setup_pipeline_logger (repo root from py_helpers → project-level logs)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DTW_VIZ_DIR = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-from py_helpers.fe_monitor import function_block, mirror_log_to_s3  # noqa: E402
-
-
-def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth). Logs under repo root: pgx-analysis/9_dashboard_visuals/logs/5_dtw."""
-    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "5_dtw"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    age_band_fname = age_band.replace("-", "_")
-    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
-    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-    logger.propagate = False
-    return logger, log_path
+from py_helpers.fe_monitor import function_block  # noqa: E402
+from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -212,8 +193,6 @@ def create_dtw_visuals(
 
     _log("info", "Done.")
     _log("info", "DTW visuals complete. Plots and chart_data uploaded to dashboard S3: trajectory cluster plots (3D/1D), chart_data.json, sequence_heatmap.json. CSV files not uploaded; dashboard uses plots only.")
-    if log_path and logger:
-        mirror_log_to_s3("5_dtw", cohort_name, age_band, log_path, logger)
 
 
 
@@ -615,17 +594,23 @@ def main() -> None:
     # If 4_model_data is not under project_root (e.g. cwd was visualizations), use repo root
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
-    logger, log_path = _get_logger(args.cohort_name, args.age_band)
-    with function_block("5_dtw", "create_dtw_visuals", logger=logger):
-        logger.info("Starting DTW visuals for %s / %s", args.cohort_name, args.age_band)
+    pl = setup_pipeline_logger(
+        step_name="5_dtw",
+        cohort=args.cohort_name,
+        age_band=args.age_band,
+        script_name="create_dtw_visuals",
+    )
+    with function_block("5_dtw", "create_dtw_visuals", logger=pl.logger):
+        pl.info("Starting DTW visuals for %s / %s", args.cohort_name, args.age_band)
         create_dtw_visuals(
             project_root=project_root,
             cohort_name=args.cohort_name,
             age_band=args.age_band,
             force=args.force,
-            logger=logger,
-            log_path=log_path,
+            logger=pl.logger,
+            log_path=pl.log_file_path,
         )
+    pl.log_summary()
 
 
 if __name__ == "__main__":
