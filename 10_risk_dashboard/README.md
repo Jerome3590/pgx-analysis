@@ -92,6 +92,9 @@ The dashboard provides multiple capabilities:
     ├── DEPLOYMENT.md                  # Deployment guide
     ├── VISUALIZATIONS.md              # Visualization guide
     ├── README_visualization_plan.md   # Research questions → tabs and visuals
+    ├── RESEARCH_QUESTIONS_ARTIFACTS.md # Canonical: RQ → tab → artifacts we keep (only these saved/used)
+    ├── ARCHIVED_ARTIFACTS_NO_LONGER_USED.md  # Artifacts no longer used; archived for docs/cleanup
+    ├── README_dashboard_visual_artifact_paths.md  # Map: dashboard visual → data artifact → EC2 path → S3 path (path-style)
     └── README_implementation_plan_tab_visualizations.md  # Per-tab implementation plan for data visuals
 ```
 

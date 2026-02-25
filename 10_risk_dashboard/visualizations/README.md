@@ -2,7 +2,9 @@
 
 ## Overview
 
-This directory holds **data visualization outputs** (plots, CSVs, JSON, HTML) for the risk dashboard tabs when step 9 is run. It does **not** contain the code that creates these artifacts; creation code lives in **`9_dashboard_visuals/`** (pipeline step 9).
+This directory holds **data visualization outputs** (plots, JSON, HTML) for the risk dashboard tabs when step 9 is run. It does **not** contain the code that creates these artifacts; creation code lives in **`9_dashboard_visuals/`** (pipeline step 9).
+
+**We only save and use visuals/artifacts tied to research questions.** See **`10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md`** for the canonical RQ → tab → artifact list. Artifacts no longer used are in `10_risk_dashboard/docs/ARCHIVED_ARTIFACTS_NO_LONGER_USED.md`.
 
 **Outputs are not in the repo.** They are generated on EC2 (or locally when running the dashboard visuals step) and uploaded to the dashboard S3 bucket. The repo only contains READMEs and docs; `*/outputs/` under this tree is in `.gitignore`.
 

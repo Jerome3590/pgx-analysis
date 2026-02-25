@@ -1758,21 +1758,16 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
         pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
         base = f"{cohort}_{age_band_fname}"
 
-        # Candidate keys: payload_key -> S3 object key (only include in response if object exists)
+        # RQ-only artifact keys (RESEARCH_QUESTIONS_ARTIFACTS.md). Do not request archived artifacts.
         candidates: List[Tuple[str, str]] = [
             ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
             ("activity_frequency_interactive", f"{base_key}/{base}_activity_frequency_interactive.html"),
             ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
             ("sequence_image", f"{base_key}/{base}_activity_sequence_top.png"),
-            ("trace_explorer_image", f"{base_key}/{base}_trace_explorer.png"),
             ("trace_explorer_interactive", f"{base_key}/{base}_trace_explorer_interactive.html"),
             ("trace_explorer_pre_image", f"{base_key}/{base}_trace_explorer_{pre_suffix}.png"),
-            ("process_matrix_image", f"{base_key}/{base}_process_matrix.png"),
-            ("process_matrix_interactive", f"{base_key}/{base}_process_matrix_interactive.html"),
-            ("frequency_map_image", f"{base_key}/{base}_frequency_map.png"),
+            ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"),
         ]
-        # Research focus: drugs only — only expose Drug × Drug process matrix.
-        candidates.append(("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"))
 
         payload: Dict[str, Any] = {}
         for payload_key, s3_key in candidates:

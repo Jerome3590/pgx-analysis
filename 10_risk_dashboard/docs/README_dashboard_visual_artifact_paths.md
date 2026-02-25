@@ -1,0 +1,116 @@
+# Dashboard tab & visual → data artifact → EC2 path → S3 path
+
+This README documents the mapping from **dashboard tab** and **visual (heading)** to **data artifact** (file or API payload), **EC2 file path** (where the pipeline writes it), and **S3 object path** (path-style, where the dashboard loads it from).
+
+**Path-style S3 only.** All dashboard HTML and images use path-style URLs:  
+`https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}`  
+Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-dixon.io`), prefix = `S3_DASHBOARD_PREFIX` (e.g. `vcu/pgx-risk-calculator`).
+
+**EC2 paths** are relative to repo root on EC2 (e.g. `/home/pgx3874/pgx-analysis`). **S3 object key** = prefix + path below (no leading slash).
+
+**Related:** [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md), [DASHBOARD_TABS.md](DASHBOARD_TABS.md).
+
+---
+
+## Feature Importance
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| Feature Importance | Feature Importance by Age Band | `aggregated_fi_heatmap.png` or `.json` | `3a_feature_importance/outputs/{cohort}/aggregated_fi_heatmap.png` or `3a_feature_importance/outputs/plots/combined_cohorts_feature_importance_heatmap.png` | `feature_importance/{cohort}/aggregated_fi_heatmap.png` or `feature_importance/combined_cohorts_feature_importance_heatmap.png` (combined: `feature_importance/combined/aggregated_fi_heatmap.json` when present) |
+
+---
+
+## Causal Analysis
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| Causal Analysis | Top Causal Factors (FFA) | `dashboard_data.json` → Lambda `chart_data.causal_factors` | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band_fname}/causal_data.json` |
+| Causal Analysis | SHAP Feature Importance | `dashboard_data.json` → Lambda `chart_data.shap_importance` | (same) | (same) |
+| Causal Analysis | Feature Interactions | `dashboard_data.json` → Lambda `chart_data.feature_interactions` | (same) | (same) |
+| Causal Analysis | Effect on outcome (by feature) | `dashboard_data.json` → Lambda `chart_data` (radar) | (same) | (same) |
+
+---
+
+## BupaR Process Mining (drug-specific visuals)
+
+`{base}` = `{cohort}_{age_band_fname}` (e.g. `opioid_ed_25_44`). Pre suffix = `pre_f1120` (opioid_ed) or `pre_hcg` (non_opioid_ed).
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| BupaR Process Mining | Sequences to Target Outcomes (drugs) | `{base}_activity_sequence_top.png` | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/{base}_activity_sequence_top.png` | `bupar/{cohort}/{age_band}/plots/{base}_activity_sequence_top.png` |
+| BupaR Process Mining | Overall Activity Frequency (drugs) | `{base}_activity_frequency.json` (+ optional PNG/HTML) | `.../plots/{base}_activity_frequency.json`, `{base}_overall_activity_frequency.png`, `{base}_activity_frequency_interactive.html` | `bupar/{cohort}/{age_band}/plots/{base}_activity_frequency.json`, `.../plots/{base}_overall_activity_frequency.png`, `.../plots/{base}_activity_frequency_interactive.html` |
+| BupaR Process Mining | Pre-Target Activity Frequency (drugs) | `{base}_pre_target_activity_frequency.json`, `{base}_{pre}_activity_frequency.png` | `.../plots/{base}_pre_target_activity_frequency.json`, `.../plots/{base}_{pre}_activity_frequency.png` | `bupar/{cohort}/{age_band}/plots/{base}_pre_target_activity_frequency.json`, `.../plots/{base}_{pre}_activity_frequency.png` |
+| BupaR Process Mining | Post-Target Activity Frequency (drugs) | `{base}_post_target_activity_frequency.json` | `.../plots/{base}_post_target_activity_frequency.json` | `bupar/{cohort}/{age_band}/plots/{base}_post_target_activity_frequency.json` |
+| BupaR Process Mining | Trace Explorer (top 20 traces, drugs) | `{base}_trace_explorer_plot.json` or `{base}_trace_explorer_interactive.html` | `.../plots/{base}_trace_explorer_plot.json`, `.../plots/{base}_trace_explorer_interactive.html` | `bupar/{cohort}/{age_band}/plots/{base}_trace_explorer_plot.json`, `.../plots/{base}_trace_explorer_interactive.html` |
+| BupaR Process Mining | Trace Explorer Pre-Target (drugs) | `{base}_trace_explorer_{pre}.png` | `.../plots/{base}_trace_explorer_{pre}.png` | `bupar/{cohort}/{age_band}/plots/{base}_trace_explorer_{pre}.png` |
+| BupaR Process Mining | Process Matrix (Drug × Drug) | `{base}_process_matrix_drug_drug.png` or `.json` | `.../plots/{base}_process_matrix_drug_drug.png`, `.../plots/{base}_process_matrix_drug_drug.json` | `bupar/{cohort}/{age_band}/plots/{base}_process_matrix_drug_drug.png`, `.../plots/{base}_process_matrix_drug_drug.json` |
+| BupaR Process Mining | (Interactive HTML deps) | `lib/*` (Plotly etc.) | `.../plots/lib/*` | `bupar/{cohort}/{age_band}/plots/lib/*` |
+
+---
+
+## DTW Trajectories
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| DTW Trajectories | Trajectory Analysis Overview (drugs) | Trajectory cluster plot image | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/plots/*.png` | `dtw/{cohort}/{age_band}/plots/*.png` |
+| DTW Trajectories | Sample Trajectories (drugs) | (same) | (same) | (same) |
+| DTW Trajectories | Trajectory Metrics | `chart_data.json` (metrics) | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
+| DTW Trajectories | High-Risk vs Low-Risk Trajectories (drugs) | `chart_data.json` → `high_risk_trajectories` | (same) | (same) |
+| DTW Trajectories | Times Between Sequences (N3) | `chart_data.json` → `times_between_sequences`, `time_to_target_sequences` | (same) | (same) |
+| DTW Trajectories | Target Pathway Patterns (drugs) | `chart_data.json` → `target_pathway_patterns` | (same) | (same) |
+| DTW Trajectories | Common Sequences Heatmap (Drugs only) | `sequence_heatmap.json` | `.../sequence_heatmap.json` | `dtw/{cohort}/{age_band}/sequence_heatmap.json` |
+| DTW Trajectories | Routine vs No Routine (Outcomes) | `chart_data.json` → `routine_comparison` | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
+| DTW Trajectories | (Routine vs No Routine event counts) | `chart_data.json` → `routine_comparison_counts` | (same) | (same) |
+
+---
+
+## FP-Growth Patterns (drug only)
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| FP-Growth Patterns | Top Itemsets | `{base}_drug_name_combined_top_itemsets.png`, `drug_name_itemsets.json` | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `.../data/drug_name_itemsets.json` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `fpgrowth/{cohort}/{age_band}/data/drug_name_itemsets.json` |
+| FP-Growth Patterns | Itemset Support Distribution | (same itemsets data) | (same) | (same) |
+| FP-Growth Patterns | Drug Association Network | `{base}_combined_rules_network.html` | `.../plots/{cohort}_{age_band_fname}_combined_rules_network.html` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_combined_rules_network.html` |
+
+---
+
+## PGx Cohort
+
+| Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
+|-----|-------------------|---------------|---------------|-----------------------------|
+| PGx Cohort | Gene–Drug–Phenotype Network Topology | `network_topology.html` | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` | `cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` |
+
+---
+
+## Risk Assessment, Drugs, ICD Codes, CPT Codes, PGx Card, Documentation
+
+These tabs use **Lambda/container or same-origin JSON**, not per-visual S3 object paths:
+
+| Tab | Visual (heading) | Data source | EC2 path (if applicable) | S3 / API |
+|-----|-------------------|-------------|---------------------------|---------|
+| Risk Assessment | (score, band, model breakdown) | Models in container; `POST /risk` | `10_risk_dashboard/outputs/models/` (or bundled in Lambda image) | — |
+| Drugs | (drug list, chips) | `GET /metadata` | `10_risk_dashboard/outputs/metadata/metadata_{cohort}.json` | `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` |
+| ICD Codes | (ICD list, chips) | (same) | (same) | (same) |
+| CPT Codes | (CPT list, chips) | (same) | (same) | (same) |
+| PGx Patient Card | PGx Patient Card | CPIC data in container | `10_risk_dashboard/outputs/cpic/` | — |
+| Documentation | (tabs overview, RQ table, etc.) | Model performance metrics | `10_risk_dashboard/outputs/metadata/model_performance_metrics.json` | `metadata/model_performance_metrics.json` |
+
+---
+
+## Full path-style URL template
+
+```
+https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}
+```
+
+Example (PGx Cohort network):
+
+- **Object key:** `cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`
+- **Full URL:** `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/cohort_pgx/networks/non_opioid_ed/55_64/network_topology.html`
+
+Example (BupaR process matrix):
+
+- **Object key:** `bupar/opioid_ed/25-44/plots/opioid_ed_25_44_process_matrix_drug_drug.png`
+- **Full URL:** `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/bupar/opioid_ed/25-44/plots/opioid_ed_25_44_process_matrix_drug_drug.png`
+
+Lambda builds these URLs via `_dashboard_s3_url(key)` where `key` is the object key under the bucket (prefix + path as in the table).
