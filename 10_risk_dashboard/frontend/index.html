@@ -923,26 +923,20 @@
       <p class="subtitle">
         <strong>Research focus:</strong> What features drive the target outcome and how do they relate? What drug combinations drive polypharmacy ED visit?
         <br>
-        <small style="color: #64748b;">FFA causal importance, SHAP feature importance, and feature interactions. Radar chart for feature relations. <strong>Filterable by your selected drugs, ICD, and CPT codes</strong> from the Drugs/ICD/CPT tabs—load with codes selected to see causal/SHAP for those only.</small>
+        <small style="color: #64748b;">Uses the <strong>same cohort, age, and feature selections</strong> as Risk Assessment: Opioid ED / Polypharmacy tab, Age (for age band), and your selected Drugs, ICD, and CPT codes. Charts show causal/SHAP for those selected features.</small>
       </p>
       <div class="controls">
-        <div class="control-group">
-          <label for="causal-cohort">Cohort:</label>
-          <select id="causal-cohort">
-            <option value="opioid_ed">Opioid ED</option>
-            <option value="non_opioid_ed">Polypharmacy</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label for="causal-age-band">Age Band:</label>
-          <select id="causal-age-band"></select>
+        <div class="control-group full-width">
+          <label for="causal-whatif-codes">What-if scenario (optional): comma-separated codes to compare</label>
+          <input type="text" id="causal-whatif-codes" placeholder="e.g. F1120, 99213, OXYCODONE" style="width: 100%; max-width: 24rem; padding: 0.35rem 0.5rem;" aria-label="What-if codes" />
+          <small style="color: #64748b;">Same format as your selections (ICD, CPT, or drug codes). Charts will show a second trace for this scenario.</small>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadCausal">Load Causal Analysis</button>
         </div>
       </div>
-      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort and age band can be changed on this tab (and on BupaR, DTW, FP-Growth) to view either Opioid ED or Polypharmacy visualizations independently of the Risk Assessment cohort tab.</small></p>
-      <div id="causal-status" class="status-message">Select cohort and age band, then click 'Load Causal Analysis'</div>
+      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort = active tab above (Opioid ED / Polypharmacy). Age band = from Age on Risk Assessment. Select features on <strong>Drugs</strong>, <strong>ICD Codes</strong>, and <strong>CPT Codes</strong> tabs. Add what-if codes above to compare.</small></p>
+      <div id="causal-status" class="status-message">Set cohort and age on Risk Assessment, optionally select codes on Drugs/ICD/CPT, then click 'Load Causal Analysis'</div>
       <div class="panels">
         <div class="panel">
           <h2>Top Causal Factors (FFA)</h2>
@@ -957,7 +951,8 @@
           <div id="interactions-chart"></div>
         </div>
         <div class="panel">
-          <h2>Feature Relations (Radar)</h2>
+          <h2>Effect on outcome (by feature)</h2>
+          <p class="subtitle" style="margin: 0 0 0.5rem 0;"><small style="color: #64748b;">How strongly each feature affects the predicted target when adjusted. Larger values = stronger effect on outcome. Same idea as feature interactions but shown per feature (single-feature effect).</small></p>
           <div id="causal-radar-chart"></div>
         </div>
       </div>
@@ -2316,16 +2311,20 @@
   
   // Causal Analysis Tab (filterable by user-selected drugs/ICD/CPT)
   document.getElementById("btnLoadCausal")?.addEventListener("click", async () => {
-    const cohort = document.getElementById("causal-cohort").value;
-    const ageBand = document.getElementById("causal-age-band").value;
+    const cohort = currentCohort || document.querySelector(".cohort-tab-button.active")?.getAttribute("data-cohort");
+    const age = parseInt(ageEl.value, 10);
+    const ageBand = currentAgeBand || (age >= 0 && age <= 114 ? determineAgeBand(age) : null);
     if (!cohort || !ageBand) {
-      document.getElementById("causal-status").textContent = "Please select cohort and age band";
+      document.getElementById("causal-status").textContent = "Set cohort (Opioid ED / Polypharmacy tab) and Age on Risk Assessment, then try again.";
       document.getElementById("causal-status").className = "status-message error";
       return;
     }
     const selectedDrugs = getMultiSelectValues(drugsEl);
     const selectedIcds = getMultiSelectValues(icdsEl);
     const selectedCpts = getMultiSelectValues(cptsEl);
+    const whatIfInput = (document.getElementById("causal-whatif-codes")?.value || "").trim();
+    const whatIfCodes = whatIfInput ? whatIfInput.split(",").map(s => s.trim()).filter(Boolean) : [];
+    const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
     const params = new URLSearchParams({ cohort, age_band: ageBand });
     if (selectedDrugs.length) params.set("drugs", selectedDrugs.join(","));
     if (selectedIcds.length) params.set("icds", selectedIcds.join(","));
@@ -2336,10 +2335,72 @@
       const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      renderCausalCharts(data);
-      const filterNote = data.filtered_by_codes ? " (filtered to your selected codes)" : "";
-      document.getElementById("causal-status").textContent = "Causal analysis loaded successfully" + filterNote;
-      document.getElementById("causal-status").className = "status-message success";
+      // Prebuilt JSON pattern: API returns causal_data_url; frontend fetches and maps to chart shape
+      let chartData = data;
+      if (data.causal_data_url) {
+        try {
+          const jsonResp = await fetch(data.causal_data_url);
+          if (jsonResp.ok) {
+            const prebuilt = await jsonResp.json();
+            const top = prebuilt.top_causal_factors || [];
+            const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
+            const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
+            // Filter to user-selected features (Drugs/ICD/CPT). Feature names in data are item_<CODE>.
+            const selectedFeatureSet = new Set([
+              ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
+              ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
+              ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
+            ]);
+            const filtered = selectedFeatureSet.size > 0;
+            let causalCurrent, shapCurrent;
+            if (filtered) {
+              causalCurrent = causalFactors.filter(f => selectedFeatureSet.has(f.feature));
+              shapCurrent = shapImportance.filter(f => selectedFeatureSet.has(f.feature));
+              chartData = {
+                causal_factors: causalCurrent,
+                shap_importance: shapCurrent,
+                filtered_by_codes: true
+              };
+            } else {
+              causalCurrent = causalFactors;
+              shapCurrent = shapImportance;
+              chartData = {
+                causal_factors: causalCurrent,
+                shap_importance: shapCurrent,
+                filtered_by_codes: false
+              };
+            }
+            if (whatIfFeatureSet.size > 0) {
+              chartData.causal_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
+              chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
+            }
+          } else {
+            document.getElementById("causal-status").textContent = "Causal data file not found (run combine_shap_ffa_results --upload-to-dashboard)";
+            document.getElementById("causal-status").className = "status-message error";
+            return;
+          }
+        } catch (e) {
+          document.getElementById("causal-status").textContent = `Could not load causal data: ${e.message}`;
+          document.getElementById("causal-status").className = "status-message error";
+          return;
+        }
+      }
+      renderCausalCharts(chartData);
+      const nCausal = (chartData.causal_factors || []).length;
+      const nWhatIf = (chartData.causal_factors_whatif || []).length;
+      if (chartData.filtered_by_codes) {
+        let msg = nCausal > 0
+          ? `Causal analysis loaded (${nCausal} current feature${nCausal !== 1 ? "s" : ""}).`
+          : "No causal data for selected features—try different drugs/ICD/CPT or load without selection.";
+        if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
+        document.getElementById("causal-status").textContent = msg;
+        document.getElementById("causal-status").className = nCausal > 0 ? "status-message success" : "status-message error";
+      } else {
+        let msg = "Causal analysis loaded successfully (top features). Select drugs/ICD/CPT to filter.";
+        if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
+        document.getElementById("causal-status").textContent = msg;
+        document.getElementById("causal-status").className = "status-message success";
+      }
     } catch (err) {
       document.getElementById("causal-status").textContent = `Error: ${err.message}`;
       document.getElementById("causal-status").className = "status-message error";
@@ -2554,51 +2615,97 @@
 
   // Helper functions to render visualizations
   function renderCausalCharts(data) {
-    // Render causal factors chart
+    const hasWhatIf = data.causal_factors_whatif && data.causal_factors_whatif.length > 0;
+    // Causal factors bar chart (optionally two traces: current + what-if)
     if (data.causal_factors && data.causal_factors.length > 0) {
-      const trace = {
+      const traceCurrent = {
         x: data.causal_factors.map(f => f.feature),
         y: data.causal_factors.map(f => f.importance),
         type: 'bar',
+        name: 'Current',
         marker: { color: '#3b82f6' }
       };
-      Plotly.newPlot('causal-factors-chart', [trace], {
-        title: 'Top Causal Factors',
+      const traces = [traceCurrent];
+      if (hasWhatIf) {
+        traces.push({
+          x: data.causal_factors_whatif.map(f => f.feature),
+          y: data.causal_factors_whatif.map(f => f.importance),
+          type: 'bar',
+          name: 'What-if',
+          marker: { color: '#f59e0b' }
+        });
+      }
+      Plotly.newPlot('causal-factors-chart', traces, {
+        title: hasWhatIf ? 'Top Causal Factors: Current vs What-if' : 'Top Causal Factors',
         xaxis: { title: 'Feature' },
-        yaxis: { title: 'Causal Importance' }
+        yaxis: { title: 'Causal Importance' },
+        barmode: hasWhatIf ? 'group' : 'relative',
+        showlegend: !!hasWhatIf
       }, { responsive: true });
     }
-    // Render SHAP importance chart
+    // SHAP importance bar chart (optionally two traces)
+    const hasWhatIfShap = data.shap_importance_whatif && data.shap_importance_whatif.length > 0;
     if (data.shap_importance && data.shap_importance.length > 0) {
-      const trace = {
+      const traceCurrent = {
         x: data.shap_importance.map(f => f.feature),
         y: data.shap_importance.map(f => f.importance),
         type: 'bar',
+        name: 'Current',
         marker: { color: '#0f766e' }
       };
-      Plotly.newPlot('shap-importance-chart', [trace], {
-        title: 'SHAP Feature Importance',
+      const traces = [traceCurrent];
+      if (hasWhatIfShap) {
+        traces.push({
+          x: data.shap_importance_whatif.map(f => f.feature),
+          y: data.shap_importance_whatif.map(f => f.importance),
+          type: 'bar',
+          name: 'What-if',
+          marker: { color: '#d97706' }
+        });
+      }
+      Plotly.newPlot('shap-importance-chart', traces, {
+        title: hasWhatIfShap ? 'SHAP Feature Importance: Current vs What-if' : 'SHAP Feature Importance',
         xaxis: { title: 'Feature' },
-        yaxis: { title: 'SHAP Importance' }
+        yaxis: { title: 'SHAP Importance' },
+        barmode: hasWhatIfShap ? 'group' : 'relative',
+        showlegend: !!hasWhatIfShap
       }, { responsive: true });
     }
-    // Radar chart: feature relations (top features, normalized importance)
+    // Radar: effect on outcome (optionally two traces: current + what-if)
     const radarEl = document.getElementById('causal-radar-chart');
-    if (radarEl && data.causal_factors && data.causal_factors.length > 0) {
-      const topN = Math.min(8, data.causal_factors.length);
-      const factors = data.causal_factors.slice(0, topN);
-      const maxVal = Math.max(...factors.map(f => f.importance), 1e-9);
-      const trace = {
-        type: 'scatterpolar',
-        r: factors.map(f => f.importance / maxVal),
-        theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
-        fill: 'toself',
-        name: 'Causal importance (normalized)'
-      };
-      Plotly.newPlot('causal-radar-chart', [trace], {
-        title: 'Feature Relations (Top ' + topN + ')',
+    if (radarEl && (data.causal_factors?.length > 0 || data.causal_factors_whatif?.length > 0)) {
+      const traces = [];
+      const maxR = (arr) => Math.max(...(arr || []).map(f => f.importance), 1e-9);
+      if (data.causal_factors && data.causal_factors.length > 0) {
+        const topN = Math.min(8, data.causal_factors.length);
+        const factors = data.causal_factors.slice(0, topN);
+        const maxVal = maxR(factors);
+        traces.push({
+          type: 'scatterpolar',
+          r: factors.map(f => f.importance / maxVal),
+          theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
+          fill: 'toself',
+          name: 'Current',
+          marker: { color: '#3b82f6' }
+        });
+      }
+      if (data.causal_factors_whatif && data.causal_factors_whatif.length > 0) {
+        const topN = Math.min(8, data.causal_factors_whatif.length);
+        const factors = data.causal_factors_whatif.slice(0, topN);
+        const maxVal = maxR(factors);
+        traces.push({
+          type: 'scatterpolar',
+          r: factors.map(f => f.importance / maxVal),
+          theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
+          fill: 'toself',
+          name: 'What-if',
+          marker: { color: '#f59e0b' }
+        });
+      }
+      Plotly.newPlot('causal-radar-chart', traces, {
+        title: traces.length > 1 ? 'Effect on outcome: Current vs What-if' : 'Effect on outcome (by feature)',
         polar: { radialaxis: { range: [0, 1], tickvals: [0.25, 0.5, 0.75, 1] } },
-        showlegend: false
+        showlegend: traces.length > 1
       }, { responsive: true });
     }
   }
