@@ -1059,6 +1059,22 @@ def run_mc_feature_importance(
         plt.savefig(scatter_path, dpi=150)
         plt.close()
 
+        # Upload per-model CSV to S3 so sync'd outputs include model filter (dashboard)
+        try:
+            import io
+            per_model_bytes = fi_df.to_csv(index=False).encode("utf-8")
+            s3_suffix = "_baseline/" if baseline else ""
+            s3_key_per = f"gold/feature_importance/{cohort}/{age_band}/{s3_suffix}{out_path.name}"
+            s3_client.put_object(
+                Bucket=S3_BUCKET,
+                Key=s3_key_per,
+                Body=io.BytesIO(per_model_bytes),
+                ContentType="text/csv",
+            )
+            print(f"✓ Uploaded {label} FI to s3://{S3_BUCKET}/{s3_key_per}")
+        except Exception as e:
+            print(f"[WARN] Failed to upload per-model FI: {e}")
+
     # Aggregated file: normalize across all model types with weighting for best model (recall)
     if "xgb" in results:
         agg_path = (

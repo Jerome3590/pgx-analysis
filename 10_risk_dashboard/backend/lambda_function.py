@@ -1466,20 +1466,27 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/feature_importance?cohort=...
-    Returns heatmap_data (JSON) for client-side Plotly when available in S3; else heatmap_url/combined_url (PNG).
-    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json (preferred) or .png.
+    """GET /visualizations/feature_importance?cohort=...&model=...
+    Returns heatmap_data (same JSON: row_labels, column_labels, matrix) for client Plotly.
+    Optional model: aggregated (default), catboost, xgboost, xgboost_rf.
+    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json or {model}_fi_heatmap.json.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         if not cohort:
             return _response(400, {"error": "cohort parameter required"})
+        model = (params.get("model") or "aggregated").strip().lower()
+        if model not in ("aggregated", "catboost", "xgboost", "xgboost_rf"):
+            model = "aggregated"
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         heatmap_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.png"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
-        json_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.json"
+        if model == "aggregated":
+            json_key = f"{prefix}/{cohort}/aggregated_fi_heatmap.json"
+        else:
+            json_key = f"{prefix}/{cohort}/{model}_fi_heatmap.json"
 
         payload = {
             "heatmap_url": f"{base_url}/{heatmap_key}",

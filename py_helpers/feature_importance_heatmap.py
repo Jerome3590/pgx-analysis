@@ -41,6 +41,41 @@ def _resolve_project_root(outputs_base: Path) -> Optional[Path]:
     return None
 
 
+def _resolve_fi_csv_path(
+    cohort_dir: Path,
+    cohort: str,
+    age_band: str,
+    model: str,
+) -> Optional[Path]:
+    """
+    Resolve path to a single FI CSV: checks flat (outputs/cohort/file.csv) and
+    S3-synced layout (outputs/cohort/age_band/file.csv; S3 uses hyphen in key).
+    """
+    age_band_fname = age_band.replace("-", "_")
+    subdirs = (age_band_fname, age_band)  # 65_74 (local) and 65-74 (S3 sync)
+    if model == "aggregated":
+        name = f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
+        if (cohort_dir / name).exists():
+            return cohort_dir / name
+        for sub in subdirs:
+            candidate = cohort_dir / sub / name
+            if candidate.exists():
+                return candidate
+        return None
+    pattern = f"{cohort}_{age_band_fname}_{model}_feature_importance_mc*.csv"
+    if cohort_dir.exists():
+        candidates = list(cohort_dir.glob(pattern))
+        if candidates:
+            return candidates[0]
+    for sub in subdirs:
+        base = cohort_dir / sub
+        if base.exists():
+            candidates = list(base.glob(pattern))
+            if candidates:
+                return candidates[0]
+    return None
+
+
 def get_aggregated_fi_heatmap_data(
     cohort: str,
     age_bands: List[str],
@@ -75,9 +110,8 @@ def get_aggregated_fi_heatmap_data(
     all_dfs: List[pd.DataFrame] = []
     loaded_bands: List[str] = []
     for age_band in age_bands:
-        age_band_fname = age_band.replace("-", "_")
-        csv_path = cohort_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        if not csv_path.exists():
+        csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, "aggregated")
+        if not csv_path:
             continue
         df = pd.read_csv(csv_path)
         if "feature" not in df.columns:
@@ -185,14 +219,8 @@ def get_fi_heatmap_data_for_model(
     all_dfs: List[pd.DataFrame] = []
     loaded_bands: List[str] = []
     for age_band in age_bands:
-        age_band_fname = age_band.replace("-", "_")
-        if model == "aggregated":
-            csv_path = cohort_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-        else:
-            # Per-model: e.g. opioid_ed_65_74_xgboost_feature_importance_mc25.csv
-            candidates = list(cohort_dir.glob(f"{cohort}_{age_band_fname}_{model}_feature_importance_mc*.csv"))
-            csv_path = candidates[0] if candidates else None
-        if not csv_path or not csv_path.exists():
+        csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, model)
+        if not csv_path:
             continue
         df = pd.read_csv(csv_path)
         if "feature" not in df.columns:
@@ -273,13 +301,8 @@ def get_single_age_band_fi(
                 pass
         return df
 
-    age_band_fname = age_band.replace("-", "_")
-    if model == "aggregated":
-        csv_path = cohort_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-    else:
-        candidates = list(cohort_dir.glob(f"{cohort}_{age_band_fname}_{model}_feature_importance_mc*.csv"))
-        csv_path = candidates[0] if candidates else None
-    if not csv_path or not csv_path.exists():
+    csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, model)
+    if not csv_path:
         return None
     df = pd.read_csv(csv_path)
     if "feature" not in df.columns:
@@ -304,6 +327,8 @@ def get_single_age_band_fi(
 def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
     """
     Scan 3a_feature_importance/outputs for available cohort/age_band/model combinations.
+    Checks flat (outputs/cohort/*.csv) and S3-style (outputs/cohort/age_band/*.csv) so
+    model filter works after syncing from gold/feature_importance.
     Returns: { "cohorts": { cohort: { "age_bands": [...], "models": [...] } } }
     """
     result: Dict[str, Any] = {"cohorts": {}}
@@ -315,11 +340,14 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
             continue
         age_bands_set: set = set()
         models_set: set = set()
+        # Flat: cohort_dir/*.csv and S3-style: cohort_dir/age_band/*.csv
+        paths_to_scan: List[Path] = []
         for p in cohort_dir.iterdir():
-            if p.is_dir():
-                continue
-            if not p.suffix == ".csv":
-                continue
+            if p.is_file() and p.suffix == ".csv":
+                paths_to_scan.append(p)
+            elif p.is_dir() and not p.name.startswith("_"):
+                paths_to_scan.extend(q for q in p.iterdir() if q.is_file() and q.suffix == ".csv")
+        for p in paths_to_scan:
             stem = p.stem
             # aggregated: {cohort}_{age_band_fname}_aggregated_feature_importance
             if "_aggregated_feature_importance" in stem:
@@ -356,12 +384,14 @@ def build_fi_dashboard_jsons(
     filter_final: bool = True,
 ) -> Dict[str, Any]:
     """
-    Convert all available 3a FI CSVs to dashboard JSONs: index + heatmaps (all age bands) + single-age feature lists.
-    Uses final feature importances only (admin/Z and target-leakage removed) when filter_final is True.
+    Convert all available 3a FI CSVs to dashboard JSONs for the Feature Importance tab.
+    Converts both aggregated and model-specific CSVs (catboost, xgboost, xgboost_rf) to the same
+    heatmap JSON pattern (row_labels, column_labels, matrix). Uses final feature importances only
+    (admin/Z and target-leakage removed) when filter_final is True.
     Writes:
       - outputs_base/feature_importance_index.json
-      - outputs_base/{cohort}/plots/{cohort}_{model}_fi_heatmap.json (when 2+ age bands; aggregated uses existing name)
-      - outputs_base/{cohort}/plots/{cohort}_{model}_{age_band_fname}_fi.json
+      - outputs_base/{cohort}/plots/{cohort}_{model}_fi_heatmap.json (aggregated + per-model; used by tab)
+      - outputs_base/{cohort}/plots/{cohort}_{model}_{age_band_fname}_fi.json (single-age)
     Returns the index dict and list of paths written.
     """
     index = discover_fi_available(outputs_base)
@@ -375,14 +405,14 @@ def build_fi_dashboard_jsons(
 
     for cohort, info in index.get("cohorts", {}).items():
         age_bands = info.get("age_bands") or []
-        models = info.get("models") or []
-        if not age_bands or not models:
+        if not age_bands:
             continue
         plots_dir = (outputs_base / cohort) / "plots"
         plots_dir.mkdir(parents=True, exist_ok=True)
-
-        for model in models:
-            if len(age_bands) >= 2:
+        # Try every model type so model-specific CSVs are always converted to JSON for the Feature Importance tab
+        models_to_build = list(FI_MODEL_LABELS)
+        if len(age_bands) >= 2:
+            for model in models_to_build:
                 data = get_fi_heatmap_data_for_model(
                     cohort, age_bands, outputs_base, model,
                     top_n=top_n, importance_col=importance_col, max_rows=max_rows,
@@ -396,6 +426,7 @@ def build_fi_dashboard_jsons(
                         json.dump(data, f, indent=2)
                     written.append(path)
 
+        for model in models_to_build:
             for age_band in age_bands:
                 single = get_single_age_band_fi(
                     cohort, age_band, outputs_base, model,
@@ -556,9 +587,8 @@ def create_combined_cohorts_fi_heatmap(
         if not cohort_dir.exists():
             continue
         for age_band in age_bands:
-            age_band_fname = age_band.replace("-", "_")
-            csv_path = cohort_dir / f"{cohort}_{age_band_fname}_aggregated_feature_importance.csv"
-            if not csv_path.exists():
+            csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, "aggregated")
+            if not csv_path:
                 continue
             df = pd.read_csv(csv_path)
             if "feature" not in df.columns:

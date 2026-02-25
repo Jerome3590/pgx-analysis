@@ -689,7 +689,9 @@
     <!-- Feature Importance Visualizations Tab (initial input for BupaR, FP-Growth, DTW) -->
     <div id="feature-importance-visualizations-tab" class="tab-content" style="display: none;">
       <p class="subtitle">
-        Aggregated feature importance by age band (from Step 3a / 2_feature_importance). Heatmap: rows = top features, columns = age bands. Initial input for BupaR, FP-Growth, and DTW; final model will refine further.
+        <strong>Feature importance by age band.</strong> Filter by <strong>cohort</strong> and <strong>model</strong>. From Step 3a / 2_feature_importance. <strong>Final (aggregated, used for training)</strong> = final features (admin/Z and leakage removed) used for model training; other options = per-model views of the same final feature set.
+        <br>
+        <small style="color: #64748b;">All importance values are from <strong>25 Monte Carlo CV runs</strong> (Step 3a).</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -699,6 +701,15 @@
             <option value="non_opioid_ed">Polypharmacy</option>
           </select>
         </div>
+        <div class="control-group">
+          <label for="fi-model">Model:</label>
+          <select id="fi-model">
+            <option value="aggregated">Final (aggregated, used for training)</option>
+            <option value="catboost">CatBoost</option>
+            <option value="xgboost">XGBoost</option>
+            <option value="xgboost_rf">XGBoost RF</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadFeatureImportance">Load Feature Importance Heatmap</button>
         </div>
@@ -706,7 +717,7 @@
       <div id="fi-status" class="status-message">Select cohort and click Load</div>
       <div class="panels">
         <div class="panel full-width">
-          <h2>Aggregated Feature Importance by Age Band</h2>
+          <h2>Feature Importance by Age Band</h2>
           <div id="fi-heatmap-container">
             <div id="fi-heatmap-chart" style="display: none; width: 100%; min-height: 400px;"></div>
             <img id="fi-heatmap-image" alt="Aggregated FI heatmap" style="max-width: 100%; height: auto; display: none;" />
@@ -1735,8 +1746,9 @@
       colorscale: "YlOrRd",
       hovertemplate: "%{y} | %{x}: %{z:.3f}<extra></extra>"
     };
+    const modelLabel = heatmapData.model ? " (" + heatmapData.model + ")" : "";
     Plotly.newPlot(fiHeatmapChart, [trace], {
-      title: "Aggregated Feature Importance by Age Band — " + (heatmapData.cohort || ""),
+      title: "Feature Importance by Age Band — " + (heatmapData.cohort || "") + modelLabel,
       xaxis: { title: "Age Band", tickangle: -45 },
       yaxis: { title: "Feature", autorange: "reversed" },
       margin: { t: 50, r: 120, b: 80, l: 200 },
@@ -1749,6 +1761,7 @@
 
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
+    const model = (document.getElementById("fi-model")?.value || "aggregated");
     const fiStatus = document.getElementById("fi-status");
     const fiHeatmapImg = document.getElementById("fi-heatmap-image");
     const fiCombinedImg = document.getElementById("fi-combined-image");
@@ -1762,7 +1775,7 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
+      const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}&model=${encodeURIComponent(model)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const heatmapNotFoundMsg = "Cohort heatmap not found. Upload aggregated_fi_heatmap.png or run pipeline to generate JSON.";
