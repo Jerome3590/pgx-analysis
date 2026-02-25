@@ -1339,6 +1339,19 @@
   })();
   const API_BASE = window.API_BASE_URL || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod";
 
+  /** Log 4xx/5xx API response to console (error + paths_checked) and return parsed body for throwing. */
+  async function logApiErrorResponseAndParse(resp, context) {
+    let body = null;
+    try {
+      const text = await resp.text();
+      try { body = JSON.parse(text); } catch (_) {}
+    } catch (_) {}
+    const msg = body && body.error ? body.error : resp.statusText;
+    const paths = body && body.paths_checked && body.paths_checked.length ? body.paths_checked : null;
+    console.error("[Dashboard API]", resp.status, context || "", msg, paths ? { paths_checked: paths } : "");
+    return body;
+  }
+
   // DOM Elements
   const ageEl = document.getElementById("age");
   const drugsEl = document.getElementById("drugs");
@@ -1448,7 +1461,9 @@
         if (!resp.ok) {
           const text = await resp.text();
           let detail = text;
-          try { const j = JSON.parse(text); detail = j.error || j.message || text; } catch (_) {}
+          let j = null;
+          try { j = JSON.parse(text); detail = j.error || j.message || text; } catch (_) {}
+          if (j) console.error("[Dashboard API]", resp.status, "Metadata", detail, j.paths_checked ? { paths_checked: j.paths_checked } : "");
           throw new Error(`HTTP ${resp.status}: ${detail}`);
         }
         data = await resp.json();
@@ -1634,8 +1649,9 @@
       });
 
       if (!resp.ok) {
-        const error = await resp.json();
-        throw new Error(error.error || `HTTP ${resp.status}`);
+        const errBody = await resp.json().catch(function() { return {}; });
+        if (errBody.error || errBody.paths_checked) console.error("[Dashboard API]", resp.status, "Risk", errBody.error || resp.statusText, errBody.paths_checked ? { paths_checked: errBody.paths_checked } : "");
+        throw new Error(errBody.error || `HTTP ${resp.status}`);
       }
 
       const data = await resp.json();
@@ -2526,7 +2542,10 @@
         fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`),
         fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}`)
       ]);
-      if (!urlResp.ok) throw new Error(`HTTP ${urlResp.status}`);
+      if (!urlResp.ok) {
+        const body = await logApiErrorResponseAndParse(urlResp, "BupaR");
+        throw new Error(body && body.error ? body.error : `HTTP ${urlResp.status}`);
+      }
       const data = await urlResp.json();
       const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
       renderBupaRVisualizations(data, selected.length ? selected : undefined, { cohort, ageBand });
@@ -2560,7 +2579,7 @@
       x: heatmapData.column_labels,
       y: heatmapData.row_labels,
       type: "heatmap",
-      colorscale: "YlOrRd",
+      colorscale: [[0, "#ffffcc"], [0.35, "#c994c7"], [0.7, "#762a83"], [1, "#2d004b"]],
       hovertemplate: "%{y} | %{x}: %{z:.3f}<extra></extra>"
     };
     const modelLabel = heatmapData.model ? " (" + heatmapData.model + ")" : "";
@@ -2590,7 +2609,10 @@
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
       const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        const body = await logApiErrorResponseAndParse(resp, "Feature Importance");
+        throw new Error(body && body.error ? body.error : `HTTP ${resp.status}`);
+      }
       const data = await resp.json();
 
       if (data.heatmap_data) {
@@ -3014,7 +3036,7 @@
           itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data to display.</p>";
         }
       } else if (data.itemsets_image) {
-        itemsetsEl.innerHTML = "<img src=\"" + data.itemsets_image + "\" style=\"max-width: 100%;\" alt=\"Top itemsets\" onerror=\"this.parentElement.innerHTML='<p class=\'status-message info\'>Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'\" />";
+        itemsetsEl.innerHTML = "<img src=\"" + data.itemsets_image + "\" style=\"max-width: 100%;\" alt=\"Top itemsets\" onerror=\"this.parentElement.innerHTML=\\\"<p class=\\\"status-message info\\\">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>\\\";\" />";
       } else {
         itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data. Run pipeline and upload itemsets JSON, or use image URL.</p>";
       }
@@ -3094,6 +3116,13 @@
     'bupar-trace-explorer-image': 'trace_explorer_interactive'
   };
   function renderBupaRVisualizations(data, selectedKeys, opts) {
+    if (!data || typeof data !== 'object') {
+      document.querySelectorAll('.bupar-panel').forEach(p => {
+        const container = p.querySelector('[id$="-image"], [id$="-plotly"]') || p.querySelector('div');
+        if (container) container.innerHTML = '<p class="status-message" style="margin:0;">No BupaR data for this cohort/age band.</p>';
+      });
+      return;
+    }
     const keys = selectedKeys && selectedKeys.length ? selectedKeys : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
     document.querySelectorAll('.bupar-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
@@ -3123,7 +3152,7 @@
       if (!el) continue;
 
       // Trace Explorer: prefer Plotly from JSON when available
-      if (visualKey === 'trace_explorer' && data.trace_explorer_plot && data.trace_explorer_plot.data && window.Plotly) {
+      if (visualKey === 'trace_explorer' && data.trace_explorer_plot && Array.isArray(data.trace_explorer_plot.data) && data.trace_explorer_plot.data.length > 0 && window.Plotly) {
         el.innerHTML = '<div id="bupar-trace-explorer-plotly" style="width:100%; min-height:600px;"></div>';
         var fig = data.trace_explorer_plot;
         Plotly.react('bupar-trace-explorer-plotly', fig.data, fig.layout || {}, fig.config || {});
@@ -3133,15 +3162,17 @@
       // Process Matrix (Drug × Drug): prefer heatmap from JSON when available
       if (visualKey === 'process_matrix_typepair' && data.process_matrix_drug_drug && Array.isArray(data.process_matrix_drug_drug.antecedent) && window.Plotly) {
         var pm = data.process_matrix_drug_drug;
-        var rows = [].concat(pm.antecedent).filter(Boolean);
-        var cols = [].concat(pm.consequent).filter(Boolean);
+        var ant = pm.antecedent || [];
+        var con = Array.isArray(pm.consequent) ? pm.consequent : [];
+        var rows = [].concat(ant).filter(Boolean);
+        var cols = [].concat(con).filter(Boolean);
         rows = [...new Set(rows)].sort();
         cols = [...new Set(cols)].sort();
         var z = rows.map(function(r) {
           return cols.map(function(c) {
             var i = -1;
-            for (var k = 0; k < (pm.antecedent && pm.antecedent.length); k++) {
-              if (pm.antecedent[k] === r && pm.consequent[k] === c) { i = k; break; }
+            for (var k = 0; k < ant.length; k++) {
+              if (ant[k] === r && con[k] === c) { i = k; break; }
             }
             return i >= 0 ? (pm.n && pm.n[i] != null ? Number(pm.n[i]) : 0) : 0;
           });
@@ -3162,7 +3193,7 @@
       if (imageUrl.endsWith('.html') || imageUrl.indexOf('/bupar/html?') !== -1) {
         el.innerHTML = '<iframe src="' + imageUrl + '" style="width: 100%; height: 700px; border: 1px solid #ddd;" title="' + elementId + '"></iframe>';
       } else {
-        el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" onerror="this.parentElement.innerHTML=\'<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found.</p>\';" />';
+        el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" onerror="this.parentElement.innerHTML=\\"<p class=\\"status-message\\" style=\\"margin:0;\\">Image not found.</p>\\";" />';
       }
     }
     for (const visualKey of BUPAR_VISUAL_KEYS_INDEX.map(v => v.key)) {
@@ -3179,8 +3210,9 @@
   let buparPlotlyDivs = { overall: null, pre_target: null, post_target: null };
 
   function buildBupaRBarChart(containerId, segmentKey, freqData) {
+    if (!freqData || typeof freqData !== 'object') return null;
     const seg = freqData[segmentKey];
-    if (!seg || !seg.data || seg.data.length === 0) return null;
+    if (!seg || !Array.isArray(seg.data) || seg.data.length === 0) return null;
     const yearLabels = seg.year_labels || {};
     const years = Object.keys(yearLabels).map(Number).sort((a, b) => a - b);
     const selectId = containerId.replace('bupar-chart-', 'bupar-year-');
