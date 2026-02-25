@@ -170,8 +170,30 @@ def get_data_root() -> Path:
         return Path(os.path.expanduser("~")) / "pgx_data"
 
     # Fallback: project root / data
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = get_repo_root()
     return project_root / "data"
+
+
+def get_repo_root(anchor: Path | None = None) -> Path:
+    """
+    Return the project (pgx-analysis) root by walking up from anchor until a directory
+    containing 'py_helpers' is found. Use this so logs and paths resolve to the project
+    even when scripts are run from 9_dashboard_visuals or another subfolder (e.g. logs
+    go to project/9_dashboard_visuals/logs/ not home/9_dashboard_visuals/logs/).
+    """
+    if anchor is None:
+        anchor = Path(__file__).resolve().parent
+    if anchor.is_file():
+        anchor = anchor.parent
+    current = anchor
+    for _ in range(20):
+        if (current / "py_helpers").is_dir():
+            return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return anchor
 
 
 def get_model_data_root() -> Path:
@@ -184,7 +206,7 @@ def get_model_data_root() -> Path:
     - Linux/EC2: get_data_root() / "4_model_data" (e.g. /mnt/nvme/4_model_data)
     - Windows: PROJECT_ROOT / "4_model_data"
     """
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = get_repo_root()
     data_root = get_data_root()
     if is_linux():
         return data_root / "4_model_data"

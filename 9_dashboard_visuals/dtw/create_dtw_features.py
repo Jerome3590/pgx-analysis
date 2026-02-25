@@ -30,31 +30,13 @@ try:
 except ImportError:
     DTW_AVAILABLE = False
 
+# Same pattern as BupaR/FP-Growth: use setup_pipeline_logger (repo root from py_helpers → project-level logs)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from py_helpers.fe_monitor import step_block  # noqa: E402
-
-
-def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
-    """Create a logger with both console and file handlers (same pattern as BupaR/FP-Growth). Logs under repo root: pgx-analysis/9_dashboard_visuals/logs/5_dtw."""
-    logs_dir = REPO_ROOT / "9_dashboard_visuals" / "logs" / "5_dtw"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    age_band_fname = age_band.replace("-", "_")
-    log_path = logs_dir / f"dtw_{cohort_name}_{age_band_fname}.log"
-    logger = logging.getLogger(f"dtw.{cohort_name}.{age_band_fname}")
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-    logger.propagate = False
-    return logger, log_path
+from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -290,7 +272,13 @@ def main() -> None:
     parser.add_argument("--project-root", type=Path, default=REPO_ROOT, help="Project root")
     args = parser.parse_args()
     project_root = Path(args.project_root)
-    logger, _ = _get_logger(args.cohort, args.age_band)
+    pl = setup_pipeline_logger(
+        step_name="5_dtw",
+        cohort=args.cohort,
+        age_band=args.age_band,
+        script_name="create_dtw_features",
+    )
+    logger = pl.logger
 
     age_band_fname = args.age_band.replace("-", "_")
     csv_path = _dtw_output_root(project_root) / "outputs" / "feature_engineering" / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
@@ -314,7 +302,7 @@ def main() -> None:
         )
     if not ok:
         logger.warning("DTW alignment skipped (empty or invalid trajectories); exiting 0 so pipeline continues.")
-        sys.exit(0)
+    pl.log_summary()
     sys.exit(0)
 
 

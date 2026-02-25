@@ -33,8 +33,16 @@ import duckdb
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Repo root so 4_model_data and py_helpers are available (same as other dtw scripts)
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# Repo root: walk up to dir containing py_helpers so logs go to project/9_dashboard_visuals/logs/ (same as other dashboard visuals)
+_script_dir = Path(__file__).resolve().parent
+_current = _script_dir
+for _ in range(15):
+    if (_current / "py_helpers").is_dir():
+        REPO_ROOT = _current
+        break
+    _current = _current.parent
+else:
+    REPO_ROOT = _script_dir.parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
