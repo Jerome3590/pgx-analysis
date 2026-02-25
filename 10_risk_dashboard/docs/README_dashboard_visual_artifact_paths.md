@@ -61,6 +61,9 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 | DTW Trajectories | Common Sequences Heatmap (Drugs only) | `sequence_heatmap.json` | `.../sequence_heatmap.json` | `dtw/{cohort}/{age_band}/sequence_heatmap.json` |
 | DTW Trajectories | Routine vs No Routine (Outcomes) | `chart_data.json` → `routine_comparison` | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
 | DTW Trajectories | (Routine vs No Routine event counts) | `chart_data.json` → `routine_comparison_counts` | (same) | (same) |
+| DTW Trajectories | Event density filter | `chart_data.json` → `event_density_bins`, `routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density` | (same) | (same) |
+
+**Event density:** When the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), chart_data includes the keys above so the dashboard can filter Routine vs No Routine and High-Risk charts by bin (All | Low | Medium | High | Extreme). See `10_risk_dashboard/visualizations/dtw/README.md`.
 
 **DTW run order:** `create_dtw_features` writes to `outputs/feature_engineering/` (CSV + common_sequences). **`create_dtw_visuals`** reads that CSV, builds `chart_data.json` and `sequence_heatmap.json`, writes them under `outputs/{cohort}/{age_band_fname}/`, and uploads to S3. The artifact path check expects these JSONs in that output dir; run `create_dtw_visuals` per cohort/age_band after feature engineering.
 

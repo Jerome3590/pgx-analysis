@@ -156,10 +156,9 @@ Visualizations are displayed in the **DTW Trajectories** tab of the dashboard:
 
 ### Filtering
 
-Visualizations can be filtered by user-selected codes:
-- Server-side filtering in Lambda function
-- Shows only trajectories containing selected codes
-- Updates visualization display dynamically
+**Event density (trajectory bin):** The DTW tab includes an **Event density** dropdown (All | Low | Medium | High | Extreme). It filters **Routine vs No Routine (Outcomes)**, **Routine vs No Routine (event counts)**, and **High-Risk vs Low-Risk Trajectories** by trajectory events-per-month bin. Data comes from `chart_data.json`: when the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), `create_dtw_visuals.py` writes `event_density_bins` and per-bin series (`routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density`). Changing the dropdown re-renders those three charts client-side from the already-loaded data; "All" uses the aggregate series. Bins align with FP-Growth (low/medium/high/extreme by percentiles).
+
+**Code-based filtering (other tabs):** Visualizations on other tabs can be filtered by user-selected codes (e.g. Lambda returns filtered data for selected drugs/ICD/CPT). DTW tab filtering is density-only as above.
 
 ## DTW Usage in Pipeline
 

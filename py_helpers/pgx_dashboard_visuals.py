@@ -275,6 +275,17 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
             if r3.returncode == 0:
                 uploaded_fi += 1
                 print(f"  Uploaded FI heatmap: {s3_key_combined}")
+        # Combined cohort heatmap JSON for dashboard Plotly (GET ?cohort=combined)
+        combined_json = fi_base / "combined" / "aggregated_fi_heatmap.json"
+        if combined_json.exists():
+            s3_key_combined_json = f"{fi_prefix}/combined/aggregated_fi_heatmap.json"
+            r3j = subprocess.run(
+                ["aws", "s3", "cp", str(combined_json), f"s3://{s3_bucket}/{s3_key_combined_json}", "--region", "us-east-1"],
+                capture_output=True, text=True,
+            )
+            if r3j.returncode == 0:
+                uploaded_fi += 1
+                print(f"  Uploaded FI heatmap data: {s3_key_combined_json}")
         if uploaded_fi:
             print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
         elif fi_base.exists():

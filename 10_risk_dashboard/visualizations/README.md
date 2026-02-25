@@ -29,6 +29,8 @@ visualizations/
 - `chart_data.json`, `sequence_heatmap.json` (dashboard uses **drug** slice only for the common-sequences heatmap)
 - Overview and sample trajectory images when present
 
+**Event density filter:** When the trajectory CSV has `event_density_bin`, `chart_data.json` includes `event_density_bins` and density-stratified series (`routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density`). The DTW tab provides an **Event density** dropdown (All | Low | Medium | High | Extreme) to filter those charts by trajectory events-per-month bin. See `dtw/README.md` for chart_data keys.
+
 **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/`
 
 ## FP-Growth (`fpgrowth/`)

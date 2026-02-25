@@ -8,6 +8,10 @@ computes DTW distance from each patient to each prototype using dtaidistance lib
 - Augments the CSV with dtw_min_distance and dtw_distance_to_prototype_0..k
 - Writes common_sequences.json with the prototype sequences (for dashboard/docs)
 
+When event_density_bin is present, alignment is run per density bin (low/medium/high/extreme) and outputs
+are written as sub-cohorts: one CSV and one common_sequences JSON per bin (no merge). Each patient is
+compared only to prototypes from the same bin, which speeds up dtaidistance. Downstream (create_dtw_visuals)
+loads by filter (or concatenates per-bin CSVs when building chart_data).
 DTW alignment IS computed for dashboard analysis. Results used for visualization only (not model features).
 Run after create_dtw_trajectories.py and before create_dtw_visuals.py.
 """
@@ -43,6 +47,8 @@ def _dtw_output_root(project_root: Path) -> Path:
     """Dashboard visualization outputs (step 10); creation code in 9_dashboard_visuals/dtw."""
     return project_root / "10_risk_dashboard" / "visualizations" / "dtw"
 
+# Bins must match create_dtw_trajectories.DENSITY_BINS for per-bin alignment
+DENSITY_BINS = ("low", "medium", "high", "extreme")
 
 _SKIP_TOKENS = frozenset({"nan", "none", "null", ""})
 
@@ -262,6 +268,32 @@ def run_alignment(
             print("[ERROR] dtaidistance is required for DTW alignment. Install with: pip install dtaidistance")
         sys.exit(1)
 
+    # Per-bin (sub-cohort) alignment when event_density_bin present: write one CSV + common_sequences per bin; no merge
+    if "event_density_bin" in df.columns and df["event_density_bin"].notna().any():
+        bins_present = [b for b in DENSITY_BINS if (df["event_density_bin"] == b).any()]
+        if bins_present:
+            any_ok = False
+            for bin_name in bins_present:
+                df_bin = df.loc[df["event_density_bin"] == bin_name].copy()
+                if len(df_bin) < 2:
+                    log("info", "Skipping bin %s: too few trajectories (%d)", bin_name, len(df_bin))
+                    continue
+                log("info", "DTW alignment density=%s: %d patients, n_prototypes=%d", bin_name, len(df_bin), n_prototypes)
+                df_out_bin, common_bin = compute_dtw_distances(df_bin, n_prototypes=n_prototypes)
+                if common_bin is None:
+                    continue
+                bin_csv = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}_density_{bin_name}.csv"
+                bin_common = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{bin_name}.json"
+                df_out_bin.to_csv(bin_csv, index=False)
+                with open(bin_common, "w", encoding="utf-8") as f:
+                    json.dump(common_bin, f, indent=2)
+                log("info", "Wrote sub-cohort %s: %s, %s", bin_name, bin_csv.name, bin_common.name)
+                any_ok = True
+            if any_ok:
+                return True
+            log("warning", "No bin had enough trajectories for alignment.")
+
+    # Global alignment (no event_density_bin or fallback)
     log("info", "DTW alignment: %d patients, n_prototypes=%d", len(df), n_prototypes)
     df_out, common_sequences = compute_dtw_distances(df, n_prototypes=n_prototypes)
     if common_sequences is None:
@@ -281,13 +313,11 @@ def run_alignment(
     df_out.to_csv(csv_path, index=False)
     log("info", "Wrote augmented CSV to %s", csv_path)
 
-    # Write common_sequences.json next to the CSV (same directory for upload)
     common_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}.json"
     with open(common_path, "w", encoding="utf-8") as f:
         json.dump(common_sequences, f, indent=2)
     log("info", "Wrote common sequences to %s", common_path)
 
-    # Also update dtw_added_features copy if present
     added_path = fe_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
     if added_path.exists():
         df_out.to_csv(added_path, index=False)
@@ -315,14 +345,27 @@ def main() -> None:
     logger = pl.logger
 
     age_band_fname = args.age_band.replace("-", "_")
-    csv_path = _dtw_output_root(project_root) / "outputs" / "feature_engineering" / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
+    fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    csv_path = fe_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
     if not csv_path.exists():
         logger.error("Not found: %s. Run create_dtw_trajectories.py first.", csv_path)
         sys.exit(1)
     df = pd.read_csv(csv_path)
-    if "dtw_min_distance" in df.columns and df["dtw_min_distance"].notna().any() and not args.force:
-        logger.info("CSV already has DTW distances; skipping (use --force to re-run).")
-        sys.exit(0)
+    if not args.force:
+        if "dtw_min_distance" in df.columns and df["dtw_min_distance"].notna().any():
+            logger.info("CSV already has DTW distances; skipping (use --force to re-run).")
+            sys.exit(0)
+        # Per-bin idempotency: if event_density_bin present and all density sub-cohorts exist, skip
+        if "event_density_bin" in df.columns and df["event_density_bin"].notna().any():
+            bins_present = [b for b in DENSITY_BINS if (df["event_density_bin"] == b).any()]
+            if bins_present:
+                base = f"dtw_features_{args.cohort}_{age_band_fname}"
+                all_exist = all(
+                    (fe_dir / f"{base}_density_{b}.csv").exists() for b in bins_present
+                )
+                if all_exist:
+                    logger.info("Density sub-cohort CSVs already exist; skipping (use --force to re-run).")
+                    sys.exit(0)
 
     with step_block("5_dtw", "create_dtw_features", logger=logger):
         logger.info("Starting DTW alignment for %s / %s", args.cohort, args.age_band)

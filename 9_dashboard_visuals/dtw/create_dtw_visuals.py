@@ -96,29 +96,38 @@ def create_dtw_visuals(
         _log("info", "Pipeline checkpoint exists for 9_dashboard_visuals %s/%s and artifacts present; skipping (use --force to re-run)", cohort_name, age_band)
         return
 
-    # Load DTW features (created by create_dtw_features.py)
-    dtw_features_csv = (
-        _dtw_output_root(project_root)
-        / "outputs"
-        / "feature_engineering"
-        / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
-    )
+    # Load DTW features: prefer sub-cohort (per-density) CSVs when present; else single CSV
+    fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
+    single_csv = fe_dir / f"{base_name}.csv"
+    density_glob = list(fe_dir.glob(f"{base_name}_density_*.csv"))
 
-    if not dtw_features_csv.exists():
-        _log("warning", "DTW features not found: %s; skipping (create_dtw_features.py did not produce output).", dtw_features_csv)
+    if density_glob:
+        # Sub-cohort outputs: load by filter and concatenate for chart_data
+        parts = []
+        for path in sorted(density_glob):
+            bin_name = path.stem.replace(f"{base_name}_density_", "")
+            part = pd.read_csv(path)
+            if "event_density_bin" not in part.columns:
+                part["event_density_bin"] = bin_name
+            parts.append(part)
+        dtw_df = pd.concat(parts, ignore_index=True)
+        _log("info", "Loaded DTW features from %d density sub-cohorts: %s", len(parts), [p.stem for p in density_glob])
+    elif single_csv.exists():
+        _log("info", "Reading DTW features from %s", single_csv)
+        dtw_df = pd.read_csv(single_csv)
+    else:
+        _log("warning", "DTW features not found: %s (and no density sub-cohorts); skipping.", single_csv)
         try:
             from py_helpers.model_data_paths import get_path_check_listings
-            path_listings = get_path_check_listings([str(dtw_features_csv)])
+            path_listings = get_path_check_listings([str(single_csv)])
             path_listings_str = " ; ".join(path_listings) if path_listings else ""
         except Exception:  # noqa: BLE001
             path_listings_str = ""
-        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, dtw_features_csv)
+        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, single_csv)
         if path_listings_str:
             _log("error", "step=5_dtw path_listings: %s", path_listings_str)
         return
-
-    _log("info", "Reading DTW features from %s", dtw_features_csv)
-    dtw_df = pd.read_csv(dtw_features_csv)
 
     keys_expected_dtw = ["mi_person_key", "target", "seq_pattern_str", "admin_icd_event_count", "dtw_min_distance", "trajectory_length"]
     keys_received_dtw = list(dtw_df.columns)
@@ -537,8 +546,12 @@ def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any
     return {"drug": {"codes": codes, "positions": positions, "counts": counts}}
 
 
+DENSITY_BINS = ("low", "medium", "high", "extreme")
+
+
 def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Build routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard."""
+    """Build routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard.
+    When event_density_bin is present, also builds *_by_density so the dashboard can filter by event density."""
     if dtw_df.empty:
         return None
     out = {}
@@ -561,6 +574,27 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     time_to_target = _compute_time_to_target_sequences(dtw_df)
     if time_to_target:
         out["time_to_target_sequences"] = time_to_target
+
+    # Stratify by event_density_bin for dashboard filter (same bins as create_dtw_trajectories)
+    if "event_density_bin" in dtw_df.columns:
+        out["event_density_bins"] = list(DENSITY_BINS)
+        out["routine_comparison_by_density"] = {}
+        out["routine_comparison_counts_by_density"] = {}
+        out["high_risk_trajectories_by_density"] = {}
+        for bin_name in DENSITY_BINS:
+            sub = dtw_df[dtw_df["event_density_bin"] == bin_name]
+            if len(sub) < 10:
+                continue
+            r = _compute_dtw_routine_comparison(sub)
+            if r:
+                out["routine_comparison_by_density"][bin_name] = r
+            rc = _compute_dtw_routine_comparison_counts(sub)
+            if rc:
+                out["routine_comparison_counts_by_density"][bin_name] = rc
+            hr = _compute_dtw_high_risk_trajectories(sub)
+            if hr:
+                out["high_risk_trajectories_by_density"][bin_name] = hr
+
     return out or None
 
 

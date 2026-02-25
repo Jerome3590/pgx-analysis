@@ -1,8 +1,9 @@
 """
-Cross-age-band aggregated feature importance heatmap for Step 3a outputs.
+Cross-age-band aggregated feature importance heatmap for the dashboard.
 
-Builds a heatmap (feature × age_band) from aggregated feature importance CSVs
-written by 3a_feature_importance/run_mc_feature_importance.py.
+Uses only final feature importance after BupaR edits (Step 3b):
+3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv.
+No fallback to 3a; pipeline breaks (FileNotFoundError) until 3b artifacts exist.
 """
 
 import json
@@ -39,6 +40,33 @@ def _resolve_project_root(outputs_base: Path) -> Optional[Path]:
     except Exception:
         pass
     return None
+
+
+def _resolve_aggregated_fi_csv_3b(project_root: Path, cohort: str, age_band: str) -> Path:
+    """
+    Resolve path to final FI CSV from Step 3b (cohort_feature_importance after BupaR edits).
+    No fallback to 3a. Raises FileNotFoundError if 3b artifact is missing (pipeline breaks until 3b is run).
+    """
+    if not project_root or not project_root.exists():
+        raise FileNotFoundError(
+            "project_root is required and must exist to load Step 3b cohort_feature_importance. "
+            "Run 3b_feature_importance_eda (BupaR + filter_and_refine_features) first."
+        )
+    age_band_fname = age_band.replace("-", "_")
+    path_3b = (
+        project_root
+        / "3b_feature_importance_eda"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
+    )
+    if not path_3b.exists():
+        raise FileNotFoundError(
+            f"Step 3b artifact required but not found: {path_3b}. "
+            "Run 3b_feature_importance_eda for this cohort/age_band (BupaR + filter_and_refine_features). No fallback to 3a."
+        )
+    return path_3b
 
 
 def _resolve_fi_csv_path(
@@ -87,16 +115,17 @@ def get_aggregated_fi_heatmap_data(
     filter_final: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
-    Build feature × age_band heatmap data from Step 3a aggregated CSVs.
-
+    Build feature × age_band heatmap data from Step 3b cohort_feature_importance only (final FI after BupaR).
+    No fallback to 3a; raises FileNotFoundError if any 3b artifact is missing.
     Returns a dict suitable for JSON and client-side Plotly: row_labels, column_labels, matrix, metric.
-    Returns None if no data or < 2 age bands.
-    When filter_final is True (default), drops admin/Z and target-leakage features (final FI only).
+    Returns None only if < 2 age bands have data after loading.
     """
-    cohort_dir = outputs_base / cohort
-    if not cohort_dir.exists():
-        return None
     proj = project_root or _resolve_project_root(outputs_base)
+    if not proj:
+        raise FileNotFoundError(
+            "project_root required to load Step 3b artifacts. "
+            "Pass project_root or use outputs_base under 3a_feature_importance/outputs."
+        )
 
     def _filter_fi(df: pd.DataFrame) -> pd.DataFrame:
         if proj and filter_final:
@@ -110,9 +139,7 @@ def get_aggregated_fi_heatmap_data(
     all_dfs: List[pd.DataFrame] = []
     loaded_bands: List[str] = []
     for age_band in age_bands:
-        csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, "aggregated")
-        if not csv_path:
-            continue
+        csv_path = _resolve_aggregated_fi_csv_3b(proj, cohort, age_band)
         df = pd.read_csv(csv_path)
         if "feature" not in df.columns:
             continue
@@ -121,7 +148,13 @@ def get_aggregated_fi_heatmap_data(
             continue
         col = importance_col
         if not col:
-            for c in ("scaled_importance_mean", "importance_mean", "importance_scaled", "importance_normalized"):
+            for c in (
+                "importance_scaled_by_model_sum",  # 3b refined
+                "scaled_importance_mean",
+                "importance_mean",
+                "importance_scaled",
+                "importance_normalized",
+            ):
                 if c in df.columns:
                     col = c
                     break
@@ -174,10 +207,16 @@ def get_aggregated_fi_heatmap_data(
 
 
 def _importance_col_for_df(df: pd.DataFrame, importance_col: Optional[str] = None) -> Optional[str]:
-    """Return importance column name from aggregated or per-model FI DataFrame."""
+    """Return importance column name from aggregated or per-model FI DataFrame (3b or 3a)."""
     if importance_col and importance_col in df.columns:
         return importance_col
-    for c in ("scaled_importance_mean", "importance_mean", "importance_scaled", "importance_normalized"):
+    for c in (
+        "importance_scaled_by_model_sum",  # 3b cohort_feature_importance
+        "scaled_importance_mean",
+        "importance_mean",
+        "importance_scaled",
+        "importance_normalized",
+    ):
         if c in df.columns:
             return c
     return None
@@ -197,10 +236,9 @@ def get_fi_heatmap_data_for_model(
     """
     Build feature × age_band heatmap data for a specific model (or aggregated).
 
-    For model=="aggregated" uses aggregated CSVs; otherwise uses
-    {cohort}_{age_band_fname}_{model}_feature_importance_mc*.csv.
+    For model=="aggregated" uses Step 3b cohort_feature_importance only (no fallback); pipeline breaks if 3b missing.
+    For other models uses {cohort}_{age_band_fname}_{model}_feature_importance_mc*.csv from 3a.
     Returns same shape as get_aggregated_fi_heatmap_data; None if < 2 age bands.
-    When filter_final is True (default), drops admin/Z and target-leakage features.
     """
     cohort_dir = outputs_base / cohort
     if not cohort_dir.exists():
@@ -219,9 +257,12 @@ def get_fi_heatmap_data_for_model(
     all_dfs: List[pd.DataFrame] = []
     loaded_bands: List[str] = []
     for age_band in age_bands:
-        csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, model)
-        if not csv_path:
-            continue
+        if model == "aggregated":
+            csv_path = _resolve_aggregated_fi_csv_3b(proj, cohort, age_band)
+        else:
+            csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, model)
+            if not csv_path:
+                continue
         df = pd.read_csv(csv_path)
         if "feature" not in df.columns:
             continue
@@ -477,7 +518,7 @@ def create_aggregated_fi_heatmap(
     importance_col: Optional[str] = None,
 ) -> Optional[Path]:
     """
-    Create cross-age-band feature importance heatmap from Step 3a aggregated CSVs.
+    Create cross-age-band feature importance heatmap from Step 3b cohort_feature_importance only (no fallback).
 
     Loads {cohort}_{age_band_fname}_aggregated_feature_importance.csv for each
     age_band from outputs_base / cohort, builds feature × age_band matrix (union
@@ -488,7 +529,7 @@ def create_aggregated_fi_heatmap(
     Args:
         cohort: Cohort name (e.g. opioid_ed, non_opioid_ed).
         age_bands: List of age bands (e.g. ["13-24", "25-44"]).
-        outputs_base: Base directory for Step 3a outputs (e.g. 3a_feature_importance/outputs).
+        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance/outputs). Input CSVs are from Step 3b only.
         top_n: Number of top features per age band to include in union (default 50).
         importance_col: Column name for importance (default: first of scaled_importance_mean,
             importance_mean, importance_scaled, importance_normalized).
@@ -560,7 +601,7 @@ def create_combined_cohorts_fi_heatmap(
     cell = sum of importance across age bands for that (feature, cohort).
 
     Args:
-        outputs_base: Base directory for Step 3a outputs (e.g. 3a_feature_importance/outputs).
+        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance/outputs). Input CSVs are from Step 3b only.
         cohorts: Dict cohort -> list of age_bands (e.g. REQUIRED_COHORTS; both opioid_ed and non_opioid_ed use full set).
         top_n: Number of top features to show (by max summed importance across cohorts).
         importance_col: Column name for importance (default: scaled_importance_mean, then importance_mean).
@@ -582,14 +623,14 @@ def create_combined_cohorts_fi_heatmap(
     # Collect (cohort, feature, importance) from each cohort/age_band CSV; sum importance per (cohort, feature)
     summed: Dict[str, Dict[str, float]] = {c: {} for c in cohorts}
 
+    if not proj:
+        raise FileNotFoundError(
+            "project_root required for combined heatmap (Step 3b only). "
+            "Pass project_root or use outputs_base under 3a_feature_importance/outputs."
+        )
     for cohort, age_bands in cohorts.items():
-        cohort_dir = outputs_base / cohort
-        if not cohort_dir.exists():
-            continue
         for age_band in age_bands:
-            csv_path = _resolve_fi_csv_path(cohort_dir, cohort, age_band, "aggregated")
-            if not csv_path:
-                continue
+            csv_path = _resolve_aggregated_fi_csv_3b(proj, cohort, age_band)
             df = pd.read_csv(csv_path)
             if "feature" not in df.columns:
                 continue
@@ -598,7 +639,13 @@ def create_combined_cohorts_fi_heatmap(
                 continue
             col = importance_col
             if not col:
-                for c in ("scaled_importance_mean", "importance_mean", "importance_scaled", "importance_normalized"):
+                for c in (
+                    "importance_scaled_by_model_sum",
+                    "scaled_importance_mean",
+                    "importance_mean",
+                    "importance_scaled",
+                    "importance_normalized",
+                ):
                     if c in df.columns:
                         col = c
                         break

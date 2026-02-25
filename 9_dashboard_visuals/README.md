@@ -8,7 +8,7 @@ This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all das
 ## What runs here
 
 - **BupaR** – Process mining sequences and plots → `10_risk_dashboard/visualizations/bupar/`
-- **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`
+- **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`. Trajectories are binned by **event density** (events per month: low/medium/high/extreme); chart_data includes density-stratified series for the dashboard Event density filter.
 - **FP-Growth** – Risk-predictive co-occurrence (SHAP/FFA-gated, target-only): itemsets, network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
@@ -61,7 +61,7 @@ To run dashboard visuals **locally** without the full pipeline or Jupyter:
    - `--force` – re-run even if outputs exist
    - `--workers N` – parallel workers for BupaR/DTW (default: min(CPU count, combo count))
    - `--fpgrowth-workers N` – parallel FP-Growth combos (default: all combos in parallel for max EC2 capacity; use N to cap)
-   DTW runs in three steps: **create_dtw_trajectories.py** (trajectory CSV with N3 time-between metrics), **create_dtw_features.py** (DTW alignment: distances to prototype trajectories + common_sequences.json), then **create_dtw_visuals.py** (plots and chart_data.json). Requires `dtaidistance` for alignment.
+   DTW runs in three steps: **create_dtw_trajectories.py** (trajectory CSV with N3 time-between metrics and **event density** bins: temporal_span_days, events_per_month, event_density_bin), **create_dtw_features.py** (DTW alignment: distances to prototype trajectories + common_sequences.json), then **create_dtw_visuals.py** (plots and chart_data.json, including density-stratified chart data for the dashboard filter). Requires `dtaidistance` for alignment.
 
 **Why might all age bands and both cohorts not get processed?**
 - **Allowed-codes prerequisite:** Before any BupaR/DTW/FP-Growth run, `run_dashboard_visuals.py` checks that every (cohort, age_band) has a non-empty `allowed_codes_shap_ffa_{cohort}_{age_band}.json`. Those files are built only from **Step 3b cohort_feature_importance**. If any combination is missing that CSV (e.g. 0-12 or some bands never ran Step 3b), the allowed-codes file is missing or empty and the script **exits immediately** without running any visuals.
