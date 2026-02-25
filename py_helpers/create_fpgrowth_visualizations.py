@@ -1234,6 +1234,26 @@ def create_all_fpgrowth_plots(
                 if upload_file_to_s3(empty_state_path, s3_path, logger=logger, check_exists=True):
                     out.setdefault("s3_urls", {})["_empty_state"] = _s3_public_url(s3_bucket, key)
 
+    # Upload itemsets JSON for dashboard (client-side Plotly rendering; Lambda returns itemsets_data)
+    if s3_upload and s3_bucket:
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+        except ImportError:
+            pass
+        else:
+            artifact_dir = base_path / cohort_name / age_band_fname
+            s3_data_prefix = f"{s3_prefix.rstrip('/')}/{cohort_name}/{age_band}/data"
+            logger = logging.getLogger("fpgrowth_plots")
+            for itype in item_types:
+                for fname in (f"{itype}_itemsets_target_only.json", f"{itype}_itemsets.json"):
+                    local_path = artifact_dir / fname
+                    if not local_path.exists():
+                        continue
+                    key = f"{s3_data_prefix}/{itype}_itemsets.json"
+                    s3_path = f"s3://{s3_bucket}/{key}"
+                    if upload_file_to_s3(local_path, s3_path, logger=logger, check_exists=True):
+                        break
+
     return out
 
 

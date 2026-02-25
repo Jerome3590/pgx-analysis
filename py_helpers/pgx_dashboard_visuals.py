@@ -279,6 +279,15 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
             print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
         elif fi_base.exists():
             print("  No feature importance heatmaps found under 3a_feature_importance/outputs (run 2_feature_importance to generate).")
+        # Upload causal dashboard JSON (Causal Analysis tab): 10_risk_dashboard/outputs -> S3 causal/
+        causal_script = DASHBOARD_DIR / "data_preparation" / "upload_causal_outputs_to_s3.py"
+        if causal_script.exists():
+            r_causal = subprocess.run([sys.executable, str(causal_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
+            if r_causal.returncode == 0 and r_causal.stdout:
+                for line in r_causal.stdout.strip().split("\n"):
+                    print(f"  {line}")
+            elif r_causal.returncode != 0 and r_causal.stderr:
+                print("  Causal upload:", r_causal.stderr.strip() or "failed")
     else:
         print("S3 sync failed.")
 elif not SKIP_DEPLOY_FRONTEND:
