@@ -62,6 +62,8 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 | DTW Trajectories | Routine vs No Routine (Outcomes) | `chart_data.json` → `routine_comparison` | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
 | DTW Trajectories | (Routine vs No Routine event counts) | `chart_data.json` → `routine_comparison_counts` | (same) | (same) |
 
+**DTW run order:** `create_dtw_features` writes to `outputs/feature_engineering/` (CSV + common_sequences). **`create_dtw_visuals`** reads that CSV, builds `chart_data.json` and `sequence_heatmap.json`, writes them under `outputs/{cohort}/{age_band_fname}/`, and uploads to S3. The artifact path check expects these JSONs in that output dir; run `create_dtw_visuals` per cohort/age_band after feature engineering.
+
 ---
 
 ## FP-Growth Patterns (drug only)

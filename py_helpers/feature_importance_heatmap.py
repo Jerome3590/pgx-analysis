@@ -630,6 +630,21 @@ def create_combined_cohorts_fi_heatmap(
 
     plots_dir = outputs_base / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write combined heatmap JSON for dashboard (same shape as per-cohort aggregated FI JSON)
+    combined_dir = outputs_base / "combined"
+    combined_dir.mkdir(parents=True, exist_ok=True)
+    combined_json_path = combined_dir / "aggregated_fi_heatmap.json"
+    heatmap_data = {
+        "cohort": "combined",
+        "row_labels": list(pivot.index.astype(str)),
+        "column_labels": list(pivot.columns.astype(str)),
+        "matrix": pivot.values.tolist(),
+        "metric": "importance",
+    }
+    with open(combined_json_path, "w", encoding="utf-8") as f:
+        json.dump(heatmap_data, f, indent=2)
+
     heatmap_path = plots_dir / "combined_cohorts_feature_importance_heatmap.png"
 
     fig, ax = plt.subplots(figsize=(max(6, len(cohort_names) * 3), max(10, len(pivot) * 0.2)))
