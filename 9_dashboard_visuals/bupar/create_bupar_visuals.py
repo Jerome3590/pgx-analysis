@@ -76,25 +76,6 @@ def _find_rscript() -> str | None:
                     return str(exe)
     return None
 
-    logger = logging.getLogger(f"bupar.{cohort_name}.{age_band_fname}")
-    logger.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(levelname)s - %(message)s",
-        )
-
-        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-
-    logger.propagate = False
-    return logger, log_path
-
 
 def create_bupar_outputs(
     cohort_name: str,
@@ -257,6 +238,12 @@ def create_bupar_outputs(
                             logger.warning("BupaR output file %s: could not stat: %s", p.name, e)
             else:
                 logger.warning("BupaR plots dir missing after R run: %s", plots_dir)
+            # Deploy check: verify expected visualization and feature paths
+            features_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "features"
+            miss_req, miss_opt, found_list = check_bupar_paths(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger)
+            if miss_req:
+                logger.warning("BupaR missing required paths (dashboard may show gaps): %s", ", ".join(miss_req))
+            logger.info("BupaR path check: %d found, %d required missing, %d optional missing", len(found_list), len(miss_req), len(miss_opt))
             return True
         except subprocess.CalledProcessError as exc:
             logger.error("BupaR outputs script failed (returncode=%s)", exc.returncode)
@@ -270,6 +257,141 @@ def create_bupar_outputs(
 
 ALLOWED_CODES_S3_BUCKET = os.environ.get("PGX_S3_BUCKET", "pgxdatalake")
 ALLOWED_CODES_S3_PREFIX = "gold/bupar/allowed_codes"
+
+# Expected BupaR outputs for deploy/check. Filenames use cohort and age_band_fname (underscore).
+# Required: at least one PNG and the three activity-frequency JSONs for dashboard charts.
+# Optional: type-pair process matrices, frequency_map, trace_explorer post, etc.
+def _bupar_expected_plots(cohort_name: str, age_band_fname: str):
+    """Return (filename, required) for plots_dir. Filenames only (no path)."""
+    pre = "pre_f1120" if cohort_name == "opioid_ed" else "pre_hcg"
+    post = "post_f1120" if cohort_name == "opioid_ed" else "post_hcg"
+    base = f"{cohort_name}_{age_band_fname}"
+    return [
+        (f"{base}_overall_activity_frequency.png", True),
+        (f"{base}_activity_frequency_interactive.html", True),
+        (f"{base}_activity_frequency.json", True),
+        (f"{base}_pre_target_activity_frequency.json", True),
+        (f"{base}_{pre}_activity_frequency.png", True),
+        (f"{base}_process_matrix.png", True),
+        (f"{base}_trace_explorer_{pre}.png", True),
+        (f"{base}_trace_explorer_interactive.html", True),
+        (f"{base}_post_target_activity_frequency.json", False),
+        (f"{base}_{post}_activity_frequency.png", False),
+        (f"{base}_trace_explorer_{post}.png", False),
+        (f"{base}_trace_explorer_{post}_interactive.html", False),
+        (f"{base}_frequency_map.png", False),
+        (f"{base}_activity_sequence_top.png", False),
+        (f"{base}_trace_explorer.png", False),
+        (f"{base}_process_matrix_interactive.html", False),
+    ]
+
+
+def _bupar_expected_feature_csv_patterns(cohort_name: str, age_band_fname: str):
+    """Return expected CSV basenames in features/ (optional)."""
+    pre = "pre_f1120" if cohort_name == "opioid_ed" else "pre_hcg"
+    base = f"{cohort_name}_{age_band_fname}"
+    return [
+        f"{base}_train_target_traces_bupar.csv",
+        f"{base}_train_target_traces_top_bupar.csv",
+        f"{base}_train_target_traces_rare_bupar.csv",
+        f"{base}_train_target_{pre}_traces_bupar.csv",
+        f"{base}_train_target_{pre}_traces_top_bupar.csv",
+        f"{base}_train_target_{pre}_traces_rare_bupar.csv",
+        f"{base}_train_target_{pre}_patient_features_bupar.csv",
+        f"{base}_train_target_time_to_f1120_features_bupar.csv" if cohort_name == "opioid_ed" else f"{base}_train_target_time_to_hcg_features_bupar.csv",
+    ]
+
+
+def check_bupar_paths(
+    plots_dir: Path,
+    features_dir: Path,
+    cohort_name: str,
+    age_band_fname: str,
+    logger=None,
+):
+    """
+    Verify expected BupaR visualization and feature paths exist.
+    Returns (missing_required, missing_optional, found).
+    """
+    missing_required = []
+    missing_optional = []
+    found = []
+    expected = _bupar_expected_plots(cohort_name, age_band_fname)
+    found_rel = set()
+    for filename, required in expected:
+        path = plots_dir / filename
+        if path.exists() and path.is_file():
+            found.append("plots/" + filename)
+            found_rel.add(filename)
+        else:
+            if required:
+                missing_required.append("plots/" + filename)
+            else:
+                missing_optional.append("plots/" + filename)
+    # Count other files under plots (e.g. lib/, type-pair PNGs) as found
+    for p in plots_dir.rglob("*"):
+        if p.is_file() and p.suffix in (".png", ".html", ".json", ".css", ".js"):
+            rel = p.relative_to(plots_dir).as_posix()
+            if rel not in found_rel:
+                found.append("plots/" + rel)
+                found_rel.add(rel)
+    # Feature CSVs (all optional for dashboard deploy)
+    for basename in _bupar_expected_feature_csv_patterns(cohort_name, age_band_fname):
+        path = features_dir / basename
+        if path.exists() and path.is_file():
+            found.append(f"features/{basename}")
+        else:
+            missing_optional.append(f"features/{basename}")
+    if logger:
+        if missing_required:
+            logger.warning("BupaR missing required: %s", ", ".join(missing_required))
+        if missing_optional:
+            logger.debug("BupaR missing optional: %s", ", ".join(missing_optional))
+        logger.info("BupaR path check: %d found, %d required missing, %d optional missing", len(found), len(missing_required), len(missing_optional))
+    return missing_required, missing_optional, found
+
+
+def export_bupar_feature_csvs_to_json(
+    plots_dir: Path,
+    features_dir: Path,
+    cohort_name: str,
+    age_band_fname: str,
+    logger=None,
+):
+    """
+    Export key BupaR feature CSVs to JSON in plots_dir so they are uploaded with plots
+    and can be served as JSON by the API if needed. Returns number of JSON files written.
+    """
+    import csv as csv_module
+    base = f"{cohort_name}_{age_band_fname}"
+    csv_to_json = [
+        (f"{base}_train_target_traces_top_bupar.csv", f"{base}_traces_top.json"),
+        (f"{base}_train_target_traces_rare_bupar.csv", f"{base}_traces_rare.json"),
+        (f"{base}_train_target_traces_bupar.csv", f"{base}_traces.json"),
+    ]
+    pre = "pre_f1120" if cohort_name == "opioid_ed" else "pre_hcg"
+    csv_to_json.extend([
+        (f"{base}_train_target_{pre}_traces_top_bupar.csv", f"{base}_pre_target_traces_top.json"),
+        (f"{base}_train_target_{pre}_traces_rare_bupar.csv", f"{base}_pre_target_traces_rare.json"),
+    ])
+    written = 0
+    for csv_basename, json_basename in csv_to_json:
+        csv_path = features_dir / csv_basename
+        json_path = plots_dir / json_basename
+        if not csv_path.exists() or not csv_path.is_file():
+            continue
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                rows = list(csv_module.DictReader(f))
+            with open(json_path, "w", encoding="utf-8") as out:
+                json.dump(rows, out, indent=2)
+            written += 1
+            if logger:
+                logger.debug("Exported %s -> %s", csv_basename, json_basename)
+        except Exception as e:
+            if logger:
+                logger.warning("CSV to JSON failed for %s: %s", csv_basename, e)
+    return written
 
 
 def _upload_allowed_codes_to_s3(allowed_path: Path, logger: logging.Logger) -> None:
@@ -344,6 +466,7 @@ def create_bupar_visuals(
     age_band: str,
     force: bool = False,
     local_test: bool = False,
+    export_csv_to_json: bool = False,
 ) -> bool:
     """
     Create BupaR visuals for the dashboard: outputs and plot upload only.
@@ -389,6 +512,12 @@ def create_bupar_visuals(
             return False
 
         if not local_test:
+            # Optional: export feature CSVs to JSON in plots/ so they upload and can be served as JSON
+            if export_csv_to_json:
+                features_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "features"
+                n = export_bupar_feature_csvs_to_json(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger.logger)
+                if n:
+                    logger.logger.info("Exported %s BupaR feature CSV(s) to JSON in plots/", n)
             upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger.logger)
         else:
             logger.info("Local test: skipping S3 upload")
@@ -426,8 +555,30 @@ if __name__ == "__main__":
         action="store_true",
         help="One age-band local test: skip SHAP/FFA allowed codes (use all codes); only model data required",
     )
+    parser.add_argument(
+        "--export-csv-to-json",
+        action="store_true",
+        help="Export key feature CSVs to JSON in plots/ (traces_top, traces_rare, etc.) so they upload with plots and can be served as JSON",
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Only run path check for existing outputs (no R, no upload). Exit 0 if no required paths missing.",
+    )
 
     args = parser.parse_args()
+
+    if args.check_only:
+        age_band_fname = args.age_band.replace("-", "_")
+        plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / args.cohort_name / age_band_fname / "plots"
+        features_dir = DASHBOARD_BUPAR_OUT / "outputs" / args.cohort_name / age_band_fname / "features"
+        miss_req, miss_opt, found_list = check_bupar_paths(plots_dir, features_dir, args.cohort_name, age_band_fname)
+        print(f"BupaR path check: {len(found_list)} found, {len(miss_req)} required missing, {len(miss_opt)} optional missing")
+        if miss_req:
+            print("Missing required:", ", ".join(miss_req))
+        if miss_opt:
+            print("Missing optional:", ", ".join(miss_opt))
+        sys.exit(0 if not miss_req else 1)
 
     with module_block("5_bupar"):
         success = create_bupar_visuals(
@@ -435,6 +586,7 @@ if __name__ == "__main__":
             age_band=args.age_band,
             force=args.force,
             local_test=args.local_test,
+            export_csv_to_json=args.export_csv_to_json,
         )
 
     sys.exit(0 if success else 1)

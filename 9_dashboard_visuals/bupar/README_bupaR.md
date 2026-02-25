@@ -77,9 +77,20 @@ This directory contains scripts to run process-mining analysis on cohort traject
 
 **Generating all outputs:** Run the full dashboard visuals pipeline for all cohort/age_band combinations (e.g. `python 9_dashboard_visuals/run_dashboard_visuals.py` or the BupaR step in `4_dashboard_visuals.ipynb`) to produce every visual, including type-pair process matrices. The dashboard lets users choose which visuals to show per research question (cohort).
 
-**Not produced:** overall trace_explorer.png, process_matrix png/html, post-F1120 visuals (opioid_ed), activity_sequence_top.png. Interactive HTMLs use external deps in `plots/lib/`; upload/sync must include the full `plots/` tree.
+**Produced by this pipeline:** process_matrix.png, process_matrix_{pair}.png, frequency_map.png (when `processmapR::export_map` is available), trace_explorer_pre_*.png, trace_explorer_interactive.html, and for opioid_ed: trace_explorer_post_f1120.png, trace_explorer_post_f1120_interactive.html, post_f1120_activity_frequency.png (non_opioid_ed: post_hcg variants). **Not produced:** overall trace_explorer.png (single PNG for “top 20” without pre/post), process_matrix_interactive.html, activity_sequence_top.png. Interactive HTMLs use external deps in `plots/lib/`; upload/sync must include the full `plots/` tree.
 
 **Activity frequency (implemented):** Pipeline exports **overall**, **pre-target**, and **post-target** activity frequency as JSON (`*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json`) to the plots dir; uploaded to S3. Lambda `GET /visualizations/bupar/activity_frequency?cohort=&age_band=` returns all three; frontend renders three bar charts (Chart.js) with year filter. No HTML/iframe for these.
+
+### JSON vs PNG/JPEG (prefer JSON for dashboard visuals)
+
+| Data | JSON available | PNG/JPEG | Dashboard preference |
+|------|----------------|----------|----------------------|
+| Activity frequency (overall, pre-target, post-target) | Yes: `*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json` | Yes: `*_overall_activity_frequency.png`, `*_pre_f1120_activity_frequency.png`, etc. | **JSON** — frontend fetches JSON and renders Chart.js bar charts (year filter, interactive). |
+| Traces (top/rare, pre-target) | Yes (optional): with `--export-csv-to-json`, `*_traces_top.json`, `*_traces_rare.json`, `*_pre_target_traces_top.json`, `*_pre_target_traces_rare.json` in `plots/` | No | **JSON** when exported; API can serve these for future visualizations. |
+| Process matrix, trace explorer, frequency map | No | Yes: `*_process_matrix.png`, `*_trace_explorer_*.png`, `*_frequency_map.png` | **PNG** (or interactive HTML when available). Use JSON when the pipeline adds it. |
+| Sequence-to-target image | No | Yes: `*_activity_sequence_top.png` (if produced) | PNG only. |
+
+**Rule:** Prefer JSON over static images where JSON exists so the dashboard can render flexible, interactive visuals (e.g. Chart.js, Plotly) instead of fixed PNGs.
 
 **Patient-level metrics** are not displayed in the current dashboard. They are produced for a **follow-on project** (e.g. on-demand patient-level trace/process-matrix views or API). Outputs include:
 

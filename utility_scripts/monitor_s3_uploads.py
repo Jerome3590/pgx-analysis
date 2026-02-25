@@ -59,17 +59,21 @@ except ImportError:
 S3_DASHBOARD_BUCKET = "jerome-dixon.io"  # Update to your dashboard bucket
 S3_DASHBOARD_PREFIX = "vcu/pgx-risk-calculator"
 
-# Visualization types and expected files
+# Visualization types and expected files (age_band in filenames uses underscore, e.g. 25_44)
 VIZ_TYPES = {
     "bupar": {
         "prefix": "bupar",
         "files": [
+            "{cohort}_{age_band}_overall_activity_frequency.png",
             "{cohort}_{age_band}_activity_frequency_interactive.html",
+            "{cohort}_{age_band}_activity_frequency.json",
+            "{cohort}_{age_band}_pre_target_activity_frequency.json",
+            "{cohort}_{age_band}_post_target_activity_frequency.json",
+            "{cohort}_{age_band}_process_matrix.png",
             "{cohort}_{age_band}_trace_explorer_interactive.html",
-            "{cohort}_{age_band}_process_matrix_interactive.html",
-            "{cohort}_{age_band}_activity_frequency.png",
-            "{cohort}_{age_band}_trace_explorer.png",
-            "{cohort}_{age_band}_process_matrix.png"
+            "{cohort}_{age_band}_trace_explorer_pre_f1120.png",
+            "{cohort}_{age_band}_trace_explorer_pre_hcg.png",
+            "{cohort}_{age_band}_frequency_map.png",
         ]
     },
     "dtw": {

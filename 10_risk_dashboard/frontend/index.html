@@ -2422,8 +2422,15 @@
       const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      // Chart data is prebuilt on EC2 and saved to S3; fetch from chart_data_url for direct integration
-      if (data.chart_data_url) {
+      // Prefer JSON inline (from Lambda) over fetching URLs; fall back to chart_data_url / sequence_heatmap_url when inline missing
+      if (data.chart_data) {
+        const chartData = data.chart_data;
+        if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+        if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+        if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+        if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+        if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+      } else if (data.chart_data_url) {
         try {
           const chartResp = await fetch(data.chart_data_url);
           if (chartResp.ok) {
@@ -2436,7 +2443,7 @@
           }
         } catch (_) { /* chart_data.json optional */ }
       }
-      if (data.sequence_heatmap_url) {
+      if (!data.sequence_heatmap && data.sequence_heatmap_url) {
         try {
           const hmResp = await fetch(data.sequence_heatmap_url);
           if (hmResp.ok) data.sequence_heatmap = await hmResp.json();
@@ -2526,6 +2533,7 @@
       const data = await urlResp.json();
       const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
       renderBupaRVisualizations(data, selected.length ? selected : undefined);
+      // Prefer JSON over PNG for activity frequency: render Chart.js from JSON (flexible); fallback message if JSON missing
       if (freqResp.ok) {
         const freqData = await freqResp.json();
         renderBupaRActivityFrequencyCharts(freqData);
@@ -2587,6 +2595,7 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
+      // Prefer JSON over PNG: use heatmap_data for Plotly when available, else fall back to heatmap_url image
       if (data.heatmap_data) {
         renderFIHeatmapFromData(data.heatmap_data);
         document.getElementById("fi-status").textContent = "Feature importance heatmap loaded.";
@@ -2712,16 +2721,26 @@
 
   const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
   function renderDTWVisualizations(data) {
-    // Render DTW overview image
-    if (data.overview_image) {
-      document.getElementById("dtw-overview-image").innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+    // Render DTW overview image (only when URL returned; prefer JSON for charts below)
+    const overviewEl = document.getElementById("dtw-overview-image");
+    if (overviewEl) {
+      if (data.overview_image) {
+        overviewEl.innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+      } else {
+        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory overview not available. Run create_dtw_visuals (after create_dtw_features) and upload plots to dashboard S3.</p>';
+      }
     }
-    // Render sample trajectories image
-    if (data.sample_trajectories_image) {
-      document.getElementById("dtw-sample-trajectories-image").innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+    const sampleEl = document.getElementById("dtw-sample-trajectories-image");
+    if (sampleEl) {
+      if (data.sample_trajectories_image) {
+        sampleEl.innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+      } else {
+        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">Sample trajectories not available. Run create_dtw_visuals and upload plots to dashboard S3.</p>';
+      }
     }
-    // Render trajectory metrics chart
-    if (data.metrics) {
+    // Render trajectory metrics chart (prefer JSON: metrics from API or derived from chart_data)
+    const metricsContainer = document.getElementById('dtw-metrics-chart');
+    if (metricsContainer && data.metrics && Object.keys(data.metrics).length > 0) {
       const trace = {
         x: Object.keys(data.metrics),
         y: Object.values(data.metrics),
@@ -2733,6 +2752,8 @@
         xaxis: { title: 'Metric' },
         yaxis: { title: 'Value' }
       }, { responsive: true });
+    } else if (metricsContainer) {
+      metricsContainer.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory metrics will appear here when chart_data.json is available (run create_dtw_visuals after create_dtw_features).</p>';
     }
 
     // Gap 1: Routine vs no routine (outcomes)

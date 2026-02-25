@@ -72,6 +72,17 @@ _cache_timestamps: Dict[str, float] = {}
 s3_client = boto3.client("s3")
 
 
+def _s3_object_exists(bucket: str, key: str) -> bool:
+    """Return True if the S3 object exists (HEAD)."""
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey"):
+            return False
+        raise
+
+
 def _cors_headers() -> Dict[str, str]:
     """CORS headers so browser allows fetch from S3/dashboard origin."""
     return {
@@ -1326,9 +1337,10 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     GET /visualizations/dtw?cohort=...&age_band=...
 
-    Returns only URLs to prebuilt DTW assets. All DTW visuals are prebuilt on EC2 and saved to the
-    dashboard bucket (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/dtw/{cohort}/{age_band}/ for
-    direct dashboard integration. No computation at request time.
+    Prefer JSON: fetches chart_data.json and sequence_heatmap.json from S3 when present and returns
+    them inline (chart_data, sequence_heatmap) so the frontend can render without a second request
+    and works even when bucket is not public. Also returns chart_data_url and sequence_heatmap_url
+    for fallback. Overview/sample images: only included if objects exist (HEAD check).
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1342,14 +1354,53 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/dtw/{cohort}/{age_band}"
         plots_key = f"{prefix}/plots"
+        bucket = S3_DASHBOARD_BUCKET
+
         payload = {
-            "overview_image": f"{base_url}/{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png",
-            "overview_interactive": f"{base_url}/{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html",
-            "sample_trajectories_image": f"{base_url}/{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png",
             "chart_data_url": f"{base_url}/{prefix}/chart_data.json",
             "sequence_heatmap_url": f"{base_url}/{prefix}/sequence_heatmap.json",
             "metrics": {},
         }
+
+        # Prefer JSON: load chart_data and sequence_heatmap from S3 when present (one round-trip, works without public read)
+        for key, s3_key in [
+            ("chart_data", f"{prefix}/chart_data.json"),
+            ("sequence_heatmap", f"{prefix}/sequence_heatmap.json"),
+        ]:
+            try:
+                obj = s3_client.get_object(Bucket=bucket, Key=s3_key)
+                data = json.loads(obj["Body"].read().decode("utf-8"))
+                payload[key] = data
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404"):
+                    raise
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Optional: simple metrics from chart_data for Trajectory Metrics panel
+        if payload.get("chart_data"):
+            cd = payload["chart_data"]
+            metrics = {}
+            if cd.get("routine_comparison") and cd["routine_comparison"].get("y"):
+                metrics["routine_comparison_series"] = len(cd["routine_comparison"]["y"])
+            if cd.get("times_between_sequences") and cd["times_between_sequences"].get("y"):
+                metrics["times_between_categories"] = len(cd["times_between_sequences"]["y"])
+            if cd.get("target_pathway_patterns") and cd["target_pathway_patterns"].get("y"):
+                metrics["target_pathway_codes"] = len(cd["target_pathway_patterns"]["y"])
+            if metrics:
+                payload["metrics"] = metrics
+
+        # Only return image URLs for assets that exist (avoid broken image when pipeline not run)
+        overview_key = f"{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png"
+        sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"
+        overview_html_key = f"{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html"
+        if _s3_object_exists(bucket, overview_key):
+            payload["overview_image"] = f"{base_url}/{overview_key}"
+        if _s3_object_exists(bucket, sample_key):
+            payload["sample_trajectories_image"] = f"{base_url}/{sample_key}"
+        if _s3_object_exists(bucket, overview_html_key):
+            payload["overview_interactive"] = f"{base_url}/{overview_html_key}"
+
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
@@ -1414,8 +1465,8 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/feature_importance?cohort=...&model=...
-    Returns heatmap_data (same JSON: row_labels, column_labels, matrix) for client Plotly.
-    Optional model: aggregated (default), catboost, xgboost, xgboost_rf.
+    Prefer JSON over PNG: returns heatmap_data (row_labels, column_labels, matrix) when available for
+    client Plotly; frontend uses heatmap_data first, falls back to heatmap_url (PNG) if no JSON.
     S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json or {model}_fi_heatmap.json.
     """
     try:
@@ -1461,6 +1512,7 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
     """GET /visualizations/bupar/activity_frequency?cohort=...&age_band=...
     Returns JSON: { overall, pre_target, post_target } each { year_labels, data } for dashboard bar charts.
     Pipeline writes activity_frequency.json, pre_target_activity_frequency.json, post_target_activity_frequency.json to S3.
+    Prefer JSON over PNG for these visuals: frontend renders Chart.js from this endpoint instead of static images.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1494,39 +1546,44 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
 
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
-    Returns HTTPS URLs for BupaR plots from the dashboard bucket (S3_DASHBOARD_BUCKET)
-    under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/. Uploaded by create_bupar_visuals.py.
+    Returns HTTPS URLs only for BupaR plot objects that exist in S3 (HEAD check).
+    Dashboard bucket: S3_DASHBOARD_BUCKET under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        
+
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
-        
+
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         base_url = f"https://{S3_DASHBOARD_BUCKET}.s3.amazonaws.com"
-        # Pre/post trace explorer filenames differ by cohort (opioid_ed: f1120, non_opioid_ed: hcg)
         pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
-        # Pre-target only; no Gantt (time info from DTW). Post-target for EDA/leakage may add later.
-        payload = {
-            "activity_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_overall_activity_frequency.png",
-            "activity_frequency_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_frequency_interactive.html",
-            "pre_target_frequency_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_{pre_suffix}_activity_frequency.png",
-            "sequence_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_activity_sequence_top.png",
-            "trace_explorer_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer.png",
-            "trace_explorer_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_interactive.html",
-            "trace_explorer_pre_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_trace_explorer_{pre_suffix}.png",
-            "process_matrix_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix.png",
-            "process_matrix_interactive": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix_interactive.html",
-            "frequency_map_image": f"{base_url}/{base_key}/{cohort}_{age_band_fname}_frequency_map.png",
-        }
-        # Type-pair process matrices (optional; only present if R pipeline generated them)
+        base = f"{cohort}_{age_band_fname}"
+
+        # Candidate keys: payload_key -> S3 object key (only include in response if object exists)
+        candidates: List[Tuple[str, str]] = [
+            ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
+            ("activity_frequency_interactive", f"{base_key}/{base}_activity_frequency_interactive.html"),
+            ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
+            ("sequence_image", f"{base_key}/{base}_activity_sequence_top.png"),
+            ("trace_explorer_image", f"{base_key}/{base}_trace_explorer.png"),
+            ("trace_explorer_interactive", f"{base_key}/{base}_trace_explorer_interactive.html"),
+            ("trace_explorer_pre_image", f"{base_key}/{base}_trace_explorer_{pre_suffix}.png"),
+            ("process_matrix_image", f"{base_key}/{base}_process_matrix.png"),
+            ("process_matrix_interactive", f"{base_key}/{base}_process_matrix_interactive.html"),
+            ("frequency_map_image", f"{base_key}/{base}_frequency_map.png"),
+        ]
         for pair in ("drug_drug", "drug_icd", "drug_cpt", "icd_icd", "icd_drug", "icd_cpt", "cpt_cpt", "cpt_drug", "cpt_icd"):
-            payload[f"process_matrix_{pair}"] = f"{base_url}/{base_key}/{cohort}_{age_band_fname}_process_matrix_{pair}.png"
+            candidates.append((f"process_matrix_{pair}", f"{base_key}/{base}_process_matrix_{pair}.png"))
+
+        payload: Dict[str, str] = {}
+        for payload_key, s3_key in candidates:
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
+                payload[payload_key] = f"{base_url}/{s3_key}"
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})
