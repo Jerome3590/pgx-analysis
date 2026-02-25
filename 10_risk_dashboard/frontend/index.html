@@ -987,6 +987,7 @@
         <div class="panel full-width">
           <h2>Aggregated Feature Importance by Age Band</h2>
           <div id="fi-heatmap-container">
+            <div id="fi-heatmap-chart" style="display: none; width: 100%; min-height: 400px;"></div>
             <img id="fi-heatmap-image" alt="Aggregated feature importance heatmap" style="max-width: 100%; height: auto;" />
           </div>
         </div>
@@ -2467,11 +2468,35 @@
     }
   });
 
-  // Feature Importance Visualizations Tab (aggregated heatmaps from Step 3a)
+  // Feature Importance Visualizations Tab (aggregated heatmaps from Step 3a: JSON + Plotly or PNG fallback)
   const fiHeatmapImg = document.getElementById("fi-heatmap-image");
+  const fiHeatmapChart = document.getElementById("fi-heatmap-chart");
   const fiCombinedImg = document.getElementById("fi-combined-image");
   if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
+  if (fiHeatmapChart) fiHeatmapChart.style.display = "none";
   if (fiCombinedImg) fiCombinedImg.style.display = "none";
+
+  function renderFIHeatmapFromData(heatmapData) {
+    if (!fiHeatmapChart || !window.Plotly || !heatmapData || !heatmapData.row_labels || !heatmapData.column_labels || !heatmapData.matrix) return;
+    const trace = {
+      z: heatmapData.matrix,
+      x: heatmapData.column_labels,
+      y: heatmapData.row_labels,
+      type: "heatmap",
+      colorscale: "YlOrRd",
+      hovertemplate: "%{y} | %{x}: %{z:.3f}<extra></extra>"
+    };
+    Plotly.newPlot(fiHeatmapChart, [trace], {
+      title: "Aggregated Feature Importance by Age Band — " + (heatmapData.cohort || ""),
+      xaxis: { title: "Age Band", tickangle: -45 },
+      yaxis: { title: "Feature", autorange: "reversed" },
+      margin: { t: 50, r: 120, b: 80, l: 200 },
+      height: Math.max(400, heatmapData.row_labels.length * 14)
+    }, { responsive: true });
+    fiHeatmapChart.style.display = "block";
+    if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
+  }
+
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
     if (!cohort) {
@@ -2481,22 +2506,33 @@
     }
     document.getElementById("fi-status").textContent = "Loading feature importance heatmaps...";
     document.getElementById("fi-status").className = "status-message info";
+    if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
+    if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
     try {
       const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      if (data.heatmap_url) {
+
+      if (data.heatmap_data) {
+        renderFIHeatmapFromData(data.heatmap_data);
+        document.getElementById("fi-status").textContent = "Feature importance heatmap loaded.";
+        document.getElementById("fi-status").className = "status-message success";
+      } else if (data.heatmap_url) {
         fiHeatmapImg.src = data.heatmap_url;
         fiHeatmapImg.style.display = "block";
-        fiHeatmapImg.onerror = () => { document.getElementById("fi-status").textContent = "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket."; document.getElementById("fi-status").className = "status-message error"; };
+        fiHeatmapImg.onerror = () => { document.getElementById("fi-status").textContent = "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png or run pipeline to generate JSON."; document.getElementById("fi-status").className = "status-message error"; };
+        document.getElementById("fi-status").textContent = "Feature importance heatmaps loaded (image).";
+        document.getElementById("fi-status").className = "status-message success";
+      } else {
+        document.getElementById("fi-status").textContent = "No heatmap data for this cohort. Run Step 3a / 4_dashboard_visuals to generate.";
+        document.getElementById("fi-status").className = "status-message error";
       }
+
       if (data.combined_url) {
         fiCombinedImg.src = data.combined_url;
         fiCombinedImg.style.display = "block";
-        fiCombinedImg.onerror = () => { document.getElementById("fi-status").textContent = "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket."; document.getElementById("fi-status").className = "status-message error"; };
+        fiCombinedImg.onerror = () => { document.getElementById("fi-status").textContent = "Combined heatmap image not found."; document.getElementById("fi-status").className = "status-message error"; };
       }
-      document.getElementById("fi-status").textContent = "Feature importance heatmaps loaded (if images 404, upload them to the dashboard bucket).";
-      document.getElementById("fi-status").className = "status-message success";
     } catch (err) {
       document.getElementById("fi-status").textContent = `Error: ${err.message}`;
       document.getElementById("fi-status").className = "status-message error";
