@@ -212,8 +212,7 @@ def _network_combined_plotly_with_filter(
     max_nodes: int = 80,
 ) -> Optional[Path]:
     """
-    Build one Plotly network with nodes colored by type (drug_name, icd_code, cpt_code)
-    and a dropdown to filter by type: All | Drug | ICD | CPT.
+    Build one Plotly network for drug association rules (drug only; no type filter UI).
     """
     if not PLOTLY_AVAILABLE or G is None or G.number_of_edges() == 0:
         return None
@@ -224,160 +223,68 @@ def _network_combined_plotly_with_filter(
     pos = nx.spring_layout(G, seed=42, k=0.6, iterations=50)
     centrality = nx.degree_centrality(G)
 
-    # Group nodes and edges by type(s) for filter
-    nodes_by_type: Dict[str, List[str]] = {t: [] for t in FPGROWTH_GRAPH_ITEM_TYPES}
-    for n in G.nodes():
-        t = G.nodes[n].get("node_type", "drug_name")
-        if t in nodes_by_type:
-            nodes_by_type[t].append(n)
-    edges_by_type_pair: Dict[tuple, List[tuple]] = {}
-    for u, v in G.edges():
-        tu = G.nodes[u].get("node_type", "drug_name")
-        tv = G.nodes[v].get("node_type", "drug_name")
-        key = (tu, tv)
-        edges_by_type_pair.setdefault(key, []).append((u, v))
-
-    # One node trace per type (for filter visibility)
-    node_traces = []
-    for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
-        nodes = nodes_by_type.get(item_type, [])
-        if not nodes:
-            continue
-        node_x = [pos[n][0] for n in nodes]
-        node_y = [pos[n][1] for n in nodes]
-        node_sizes = [15 + 35 * centrality.get(n, 0.0) for n in nodes]
-        labels = [G.nodes[n].get("display_label", n.split("::", 1)[-1]) for n in nodes]
-        hover = [
-            f"<b>{ITEM_TYPE_LABELS.get(item_type, item_type)}:</b> {lb}<br>"
-            f"<b>Centrality:</b> {centrality.get(n, 0):.4f}"
-            for n, lb in zip(nodes, labels)
-        ]
-        node_traces.append(
-            go.Scatter(
-                x=node_x,
-                y=node_y,
-                mode="markers+text",
-                text=labels,
-                textposition="top center",
-                textfont=dict(size=9),
-                marker=dict(
-                    size=node_sizes,
-                    color=ITEM_TYPE_COLORS.get(item_type, "#94a3b8"),
-                    line=dict(width=1, color="#1e293b"),
-                ),
-                hoverinfo="text",
-                hovertext=hover,
-                name=ITEM_TYPE_LABELS.get(item_type, item_type),
-                legendgrouptitle=dict(text="Filter by type"),
-            )
-        )
-
-    # One edge trace per edge so width can be based on support (frequency)
-    # Width = 0.5 + 6*support, clamped to [0.5, 4]
-    edge_traces = []
-    edge_trace_type: List[tuple] = []  # (tu, tv) per trace for filter
-    for (tu, tv), pairs in edges_by_type_pair.items():
-        for u, v in pairs:
-            support = G[u][v].get("support", 0.0) or 0.0
-            width = max(0.5, min(4.0, 0.5 + 6.0 * support))
-            x0, y0 = pos[u]
-            x1, y1 = pos[v]
-            edge_traces.append(
-                go.Scatter(
-                    x=[x0, x1, None],
-                    y=[y0, y1, None],
-                    line=dict(width=width, color="#94a3b8"),
-                    hoverinfo="text",
-                    hovertext=f"Support: {support:.3f}",
-                    mode="lines",
-                    name=f"{ITEM_TYPE_LABELS.get(tu, tu)} → {ITEM_TYPE_LABELS.get(tv, tv)}",
-                    showlegend=False,
-                )
-            )
-            edge_trace_type.append((tu, tv))
-
-    all_traces = edge_traces + node_traces
-    n_edge_traces = len(edge_traces)
-    n_node_traces = len(node_traces)
-    type_to_node_idx = {FPGROWTH_GRAPH_ITEM_TYPES[i]: i for i in range(n_node_traces) if i < len(FPGROWTH_GRAPH_ITEM_TYPES)}
-    # Which edge traces belong to which (tu, tv) for filter
-    type_to_edge_indices: Dict[tuple, List[int]] = {}
-    for i, tt in enumerate(edge_trace_type):
-        type_to_edge_indices.setdefault(tt, []).append(i)
-
-    # Dropdown: All, Drug, ICD, CPT
-    buttons = [
-        dict(
-            label="All",
-            method="update",
-            args=[
-                {"visible": [True] * len(all_traces)},
-                {"title": f"{cohort_name} {age_band} — Association rules (All types)"},
-            ],
-        )
+    nodes = list(G.nodes())
+    node_x = [pos[n][0] for n in nodes]
+    node_y = [pos[n][1] for n in nodes]
+    node_sizes = [15 + 35 * centrality.get(n, 0.0) for n in nodes]
+    labels = [G.nodes[n].get("display_label", n.split("::", 1)[-1]) for n in nodes]
+    hover = [
+        f"<b>Drug:</b> {lb}<br><b>Centrality:</b> {centrality.get(n, 0):.4f}"
+        for n, lb in zip(nodes, labels)
     ]
-    for item_type in FPGROWTH_GRAPH_ITEM_TYPES:
-        if item_type not in type_to_node_idx:
-            continue
-        vis = [False] * len(all_traces)
-        ni = type_to_node_idx[item_type]
-        vis[n_edge_traces + ni] = True
-        for ei in type_to_edge_indices.get((item_type, item_type), []):
-            vis[ei] = True
-        buttons.append(
-            dict(
-                label=ITEM_TYPE_LABELS.get(item_type, item_type),
-                method="update",
-                args=[
-                    {"visible": vis},
-                    {"title": f"{cohort_name} {age_band} — Association rules ({ITEM_TYPE_LABELS.get(item_type, item_type)} only)"},
-                ],
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode="markers+text",
+        text=labels,
+        textposition="top center",
+        textfont=dict(size=9),
+        marker=dict(
+            size=node_sizes,
+            color=ITEM_TYPE_COLORS.get("drug_name", "#3b82f6"),
+            line=dict(width=1, color="#1e293b"),
+        ),
+        hoverinfo="text",
+        hovertext=hover,
+        name="Drug",
+        showlegend=True,
+    )
+
+    edge_traces = []
+    for u, v in G.edges():
+        support = G[u][v].get("support", 0.0) or 0.0
+        width = max(0.5, min(4.0, 0.5 + 6.0 * support))
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+        edge_traces.append(
+            go.Scatter(
+                x=[x0, x1, None],
+                y=[y0, y1, None],
+                line=dict(width=width, color="#94a3b8"),
+                hoverinfo="text",
+                hovertext=f"Support: {support:.3f}",
+                mode="lines",
+                showlegend=False,
             )
         )
 
+    all_traces = edge_traces + [node_trace]
     layout = go.Layout(
-        title=f"{cohort_name} {age_band} — Association rules (All types)",
+        title=f"{cohort_name} {age_band} — Drug association rules",
         showlegend=True,
-        legend=dict(orientation="h", y=1.12, xanchor="center", x=0.5),
+        legend=dict(orientation="h", y=1.05, xanchor="center", x=0.5),
         hovermode="closest",
-        updatemenus=[
-            dict(
-                buttons=buttons,
-                direction="down",
-                pad={"r": 10, "t": 10},
-                showactive=True,
-                x=0.15,
-                xanchor="left",
-                y=1.18,
-                yanchor="top",
-                bgcolor="rgba(255,255,255,0.9)",
-                bordercolor="#888",
-                borderwidth=1,
-            )
-        ],
-        annotations=[
-            dict(
-                text="<b>Filter by type:</b>",
-                showarrow=False,
-                x=0.02,
-                y=1.18,
-                xref="paper",
-                yref="paper",
-                align="left",
-                font=dict(size=12),
-            )
-        ],
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         height=800,
-        margin=dict(l=20, r=20, t=100, b=20),
+        margin=dict(l=20, r=20, t=80, b=20),
     )
     fig = go.Figure(data=all_traces, layout=layout)
     out_path = output_dir / f"{cohort_name}_{age_band.replace('-', '_')}_combined_rules_network.html"
     _ensure_output_dir(output_dir)
     write_plotly_html_for_production(fig, out_path)
     if logger:
-        logger.info("Saved combined rules network (filter by type) to %s", out_path)
+        logger.info("Saved combined rules network (drug) to %s", out_path)
     return out_path
 
 

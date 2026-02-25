@@ -2,7 +2,7 @@
 
 ## Overview
 
-Lambda receives **user input** (cohort, age_band, model/feature selections) and **filters** only—it does not process or generate visualization data. All visuals are prebuilt on EC2 and saved to S3; Lambda returns URLs to those prebuilt assets. Risk inference uses the ensemble with user-provided features; visualization endpoints return prebuilt S3 URLs filtered by cohort/age_band. No analytics or chart building runs in Lambda.
+Lambda receives **user input** (cohort, age_band, model/feature selections) and **filters** only—it does not process or generate visualization data. All visuals are prebuilt on EC2 and saved to S3. **Visualization pattern:** We prefer **JSON** where possible: Lambda loads JSON from S3 and returns it inline so the frontend can render with Plotly; when JSON is missing, Lambda returns prebuilt S3 URLs (image/HTML). Network plots (FP-Growth, PGx Cohort) are HTML only. See `10_risk_dashboard/docs/VISUALIZATION_DATA_PATTERN.md`. Risk inference uses the ensemble with user-provided features; no analytics or chart building runs in Lambda.
 
 ## Files
 
@@ -35,25 +35,33 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
 
 ### Visualization Endpoints (filter only; return prebuilt S3 URLs)
 
-- **`GET /visualizations/causal`** - Return causal/SHAP data filtered by user selection
-  - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts` to filter to selected codes
-  - Returns: Prebuilt causal factors and SHAP importance (filtered when codes provided)
+- **`GET /visualizations/causal`** - Return causal/SHAP data (same pattern as Feature Importance: load JSON, optional Lambda processing)
+  - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts`, `whatif` (comma-separated codes) to filter
+  - Returns: `causal_data` (raw from S3), `chart_data` (Lambda-built: causal_factors, shap_importance, causal_factors_whatif, shap_importance_whatif, feature_interactions when present) for bar charts, radar, and drug/feature interactions
 
-- **`GET /visualizations/dtw`** - Return URLs to prebuilt DTW assets (no processing)
+- **`GET /visualizations/dtw`** - Return DTW assets (prefer inline JSON when present)
   - Query params: `cohort`, `age_band`
-  - Returns: `overview_image`, `sample_trajectories_image`, `chart_data_url`, `sequence_heatmap_url` (S3 URLs)
+  - Returns: `chart_data`, `sequence_heatmap`, `trajectory_overview_plot` (inline JSON when in S3); else `chart_data_url`, `sequence_heatmap_url`, image URLs
 
-- **`GET /visualizations/fpgrowth`** - Return URLs to prebuilt FP-Growth assets (drug names only)
+- **`GET /visualizations/fpgrowth`** - Return FP-Growth assets (itemsets JSON when present; network = HTML only, EC2)
   - Query params: `cohort`, `age_band` (item_type is fixed to `drug_name`)
-  - Returns: S3 URLs to drug itemsets, network HTML, and itemsets JSON when present
+  - Returns: `itemsets_data` (inline JSON when in S3); S3 URLs for network HTML and itemsets PNG
 
-- **`GET /visualizations/bupar`** - Return URLs to prebuilt BupaR assets
+- **`GET /visualizations/bupar`** - Return BupaR assets (prefer inline JSON when present)
   - Query params: `cohort`, `age_band`
-  - Returns: S3 URLs to BupaR plot images; process matrix type-pair is **Drug × Drug** only (`process_matrix_drug_drug.png`)
+  - Returns: `trace_explorer_plot`, `process_matrix_drug_drug` (inline JSON when in S3); S3 URLs for other plot images/HTML. Process matrix type-pair is **Drug × Drug** only.
 
 - **`GET /visualizations/bupar/activity_frequency`** - Return activity frequency JSON for bar charts
   - Query params: `cohort`, `age_band`
-  - Returns: `{ overall, pre_target, post_target }` (each with `year_labels` and `data`); frontend builds Chart.js bar charts with year filter
+  - Returns: `{ overall, pre_target, post_target }` (each with `year_labels` and `data`); frontend builds Plotly bar charts with year filter
+
+- **`GET /visualizations/feature_importance`** - Return feature importance heatmap (prefer inline JSON)
+  - Query params: `cohort` (opioid_ed | non_opioid_ed | combined)
+  - Returns: `heatmap_data` (inline JSON when in S3); else `heatmap_url` (PNG)
+
+- **`GET /visualizations/cohort_pgx`** - Return PGx Cohort network (HTML only, EC2-built)
+  - Query params: `cohort`, `age_band`
+  - Returns: `network_topology_url` when HTML exists on S3
 
 ## Model Loading
 

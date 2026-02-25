@@ -965,9 +965,10 @@
         </div>
         <div class="control-group full-width">
           <button id="btnLoadCausal">Load Causal Analysis</button>
+          <button id="btnClearCausalFilters" type="button" class="secondary">Clear filters</button>
         </div>
       </div>
-      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort = active tab above (Opioid ED / Polypharmacy). Age band = from Age on Risk Assessment. Select features on <strong>Drugs</strong>, <strong>ICD Codes</strong>, and <strong>CPT Codes</strong> tabs. Add what-if codes above to compare.</small></p>
+      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort = active tab above (Opioid ED / Polypharmacy). Age band = from Age on Risk Assessment. Select features on <strong>Drugs</strong>, <strong>ICD Codes</strong>, and <strong>CPT Codes</strong> tabs. Add what-if codes above to compare. Clear filters reloads with no selection.</small></p>
       <div id="causal-status" class="status-message">Set cohort and age on Risk Assessment, optionally select codes on Drugs/ICD/CPT, then click 'Load Causal Analysis'</div>
       <div class="panels">
         <div class="panel">
@@ -1309,7 +1310,7 @@
             <tr><td>N1: Routine vs no routine appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs No Routine (Outcomes), trajectory overview, sample trajectories, metrics</td></tr>
             <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
             <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
-            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Co-occurrence network, top itemsets (filter by item type)</td></tr>
+            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Drug association network, top itemsets (drug names only)</td></tr>
             <tr><td>N5: What features drive outcome and how do they relate?</td><td>Causal Analysis</td><td>Top Causal Factors (FFA), SHAP Feature Importance, Feature Interactions</td></tr>
             <tr><td>N6: What drug combinations drive polypharmacy ED visit?</td><td>Causal Analysis, BupaR</td><td>Causal factors (drugs), BupaR sequences / pre-target activity</td></tr>
           </tbody>
@@ -2329,27 +2330,21 @@
     const selectedCpts = getMultiSelectValues(cptsEl);
     const whatIfInput = (document.getElementById("causal-whatif-codes")?.value || "").trim();
     const whatIfCodes = whatIfInput ? whatIfInput.split(",").map(s => s.trim()).filter(Boolean) : [];
-    const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
     const params = new URLSearchParams({ cohort, age_band: ageBand });
     if (selectedDrugs.length) params.set("drugs", selectedDrugs.join(","));
     if (selectedIcds.length) params.set("icds", selectedIcds.join(","));
     if (selectedCpts.length) params.set("cpts", selectedCpts.join(","));
+    if (whatIfCodes.length) params.set("whatif", whatIfCodes.join(","));
     document.getElementById("causal-status").textContent = "Loading causal analysis...";
     document.getElementById("causal-status").className = "status-message info";
     try {
       const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      // Prefer inline causal_data (Lambda fetches from S3); fallback to fetching causal_data_url
-      let chartData = data;
-      let prebuilt = data.causal_data || null;
-      if (!prebuilt && data.causal_data_url) {
-        try {
-          const jsonResp = await fetch(data.causal_data_url);
-          if (jsonResp.ok) prebuilt = await jsonResp.json();
-        } catch (_) { /* ignore */ }
-      }
-      if (prebuilt) {
+      // Prefer chart_data from Lambda (same pattern as Feature Importance: Lambda does filter + radar-ready)
+      let chartData = data.chart_data || null;
+      if (!chartData && data.causal_data) {
+        const prebuilt = data.causal_data;
         const top = prebuilt.top_causal_factors || [];
         const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
@@ -2358,25 +2353,34 @@
           ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
           ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
         ]);
-        const filtered = selectedFeatureSet.size > 0;
-        if (filtered) {
-          chartData = {
-            causal_factors: causalFactors.filter(f => selectedFeatureSet.has(f.feature)),
-            shap_importance: shapImportance.filter(f => selectedFeatureSet.has(f.feature)),
-            filtered_by_codes: true
-          };
-        } else {
-          chartData = {
-            causal_factors: causalFactors,
-            shap_importance: shapImportance,
-            filtered_by_codes: false
-          };
-        }
+        const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
+        chartData = {
+          causal_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
+          shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
+          filtered_by_codes: selectedFeatureSet.size > 0
+        };
         if (whatIfFeatureSet.size > 0) {
           chartData.causal_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
           chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
         }
-      } else {
+        if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
+      }
+      if (!chartData && data.causal_data_url) {
+        try {
+          const jsonResp = await fetch(data.causal_data_url);
+          if (jsonResp.ok) {
+            const prebuilt = await jsonResp.json();
+            const top = prebuilt.top_causal_factors || [];
+            chartData = {
+              causal_factors: top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) })),
+              shap_importance: top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) })),
+              filtered_by_codes: false
+            };
+            if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      if (!chartData) {
         document.getElementById("causal-status").textContent = "Causal data not found. Run combine_shap_ffa_results --upload-to-dashboard for this cohort/age band.";
         document.getElementById("causal-status").className = "status-message error";
         return;
@@ -2401,6 +2405,16 @@
       document.getElementById("causal-status").textContent = `Error: ${err.message}`;
       document.getElementById("causal-status").className = "status-message error";
     }
+  });
+
+  // Clear Causal filters and reload (same cohort/age, no drugs/icds/cpts/whatif)
+  document.getElementById("btnClearCausalFilters")?.addEventListener("click", () => {
+    const whatIfEl = document.getElementById("causal-whatif-codes");
+    if (whatIfEl) whatIfEl.value = "";
+    clearMultiSelect(drugsEl);
+    clearMultiSelect(icdsEl);
+    clearMultiSelect(cptsEl);
+    document.getElementById("btnLoadCausal")?.click();
   });
 
   // DTW Visualizations Tab
@@ -2533,11 +2547,11 @@
       const data = await urlResp.json();
       const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
       renderBupaRVisualizations(data, selected.length ? selected : undefined, { cohort, ageBand });
-      // Prefer JSON over PNG for activity frequency: render Chart.js from JSON (flexible); fallback message if JSON missing
+      // Activity frequency: JSON from API → Plotly bar charts on frontend (same pattern as DTW charts)
       if (freqResp.ok) {
         const freqData = await freqResp.json();
         renderBupaRActivityFrequencyCharts(freqData);
-        document.getElementById("bupar-status").textContent = "BupaR visualizations loaded (images + activity frequency bar charts).";
+        document.getElementById("bupar-status").textContent = "BupaR visualizations loaded (images + activity frequency Plotly charts).";
       } else {
         document.getElementById("bupar-status").textContent = "BupaR images loaded; activity frequency JSON not found (run pipeline to generate).";
       }
@@ -2674,6 +2688,35 @@
         showlegend: !!hasWhatIfShap
       }, { responsive: true });
     }
+    // Feature / drug interactions (when Lambda includes feature_interactions from causal_data)
+    const interactionsEl = document.getElementById('interactions-chart');
+    if (interactionsEl) {
+      if (data.feature_interactions && Array.isArray(data.feature_interactions) && data.feature_interactions.length > 0) {
+        const arr = data.feature_interactions;
+        const labels = arr.map(function(d) { return (d.features && d.features.join(' × ')) || d.feature || JSON.stringify(d); });
+        const vals = arr.map(function(d) { return Number(d.importance != null ? d.importance : d.strength || 0); });
+        if (window.Plotly) {
+          Plotly.newPlot(interactionsEl, [{
+            x: vals,
+            y: labels,
+            type: 'bar',
+            orientation: 'h',
+            marker: { color: '#8b5cf6' }
+          }], {
+            margin: { l: 180 },
+            xaxis: { title: 'Interaction strength' },
+            yaxis: { autorange: 'reversed' },
+            showlegend: false,
+            height: Math.min(400, Math.max(200, arr.length * 24))
+          }, { responsive: true });
+        } else {
+          interactionsEl.innerHTML = '<p class="status-message info">Interaction data loaded (' + arr.length + '). Enable Plotly to chart.</p>';
+        }
+      } else {
+        interactionsEl.innerHTML = '<p class="status-message info" style="margin:0;">No feature interaction data for this cohort/age band. Charts above show per-feature causal and SHAP importance.</p>';
+      }
+    }
+
     // Radar: effect on outcome (optionally two traces: current + what-if)
     const radarEl = document.getElementById('causal-radar-chart');
     if (radarEl && (data.causal_factors?.length > 0 || data.causal_factors_whatif?.length > 0)) {
@@ -2715,18 +2758,27 @@
 
   const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
   function renderDTWVisualizations(data) {
-    // Render DTW overview image (only when URL returned; prefer JSON for charts below)
+    // DTW overview: prefer Plotly figure JSON (frontend builds Plotly); fallback to image
     const overviewEl = document.getElementById("dtw-overview-image");
     if (overviewEl) {
-      if (data.overview_image) {
+      if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
+        overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
+        var fig = data.trajectory_overview_plot;
+        Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
+      } else if (data.overview_image) {
         overviewEl.innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
       } else {
         overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory overview not available. Run create_dtw_visuals (after create_dtw_features) and upload plots to dashboard S3.</p>';
       }
     }
+    // Sample trajectories: same Plotly JSON if present, else image
     const sampleEl = document.getElementById("dtw-sample-trajectories-image");
     if (sampleEl) {
-      if (data.sample_trajectories_image) {
+      if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
+        sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
+        var fig = data.trajectory_overview_plot;
+        Plotly.react('dtw-sample-plot', fig.data, fig.layout || {}, fig.config || {});
+      } else if (data.sample_trajectories_image) {
         sampleEl.innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
       } else {
         sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">Sample trajectories not available. Run create_dtw_visuals and upload plots to dashboard S3.</p>';
@@ -2975,7 +3027,7 @@
     }
     if (networkEl && networkUrl) {
       if (networkUrl.startsWith("http://") || networkUrl.startsWith("https://")) {
-        networkEl.innerHTML = "<iframe src=\"" + networkUrl + "\" style=\"width: 100%; height: 820px; border: 1px solid #ddd;\" title=\"FP-Growth network (filter by type: Drug / ICD / CPT)\"></iframe>";
+        networkEl.innerHTML = "<iframe src=\"" + networkUrl + "\" style=\"width: 100%; height: 820px; border: 1px solid #ddd;\" title=\"FP-Growth drug association rules network\"></iframe>";
       } else {
         networkEl.innerHTML = networkUrl;
       }
@@ -3067,10 +3119,40 @@
     for (const visualKey of keys) {
       const elementId = keyToElement[visualKey];
       if (!elementId) continue;
-      let imageUrl = imageMap[elementId];
       const el = document.getElementById(elementId);
       if (!el) continue;
-      if (!imageUrl) {
+
+      // Trace Explorer: prefer Plotly from JSON when available
+      if (visualKey === 'trace_explorer' && data.trace_explorer_plot && data.trace_explorer_plot.data && window.Plotly) {
+        el.innerHTML = '<div id="bupar-trace-explorer-plotly" style="width:100%; min-height:600px;"></div>';
+        var fig = data.trace_explorer_plot;
+        Plotly.react('bupar-trace-explorer-plotly', fig.data, fig.layout || {}, fig.config || {});
+        continue;
+      }
+
+      // Process Matrix (Drug × Drug): prefer heatmap from JSON when available
+      if (visualKey === 'process_matrix_typepair' && data.process_matrix_drug_drug && Array.isArray(data.process_matrix_drug_drug.antecedent) && window.Plotly) {
+        var pm = data.process_matrix_drug_drug;
+        var rows = [].concat(pm.antecedent).filter(Boolean);
+        var cols = [].concat(pm.consequent).filter(Boolean);
+        rows = [...new Set(rows)].sort();
+        cols = [...new Set(cols)].sort();
+        var z = rows.map(function(r) {
+          return cols.map(function(c) {
+            var i = -1;
+            for (var k = 0; k < (pm.antecedent && pm.antecedent.length); k++) {
+              if (pm.antecedent[k] === r && pm.consequent[k] === c) { i = k; break; }
+            }
+            return i >= 0 ? (pm.n && pm.n[i] != null ? Number(pm.n[i]) : 0) : 0;
+          });
+        });
+        el.innerHTML = '<div id="bupar-process-matrix-drug-plotly" style="width:100%; min-height:500px;"></div>';
+        Plotly.newPlot('bupar-process-matrix-drug-plotly', [{ type: 'heatmap', x: cols, y: rows, z: z, colorscale: 'Plasma' }], { margin: { t: 40, r: 40, b: 120, l: 120 }, xaxis: { tickangle: -45 }, height: 500 }, { responsive: true });
+        continue;
+      }
+
+      let imageUrl = imageMap[elementId];
+      if (typeof imageUrl !== 'string' || !imageUrl) {
         el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available. Run the BupaR pipeline for this cohort/age band.</p>';
         continue;
       }
@@ -3094,14 +3176,14 @@
   }
 
   const BUPAR_CHART_COLORS = { Drug: '#3b82f6', Diagnosis: '#ef4444', Procedure: '#10b981', Other: '#64748b' };
-  let buparCharts = { overall: null, pre_target: null, post_target: null };
+  let buparPlotlyDivs = { overall: null, pre_target: null, post_target: null };
 
-  function buildBupaRBarChart(canvasId, segmentKey, freqData) {
+  function buildBupaRBarChart(containerId, segmentKey, freqData) {
     const seg = freqData[segmentKey];
     if (!seg || !seg.data || seg.data.length === 0) return null;
     const yearLabels = seg.year_labels || {};
     const years = Object.keys(yearLabels).map(Number).sort((a, b) => a - b);
-    const selectId = canvasId.replace('bupar-chart-', 'bupar-year-');
+    const selectId = containerId.replace('bupar-chart-', 'bupar-year-');
     const select = document.getElementById(selectId);
     if (select) {
       select.innerHTML = years.map(y => `<option value="${y}">${yearLabels[String(y)] || y}</option>`).join('');
@@ -3114,38 +3196,38 @@
     const labels = dataForYear.map(d => d.activity_short || d.activity);
     const counts = dataForYear.map(d => d.count);
     const colors = dataForYear.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return null;
-    if (buparCharts[segmentKey]) buparCharts[segmentKey].destroy();
-    const chart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{ label: 'Frequency', data: counts, backgroundColor: colors }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, title: { display: true, text: 'Frequency' } } }
-      }
-    });
-    buparCharts[segmentKey] = chart;
-    if (select) {
+    let container = document.getElementById(containerId);
+    if (!container) return null;
+    // Replace canvas with div for Plotly if needed
+    if (container.tagName === 'CANVAS') {
+      var wrap = container.parentElement;
+      var div = document.createElement('div');
+      div.id = containerId + '-plotly';
+      div.style.height = '400px';
+      wrap.innerHTML = '';
+      wrap.appendChild(div);
+      container = div;
+    }
+    const plotlyDivId = container.id;
+    if (buparPlotlyDivs[segmentKey]) try { Plotly.purge(buparPlotlyDivs[segmentKey]); } catch (_) {}
+    buparPlotlyDivs[segmentKey] = plotlyDivId;
+    const trace = { y: labels, x: counts, type: 'bar', orientation: 'h', marker: { color: colors }, name: 'Frequency' };
+    const layout = { margin: { l: 180 }, xaxis: { title: 'Frequency' }, yaxis: { autorange: 'reversed' }, showlegend: false, height: 400 };
+    if (window.Plotly) Plotly.newPlot(plotlyDivId, [trace], layout, { responsive: true });
+    if (select && window.Plotly) {
       select.onchange = () => {
         const data = filterByYear(select.value);
-        chart.data.labels = data.map(d => d.activity_short || d.activity);
-        chart.data.datasets[0].data = data.map(d => d.count);
-        chart.data.datasets[0].backgroundColor = data.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
-        chart.update();
+        const y = data.map(d => d.activity_short || d.activity);
+        const x = data.map(d => d.count);
+        const c = data.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
+        Plotly.react(plotlyDivId, [{ y: y, x: x, type: 'bar', orientation: 'h', marker: { color: c }, name: 'Frequency' }], layout);
       };
     }
-    return chart;
+    return plotlyDivId;
   }
 
   function renderBupaRActivityFrequencyCharts(freqData) {
-    if (typeof Chart === 'undefined') return;
+    if (typeof Plotly === 'undefined') return;
     buildBupaRBarChart('bupar-chart-overall', 'overall', freqData);
     buildBupaRBarChart('bupar-chart-pre', 'pre_target', freqData);
     buildBupaRBarChart('bupar-chart-post', 'post_target', freqData);

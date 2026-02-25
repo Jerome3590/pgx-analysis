@@ -1328,13 +1328,35 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
         })
 
 
+def _causal_feature_set_from_codes(drugs: List[str], icds: List[str], cpts: List[str]) -> set:
+    """Build set of feature names that match causal_data (item_X, item_icd_X, item_cpt_X, item_drug_X)."""
+    out = set()
+    for code in drugs:
+        c = str(code).strip().upper()
+        if c:
+            out.add(f"item_{c}")
+            out.add(f"item_drug_{c}")
+    for code in icds:
+        c = str(code).strip().upper()
+        if c:
+            out.add(f"item_{c}")
+            out.add(f"item_icd_{c}")
+    for code in cpts:
+        c = str(code).strip().upper()
+        if c:
+            out.add(f"item_{c}")
+            out.add(f"item_cpt_{c}")
+    return out
+
+
 def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GET /visualizations/causal?cohort=...&age_band=...
+    GET /visualizations/causal?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...&whatif=...]
 
-    Fetches causal_data.json from the dashboard bucket and returns it inline as causal_data
-    (same pattern as DTW chart_data) so the frontend works without a second request and when
-    the bucket is not public. Also returns causal_data_url for fallback.
+    Same pattern as Feature Importance: load causal_data.json from S3 and return inline.
+    Lambda applies optional filters (drugs, icds, cpts, whatif) and returns chart_data
+    (causal_factors, shap_importance, whatif variants, feature_interactions) so the
+    frontend can render without re-filtering. Radar plot uses top N of causal_factors.
     S3 key: {S3_DASHBOARD_PREFIX}/causal/{cohort}/{age_band_fname}/causal_data.json.
     """
     try:
@@ -1348,7 +1370,7 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/causal/{cohort}/{age_band_fname}"
         causal_key = f"{prefix}/causal_data.json"
-        payload = {"causal_data_url": _dashboard_s3_url(causal_key)}
+        payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key)}
 
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=causal_key)
@@ -1359,6 +1381,59 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
                 raise
         except (json.JSONDecodeError, TypeError):
             pass
+
+        # Build chart_data (ready-to-render) with optional filter and whatif, same pattern as FI
+        if payload.get("causal_data"):
+            raw = payload["causal_data"]
+            top = raw.get("top_causal_factors") or []
+            drugs = [x.strip() for x in (params.get("drugs") or "").split(",") if x.strip()]
+            icds = [x.strip() for x in (params.get("icds") or "").split(",") if x.strip()]
+            cpts = [x.strip() for x in (params.get("cpts") or "").split(",") if x.strip()]
+            whatif_codes = [x.strip() for x in (params.get("whatif") or "").split(",") if x.strip()]
+
+            selected_set = _causal_feature_set_from_codes(drugs, icds, cpts)
+            whatif_set = _causal_feature_set_from_codes(
+                whatif_codes, whatif_codes, whatif_codes
+            ) if whatif_codes else set()
+
+            def row_to_factor(r: Dict[str, Any]) -> Dict[str, Any]:
+                feat = r.get("feature") or ""
+                return {
+                    "feature": feat,
+                    "importance": float(r.get("causal_responsibility") or r.get("importance") or 0),
+                }
+
+            def row_to_shap(r: Dict[str, Any]) -> Dict[str, Any]:
+                feat = r.get("feature") or ""
+                return {
+                    "feature": feat,
+                    "importance": float(r.get("shap_importance") or r.get("importance") or 0),
+                }
+
+            if selected_set:
+                causal_factors = [row_to_factor(r) for r in top if (r.get("feature") or "") in selected_set]
+                shap_importance = [row_to_shap(r) for r in top if (r.get("feature") or "") in selected_set]
+                filtered_by_codes = True
+            else:
+                causal_factors = [row_to_factor(r) for r in top]
+                shap_importance = [row_to_shap(r) for r in top]
+                filtered_by_codes = False
+
+            causal_factors_whatif = [row_to_factor(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
+            shap_importance_whatif = [row_to_shap(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
+
+            chart_data: Dict[str, Any] = {
+                "causal_factors": causal_factors,
+                "shap_importance": shap_importance,
+                "filtered_by_codes": filtered_by_codes,
+            }
+            if causal_factors_whatif:
+                chart_data["causal_factors_whatif"] = causal_factors_whatif
+            if shap_importance_whatif:
+                chart_data["shap_importance_whatif"] = shap_importance_whatif
+            if raw.get("feature_interactions"):
+                chart_data["feature_interactions"] = raw["feature_interactions"]
+            payload["chart_data"] = chart_data
 
         return _response(200, payload)
     except Exception as e:
@@ -1421,13 +1496,24 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             if metrics:
                 payload["metrics"] = metrics
 
-        # Only return image URLs for assets that exist (avoid broken image when pipeline not run)
+        # Trajectory overview: prefer Plotly figure JSON so frontend builds Plotly (no iframe/HTML)
+        trajectory_plot_key = f"{plots_key}/trajectory_overview_plot.json"
+        try:
+            obj = s3_client.get_object(Bucket=bucket, Key=trajectory_plot_key)
+            payload["trajectory_overview_plot"] = json.loads(obj["Body"].read().decode("utf-8"))
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
+                raise
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Fallback: image URLs when Plotly JSON not present (avoid broken image when pipeline not run)
         overview_key = f"{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png"
         sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"
         overview_html_key = f"{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html"
-        if _s3_object_exists(bucket, overview_key):
+        if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, overview_key):
             payload["overview_image"] = _dashboard_s3_url(overview_key)
-        if _s3_object_exists(bucket, sample_key):
+        if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, sample_key):
             payload["sample_trajectories_image"] = _dashboard_s3_url(sample_key)
         if _s3_object_exists(bucket, overview_html_key):
             payload["overview_interactive"] = _dashboard_s3_url(overview_html_key)
@@ -1499,7 +1585,7 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             pass
 
         age_band_fname = age_band.replace("-", "_")
-        # Combined network: one graph with Drug / ICD / CPT as node types; filter by type in the graph
+        # Combined network: drug association rules only (no type filter)
         network_combined_key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
         # Legacy per-item-type filenames (itemsets + optional legacy network)
         itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
@@ -1686,12 +1772,27 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             ("frequency_map_image", f"{base_key}/{base}_frequency_map.png"),
         ]
         # Research focus: drugs only — only expose Drug × Drug process matrix.
-        candidates.append((f"process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"))
+        candidates.append(("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"))
 
-        payload: Dict[str, str] = {}
+        payload: Dict[str, Any] = {}
         for payload_key, s3_key in candidates:
             if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
                 payload[payload_key] = _dashboard_s3_url(s3_key)
+
+        # Prefer JSON for frontend Plotly: load trace_explorer_plot and process_matrix_drug_drug when present
+        for key, s3_key in [
+            ("trace_explorer_plot", f"{base_key}/{base}_trace_explorer_plot.json"),
+            ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.json"),
+        ]:
+            try:
+                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=s3_key)
+                payload[key] = json.loads(obj["Body"].read().decode("utf-8"))
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
+                    raise
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})

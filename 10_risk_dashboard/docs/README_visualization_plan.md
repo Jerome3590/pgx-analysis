@@ -50,6 +50,7 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 
 ## Data pattern
 
+- **JSON-first for visuals:** We use JSON as much as possible: pipeline exports JSON → upload to S3 → Lambda returns inline when present → frontend renders from JSON (Plotly/chart) with fallback to image/iframe. **Exception:** FP-Growth network and PGx Cohort network are processed on EC2 and served as **HTML only**. See **`10_risk_dashboard/docs/VISUALIZATION_DATA_PATTERN.md`** for the full pattern and per-tab summary.
 - **SHAP/FFA-driven:** BupaR, DTW, and FP-Growth (and Causal when no user filter) use **model-important features** (SHAP/FFA from Step 7/8). Event logs, trajectories, and itemsets are restricted to those codes so visuals align with what drives model results.
 - **Filterability:** Risk Assessment and Causal use the user's selected drugs/ICD/CPT when provided. BupaR and DTW are cohort/age_band only (filtering done at pipeline time). **Final production:** FP-Growth produces drug_name only; BupaR produces Drug × Drug process matrix only; DTW sequence heatmap produces drug slice only. See `README_IMPLEMENTATION_PLAN_TAB_VISUALIZATIONS.md` for API details.
 
@@ -60,7 +61,7 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 - **Causal:** Radar chart (top 5–8 features) can be built in frontend from causal_factors + shap_importance.
 - **BupaR:** Trace explorer is **aggregated activity frequency** (one bar per activity, ordered by frequency, aligned to N2/N6). Gantt not produced. **Implemented:** Pipeline exports overall, pre-target, and post-target activity frequency as JSON; `GET /visualizations/bupar/activity_frequency` returns all three; frontend renders three bar charts (Chart.js) with year dropdown. No need for pre-built HTML or iframes—API returns data, frontend visualizes with Chart.js/Plotly.js and applies filters client-side or via query params.
 - **DTW:** Three-step pipeline: `create_dtw_trajectories.py` (trajectory CSV with N3 metrics), `create_dtw_features.py` (alignment: DTW distances to prototype trajectories and export of **common sequences** as `common_sequences_{cohort}_{age_band}.json`), then `create_dtw_visuals.py` (plots and chart_data.json). Alignment uses dtaidistance; high-risk trajectory chart uses `dtw_min_distance` when present.
-- **FP-Growth:** Drug names only (no item type selector). Co-occurrence network and itemsets are drug-only. Network HTML loaded via iframe or fetch.
+- **FP-Growth:** Drug names only (no item type selector). Itemsets: JSON for client Plotly when available. **Network plot: EC2-built HTML only** (no JSON); iframe or proxy.
 
 ---
 

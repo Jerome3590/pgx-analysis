@@ -447,6 +447,13 @@ def create_trajectory_cluster_plots(
     written.append(out_html)
     print(f"[INFO] Wrote {out_html}")
 
+    # Plotly JSON for frontend (dashboard builds Plotly from JSON; no iframe/HTML)
+    out_json = plots_dir / "trajectory_overview_plot.json"
+    with open(out_json, "w", encoding="utf-8") as f:
+        f.write(fig.to_json())
+    written.append(out_json)
+    print(f"[INFO] Wrote {out_json}")
+
     # Optional PNG (requires kaleido)
     try:
         out_png = plots_dir / fname.replace(".html", ".png")
