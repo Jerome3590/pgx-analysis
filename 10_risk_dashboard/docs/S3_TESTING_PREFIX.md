@@ -3,7 +3,7 @@
 **Production path:** The API (Lambda) correctly looks for Cohort PGx at  
 `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`  
 (e.g. `vcu/pgx-risk-calculator/cohort_pgx/networks/opioid_ed/25_44/network_topology.html`).  
-Upload production visuals there (e.g. via `upload_cohort_pgx_to_s3.py` or deploy sync).
+Upload production visuals there via notebook 5 (Step 6: Sync Dashboard Frontend) or `aws s3 sync .../cohort_pgx/ s3://.../cohort_pgx/`.
 
 The **testing** prefix (`vcu/pgx-risk-calculator/testing/`) was used only to sync a copy of assets to the local project for analysis. It is not the path the API uses.
 
