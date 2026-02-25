@@ -209,14 +209,10 @@ def get_shap_ffa_important_codes(
     """
     Return the set of item codes (drug/ICD/CPT) for BupaR/DTW/FP-Growth allowed codes.
 
-    Primary source: Step 3b cohort_feature_importance (final feature importances).
-    Fallback: notebook 3 combined_importance.csv (10_risk_dashboard/outputs/{cohort}/{age_band}/).
-    Returns empty set if both are missing or empty.
+    Single source: Step 3b cohort_feature_importance only (same input as Step 4 model training
+    and SHAP/FFA analysis). No fallback; raises FileNotFoundError if 3b artifact is missing.
     """
     merged = _load_final_feature_importance(cohort, age_band, project_root, data_root)
-    if merged.empty:
-        # Fallback to notebook 3's combined_importance.csv
-        merged = _load_combined_importance_from_dashboard(cohort, age_band, project_root)
     if merged.empty:
         return set()
     if "importance" not in merged.columns:
@@ -251,8 +247,7 @@ def get_shap_ffa_allowed_codes_combined(
 ) -> Set[str]:
     """
     Return the union of allowed codes (drug + ICD + CPT) for BupaR/DTW/FP-Growth.
-    Primary source: Step 3b cohort_feature_importance.
-    Fallback: notebook 3 combined_importance.csv (10_risk_dashboard/outputs/).
+    Single source: Step 3b cohort_feature_importance only (same as Step 4 model training and SHAP/FFA). No fallback.
     """
     drug = get_shap_ffa_important_codes(
         cohort, age_band, "drug_name", top_n, project_root, data_root, use_shap, use_ffa
@@ -297,12 +292,19 @@ def _load_final_feature_importance(
     project_root: Optional[Path] = None,
     data_root: Optional[Path] = None,
 ) -> pd.DataFrame:
-    """Load final (cohort) feature importance CSV. Returns DataFrame with columns: feature, importance."""
+    """
+    Load Step 3b cohort_feature_importance CSV only. Same input as Step 4 model training and SHAP/FFA.
+    No fallback. Raises FileNotFoundError if 3b artifact is missing (pipeline breaks until 3b is run).
+    Returns DataFrame with columns: feature, importance.
+    """
     project_root = project_root or Path.cwd()
     try:
         from py_helpers.file_resolver import FileResolver
     except ImportError:
-        return pd.DataFrame()
+        raise FileNotFoundError(
+            "FileResolver required to load Step 3b cohort_feature_importance. "
+            "Same input as Step 4 model training and SHAP/FFA; no fallback."
+        )
     resolver = FileResolver(
         file_type="cohort_feature_importance",
         project_root=project_root,
@@ -311,7 +313,15 @@ def _load_final_feature_importance(
     )
     path = resolver.resolve()
     if not path or not path.exists():
-        return pd.DataFrame()
+        age_band_fname = age_band.replace("-", "_")
+        expected = (
+            project_root / "3b_feature_importance_eda" / "outputs" / cohort / age_band_fname
+            / f"{cohort}_{age_band_fname}_cohort_feature_importance.csv"
+        )
+        raise FileNotFoundError(
+            f"Step 3b cohort_feature_importance required (same input as Step 4 model training and SHAP/FFA) but not found for {cohort}/{age_band}. "
+            f"Expected: {expected} — Run 3b_feature_importance_eda first. No fallback."
+        )
     df = pd.read_csv(path)
     if "feature" not in df.columns and len(df.columns) >= 1:
         df = df.rename(columns={df.columns[0]: "feature"})

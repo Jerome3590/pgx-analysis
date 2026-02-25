@@ -8,11 +8,14 @@ This script combines:
 3. Patient-level predictions (which patients are high-risk)
 4. Actual drug combinations in high-risk patients
 
+Feature importance input must be Step 3b cohort_feature_importance (same as Step 4
+model training and FFA analysis). No fallback to Step 3a aggregated files.
+
 Usage:
-    python 3_feature_importance/analyze_drug_combinations.py \
+    python 7_shap_analysis/analyze_drug_combinations_shap.py \
         --cohort non_opioid_ed \
         --age-band 65-74 \
-        --feature-importance-file 3_feature_importance/outputs/non_opioid_ed_65_74_aggregated_feature_importance.csv \
+        --feature-importance-file 3b_feature_importance_eda/outputs/non_opioid_ed/65_74/non_opioid_ed_65_74_cohort_feature_importance.csv \
         --model-data-path path/to/model_data.parquet
 """
 
@@ -182,7 +185,8 @@ def main():
     parser.add_argument("--cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
     parser.add_argument("--feature-importance-file", required=True,
-                       help="Path to aggregated feature importance CSV")
+                       help="Path to Step 3b cohort_feature_importance CSV (same input as Step 4 model training). "
+                            "e.g. 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv")
     parser.add_argument("--model-data-path", required=True,
                        help="Path to model data parquet file")
     parser.add_argument("--top-k-features", type=int, default=50,

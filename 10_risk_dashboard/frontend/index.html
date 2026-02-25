@@ -1076,10 +1076,21 @@
           <label for="dtw-age-band">Age Band:</label>
           <select id="dtw-age-band" aria-label="DTW age band"></select>
         </div>
+        <div class="control-group">
+          <label for="dtw-event-density">Event density:</label>
+          <select id="dtw-event-density" aria-label="DTW event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadDTW">Load DTW Visualizations</button>
         </div>
       </div>
+      <p class="subtitle" style="margin-top: 0.25rem;"><small style="color: #64748b;">Event density filters trajectories by events-per-month (low/medium/high/extreme). Use after loading.</small></p>
       <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
       <div class="dtw-subtabs-wrapper">
         <div class="dtw-subtabs-label">Sub-tab:</div>
@@ -2398,6 +2409,10 @@
         if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
         if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
         if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+        if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+        if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+        if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+        if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
       } else if (data.chart_data_url) {
         try {
           const chartResp = await fetch(data.chart_data_url);
@@ -2409,6 +2424,10 @@
             if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
             if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
             if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+            if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+            if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+            if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+            if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
           }
         } catch (_) { /* chart_data.json optional */ }
       }
@@ -2418,12 +2437,22 @@
           if (hmResp.ok) data.sequence_heatmap = await hmResp.json();
         } catch (_) { /* sequence_heatmap.json optional */ }
       }
-      renderDTWVisualizations(data);
+      window.dtwChartData = data;
+      const densityFilter = document.getElementById("dtw-event-density")?.value || "all";
+      renderDTWVisualizations(data, densityFilter);
       document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = "status-message success";
     } catch (err) {
       document.getElementById("dtw-status").textContent = `Error: ${err.message}`;
       document.getElementById("dtw-status").className = "status-message error";
+    }
+  });
+
+  // DTW event density filter: re-render charts when selection changes (uses already-loaded data)
+  document.getElementById("dtw-event-density")?.addEventListener("change", () => {
+    if (window.dtwChartData) {
+      const densityFilter = document.getElementById("dtw-event-density").value;
+      renderDTWVisualizations(window.dtwChartData, densityFilter);
     }
   });
 
@@ -2729,7 +2758,15 @@
   }
 
   const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
-  function renderDTWVisualizations(data) {
+  function renderDTWVisualizations(data, densityFilter) {
+    // Resolve chart data by event density filter (dashboard filter)
+    const routineComparison = (densityFilter && densityFilter !== 'all' && data.routine_comparison_by_density && data.routine_comparison_by_density[densityFilter])
+      ? data.routine_comparison_by_density[densityFilter] : data.routine_comparison;
+    const routineComparisonCounts = (densityFilter && densityFilter !== 'all' && data.routine_comparison_counts_by_density && data.routine_comparison_counts_by_density[densityFilter])
+      ? data.routine_comparison_counts_by_density[densityFilter] : data.routine_comparison_counts;
+    const highRiskTrajectories = (densityFilter && densityFilter !== 'all' && data.high_risk_trajectories_by_density && data.high_risk_trajectories_by_density[densityFilter])
+      ? data.high_risk_trajectories_by_density[densityFilter] : data.high_risk_trajectories;
+
     // DTW overview: prefer Plotly figure JSON (frontend builds Plotly); fallback to image
     const overviewEl = document.getElementById("dtw-overview-image");
     if (overviewEl) {
@@ -2774,32 +2811,32 @@
       metricsContainer.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory metrics will appear here when chart_data.json is available (run create_dtw_visuals after create_dtw_features).</p>';
     }
 
-    // Routine vs no routine (outcomes) — same JSON pattern as other visuals: chart_data.routine_comparison
+    // Routine vs no routine (outcomes) — same JSON pattern as other visuals: chart_data.routine_comparison (or by density)
     const routineEl = document.getElementById("dtw-routine-comparison-container");
     if (routineEl) {
-      if (data.routine_comparison && data.routine_comparison.x && data.routine_comparison.y) {
+      if (routineComparison && routineComparison.x && routineComparison.y) {
         const trace = {
-          x: data.routine_comparison.x,
-          y: data.routine_comparison.y,
-          type: data.routine_comparison.type || 'bar',
-          name: data.routine_comparison.name,
+          x: routineComparison.x,
+          y: routineComparison.y,
+          type: routineComparison.type || 'bar',
+          name: routineComparison.name,
           marker: { color: '#0ea5e9' }
         };
         routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
         Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
-          title: data.routine_comparison.title || 'Outcome by routine vs non-routine (admin ICD)',
-          xaxis: { title: data.routine_comparison.x_label || 'Category' },
-          yaxis: { title: data.routine_comparison.y_label || 'Value' }
+          title: (densityFilter && densityFilter !== 'all' ? `Outcome by routine vs non-routine (${densityFilter} density)` : (routineComparison.title || 'Outcome by routine vs non-routine (admin ICD)')),
+          xaxis: { title: routineComparison.x_label || 'Category' },
+          yaxis: { title: routineComparison.y_label || 'Value' }
         }, { responsive: true });
       } else {
         routineEl.innerHTML = '<p class="status-message info">Routine vs non-routine comparison will appear here when chart_data.json provides routine_comparison (run create_dtw_visuals).</p>';
       }
     }
 
-    // Routine vs no routine: medical and prescription event counts (chart_data.routine_comparison_counts)
+    // Routine vs no routine: medical and prescription event counts (chart_data.routine_comparison_counts or by density)
     const routineCountsEl = document.getElementById("dtw-routine-comparison-counts-container");
     if (routineCountsEl) {
-      const rc = data.routine_comparison_counts;
+      const rc = routineComparisonCounts;
       if (rc && rc.x && Array.isArray(rc.series) && rc.series.length > 0) {
         const colors = ['#0ea5e9', '#10b981'];
         const traces = rc.series.map((s, i) => ({
@@ -2821,22 +2858,22 @@
       }
     }
 
-    // High-risk vs low-risk trajectories — same JSON pattern: chart_data.high_risk_trajectories
+    // High-risk vs low-risk trajectories — same JSON pattern: chart_data.high_risk_trajectories (or by density)
     const highRiskEl = document.getElementById("dtw-high-risk-trajectories-container");
     if (highRiskEl) {
-      if (data.high_risk_trajectories && data.high_risk_trajectories.x && data.high_risk_trajectories.y) {
+      if (highRiskTrajectories && highRiskTrajectories.x && highRiskTrajectories.y) {
         const trace = {
-          x: data.high_risk_trajectories.x,
-          y: data.high_risk_trajectories.y,
-          type: data.high_risk_trajectories.type || 'bar',
-          name: data.high_risk_trajectories.name,
+          x: highRiskTrajectories.x,
+          y: highRiskTrajectories.y,
+          type: highRiskTrajectories.type || 'bar',
+          name: highRiskTrajectories.name,
           marker: { color: '#8b5cf6' }
         };
         highRiskEl.innerHTML = '<div id="dtw-high-risk-chart"></div>';
         Plotly.newPlot('dtw-high-risk-chart', [trace], {
-          title: data.high_risk_trajectories.title || 'Trajectory archetypes by risk / outcome',
-          xaxis: { title: data.high_risk_trajectories.x_label || 'Archetype' },
-          yaxis: { title: data.high_risk_trajectories.y_label || 'Value' }
+          title: (densityFilter && densityFilter !== 'all' ? `Trajectory archetypes by risk (${densityFilter} density)` : (highRiskTrajectories.title || 'Trajectory archetypes by risk / outcome')),
+          xaxis: { title: highRiskTrajectories.x_label || 'Archetype' },
+          yaxis: { title: highRiskTrajectories.y_label || 'Value' }
         }, { responsive: true });
       } else {
         highRiskEl.innerHTML = '<p class="status-message info">High-risk vs low-risk trajectories will appear here when chart_data.json provides high_risk_trajectories (run create_dtw_visuals).</p>';

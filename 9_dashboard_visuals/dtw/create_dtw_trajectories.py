@@ -16,6 +16,9 @@ Output CSV columns (minimal for visualization):
 - dtw_min_distance: Placeholder (NaN); DTW distances computed in create_dtw_features.py (Step 2)
 - mean_days_between_events: Mean days between consecutive events in the trajectory (N3: times between sequences)
 - days_first_event_to_target: For target=1, days from first event to target date; else NaN (N3)
+- temporal_span_days: Days between first and last event in trajectory (0 if single event)
+- events_per_month: trajectory_length / (temporal_span_days/30) when span > 0, else NaN
+- event_density_bin: Trajectory bin by event density ('low', 'medium', 'high', 'extreme'), aligned with FP-Growth
 
 Requirements:
 - 4_model_data (Step 4) with model_events parquet
@@ -70,7 +73,13 @@ DTW_TRAJECTORY_CSV_COLUMNS = [
     "dtw_min_distance",
     "mean_days_between_events",
     "days_first_event_to_target",
+    "temporal_span_days",
+    "events_per_month",
+    "event_density_bin",
 ]
+
+# Density bins for trajectories (same order as FP-Growth: low -> medium -> high -> extreme)
+DENSITY_BINS = ("low", "medium", "high", "extreme")
 
 
 def _normalize_code_for_match(code: str) -> str:
@@ -470,6 +479,44 @@ def extract_patient_trajectories(
         df["mean_days_between_events"] = float("nan")
         df["days_first_event_to_target"] = float("nan")
 
+    # Temporal span (first to last event) for event density — same filtered events as trajectories
+    span_query = f"""
+    WITH patient_events AS (
+        SELECT
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            target,
+            CAST(event_date AS DATE) as event_date,
+            ({target_date_expr}) as target_date
+        FROM read_parquet('{path_str}')
+        {filter_clause}
+    ),
+    filtered_events AS (
+        SELECT mi_person_key, event_date
+        FROM patient_events
+        WHERE
+            (target = 1 AND event_date < target_date
+             AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+            OR (target = 0)
+    ),
+    span AS (
+        SELECT
+            mi_person_key,
+            DATEDIFF('day', MIN(event_date), MAX(event_date))::DOUBLE as temporal_span_days
+        FROM filtered_events
+        GROUP BY mi_person_key
+    )
+    SELECT * FROM span
+    """
+    try:
+        span_df = con.execute(span_query).df()
+        if not span_df.empty and "mi_person_key" in span_df.columns:
+            df = df.merge(span_df[["mi_person_key", "temporal_span_days"]], on="mi_person_key", how="left")
+        else:
+            df["temporal_span_days"] = float("nan")
+    except Exception as e:
+        _log("warning", "Temporal span query failed: %s; adding NaN column", e)
+        df["temporal_span_days"] = float("nan")
+
     con.close()
 
     # Ensure time columns exist
@@ -480,6 +527,39 @@ def extract_patient_trajectories(
     # For target=0, days_first_event_to_target should be NaN
     if "target" in df.columns:
         df.loc[df["target"] != 1, "days_first_event_to_target"] = float("nan")
+    if "temporal_span_days" not in df.columns:
+        df["temporal_span_days"] = float("nan")
+
+    # Event density: events per month (trajectory_length / (span_days/30)); NaN when span <= 0
+    span_days = df["temporal_span_days"]
+    length = df["trajectory_length"].astype(float)
+    df["events_per_month"] = float("nan")
+    valid_span = (span_days > 0) & span_days.notna()
+    df.loc[valid_span, "events_per_month"] = (
+        length.loc[valid_span] / (span_days.loc[valid_span] / 30.0)
+    )
+
+    # Bin trajectories by event density (low/medium/high/extreme), aligned with FP-Growth percentiles
+    density_value = df["events_per_month"].fillna(0)  # single-event / zero-span -> 0 (low)
+    p25 = float(density_value.quantile(0.25))
+    p50 = float(density_value.quantile(0.50))
+    p95 = float(density_value.quantile(0.95))
+
+    def _assign_density_bin(val):
+        if val <= p25:
+            return "low"
+        if val <= p50:
+            return "medium"
+        if val <= p95:
+            return "high"
+        return "extreme"
+
+    df["event_density_bin"] = density_value.apply(_assign_density_bin)
+    _log("info", "Event density bins (events_per_month): P25=%.2f, P50=%.2f, P95=%.2f", p25, p50, p95)
+    for bin_name in DENSITY_BINS:
+        n = (df["event_density_bin"] == bin_name).sum()
+        pct = 100.0 * n / len(df) if len(df) > 0 else 0
+        _log("info", "  %s: %d (%.1f%%)", bin_name, n, pct)
 
     # Schema compatibility: dtw_min_distance (not computed here)
     df["dtw_min_distance"] = float("nan")
