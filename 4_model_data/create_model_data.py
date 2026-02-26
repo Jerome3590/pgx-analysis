@@ -100,6 +100,10 @@ TARGET_DATE_COL_NON_OPIOID = "first_o11_p_date"
 COHORT_SOURCE_COL_OPIOID = "first_opioid_ed_date"
 COHORT_SOURCE_COL_NON_OPIOID = "first_ed_non_opioid_date"
 
+# Use exact cohort name so "non_opioid_ed" is not treated as opioid_ed (substring "opioid_ed" would match both)
+def _is_opioid_cohort(cohort_name: str) -> bool:
+    return (cohort_name or "").strip().lower() == "opioid_ed"
+
 
 def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
     """Create logger with file and console handlers; log file under logs/4_model_data/."""
@@ -339,15 +343,14 @@ def _validate_model_events_target_date_column(
     """
     Validate that model_events.parquet has the required target date column and case rows have it set.
     Uses explicit names: first_f1120_date (opioid_ed), first_o11_p_date (non_opioid_ed).
+    Accepts legacy column names as alias: first_opioid_ed_date (opioid), first_ed_non_opioid_date (non_opioid).
 
     Returns:
         (success: bool, message: str)
     """
-    target_date_col = (
-        TARGET_DATE_COL_OPIOID
-        if "opioid_ed" in cohort_name.lower()
-        else TARGET_DATE_COL_NON_OPIOID
-    )
+    is_opioid = _is_opioid_cohort(cohort_name)
+    canonical_col = TARGET_DATE_COL_OPIOID if is_opioid else TARGET_DATE_COL_NON_OPIOID
+    legacy_col = COHORT_SOURCE_COL_OPIOID if is_opioid else COHORT_SOURCE_COL_NON_OPIOID
     path_str = str(parquet_path).replace("'", "''")
     con = duckdb.connect()
     try:
@@ -355,10 +358,12 @@ def _validate_model_events_target_date_column(
             f"DESCRIBE SELECT * FROM read_parquet('{path_str}')"
         ).fetchall()
         col_names = [row[0] for row in schema]
-        if target_date_col not in col_names:
+        # Use canonical name if present, else accept legacy alias
+        target_date_col = canonical_col if canonical_col in col_names else (legacy_col if legacy_col in col_names else None)
+        if target_date_col is None:
             return (
                 False,
-                f"Output schema missing required column '{target_date_col}' (BupaR needs it for pre-target events).",
+                f"Output schema missing required column '{canonical_col}' (or legacy '{legacy_col}'). BupaR needs it for pre-target events.",
             )
         # For case rows (target=1), at least one must have non-null target date
         result = con.execute(
@@ -371,7 +376,8 @@ def _validate_model_events_target_date_column(
                 False,
                 f"Case rows (target=1) have no non-null '{target_date_col}'; BupaR will get 0 pre-target events.",
             )
-        return True, f"Target date column '{target_date_col}' present; {n_with_date} case rows have it set."
+        alias_note = f" (canonical: {canonical_col})" if target_date_col != canonical_col else ""
+        return True, f"Target date column '{target_date_col}'{alias_note} present; {n_with_date} case rows have it set."
     finally:
         con.close()
 
@@ -727,7 +733,7 @@ def filter_cohort_events_for_items(
 
     # Require target date column in cohort (BupaR/dashboard need it for pre-target split).
     # We read cohort source column and write explicit output column: first_f1120_date / first_o11_p_date.
-    is_opioid = "opioid_ed" in cohort_name.lower()
+    is_opioid = _is_opioid_cohort(cohort_name)
     output_col = TARGET_DATE_COL_OPIOID if is_opioid else TARGET_DATE_COL_NON_OPIOID
     source_col = COHORT_SOURCE_COL_OPIOID if is_opioid else COHORT_SOURCE_COL_NON_OPIOID
     # non_opioid_ed: allow first_opioid_ed_date as fallback if first_ed_non_opioid_date missing (legacy schema)
