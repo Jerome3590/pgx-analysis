@@ -324,6 +324,11 @@ def get_sklearn_n_jobs(default: int | None = None) -> int:
     return int(rec["PGX_SKLEARN_N_JOBS"])
 
 
+def get_cpu_cores() -> int:
+    """Return the number of CPU cores (for n_jobs = number of cores)."""
+    return os.cpu_count() or 1
+
+
 def get_xgb_cpu_nthread(default: int | None = None) -> int:
     """
     Resolve XGBoost CPU nthread from env or recommended defaults.
