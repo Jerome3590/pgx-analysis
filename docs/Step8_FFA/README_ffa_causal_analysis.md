@@ -417,7 +417,7 @@ ANALYSIS_CONFIG = {
 
 ## Model Weights
 
-**Note**: FFA-based causal analysis uses only XGBoost models. CatBoost SHAP values are used for feature importance filtering, but CatBoost FFA is not performed.
+**Note**: FFA-based causal analysis uses only the **XGBoost explainer** for rules. SHAP values come from the best model from Step 6: if the best model is XGBoost, SHAP is from that model only; if the best model is CatBoost, SHAP is from CatBoost plus the best XGBoost (for consensus filtering). CatBoost is not used as an explainer for FFA (hashing makes it hard to explain).
 
 Models are weighted by their explanation coverage rate:
 - **XGBoost**: Weighted by coverage rate (typically ~100%)

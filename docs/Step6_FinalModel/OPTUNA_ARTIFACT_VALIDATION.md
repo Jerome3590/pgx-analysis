@@ -59,9 +59,9 @@ Same artifact set is produced for both **Optuna path** and **legacy path**; only
 - **Data:** `train_final_features_no_leakage.csv` and/or `inputs/model_train/final_features.parquet` — produced by Step 6 and prepare_train_test_s3. **Compatible.**
 - **check_inputs.py:** Updated to look for `{cohort}_{age_band_fname}_best_xgboost_model.json` and `{cohort}_{age_band_fname}_best_catboost_model.cbm` in `final_model_json/` (was incorrectly checking `xgboost_model.json`).
 - **download_and_test_ffa.py:** Already uses S3 keys `..._best_xgboost_model.json` and `..._best_catboost_model.json`. **Compatible.**
-- **combined_causal_analysis.py:** Looks for `final_model_json/{cohort}_{age_band_fname}_final_model_{model_type}.json` (e.g. `final_model_xgboost.json`). That naming is **different** from Step 6’s `best_xgboost_model.json` / `best_catboost_model.json`. If FFA rule extraction is driven by the single best XGB JSON (best_xgboost_model.json), then the main FFA pipeline is compatible; any code that expects `final_model_*.json` per model type is legacy and would need to be updated or supplied via a different path.
+- **combined_causal_analysis.py:** Uses **combined SHAP/FFA from both models** (best XGB + CatBoost) for causal analysis and XGB FFA rule identification. Updated to load from Step 6’s actual artifacts: **best_xgboost_model.json** (one XGB variant; `model_type` in JSON selects `xgboost` or `xgboost_rf`) and **best_catboost_model.json**. Falls back to legacy `final_model_{model_type}.json` if present. So combined causal analysis now consumes the same artifacts Step 6 produces.
 
-**Conclusion:** The artifacts that SHAP and the main FFA flow (best XGB JSON, CatBoost, data) use are produced at the same paths and with the same structure. check_inputs was updated to match. combined_causal_analysis’s `final_model_{model_type}.json` naming is a separate convention and may require a follow-up if that script is still in use.
+**Conclusion:** The artifacts that SHAP, FFA, and combined causal analysis use are produced at the same paths. check_inputs was updated to match. combined_causal_analysis now loads best_xgboost_model.json and best_catboost_model.json first, then legacy final_model_*.json.
 
 ---
 

@@ -20,8 +20,16 @@ This document describes the comprehensive patient-level explanation system that 
 2. **Validation**: Agreement between methods increases confidence
 3. **Robustness**: Different perspectives reduce method-specific biases
 4. **Actionability**: Causal analysis shows what can be changed
+5. **Deterministic robustness due to rules**: FFA explanations are grounded in symbolic Boolean rules—same instance yields the same matched rules and the same explanation—so results are reproducible and verifiable, and well-suited to formal and causal analysis.
 
 ## The Consensus Filter Philosophy: CatBoost SHAP + XGBoost FFA
+
+### Explainer vs SHAP
+
+- **Rules / FFA**: Only the **XGBoost explainer** is used to identify rules. CatBoost is not used as an explainer (hashing of categoricals makes it too hard to explain).
+- **SHAP values**: Sourced from the **best model** from Step 6:
+  - **Best model = XGBoost**: SHAP from that XGBoost only; that same model drives the XGBoost explainer.
+  - **Best model = CatBoost**: SHAP from CatBoost plus the best XGBoost (for consensus); rule extraction still uses only the XGBoost explainer (best XGB variant).
 
 ### Why CatBoost FFA is Not Performed
 

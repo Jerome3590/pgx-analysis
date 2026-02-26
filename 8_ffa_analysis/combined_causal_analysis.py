@@ -330,14 +330,67 @@ def causal_analysis_explainer_method(X: pd.DataFrame, y: pd.Series,
     
     logger.info(f"Analyzing {len(X_class)} instances (explainer method uses smaller sample)")
     
-    # Load explainers
+    # Load explainers from Step 6 artifacts: best_xgboost_model.json (one XGB variant) + best_catboost_model.json
+    # (combined causal analysis uses both models with SHAP/FFA for rule identification). Fall back to legacy
+    # final_model_{model_type}.json if present.
+    final_model_json_dir = MODEL_BASE / 'final_model_json'
     explainers = {}
-    for model_type in ['catboost', 'xgboost', 'xgboost_rf']:
+
+    # 1) Best XGBoost (Step 6 writes one: either xgboost or xgboost_rf)
+    best_xgb_path = final_model_json_dir / f'{COHORT_NAME}_{AGE_BAND_FNAME}_best_xgboost_model.json'
+    if best_xgb_path.exists():
         try:
-            model_json_path = MODEL_BASE / 'final_model_json' / f'{COHORT_NAME}_{AGE_BAND_FNAME}_final_model_{model_type}.json'
-            if not model_json_path.exists():
-                continue
-            
+            with open(best_xgb_path, 'r') as f:
+                model_json = json.load(f)
+            model_type = model_json.get('model_type', 'xgboost')
+            if model_type not in ('xgboost', 'xgboost_rf'):
+                model_type = 'xgboost'
+            from xgboost_axp_explainer import XGBoostSymbolicExplainer, PathConfig
+            path_config = PathConfig(
+                model_path=str(best_xgb_path),
+                data_dir=str(DATA_PATH.parent),
+                output_dir=str(OUTPUT_DIR),
+                tree_rules_path=None,
+                age_band=AGE_BAND
+            )
+            explainer = XGBoostSymbolicExplainer(path_config)
+            explainer.model_json = model_json
+            explainer.fit_from_model_json(model_json)
+            explainers[model_type] = explainer
+            logger.info(f"Loaded {model_type} explainer from best_xgboost_model.json")
+        except Exception as e:
+            logger.warning(f"Could not load best XGBoost explainer: {e}")
+
+    # 2) Best CatBoost (Step 6 writes best_catboost_model.json for FFA/explainer)
+    best_cb_path = final_model_json_dir / f'{COHORT_NAME}_{AGE_BAND_FNAME}_best_catboost_model.json'
+    if best_cb_path.exists() and 'catboost' not in explainers:
+        try:
+            with open(best_cb_path, 'r') as f:
+                model_json = json.load(f)
+            from catboost_axp_explainer import CatBoostSymbolicExplainer, PathConfig
+            path_config = PathConfig(
+                model_path=str(best_cb_path),
+                data_dir=str(DATA_PATH.parent),
+                output_dir=str(OUTPUT_DIR),
+                tree_rules_path=None,
+                age_band=AGE_BAND
+            )
+            explainer = CatBoostSymbolicExplainer(path_config)
+            explainer.model_json = model_json
+            explainer.fit_from_model_json(model_json)
+            explainers['catboost'] = explainer
+            logger.info("Loaded catboost explainer from best_catboost_model.json")
+        except Exception as e:
+            logger.warning(f"Could not load best CatBoost explainer: {e}")
+
+    # 3) Legacy: final_model_{model_type}.json for any type not yet loaded
+    for model_type in ['catboost', 'xgboost', 'xgboost_rf']:
+        if model_type in explainers:
+            continue
+        model_json_path = final_model_json_dir / f'{COHORT_NAME}_{AGE_BAND_FNAME}_final_model_{model_type}.json'
+        if not model_json_path.exists():
+            continue
+        try:
             if model_type == 'catboost':
                 from catboost_axp_explainer import CatBoostSymbolicExplainer, PathConfig
                 path_config = PathConfig(
@@ -358,14 +411,12 @@ def causal_analysis_explainer_method(X: pd.DataFrame, y: pd.Series,
                     age_band=AGE_BAND
                 )
                 explainer = XGBoostSymbolicExplainer(path_config)
-            
             with open(model_json_path, 'r') as f:
                 model_json = json.load(f)
             explainer.model_json = model_json
             explainer.fit_from_model_json(model_json)
             explainers[model_type] = explainer
-            logger.info(f"Loaded {model_type} explainer")
-            
+            logger.info(f"Loaded {model_type} explainer from final_model_{model_type}.json (legacy)")
         except Exception as e:
             logger.warning(f"Could not load {model_type} explainer: {e}")
     
