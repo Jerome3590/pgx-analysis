@@ -149,10 +149,12 @@ outputs/
 
 ### Key Features
 
-- **XGBoost FFA Only**: FFA analysis is performed only for XGBoost models
-  - CatBoost FFA is not performed due to complex hashing and CTR transformations
-  - CatBoost SHAP values are used for feature importance filtering in XGBoost FFA
-- **SHAP-Augmented Rule Filtering**: Uses SHAP importance from both XGBoost and CatBoost to filter/prioritize rules
+- **Deterministic robustness due to rules**: Explanations are grounded in symbolic Boolean rules. Same instance → same matched rules → same explanation, making outcomes reproducible and verifiable and well-suited to formal and causal analysis.
+- **XGBoost explainer only for rules**: FFA rule extraction and the symbolic explainer use **only the XGBoost model** (best XGB variant from Step 6). CatBoost is not used as an explainer because CatBoost’s hashing of categorical variables makes it too hard to explain symbolically.
+- **SHAP values**: Come from the **best model** selected in Step 6:
+  - **If best model is XGBoost**: SHAP values and the XGBoost explainer both use that same model.
+  - **If best model is CatBoost**: SHAP values use CatBoost plus the best XGBoost (for consensus filtering); rule extraction still uses only the **XGBoost explainer** (best XGB variant).
+- **SHAP-Augmented Rule Filtering**: Uses SHAP importance (from the best model(s) as above) to filter/prioritize rules in XGBoost FFA.
 - **Unified Schema**: Consistent representation across XGBoost model types
 - **Dual Causal Analysis**: Explainer-based and probability-based methods
 - **Interactive Dashboards**: Plotly-based risk exploration tools
