@@ -16,16 +16,21 @@ age_band_fname = age_band.replace('-', '_')
 print('Checking required inputs for Step 8...')
 print('=' * 80)
 
-# Check model files
+# Check model files (Step 6 writes best_xgboost_model.json and best_catboost_model.cbm/.json)
 model_json_base = PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json'
 print(f'\nModel JSON base: {model_json_base}')
 if model_json_base.exists():
     print('  [OK] Exists')
-    xgb_json = model_json_base / 'xgboost_model.json'
+    xgb_json = model_json_base / f'{cohort}_{age_band_fname}_best_xgboost_model.json'
     if xgb_json.exists():
         print(f'  [OK] XGBoost JSON: {xgb_json}')
     else:
         print(f'  [MISSING] XGBoost JSON: {xgb_json}')
+    cb_cbm = model_json_base / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'
+    if cb_cbm.exists():
+        print(f'  [OK] CatBoost binary: {cb_cbm}')
+    else:
+        print(f'  [MISSING] CatBoost binary: {cb_cbm}')
 else:
     print('  [MISSING] Model JSON base')
 

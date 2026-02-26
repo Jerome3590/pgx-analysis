@@ -32,6 +32,11 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
+# Optuna HPO (multi-objective Recall + AUC-PR)
+N_MCCV_HPO = 5
+N_OPTUNA_TRIALS = 50
+RANDOM_STATE = 1997
+
 # Matplotlib for visualizations (set backend before importing pyplot)
 import matplotlib
 if os.environ.get('DISPLAY') is None:
@@ -1441,6 +1446,171 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
     return final
 
 
+def _generate_mc_splits(X, y, n_splits: int, test_size: float = 0.3, random_state: int = 1997):
+    """Yield (X_train, X_test, y_train, y_test) for each MC split."""
+    for split_idx in range(n_splits):
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, stratify=y, random_state=random_state + split_idx
+        )
+        yield X_train, X_test, y_train, y_test
+
+
+def _build_model_from_trial(trial, model_type: str, device: str, nthread: int, cat_feature_indices: list):
+    """Build one of XGBClassifier, XGBRFClassifier, or CatBoostClassifier from Optuna trial."""
+    import xgboost as xgb  # type: ignore
+    if model_type == "xgb":
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 200, 600),
+            "max_depth": trial.suggest_int("max_depth", 4, 10),
+            "learning_rate": trial.suggest_float("learning_rate", 0.02, 0.2, log=True),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+            "gamma": trial.suggest_float("gamma", 1e-8, 1.0, log=True),
+        }
+        clf = xgb.XGBClassifier(
+            **params,
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=RANDOM_STATE,
+        )
+        return clf
+    if model_type == "xgb_rf":
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators_rf", 200, 600),
+            "max_depth": trial.suggest_int("max_depth_rf", 4, 10),
+            "subsample": trial.suggest_float("subsample_rf", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree_rf", 0.6, 1.0),
+        }
+        clf = xgb.XGBRFClassifier(
+            **params,
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=RANDOM_STATE,
+        )
+        return clf
+    # cat
+    from catboost import CatBoostClassifier  # type: ignore
+    params = {
+        "iterations": trial.suggest_int("iterations", 300, 800),
+        "learning_rate": trial.suggest_float("learning_rate_cat", 0.02, 0.2, log=True),
+        "depth": trial.suggest_int("depth", 4, 10),
+        "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 1.0, 10.0),
+    }
+    clf = CatBoostClassifier(
+        **params,
+        loss_function="Logloss",
+        eval_metric="Logloss",
+        grow_policy="SymmetricTree",
+        random_seed=RANDOM_STATE,
+        verbose=False,
+        cat_features=cat_feature_indices,
+    )
+    return clf
+
+
+def _select_best_trial_from_pareto(study, strategy: str = "auprc", recall_min: float = 0.7):
+    """Pick one trial from study.best_trials (Pareto front). strategy: auprc | recall | recall_threshold."""
+    best_trials = study.best_trials
+    if not best_trials:
+        return None
+    # values: (mean_recall, mean_auprc) at indices 0, 1
+    if strategy == "recall_threshold":
+        qualified = [t for t in best_trials if t.values[0] is not None and t.values[0] >= recall_min]
+        if qualified:
+            return max(qualified, key=lambda t: t.values[1])
+        return max(best_trials, key=lambda t: t.values[1])
+    if strategy == "recall":
+        return max(best_trials, key=lambda t: t.values[0] if t.values and t.values[0] is not None else -1)
+    return max(best_trials, key=lambda t: t.values[1] if t.values and len(t.values) > 1 and t.values[1] is not None else -1)
+
+
+def _default_xgb_params():
+    return {
+        "n_estimators": 500,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "min_child_weight": 1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "reg_lambda": 1.0,
+        "gamma": 1e-8,
+    }
+
+
+def _default_xgb_rf_params():
+    return {
+        "n_estimators_rf": 500,
+        "max_depth_rf": 6,
+        "subsample_rf": 0.8,
+        "colsample_bytree_rf": 0.8,
+    }
+
+
+def _default_cat_params():
+    return {
+        "iterations": 500,
+        "learning_rate_cat": 0.05,
+        "depth": 6,
+        "l2_leaf_reg": 3.0,
+    }
+
+
+def _build_model_from_params(params: dict, model_type: str, device: str, nthread: int, cat_feature_indices: list):
+    """Build classifier from a params dict (e.g. from trial.params). model_type: xgb | xgb_rf | cat."""
+    import xgboost as xgb  # type: ignore
+    if model_type == "xgb":
+        return xgb.XGBClassifier(
+            n_estimators=params.get("n_estimators", 500),
+            max_depth=params.get("max_depth", 6),
+            learning_rate=params.get("learning_rate", 0.05),
+            min_child_weight=params.get("min_child_weight", 1),
+            subsample=params.get("subsample", 0.8),
+            colsample_bytree=params.get("colsample_bytree", 0.8),
+            reg_lambda=params.get("reg_lambda", 1.0),
+            gamma=params.get("gamma", 1e-8),
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=RANDOM_STATE,
+        )
+    if model_type == "xgb_rf":
+        return xgb.XGBRFClassifier(
+            n_estimators=params.get("n_estimators_rf", 500),
+            max_depth=params.get("max_depth_rf", 6),
+            subsample=params.get("subsample_rf", 0.8),
+            colsample_bytree=params.get("colsample_bytree_rf", 0.8),
+            tree_method="hist",
+            device=device,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=nthread,
+            random_state=RANDOM_STATE,
+        )
+    from catboost import CatBoostClassifier  # type: ignore
+    return CatBoostClassifier(
+        iterations=params.get("iterations", 500),
+        learning_rate=params.get("learning_rate_cat", 0.05),
+        depth=params.get("depth", 6),
+        l2_leaf_reg=params.get("l2_leaf_reg", 3.0),
+        loss_function="Logloss",
+        eval_metric="Logloss",
+        grow_policy="SymmetricTree",
+        random_seed=RANDOM_STATE,
+        verbose=False,
+        cat_features=cat_feature_indices,
+    )
+
+
 def train_and_evaluate(
     df: pd.DataFrame, cohort: str, age_band: str, n_runs: int | None = None
 ) -> None:
@@ -1575,219 +1745,358 @@ def train_and_evaluate(
         error_msg += "\n\nTo install XGBoost, run: pip install xgboost"
         raise ImportError(error_msg)
 
-    print(f"\n[INFO] Starting Monte-Carlo CV with {n_runs} splits")
+    from py_helpers.env_utils import get_cpu_cores  # local import to avoid cycles
+    nthread = get_cpu_cores()
+    device = "cpu" if is_linux() else "cuda"
+
+    print(f"\n[INFO] Starting Monte-Carlo CV with {n_runs} splits (n_jobs={nthread} cores)")
     print(f"[INFO] Models to run: XGBoost, XGBoost RF" + (", CatBoost" if have_catboost else ""))
-    
+
     last_run_artifacts = {}
+    optuna_used = False
+    optuna_best_params = None
+    selected_model = None
+    best_xgb_variant = None
+    selection_reason = ""
+    best_pr_auc = 0.0
+    best_recall = 0.0
 
-    for run_idx in range(n_runs):
-        # MC split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.3, stratify=y, random_state=42 + run_idx
-        )
+    try:
+        import optuna  # type: ignore
+        optuna_available = True
+    except Exception:
+        optuna_available = False
 
-        print(f"\n[MC {run_idx + 1}/{n_runs}] Class distribution (train):")
-        print("  " + _counts(y_train))
-        print(f"[MC {run_idx + 1}/{n_runs}] Class distribution (test):")
-        print("  " + _counts(y_test))
-
-        models_to_train = ["XGBoost", "XGBoost RF"]
+    if optuna_available and n_runs:
+        model_types = ["xgb", "xgb_rf"]
         if have_catboost:
-            models_to_train.append("CatBoost")
-        print(
-            f"\n[MC {run_idx + 1}/{n_runs}] Training {', '.join(models_to_train)} for "
-            f"cohort={cohort}, age_band={age_band} with "
-            f"{X_train.shape[0]} train and {X_test.shape[0]} test rows, "
-            f"{X_train.shape[1]} numeric features."
-        )
+            model_types.append("cat")
+        hpo_splits = list(_generate_mc_splits(X, y, N_MCCV_HPO, 0.3, RANDOM_STATE))
+        print(f"[INFO] Optuna HPO: {N_OPTUNA_TRIALS} trials, {N_MCCV_HPO} splits per trial (Recall + AUC-PR)")
 
-        from py_helpers.env_utils import get_xgb_cpu_nthread  # local import to avoid cycles
-        nthread = get_xgb_cpu_nthread()
-        
-        # Determine device: CPU on Linux, CUDA on Windows (if available)
-        device = "cpu" if is_linux() else "cuda"
+        def _optuna_objective(trial):
+            model_type = trial.suggest_categorical("model_type", model_types)
+            recalls, auprcs = [], []
+            for (X_tr, X_te, y_tr, y_te) in hpo_splits:
+                clf = _build_model_from_trial(trial, model_type, device, nthread, cat_feature_indices)
+                try:
+                    clf.fit(X_tr, y_tr)
+                except Exception:
+                    if hasattr(clf, "set_params"):
+                        clf.set_params(tree_method="hist")
+                        if "device" in clf.get_params():
+                            clf.set_params(device="cpu")
+                    clf.fit(X_tr, y_tr)
+                y_proba = clf.predict_proba(X_te)[:, 1]
+                recalls.append(recall_score(y_te, (y_proba >= 0.5).astype(int), zero_division=0))
+                auprcs.append(average_precision_score(y_te, y_proba))
+            mean_recall = float(np.mean(recalls))
+            mean_auprc = float(np.mean(auprcs))
+            trial.set_user_attr("mean_recall", mean_recall)
+            trial.set_user_attr("mean_auprc", mean_auprc)
+            return (mean_recall, mean_auprc)
 
-        # Train XGBoost (boosting)
-        xgb_clf = xgb.XGBClassifier(
-            n_estimators=500,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=42 + run_idx,
-        )
+        study = optuna.create_study(directions=["maximize", "maximize"])
+        study.optimize(_optuna_objective, n_trials=N_OPTUNA_TRIALS)
+        best_trial = _select_best_trial_from_pareto(study, strategy="auprc")
+        if best_trial is not None:
+            _optuna_model = best_trial.params["model_type"]
+            selected_model = "catboost" if _optuna_model == "cat" else _optuna_model
+            optuna_best_params = best_trial.params
+            optuna_used = True
+            if selected_model in ("xgb", "xgb_rf"):
+                best_xgb_variant = selected_model
+            else:
+                xgb_trials = [t for t in study.best_trials if t.params.get("model_type") in ("xgb", "xgb_rf")]
+                if xgb_trials:
+                    best_xgb_trial = max(xgb_trials, key=lambda t: t.values[1] if t.values and len(t.values) > 1 else -1)
+                    best_xgb_variant = best_xgb_trial.params["model_type"]
+                else:
+                    best_xgb_variant = "xgb"
+            # Run full n_runs MCCV with selected model (Optuna params) and others (defaults) to fill metrics
+            for run_idx in range(n_runs):
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.3, stratify=y, random_state=RANDOM_STATE + run_idx
+                )
+                seed = RANDOM_STATE + run_idx
+                # XGB
+                xgb_params = optuna_best_params if selected_model == "xgb" else _default_xgb_params()
+                xgb_clf = _build_model_from_params(xgb_params, "xgb", device, nthread, cat_feature_indices)
+                xgb_clf.set_params(random_state=seed)
+                try:
+                    xgb_clf.fit(X_train, y_train)
+                except Exception:
+                    xgb_clf.set_params(tree_method="hist", device="cpu")
+                    xgb_clf.fit(X_train, y_train)
+                y_proba_xgb = xgb_clf.predict_proba(X_test)[:, 1]
+                metrics["xgb"]["auc"].append(roc_auc_score(y_test, y_proba_xgb))
+                metrics["xgb"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb))
+                metrics["xgb"]["logloss"].append(log_loss(y_test, y_proba_xgb))
+                metrics["xgb"]["recall"].append(recall_score(y_test, (y_proba_xgb >= 0.5).astype(int)))
+                # XGB RF
+                xgb_rf_params = optuna_best_params if selected_model == "xgb_rf" else _default_xgb_rf_params()
+                xgb_rf_clf = _build_model_from_params(xgb_rf_params, "xgb_rf", device, nthread, cat_feature_indices)
+                xgb_rf_clf.set_params(random_state=seed + 1000)
+                try:
+                    xgb_rf_clf.fit(X_train, y_train)
+                except Exception:
+                    xgb_rf_clf.set_params(tree_method="hist", device="cpu")
+                    xgb_rf_clf.fit(X_train, y_train)
+                y_proba_xgb_rf = xgb_rf_clf.predict_proba(X_test)[:, 1]
+                metrics["xgb_rf"]["auc"].append(roc_auc_score(y_test, y_proba_xgb_rf))
+                metrics["xgb_rf"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb_rf))
+                metrics["xgb_rf"]["logloss"].append(log_loss(y_test, y_proba_xgb_rf))
+                metrics["xgb_rf"]["recall"].append(recall_score(y_test, (y_proba_xgb_rf >= 0.5).astype(int)))
+                y_proba_cb = None
+                if have_catboost:
+                    cb_params = optuna_best_params if selected_model == "cat" else _default_cat_params()
+                    cb_clf = _build_model_from_params(cb_params, "cat", device, nthread, cat_feature_indices)
+                    cb_train_dir = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "catboost_info"
+                    cb_train_dir.mkdir(parents=True, exist_ok=True)
+                    cb_clf.set_params(train_dir=str(cb_train_dir))
+                    try:
+                        cb_clf.fit(X_train, y_train)
+                        y_proba_cb = cb_clf.predict_proba(X_test)[:, 1]
+                        metrics["catboost"]["auc"].append(roc_auc_score(y_test, y_proba_cb))
+                        metrics["catboost"]["pr_auc"].append(average_precision_score(y_test, y_proba_cb))
+                        metrics["catboost"]["logloss"].append(log_loss(y_test, y_proba_cb))
+                        metrics["catboost"]["recall"].append(recall_score(y_test, (y_proba_cb >= 0.5).astype(int)))
+                    except Exception as e:
+                        print(f"[WARN] CatBoost run {run_idx + 1} failed: {e}")
+                # Ensemble
+                if y_proba_cb is not None:
+                    y_proba_xgb_best = y_proba_xgb if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1] else y_proba_xgb_rf
+                    y_proba_ens = 0.5 * y_proba_xgb_best + 0.5 * y_proba_cb
+                    metrics["ensemble"]["auc"].append(roc_auc_score(y_test, y_proba_ens))
+                    metrics["ensemble"]["pr_auc"].append(average_precision_score(y_test, y_proba_ens))
+                    metrics["ensemble"]["logloss"].append(log_loss(y_test, y_proba_ens))
+                    metrics["ensemble"]["recall"].append(recall_score(y_test, (y_proba_ens >= 0.5).astype(int)))
+                else:
+                    if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1]:
+                        metrics["ensemble"]["auc"].append(metrics["xgb"]["auc"][-1])
+                        metrics["ensemble"]["pr_auc"].append(metrics["xgb"]["pr_auc"][-1])
+                        metrics["ensemble"]["logloss"].append(metrics["xgb"]["logloss"][-1])
+                        metrics["ensemble"]["recall"].append(metrics["xgb"]["recall"][-1])
+                    else:
+                        metrics["ensemble"]["auc"].append(metrics["xgb_rf"]["auc"][-1])
+                        metrics["ensemble"]["pr_auc"].append(metrics["xgb_rf"]["pr_auc"][-1])
+                        metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
+                        metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
+                if (run_idx + 1) % 5 == 0 or run_idx == 0:
+                    print(f"[MC {run_idx + 1}/{n_runs}] Optuna 25-split MCCV in progress...")
+            _mk = "catboost" if selected_model == "cat" else selected_model
+            best_pr_auc = float(np.mean(metrics[_mk]["pr_auc"])) if metrics[_mk]["pr_auc"] else 0.0
+            best_recall = float(np.mean(metrics[_mk]["recall"])) if metrics[_mk]["recall"] else 0.0
+            _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "cat": "CatBoost"}
+            selection_reason = (
+                f"Optuna selected {_names.get(selected_model, selected_model)} "
+                f"(AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
+            )
 
-        try:
-            xgb_clf.fit(X_train, y_train)
-        except Exception:
-            # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
+    if not optuna_used:
+        # Legacy path: fixed hyperparameters, select by AUC-PR then Recall
+        for run_idx in range(n_runs):
+            # MC split
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.3, stratify=y, random_state=42 + run_idx
+            )
+
+            print(f"\n[MC {run_idx + 1}/{n_runs}] Class distribution (train):")
+            print("  " + _counts(y_train))
+            print(f"[MC {run_idx + 1}/{n_runs}] Class distribution (test):")
+            print("  " + _counts(y_test))
+
+            models_to_train = ["XGBoost", "XGBoost RF"]
+            if have_catboost:
+                models_to_train.append("CatBoost")
             print(
-                "\nXGBoost CUDA device not available; "
-                "falling back to CPU hist tree_method."
+                f"\n[MC {run_idx + 1}/{n_runs}] Training {', '.join(models_to_train)} for "
+                f"cohort={cohort}, age_band={age_band} with "
+                f"{X_train.shape[0]} train and {X_test.shape[0]} test rows, "
+                f"{X_train.shape[1]} numeric features."
             )
-            xgb_clf.set_params(tree_method="hist")
-            if "device" in xgb_clf.get_params():
-                xgb_clf.set_params(device="cpu")
-            xgb_clf.fit(X_train, y_train)
 
-        # XGBoost metrics
-        y_proba_xgb = xgb_clf.predict_proba(X_test)[:, 1]
-        y_pred_xgb = (y_proba_xgb >= 0.5).astype(int)
-        metrics["xgb"]["auc"].append(roc_auc_score(y_test, y_proba_xgb))
-        metrics["xgb"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb))
-        metrics["xgb"]["logloss"].append(log_loss(y_test, y_proba_xgb))
-        metrics["xgb"]["recall"].append(recall_score(y_test, y_pred_xgb))
-
-        # Train XGBoost RF (random forest)
-        xgb_rf_clf = xgb.XGBRFClassifier(
-            n_estimators=500,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=42 + run_idx + 1000,  # Different seed for RF
-        )
-
-        try:
-            xgb_rf_clf.fit(X_train, y_train)
-        except Exception:
-            # Fallback to CPU if CUDA fails
-            print(
-                "\nXGBoost RF CUDA device not available; "
-                "falling back to CPU hist tree_method."
-            )
-            xgb_rf_clf.set_params(tree_method="hist")
-            if "device" in xgb_rf_clf.get_params():
-                xgb_rf_clf.set_params(device="cpu")
-            xgb_rf_clf.fit(X_train, y_train)
-
-        # XGBoost RF metrics
-        y_proba_xgb_rf = xgb_rf_clf.predict_proba(X_test)[:, 1]
-        y_pred_xgb_rf = (y_proba_xgb_rf >= 0.5).astype(int)
-        metrics["xgb_rf"]["auc"].append(roc_auc_score(y_test, y_proba_xgb_rf))
-        metrics["xgb_rf"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb_rf))
-        metrics["xgb_rf"]["logloss"].append(log_loss(y_test, y_proba_xgb_rf))
-        metrics["xgb_rf"]["recall"].append(recall_score(y_test, y_pred_xgb_rf))
-
-        y_proba_cb = None
-        if have_catboost:
-            # Scope CatBoost's internal training artifacts (catboost_info) to a
-            # cohort/age-band specific directory under 6_final_model outputs,
-            # instead of writing to the project root.
-            cb_train_dir = (
-                PROJECT_ROOT
-                / "6_final_model"
-                / "outputs"
-                / cohort
-                / age_band_fname
-                / "catboost_info"
-            )
-            cb_train_dir.mkdir(parents=True, exist_ok=True)
-
-            cb_clf = CatBoostClassifier(
-                iterations=500,
+            # Train XGBoost (boosting)
+            xgb_clf = xgb.XGBClassifier(
+                n_estimators=500,
+                max_depth=6,
                 learning_rate=0.05,
-                depth=6,
-                loss_function="Logloss",
-                eval_metric="Logloss",
-                grow_policy="SymmetricTree",  # enforce oblivious trees
-                random_seed=42 + run_idx,
-                verbose=False,
-                train_dir=str(cb_train_dir),
-                cat_features=cat_feature_indices,  # Mark binary features as categorical for better performance
+                subsample=0.8,
+                colsample_bytree=0.8,
+                tree_method="hist",
+                device=device,
+                objective="binary:logistic",
+                eval_metric="logloss",
+                n_jobs=nthread,
+                random_state=42 + run_idx,
             )
+
             try:
-                cb_clf.fit(X_train, y_train)
-                y_proba_cb = cb_clf.predict_proba(X_test)[:, 1]
-                y_pred_cb = (y_proba_cb >= 0.5).astype(int)
-                metrics["catboost"]["auc"].append(
-                    roc_auc_score(y_test, y_proba_cb)
+                xgb_clf.fit(X_train, y_train)
+            except Exception:
+                # Fallback to CPU if CUDA fails (shouldn't happen on Linux)
+                print(
+                    "\nXGBoost CUDA device not available; "
+                    "falling back to CPU hist tree_method."
                 )
-                metrics["catboost"]["pr_auc"].append(
-                    average_precision_score(y_test, y_proba_cb)
-                )
-                metrics["catboost"]["logloss"].append(
-                    log_loss(y_test, y_proba_cb)
-                )
-                metrics["catboost"]["recall"].append(
-                    recall_score(y_test, y_pred_cb)
-                )
-            except Exception as e:
-                print(f"\nCatBoost training failed in run {run_idx + 1}; skipping. {e}")
+                xgb_clf.set_params(tree_method="hist")
+                if "device" in xgb_clf.get_params():
+                    xgb_clf.set_params(device="cpu")
+                xgb_clf.fit(X_train, y_train)
 
-        # Ensemble: Use best XGBoost variant (will be selected after MC-CV) + CatBoost
-        # For now, use XGBoost (will be replaced by best variant after selection)
-        if y_proba_cb is not None:
-            # Use best performing XGBoost variant for ensemble
-            # Compare XGBoost vs XGBoost RF for this run
-            if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1]:
-                y_proba_xgb_best = y_proba_xgb
-            else:
-                y_proba_xgb_best = y_proba_xgb_rf
-            
-            y_proba_ens = 0.5 * y_proba_xgb_best + 0.5 * y_proba_cb
-            y_pred_ens = (y_proba_ens >= 0.5).astype(int)
-            metrics["ensemble"]["auc"].append(roc_auc_score(y_test, y_proba_ens))
-            metrics["ensemble"]["pr_auc"].append(
-                average_precision_score(y_test, y_proba_ens)
+            # XGBoost metrics
+            y_proba_xgb = xgb_clf.predict_proba(X_test)[:, 1]
+            y_pred_xgb = (y_proba_xgb >= 0.5).astype(int)
+            metrics["xgb"]["auc"].append(roc_auc_score(y_test, y_proba_xgb))
+            metrics["xgb"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb))
+            metrics["xgb"]["logloss"].append(log_loss(y_test, y_proba_xgb))
+            metrics["xgb"]["recall"].append(recall_score(y_test, y_pred_xgb))
+
+            # Train XGBoost RF (random forest)
+            xgb_rf_clf = xgb.XGBRFClassifier(
+                n_estimators=500,
+                max_depth=6,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                tree_method="hist",
+                device=device,
+                objective="binary:logistic",
+                eval_metric="logloss",
+                n_jobs=nthread,
+                random_state=42 + run_idx + 1000,  # Different seed for RF
             )
-            metrics["ensemble"]["logloss"].append(log_loss(y_test, y_proba_ens))
-            metrics["ensemble"]["recall"].append(recall_score(y_test, y_pred_ens))
-        else:
-            # Mirror best XGBoost variant metrics when ensemble is unavailable
-            if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1]:
-                metrics["ensemble"]["auc"].append(metrics["xgb"]["auc"][-1])
-                metrics["ensemble"]["pr_auc"].append(metrics["xgb"]["pr_auc"][-1])
-                metrics["ensemble"]["logloss"].append(metrics["xgb"]["logloss"][-1])
-                metrics["ensemble"]["recall"].append(metrics["xgb"]["recall"][-1])
-            else:
-                metrics["ensemble"]["auc"].append(metrics["xgb_rf"]["auc"][-1])
-                metrics["ensemble"]["pr_auc"].append(metrics["xgb_rf"]["pr_auc"][-1])
-                metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
-                metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
 
-        # Print metrics for all models
-        print(
-            f"[MC {run_idx + 1}/{n_runs}] "
-            f"XGB AUC={metrics['xgb']['auc'][-1]:.4f}, PR-AUC={metrics['xgb']['pr_auc'][-1]:.4f}, "
-            f"Recall={metrics['xgb']['recall'][-1]:.4f} | "
-            f"XGB-RF AUC={metrics['xgb_rf']['auc'][-1]:.4f}, PR-AUC={metrics['xgb_rf']['pr_auc'][-1]:.4f}, "
-            f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}",
-            end=""
-        )
-        
-        # Add CatBoost metrics if available
-        if have_catboost and metrics.get("catboost") and metrics["catboost"].get("auc") and len(metrics["catboost"]["auc"]) > 0:
+            try:
+                xgb_rf_clf.fit(X_train, y_train)
+            except Exception:
+                # Fallback to CPU if CUDA fails
+                print(
+                    "\nXGBoost RF CUDA device not available; "
+                    "falling back to CPU hist tree_method."
+                )
+                xgb_rf_clf.set_params(tree_method="hist")
+                if "device" in xgb_rf_clf.get_params():
+                    xgb_rf_clf.set_params(device="cpu")
+                xgb_rf_clf.fit(X_train, y_train)
+
+            # XGBoost RF metrics
+            y_proba_xgb_rf = xgb_rf_clf.predict_proba(X_test)[:, 1]
+            y_pred_xgb_rf = (y_proba_xgb_rf >= 0.5).astype(int)
+            metrics["xgb_rf"]["auc"].append(roc_auc_score(y_test, y_proba_xgb_rf))
+            metrics["xgb_rf"]["pr_auc"].append(average_precision_score(y_test, y_proba_xgb_rf))
+            metrics["xgb_rf"]["logloss"].append(log_loss(y_test, y_proba_xgb_rf))
+            metrics["xgb_rf"]["recall"].append(recall_score(y_test, y_pred_xgb_rf))
+
+            y_proba_cb = None
+            if have_catboost:
+                # Scope CatBoost's internal training artifacts (catboost_info) to a
+                # cohort/age-band specific directory under 6_final_model outputs,
+                # instead of writing to the project root.
+                cb_train_dir = (
+                    PROJECT_ROOT
+                    / "6_final_model"
+                    / "outputs"
+                    / cohort
+                    / age_band_fname
+                    / "catboost_info"
+                )
+                cb_train_dir.mkdir(parents=True, exist_ok=True)
+
+                cb_clf = CatBoostClassifier(
+                    iterations=500,
+                    learning_rate=0.05,
+                    depth=6,
+                    loss_function="Logloss",
+                    eval_metric="Logloss",
+                    grow_policy="SymmetricTree",  # enforce oblivious trees
+                    random_seed=42 + run_idx,
+                    verbose=False,
+                    train_dir=str(cb_train_dir),
+                    cat_features=cat_feature_indices,  # Mark binary features as categorical for better performance
+                )
+                try:
+                    cb_clf.fit(X_train, y_train)
+                    y_proba_cb = cb_clf.predict_proba(X_test)[:, 1]
+                    y_pred_cb = (y_proba_cb >= 0.5).astype(int)
+                    metrics["catboost"]["auc"].append(
+                        roc_auc_score(y_test, y_proba_cb)
+                    )
+                    metrics["catboost"]["pr_auc"].append(
+                        average_precision_score(y_test, y_proba_cb)
+                    )
+                    metrics["catboost"]["logloss"].append(
+                        log_loss(y_test, y_proba_cb)
+                    )
+                    metrics["catboost"]["recall"].append(
+                        recall_score(y_test, y_pred_cb)
+                    )
+                except Exception as e:
+                    print(f"\nCatBoost training failed in run {run_idx + 1}; skipping. {e}")
+
+            # Ensemble: Use best XGBoost variant (will be selected after MC-CV) + CatBoost
+            # For now, use XGBoost (will be replaced by best variant after selection)
+            if y_proba_cb is not None:
+                # Use best performing XGBoost variant for ensemble
+                # Compare XGBoost vs XGBoost RF for this run
+                if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1]:
+                    y_proba_xgb_best = y_proba_xgb
+                else:
+                    y_proba_xgb_best = y_proba_xgb_rf
+
+                y_proba_ens = 0.5 * y_proba_xgb_best + 0.5 * y_proba_cb
+                y_pred_ens = (y_proba_ens >= 0.5).astype(int)
+                metrics["ensemble"]["auc"].append(roc_auc_score(y_test, y_proba_ens))
+                metrics["ensemble"]["pr_auc"].append(
+                    average_precision_score(y_test, y_proba_ens)
+                )
+                metrics["ensemble"]["logloss"].append(log_loss(y_test, y_proba_ens))
+                metrics["ensemble"]["recall"].append(recall_score(y_test, y_pred_ens))
+            else:
+                # Mirror best XGBoost variant metrics when ensemble is unavailable
+                if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1]:
+                    metrics["ensemble"]["auc"].append(metrics["xgb"]["auc"][-1])
+                    metrics["ensemble"]["pr_auc"].append(metrics["xgb"]["pr_auc"][-1])
+                    metrics["ensemble"]["logloss"].append(metrics["xgb"]["logloss"][-1])
+                    metrics["ensemble"]["recall"].append(metrics["xgb"]["recall"][-1])
+                else:
+                    metrics["ensemble"]["auc"].append(metrics["xgb_rf"]["auc"][-1])
+                    metrics["ensemble"]["pr_auc"].append(metrics["xgb_rf"]["pr_auc"][-1])
+                    metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
+                    metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
+
+            # Print metrics for all models
             print(
-                f" | CatBoost AUC={metrics['catboost']['auc'][-1]:.4f}, PR-AUC={metrics['catboost']['pr_auc'][-1]:.4f}, "
-                f"Recall={metrics['catboost']['recall'][-1]:.4f}"
+                f"[MC {run_idx + 1}/{n_runs}] "
+                f"XGB AUC={metrics['xgb']['auc'][-1]:.4f}, PR-AUC={metrics['xgb']['pr_auc'][-1]:.4f}, "
+                f"Recall={metrics['xgb']['recall'][-1]:.4f} | "
+                f"XGB-RF AUC={metrics['xgb_rf']['auc'][-1]:.4f}, PR-AUC={metrics['xgb_rf']['pr_auc'][-1]:.4f}, "
+                f"Recall={metrics['xgb_rf']['recall'][-1]:.4f}",
+                end=""
             )
-        else:
-            print()  # Newline if CatBoost not available
 
-        # Save artifacts from last run for detailed reporting and importances
-        if run_idx == n_runs - 1:
-            last_run_artifacts = {
-                "xgb_clf": xgb_clf,
-                "xgb_rf_clf": xgb_rf_clf,
-                "X_train": X_train,
-                "X_test": X_test,
-                "y_train": y_train,
-                "y_test": y_test,
-                "y_pred_xgb": y_pred_xgb,
-                "y_proba_xgb": y_proba_xgb,
-                "y_proba_xgb_rf": y_proba_xgb_rf,
-                "y_proba_cb": y_proba_cb,
-            }
+            # Add CatBoost metrics if available
+            if have_catboost and metrics.get("catboost") and metrics["catboost"].get("auc") and len(metrics["catboost"]["auc"]) > 0:
+                print(
+                    f" | CatBoost AUC={metrics['catboost']['auc'][-1]:.4f}, PR-AUC={metrics['catboost']['pr_auc'][-1]:.4f}, "
+                    f"Recall={metrics['catboost']['recall'][-1]:.4f}"
+                )
+            else:
+                print()  # Newline if CatBoost not available
+
+            # Save artifacts from last run for detailed reporting and importances
+            if run_idx == n_runs - 1:
+                last_run_artifacts = {
+                    "xgb_clf": xgb_clf,
+                    "xgb_rf_clf": xgb_rf_clf,
+                    "X_train": X_train,
+                    "X_test": X_test,
+                    "y_train": y_train,
+                    "y_test": y_test,
+                    "y_pred_xgb": y_pred_xgb,
+                    "y_proba_xgb": y_proba_xgb,
+                    "y_proba_xgb_rf": y_proba_xgb_rf,
+                    "y_proba_cb": y_proba_cb,
+                }
 
     # Aggregate metrics across runs
     print("\n=== Monte-Carlo CV Summary (n_runs={}) ===".format(n_runs))
@@ -1908,28 +2217,26 @@ def train_and_evaluate(
     if cb_recall_mean is not None:
         print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
-    # Select best model among XGB, XGB-RF, CatBoost: Primary = AUC-PR, Tie-break = Recall
-    candidates = [
-        ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
-        ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
-    ]
-    if cb_pr_auc_mean is not None and cb_recall_mean is not None:
-        candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
-    # Sort by (AUC-PR desc, Recall desc), take first
-    candidates.sort(key=lambda t: (-t[1], -t[2]))
-    selected_model = candidates[0][0]
-    best_pr_auc = candidates[0][1]
-    best_recall = candidates[0][2]
-    # best_xgb_variant: which XGB variant to train as primary (when selected is CatBoost, still pick better XGB for training)
-    if xgb_pr_auc_mean > xgb_rf_pr_auc_mean or (xgb_pr_auc_mean == xgb_rf_pr_auc_mean and xgb_recall_mean >= xgb_rf_recall_mean):
-        best_xgb_variant = "xgb"
-    else:
-        best_xgb_variant = "xgb_rf"
-    # Human-readable selection reason
+    # Select best model among XGB, XGB-RF, CatBoost (legacy path only; Optuna path already set these)
     _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
-    selection_reason = (
-        f"{_names[selected_model]} selected by Recall and AUC-PR (AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
-    )
+    if not optuna_used:
+        candidates = [
+            ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
+            ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
+        ]
+        if cb_pr_auc_mean is not None and cb_recall_mean is not None:
+            candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
+        candidates.sort(key=lambda t: (-t[1], -t[2]))
+        selected_model = candidates[0][0]
+        best_pr_auc = candidates[0][1]
+        best_recall = candidates[0][2]
+        if xgb_pr_auc_mean > xgb_rf_pr_auc_mean or (xgb_pr_auc_mean == xgb_rf_pr_auc_mean and xgb_recall_mean >= xgb_rf_recall_mean):
+            best_xgb_variant = "xgb"
+        else:
+            best_xgb_variant = "xgb_rf"
+        selection_reason = (
+            f"{_names[selected_model]} selected by Recall and AUC-PR (AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
+        )
     print(f"\nSelected: {_names[selected_model].upper()}")
     print(f"Reason: {selection_reason}")
     # Best XGBoost variant is always trained and saved for FFA rule analysis (even when CatBoost is selected)
@@ -1958,7 +2265,14 @@ def train_and_evaluate(
             "catboost_auc_mean": cb_auc_mean,
             "catboost_logloss_mean": cb_logloss_mean,
         })
-    
+    selection_metadata["best_pr_auc"] = best_pr_auc
+    selection_metadata["best_recall"] = best_recall
+    if optuna_used and optuna_best_params is not None:
+        selection_metadata["optuna_used"] = True
+        selection_metadata["optuna_best_params"] = optuna_best_params
+    else:
+        selection_metadata["optuna_used"] = False
+
     metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
     s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
     
@@ -2142,41 +2456,22 @@ def train_and_evaluate(
     # ------------------------------------------------------------------
     import xgboost as xgb  # type: ignore
 
-    from py_helpers.env_utils import get_xgb_cpu_nthread  # local import to avoid cycles
-    nthread = get_xgb_cpu_nthread()
+    from py_helpers.env_utils import get_cpu_cores  # local import to avoid cycles
+    nthread = get_cpu_cores()
     
     # Determine device: CPU on Linux, CUDA on Windows (if available)
     device = "cpu" if is_linux() else "cuda"
 
-    # Train best XGBoost variant on full data
+    # Train best XGBoost variant on full data (use Optuna params when available)
+    xgb_params = optuna_best_params if (optuna_used and best_xgb_variant == "xgb") else _default_xgb_params()
+    xgb_rf_params = optuna_best_params if (optuna_used and best_xgb_variant == "xgb_rf") else _default_xgb_rf_params()
     if best_xgb_variant == "xgb":
-        xgb_final = xgb.XGBClassifier(
-            n_estimators=500,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=1997,
-        )
+        xgb_final = _build_model_from_params(xgb_params, "xgb", device, nthread, cat_feature_indices)
+        xgb_final.set_params(random_state=RANDOM_STATE)
     else:  # xgb_rf
-        xgb_final = xgb.XGBRFClassifier(
-            n_estimators=500,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=1997,
-        )
-    
+        xgb_final = _build_model_from_params(xgb_rf_params, "xgb_rf", device, nthread, cat_feature_indices)
+        xgb_final.set_params(random_state=RANDOM_STATE)
+
     try:
         xgb_final.fit(X, y)
     except Exception:
@@ -2189,33 +2484,12 @@ def train_and_evaluate(
     # Train the other XGBoost variant so we can save both for the dashboard (catboost + xgboost + xgboost_rf)
     if best_xgb_variant == "xgb":
         xgb_tree_final = xgb_final
-        xgb_rf_final = xgb.XGBRFClassifier(
-            n_estimators=500,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=1997,
-        )
+        xgb_rf_final = _build_model_from_params(_default_xgb_rf_params(), "xgb_rf", device, nthread, cat_feature_indices)
+        xgb_rf_final.set_params(random_state=RANDOM_STATE)
     else:
         xgb_rf_final = xgb_final
-        xgb_tree_final = xgb.XGBClassifier(
-            n_estimators=500,
-            max_depth=6,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            tree_method="hist",
-            device=device,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            n_jobs=nthread,
-            random_state=1997,
-        )
+        xgb_tree_final = _build_model_from_params(_default_xgb_params(), "xgb", device, nthread, cat_feature_indices)
+        xgb_tree_final.set_params(random_state=RANDOM_STATE)
     for other_model in (xgb_rf_final if best_xgb_variant == "xgb" else xgb_tree_final,):
         try:
             other_model.fit(X, y)
@@ -2291,17 +2565,9 @@ def train_and_evaluate(
     try:
         from catboost import CatBoostClassifier  # type: ignore
 
-        cb_final = CatBoostClassifier(
-            iterations=500,
-            learning_rate=0.05,
-            depth=6,
-            loss_function="Logloss",
-            eval_metric="Logloss",
-            grow_policy="SymmetricTree",
-            random_seed=1997,
-            verbose=False,
-            cat_features=cat_feature_indices,  # Mark binary features as categorical for better performance
-        )
+        cb_params = optuna_best_params if (optuna_used and selected_model == "catboost") else _default_cat_params()
+        cb_final = _build_model_from_params(cb_params, "cat", device, nthread, cat_feature_indices)
+        cb_final.set_params(random_seed=RANDOM_STATE)
         cb_final.fit(X, y)
 
         # Save BEST CatBoost model as binary (.cbm) for SHAP analysis
@@ -2329,6 +2595,27 @@ def train_and_evaluate(
         
         save_model_idempotent(cb_json_path, s3_cb_json, save_cb_json)
         print(f"Saved BEST CatBoost model JSON to {cb_json_path}")
+
+        # CatBoost feature importances (from full-data final model)
+        try:
+            if hasattr(cb_final, "get_feature_importance"):
+                cb_importances = cb_final.get_feature_importance()
+            else:
+                cb_importances = getattr(cb_final, "feature_importances_", None)
+            if cb_importances is not None and len(cb_importances) == len(numeric_feature_cols):
+                cb_fi_df = pd.DataFrame(
+                    {"feature": numeric_feature_cols, "importance": cb_importances}
+                )
+                cb_fi_df = cb_fi_df.sort_values("importance", ascending=False)
+                cb_fi_path = out_base / f"{cohort}_{age_band_fname}_catboost_feature_importance.csv"
+                s3_cb_fi_path = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_catboost_feature_importance.csv"
+                def save_cb_fi():
+                    cb_fi_df.to_csv(cb_fi_path, index=False)
+                save_model_idempotent(cb_fi_path, s3_cb_fi_path, save_cb_fi)
+                print(f"\nSaved CatBoost feature importances to {cb_fi_path} (top 10 below).")
+                print(cb_fi_df.head(10).to_string(index=False))
+        except Exception as e:
+            print(f"[WARNING] Could not save CatBoost feature importances: {e}")
 
         # Also save binary/joblib models for deployment (step 10 dashboard)
         models_dir = out_base / "models"
@@ -2403,11 +2690,9 @@ def train_and_evaluate(
         s3_xgb_binary_model = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/xgboost_model.ubj"
         
         def save_xgb_binary_model():
-            # Use the fixed model's booster to save native binary format (UBJ)
+            # Use XGBoost final model's booster to save native binary format (UBJ)
             # This is what SHAP's TreeExplainer expects and avoids base_score parsing issues
-            # Binary format is faster and more reliable than JSON
-            # Prefer model_to_save (which may have been fixed) over xgb_final
-            model_source = model_to_save if 'model_to_save' in locals() else xgb_final
+            model_source = xgb_final
             if hasattr(model_source, 'get_booster'):
                 booster = model_source.get_booster()
                 booster.save_model(str(xgb_binary_model_path))
