@@ -1611,6 +1611,34 @@ def _build_model_from_params(params: dict, model_type: str, device: str, nthread
     )
 
 
+def _recompute_selection_from_summary_df(summary_df: pd.DataFrame) -> tuple:
+    """From a model_metrics_summary DataFrame, compute selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason (same rule: AUC-PR then Recall)."""
+    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
+    name_to_internal = {"XGBoost": "xgb", "XGBoost_RF": "xgb_rf", "CatBoost": "catboost"}
+    rows = summary_df[summary_df["model"].isin(name_to_internal.keys())].copy()
+    if rows.empty:
+        return ("xgb", "xgb", 0.0, 0.0, "No candidates in summary")
+    rows = rows.sort_values(by=["pr_auc_mean", "recall_mean"], ascending=[False, False])
+    first = rows.iloc[0]
+    selected_model = name_to_internal[first["model"]]
+    best_pr_auc = float(first["pr_auc_mean"])
+    best_recall = float(first["recall_mean"])
+    xgb_row = summary_df[summary_df["model"] == "XGBoost"]
+    xgb_rf_row = summary_df[summary_df["model"] == "XGBoost_RF"]
+    if not xgb_row.empty and not xgb_rf_row.empty:
+        xgb_pr = float(xgb_row["pr_auc_mean"].iloc[0])
+        xgb_r = float(xgb_row["recall_mean"].iloc[0])
+        rf_pr = float(xgb_rf_row["pr_auc_mean"].iloc[0])
+        rf_r = float(xgb_rf_row["recall_mean"].iloc[0])
+        best_xgb_variant = "xgb" if (xgb_pr > rf_pr or (xgb_pr == rf_pr and xgb_r >= rf_r)) else "xgb_rf"
+    else:
+        best_xgb_variant = "xgb"
+    selection_reason = (
+        f"{_names[selected_model]} selected by 25-run MCCV (AUC-PR then Recall): AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f}"
+    )
+    return (selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason)
+
+
 def train_and_evaluate(
     df: pd.DataFrame, cohort: str, age_band: str, n_runs: int | None = None
 ) -> None:
@@ -1623,9 +1651,14 @@ def train_and_evaluate(
       - XGBoost (boosting)
       - CatBoost (if available)
       - Simple ensemble of XGBoost + CatBoost (probability average)
+
+    Idempotent: if model_metrics_summary.csv and final model artifacts already exist,
+    only selection is recomputed from the summary (AUC-PR then Recall) and metadata/CSV
+    are updated; no retraining.
     """
-    # Pre-compute age_band_fname once so it is available throughout this function.
+    # Pre-compute age_band_fname and out_base once so they are available throughout.
     age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
     # Separate features and label
     feature_cols: List[str] = [
         c for c in df.columns if c not in ("mi_person_key", "target")
@@ -1708,6 +1741,84 @@ def train_and_evaluate(
         )
         return
 
+    # ------------------------------------------------------------------
+    # Idempotent selection-only path: if summary CSV and final models exist, just correct selection and exit
+    # ------------------------------------------------------------------
+    summary_csv_path = out_base / f"{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    model_json_dir = out_base / "final_model_json"
+    xgb_json_path = model_json_dir / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+    cb_cbm_path = model_json_dir / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
+    cb_joblib_path = out_base / "models" / "catboost.joblib"
+
+    def _try_load_summary_csv():
+        if summary_csv_path.exists():
+            return pd.read_csv(summary_csv_path)
+        try:
+            from py_helpers.checkpoint_utils import check_s3_output_exists
+            if check_s3_output_exists(s3_summary_csv):
+                summary_csv_path.parent.mkdir(parents=True, exist_ok=True)
+                import subprocess
+                subprocess.run(["aws", "s3", "cp", s3_summary_csv, str(summary_csv_path)], check=True)
+                return pd.read_csv(summary_csv_path)
+        except Exception:
+            pass
+        return None
+
+    existing_summary = _try_load_summary_csv()
+    has_catboost_in_summary = existing_summary is not None and "CatBoost" in existing_summary["model"].values
+    has_catboost_artifact = cb_cbm_path.exists() or cb_joblib_path.exists()
+    skip_retrain = (
+        existing_summary is not None
+        and xgb_json_path.exists()
+        and (has_catboost_artifact if has_catboost_in_summary else True)
+    )
+    if skip_retrain:
+        selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason = _recompute_selection_from_summary_df(existing_summary)
+        _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
+        # Update "selected" column in summary to match
+        def _selected_for_row(row):
+            return row["model"] == _names.get(selected_model, selected_model)
+        existing_summary["selected"] = existing_summary.apply(_selected_for_row, axis=1)
+        existing_summary.to_csv(summary_csv_path, index=False)
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+            upload_file_to_s3(summary_csv_path, s3_summary_csv, check_exists=False)
+        except Exception:
+            pass
+        metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+        s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
+        selection_metadata = {
+            "selected_model": selected_model,
+            "best_xgb_variant": best_xgb_variant,
+            "best_pr_auc": best_pr_auc,
+            "best_recall": best_recall,
+            "selection_reason": selection_reason,
+        }
+        if metadata_path.exists():
+            with open(metadata_path) as f:
+                existing_meta = json.load(f)
+            selection_metadata["xgb_recall_mean"] = existing_meta.get("xgb_recall_mean")
+            selection_metadata["xgb_pr_auc_mean"] = existing_meta.get("xgb_pr_auc_mean")
+            selection_metadata["xgb_rf_recall_mean"] = existing_meta.get("xgb_rf_recall_mean")
+            selection_metadata["xgb_rf_pr_auc_mean"] = existing_meta.get("xgb_rf_pr_auc_mean")
+            selection_metadata["optuna_used"] = existing_meta.get("optuna_used", False)
+            if existing_meta.get("optuna_best_params") is not None:
+                selection_metadata["optuna_best_params"] = existing_meta["optuna_best_params"]
+            for k in ("catboost_recall_mean", "catboost_pr_auc_mean", "catboost_auc_mean", "catboost_logloss_mean"):
+                if k in existing_meta:
+                    selection_metadata[k] = existing_meta[k]
+        with open(metadata_path, "w") as f:
+            json.dump(selection_metadata, f, indent=2)
+        try:
+            from py_helpers.checkpoint_utils import upload_file_to_s3
+            upload_file_to_s3(metadata_path, s3_metadata, check_exists=False)
+        except Exception:
+            pass
+        print(f"\n[IDEMPOTENT] Existing models found; selection corrected from summary (no retrain).")
+        print(f"Selected: {_names.get(selected_model, selected_model).upper()} (AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})")
+        return
+
     # Prepare containers for MC metrics
     # Track XGBoost and XGBoost RF separately for model selection
     model_names = ["xgb", "xgb_rf", "catboost", "ensemble"]
@@ -1755,6 +1866,7 @@ def train_and_evaluate(
     last_run_artifacts = {}
     optuna_used = False
     optuna_best_params = None
+    optuna_selected_model = None  # model type Optuna chose (used for which full-data refit gets Optuna params)
     selected_model = None
     best_xgb_variant = None
     selection_reason = ""
@@ -1802,6 +1914,7 @@ def train_and_evaluate(
         if best_trial is not None:
             _optuna_model = best_trial.params["model_type"]
             selected_model = "catboost" if _optuna_model == "cat" else _optuna_model
+            optuna_selected_model = selected_model  # remember for full-data refit (Optuna params only for this type)
             optuna_best_params = best_trial.params
             optuna_used = True
             if selected_model in ("xgb", "xgb_rf"):
@@ -1884,14 +1997,7 @@ def train_and_evaluate(
                         metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
                 if (run_idx + 1) % 5 == 0 or run_idx == 0:
                     print(f"[MC {run_idx + 1}/{n_runs}] Optuna 25-split MCCV in progress...")
-            _mk = "catboost" if selected_model == "cat" else selected_model
-            best_pr_auc = float(np.mean(metrics[_mk]["pr_auc"])) if metrics[_mk]["pr_auc"] else 0.0
-            best_recall = float(np.mean(metrics[_mk]["recall"])) if metrics[_mk]["recall"] else 0.0
-            _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "cat": "CatBoost"}
-            selection_reason = (
-                f"Optuna selected {_names.get(selected_model, selected_model)} "
-                f"(AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
-            )
+            # Selection will be overwritten below from 25-run MCCV means so CSV and selected agree
 
     if not optuna_used:
         # Legacy path: fixed hyperparameters, select by AUC-PR then Recall
@@ -2217,34 +2323,33 @@ def train_and_evaluate(
     if cb_recall_mean is not None:
         print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
-    # Select best model among XGB, XGB-RF, CatBoost (legacy path only; Optuna path already set these)
+    # Select best model from 25-run MCCV means (AUC-PR then Recall) so CSV "selected" column matches
     _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
-    if not optuna_used:
-        candidates = [
-            ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
-            ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
-        ]
-        if cb_pr_auc_mean is not None and cb_recall_mean is not None:
-            candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
-        candidates.sort(key=lambda t: (-t[1], -t[2]))
-        selected_model = candidates[0][0]
-        best_pr_auc = candidates[0][1]
-        best_recall = candidates[0][2]
-        if xgb_pr_auc_mean > xgb_rf_pr_auc_mean or (xgb_pr_auc_mean == xgb_rf_pr_auc_mean and xgb_recall_mean >= xgb_rf_recall_mean):
-            best_xgb_variant = "xgb"
-        else:
-            best_xgb_variant = "xgb_rf"
-        selection_reason = (
-            f"{_names[selected_model]} selected by Recall and AUC-PR (AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f})"
-        )
+    candidates = [
+        ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
+        ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
+    ]
+    if cb_pr_auc_mean is not None and cb_recall_mean is not None:
+        candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
+    candidates.sort(key=lambda t: (-t[1], -t[2]))
+    selected_model = candidates[0][0]
+    best_pr_auc = candidates[0][1]
+    best_recall = candidates[0][2]
+    if xgb_pr_auc_mean > xgb_rf_pr_auc_mean or (xgb_pr_auc_mean == xgb_rf_pr_auc_mean and xgb_recall_mean >= xgb_rf_recall_mean):
+        best_xgb_variant = "xgb"
+    else:
+        best_xgb_variant = "xgb_rf"
+    selection_reason = (
+        f"{_names[selected_model]} selected by 25-run MCCV (AUC-PR then Recall): AUC-PR={best_pr_auc:.4f}, Recall={best_recall:.4f}"
+    )
+    if optuna_used and optuna_selected_model is not None and optuna_selected_model != selected_model:
+        selection_reason += f" [Optuna had chosen {_names.get(optuna_selected_model, optuna_selected_model)}]"
     print(f"\nSelected: {_names[selected_model].upper()}")
     print(f"Reason: {selection_reason}")
     # Best XGBoost variant is always trained and saved for FFA rule analysis (even when CatBoost is selected)
     print(f"Best XGBoost variant for FFA: {best_xgb_variant.upper()}")
     
     # Save model selection metadata
-    age_band_fname = age_band_to_fname(age_band)
-    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
     out_base.mkdir(parents=True, exist_ok=True)
     
     selection_metadata = {
@@ -2462,9 +2567,9 @@ def train_and_evaluate(
     # Determine device: CPU on Linux, CUDA on Windows (if available)
     device = "cpu" if is_linux() else "cuda"
 
-    # Train best XGBoost variant on full data (use Optuna params when available)
-    xgb_params = optuna_best_params if (optuna_used and best_xgb_variant == "xgb") else _default_xgb_params()
-    xgb_rf_params = optuna_best_params if (optuna_used and best_xgb_variant == "xgb_rf") else _default_xgb_rf_params()
+    # Train best XGBoost variant on full data (use Optuna params only when Optuna tuned that variant)
+    xgb_params = optuna_best_params if (optuna_used and optuna_selected_model == "xgb") else _default_xgb_params()
+    xgb_rf_params = optuna_best_params if (optuna_used and optuna_selected_model == "xgb_rf") else _default_xgb_rf_params()
     if best_xgb_variant == "xgb":
         xgb_final = _build_model_from_params(xgb_params, "xgb", device, nthread, cat_feature_indices)
         xgb_final.set_params(random_state=RANDOM_STATE)
@@ -2565,7 +2670,7 @@ def train_and_evaluate(
     try:
         from catboost import CatBoostClassifier  # type: ignore
 
-        cb_params = optuna_best_params if (optuna_used and selected_model == "catboost") else _default_cat_params()
+        cb_params = optuna_best_params if (optuna_used and optuna_selected_model == "catboost") else _default_cat_params()
         cb_final = _build_model_from_params(cb_params, "cat", device, nthread, cat_feature_indices)
         cb_final.set_params(random_seed=RANDOM_STATE)
         cb_final.fit(X, y)
