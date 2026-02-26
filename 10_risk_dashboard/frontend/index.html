@@ -1311,6 +1311,12 @@
           <p class="doc-metrics-loading">Loading metrics…</p>
         </div>
 
+        <h2>Dashboard visual artifacts (from manifest)</h2>
+        <p>Artifacts produced by notebook 4 and synced to S3. Source: <code>visualizations/dashboard_visual_objects.json</code>.</p>
+        <div id="doc-manifest-container" class="doc-metrics">
+          <p class="doc-metrics-loading">Loading manifest…</p>
+        </div>
+
         <h2>Feature importance sources for visuals</h2>
         <p>
           BupaR, DTW, and FP-Growth use <strong>different</strong> feature-importance inputs:
@@ -1972,6 +1978,7 @@
       updateCodesSummary();
     } else if (tabName === "documentation") {
       loadDocMetrics();
+      loadDocManifest();
     } else if (tabName === "drugs" || tabName === "icd-codes" || tabName === "cpt-codes") {
       if (!currentMetadata && currentCohort) {
         loadMetadata(currentCohort);
@@ -1991,6 +1998,39 @@
       panel.classList.toggle("active", panel.id === "dtw-subpanel-" + subtabId);
     });
   };
+
+  function loadDocManifest() {
+    const container = document.getElementById("doc-manifest-container");
+    if (!container) return;
+    container.innerHTML = "<p class=\"doc-metrics-loading\">Loading manifest…</p>";
+    const manifestUrl = staticJsonPath("visualizations/dashboard_visual_objects.json");
+    fetch(manifestUrl)
+      .then(function(res) {
+        if (res.ok) return res.json();
+        return Promise.reject(new Error(res.status === 404 ? "not found" : res.statusText));
+      })
+      .then(function(data) {
+        window.dashboardVisualManifest = data;
+        const objects = data.visual_objects || [];
+        if (objects.length === 0) {
+          container.innerHTML = "<p class=\"doc-metrics-loading\">No visual objects in manifest.</p>";
+          return;
+        }
+        let html = "<table><thead><tr><th>Visual</th><th>Tab</th><th>S3 path</th><th>Notes</th></tr></thead><tbody>";
+        objects.forEach(function(obj) {
+          const name = (obj.visual_name || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const tab = (obj.dashboard_tab || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const s3 = (obj.s3_path || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const notes = (obj.notes || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          html += "<tr><td>" + name + "</td><td>" + tab + "</td><td><code>" + s3 + "</code></td><td>" + notes + "</td></tr>";
+        });
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      })
+      .catch(function(err) {
+        container.innerHTML = "<p class=\"doc-metrics-loading\">Manifest not available (run notebook 4 to generate <code>visualizations/dashboard_visual_objects.json</code>).</p>";
+      });
+  }
 
   function loadDocMetrics() {
     const container = document.getElementById("doc-metrics-container");
