@@ -91,3 +91,18 @@ Both run BupaR, DTW, and FP-Growth for configured cohorts/age bands. **FP-Growth
 ## Deployment
 
 See `../deployment/README.md` for deployment instructions. To (re)create the API Gateway REST API and wire it to Lambda: `utility_scripts/create_api_gateway_pgx_risk_calculator.sh` (or `.ps1` on Windows).
+
+## Troubleshooting 502 (Bad Gateway) on /visualizations/dtw
+
+A **502** from API Gateway usually means the Lambda **timed out** or **ran out of memory** before returning. Visualization endpoints load JSON from S3 (chart_data, sequence_heatmap, trajectory_overview_plot); large objects can cause this.
+
+- **Lambda timeout:** In AWS Console → Lambda → your function → Configuration → General → Timeout: set to **15–30 seconds** (default 3 s is often too low for several S3 GETs).
+- **Lambda memory:** Increase memory (e.g. **512 MB** or **1024 MB**) so cold starts and JSON parsing complete faster. Use CLI to set both in one go (replace `YOUR_FUNCTION_NAME` with your Lambda name):
+  ```bash
+  aws lambda update-function-configuration \
+    --function-name YOUR_FUNCTION_NAME \
+    --timeout 30 \
+    --memory-size 1024
+  ```
+- **Large trajectory_overview_plot.json:** The handler skips loading `trajectory_overview_plot.json` when it is larger than 2 MB (frontend falls back to overview/sample image URLs). If you still see 502, ensure DTW chart_data and sequence_heatmap in S3 are not unusually large.
+- **CORS:** If the browser reports "blocked by CORS" instead of 502, enable CORS on the API Gateway API (OPTIONS method returning `Access-Control-Allow-Origin`) so requests from `https://jerome-dixon.io` are allowed. See `../deployment/README.md` (test OPTIONS with curl).
