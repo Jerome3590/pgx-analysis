@@ -1460,6 +1460,10 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         return _response(500, {"error": str(e)})
 
 
+# Max size (bytes) for inline trajectory_overview_plot.json to avoid Lambda timeout/OOM (Plotly JSON can be large)
+DTW_TRAJECTORY_PLOT_MAX_INLINE_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
 def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     GET /visualizations/dtw?cohort=...&age_band=...
@@ -1539,11 +1543,14 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             if metrics:
                 payload["metrics"] = metrics
 
-        # Trajectory overview: prefer Plotly figure JSON so frontend builds Plotly (no iframe/HTML)
+        # Trajectory overview: prefer Plotly figure JSON (skip if too large to avoid Lambda timeout/OOM/502)
         trajectory_plot_key = f"{plots_key}/trajectory_overview_plot.json"
         try:
-            obj = s3_client.get_object(Bucket=bucket, Key=trajectory_plot_key)
-            payload["trajectory_overview_plot"] = json.loads(obj["Body"].read().decode("utf-8"))
+            head = s3_client.head_object(Bucket=bucket, Key=trajectory_plot_key)
+            size = head.get("ContentLength", 0) or 0
+            if size <= DTW_TRAJECTORY_PLOT_MAX_INLINE_BYTES:
+                obj = s3_client.get_object(Bucket=bucket, Key=trajectory_plot_key)
+                payload["trajectory_overview_plot"] = json.loads(obj["Body"].read().decode("utf-8"))
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
                 raise
