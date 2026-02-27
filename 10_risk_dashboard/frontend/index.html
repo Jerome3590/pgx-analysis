@@ -2610,11 +2610,16 @@
         throw new Error(body && body.error ? body.error : `HTTP ${urlResp.status}`);
       }
       const data = await urlResp.json();
-      const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey);
-      renderBupaRVisualizations(data, selected.length ? selected : undefined, { cohort, ageBand });
+      const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey).filter(Boolean);
+      renderBupaRVisualizations(data, Array.isArray(selected) && selected.length > 0 ? selected : undefined, { cohort, ageBand });
       // Activity frequency: JSON from API → Plotly bar charts on frontend (same pattern as DTW charts)
       if (freqResp.ok) {
-        const freqData = await freqResp.json();
+        let freqData = null;
+        try {
+          freqData = await freqResp.json();
+        } catch (_) {
+          freqData = null;
+        }
         renderBupaRActivityFrequencyCharts(freqData);
         document.getElementById("bupar-status").textContent = "BupaR visualizations loaded (images + activity frequency Plotly charts).";
       } else {
@@ -3158,7 +3163,8 @@
       const raw = localStorage.getItem(BUPAR_STORAGE_KEY_INDEX);
       if (!raw) return BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
       const obj = JSON.parse(raw);
-      return Array.isArray(obj[cohort]) ? obj[cohort] : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
+      const stored = obj && typeof obj === 'object' ? obj[cohort] : undefined;
+      return Array.isArray(stored) ? stored : BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
     } catch (_) {
       return BUPAR_VISUAL_KEYS_INDEX.map(v => v.key);
     }
@@ -3291,19 +3297,26 @@
   function buildBupaRBarChart(containerId, segmentKey, freqData) {
     if (!freqData || typeof freqData !== 'object') return null;
     const seg = freqData[segmentKey];
-    if (!seg || !Array.isArray(seg.data) || seg.data.length === 0) return null;
-    const yearLabels = seg.year_labels || {};
+    const dataArr = seg && seg.data;
+    if (!seg || !Array.isArray(dataArr) || dataArr.length === 0) return null;
+    const rawYearLabels = seg.year_labels || {};
+    // Support both { "0": "All Years" } and { "0": ["All Years (2016-2018)"] }
+    const yearLabels = {};
+    Object.keys(rawYearLabels).forEach(k => {
+      const v = rawYearLabels[k];
+      yearLabels[k] = Array.isArray(v) ? (v[0] != null ? v[0] : k) : (v != null ? v : k);
+    });
     const years = Object.keys(yearLabels).map(Number).sort((a, b) => a - b);
     const selectId = containerId.replace('bupar-chart-', 'bupar-year-');
     const select = document.getElementById(selectId);
     if (select) {
-      select.innerHTML = years.map(y => `<option value="${y}">${yearLabels[String(y)] || y}</option>`).join('');
+      select.innerHTML = years.map(y => `<option value="${y}">${yearLabels[String(y)] != null ? yearLabels[String(y)] : y}</option>`).join('');
     }
     const filterByYear = (year) => {
       const y = Number(year);
-      return seg.data.filter(d => Number(d.year) === y).sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 40);
+      return dataArr.filter(d => Number(d.year) === y).sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 40);
     };
-    const dataForYear = filterByYear(years[0] ?? 0);
+    const dataForYear = filterByYear(years.length ? years[0] : 0);
     const labels = dataForYear.map(d => d.activity_short || d.activity);
     const counts = dataForYear.map(d => d.count);
     const colors = dataForYear.map(d => BUPAR_CHART_COLORS[d.activity_type] || BUPAR_CHART_COLORS.Other);
@@ -3339,6 +3352,7 @@
 
   function renderBupaRActivityFrequencyCharts(freqData) {
     if (typeof Plotly === 'undefined') return;
+    if (!freqData || typeof freqData !== 'object') return;
     buildBupaRBarChart('bupar-chart-overall', 'overall', freqData);
     buildBupaRBarChart('bupar-chart-pre', 'pre_target', freqData);
     buildBupaRBarChart('bupar-chart-post', 'post_target', freqData);
