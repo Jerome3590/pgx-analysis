@@ -152,8 +152,8 @@ This structure follows a **separation of concerns** approach:
 **Purpose**: Prepare data for dashboard deployment
 
 **Scripts**:
-- `prepare_models.py` - Package models from `6_final_model/outputs/{cohort}/{age_band}/` for Lambda deployment
-  - Output directory: `10_risk_dashboard/outputs/models`
+- `prepare_models.py` - Package models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` for Lambda deployment
+  - Output directory: `10_risk_dashboard/outputs/models` (used by `prepare_lambda_dir.py` and Docker)
   - Configured for PGx cohorts (`opioid_ed`, `non_opioid_ed`) with correct age bands
 - `generate_metadata.py` - Extract valid codes from Step 3b `cohort_feature_importance` files
   - Prioritizes Step 3b refined features from `3b_feature_importance_eda/outputs/{cohort}/{age_band}/`
@@ -199,7 +199,7 @@ The dashboard includes the following visualization tabs:
 **Model Preparation (`prepare_models.py`)**:
 - Output directory: `10_risk_dashboard/outputs/models`
 - Configured for PGx cohorts (`opioid_ed`, `non_opioid_ed`) with correct age bands
-- Loads models from `6_final_model/outputs/{cohort}/{age_band}/`
+- Loads models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` (Step 6 outputs)
 
 **Metadata Generation (`generate_metadata.py`)**:
 - Prioritizes Step 3b `cohort_feature_importance` files (refined features)

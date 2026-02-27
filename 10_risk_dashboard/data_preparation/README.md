@@ -18,16 +18,14 @@ python prepare_models.py --all
 ```
 
 **What it does:**
-1. Loads models from `6_final_model/outputs/`
-2. Extracts feature schemas from training data
-3. Calculates model weights based on MC-CV performance
-4. Saves models and schemas to `../outputs/models/`
+1. Loads models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` (e.g. `xgboost.joblib`, `catboost.joblib`)
+2. Reads MC-CV results from `6_final_model/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_mc_cv_results.csv` for model weights
+3. Extracts feature schemas from `6_final_model/outputs/.../{cohort}_{age_band_fname}_train_final_features_no_leakage.csv`
+4. Writes to `10_risk_dashboard/outputs/models/` (used by `prepare_lambda_dir.py` and Docker build)
 
-**Outputs:**
-- `{cohort}/{age_band}/catboost.joblib`
-- `{cohort}/{age_band}/xgboost.joblib`
-- `{cohort}/{age_band}/xgboost_rf.joblib`
-- `{cohort}/{age_band}/feature_schema.json`
+**Outputs:** (under `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/`)
+- `catboost.joblib`, `xgboost.joblib`, optionally `xgboost_rf.joblib`
+- `feature_schema.json`
 
 ### `generate_metadata.py`
 
@@ -61,7 +59,7 @@ python generate_metrics.py --download-s3   # Fallback to S3 if local CSVs missin
 ```
 
 **What it does:**
-1. Reads existing `model_metrics_summary.csv` from `6_final_model/outputs/{cohort}/{age_band}/` (or S3)
+1. Reads existing `model_metrics_summary.csv` from `6_final_model/outputs/{cohort}/{age_band_fname}/` (or S3)
 2. Aggregates into a single JSON (no recomputation)
 3. Writes `model_performance_metrics.json` to `../outputs/metadata/` and uploads to S3 at `gold/dashboard/metadata/model_performance_metrics.json`
 
