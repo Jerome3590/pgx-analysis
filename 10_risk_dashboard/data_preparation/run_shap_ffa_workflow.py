@@ -334,7 +334,7 @@ def main() -> None:
 
     if not args.skip_combine:
         combine_script = Path(__file__).parent / "combine_shap_ffa_results.py"
-        dashboard_out = PROJECT_ROOT / "10_risk_dashboard" / "outputs"
+        causal_visuals_dir = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
         combine_cmd = [
             str(get_workflow_python_bin()),
             str(combine_script),
@@ -343,7 +343,7 @@ def main() -> None:
             "--age-band",
             args.age_band,
             "--output-dir",
-            str(dashboard_out),
+            str(causal_visuals_dir),
             "--workers",
             str(args.workers),
         ]
