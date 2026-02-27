@@ -6,6 +6,61 @@ Use this README to **track dashboard updates** and to **validate** changes to **
 
 ---
 
+## How to load visuals to S3 for the dashboard
+
+All dashboard visualization data lives under the **`visualizations/`** prefix on S3 (e.g. `s3://jerome-dixon.io/vcu/pgx-risk-calculator/visualizations/`). The top level of the prefix is for the frontend (index.html), `metadata/`, and optional backups/testing/builds.
+
+### Two-step flow
+
+| Step | Notebook | What it does | S3 result |
+|------|----------|--------------|-----------|
+| **Build** | **4_dashboard_visuals** | Runs BupaR, DTW, FP-Growth, Cohort PGx pipelines; uploads to **builds** paths. | `visualizations/bupar/builds/`, `visualizations/dtw/builds/`, `visualizations/fpgrowth/builds/`, `visualizations/cohort_pgx/builds/` |
+| **Deploy** | **5_build_and_deploy (Step 6)** | Syncs frontend, metadata, FI heatmaps, causal, Cohort PGx; **promotes** builds → final. | Final paths: `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, `visualizations/causal/` |
+
+### Step 1: Build and upload to builds (notebook 4)
+
+1. **Run notebook 4** (`4_dashboard_visuals.ipynb`) from repo root. The setup cell sets `S3_VISUALIZATIONS_BUILDS=1`, so all uploads go to `.../builds/`.
+2. **BupaR, DTW, FP-Growth, Cohort PGx** – Each pipeline cell runs the creation script, which uploads to S3 under:
+   - `visualizations/bupar/builds/{cohort}/{age_band}/plots/`
+   - `visualizations/dtw/builds/{cohort}/{age_band}/` (chart_data.json, sequence_heatmap.json, plots/)
+   - `visualizations/fpgrowth/builds/{cohort}/{age_band}/plots/` (and data/)
+   - `visualizations/cohort_pgx/builds/networks/{cohort}/{age_band}/`
+3. **Causal** – Run the “Upload Causal dashboard JSON to S3” cell (or `upload_causal_outputs_to_s3.py`). This writes directly to **final** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (no builds path).
+4. **Feature importance** – Heatmaps are produced by Step 3a / 2_feature_importance and live under `3a_feature_importance/outputs/`. They are **uploaded in Step 6** (notebook 5), not in notebook 4.
+
+**Environment:** Set `S3_DASHBOARD_BUCKET` and `S3_DASHBOARD_PREFIX` if not using defaults (e.g. `jerome-dixon.io`, `vcu/pgx-risk-calculator`). With `S3_VISUALIZATIONS_BUILDS=1` (set in notebook 4), scripts upload to the builds paths above.
+
+### Step 2: Deploy to final (notebook 5 Step 6)
+
+1. **Run notebook 5** and execute **Step 6: Sync Dashboard Frontend to S3**.
+2. Step 6:
+   - Syncs **frontend** (`10_risk_dashboard/frontend/`) to the S3 prefix root.
+   - Uploads **metadata** (`metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json`).
+   - Uploads **feature importance** heatmaps (PNG + JSON) to `visualizations/feature_importance/{cohort}/` and `visualizations/feature_importance/combined/`.
+   - Runs **sync_cohort_pgx_to_s3.py** (from local `10_risk_dashboard/visualizations/cohort_pgx/`) to final `visualizations/cohort_pgx/networks/`.
+   - Runs **upload_causal_outputs_to_s3.py** to final `visualizations/causal/`.
+   - **Promotes builds → final:** For each of `bupar`, `dtw`, `fpgrowth`, `cohort_pgx`, runs `aws s3 sync` from `visualizations/{name}/builds/` to `visualizations/{name}/`, so the dashboard and Lambda read from the final paths.
+
+**Do not** set `S3_VISUALIZATIONS_BUILDS` when running notebook 5; Step 6 expects notebook 4 to have already uploaded to builds and then promotes those to final.
+
+### Manual one-off uploads (optional)
+
+- **Causal only:**  
+  `python 10_risk_dashboard/data_preparation/upload_causal_outputs_to_s3.py`  
+  (reads `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json`, uploads to `visualizations/causal/{cohort}/{age_band}/causal_data.json`.)
+
+- **Cohort PGx only:**  
+  `python 10_risk_dashboard/deployment/sync_cohort_pgx_to_s3.py`  
+  (syncs local `10_risk_dashboard/visualizations/cohort_pgx/networks/` to `visualizations/cohort_pgx/networks/`; use default env so it writes to final, not builds.)
+
+- **Promote builds → final (no notebook 5):**  
+  For each of bupar, dtw, fpgrowth, cohort_pgx:  
+  `aws s3 sync s3://BUCKET/PREFIX/visualizations/NAME/builds/ s3://BUCKET/PREFIX/visualizations/NAME/ --region us-east-1`
+
+See [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) for full S3 keys and Lambda alignment.
+
+---
+
 ## Dashboard updates log
 
 Record notable changes here (date, scope, and brief description). Run the checklist below when editing the frontend.
@@ -106,7 +161,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Subtitle:** Research focus (features drive outcome; drug combinations); uses same cohort, age, and code selections as Risk Assessment.
 - [ ] **Controls:** What-if scenario input (`#causal-whatif-codes`), Load Causal Analysis, Clear filters. Cohort/age from Risk Assessment context.
 - [ ] **Headings (path README):** Top Causal Factors (FFA), SHAP Feature Importance, **Feature Interactions** (panel within this tab, not a separate tab), Effect on outcome (by feature). Interactions come from Lambda `chart_data.feature_interactions` (causal_data.json).
-- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (hyphen).
+- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (age_band hyphen).
 - [ ] **Element IDs / chart containers:** Match script (e.g. causal factors chart, SHAP chart, `#interactions-chart` for Feature Interactions, radar).
 
 ---
@@ -147,7 +202,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Subtitle:** Gene–drug–phenotype network topology; top PGx genes (SHAP/FFA) and PharmGKB VIP; cohort and age band select, then load.
 - [ ] **Controls:** Cohort, Age Band dropdowns; Load PGx Cohort Network.
 - [ ] **Heading:** "Gene–Drug–Phenotype Network Topology" (matches path README).
-- [ ] **Iframe:** `#cohort-pgx-iframe` loads `network_topology.html`; URL path-style S3: `cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html`.
+- [ ] **Iframe:** `#cohort-pgx-iframe` loads `network_topology.html`; URL path-style S3: `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (age_band hyphen).
 - [ ] **API:** `GET /visualizations/cohort_pgx?cohort=&age_band=` or direct S3 path; age_band format (e.g. `25_44`) consistent with backend.
 
 ---
@@ -164,7 +219,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 ## CORS (direct S3 fetches)
 
-When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 URLs** (path-style, e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/dtw/opioid_ed/25-44/chart_data.json`), the request is **cross-origin**. S3 must return `Access-Control-Allow-Origin` or the browser blocks the response (CORS error).
+When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 URLs** (path-style, e.g. `https://s3.us-east-1.amazonaws.com/jerome-dixon.io/vcu/pgx-risk-calculator/visualizations/dtw/opioid_ed/25-44/chart_data.json`), the request is **cross-origin**. S3 must return `Access-Control-Allow-Origin` or the browser blocks the response (CORS error).
 
 - [ ] **Dashboard bucket CORS applied:** Bucket `jerome-dixon.io` has CORS configured so `AllowedOrigins` includes `https://jerome-dixon.io` (and any dev origins). See [10_risk_dashboard/docs/S3_CORS_SETUP.md](10_risk_dashboard/docs/S3_CORS_SETUP.md).
 - [ ] **Config file:** `10_risk_dashboard/docs/s3-cors-config.json` is in the format required by `aws s3api put-bucket-cors` (object with `CORSRules` array). Apply with:  
@@ -183,8 +238,8 @@ When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 UR
 
 ## Causal Analysis artifact locations (validate with code)
 
-- **EC2:** `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json`. Written by `combine_shap_ffa_results.py` (default `--output-dir 10_risk_dashboard/outputs`). Checked by `check_dashboard_artifact_paths.py`.
-- **S3:** `causal/{cohort}/{age_band}/causal_data.json` (hyphen). Uploaded by `upload_causal_outputs_to_s3.py` (reads from EC2 path above) or `combine_shap_ffa_results.py --upload-to-dashboard`. Lambda reads from this S3 key.
+- **EC2:** `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json`. Written by `combine_shap_ffa_results.py` (default `--output-dir 10_risk_dashboard/visualizations/causal`). Checked by `check_dashboard_artifact_paths.py`.
+- **S3:** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (hyphen in age_band). Uploaded by `upload_causal_outputs_to_s3.py` or `combine_shap_ffa_results.py --upload-to-dashboard`. Lambda reads from this S3 key.
 
 ## After frontend changes
 
@@ -196,14 +251,14 @@ When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 UR
 
 ## Mapping table (data visual → tab, paths, type, extension, plot type)
 
-| Data visual | Tab | EC2 path | S3 path | Data visual type | File extension | Plot type |
-|-------------|-----|----------|--------|------------------|----------------|----------|
-| Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `feature_importance/{cohort}/` or `feature_importance/combined/` | image or JSON | `.png`, `.json` | heatmap |
-| Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/outputs/{cohort}/{age_band_fname}/dashboard_data.json` | `causal/{cohort}/{age_band}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
-| BupaR sequences, frequency, trace explorer, process matrix | BupaR Process Mining | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `bupar/{cohort}/{age_band}/plots/` | image, JSON, HTML | `.png`, `.json`, `.html` | sequence, frequency, matrix, iframe |
-| DTW chart_data, sequence_heatmap, plots | DTW Trajectories | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` | `dtw/{cohort}/{age_band}/` | JSON, image | `.json`, `.png` | trajectory, heatmap, Plotly |
-| FP-Growth itemsets, network | FP-Growth Patterns | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` | `fpgrowth/{cohort}/{age_band}/plots/`, `.../data/` | image, JSON, HTML | `.png`, `.json`, `.html` | itemsets, network (iframe) |
-| Gene–Drug–Phenotype network | PGx Cohort | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `cohort_pgx/networks/{cohort}/{age_band}/` | HTML | `.html` | network (iframe) |
+| Data visual | Tab | EC2 path | S3 path (final) | Data visual type | File extension | Plot type |
+|-------------|-----|----------|------------------|------------------|----------------|----------|
+| Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `visualizations/feature_importance/{cohort}/`, `.../combined/` | image or JSON | `.png`, `.json` | heatmap |
+| Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
+| BupaR sequences, frequency, trace explorer, process matrix | BupaR Process Mining | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `visualizations/bupar/{cohort}/{age_band}/plots/` (notebook 4 → builds; Step 6 → final) | image, JSON, HTML | `.png`, `.json`, `.html` | sequence, frequency, matrix, iframe |
+| DTW chart_data, sequence_heatmap, plots | DTW Trajectories | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` | `visualizations/dtw/{cohort}/{age_band}/` (notebook 4 → builds; Step 6 → final) | JSON, image | `.json`, `.png` | trajectory, heatmap, Plotly |
+| FP-Growth itemsets, network | FP-Growth Patterns | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` | `visualizations/fpgrowth/{cohort}/{age_band}/plots/`, `.../data/` (notebook 4 → builds; Step 6 → final) | image, JSON, HTML | `.png`, `.json`, `.html` | itemsets, network (iframe) |
+| Gene–Drug–Phenotype network | PGx Cohort | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/` (notebook 4 → builds; Step 6 → final) | HTML | `.html` | network (iframe) |
 | Metadata, model metrics | Risk Assessment, Drugs, ICD, CPT, Documentation | `10_risk_dashboard/outputs/metadata/`, `.../models/`, `.../cpic/` | `metadata/*.json` or Lambda | JSON / API | `.json` | — |
 
 **Age bands:** EC2/file paths use underscore (`age_band_fname`, e.g. `25_44`); **S3 paths use hyphen** (`age_band`, e.g. `25-44`). BupaR, DTW, FP-Growth S3 paths already use hyphen; causal and cohort_pgx use hyphen in S3.
