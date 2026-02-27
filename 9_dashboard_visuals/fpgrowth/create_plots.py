@@ -98,7 +98,7 @@ if __name__ == "__main__":
         '--s3-prefix',
         type=str,
         default=None,
-        help='S3 key prefix (default: {S3_DASHBOARD_PREFIX}/fpgrowth, e.g. vcu/pgx-risk-calculator/fpgrowth)'
+        help='S3 key prefix (default: {S3_DASHBOARD_PREFIX}/visualizations/fpgrowth)'
     )
     parser.add_argument(
         '--code-mapping',
@@ -117,7 +117,9 @@ if __name__ == "__main__":
     s3_prefix = args.s3_prefix
     if s3_prefix is None:
         dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
-        s3_prefix = f"{dashboard_prefix.rstrip('/')}/fpgrowth"
+        use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+        builds_suffix = "/builds" if use_builds else ""
+        s3_prefix = f"{dashboard_prefix.rstrip('/')}/visualizations/fpgrowth{builds_suffix}"
     
     # Create visualizations for all item types; upload to S3 when not --no-s3-upload
     result = create_all_fpgrowth_plots(

@@ -21,15 +21,20 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 | Visualization | EC2 location (underscore age band) | Upload/sync script | S3 key under prefix (hyphen age band) | Lambda (same key) |
 |---------------|------------------------------------|--------------------|----------------------------------------|-------------------|
 | **Causal** | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `upload_causal_outputs_to_s3.py` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | ✓ `handle_visualizations_causal` |
-| **DTW** | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_visuals.py` (upload helpers) | `dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`, `dtw/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_dtw` |
-| **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/` (and data/) | `create_plots.py` → `create_all_fpgrowth_plots` (s3_prefix = prefix/fpgrowth) | `fpgrowth/{cohort}/{age_band}/plots/*`, `fpgrowth/{cohort}/{age_band}/data/*` | ✓ `handle_visualizations_fpgrowth` |
-| **BupaR** | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `create_bupar_visuals.py` → `upload_bupar_plots_to_dashboard_s3` | `bupar/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_bupar` |
+| **DTW** | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_visuals.py` (upload helpers) | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`, `visualizations/dtw/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_dtw` |
+| **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/` (and data/) | `create_plots.py` → `create_all_fpgrowth_plots` (s3_prefix = prefix/visualizations/fpgrowth) | `visualizations/fpgrowth/{cohort}/{age_band}/plots/*`, `visualizations/fpgrowth/{cohort}/{age_band}/data/*` | ✓ `handle_visualizations_fpgrowth` |
+| **BupaR** | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `create_bupar_visuals.py` → `upload_bupar_plots_to_dashboard_s3` | `visualizations/bupar/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_bupar` |
 | **Feature importance** | `3a_feature_importance/outputs/{cohort}/plots/` (and `outputs/plots/`, `outputs/combined/`) | `pgx_dashboard_visuals.py` (when DEPLOY_FRONTEND=1) or notebook 5 deploy | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png` or `.json`, `visualizations/feature_importance/combined/aggregated_fi_heatmap.json`, `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` | ✓ `handle_visualizations_feature_importance` |
-| **Cohort PGx** | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `sync_cohort_pgx_to_s3.py` or `build_network_topology.py` upload | `cohort_pgx/networks/{cohort}/{age_band}/*` | ✓ `handle_visualizations_cohort_pgx` |
+| **Cohort PGx** | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `sync_cohort_pgx_to_s3.py` or `build_network_topology.py` upload | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/*` | ✓ `handle_visualizations_cohort_pgx` |
+
+**S3 layout (bucket prefix = e.g. `vcu/pgx-risk-calculator/`):**
+
+- **`visualizations/`** — All dashboard visualization data (causal, dtw, fpgrowth, bupar, feature_importance, cohort_pgx). Sync and upload scripts write here; Lambda reads from here.
+- **Top level** — Frontend (index.html, assets), `metadata/` (cohort JSON, model_performance_metrics), and optional **backups/**, **testing/**, **builds/** for non-production use.
 
 **Notes:**
 
-- **Same prefix everywhere:** Lambda and every upload/sync script use `S3_DASHBOARD_PREFIX` (e.g. `vcu/pgx-risk-calculator`). Object key = that prefix + the path in the table (e.g. `vcu/pgx-risk-calculator/dtw/opioid_ed/25-44/sequence_heatmap.json`).
+- **Same prefix everywhere:** Lambda and every upload/sync script use `S3_DASHBOARD_PREFIX` (e.g. `vcu/pgx-risk-calculator`). Object key = that prefix + the path in the table (e.g. `vcu/pgx-risk-calculator/visualizations/dtw/opioid_ed/25-44/sequence_heatmap.json`).
 - **Age band:** Upload scripts always send S3 keys with **hyphen** (e.g. `25-44`). Lambda builds URLs from `age_band` in the request (already hyphen). EC2 and local filenames use **underscore** (e.g. `25_44`) where the path is a directory or filename.
 - **Metadata:** Not under the dashboard prefix for path-style assets. Lambda loads from container `/var/task/metadata/` or S3 `gold/dashboard/metadata/`. For static fallback the frontend may request same-origin `metadata/{cohort}.json`; that requires deploying metadata under the frontend prefix (e.g. `prefix/metadata/`) or using `?metadata=api` to use the API instead.
 

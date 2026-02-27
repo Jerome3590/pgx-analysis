@@ -2672,10 +2672,10 @@
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
       let data = null;
-      // Same-origin JSON from S3: feature_importance/{cohort}/aggregated_fi_heatmap.json (or feature_importance/combined/...)
+      // Same-origin JSON from S3: visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json (or .../combined/...)
       const fiJsonPath = cohort === "combined"
-        ? "feature_importance/combined/aggregated_fi_heatmap.json"
-        : `feature_importance/${cohort}/aggregated_fi_heatmap.json`;
+        ? "visualizations/feature_importance/combined/aggregated_fi_heatmap.json"
+        : `visualizations/feature_importance/${cohort}/aggregated_fi_heatmap.json`;
       const staticUrl = staticJsonPath(fiJsonPath);
       const staticResp = await fetch(staticUrl);
       if (staticResp.ok) {

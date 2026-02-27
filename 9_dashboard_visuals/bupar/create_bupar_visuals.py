@@ -440,7 +440,9 @@ def upload_bupar_plots_to_dashboard_s3(
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
-    s3_prefix = f"{dashboard_prefix.rstrip('/')}/bupar/{cohort_name}/{age_band}/plots"
+    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+    builds_suffix = "/builds" if use_builds else ""
+    s3_prefix = f"{dashboard_prefix.rstrip('/')}/visualizations/bupar{builds_suffix}/{cohort_name}/{age_band}/plots"
     allowed_basenames = _bupar_rq_artifact_basenames(cohort_name, age_band_fname)
 
     try:

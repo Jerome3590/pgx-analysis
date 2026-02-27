@@ -1478,7 +1478,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/dtw/{cohort}/{age_band}"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/dtw/{cohort}/{age_band}"
         plots_key = f"{prefix}/plots"
         bucket = S3_DASHBOARD_BUCKET
 
@@ -1555,7 +1555,7 @@ def handle_fpgrowth_network_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/fpgrowth"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
         obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
@@ -1577,7 +1577,7 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
     When itemsets JSON is present in S3, returns itemsets_data for client-side Plotly rendering.
     If itemsets/rules were empty, returns JSON with empty=True and message for dashboard to show.
     Files are built by 4_dashboard_visuals / create_plots and uploaded to the dashboard bucket
-    (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/.
+    (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/visualizations/fpgrowth/{cohort}/{age_band}/plots/.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1589,7 +1589,7 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/fpgrowth"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/fpgrowth"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         empty_state_key = f"{base_key}/empty_state.json"
 
@@ -1651,7 +1651,7 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
             return _response(400, {"error": "cohort parameter required"})
         if cohort not in ("opioid_ed", "non_opioid_ed", "combined"):
             cohort = "opioid_ed"
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/feature_importance"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
         if cohort == "combined":
             heatmap_key = combined_key
@@ -1709,7 +1709,7 @@ def handle_visualizations_bupar_html_proxy(event: Dict[str, Any]) -> Dict[str, A
         if visual not in BUPAR_HTML_VISUALS:
             return _response(400, {"error": f"visual must be one of: {sorted(BUPAR_HTML_VISUALS)}"})
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         base = f"{cohort}_{age_band_fname}"
         key = f"{base_key}/{base}_{visual}.html"
@@ -1738,7 +1738,7 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar/{cohort}/{age_band}/plots"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar/{cohort}/{age_band}/plots"
         base = f"{cohort}_{age_band_fname}"
         keys = {
             "overall": f"{prefix}/{base}_activity_frequency.json",
@@ -1764,7 +1764,7 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
     Returns HTTPS URLs only for BupaR plot objects that exist in S3 (HEAD check).
-    Dashboard bucket: S3_DASHBOARD_BUCKET under {S3_DASHBOARD_PREFIX}/bupar/{cohort}/{age_band}/plots/.
+    Dashboard bucket: S3_DASHBOARD_BUCKET under {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1775,7 +1775,7 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/bupar"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
         base = f"{cohort}_{age_band_fname}"
@@ -1821,7 +1821,7 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns network_topology_url only when the S3 object exists (HEAD check). Built by
     Cohort PGx pipeline (fetch_vip_reports + build_network_topology); expected key:
-    {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html (age_band with hyphen).
+    {S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html (age_band with hyphen).
     Sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3 after building (use hyphen in S3 path).
     """
     try:
@@ -1833,7 +1833,7 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         # S3 paths use hyphen (25-44); EC2 dirs use underscore (25_44)
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/cohort_pgx"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/cohort_pgx"
         base_key = f"{prefix}/networks/{cohort}/{age_band}"
         html_key = f"{base_key}/network_topology.html"
         payload = {}

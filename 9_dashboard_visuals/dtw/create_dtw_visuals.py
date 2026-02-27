@@ -209,7 +209,7 @@ def create_dtw_visuals(
 
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
     s3_output_paths = [
-        f"s3://{os.environ.get('S3_DASHBOARD_BUCKET', 'jerome-dixon.io')}/{os.environ.get('S3_DASHBOARD_PREFIX', 'vcu/pgx-risk-calculator')}/dtw/{cohort_name}/{age_band}/plots/"
+        f"s3://{os.environ.get('S3_DASHBOARD_BUCKET', 'jerome-dixon.io')}/{os.environ.get('S3_DASHBOARD_PREFIX', 'vcu/pgx-risk-calculator')}/visualizations/dtw/{cohort_name}/{age_band}/plots/"
     ]
     try:
         save_step_checkpoint(
@@ -234,7 +234,7 @@ def _upload_dtw_plots_to_dashboard_s3(
     age_band: str,
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
+    """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under visualizations/dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
     age_band_fname = age_band.replace("-", "_")
     plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
@@ -245,7 +245,9 @@ def _upload_dtw_plots_to_dashboard_s3(
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
-    s3_prefix = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}/plots"
+    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+    builds_suffix = "/builds" if use_builds else ""
+    s3_prefix = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}/plots"
 
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
@@ -608,7 +610,9 @@ def _upload_dtw_chart_data_to_dashboard_s3(
     """Upload prebuilt DTW chart_data.json to dashboard bucket for direct dashboard integration."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
-    base_key = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}"
+    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+    builds_suffix = "/builds" if use_builds else ""
+    base_key = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}"
     key = f"{base_key}/chart_data.json"
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
@@ -635,7 +639,9 @@ def _upload_sequence_heatmap_to_s3(
     """Upload sequence_heatmap.json (drug slice only) for dashboard common-sequences heatmap."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
-    base_key = f"{dashboard_prefix.rstrip('/')}/dtw/{cohort_name}/{age_band}"
+    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+    builds_suffix = "/builds" if use_builds else ""
+    base_key = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}"
     key = f"{base_key}/sequence_heatmap.json"
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
