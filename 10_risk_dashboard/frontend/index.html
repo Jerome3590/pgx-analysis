@@ -2672,9 +2672,19 @@
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
       let data = null;
-      const staticUrl = staticJsonPath(`feature_importance/${cohort}.json`);
+      // Same-origin JSON from S3: feature_importance/{cohort}/aggregated_fi_heatmap.json (or feature_importance/combined/...)
+      const fiJsonPath = cohort === "combined"
+        ? "feature_importance/combined/aggregated_fi_heatmap.json"
+        : `feature_importance/${cohort}/aggregated_fi_heatmap.json`;
+      const staticUrl = staticJsonPath(fiJsonPath);
       const staticResp = await fetch(staticUrl);
-      if (staticResp.ok) data = await staticResp.json();
+      if (staticResp.ok) {
+        const raw = await staticResp.json();
+        // Normalize: same-origin returns raw heatmap JSON; envelope like API for consistent handling below
+        data = { heatmap_data: raw };
+        const pngPath = fiJsonPath.replace(/\.json$/i, ".png");
+        data.heatmap_url = staticJsonPath(pngPath);
+      }
       if (!data) {
         const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
         if (!resp.ok) {
