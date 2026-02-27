@@ -1839,22 +1839,66 @@
   }
 
   const dtwImgOnError = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
+  function buildDTWTrajectoryPlotly(payload) {
+    if (!payload || !Array.isArray(payload.traces) || payload.traces.length === 0 || !window.Plotly) return null;
+    var yearsOrder = payload.years_order || [0];
+    var yearLabels = payload.year_labels || { "0": "All Years" };
+    var is3d = !!payload.is_3d;
+    var axisLabels = payload.axis_labels || {};
+    var title = payload.title || "DTW trajectory clusters";
+    var traces = payload.traces.map(function(t) {
+      var visible = (t.year_idx === 0);
+      if (is3d) {
+        return { x: t.x, y: t.y, z: t.z, text: t.text, name: t.name, type: 'scatter3d', mode: 'markers', hoverinfo: 'text', visible: visible, legendgroup: t.name, showlegend: visible };
+      }
+      return { x: t.x, y: t.y, text: t.text, name: t.name, type: 'scatter', mode: 'markers', hoverinfo: 'text', visible: visible, legendgroup: t.name, showlegend: visible };
+    });
+    var layout = { title: yearsOrder.length > 1 ? title + "<br>" + (yearLabels["0"] || "All Years") : title, height: is3d ? 700 : 500, showlegend: true };
+    if (is3d) layout.scene = { xaxis_title: axisLabels.x || '', yaxis_title: axisLabels.y || '', zaxis_title: axisLabels.z || '' };
+    else { layout.xaxis = { title: axisLabels.x || '' }; layout.yaxis = { showticklabels: false, zeroline: true }; }
+    if (yearsOrder.length > 1) {
+      layout.updatemenus = [{
+        active: 0,
+        buttons: yearsOrder.map(function(y, i) {
+          return { label: yearLabels[String(y)] || String(y), method: 'update', args: [
+            { visible: payload.traces.map(function(_, k) { return payload.traces[k].year_idx === i; }) },
+            { title: title + "<br>" + (yearLabels[String(y)] || String(y)) }
+          ]};
+        }),
+        x: 0.15, xanchor: 'left', y: is3d ? 1.02 : 1.10, yanchor: 'top'
+      }];
+    }
+    return { data: traces, layout: layout };
+  }
   function renderDTWVisualizations(data) {
-    // Render DTW overview - prioritize interactive HTML
-    if (data.overview_interactive) {
-      document.getElementById("dtw-overview-image").innerHTML =
-        `<iframe src="${data.overview_interactive}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="DTW Trajectory Clusters"></iframe>`;
-    } else if (data.overview_image) {
-      document.getElementById("dtw-overview-image").innerHTML =
-        `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+    var overviewEl = document.getElementById("dtw-overview-image");
+    if (overviewEl) {
+      var plotSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces) ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
+      if (plotSpec) {
+        overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
+        Plotly.newPlot('dtw-overview-plot', plotSpec.data, plotSpec.layout, { responsive: true });
+      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
+        overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
+        Plotly.react('dtw-overview-plot', data.trajectory_overview_plot.data, data.trajectory_overview_plot.layout || {}, data.trajectory_overview_plot.config || {});
+      } else if (data.overview_interactive) {
+        overviewEl.innerHTML = `<iframe src="${data.overview_interactive}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="DTW Trajectory Clusters"></iframe>`;
+      } else if (data.overview_image) {
+        overviewEl.innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+      }
     }
-
-    // Render sample trajectories image
-    if (data.sample_trajectories_image) {
-      document.getElementById("dtw-sample-trajectories-image").innerHTML =
-        `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+    var sampleEl = document.getElementById("dtw-sample-trajectories-image");
+    if (sampleEl) {
+      var sampleSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces) ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
+      if (sampleSpec) {
+        sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
+        Plotly.newPlot('dtw-sample-plot', sampleSpec.data, sampleSpec.layout, { responsive: true });
+      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
+        sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
+        Plotly.react('dtw-sample-plot', data.trajectory_overview_plot.data, data.trajectory_overview_plot.layout || {}, data.trajectory_overview_plot.config || {});
+      } else if (data.sample_trajectories_image) {
+        sampleEl.innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+      }
     }
-    
     // Render trajectory metrics chart
     if (data.metrics) {
       const trace = {
@@ -1982,12 +2026,12 @@
     const typepairSelect = document.getElementById('bupar-typepair-select');
     const typepairKey = typepairSelect ? typepairSelect.value : 'drug_drug';
     const imageMap = {
-      'bupar-activity-freq-image': data.activity_frequency_interactive || data.activity_frequency_image,
+      'bupar-activity-freq-image': data.activity_frequency_image,
       'bupar-pre-freq-image': data.pre_target_frequency_image,
       'bupar-sequence-image': data.sequence_image,
-      'bupar-trace-explorer-image': data.trace_explorer_interactive || data.trace_explorer_image,
+      'bupar-trace-explorer-image': data.trace_explorer_pre_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-process-matrix-image': data.process_matrix_interactive || data.process_matrix_image,
+      'bupar-process-matrix-image': data.process_matrix_drug_drug,
       'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey],
       'bupar-frequency-map-image': data.frequency_map_image
     };
@@ -2006,15 +2050,83 @@
       const imageUrl = imageMap[elementId];
       const el = document.getElementById(elementId);
       if (!el) continue;
+      // Trace Explorer: BupaR passes simple JSON { year_labels, series }; frontend builds Plotly + year filter
+      if (visualKey === 'trace_explorer' && data.trace_explorer_plot && Array.isArray(data.trace_explorer_plot.series) && data.trace_explorer_plot.series.length > 0 && window.Plotly) {
+        var te = data.trace_explorer_plot;
+        var yearLabels = te.year_labels || {};
+        var series = te.series;
+        var first = series[0];
+        var y = first.trace_short || [], x = first.frequency || [];
+        var customdata = Array.isArray(first.trace) ? first.trace : y;
+        if (y.length && x.length) {
+          el.innerHTML = '<div style="margin-bottom:8px;"><label>Year: </label><select id="bupar-trace-explorer-year" style="margin-left:4px;"></select></div><div id="bupar-trace-explorer-plotly" style="width:100%; min-height:600px;"></div>';
+          var selectEl = document.getElementById('bupar-trace-explorer-year');
+          series.forEach(function(s, i) {
+            var opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = yearLabels[String(s.year)] || ('Year ' + s.year);
+            if (i === 0) opt.selected = true;
+            selectEl.appendChild(opt);
+          });
+          function updateTraceExplorer(idx) {
+            var s = series[idx] || series[0];
+            var y0 = s.trace_short || [], x0 = s.frequency || [], cd = Array.isArray(s.trace) ? s.trace : y0;
+            Plotly.react('bupar-trace-explorer-plotly', [{
+              type: 'bar', orientation: 'h', y: y0, x: x0, customdata: cd,
+              marker: { color: '#3b82f6' },
+              hovertemplate: '<b>Trace:</b> %{customdata}<br><b>Frequency:</b> %{x}<extra></extra>'
+            }], { margin: { t: 40, r: 40, b: 40, l: 180 }, xaxis: { title: 'Frequency' }, yaxis: { title: '', automargin: true }, height: Math.max(500, (y0.length || 20) * 22) }, { responsive: true });
+          }
+          updateTraceExplorer(0);
+          selectEl.addEventListener('change', function() { updateTraceExplorer(parseInt(this.value, 10)); });
+          continue;
+        }
+      }
+      // Process Matrix (Drug × Drug): prefer heatmap from JSON when available
+      if (visualKey === 'process_matrix_typepair' && data.process_matrix_drug_drug && Array.isArray(data.process_matrix_drug_drug.antecedent) && window.Plotly) {
+        var pm = data.process_matrix_drug_drug;
+        var ant = pm.antecedent || [];
+        var con = Array.isArray(pm.consequent) ? pm.consequent : [];
+        var rows = [].concat(ant).filter(Boolean);
+        var cols = [].concat(con).filter(Boolean);
+        rows = [...new Set(rows)].sort();
+        cols = [...new Set(cols)].sort();
+        var z = rows.map(function(r) {
+          return cols.map(function(c) {
+            var i = -1;
+            for (var k = 0; k < ant.length; k++) {
+              if (ant[k] === r && con[k] === c) { i = k; break; }
+            }
+            return i >= 0 ? (pm.n && pm.n[i] != null ? Number(pm.n[i]) : 0) : 0;
+          });
+        });
+        el.innerHTML = '<div id="bupar-process-matrix-drug-plotly" style="width:100%; min-height:500px;"></div>';
+        Plotly.newPlot('bupar-process-matrix-drug-plotly', [{ type: 'heatmap', x: cols, y: rows, z: z, colorscale: 'Plasma' }], { margin: { t: 40, r: 40, b: 120, l: 120 }, xaxis: { tickangle: -45 }, height: 500 }, { responsive: true });
+        continue;
+      }
+      // Sequences to Target (N2): prefer bar chart from JSON when available (same pattern as other bupar JSON)
+      if (visualKey === 'sequence' && data.activity_sequence_top && Array.isArray(data.activity_sequence_top.trace_short) && Array.isArray(data.activity_sequence_top.frequency) && data.activity_sequence_top.trace_short.length > 0 && window.Plotly) {
+        var seq = data.activity_sequence_top;
+        var y = seq.trace_short;
+        var x = seq.frequency;
+        var customdata = Array.isArray(seq.trace) ? seq.trace : y;
+        el.innerHTML = '<div id="bupar-sequences-to-target-plotly" style="width:100%; min-height:500px;"></div>';
+        Plotly.newPlot('bupar-sequences-to-target-plotly', [{
+          type: 'bar',
+          orientation: 'h',
+          y: y,
+          x: x,
+          customdata: customdata,
+          marker: { color: '#3b82f6' },
+          hovertemplate: '<b>Sequence:</b> %{customdata}<br><b>Frequency:</b> %{x}<extra></extra>'
+        }], { margin: { t: 40, r: 40, b: 40, l: 180 }, xaxis: { title: 'Frequency' }, yaxis: { title: '', automargin: true }, height: Math.max(400, y.length * 24) }, { responsive: true });
+        continue;
+      }
       if (!imageUrl) {
         el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available for this cohort/age band.</p>';
         continue;
       }
-      if (imageUrl.endsWith('.html')) {
-        el.innerHTML = `<iframe src="${imageUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="${elementId}"></iframe>`;
-      } else {
-        el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" onerror="this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';" />`;
-      }
+      el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" onerror="this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';" />`;
     }
     // Clear panels that are not selected so they don't show stale content when toggled back
     for (const visualKey of BUPAR_VISUAL_KEYS.map(v => v.key)) {

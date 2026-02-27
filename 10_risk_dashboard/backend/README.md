@@ -73,7 +73,7 @@ Models are loaded from:
 
 - `PGX_RESULTS_BUCKET` - S3 bucket for data/models (default: `pgxdatalake`)
 - `S3_DASHBOARD_BUCKET` - Bucket where the dashboard frontend is deployed; FP-Growth assets are uploaded here (default: `jerome-dixon.io`)
-- `S3_DASHBOARD_PREFIX` - Key prefix for the dashboard app in that bucket (default: `vcu/pgx-risk-calculator`). FP-Growth, BupaR, and DTW URLs use `{prefix}/fpgrowth/`, `{prefix}/bupar/`, and `{prefix}/dtw/{cohort}/{age_band}/plots/`.
+- `S3_DASHBOARD_PREFIX` - Key prefix for the dashboard app in that bucket (default: `vcu/pgx-risk-calculator`). BupaR and other visualization APIs use `{prefix}/visualizations/...` (the key must include `visualizations`). **Target path for BupaR plots:** `{prefix}/visualizations/bupar/{cohort}/{age_band}/plots/` — e.g. `s3://jerome-dixon.io/vcu/pgx-risk-calculator/visualizations/bupar/opioid_ed/45-54/plots/`.
 - `MODEL_BASE_PATH` - Path to models in container (default: `/var/task/models`)
 - `MODEL_CACHE_TTL` - Model cache TTL in seconds (default: `3600`)
 

@@ -853,23 +853,72 @@ if (n_pre > 0L) {
             height = 900
           )
 
-        trace_html_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_interactive.html", cohort_name, age_band_fname))
-        # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
-        saveWidget(fig, trace_html_path, selfcontained = TRUE,
-                  title = paste("Trace Explorer (Pre-HCG):", cohort_name, age_band))
-        cat("Saved trace_explorer_interactive.html (pre-HCG); path=", trace_html_path, "\n", sep = "")
-        # JSON for dashboard: frontend builds Plotly from this (same pattern as DTW)
+        # JSON for dashboard: simple data only; frontend Plotly builds the chart (same pattern as activity_sequence_top)
         tryCatch({
           trace_json_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_plot.json", cohort_name, age_band_fname))
-          j <- plotly::plotly_json(fig, FALSE)
-          write(j, trace_json_path)
-          cat("Saved trace_explorer_plot.json\n")
+          year_labels_list <- as.list(setNames(year_labels_with_data, as.character(years_with_data)))
+          series_list <- lapply(years_with_data, function(yr) {
+            data_year <- trace_combined %>% filter(year == yr) %>% arrange(desc(frequency)) %>% head(30)
+            list(
+              year = yr,
+              trace_short = as.character(data_year$trace_display_short),
+              trace = as.character(data_year$trace_display),
+              frequency = as.numeric(data_year$frequency)
+            )
+          })
+          jsonlite::write_json(list(year_labels = year_labels_list, series = series_list), trace_json_path, auto_unbox = TRUE, pretty = TRUE)
+          cat("Saved trace_explorer_plot.json (simple data for frontend Plotly)\n")
         }, error = function(e) cat(" [skip] trace_explorer_plot.json:", conditionMessage(e), "\n"))
       } else {
-        cat(" [skip] trace_explorer_interactive: no traces with data (empty pre-HCG)\n")
+        cat(" [skip] trace_explorer_plot.json: no traces with data (empty pre-HCG)\n")
       }
     }
-  }, error = function(e) cat(" [skip] interactive trace explorer (pre-HCG):", conditionMessage(e), "\n"))
+  }, error = function(e) cat(" [skip] trace explorer (pre-HCG):", conditionMessage(e), "\n"))
+
+  # Sequences to Target Outcomes (N2): top 20 pre-target sequences, horizontal bar chart
+  tryCatch({
+    seq_to_target <- pre_target_eventlog %>%
+      as.data.frame() %>%
+      arrange(case_id, timestamp) %>%
+      group_by(case_id) %>%
+      summarise(trace = paste(activity, collapse = " -> "), .groups = "drop") %>%
+      group_by(trace) %>%
+      summarise(frequency = n(), .groups = "drop") %>%
+      arrange(desc(frequency)) %>%
+      head(20)
+    if (nrow(seq_to_target) > 0L) {
+      seq_to_target <- seq_to_target %>%
+        mutate(
+          trace_display = ifelse(nchar(trace) > 80, paste0(substr(trace, 1, 77), "..."), trace),
+          trace_short = vapply(trace, first_three_trace, character(1))
+        )
+      # JSON for dashboard (same pattern as trace_explorer_plot, process_matrix_drug_drug)
+      seq_json_path <- file.path(plots_dir, sprintf("%s_%s_activity_sequence_top.json", cohort_name, age_band_fname))
+      tryCatch({
+        jsonlite::write_json(list(
+          trace       = as.character(seq_to_target$trace),
+          trace_short = as.character(seq_to_target$trace_short),
+          frequency   = as.numeric(seq_to_target$frequency)
+        ), seq_json_path, auto_unbox = TRUE, pretty = TRUE)
+        cat("Saved activity_sequence_top.json\n")
+      }, error = function(e) cat(" [skip] activity_sequence_top.json:", conditionMessage(e), "\n"))
+      p_seq <- ggplot(seq_to_target, aes(x = reorder(trace_short, frequency), y = frequency)) +
+        geom_col(fill = "#3b82f6") +
+        coord_flip() +
+        labs(
+          title = paste("Sequences to Target (Pre-HCG):", cohort_name, age_band),
+          subtitle = "Top 20 most frequent activity sequences before first ED visit",
+          x = NULL, y = "Frequency"
+        ) +
+        theme_minimal(base_size = 11) +
+        theme(axis.text.y = element_text(size = 9))
+      ggsave(file.path(plots_dir, sprintf("%s_%s_activity_sequence_top.png", cohort_name, age_band_fname)),
+             plot = p_seq, width = 12, height = max(6, nrow(seq_to_target) * 0.35), dpi = 300)
+      cat("Saved activity_sequence_top.png (Sequences to Target, N2)\n")
+    } else {
+      cat(" [skip] activity_sequence_top.png: no pre-HCG traces\n")
+    }
+  }, error = function(e) cat(" [skip] activity_sequence_top.png:", conditionMessage(e), "\n"))
 } else {
   cat(" [skip] trace_explorer(pre-HCG): no pre-HCG events\n")
 }
@@ -1000,12 +1049,8 @@ if (n_post > 0L) {
             hovermode = "closest",
             height = 900
           )
-        trace_html_post_path <- file.path(plots_dir, sprintf("%s_%s_trace_explorer_post_hcg_interactive.html", cohort_name, age_band_fname))
-        # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
-        saveWidget(fig_post, trace_html_post_path, selfcontained = TRUE, title = paste("Trace Explorer (Post-HCG):", cohort_name, age_band))
-        cat("Saved trace_explorer_post_hcg_interactive.html; path=", trace_html_post_path, "\n", sep = "")
       } else {
-        cat(" [skip] trace_explorer_interactive (post-HCG): no traces with data\n")
+        cat(" [skip] trace explorer (post-HCG): no traces with data\n")
       }
     }
   }, error = function(e) cat(" [skip] interactive trace explorer (post-HCG):", conditionMessage(e), "\n"))
@@ -1434,19 +1479,9 @@ if (n_target > 0L) {
           legend = list(orientation = "h", y = 1.05, x = 0.5, xanchor = "center"),
           hovermode = "closest"
         )
-      # Save interactive HTML only when we have at least one year with data
-      af_html_path <- file.path(plots_dir, sprintf("%s_%s_activity_frequency_interactive.html", cohort_name, age_band_fname))
-      # Production HTML: selfcontained = TRUE (same pattern as fpgrowth). See 9_dashboard_visuals/HTML_PRODUCTION_PATTERN.md
-      saveWidget(
-        fig,
-        af_html_path,
-        selfcontained = TRUE,
-        title = paste("Activity Frequency:", cohort_name, age_band)
-      )
-      af_html_size <- file.info(af_html_path)$size
-      cat("Saved activity_frequency_interactive.html with year filtering; path=", af_html_path, " size_bytes=", if (is.na(af_html_size)) "NA" else af_html_size, "\n", sep = "")
+      # Dashboard uses full JSON (activity_frequency API) with year filter in frontend; no HTML artifact
       }
-    }, error = function(e) cat(" [skip] interactive activity frequency:", conditionMessage(e), "\n"))
+    }, error = function(e) cat(" [skip] activity frequency Plotly/JSON:", conditionMessage(e), "\n"))
   }, error = function(e) cat(" [skip] overall_activity_frequency:", conditionMessage(e), "\n"))
   
   tryCatch(
