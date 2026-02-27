@@ -14,8 +14,8 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
 
 | Step | Notebook | What it does | S3 result |
 |------|----------|--------------|-----------|
-| **Build** | **4_dashboard_visuals** | Runs BupaR, DTW, FP-Growth, Cohort PGx pipelines; uploads to **builds** paths. | `visualizations/bupar/builds/`, `visualizations/dtw/builds/`, `visualizations/fpgrowth/builds/`, `visualizations/cohort_pgx/builds/` |
-| **Deploy** | **5_build_and_deploy (Step 6)** | Syncs frontend, metadata, FI heatmaps, causal, Cohort PGx; **promotes** builds → final. | Final paths: `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, `visualizations/causal/` |
+| **Build** | **4_dashboard_visuals** | Runs BupaR, DTW, FP-Growth, Cohort PGx; optional FI upload. All go to **builds** when `S3_VISUALIZATIONS_BUILDS=1`. | `visualizations/bupar/builds/`, `visualizations/dtw/builds/`, `visualizations/fpgrowth/builds/`, `visualizations/cohort_pgx/builds/`, `visualizations/feature_importance/builds/` |
+| **Deploy** | **5_build_and_deploy (Step 6)** | Syncs frontend, metadata; uploads FI from local; runs causal + Cohort PGx sync; **promotes** all builds → final. | Final: `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, `visualizations/causal/` |
 
 ### Step 1: Build and upload to builds (notebook 4)
 
@@ -26,7 +26,7 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
    - `visualizations/fpgrowth/builds/{cohort}/{age_band}/plots/` (and data/)
    - `visualizations/cohort_pgx/builds/networks/{cohort}/{age_band}/`
 3. **Causal** – Run the “Upload Causal dashboard JSON to S3” cell (or `upload_causal_outputs_to_s3.py`). This writes directly to **final** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (no builds path).
-4. **Feature importance** – Heatmaps are produced by Step 3a / 2_feature_importance and live under `3a_feature_importance/outputs/`. They are **uploaded in Step 6** (notebook 5), not in notebook 4.
+4. **Feature importance** – Heatmaps are produced by Step 3a / 2_feature_importance and live under `3a_feature_importance/outputs/`. They follow the same pattern: with `S3_VISUALIZATIONS_BUILDS=1`, uploads go to `visualizations/feature_importance/builds/` (e.g. from `pgx_dashboard_visuals.py` or a notebook 4 cell). Step 6 promotes from builds to final and also uploads from local `3a_feature_importance/outputs/` to final if present.
 
 **Environment:** Set `S3_DASHBOARD_BUCKET` and `S3_DASHBOARD_PREFIX` if not using defaults (e.g. `jerome-dixon.io`, `vcu/pgx-risk-calculator`). With `S3_VISUALIZATIONS_BUILDS=1` (set in notebook 4), scripts upload to the builds paths above.
 
@@ -39,7 +39,7 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
    - Uploads **feature importance** heatmaps (PNG + JSON) to `visualizations/feature_importance/{cohort}/` and `visualizations/feature_importance/combined/`.
    - Runs **sync_cohort_pgx_to_s3.py** (from local `10_risk_dashboard/visualizations/cohort_pgx/`) to final `visualizations/cohort_pgx/networks/`.
    - Runs **upload_causal_outputs_to_s3.py** to final `visualizations/causal/`.
-   - **Promotes builds → final:** For each of `bupar`, `dtw`, `fpgrowth`, `cohort_pgx`, runs `aws s3 sync` from `visualizations/{name}/builds/` to `visualizations/{name}/`, so the dashboard and Lambda read from the final paths.
+   - **Promotes builds → final:** For each of `bupar`, `dtw`, `fpgrowth`, `cohort_pgx`, `feature_importance`, runs `aws s3 sync` from `visualizations/{name}/builds/` to `visualizations/{name}/`, so the dashboard and Lambda read from the final paths.
 
 **Do not** set `S3_VISUALIZATIONS_BUILDS` when running notebook 5; Step 6 expects notebook 4 to have already uploaded to builds and then promotes those to final.
 
@@ -54,7 +54,7 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
   (syncs local `10_risk_dashboard/visualizations/cohort_pgx/networks/` to `visualizations/cohort_pgx/networks/`; use default env so it writes to final, not builds.)
 
 - **Promote builds → final (no notebook 5):**  
-  For each of bupar, dtw, fpgrowth, cohort_pgx:  
+  For each of bupar, dtw, fpgrowth, cohort_pgx, feature_importance:  
   `aws s3 sync s3://BUCKET/PREFIX/visualizations/NAME/builds/ s3://BUCKET/PREFIX/visualizations/NAME/ --region us-east-1`
 
 See [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) for full S3 keys and Lambda alignment.
@@ -70,6 +70,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 | 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Causal Analysis tab. |
 | 2025-02-25 | Validation README        | Added per-tab and main-page sections; this updates log for tracking. |
 | 2025-02-25 | CORS & static paths      | Documented same-origin path URLs (metadata, doc metrics); added CORS checklist and S3_CORS_SETUP reference; fixed s3-cors-config.json to CORSRules format for put-bucket-cors. |
+| 2025-02-25 | S3 & validation README   | All visuals under `visualizations/`; notebook 4 → builds, notebook 5 Step 6 → final + promote. Added "How to load visuals to S3"; FI matches same builds/final pattern; Feature Importance tab checklist includes same-origin path and Lambda S3 key. |
 
 ---
 
@@ -151,6 +152,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Heading:** Panel title "Feature Importance by Age Band" (and "— Opioid ED" / "— Polypharmacy" / "— Combined cohorts" when loaded). Matches path README visual heading.
 - [ ] **Subtitle/copy:** States that user chooses Opioid ED, Polypharmacy, or Combined to view one heatmap at maximum size; heatmaps from Step 3a (Monte Carlo CV); rows = top features, columns = age bands.
 - [ ] **API:** `GET /visualizations/feature_importance?cohort=` with `cohort` = `opioid_ed` | `non_opioid_ed` | `combined`. Response: `heatmap_data` (JSON for Plotly) and/or `heatmap_url` (image fallback).
+- [ ] **Same-origin then API:** Frontend first requests same-origin `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json` (or `.../combined/aggregated_fi_heatmap.json`); on 404, falls back to the API. Lambda reads from S3 `visualizations/feature_importance/` (final path).
 - [ ] **JSON-first loading:** Prefer `heatmap_data` and render with Plotly; if missing or invalid, fall back to `heatmap_url` image. Status message reflects "loaded (image)" vs "loaded" (chart).
 - [ ] **Element IDs:** `fi-cohort`, `btnLoadFeatureImportance`, `fi-status`, `fi-single-panel`, `fi-panel-title`, `fi-heatmap-container`, `fi-heatmap-chart`, `fi-heatmap-image` used consistently by script.
 
@@ -211,6 +213,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 - [ ] **Path-style S3 only:** All iframe/image URLs for S3 use path-style:  
   `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. No virtual-hosted style.
+- [ ] **Visualizations under one prefix:** All dashboard viz data lives under `{prefix}/visualizations/` (e.g. `visualizations/feature_importance/`, `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/causal/`). Lambda and frontend read from these **final** paths; notebook 4 uploads to `.../builds/`, notebook 5 Step 6 promotes to final.
 - [ ] **Same-origin (path) URLs:** Metadata and doc metrics use **path URLs only** (no full S3 URL). Frontend uses `staticJsonPath(relativePath)` so requests go to same origin (e.g. `https://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json`). No CORS needed for those.
 - [ ] **Metadata endpoints:** References to `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json` match backend and path README. Deploy uploads local `metadata_opioid_ed.json` → S3 key `metadata/opioid_ed.json` (and non_opioid_ed) so same-origin fetch works.
 - [ ] **Visualization API keys:** BupaR and other handlers request only RQ artifact keys; no archived keys (e.g. trace_explorer_image, process_matrix_image, frequency_map_image).
@@ -253,7 +256,7 @@ When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 UR
 
 | Data visual | Tab | EC2 path | S3 path (final) | Data visual type | File extension | Plot type |
 |-------------|-----|----------|------------------|------------------|----------------|----------|
-| Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `visualizations/feature_importance/{cohort}/`, `.../combined/` | image or JSON | `.png`, `.json` | heatmap |
+| Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `visualizations/feature_importance/{cohort}/`, `.../combined/` (notebook 4 → builds; Step 6 → final + upload from local) | image or JSON | `.png`, `.json` | heatmap |
 | Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
 | BupaR sequences, frequency, trace explorer, process matrix | BupaR Process Mining | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `visualizations/bupar/{cohort}/{age_band}/plots/` (notebook 4 → builds; Step 6 → final) | image, JSON, HTML | `.png`, `.json`, `.html` | sequence, frequency, matrix, iframe |
 | DTW chart_data, sequence_heatmap, plots | DTW Trajectories | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` | `visualizations/dtw/{cohort}/{age_band}/` (notebook 4 → builds; Step 6 → final) | JSON, image | `.json`, `.png` | trajectory, heatmap, Plotly |

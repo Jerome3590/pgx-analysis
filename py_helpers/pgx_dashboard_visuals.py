@@ -228,9 +228,12 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
     if r.returncode == 0:
         print("Frontend synced.")
         # Upload feature importance heatmaps (Step 3a / 2_feature_importance) for dashboard tab
+        # Match pattern: S3_VISUALIZATIONS_BUILDS=1 → upload to .../builds/ (notebook 4); else final (notebook 5)
         fi_base = REPO_ROOT / "3a_feature_importance" / "outputs"
         prefix_clean = s3_prefix.strip("/")
-        fi_prefix = f"{prefix_clean}/visualizations/feature_importance"
+        use_fi_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+        fi_builds_suffix = "/builds" if use_fi_builds else ""
+        fi_prefix = f"{prefix_clean}/visualizations/feature_importance{fi_builds_suffix}"
         uploaded_fi = 0
         for cohort in COHORT_NAMES:
             plots_dir = fi_base / cohort / "plots"
