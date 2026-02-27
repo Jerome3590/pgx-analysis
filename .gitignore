@@ -50,6 +50,8 @@ status/*.pdf
 status/*.csv
 status/*.json
 status/*.crdownload
+# Dashboard debug/sample payloads (e.g. activity_frequency, chart_data)
+status/dashboard_errors/
 
 # S3 upload tracker (local tracking, not for repo)
 status/s3_upload_tracker.json
