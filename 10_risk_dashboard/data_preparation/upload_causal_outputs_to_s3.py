@@ -33,13 +33,13 @@ def main() -> int:
         print("boto3 not available; install with: pip install boto3", file=sys.stderr)
         return 1
 
-    if not OUTPUTS_DIR.exists():
-        print(f"No outputs dir: {OUTPUTS_DIR}; nothing to upload.")
+    if not CAUSAL_VISUALS_DIR.exists():
+        print(f"No outputs dir: {CAUSAL_VISUALS_DIR}; nothing to upload.")
         return 0
 
     uploaded = 0
     s3 = boto3.client("s3")
-    for cohort_dir in OUTPUTS_DIR.iterdir():
+    for cohort_dir in CAUSAL_VISUALS_DIR.iterdir():
         if not cohort_dir.is_dir() or cohort_dir.name.startswith("."):
             continue
         cohort = cohort_dir.name
