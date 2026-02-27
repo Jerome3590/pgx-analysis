@@ -55,10 +55,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from py_helpers.constants import REQUIRED_COHORTS
+    from py_helpers.constants import REQUIRED_COHORTS, DASHBOARD_VISUAL_AGE_BANDS
 except ImportError:
     _all_bands = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
     REQUIRED_COHORTS = {"opioid_ed": _all_bands, "non_opioid_ed": _all_bands}
+    DASHBOARD_VISUAL_AGE_BANDS = [b for b in _all_bands if b != "0-12"]
 
 
 def check_shap_ffa_allowed_codes_prerequisite(combinations: list, repo_root: Path) -> tuple[bool, str | None]:
@@ -127,15 +128,15 @@ def main():
     ap.add_argument("--no-cohort-pgx-upload", action="store_true", help="Run Cohort PGx fetch and build but do not upload to S3")
     args = ap.parse_args()
 
-    # Combinations (same logic as 4_dashboard_visuals.ipynb)
+    # Combinations (same logic as 4_dashboard_visuals.ipynb; exclude 0-12 for dashboard visuals)
     if args.cohorts and args.age_bands:
         combinations = [(c, ab) for c in args.cohorts for ab in args.age_bands]
     elif args.cohorts:
-        combinations = [(c, ab) for c in args.cohorts for ab in REQUIRED_COHORTS.get(c, [])]
+        combinations = [(c, ab) for c in args.cohorts for ab in REQUIRED_COHORTS.get(c, []) if ab in DASHBOARD_VISUAL_AGE_BANDS]
     elif args.age_bands:
         combinations = [(c, ab) for c, bands in REQUIRED_COHORTS.items() for ab in bands if ab in args.age_bands]
     else:
-        combinations = [(c, ab) for c, bands in REQUIRED_COHORTS.items() for ab in bands]
+        combinations = [(c, ab) for c, bands in REQUIRED_COHORTS.items() for ab in bands if ab in DASHBOARD_VISUAL_AGE_BANDS]
 
     if not combinations:
         print("No cohort/age_band combinations; check --cohort and --age-band.")

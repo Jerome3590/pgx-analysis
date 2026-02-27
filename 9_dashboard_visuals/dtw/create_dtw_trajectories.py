@@ -9,7 +9,9 @@ NOT used for model training - for dashboard visual analysis of SHAP/FFA results.
 Output CSV columns (minimal for visualization):
 - mi_person_key: Patient identifier
 - target: Target outcome (0/1)
-- seq_pattern_str: Sequence of activity codes (e.g., "DRUG:Med_ICD:F1120_CPT:99213")
+- seq_pattern_str: Event-ordered sequence of activity codes (e.g., "DRUG:Med_ICD:F1120_CPT:99213")
+- seq_pattern_monthly: Calendar-month sequence; one token per month "YYYY-MM:CODE1_CODE2|..." (codes sorted
+  alphabetically within month). opioid_ed = all activity types; non_opioid_ed (polypharmacy) = drug only.
 - admin_icd_event_count: Count of administrative ICD codes (routine vs no routine)
 - trajectory_length: Number of events
 - trajectory_diversity: Number of unique activities
@@ -67,6 +69,7 @@ DTW_TRAJECTORY_CSV_COLUMNS = [
     "mi_person_key",
     "target",
     "seq_pattern_str",
+    "seq_pattern_monthly",
     "admin_icd_event_count",
     "trajectory_length",
     "trajectory_diversity",
@@ -77,6 +80,9 @@ DTW_TRAJECTORY_CSV_COLUMNS = [
     "events_per_month",
     "event_density_bin",
 ]
+
+# Polypharmacy = drug-only for monthly; opioid_ed = all activity types
+POLYPHARMACY_COHORT = "non_opioid_ed"
 
 # Density bins for trajectories (same order as FP-Growth: low -> medium -> high -> extreme)
 DENSITY_BINS = ("low", "medium", "high", "extreme")
@@ -387,6 +393,89 @@ def extract_patient_trajectories(
 
     _log("info", "Extracting trajectories from model_events...")
     df = con.execute(query).df()
+
+    # Monthly trajectory: one token per calendar month, codes sorted alphabetically for alignment.
+    # opioid_ed = all activity types (drug, ICD, CPT); polypharmacy (non_opioid_ed) = drug only.
+    monthly_drug_only = cohort_name == POLYPHARMACY_COHORT
+    monthly_where = "AND drug_name IS NOT NULL AND drug_name != ''" if monthly_drug_only else ""
+    _log("info", "Monthly trajectory: %s", "drug only (polypharmacy)" if monthly_drug_only else "all activity types (opioid_ed)")
+    monthly_events_query = f"""
+    WITH patient_events AS (
+        SELECT
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            target,
+            CAST(event_date AS DATE) as event_date,
+            drug_name,
+            primary_icd_diagnosis_code,
+            procedure_code,
+            ({target_date_expr}) as target_date
+        FROM read_parquet('{path_str}')
+        {filter_clause}
+    ),
+    filtered_events AS (
+        SELECT
+            mi_person_key,
+            target,
+            event_date,
+            drug_name,
+            primary_icd_diagnosis_code,
+            procedure_code
+        FROM patient_events
+        WHERE
+            (target = 1 AND event_date < target_date
+             AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+            OR (target = 0)
+        {monthly_where}
+    )
+    SELECT
+        mi_person_key,
+        target,
+        event_date,
+        CASE
+            WHEN drug_name IS NOT NULL AND drug_name != '' THEN 'DRUG:' || drug_name
+            WHEN primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != ''
+                THEN 'ICD:' || primary_icd_diagnosis_code
+            WHEN procedure_code IS NOT NULL AND procedure_code != '' THEN 'CPT:' || procedure_code
+            ELSE NULL
+        END as code
+    FROM filtered_events
+    WHERE
+        (drug_name IS NOT NULL AND drug_name != '')
+        OR (primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '')
+        OR (procedure_code IS NOT NULL AND procedure_code != '')
+    """
+    try:
+        events_df = con.execute(monthly_events_query).df()
+        if not events_df.empty and "code" in events_df.columns:
+            events_df = events_df.dropna(subset=["code"])
+        if not events_df.empty:
+            events_df["event_month"] = pd.to_datetime(events_df["event_date"]).dt.to_period("M").astype(str)
+            # Per (patient, target, month): distinct codes, sort alphabetically, join with '_'
+            monthly_bags = (
+                events_df.groupby(["mi_person_key", "target", "event_month"])["code"]
+                .apply(lambda s: "_".join(sorted(s.unique())))
+                .reset_index()
+            )
+            # Per (patient, target): order by month, format "YYYY-MM:bag", join with '|'
+            def _monthly_sequence(bags_df: pd.DataFrame) -> str:
+                bags_df = bags_df.sort_values("event_month")
+                return "|".join(
+                    f"{row['event_month']}:{row['code']}" for _, row in bags_df.iterrows()
+                )
+
+            seq_monthly = (
+                monthly_bags.groupby(["mi_person_key", "target"])
+                .apply(lambda g: _monthly_sequence(g))
+                .rename("seq_pattern_monthly")
+            )
+            df = df.merge(seq_monthly, on=["mi_person_key", "target"], how="left")
+        else:
+            df["seq_pattern_monthly"] = ""
+        if "seq_pattern_monthly" in df.columns:
+            df["seq_pattern_monthly"] = df["seq_pattern_monthly"].fillna("")
+    except Exception as e:
+        _log("warning", "Monthly trajectory failed: %s; leaving seq_pattern_monthly empty", e)
+        df["seq_pattern_monthly"] = ""
 
     # Count events analyzed (filtered_events row count) for logging and status JSON
     count_query = f"""

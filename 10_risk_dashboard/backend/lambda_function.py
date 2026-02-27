@@ -1503,6 +1503,29 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # Always return consumable JSON so frontend workflow does not break (missing or empty S3 = payload with message)
+        _empty_chart_msg = "No DTW chart data for this cohort/age band. Run create_dtw_visuals (notebook 4) and promote to S3 (notebook 5 Step 6)."
+        if payload.get("chart_data") is None:
+            payload["chart_data"] = {"message": _empty_chart_msg, "empty": True}
+        elif isinstance(payload["chart_data"], dict) and not any(payload["chart_data"].get(k) for k in ("routine_comparison", "high_risk_trajectories", "times_between_sequences", "target_pathway_patterns")):
+            payload["chart_data"].setdefault("message", "DTW chart data is empty for this cohort/age band.")
+            payload["chart_data"].setdefault("empty", True)
+        if payload.get("sequence_heatmap") is None:
+            payload["sequence_heatmap"] = {
+                "drug": {"codes": [], "positions": [], "counts": []},
+                "icd": {"codes": [], "positions": [], "counts": []},
+                "cpt": {"codes": [], "positions": [], "counts": []},
+                "message": "No sequence heatmap for this cohort/age band. Run create_dtw_visuals and promote to S3.",
+                "empty": True,
+            }
+        elif isinstance(payload.get("sequence_heatmap"), dict):
+            for slice_key in ("drug", "icd", "cpt"):
+                if not payload["sequence_heatmap"].get(slice_key):
+                    payload["sequence_heatmap"][slice_key] = {"codes": [], "positions": [], "counts": []}
+            if not (payload["sequence_heatmap"].get("drug", {}).get("codes") or payload["sequence_heatmap"].get("empty")):
+                payload["sequence_heatmap"].setdefault("message", "Sequence heatmap is empty for this cohort/age band.")
+                payload["sequence_heatmap"].setdefault("empty", True)
+
         # Optional: simple metrics from chart_data for Trajectory Metrics panel
         if payload.get("chart_data"):
             cd = payload["chart_data"]
