@@ -12,9 +12,10 @@ so create_dtw_visuals can upload them to the dashboard bucket.
 Code counts are derived from seq_pattern_str in the DTW features CSV (activity sequence per patient).
 """
 
+import json
 from collections import Counter
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
+from typing import Any, List, Optional, Tuple, Dict
 
 import pandas as pd
 import numpy as np
@@ -272,6 +273,7 @@ def create_trajectory_cluster_plots(
         year_labels = {0: "All Years"}
         fname_suffix = "1d" if is_polypharmacy else "3d"
 
+    simple_traces: List[Dict[str, Any]] = []
     if is_polypharmacy:
         # 1D: x = count of top code, y = 0 (or small jitter for visibility)
         fig = go.Figure()
@@ -299,21 +301,29 @@ def create_trajectory_cluster_plots(
             
             for c in sorted(year_df["cluster"].unique()):
                 mask = year_df["cluster"] == c
-                mask_indices = [j for j, idx in enumerate(year_df.index) if j < len(mask) and mask.iloc[j]]
-                
+                x_m = x[mask.values]
+                y_m = y[mask.values]
+                text_m = [hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]]
                 fig.add_trace(
                     go.Scatter(
-                        x=x[mask.values],
-                        y=y[mask.values],
+                        x=x_m,
+                        y=y_m,
                         mode="markers",
                         name=f"Cluster {c}",
-                        text=[hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]],
+                        text=text_m,
                         hoverinfo="text",
                         visible=(year_idx == 0),  # Show "All Years" by default
                         legendgroup=f"cluster{c}",
                         showlegend=(year_idx == 0),
                     )
                 )
+                simple_traces.append({
+                    "year_idx": year_idx,
+                    "name": f"Cluster {c}",
+                    "x": x_m.tolist(),
+                    "y": y_m.tolist(),
+                    "text": text_m,
+                })
         
         if has_years:
             # Add year dropdown buttons
@@ -383,21 +393,32 @@ def create_trajectory_cluster_plots(
             
             for c in sorted(year_df["cluster"].unique()):
                 mask = year_df["cluster"] == c
-                
+                x_m = x[mask.values]
+                y_m = y[mask.values]
+                z_m = z[mask.values]
+                text_m = [hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]]
                 fig.add_trace(
                     go.Scatter3d(
-                        x=x[mask.values],
-                        y=y[mask.values],
-                        z=z[mask.values],
+                        x=x_m,
+                        y=y_m,
+                        z=z_m,
                         mode="markers",
                         name=f"Cluster {c}",
-                        text=[hover_list[j] for j in range(len(hover_list)) if j < len(mask) and mask.iloc[j]],
+                        text=text_m,
                         hoverinfo="text",
                         visible=(year_idx == 0),  # Show "All Years" by default
                         legendgroup=f"cluster{c}",
                         showlegend=(year_idx == 0),
                     )
                 )
+                simple_traces.append({
+                    "year_idx": year_idx,
+                    "name": f"Cluster {c}",
+                    "x": x_m.tolist(),
+                    "y": y_m.tolist(),
+                    "z": z_m.tolist(),
+                    "text": text_m,
+                })
         
         if has_years:
             # Add year dropdown buttons
@@ -438,10 +459,21 @@ def create_trajectory_cluster_plots(
         )
         fname = f"dtw_trajectory_cluster_{fname_suffix}_{cohort_name}_{age_band_fname}.html"
 
-    # Always write trajectory JSON for frontend (Overview/Sample panels use it when PNGs missing)
+    # Write simple data JSON for frontend (Overview/Sample panels build Plotly from it; smaller payload, no 2MB skip)
     out_json = plots_dir / "trajectory_overview_plot.json"
+    is_3d = not is_polypharmacy
+    year_labels_str = {str(k): str(v) for k, v in year_labels.items()}
+    axis_labels = {"x": code_cols[0], "y": (code_cols[1] if len(code_cols) > 1 else ""), "z": (code_cols[2] if len(code_cols) > 2 else "")}
+    payload = {
+        "is_3d": is_3d,
+        "axis_labels": axis_labels,
+        "year_labels": year_labels_str,
+        "years_order": [int(y) for y in years_with_all],
+        "title": f"DTW trajectory clusters — {cohort_name} {age_band}",
+        "traces": simple_traces,
+    }
     with open(out_json, "w", encoding="utf-8") as f:
-        f.write(fig.to_json())
+        json.dump(payload, f, indent=2)
     written.append(out_json)
     print(f"[INFO] Wrote {out_json}")
 

@@ -267,14 +267,13 @@ def _bupar_rq_artifact_basenames(cohort_name: str, age_band_fname: str) -> set:
         f"{base}_pre_target_activity_frequency.json",
         f"{base}_post_target_activity_frequency.json",
         f"{base}_overall_activity_frequency.png",
-        f"{base}_activity_frequency_interactive.html",
         f"{base}_{pre}_activity_frequency.png",
         f"{base}_trace_explorer_{pre}.png",
-        f"{base}_trace_explorer_interactive.html",
         f"{base}_trace_explorer_plot.json",
         f"{base}_process_matrix_drug_drug.png",
         f"{base}_process_matrix_drug_drug.json",
         f"{base}_activity_sequence_top.png",
+        f"{base}_activity_sequence_top.json",
     }
 
 
@@ -285,17 +284,16 @@ def _bupar_expected_plots(cohort_name: str, age_band_fname: str):
     base = f"{cohort_name}_{age_band_fname}"
     return [
         (f"{base}_overall_activity_frequency.png", True),
-        (f"{base}_activity_frequency_interactive.html", True),
         (f"{base}_activity_frequency.json", True),
         (f"{base}_pre_target_activity_frequency.json", True),
         (f"{base}_{pre}_activity_frequency.png", True),
         (f"{base}_trace_explorer_{pre}.png", True),
-        (f"{base}_trace_explorer_interactive.html", True),
         (f"{base}_process_matrix_drug_drug.png", True),
         (f"{base}_post_target_activity_frequency.json", False),
         (f"{base}_trace_explorer_plot.json", False),
         (f"{base}_process_matrix_drug_drug.json", False),
         (f"{base}_activity_sequence_top.png", False),
+        (f"{base}_activity_sequence_top.json", False),
     ]
 
 

@@ -596,8 +596,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return handle_visualizations_fpgrowth(event)
             elif path.endswith("/activity_frequency") and "bupar" in path:
                 return handle_visualizations_bupar_activity_frequency(event)
-            elif path.endswith("/bupar/html"):
-                return handle_visualizations_bupar_html_proxy(event)
             elif path.endswith("/bupar"):
                 return handle_visualizations_bupar(event)
             elif path.endswith("/feature_importance") or path.endswith("/feature_importance/"):
@@ -1716,45 +1714,6 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
 
 
 # Allowed BupaR HTML visual names for proxy (must match S3 object suffix: base_<visual>.html)
-BUPAR_HTML_VISUALS = frozenset({
-    "activity_frequency_interactive",
-    "trace_explorer_interactive",
-    "process_matrix_interactive",
-})
-
-
-def handle_visualizations_bupar_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/bupar/html?cohort=...&age_band=...&visual=...
-    Fetches BupaR interactive HTML from S3 and returns it with Content-Type: text/html
-    so the dashboard iframe renders it instead of triggering a download.
-    visual: one of activity_frequency_interactive, trace_explorer_interactive, process_matrix_interactive.
-    """
-    try:
-        params = event.get("queryStringParameters") or {}
-        cohort = params.get("cohort")
-        age_band = params.get("age_band")
-        visual = (params.get("visual") or "").strip()
-        if not cohort or not age_band:
-            return _response(400, {"error": "cohort and age_band parameters required"})
-        if visual not in BUPAR_HTML_VISUALS:
-            return _response(400, {"error": f"visual must be one of: {sorted(BUPAR_HTML_VISUALS)}"})
-        age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
-        base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        base = f"{cohort}_{age_band_fname}"
-        key = f"{base_key}/{base}_{visual}.html"
-        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
-        html_body = obj["Body"].read().decode("utf-8")
-        return _response_html(200, html_body)
-    except ClientError as e:
-        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
-            checked = f"s3://{S3_DASHBOARD_BUCKET}/{key}"
-            return _response_html(404, f"<!DOCTYPE html><html><body><p>BupaR visualization not found. Run the BupaR pipeline to build it.</p><p>Checked: {checked}</p></body></html>")
-        raise
-    except Exception as e:
-        return _response(500, {"error": str(e)})
-
-
 def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar/activity_frequency?cohort=...&age_band=...
     Returns JSON: { overall, pre_target, post_target } each { year_labels, data } for dashboard bar charts.
@@ -1794,7 +1753,8 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
     Returns HTTPS URLs only for BupaR plot objects that exist in S3 (HEAD check).
-    Dashboard bucket: S3_DASHBOARD_BUCKET under {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/.
+    S3 key pattern (must include "visualizations"): {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/
+    Example: vcu/pgx-risk-calculator/visualizations/bupar/opioid_ed/45-54/plots/opioid_ed_45_54_*.png
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1805,18 +1765,18 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
+        # Key must include "visualizations" (sync/deploy uses this path; do not use .../bupar/... without it)
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
         base_key = f"{prefix}/{cohort}/{age_band}/plots"
         pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
         base = f"{cohort}_{age_band_fname}"
 
         # RQ-only artifact keys (RESEARCH_QUESTIONS_ARTIFACTS.md). Do not request archived artifacts.
+        # URLs for PNG fallbacks; frontend prefers full JSON (activity_frequency API, trace_explorer_plot, etc.) with filters
         candidates: List[Tuple[str, str]] = [
             ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
-            ("activity_frequency_interactive", f"{base_key}/{base}_activity_frequency_interactive.html"),
             ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
             ("sequence_image", f"{base_key}/{base}_activity_sequence_top.png"),
-            ("trace_explorer_interactive", f"{base_key}/{base}_trace_explorer_interactive.html"),
             ("trace_explorer_pre_image", f"{base_key}/{base}_trace_explorer_{pre_suffix}.png"),
             ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"),
         ]
@@ -1826,10 +1786,11 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
                 payload[payload_key] = _dashboard_s3_url(s3_key)
 
-        # Prefer JSON for frontend Plotly: load trace_explorer_plot and process_matrix_drug_drug when present
+        # Prefer JSON for frontend Plotly/Chart: load trace_explorer_plot, process_matrix_drug_drug, activity_sequence_top when present
         for key, s3_key in [
             ("trace_explorer_plot", f"{base_key}/{base}_trace_explorer_plot.json"),
             ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.json"),
+            ("activity_sequence_top", f"{base_key}/{base}_activity_sequence_top.json"),
         ]:
             try:
                 obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=s3_key)
