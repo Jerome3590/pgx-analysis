@@ -262,10 +262,10 @@ python 6_final_model/run_final_model.py \
 
 **Verify:**
 ```bash
-# Check models trained
-ls -lh 6_final_model/models/{cohort}/{age_band}/
-ls -lh 6_final_model/outputs/{cohort}/{age_band}/*model_metrics_summary.csv
-ls -lh 6_final_model/outputs/{cohort}/{age_band}/*mc_cv_results.csv
+# Check models trained (age_band_fname uses underscore, e.g. 13_24)
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/models/
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/*model_metrics_summary.csv
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/*mc_cv_results.csv
 ```
 
 ### 4.5 Step 7: SHAP Analysis

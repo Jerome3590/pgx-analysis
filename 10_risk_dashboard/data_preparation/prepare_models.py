@@ -3,10 +3,10 @@
 Prepare models and feature schemas for Lambda deployment.
 
 This script:
-1. Loads models from 8_final_model/outputs/
-2. Extracts feature schemas
-3. Packages models for S3 upload
-4. Creates feature_schema.json files
+1. Loads models from 6_final_model/outputs/{cohort}/{age_band_fname}/models/
+2. Extracts feature schemas from 6_final_model/outputs/.../ train CSVs
+3. Writes to 10_risk_dashboard/outputs/models/ (used by prepare_lambda_dir.py and Docker)
+4. Creates feature_schema.json per cohort/age_band
 
 Usage:
     python prepare_models.py --cohort opioid_ed
@@ -107,7 +107,8 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
         }
     """
     age_band_fname = age_band.replace("-", "_")
-    mc_cv_path = FINAL_MODEL_DIR / cohort / age_band_fname / 'models' / f'{cohort}_{age_band_fname}_mc_cv_results.csv'
+    # Step 6 saves MC-CV results at cohort/age_band_fname/ (not under models/)
+    mc_cv_path = FINAL_MODEL_DIR / cohort / age_band_fname / f'{cohort}_{age_band_fname}_mc_cv_results.csv'
     
     if not mc_cv_path.exists():
         print(f"Warning: MC-CV results not found: {mc_cv_path}")

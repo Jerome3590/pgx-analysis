@@ -27,6 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Note: With new structure, Dockerfile copies directly from outputs/
 # This script is kept for backward compatibility or manual preparation
 LAMBDA_DIR = PROJECT_ROOT / "10_risk_dashboard" / "lambda_dir"
+# Models here are produced by data_preparation/prepare_models.py from 6_final_model/outputs
 MODELS_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "models"
 METADATA_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "metadata"
 DATA_SOURCE = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "cpic"

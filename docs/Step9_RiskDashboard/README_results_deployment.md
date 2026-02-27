@@ -45,14 +45,14 @@ The dashboard uses **cohort tabs** to choose cohort; age selects the age band wi
 
 ### Cohort 1: Opioid ED (`opioid_ed`)
 - **Age Bands**: Full set (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) — same as Polypharmacy
-- **Models**: `6_final_model/outputs/opioid_ed/{age_band}/models/` (or `8_final_model` per project layout)
+- **Models**: `6_final_model/outputs/opioid_ed/{age_band_fname}/models/` (e.g. `13_24`; Step 6 writes here)
 - **Feature Importances**: `3a_feature_importance/outputs/opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, ICD codes, CPT codes, Drug names
 - **Note**: Risk calculation requires age 13+; cohort is selected via dashboard **Opioid ED** tab
 
 ### Cohort 2: Polypharmacy (`non_opioid_ed`)
 - **Age Bands**: Full set (0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114) — same as Opioid ED
-- **Models**: `6_final_model/outputs/non_opioid_ed/{age_band}/models/`
+- **Models**: `6_final_model/outputs/non_opioid_ed/{age_band_fname}/models/`
 - **Feature Importances**: `3a_feature_importance/outputs/non_opioid_ed_{age_band}_aggregated_feature_importance.csv`
 - **Input Features**: Age, Drug names (single or combinations)
 - **Note**: Last band 85-114 combines former 85-94 and 95-114. Cohort selected via dashboard **Polypharmacy** tab
@@ -104,9 +104,9 @@ The dashboard uses **cohort tabs** to choose cohort; age selects the age band wi
 **Purpose**: Package models and feature schemas for Lambda container deployment.
 
 **Actions**:
-1. Load models from `8_final_model/outputs/`
-2. Extract feature schemas
-3. Create model packages in `models/` directory for Docker build
+1. Load models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/`
+2. Extract feature schemas from Step 6 train CSVs; read MC-CV from `6_final_model/outputs/.../*_mc_cv_results.csv`
+3. Write to `10_risk_dashboard/outputs/models/` (source for `prepare_lambda_dir.py`)
 4. Models will be bundled in container image (up to 10GB supported)
 
 **Model Package Structure**:
