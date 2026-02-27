@@ -1642,7 +1642,7 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
     """GET /visualizations/feature_importance?cohort=...
     Cohort: opioid_ed, non_opioid_ed, or combined. Always returns aggregated heatmap (no model filter).
     Prefer JSON over PNG: returns heatmap_data when available; frontend falls back to heatmap_url (PNG).
-    S3: {prefix}/visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json|png; combined uses combined_cohorts_*.
+    S3: {prefix}/feature_importance/{cohort}/aggregated_fi_heatmap.json|png; combined uses combined/ or combined_cohorts_*.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1651,7 +1651,7 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
             return _response(400, {"error": "cohort parameter required"})
         if cohort not in ("opioid_ed", "non_opioid_ed", "combined"):
             cohort = "opioid_ed"
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/feature_importance"
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/feature_importance"
         combined_key = f"{prefix}/combined_cohorts_feature_importance_heatmap.png"
         if cohort == "combined":
             heatmap_key = combined_key
