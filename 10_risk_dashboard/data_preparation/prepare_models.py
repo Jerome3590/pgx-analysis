@@ -119,16 +119,17 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
             'xgboost_rf': 1.0
         }
     
-    # Load MC-CV results
+    # Load MC-CV results (Step 6 writes "XGBoost", "XGBoost_RF", "CatBoost" in CSV)
     df = pd.read_csv(mc_cv_path)
+    csv_to_internal = {'XGBoost': 'xgboost', 'XGBoost_RF': 'xgboost_rf', 'CatBoost': 'catboost'}
     
     # Calculate composite scores for each model
     model_scores = {}
-    for model_name in ['catboost', 'xgboost', 'xgboost_rf']:
-        model_data = df[df['model'] == model_name]
+    for csv_name, internal_name in csv_to_internal.items():
+        model_data = df[df['model'] == csv_name]
         
         if len(model_data) == 0:
-            print(f"Warning: No MC-CV results for {model_name}")
+            print(f"Warning: No MC-CV results for {internal_name}")
             continue
         
         mean_logloss = model_data['logloss'].mean()
@@ -143,7 +144,7 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
         # Composite score: 0.5 * PR-AUC + 0.5 * normalized_logloss
         composite_score = 0.5 * normalized_pr_auc_score + 0.5 * normalized_logloss_score
         
-        model_scores[model_name] = {
+        model_scores[internal_name] = {
             'mean_logloss': mean_logloss,
             'mean_pr_auc': mean_pr_auc,
             'composite_score': composite_score
@@ -151,14 +152,12 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
     
     # Normalize weights to sum to 1.0
     total_score = sum(s['composite_score'] for s in model_scores.values())
+    default_models = ['catboost', 'xgboost', 'xgboost_rf']
     
-    if total_score == 0:
-        print("Warning: All composite scores are zero, using equal weights")
-        return {
-            'catboost': 1.0 / len(model_scores),
-            'xgboost': 1.0 / len(model_scores),
-            'xgboost_rf': 1.0 / len(model_scores)
-        }
+    if total_score == 0 or len(model_scores) == 0:
+        print("Warning: All composite scores are zero or no MC-CV data, using equal weights")
+        n = len(default_models)
+        return {m: 1.0 / n for m in default_models}
     
     weights = {
         model: model_scores[model]['composite_score'] / total_score
