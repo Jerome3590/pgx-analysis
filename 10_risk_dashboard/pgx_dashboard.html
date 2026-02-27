@@ -752,18 +752,25 @@
         <div class="control-group full-width">
           <button id="btnLoadDTW">Load DTW Visualizations</button>
         </div>
+        <div class="control-group full-width" style="margin-top: 12px;">
+          <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
+            <legend style="font-weight: 600;">Show visuals</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which DTW panels to display. Selection is saved per cohort (same as BupaR).</p>
+            <div id="dtw-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
+          </fieldset>
+        </div>
       </div>
       <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
       <div class="panels">
-        <div class="panel">
+        <div class="panel dtw-panel" data-visual-key="overview">
           <h2>Trajectory Analysis Overview</h2>
           <div id="dtw-overview-image"></div>
         </div>
-        <div class="panel">
+        <div class="panel dtw-panel" data-visual-key="sample">
           <h2>Sample Trajectories</h2>
           <div id="dtw-sample-trajectories-image"></div>
         </div>
-        <div class="panel">
+        <div class="panel dtw-panel" data-visual-key="metrics">
           <h2>Trajectory Metrics</h2>
           <div id="dtw-metrics-chart"></div>
         </div>
@@ -1644,7 +1651,8 @@
       const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      renderDTWVisualizations(data);
+      const dtwSelected = Array.from(document.querySelectorAll('#dtw-visual-checkboxes .dtw-visual-cb:checked')).map(c => c.dataset.visualKey);
+      renderDTWVisualizations(data, dtwSelected.length ? dtwSelected : getDTWVisualSelection(cohort));
       document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = "status-message success";
     } catch (err) {
@@ -1839,6 +1847,56 @@
   }
 
   const dtwImgOnError = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
+  const DTW_VISUAL_KEYS_PGX = [
+    { key: 'overview', label: 'Trajectory Overview' },
+    { key: 'sample', label: 'Sample Trajectories' },
+    { key: 'metrics', label: 'Trajectory Metrics' }
+  ];
+  const DTW_STORAGE_KEY = 'dtw_visuals_selection';
+  function getDTWVisualSelection(cohort) {
+    try {
+      var raw = localStorage.getItem(DTW_STORAGE_KEY);
+      if (!raw) return DTW_VISUAL_KEYS_PGX.map(function(v) { return v.key; });
+      var obj = JSON.parse(raw);
+      var stored = obj && typeof obj === 'object' ? obj[cohort] : undefined;
+      return Array.isArray(stored) ? stored : DTW_VISUAL_KEYS_PGX.map(function(v) { return v.key; });
+    } catch (_) {
+      return DTW_VISUAL_KEYS_PGX.map(function(v) { return v.key; });
+    }
+  }
+  function setDTWVisualSelection(cohort, keys) {
+    try {
+      var raw = localStorage.getItem(DTW_STORAGE_KEY);
+      var obj = raw ? JSON.parse(raw) : {};
+      obj[cohort] = keys;
+      localStorage.setItem(DTW_STORAGE_KEY, JSON.stringify(obj));
+    } catch (_) {}
+  }
+  function buildDTWVisualCheckboxes(cohort) {
+    var container = document.getElementById('dtw-visual-checkboxes');
+    if (!container) return;
+    var selected = getDTWVisualSelection(cohort);
+    container.innerHTML = DTW_VISUAL_KEYS_PGX.map(function(_ref) {
+      var key = _ref.key, label = _ref.label;
+      var checked = selected.includes(key) ? ' checked' : '';
+      return '<label style="white-space: nowrap;"><input type="checkbox" class="dtw-visual-cb" data-visual-key="' + key + '"' + checked + '> ' + label + '</label>';
+    }).join('');
+    container.querySelectorAll('.dtw-visual-cb').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var keys = Array.from(container.querySelectorAll('.dtw-visual-cb:checked')).map(function(c) { return c.dataset.visualKey; });
+        setDTWVisualSelection(cohort, keys);
+        document.querySelectorAll('.dtw-panel').forEach(function(p) {
+          p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+        });
+      });
+    });
+  }
+  function applyDTWPanelVisibility(selectedKeys) {
+    var keys = selectedKeys && selectedKeys.length ? selectedKeys : DTW_VISUAL_KEYS_PGX.map(function(v) { return v.key; });
+    document.querySelectorAll('.dtw-panel').forEach(function(p) {
+      p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+    });
+  }
   function buildDTWTrajectoryPlotly(payload) {
     if (!payload || !Array.isArray(payload.traces) || payload.traces.length === 0 || !window.Plotly) return null;
     var yearsOrder = payload.years_order || [0];
@@ -1870,7 +1928,8 @@
     }
     return { data: traces, layout: layout };
   }
-  function renderDTWVisualizations(data) {
+  function renderDTWVisualizations(data, selectedKeys) {
+    applyDTWPanelVisibility(selectedKeys);
     var overviewEl = document.getElementById("dtw-overview-image");
     if (overviewEl) {
       var plotSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces) ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
@@ -2157,6 +2216,10 @@
             p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
           });
         }
+        if (prefix === 'dtw') {
+          buildDTWVisualCheckboxes(cohortSelect.value);
+          applyDTWPanelVisibility(getDTWVisualSelection(cohortSelect.value));
+        }
       });
       // Initialize
       populateAgeBands(cohortSelect.value, ageBandSelect);
@@ -2170,6 +2233,11 @@
     document.querySelectorAll('.bupar-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
     });
+  }
+  const dtwCohortEl = document.getElementById('dtw-cohort');
+  if (dtwCohortEl) {
+    buildDTWVisualCheckboxes(dtwCohortEl.value);
+    applyDTWPanelVisibility(getDTWVisualSelection(dtwCohortEl.value));
   }
 
   // Initialize: load default cohort (sets currentCohort), then update indicator

@@ -9,6 +9,7 @@ Scripts and configurations for deploying the dashboard to AWS.
 - **`docker_build.sh`** - Build and push Docker image to ECR
 - **`prepare_lambda_dir.py`** - Prepare Lambda deployment package
 - **`apply_dashboard_bucket_cors.py`** - Apply CORS to the dashboard S3 bucket (idempotent). Run by Step 6 in notebook 5; can also be run standalone or with `--check` to print current CORS.
+- **`apply_api_gateway_cors.py`** - Add CORS headers to API Gateway **gateway responses** (4XX, 5XX, DEFAULT) so the browser receives `Access-Control-Allow-Origin` even when Lambda errors or times out. Run once per API (e.g. `python apply_api_gateway_cors.py --api-id cmv0qislq3`). See [CORS blocked from jerome-dixon.io](#cors-blocked-from-jeromedixonio) below.
 - **`scripts/`** - Additional deployment helper scripts
 
 **Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. **Age bands:** EC2 paths use underscore (e.g. `25_44`); S3 paths use hyphen (e.g. `25-44`). Use `sync_cohort_pgx_to_s3.py` for Cohort PGx so S3 keys use hyphen.
@@ -88,6 +89,16 @@ Serve the PGx calculator from your custom domain so it uses the same origin and 
 - **How:** Upload the frontend to the same bucket/prefix used for the domain (e.g. under `vcu/pgx-risk-calculator/` in the bucket that backs `jerome-dixon.io`), so that `jerome-dixon.io` (and CloudFront, if used) serves both `uva/` and `vcu/`. Do **not** open the app via the raw S3 URL `jerome-dixon.io.s3.us-east-1.amazonaws.com`.
 - **Result:** Same origin as UVA, one certificate, no cross-origin surprise, and "Not secure" goes away.
 
+### CORS blocked from jerome-dixon.io
+
+If the browser shows: *"Access to fetch at 'https://...execute-api.../prod/visualizations/dtw?...' from origin 'https://jerome-dixon.io' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header"* — the API response is not including CORS headers. Apply gateway response CORS once (no redeploy):
+
+```bash
+python 10_risk_dashboard/deployment/apply_api_gateway_cors.py --api-id cmv0qislq3 --region us-east-1
+```
+
+This adds `Access-Control-Allow-Origin` (and related headers) to API Gateway’s DEFAULT_4XX, DEFAULT_5XX, and DEFAULT responses so even errors/timeouts return CORS. Lambda already sends CORS on 200 responses.
+
 ### If you must keep the S3 hostname URL
 
 1. **Ensure API Gateway can invoke Lambda**  
@@ -112,11 +123,17 @@ Serve the PGx calculator from your custom domain so it uses the same origin and 
    ```
    If OPTIONS or GET fails, fix API Gateway/Lambda before relying on the dashboard.
 
-3. Confirm there is **no API Gateway resource policy** (or WAF) that restricts `Origin` to only `https://jerome-dixon.io`; Lambda already sends `Access-Control-Allow-Origin: *`.
+3. **Add CORS to API Gateway gateway responses** (fixes "No 'Access-Control-Allow-Origin' header" when calling from `https://jerome-dixon.io`). Lambda already returns CORS on 200, but if Lambda fails or times out, API Gateway returns 502/503 without CORS unless gateway responses are set. Run once:
+   ```bash
+   python 10_risk_dashboard/deployment/apply_api_gateway_cors.py --api-id cmv0qislq3 --region us-east-1
+   ```
+   (Use `--profile PROFILE` if needed.) No redeploy needed; takes effect immediately.
 
-4. **Redeploy Lambda** after backend code changes (e.g. CORS): rebuild image, push to ECR, then update Lambda code (notebook "Update Lambda" or `aws lambda update-function-code --image-uri ...`).
+4. Confirm there is **no API Gateway resource policy** (or WAF) that restricts `Origin` to only `https://jerome-dixon.io`; Lambda already sends `Access-Control-Allow-Origin: *`.
 
-5. **Set Lambda memory and timeout** (30 s helps cold starts; 512 MB is sufficient per logs). Replace `YOUR_FUNCTION_NAME` with your PGx dashboard Lambda name:
+5. **Redeploy Lambda** after backend code changes (e.g. CORS): rebuild image, push to ECR, then update Lambda code (notebook "Update Lambda" or `aws lambda update-function-code --image-uri ...`).
+
+6. **Set Lambda memory and timeout** (30 s helps cold starts; 512 MB is sufficient per logs). Replace `YOUR_FUNCTION_NAME` with your PGx dashboard Lambda name:
    ```bash
    aws lambda update-function-configuration \
      --function-name YOUR_FUNCTION_NAME \

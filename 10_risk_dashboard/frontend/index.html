@@ -1098,6 +1098,13 @@
         <div class="control-group full-width">
           <button id="btnLoadDTW">Load DTW Visualizations</button>
         </div>
+        <div class="control-group full-width" style="margin-top: 12px;">
+          <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
+            <legend style="font-weight: 600;">Show visuals</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which DTW panels to display for the chosen cohort. Selection is saved per cohort (same pattern as BupaR).</p>
+            <div id="dtw-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
+          </fieldset>
+        </div>
       </div>
       <p class="subtitle" style="margin-top: 0.25rem;"><small style="color: #64748b;">Event density filters trajectories by events-per-month (low/medium/high/extreme). Use after loading.</small></p>
       <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
@@ -1110,27 +1117,27 @@
       </div>
       <div class="panels">
         <div id="dtw-subpanel-overview" class="dtw-subpanel active">
-          <div class="panel">
+          <div class="panel dtw-panel" data-visual-key="overview">
             <h2>Trajectory Analysis Overview (drugs)</h2>
             <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;">Cluster overview of drug sequences; drug-only trajectories.</small></p>
             <div id="dtw-overview-image"></div>
           </div>
-          <div class="panel">
+          <div class="panel dtw-panel" data-visual-key="sample">
             <h2>Sample Trajectories (drugs)</h2>
             <div id="dtw-sample-trajectories-image"></div>
           </div>
-          <div class="panel">
+          <div class="panel dtw-panel" data-visual-key="metrics">
             <h2>Trajectory Metrics</h2>
             <div id="dtw-metrics-chart"></div>
           </div>
-          <div class="panel full-width">
+          <div class="panel full-width dtw-panel" data-visual-key="high_risk">
             <h2>High-Risk vs Low-Risk Trajectories (drugs)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">Trajectory archetypes stratified by outcome/risk; drug-only.</small>
             </p>
             <div id="dtw-high-risk-trajectories-container"></div>
           </div>
-          <div class="panel full-width">
+          <div class="panel full-width dtw-panel" data-visual-key="times_between">
             <h2>Times Between Sequences (N3)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">Mean days between consecutive events and mean days to target, by routine vs no routine. Drug sequence context.</small>
@@ -1138,14 +1145,14 @@
             <div id="dtw-times-between-container"></div>
             <div id="dtw-time-to-target-container"></div>
           </div>
-          <div class="panel full-width">
+          <div class="panel full-width dtw-panel" data-visual-key="target_pathway">
             <h2>Target Pathway Patterns (drugs)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">Common drug codes in trajectories leading to the target outcome (target=1).</small>
             </p>
             <div id="dtw-target-pathway-container"></div>
           </div>
-          <div class="panel full-width">
+          <div class="panel full-width dtw-panel" data-visual-key="sequence_heatmap">
             <h2>Common Sequences Heatmap (Drug / ICD / CPT)</h2>
             <p class="subtitle" style="margin-bottom: 0.5rem;">
               <small style="color: #64748b;">How often each code appears at each position in trajectories. Darker = more common. Opioid ED: drug, ICD, and CPT activity types.</small>
@@ -1162,7 +1169,7 @@
           </div>
         </div>
         <div id="dtw-subpanel-routine" class="dtw-subpanel">
-          <div class="panel full-width">
+          <div class="panel full-width dtw-panel" data-visual-key="routine_comparison">
             <h2>Routine vs No Routine (Outcomes)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">Core analysis: Do routine screenings (administrative ICD codes) associate with better outcomes? Outcome rate by routine appointments (1+ admin ICD events) vs no routine (0 admin ICD). Highlights how routine care may reduce extreme outcomes. Data: full pipeline (2016–2019).</small>
@@ -2524,7 +2531,12 @@
       }
       window.dtwChartData = data;
       const densityFilter = document.getElementById("dtw-event-density")?.value || "all";
-      renderDTWVisualizations(data, densityFilter);
+      const dtwSelected = Array.from(document.querySelectorAll('#dtw-visual-checkboxes .dtw-visual-cb:checked')).map(c => c.dataset.visualKey);
+      if (!dtwSelected.length) {
+        const cohort = document.getElementById("dtw-cohort").value;
+        dtwSelected.push(...getDTWVisualSelection(cohort));
+      }
+      renderDTWVisualizations(data, densityFilter, dtwSelected.length ? dtwSelected : undefined);
       const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message);
       document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
@@ -2538,7 +2550,9 @@
   document.getElementById("dtw-event-density")?.addEventListener("change", () => {
     if (window.dtwChartData) {
       const densityFilter = document.getElementById("dtw-event-density").value;
-      renderDTWVisualizations(window.dtwChartData, densityFilter);
+      const dtwSelected = Array.from(document.querySelectorAll('#dtw-visual-checkboxes .dtw-visual-cb:checked')).map(c => c.dataset.visualKey);
+      const cohort = document.getElementById("dtw-cohort").value;
+      renderDTWVisualizations(window.dtwChartData, densityFilter, dtwSelected.length ? dtwSelected : getDTWVisualSelection(cohort));
     }
   });
   document.getElementById("dtw-heatmap-activity-type")?.addEventListener("change", () => {
@@ -2875,7 +2889,62 @@
   }
 
   const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
-  function renderDTWVisualizations(data, densityFilter) {
+  const DTW_VISUAL_KEYS = [
+    { key: 'overview', label: 'Trajectory Overview' },
+    { key: 'sample', label: 'Sample Trajectories' },
+    { key: 'metrics', label: 'Trajectory Metrics' },
+    { key: 'high_risk', label: 'High-Risk vs Low-Risk' },
+    { key: 'times_between', label: 'Times Between / Time to Target' },
+    { key: 'target_pathway', label: 'Target Pathway Patterns' },
+    { key: 'sequence_heatmap', label: 'Sequence Heatmap (Drug/ICD/CPT)' },
+    { key: 'routine_comparison', label: 'Routine vs No Routine' }
+  ];
+  const DTW_STORAGE_KEY = 'dtw_visuals_selection';
+  function getDTWVisualSelection(cohort) {
+    try {
+      const raw = localStorage.getItem(DTW_STORAGE_KEY);
+      if (!raw) return DTW_VISUAL_KEYS.map(v => v.key);
+      const obj = JSON.parse(raw);
+      const stored = obj && typeof obj === 'object' ? obj[cohort] : undefined;
+      return Array.isArray(stored) ? stored : DTW_VISUAL_KEYS.map(v => v.key);
+    } catch (_) {
+      return DTW_VISUAL_KEYS.map(v => v.key);
+    }
+  }
+  function setDTWVisualSelection(cohort, keys) {
+    try {
+      const raw = localStorage.getItem(DTW_STORAGE_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      obj[cohort] = keys;
+      localStorage.setItem(DTW_STORAGE_KEY, JSON.stringify(obj));
+    } catch (_) {}
+  }
+  function buildDTWVisualCheckboxes(cohort) {
+    const container = document.getElementById('dtw-visual-checkboxes');
+    if (!container) return;
+    const selected = getDTWVisualSelection(cohort);
+    container.innerHTML = DTW_VISUAL_KEYS.map(({ key, label }) => {
+      const checked = selected.includes(key) ? ' checked' : '';
+      return `<label style="white-space: nowrap;"><input type="checkbox" class="dtw-visual-cb" data-visual-key="${key}"${checked}> ${label}</label>`;
+    }).join('');
+    container.querySelectorAll('.dtw-visual-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const keys = Array.from(container.querySelectorAll('.dtw-visual-cb:checked')).map(c => c.dataset.visualKey);
+        setDTWVisualSelection(cohort, keys);
+        document.querySelectorAll('.dtw-panel').forEach(p => {
+          p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+        });
+      });
+    });
+  }
+  function applyDTWPanelVisibility(selectedKeys) {
+    const keys = selectedKeys && selectedKeys.length ? selectedKeys : DTW_VISUAL_KEYS.map(v => v.key);
+    document.querySelectorAll('.dtw-panel').forEach(p => {
+      p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
+    });
+  }
+  function renderDTWVisualizations(data, densityFilter, selectedKeys) {
+    applyDTWPanelVisibility(selectedKeys);
     // Resolve chart data by event density filter (dashboard filter)
     const routineComparison = (densityFilter && densityFilter !== 'all' && data.routine_comparison_by_density && data.routine_comparison_by_density[densityFilter])
       ? data.routine_comparison_by_density[densityFilter] : data.routine_comparison;
@@ -3518,6 +3587,10 @@
             p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
           });
         }
+        if (prefix === 'dtw') {
+          buildDTWVisualCheckboxes(cohortSelect.value);
+          applyDTWPanelVisibility(getDTWVisualSelection(cohortSelect.value));
+        }
       });
       // Initialize
       populateAgeBands(cohortSelect.value, ageBandSelect);
@@ -3530,6 +3603,11 @@
     document.querySelectorAll('.bupar-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
     });
+  }
+  const dtwCohortEl = document.getElementById('dtw-cohort');
+  if (dtwCohortEl) {
+    buildDTWVisualCheckboxes(dtwCohortEl.value);
+    applyDTWPanelVisibility(getDTWVisualSelection(dtwCohortEl.value));
   }
 
   // Initialize the dashboard
