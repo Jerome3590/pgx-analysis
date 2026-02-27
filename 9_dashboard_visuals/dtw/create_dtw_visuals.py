@@ -237,7 +237,12 @@ def _upload_dtw_plots_to_dashboard_s3(
     age_band: str,
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under visualizations/dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR)."""
+    """Upload DTW plot PNGs and Plotly HTML to the dashboard bucket under visualizations/dtw/{cohort}/{age_band}/plots/ (same pattern as FP-Growth/BupaR).
+    When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 syncs from local)."""
+    if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        if logger:
+            logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; DTW plots S3 upload skipped.")
+        return
     age_band_fname = age_band.replace("-", "_")
     plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
@@ -633,7 +638,12 @@ def _upload_dtw_chart_data_to_dashboard_s3(
     chart_data: Dict[str, Any],
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload prebuilt DTW chart_data.json to dashboard bucket for direct dashboard integration."""
+    """Upload prebuilt DTW chart_data.json to dashboard bucket for direct dashboard integration.
+    When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 syncs from local)."""
+    if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        if logger:
+            logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; DTW chart_data S3 upload skipped.")
+        return
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
     use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
@@ -666,7 +676,12 @@ def _upload_sequence_heatmap_to_s3(
     heatmap_data: Dict[str, Any],
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload sequence_heatmap.json (drug, icd, cpt slices) for dashboard common-sequences heatmap."""
+    """Upload sequence_heatmap.json (drug, icd, cpt slices) for dashboard common-sequences heatmap.
+    When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 syncs from local)."""
+    if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        if logger:
+            logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; DTW sequence_heatmap S3 upload skipped.")
+        return
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
     use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
