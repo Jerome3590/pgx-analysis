@@ -1068,7 +1068,7 @@
     <!-- DTW Visualizations Tab: drug-only trajectories/sequences + Routine vs No Routine (admin codes) -->
     <div id="dtw-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Research focus: drug trajectories and sequences</strong>; and <strong>how routine screenings (admin codes) relate to outcomes</strong>. Overview uses drug-only sequence data; heatmap is drugs only. Routine sub-tab: outcome rate and event counts by routine vs no routine.
+        <strong>Research focus: drug, ICD, and CPT trajectories and sequences</strong>; and <strong>how routine screenings (admin codes) relate to outcomes</strong>. Opioid ED: drug, ICD, and CPT activity types. Heatmap: choose Drug / ICD / CPT. Routine sub-tab: outcome rate and event counts by routine vs no routine.
         <br>
         <small style="color: #64748b;">Select cohort and age band, then load. Use the sub-tabs below to switch between <strong>Overview &amp; Trajectories</strong> (drug-focused) and <strong>Routine vs No Routine</strong>. Data: full pipeline (2016–2019).</small>
       </p>
@@ -1145,10 +1145,18 @@
             <div id="dtw-target-pathway-container"></div>
           </div>
           <div class="panel full-width">
-            <h2>Common Sequences Heatmap (Drugs only)</h2>
-            <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">How often each drug appears at each position in trajectories. Darker = more common. Research focus: drug names only.</small>
+            <h2>Common Sequences Heatmap (Drug / ICD / CPT)</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;">
+              <small style="color: #64748b;">How often each code appears at each position in trajectories. Darker = more common. Opioid ED: drug, ICD, and CPT activity types.</small>
             </p>
+            <div style="margin-bottom: 0.75rem;">
+              <label for="dtw-heatmap-activity-type">Activity type: </label>
+              <select id="dtw-heatmap-activity-type" aria-label="DTW heatmap activity type">
+                <option value="drug">Drug</option>
+                <option value="icd">ICD</option>
+                <option value="cpt">CPT</option>
+              </select>
+            </div>
             <div id="dtw-sequence-heatmap-container"></div>
           </div>
         </div>
@@ -2516,8 +2524,9 @@
       window.dtwChartData = data;
       const densityFilter = document.getElementById("dtw-event-density")?.value || "all";
       renderDTWVisualizations(data, densityFilter);
-      document.getElementById("dtw-status").textContent = "DTW visualizations loaded successfully";
-      document.getElementById("dtw-status").className = "status-message success";
+      const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message);
+      document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
+      document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
     } catch (err) {
       document.getElementById("dtw-status").textContent = `Error: ${err.message}`;
       document.getElementById("dtw-status").className = "status-message error";
@@ -2530,6 +2539,10 @@
       const densityFilter = document.getElementById("dtw-event-density").value;
       renderDTWVisualizations(window.dtwChartData, densityFilter);
     }
+  });
+  document.getElementById("dtw-heatmap-activity-type")?.addEventListener("change", () => {
+    const sel = document.getElementById("dtw-heatmap-activity-type");
+    if (sel && window.dtwSequenceHeatmapData) renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, sel.value);
   });
 
   // FP-Growth Visualizations Tab (drug names only)
@@ -3045,16 +3058,21 @@
       targetPathwayEl.innerHTML = '<p class="status-message info">Target pathway patterns will appear here when the pipeline provides this view.</p>';
     }
 
-    // Common sequences heatmap: drugs only (research focus)
+    // Common sequences heatmap: drug / ICD / CPT (opioid_ed includes all activity types)
     window.dtwSequenceHeatmapData = data.sequence_heatmap || null;
-    renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, 'drug');
+    const heatmapSelect = document.getElementById('dtw-heatmap-activity-type');
+    const firstTypeWithData = heatmapSelect && window.dtwSequenceHeatmapData
+      ? ['drug', 'icd', 'cpt'].find(t => window.dtwSequenceHeatmapData[t] && window.dtwSequenceHeatmapData[t].codes && window.dtwSequenceHeatmapData[t].codes.length > 0) || 'drug'
+      : 'drug';
+    if (heatmapSelect) heatmapSelect.value = firstTypeWithData;
+    renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, heatmapSelect ? heatmapSelect.value : 'drug');
   }
 
   function renderDTWSequenceHeatmap(heatmapData, codeType) {
     const container = document.getElementById('dtw-sequence-heatmap-container');
     if (!container) return;
     if (!heatmapData || !heatmapData[codeType] || !heatmapData[codeType].codes || heatmapData[codeType].codes.length === 0) {
-      container.innerHTML = '<p class="status-message info">Sequence heatmap (drugs) will appear here when the pipeline provides sequence_heatmap.json with drug data for this cohort/age band.</p>';
+      container.innerHTML = '<p class="status-message info">Sequence heatmap (' + codeType + ') has no data for this cohort/age band. Try another activity type (Drug / ICD / CPT) or run create_dtw_visuals so trajectories include ' + codeType + ' codes.</p>';
       return;
     }
     const slice = heatmapData[codeType];
@@ -3358,9 +3376,9 @@
     buildBupaRBarChart('bupar-chart-post', 'post_target', freqData);
   }
 
-  // Populate age band dropdowns based on cohort (both cohorts use full set)
+  // Populate age band dropdowns for visualization tabs (exclude 0-12; Risk Assessment min age 13)
   function populateAgeBands(cohort, selectElement) {
-    const ageBands = ['0-12', '13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114'];
+    const ageBands = ['13-24', '25-44', '45-54', '55-64', '65-74', '75-84', '85-114'];
     selectElement.innerHTML = ageBands.map(ab => `<option value="${ab}">${ab}</option>`).join('');
   }
 

@@ -299,7 +299,7 @@ def create_trajectory_cluster_plots(
             
             for c in sorted(year_df["cluster"].unique()):
                 mask = year_df["cluster"] == c
-                mask_indices = [j for j, idx in enumerate(year_df.index) if mask.iloc[j] if j < len(mask) else False]
+                mask_indices = [j for j, idx in enumerate(year_df.index) if j < len(mask) and mask.iloc[j]]
                 
                 fig.add_trace(
                     go.Scatter(
@@ -438,21 +438,21 @@ def create_trajectory_cluster_plots(
         )
         fname = f"dtw_trajectory_cluster_{fname_suffix}_{cohort_name}_{age_band_fname}.html"
 
-    out_html = plots_dir / fname
-    if not force and out_html.exists():
-        print(f"[INFO] Plot already exists: {out_html}; skipping (use --force to re-run)")
-        return [out_html]
-
-    fig.write_html(str(out_html), config={"responsive": True}, include_plotlyjs=True)
-    written.append(out_html)
-    print(f"[INFO] Wrote {out_html}")
-
-    # Plotly JSON for frontend (dashboard builds Plotly from JSON; no iframe/HTML)
+    # Always write trajectory JSON for frontend (Overview/Sample panels use it when PNGs missing)
     out_json = plots_dir / "trajectory_overview_plot.json"
     with open(out_json, "w", encoding="utf-8") as f:
         f.write(fig.to_json())
     written.append(out_json)
     print(f"[INFO] Wrote {out_json}")
+
+    out_html = plots_dir / fname
+    if not force and out_html.exists():
+        print(f"[INFO] Plot already exists: {out_html}; skipping (use --force to re-run)")
+        return written
+
+    fig.write_html(str(out_html), config={"responsive": True}, include_plotlyjs=True)
+    written.append(out_html)
+    print(f"[INFO] Wrote {out_html}")
 
     # Optional PNG (requires kaleido)
     try:

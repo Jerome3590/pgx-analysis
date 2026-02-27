@@ -14,6 +14,24 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 
 ---
 
+## Canonical EC2 write locations (verify artifacts are here)
+
+All paths below are relative to **repo root** (`project_root`). If outputs are not in these locations, ensure every script is invoked with the same `--project-root` (or equivalent) as the notebook’s `REPO_ROOT`. The path check script reads from these same paths: `10_risk_dashboard/data_preparation/check_dashboard_artifact_paths.py`.
+
+| Script / step | Writes to (under repo root) |
+|---------------|-----------------------------|
+| **create_dtw_trajectories.py** | `10_risk_dashboard/visualizations/dtw/outputs/feature_engineering/dtw_features_{cohort}_{age_band_fname}.csv` |
+| **create_dtw_features.py** | Same dir: `dtw_features_*_density_{bin}.csv`, `common_sequences_*_density_{bin}.json` (or single `dtw_features_*.csv` + `common_sequences_*.json` when no density bins) |
+| **create_dtw_visuals.py** | Reads from `.../dtw/outputs/feature_engineering/`; writes `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/chart_data.json`, `sequence_heatmap.json`, `plots/*` |
+| **create_bupar_visuals.py** | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/*` |
+| **create_plots.py** (FP-Growth) | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` |
+| **upload_causal_outputs_to_s3.py** (source) | Reads from `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` (written by combine_shap_ffa_results / causal pipeline) |
+| **build_network_topology.py** (Cohort PGx) | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` |
+
+**DTW:** Notebook 4 must pass `--project-root str(REPO_ROOT)` to all three DTW steps (trajectories, features, visuals) so they use the same root. The check script expects `chart_data.json` and `sequence_heatmap.json` under `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/`.
+
+---
+
 ## Path alignment: EC2 → upload/sync → S3 → Lambda
 
 All visualization artifacts use the **same S3 location** and are **mapped consistently** from EC2 to Lambda:

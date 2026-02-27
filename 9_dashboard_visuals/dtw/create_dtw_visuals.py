@@ -79,6 +79,7 @@ def create_dtw_visuals(
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
     out_dir = dtw_out / "outputs" / cohort_name / age_band_fname
+    _log("info", "DTW outputs (EC2): project_root=%s ; dtw_out=%s ; out_dir=%s", project_root, dtw_out, out_dir)
 
     # Idempotency: skip only when all dashboard artifacts exist (plots + chart_data + sequence_heatmap)
     plots_dir = out_dir / "plots"
@@ -101,6 +102,7 @@ def create_dtw_visuals(
     base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
     single_csv = fe_dir / f"{base_name}.csv"
     density_glob = list(fe_dir.glob(f"{base_name}_density_*.csv"))
+    _log("info", "DTW input: fe_dir=%s ; single_csv=%s (exists=%s) ; density_glob=%d files", fe_dir, single_csv, single_csv.exists(), len(density_glob))
 
     if density_glob:
         # Sub-cohort outputs: load by filter and concatenate for chart_data
@@ -124,7 +126,7 @@ def create_dtw_visuals(
             path_listings_str = " ; ".join(path_listings) if path_listings else ""
         except Exception:  # noqa: BLE001
             path_listings_str = ""
-        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s", cohort_name, age_band, single_csv)
+        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s (no EC2 artifacts written, no S3 upload)", cohort_name, age_band, single_csv)
         if path_listings_str:
             _log("error", "step=5_dtw path_listings: %s", path_listings_str)
         return
@@ -201,7 +203,7 @@ def create_dtw_visuals(
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
     if heatmap_data is None:
         _log("warning", "DTW sequence_heatmap not produced for %s/%s: empty dataframe or missing seq_pattern_str (writing minimal file so artifact path exists)", cohort_name, age_band)
-        heatmap_data = {"drug": {"codes": [], "positions": [], "counts": []}}
+        heatmap_data = {"drug": {"codes": [], "positions": [], "counts": []}, "icd": {"codes": [], "positions": [], "counts": []}, "cpt": {"codes": [], "positions": [], "counts": []}}
     with open(heatmap_path, "w", encoding="utf-8") as f:
         json.dump(heatmap_data, f, indent=0)
     _log("info", "Wrote %s", heatmap_path)
@@ -223,6 +225,7 @@ def create_dtw_visuals(
     except Exception as exc:  # pragma: no cover
         _log("warning", "Could not save pipeline checkpoint: %s", exc)
 
+    _log("info", "DTW artifacts (EC2): chart_data=%s ; sequence_heatmap=%s ; plots_dir=%s", chart_path, heatmap_path, plots_dir)
     _log("info", "Done.")
     _log("info", "DTW visuals complete. Plots and chart_data uploaded to dashboard S3: trajectory cluster plots (3D/1D), chart_data.json, sequence_heatmap.json. CSV files not uploaded; dashboard uses plots only.")
 
@@ -238,9 +241,13 @@ def _upload_dtw_plots_to_dashboard_s3(
     age_band_fname = age_band.replace("-", "_")
     plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
+        if logger:
+            logger.info("DTW plots upload skipped: plots_dir does not exist: %s", plots_dir)
         return
     plot_files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html")) + list(plots_dir.glob("*.json"))
     if not plot_files:
+        if logger:
+            logger.info("DTW plots upload skipped: no .png/.html/.json in %s", plots_dir)
         return
 
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
@@ -248,10 +255,14 @@ def _upload_dtw_plots_to_dashboard_s3(
     use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
     builds_suffix = "/builds" if use_builds else ""
     s3_prefix = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}/plots"
+    if logger:
+        logger.info("DTW plots upload: %d file(s) from %s -> s3://%s/%s/", len(plot_files), plots_dir, s3_bucket, s3_prefix)
 
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
-    except ImportError:
+    except ImportError as e:
+        if logger:
+            logger.warning("DTW plots upload skipped: could not import upload_file_to_s3: %s", e)
         return
 
     uploaded = 0
@@ -516,15 +527,17 @@ def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any
 
 def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """
-    Build heatmap data for drug codes only (production pipeline for research questions).
-    Returns dict with key 'drug'; value has codes, positions, counts (code × position).
-    Dashboard uses only the drug slice for the common-sequences heatmap.
+    Build heatmap data for drug, ICD, and CPT activity types (opioid_ed and all cohorts).
+    Returns dict with keys 'drug', 'icd', 'cpt'; each value has codes, positions, counts (code × position).
+    Dashboard can show Drug / ICD / CPT via activity-type selector.
     """
     if dtw_df.empty or "seq_pattern_str" not in dtw_df.columns:
         return None
     skip = {"nan", "none", "null", ""}
-    # drug -> (code -> (position -> count))
-    drug_pos_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    # type -> (code -> (position -> count))
+    pos_counts: Dict[str, Dict[str, Dict[int, int]]] = {
+        t: defaultdict(lambda: defaultdict(int)) for t in ("drug", "icd", "cpt")
+    }
     max_pos = 0
     for seq in dtw_df["seq_pattern_str"]:
         if pd.isna(seq) or not isinstance(seq, str):
@@ -533,19 +546,32 @@ def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any
         for pos, token in enumerate(tokens):
             if ":" in token:
                 prefix, code = token.split(":", 1)
-                if prefix.strip().upper() == "DRUG":
-                    code_val = code.strip() if code else token
-                    if code_val:
-                        drug_pos_counts[code_val][pos] += 1
+                key = prefix.strip().upper()
+                if key == "DRUG":
+                    typ = "drug"
+                elif key == "ICD":
+                    typ = "icd"
+                elif key == "CPT":
+                    typ = "cpt"
+                else:
+                    continue
+                code_val = code.strip() if code else token
+                if code_val:
+                    pos_counts[typ][code_val][pos] += 1
             max_pos = max(max_pos, pos)
         max_pos = max(max_pos, len(tokens) - 1) if tokens else max_pos
     n_cols = max_pos + 1
-    if not drug_pos_counts:
-        return {"drug": {"codes": [], "positions": list(range(n_cols)), "counts": []}}
-    codes = sorted(drug_pos_counts.keys())
     positions = list(range(n_cols))
-    counts = [[drug_pos_counts[code].get(p, 0) for p in positions] for code in codes]
-    return {"drug": {"codes": codes, "positions": positions, "counts": counts}}
+    out: Dict[str, Any] = {}
+    for typ in ("drug", "icd", "cpt"):
+        counts_map = pos_counts[typ]
+        if not counts_map:
+            out[typ] = {"codes": [], "positions": positions, "counts": []}
+        else:
+            codes = sorted(counts_map.keys())
+            counts = [[counts_map[code].get(p, 0) for p in positions] for code in codes]
+            out[typ] = {"codes": codes, "positions": positions, "counts": counts}
+    return out
 
 
 DENSITY_BINS = ("low", "medium", "high", "extreme")
@@ -614,15 +640,19 @@ def _upload_dtw_chart_data_to_dashboard_s3(
     builds_suffix = "/builds" if use_builds else ""
     base_key = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}"
     key = f"{base_key}/chart_data.json"
+    s3_path = f"s3://{s3_bucket}/{key}"
+    if logger:
+        logger.info("DTW chart_data upload -> %s", s3_path)
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
-    except ImportError:
+    except ImportError as e:
+        if logger:
+            logger.warning("DTW chart_data upload skipped: could not import upload_file_to_s3: %s", e)
         return
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(chart_data, f, indent=0)
         path = Path(f.name)
     try:
-        s3_path = f"s3://{s3_bucket}/{key}"
         if upload_file_to_s3(path, s3_path, logger=logger, check_exists=False) and logger:
             logger.info("Uploaded DTW chart_data.json to dashboard S3 %s", s3_path)
     finally:
@@ -636,22 +666,26 @@ def _upload_sequence_heatmap_to_s3(
     heatmap_data: Dict[str, Any],
     logger: Optional[logging.Logger] = None,
 ) -> None:
-    """Upload sequence_heatmap.json (drug slice only) for dashboard common-sequences heatmap."""
+    """Upload sequence_heatmap.json (drug, icd, cpt slices) for dashboard common-sequences heatmap."""
     s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     dashboard_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
     use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
     builds_suffix = "/builds" if use_builds else ""
     base_key = f"{dashboard_prefix.rstrip('/')}/visualizations/dtw{builds_suffix}/{cohort_name}/{age_band}"
     key = f"{base_key}/sequence_heatmap.json"
+    s3_path = f"s3://{s3_bucket}/{key}"
+    if logger:
+        logger.info("DTW sequence_heatmap upload -> %s", s3_path)
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
-    except ImportError:
+    except ImportError as e:
+        if logger:
+            logger.warning("DTW sequence_heatmap upload skipped: could not import upload_file_to_s3: %s", e)
         return
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(heatmap_data, f, indent=0)
         path = Path(f.name)
     try:
-        s3_path = f"s3://{s3_bucket}/{key}"
         if upload_file_to_s3(path, s3_path, logger=logger, check_exists=False) and logger:
             logger.info("Uploaded DTW sequence_heatmap.json to dashboard S3 %s", s3_path)
     finally:

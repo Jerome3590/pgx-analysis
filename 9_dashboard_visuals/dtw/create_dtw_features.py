@@ -230,6 +230,7 @@ def run_alignment(
     age_band_fname = age_band.replace("-", "_")
     fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
     csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
+    log("info", "DTW features output dir (EC2): %s", fe_dir)
     if not csv_path.exists():
         log("warning", "DTW features CSV not found: %s; run create_dtw_trajectories.py first.", csv_path)
         return False

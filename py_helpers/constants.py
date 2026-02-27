@@ -209,6 +209,10 @@ REQUIRED_COHORTS = {
     "non_opioid_ed": list(AGE_BANDS),
 }
 
+# Age bands used for dashboard visualization tabs (BupaR, DTW, FP-Growth, Causal, Cohort PGx).
+# Risk Assessment excludes 0-12 (min age 13); do not build or offer 0-12 in dashboard visuals.
+DASHBOARD_VISUAL_AGE_BANDS = [b for b in AGE_BANDS if b != "0-12"]
+
 # Helper function: convert age-band to filename-safe format
 def age_band_uses_f1120_target(age_band: str) -> bool:
     """
