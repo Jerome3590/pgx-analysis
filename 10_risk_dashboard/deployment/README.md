@@ -114,12 +114,12 @@ Serve the PGx calculator from your custom domain so it uses the same origin and 
 
 4. **Redeploy Lambda** after backend code changes (e.g. CORS): rebuild image, push to ECR, then update Lambda code (notebook "Update Lambda" or `aws lambda update-function-code --image-uri ...`).
 
-5. **Increase Lambda memory and timeout** (avoids 502 on visualization endpoints that load JSON from S3). Replace `YOUR_FUNCTION_NAME` with your PGx dashboard Lambda name:
+5. **Set Lambda memory and timeout** (30 s helps cold starts; 512 MB is sufficient per logs). Replace `YOUR_FUNCTION_NAME` with your PGx dashboard Lambda name:
    ```bash
    aws lambda update-function-configuration \
      --function-name YOUR_FUNCTION_NAME \
      --timeout 30 \
-     --memory-size 1024
+     --memory-size 512
    ```
    Then wait for the function to finish updating (or use `--no-cli-pager` and run updates before redeploying code).
 
