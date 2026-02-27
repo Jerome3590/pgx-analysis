@@ -425,7 +425,12 @@ def upload_bupar_plots_to_dashboard_s3(
 ) -> bool:
     """Upload only RQ-used BupaR artifacts to the dashboard bucket (see RESEARCH_QUESTIONS_ARTIFACTS.md).
     Includes: activity frequency JSON/PNG/HTML, trace explorer pre-target, process_matrix_drug_drug, lib/ for HTML deps.
-    Archived artifacts (process_matrix.png, frequency_map.png, trace_explorer.png, post trace, etc.) are not uploaded."""
+    Archived artifacts (process_matrix.png, frequency_map.png, trace_explorer.png, post trace, etc.) are not uploaded.
+    When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 is the single sync step)."""
+    if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        if logger:
+            logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; BupaR S3 upload skipped (notebook 5 Step 6 syncs from local).")
+        return True
     age_band_fname = age_band.replace("-", "_")
     plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():

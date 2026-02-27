@@ -121,7 +121,8 @@ if __name__ == "__main__":
         builds_suffix = "/builds" if use_builds else ""
         s3_prefix = f"{dashboard_prefix.rstrip('/')}/visualizations/fpgrowth{builds_suffix}"
     
-    # Create visualizations for all item types; upload to S3 when not --no-s3-upload
+    # Create visualizations for all item types; upload to S3 when not --no-s3-upload and not SKIP_DASHBOARD_S3_UPLOAD (notebook 5 Step 6 is the single sync)
+    skip_s3 = (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes")
     result = create_all_fpgrowth_plots(
         base_dir=args.base_dir,
         cohort_name=args.cohort_name,
@@ -130,7 +131,7 @@ if __name__ == "__main__":
         split_type=args.split_type,
         item_types=args.item_types,
         output_dir=str(args.output_dir),
-        s3_upload=not args.no_s3_upload,
+        s3_upload=not args.no_s3_upload and not skip_s3,
         s3_bucket=s3_bucket,
         s3_prefix=s3_prefix,
         top_n=args.top_n,

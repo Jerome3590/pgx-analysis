@@ -945,8 +945,12 @@ def _upload_network_to_dashboard_s3(
     """
     Upload network topology outputs to the dashboard S3 bucket (same pattern as BupaR/DTW/FP-Growth).
     Puts files under {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/.
-    Returns number of files uploaded.
+    When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 syncs from local). Returns number of files uploaded.
     """
+    if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        if logger:
+            logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; Cohort PGx S3 upload skipped.")
+        return 0
     if not output_dir.exists():
         return 0
     files = [p for p in output_dir.iterdir() if p.is_file()]

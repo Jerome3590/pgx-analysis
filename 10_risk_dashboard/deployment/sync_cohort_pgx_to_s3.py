@@ -40,9 +40,8 @@ def main() -> int:
         return 1
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
-    builds_suffix = "/builds" if use_builds else ""
-    s3_prefix = f"{prefix}/visualizations/cohort_pgx{builds_suffix}/{NETWORKS_SUBDIR}"
+    # Always write to final path (no builds). Notebook 5 Step 6 is the single sync step.
+    s3_prefix = f"{prefix}/visualizations/cohort_pgx/{NETWORKS_SUBDIR}"
     s3 = boto3.client("s3")
     uploaded = 0
     for cohort_dir in sorted(networks_dir.iterdir()):
