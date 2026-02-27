@@ -3,7 +3,7 @@
 Sync Cohort PGx network HTML from EC2 to S3 with age-band path convention.
 
 EC2 paths use underscore (e.g. networks/opioid_ed/25_44/network_topology.html).
-S3 paths use hyphen (e.g. cohort_pgx/networks/opioid_ed/25-44/network_topology.html).
+S3 paths use hyphen under visualizations/ (e.g. visualizations/cohort_pgx/networks/opioid_ed/25-44/network_topology.html).
 
 Usage (from repo root):
     python 10_risk_dashboard/deployment/sync_cohort_pgx_to_s3.py
@@ -40,7 +40,9 @@ def main() -> int:
         return 1
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    s3_prefix = f"{prefix}/cohort_pgx/{NETWORKS_SUBDIR}"
+    use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
+    builds_suffix = "/builds" if use_builds else ""
+    s3_prefix = f"{prefix}/visualizations/cohort_pgx{builds_suffix}/{NETWORKS_SUBDIR}"
     s3 = boto3.client("s3")
     uploaded = 0
     for cohort_dir in sorted(networks_dir.iterdir()):
