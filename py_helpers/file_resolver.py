@@ -84,15 +84,15 @@ class FileResolver:
             "env_var": "PGX_FEATURE_IMPORTANCE_OUTPUTS",
             "env_path": "{cohort}",
             "local_paths": [
-                "3a_feature_importance/outputs/{cohort}",
-                "3a_feature_importance/outputs/{cohort}/{age_band}",
+                "3a_feature_importance/{cohort}",
+                "3a_feature_importance/{cohort}/{age_band}",
                 "3a_feature_importance/from_s3/by_cohort/{cohort}/{age_band}",
             ],
             "data_root_paths": [
                 "gold/feature_importance/{cohort}/{age_band}",
             ],
             "s3_key": "gold/feature_importance/{cohort}/{age_band}/{filename}",
-            "cache_dir": "3a_feature_importance/outputs/{cohort}",
+            "cache_dir": "3a_feature_importance/{cohort}",
         },
         "bupar_post_target_analysis": {
             "filename_pattern": "{cohort}_{age_band_fname}_bupar_post_target_analysis.csv",

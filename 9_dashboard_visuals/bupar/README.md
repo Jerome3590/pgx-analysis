@@ -1,5 +1,21 @@
 # BupaR Process Mining Documentation
 
+## Research questions this visual answers
+
+- **What care pathways do patients follow in the run-up to the target event?** Process matrices and activity-frequency plots show the most common sequences of diagnoses, procedures, and drugs *before* the anchor (e.g. first opioid-ED encounter or first non-opioid ED encounter).
+- **Which activities cluster before vs after the target, and how often?** Pre- vs post-target activity frequency and trace explorer views reveal which codes dominate the “on-ramp” vs the “after” period, by cohort and age band.
+- **How do high-risk and low-risk patients differ in their care sequences?** By restricting to **feature-important** codes only, we reduce noise and focus on what the model uses to predict the target—so the visual reflects what is actually driving our target cohorts.
+
+**Feature importance drives this visual.** We use only **SHAP/FFA important** codes (drug, ICD, CPT) as allowed activities. Events whose codes are not in that set are excluded. That keeps process mining focused on the signals that matter for the risk model and makes pathways interpretable.
+
+### How features are filtered and used downstream
+
+- The pipeline writes **allowed codes** (from Step 3b cohort feature importance) to `allowed_codes_shap_ffa_{cohort}_{age_band}.json` (see [../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream](../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream)).
+- BupaR **R scripts** read this JSON and filter the event log: only activities (drug, ICD, CPT) that appear in the allowed set are kept; all other events are dropped before building process matrices, activity frequency, and trace explorer.
+- Downstream, only these filtered pathways are visualized, so the dashboard shows care sequences that reflect what is driving the target cohorts.
+
+---
+
 ## Testing one age band locally
 
 To run BupaR for a **single** cohort/age band (e.g. to verify script changes):

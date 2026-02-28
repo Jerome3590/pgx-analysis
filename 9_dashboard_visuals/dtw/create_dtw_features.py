@@ -228,7 +228,7 @@ def run_alignment(
             print(prefix + (msg % args if args else msg))
 
     age_band_fname = age_band.replace("-", "_")
-    fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    fe_dir = _dtw_output_root(project_root) / "feature_engineering"
     csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
     log("info", "DTW features output dir (EC2): %s", fe_dir)
     if not csv_path.exists():
@@ -346,7 +346,7 @@ def main() -> None:
     logger = pl.logger
 
     age_band_fname = args.age_band.replace("-", "_")
-    fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    fe_dir = _dtw_output_root(project_root) / "feature_engineering"
     csv_path = fe_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
     if not csv_path.exists():
         logger.error("Not found: %s. Run create_dtw_trajectories.py first.", csv_path)

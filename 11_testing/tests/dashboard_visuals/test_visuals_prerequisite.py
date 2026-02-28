@@ -3,7 +3,7 @@
 Tests for dashboard visuals prerequisite: SHAP/FFA combined allowed codes file.
 
 Covers BupaR, DTW, and FP-Growth all requiring the same file
-(10_risk_dashboard/visualizations/bupar/outputs/allowed_codes_shap_ffa_{cohort}_{age_band}.json).
+(10_risk_dashboard/visualizations/bupar/allowed_codes_shap_ffa_{cohort}_{age_band}.json).
 """
 
 import json
@@ -86,9 +86,9 @@ class TestDtwPrerequisite(unittest.TestCase):
     """DTW uses the same allowed codes path as BupaR/FP-Growth."""
 
     def test_dtw_required_path_pattern(self):
-        expected_suffix = "10_risk_dashboard/visualizations/bupar/outputs/allowed_codes_shap_ffa_opioid_ed_25_44.json"
-        bupar_outputs = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
-        path = bupar_outputs / "allowed_codes_shap_ffa_opioid_ed_25_44.json"
+        expected_suffix = "10_risk_dashboard/visualizations/bupar/allowed_codes_shap_ffa_opioid_ed_25_44.json"
+        bupar_root = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
+        path = bupar_root / "allowed_codes_shap_ffa_opioid_ed_25_44.json"
         self.assertIn("bupar", str(path))
         self.assertIn("allowed_codes_shap_ffa_opioid_ed_25_44.json", str(path))
 

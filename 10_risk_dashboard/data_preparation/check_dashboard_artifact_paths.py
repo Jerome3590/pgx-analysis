@@ -81,7 +81,7 @@ def check_causal(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, b
 def check_bupar(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
     """BupaR Process Mining tab: RQ artifact files in plots/ per cohort/age_band."""
     results = []
-    base_dir = root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "bupar"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         base_name = f"{cohort}_{ab_fname}"
@@ -102,7 +102,7 @@ def check_bupar(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bo
 def check_dtw(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
     """DTW Trajectories tab: chart_data.json, sequence_heatmap.json per cohort/age_band."""
     results = []
-    base_dir = root / "10_risk_dashboard" / "visualizations" / "dtw" / "outputs"
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "dtw"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         out_dir = base_dir / cohort / ab_fname
@@ -116,7 +116,7 @@ def check_dtw(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool
 def check_fpgrowth(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
     """FP-Growth Patterns tab: combined_rules_network.html or itemsets per cohort/age_band."""
     results = []
-    base_dir = root / "10_risk_dashboard" / "visualizations" / "fpgrowth" / "outputs"
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "fpgrowth"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         plots_dir = base_dir / cohort / ab_fname / "plots"

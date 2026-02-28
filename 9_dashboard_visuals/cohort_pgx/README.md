@@ -1,6 +1,19 @@
 # Cohort PGx Network Topology
 
-This module creates **interactive multi-layer network topology visualizations** showing gene-drug-phenotype relationships with advanced filtering capabilities for each cohort.
+## Research questions this visual answers
+
+- **Which pharmacogenes and drugs matter for this cohort and age band?** The network is built from **top genes (and drug names) drawn from feature importance** (Step 3b / combined importance). We only visualize genes and drugs that the model uses to predict the target, so the graph reflects what is driving the cohort.
+- **How do genes, drugs, and phenotypes connect in the literature?** PharmGKB VIP reports and extracted relationships show gene–drug metabolism, drug–drug interactions, and gene–phenotype (e.g. adverse event) links, so we can see clinical context for the important features.
+- **Where are the main clinical risks and guideline-backed genes?** Tier (PharmGKB/CPIC) and filter views highlight the most clinically actionable genes and interactions, reducing noise and aligning with evidence-based PGx.
+
+**Feature importance drives this visual.** Top genes and drug names come from cohort feature importance (or combined SHAP/FFA); the network is restricted to those so we understand what is driving our target cohorts.
+
+### How features are filtered and used downstream
+
+- **Top-N selection:** `fetch_vip_reports.py` reads cohort feature importance (Step 3b or combined importance) and takes the **top-N drug names** (and optionally genes) that the model uses. Only those tokens are resolved to genes and sent to PharmGKB for VIP reports.
+- **Network scope:** The multi-layer network (genes, drugs, phenotypes, interactions) is built only from entities linked to those important features. Downstream, the dashboard shows PGx context only for model-relevant drugs and genes, so interpretation stays aligned with what drives the target cohorts.
+
+---
 
 ## Overview
 

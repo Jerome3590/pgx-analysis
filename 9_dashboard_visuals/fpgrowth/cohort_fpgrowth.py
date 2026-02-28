@@ -139,7 +139,7 @@ USE_MODEL_DATA_IF_AVAILABLE = True
 # Restrict FP-Growth to SHAP/FFA combined allowed codes (same prerequisite as BupaR/DTW; we never use all items).
 
 # Local FP-Growth outputs (step 10: risk dashboard visualization outputs only)
-LOCAL_OUTPUT_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth" / "outputs"
+LOCAL_OUTPUT_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth"
 
 
 def _normalize_code(s: str) -> str:
@@ -158,7 +158,7 @@ def _load_allowed_codes_by_type(
     Raises FileNotFoundError if the file is missing; ValueError if empty.
     """
     age_band_fname = age_band.replace("-", "_")
-    path = project_root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    path = project_root / "10_risk_dashboard" / "visualizations" / "bupar"
     path = path / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
     if not path.exists():
         raise FileNotFoundError(

@@ -441,7 +441,7 @@ extract_post_f1120_traces <- function(model_data_path, cohort_name) {
 create_all_sequence_features <- function(project_root, cohort_name, age_band, train_label = "train") {
   # Create all sequence features (overall, pre-F1120, post-F1120)
   age_band_fname <- gsub("-", "_", age_band)
-  bupar_output_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs", cohort_name, age_band_fname, "features")
+  bupar_output_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", cohort_name, age_band_fname, "features")
   
   # Load all sequence files
   cat("Loading sequence files...\n")
@@ -605,7 +605,7 @@ if ("case_id" %in% names(sequence_features)) {
 }
 
 # Set output path
-feature_eng_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "outputs", "feature_engineering")
+feature_eng_dir <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar", "feature_engineering")
 dir.create(feature_eng_dir, recursive = TRUE, showWarnings = FALSE)
 
 output_path <- file.path(feature_eng_dir, paste0("sequence_features_", cohort_name, "_", age_band_fname, ".csv"))

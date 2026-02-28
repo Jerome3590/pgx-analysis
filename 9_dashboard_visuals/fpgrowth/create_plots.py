@@ -3,7 +3,7 @@
 Wrapper script to create visualizations for FP-Growth analysis.
 Template: 4_fpgrowth_analysis/create_plots.py (same create_all_fpgrowth_plots, same HTML pattern).
 Cross-platform compatible: Works on both Linux EC2 and Windows.
-Outputs: 10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band}/plots/
+Outputs: 10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band}/plots/
 HTML: Production single-file Plotly via py_helpers.create_fpgrowth_visualizations (include_plotlyjs=True).
 """
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--base-dir',
         type=str,
-        default='10_risk_dashboard/visualizations/fpgrowth/outputs',
+        default='10_risk_dashboard/visualizations/fpgrowth',
         help='Base directory containing FP-Growth outputs'
     )
     parser.add_argument(

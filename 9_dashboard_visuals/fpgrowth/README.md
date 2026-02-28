@@ -1,8 +1,22 @@
 # FPGrowth Analysis
 
-📖 **Documentation**: See [`docs/README_fpgrowth.md`](/docs/README_fpgrowth.md) for complete documentation.
+## Research questions this visual answers
 
-**Feature importance source:** FP-Growth uses the **same SHAP/FFA combined allowed codes file** as BupaR and DTW (required prerequisite; see [9_dashboard_visuals/README.md](../README.md#feature-importance-sources-for-visuals)).
+- **Which codes (drugs, diagnoses, procedures) co-occur in patients who go on to the target event?** Frequent itemsets and association rules show which combinations of medical codes appear together in the cohort, so we see recurring clinical patterns.
+- **How do these patterns differ by cohort and age band?** Itemsets and network plots are built per cohort/age band, so we can compare opioid-ED vs non–opioid-ED and across ages to understand what is driving each target cohort.
+- **Which associations are stable and worth interpreting?** By mining **only feature-important** codes, we reduce noise and avoid spurious co-occurrence; the visual reflects codes that the model actually uses to predict the target.
+
+**Feature importance drives this visual.** Allowed items come from **cohort feature importance** (Step 3b) or the SHAP/FFA combined list (see [9_dashboard_visuals/README.md](../README.md#feature-importance-sources-for-visuals)). We only use important features in these visuals to reduce noise and understand what is driving our target cohorts.
+
+### How features are filtered and used downstream
+
+- The pipeline gets **allowed items** (drug, ICD, CPT, medical_code) from Step 3b cohort feature importance via `get_final_feature_importance_codes()` (see [../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream](../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream)).
+- FP-Growth **mines itemsets and rules only over these items**: the transaction list passed to the miner contains only allowed codes; all other items are excluded before mining.
+- The dashboard network and itemsets therefore show co-occurrence and associations among model-important codes only, so downstream interpretation focuses on what drives the target cohorts.
+
+---
+
+📖 **Documentation**: See [`docs/README_fpgrowth.md`](/docs/README_fpgrowth.md) for complete documentation.
 
 ---
 

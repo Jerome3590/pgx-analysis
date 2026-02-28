@@ -206,7 +206,7 @@ def extract_patient_trajectories(
 
     # SHAP/FFA combined allowed codes file is required (same prerequisite as BupaR); we never use all events.
     age_band_fname = age_band.replace("-", "_")
-    bupar_output_root = project_root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    bupar_output_root = project_root / "10_risk_dashboard" / "visualizations" / "bupar"
     allowed_codes_path = bupar_output_root / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
     if not allowed_codes_path.exists():
         print(
@@ -705,7 +705,7 @@ def main():
     )
 
     # Output path
-    output_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    output_dir = _dtw_output_root(project_root) / "feature_engineering"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
 

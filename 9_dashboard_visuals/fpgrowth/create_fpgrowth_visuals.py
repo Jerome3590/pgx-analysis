@@ -240,14 +240,13 @@ def create_visualizations(
             / "10_risk_dashboard"
             / "visualizations"
             / "fpgrowth"
-            / "outputs"
             / cohort_name
             / age_band_fname
             / "plots"
         )
         plots_output_dir.mkdir(parents=True, exist_ok=True)
 
-        fpgrowth_outputs_root = DASHBOARD_FPGROWTH_OUT / "outputs"
+        fpgrowth_outputs_root = DASHBOARD_FPGROWTH_OUT
         cmd = [
             str(get_workflow_python_bin()),
             str(script_path),
