@@ -1407,6 +1407,8 @@
     if (!entry || !entry.s3_path) return "";
     const prefix = (s3Prefix || "").replace(/\/$/, "") + "/";
     let p = entry.s3_path.replace(new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "").replace(/^\//, "");
+    // Ensure we never return a path that starts with the prefix (avoids double prefix when staticJsonPath prepends pathname)
+    if (prefix.length > 0 && p.indexOf(prefix) === 0) p = p.slice(prefix.length);
     if (p.indexOf("{cohort}") === -1 && p.indexOf("{age_band}") === -1)
       p = p.replace(/\/[^/]+$/, "");
     return p.replace(/\/$/, "");
@@ -2824,23 +2826,31 @@
         baseUrl + "/" + base + "_process_matrix_drug_drug.json",
         baseUrl + "/" + base + "_activity_sequence_top.json"
       ];
+      let data = {
+        activity_frequency_image: baseUrl + "/" + base + "_overall_activity_frequency.png",
+        pre_target_frequency_image: baseUrl + "/" + base + "_" + preSuffix + "_activity_frequency.png",
+        sequence_image: baseUrl + "/" + base + "_activity_sequence_top.png",
+        trace_explorer_pre_image: baseUrl + "/" + base + "_trace_explorer_" + preSuffix + ".png",
+        process_matrix_drug_drug: baseUrl + "/" + base + "_process_matrix_drug_drug.png",
+        process_matrix_drug_drug_image: baseUrl + "/" + base + "_process_matrix_drug_drug.png"
+      };
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "BupaR Process Mining");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
           if (built.basePath) baseUrl = built.basePath;
           if (built.urls.length >= 3) freqUrls = [built.urls[0], built.urls[1], built.urls[2]];
-          // Use manifest URLs for trace_explorer_plot, process_matrix_drug_drug, activity_sequence_top (static_files indices 3,4,5)
           if (built.urls.length >= 6) jsonUrls = [built.urls[3], built.urls[4], built.urls[5]];
+          // Manifest static_files 6–14: PNGs (overall, sequence, process_matrix, pre_f1120/hcg, trace_explorer_pre/post)
+          if (built.urls.length >= 15) {
+            data.activity_frequency_image = built.urls[6];
+            data.sequence_image = built.urls[7];
+            data.process_matrix_drug_drug_image = built.urls[8];
+            data.pre_target_frequency_image = cohort === "opioid_ed" ? built.urls[9] : built.urls[10];
+            data.trace_explorer_pre_image = cohort === "opioid_ed" ? built.urls[11] : built.urls[12];
+          }
         }
       }
-      let data = {
-        activity_frequency_image: baseUrl + "/" + base + "_overall_activity_frequency.png",
-        pre_target_frequency_image: baseUrl + "/" + base + "_" + preSuffix + "_activity_frequency.png",
-        sequence_image: baseUrl + "/" + base + "_activity_sequence_top.png",
-        trace_explorer_pre_image: baseUrl + "/" + base + "_trace_explorer_" + preSuffix + ".png",
-        process_matrix_drug_drug: baseUrl + "/" + base + "_process_matrix_drug_drug.png"
-      };
       const [overallResp, preResp, postResp] = await Promise.all(freqUrls.map(u => fetch(u)));
       let freqData = null;
       if (overallResp.ok || preResp.ok || postResp.ok) {
@@ -3611,7 +3621,7 @@
       'bupar-sequence-image': data.sequence_image,
       'bupar-trace-explorer-image': data.trace_explorer_pre_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey]
+      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey + '_image'] != null ? data['process_matrix_' + typepairKey + '_image'] : data['process_matrix_' + typepairKey]
     };
     const keyToElement = {
       activity_frequency: null,

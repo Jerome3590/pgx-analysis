@@ -29,7 +29,7 @@
       "path": "10_risk_dashboard/visualizations/bupar",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/bupar/{cohort}/{age_band}/plots/",
       "notes": "{cohort}/{age_band_fname}/plots/; uploaded by 4_dashboard_visuals",
-      "static_files": ["{base}_activity_frequency.json", "{base}_pre_target_activity_frequency.json", "{base}_post_target_activity_frequency.json", "{base}_trace_explorer_plot.json", "{base}_process_matrix_drug_drug.json", "{base}_activity_sequence_top.json"]
+      "static_files": ["{base}_activity_frequency.json", "{base}_pre_target_activity_frequency.json", "{base}_post_target_activity_frequency.json", "{base}_trace_explorer_plot.json", "{base}_process_matrix_drug_drug.json", "{base}_activity_sequence_top.json", "{base}_overall_activity_frequency.png", "{base}_activity_sequence_top.png", "{base}_process_matrix_drug_drug.png", "{base}_pre_f1120_activity_frequency.png", "{base}_pre_hcg_activity_frequency.png", "{base}_trace_explorer_pre_f1120.png", "{base}_trace_explorer_pre_hcg.png", "{base}_trace_explorer_post_f1120.png", "{base}_trace_explorer_post_hcg.png"]
     },
     {
       "visual_name": "DTW chart_data.json + sequence_heatmap + plots",
