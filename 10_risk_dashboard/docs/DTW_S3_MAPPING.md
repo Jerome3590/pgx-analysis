@@ -1,5 +1,24 @@
 # DTW tab: S3 layout vs manifest / API
 
+## Where the file lives on EC2 (local before sync)
+
+All DTW outputs are written under the **dashboard visualizations** tree, not under `9_dashboard_visuals`:
+
+| What | Path on EC2 (relative to project root) |
+|------|----------------------------------------|
+| DTW root | `10_risk_dashboard/visualizations/dtw/` |
+| Per cohort/age (use **underscore** in age_band) | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/` e.g. `.../dtw/opioid_ed/25_44/` |
+| **trajectory_overview_plot.json** | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/plots/trajectory_overview_plot.json` |
+| chart_data.json | `.../dtw/{cohort}/{age_band_fname}/chart_data.json` |
+| sequence_heatmap.json | `.../dtw/{cohort}/{age_band_fname}/sequence_heatmap.json` |
+
+**Example (opioid_ed, 25–44):**
+
+- Full path: `{PROJECT_ROOT}/10_risk_dashboard/visualizations/dtw/opioid_ed/25_44/plots/trajectory_overview_plot.json`
+- On EC2, `PROJECT_ROOT` is usually the repo root (e.g. `/home/pgx3874/pgx-analysis`).
+
+**When is it created?** Only when the DTW **plots** step runs: `create_dtw_plots` (called from `create_dtw_visuals.py` or notebook 4). That step requires the DTW features CSV at `10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band_fname}.csv`, plus Plotly and sklearn. If the pipeline was skipped for that cohort/age_band (or failed before the plot step), the file will not exist. Step 6 then syncs this directory to S3 so the dashboard can load it.
+
 ## Frontend pattern
 
 **JSON where able for frontend to render with Plotly; PNG only as fallback.**  
@@ -30,7 +49,7 @@ All URLs for chart_data, sequence_heatmap, and `plots/` are built from this base
 ## S3 check (Feb 2026)
 
 - **chart_data.json**, **sequence_heatmap.json**: Present at each cohort/age_band; mapping correct.
-- **plots/trajectory_overview_plot.json**: Present where cluster plots exist; mapping correct.
+- **plots/trajectory_overview_plot.json**: Optional. Present where cluster plots exist (create_dtw_plots writes it; Step 6 syncs). If missing, the frontend may see a 404 for the static URL; it then requests the DTW API and uses `trajectory_overview_plot` from the response when Lambda has it (inline from S3 when &lt; 2MB).
 - **plots/*.html**: Present as `dtw_trajectory_cluster_1d_*` or `dtw_trajectory_cluster_3d_*`; API updated to use these for `overview_interactive` when `dtw_trajectory_cluster_interactive_*` is missing.
 - **plots/dtw_trajectory_analysis_*.png**, **plots/dtw_sample_trajectories_*.png**: Optional; created by pipeline only when `dtw_trajectory_cluster_*.png` exists (kaleido). If missing, dashboard uses `trajectory_overview_plot.json` (Plotly) or shows empty.
 
