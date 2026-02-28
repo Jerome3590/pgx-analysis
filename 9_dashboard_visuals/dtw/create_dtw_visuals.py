@@ -119,7 +119,18 @@ def create_dtw_visuals(
         _log("info", "Reading DTW features from %s", single_csv)
         dtw_df = pd.read_csv(single_csv)
     else:
-        _log("warning", "DTW features not found: %s (and no density sub-cohorts); skipping.", single_csv)
+        # Only skip if final dashboard visuals are already present; otherwise fail so the step is not silently skipped.
+        out_dir = _dtw_output_root(project_root) / cohort_name / age_band_fname
+        chart_path = out_dir / "chart_data.json"
+        heatmap_path = out_dir / "sequence_heatmap.json"
+        plots_dir = out_dir / "plots"
+        has_chart = chart_path.exists()
+        has_heatmap = heatmap_path.exists()
+        has_plots = plots_dir.is_dir() and any(plots_dir.iterdir())
+        if has_chart and has_heatmap and has_plots:
+            _log("info", "DTW features not found: %s; skipping (final visuals already present: chart_data, sequence_heatmap, plots)", single_csv)
+            return
+        _log("warning", "DTW features not found: %s (and no density sub-cohorts); final visuals not present (chart_data=%s, sequence_heatmap=%s, plots=%s).", single_csv, has_chart, has_heatmap, has_plots)
         try:
             from py_helpers.model_data_paths import get_path_check_listings
             path_listings = get_path_check_listings([str(single_csv)])
@@ -129,7 +140,10 @@ def create_dtw_visuals(
         _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s (no EC2 artifacts written, no S3 upload)", cohort_name, age_band, single_csv)
         if path_listings_str:
             _log("error", "step=5_dtw path_listings: %s", path_listings_str)
-        return
+        raise FileNotFoundError(
+            f"DTW features CSV not found: {single_csv}. Final visuals not present (chart_data={has_chart}, sequence_heatmap={has_heatmap}, plots={has_plots}). "
+            "Run create_dtw_features/create_dtw_trajectories first, or ensure visuals exist for this cohort/age_band."
+        )
 
     keys_expected_dtw = ["mi_person_key", "target", "seq_pattern_str", "admin_icd_event_count", "dtw_min_distance", "trajectory_length"]
     keys_received_dtw = list(dtw_df.columns)
