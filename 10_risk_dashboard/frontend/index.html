@@ -2583,12 +2583,16 @@
       let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
       let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
       let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
+      let trajectoryPlotJsonUrl = null; // from manifest when available
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "DTW Trajectories");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
           if (built.urls.length >= 1) chartUrl = built.urls[0];
           if (built.urls.length >= 2) heatmapUrl = built.urls[1];
+          if (built.urls.length >= 3) trajectoryPlotJsonUrl = built.urls[2]; // plots/trajectory_overview_plot.json
+          if (built.urls.length >= 4) data.overview_image = built.urls[3];   // plots/dtw_trajectory_analysis_{base}.png from S3
+          if (built.urls.length >= 5) data.sample_trajectories_image = built.urls[4]; // plots/dtw_sample_trajectories_{base}.png from S3
           if (built.basePath) dtwBasePath = built.basePath;
         }
       }
@@ -2610,12 +2614,20 @@
       if (hmResp.ok) {
         data.sequence_heatmap = await hmResp.json();
       }
-      // Overview/sample images: same-origin paths (pipeline writes dtw_trajectory_analysis_*, dtw_sample_trajectories_*)
-      if (chartResp.ok) {
-        const plotsBase = (dtwBasePath.indexOf("/") === 0 || dtwBasePath.indexOf("http") === 0) ? dtwBasePath.replace(/\/?$/, "") + "/plots" : staticJsonPath(dtwBasePath + "/plots");
-        data.overview_image = plotsBase + "/dtw_trajectory_analysis_" + cohort + "_" + ageBandFname + ".png";
-        data.sample_trajectories_image = plotsBase + "/dtw_sample_trajectories_" + cohort + "_" + ageBandFname + ".png";
+      // Pattern: JSON where able for Plotly, PNG only as fallback (from API). Use manifest URL for trajectory_overview_plot when present.
+      if (!data.trajectory_overview_plot) {
+        const plotJsonUrl = trajectoryPlotJsonUrl || (dtwBasePath ? ((dtwBasePath.indexOf("/") === 0 || dtwBasePath.indexOf("http") === 0) ? dtwBasePath.replace(/\/?$/, "") + "/plots/trajectory_overview_plot.json" : staticJsonPath(dtwBasePath + "/plots/trajectory_overview_plot.json")) : null);
+        if (plotJsonUrl) {
+          try {
+            const plotResp = await fetch(plotJsonUrl);
+            if (plotResp.ok) {
+              const plotJson = await plotResp.json();
+              if (plotJson && (plotJson.data || (Array.isArray(plotJson.traces) && plotJson.traces.length))) data.trajectory_overview_plot = plotJson;
+            }
+          } catch (_) { /* optional */ }
+        }
       }
+      // Overview/sample PNG URLs only from API when objects exist on S3; do not synthesize to avoid 404s.
       // Fallback: API when static chart_data missing
       if (!data.chart_data && !data.sequence_heatmap) {
         const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);

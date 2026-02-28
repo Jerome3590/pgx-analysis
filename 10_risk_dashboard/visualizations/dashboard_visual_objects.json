@@ -38,7 +38,7 @@
       "path": "10_risk_dashboard/visualizations/dtw",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/dtw/{cohort}/{age_band}/",
       "notes": "{cohort}/{age_band_fname}/chart_data.json, sequence_heatmap.json, plots/; uploaded by 4_dashboard_visuals",
-      "static_files": ["chart_data.json", "sequence_heatmap.json"]
+      "static_files": ["chart_data.json", "sequence_heatmap.json", "plots/trajectory_overview_plot.json", "plots/dtw_trajectory_analysis_{base}.png", "plots/dtw_sample_trajectories_{base}.png"]
     },
     {
       "visual_name": "FP-Growth itemsets and drug network",
