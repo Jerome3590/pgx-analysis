@@ -87,7 +87,7 @@ def create_bupar_outputs(
         age_band_fname = age_band.replace("-", "_")
 
         # Write SHAP/FFA allowed codes for BupaR (required: event log = dataset filtered by causal codes + dates)
-        out_dir = DASHBOARD_BUPAR_OUT / "outputs"
+        out_dir = DASHBOARD_BUPAR_OUT
         out_dir.mkdir(parents=True, exist_ok=True)
         allowed_path = out_dir / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
         if local_test:
@@ -220,7 +220,7 @@ def create_bupar_outputs(
                 logger.warning("BupaR stderr (check for EMPTY EVENT LOG or min() warnings):\n%s", result.stderr)
             # Log HTML outputs for troubleshooting empty visuals
             age_band_fname = age_band_arg.replace("-", "_")
-            plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
+            plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
             if plots_dir.exists():
                 for pattern in ["*.html", "*.png"]:
                     for p in sorted(plots_dir.glob(pattern)):
@@ -237,7 +237,7 @@ def create_bupar_outputs(
             else:
                 logger.warning("BupaR plots dir missing after R run: %s", plots_dir)
             # Deploy check: verify expected visualization and feature paths
-            features_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "features"
+            features_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "features"
             miss_req, miss_opt, found_list = check_bupar_paths(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger)
             if miss_req:
                 logger.warning("BupaR missing required paths (dashboard may show gaps): %s", ", ".join(miss_req))
@@ -432,7 +432,7 @@ def upload_bupar_plots_to_dashboard_s3(
             logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; BupaR S3 upload skipped (notebook 5 Step 6 syncs from local).")
         return True
     age_band_fname = age_band.replace("-", "_")
-    plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
+    plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
         logger.warning(
             "No BupaR plots directory at %s; skipping S3 upload. "
@@ -507,7 +507,7 @@ def create_bupar_visuals(
     If force is False and plots already exist, skips (idempotent).
     """
     age_band_fname = age_band.replace("-", "_")
-    plots_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "plots"
+    plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
     if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
         logger_bupar = setup_pipeline_logger(
             step_name="4_bupar",
@@ -547,7 +547,7 @@ def create_bupar_visuals(
         if not local_test:
             # Optional: export feature CSVs to JSON in plots/ so they upload and can be served as JSON
             if export_csv_to_json:
-                features_dir = DASHBOARD_BUPAR_OUT / "outputs" / cohort_name / age_band_fname / "features"
+                features_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "features"
                 n = export_bupar_feature_csvs_to_json(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger.logger)
                 if n:
                     logger.logger.info("Exported %s BupaR feature CSV(s) to JSON in plots/", n)

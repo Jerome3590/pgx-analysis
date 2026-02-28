@@ -53,7 +53,7 @@ POLYPHARMACY_AGE_BANDS = [ab for ab in AGE_BANDS if not age_band_uses_f1120_targ
 
 def list_local_files_to_remove(cohort: str, age_bands: list[str]) -> list[Path]:
     """All local files to delete for the given cohort/age_bands (3a outputs only)."""
-    base = PROJECT_ROOT / "3a_feature_importance" / "outputs" / cohort
+    base = PROJECT_ROOT / "3a_feature_importance" / cohort
     if not base.exists():
         return []
     files = []

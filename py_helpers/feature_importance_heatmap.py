@@ -47,10 +47,12 @@ def _feature_label_for_display(name: str) -> str:
 
 
 def _resolve_project_root(outputs_base: Path) -> Optional[Path]:
-    """Infer repo root from 3a_feature_importance/outputs when possible."""
+    """Infer repo root from 3a_feature_importance (or 3a_feature_importance/outputs) when possible."""
     try:
         if outputs_base.name == "outputs" and outputs_base.parent.name == "3a_feature_importance":
             return outputs_base.parent.parent
+        if outputs_base.name == "3a_feature_importance":
+            return outputs_base.parent
     except Exception:
         pass
     return None
@@ -139,7 +141,7 @@ def get_aggregated_fi_heatmap_data(
     if not proj:
         raise FileNotFoundError(
             "project_root required to load Step 3b artifacts. "
-            "Pass project_root or use outputs_base under 3a_feature_importance/outputs."
+            "Pass project_root or use outputs_base under 3a_feature_importance."
         )
 
     def _filter_fi(df: pd.DataFrame) -> pd.DataFrame:
@@ -385,7 +387,7 @@ def get_single_age_band_fi(
 
 def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
     """
-    Scan 3a_feature_importance/outputs for available cohort/age_band/model combinations.
+    Scan 3a_feature_importance for available cohort/age_band/model combinations.
     Checks flat (outputs/cohort/*.csv) and S3-style (outputs/cohort/age_band/*.csv) so
     model filter works after syncing from gold/feature_importance.
     Returns: { "cohorts": { cohort: { "age_bands": [...], "models": [...] } } }
@@ -555,7 +557,7 @@ def create_aggregated_fi_heatmap(
     Args:
         cohort: Cohort name (e.g. opioid_ed, non_opioid_ed).
         age_bands: List of age bands (e.g. ["13-24", "25-44"]).
-        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance/outputs). Input CSVs are from Step 3b only.
+        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance). Input CSVs are from Step 3b only.
         top_n: Number of top features per age band to include in union (default 200).
         importance_col: Column name for importance (default: first of scaled_importance_mean,
             importance_mean, importance_scaled, importance_normalized).
@@ -627,7 +629,7 @@ def create_combined_cohorts_fi_heatmap(
     cell = sum of importance across age bands for that (feature, cohort).
 
     Args:
-        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance/outputs). Input CSVs are from Step 3b only.
+        outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance). Input CSVs are from Step 3b only.
         cohorts: Dict cohort -> list of age_bands (e.g. REQUIRED_COHORTS; both opioid_ed and non_opioid_ed use full set).
         top_n: Number of top features to show (by max summed importance across cohorts).
         importance_col: Column name for importance (default: scaled_importance_mean, then importance_mean).
@@ -652,7 +654,7 @@ def create_combined_cohorts_fi_heatmap(
     if not proj:
         raise FileNotFoundError(
             "project_root required for combined heatmap (Step 3b only). "
-            "Pass project_root or use outputs_base under 3a_feature_importance/outputs."
+            "Pass project_root or use outputs_base under 3a_feature_importance."
         )
     for cohort, age_bands in cohorts.items():
         for age_band in age_bands:

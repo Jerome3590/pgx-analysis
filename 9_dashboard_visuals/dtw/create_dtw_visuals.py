@@ -78,7 +78,7 @@ def create_dtw_visuals(
 
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
-    out_dir = dtw_out / "outputs" / cohort_name / age_band_fname
+    out_dir = dtw_out / cohort_name / age_band_fname
     _log("info", "DTW outputs (EC2): project_root=%s ; dtw_out=%s ; out_dir=%s", project_root, dtw_out, out_dir)
 
     # Idempotency: skip only when all dashboard artifacts exist (plots + chart_data + sequence_heatmap)
@@ -98,7 +98,7 @@ def create_dtw_visuals(
         return
 
     # Load DTW features: prefer sub-cohort (per-density) CSVs when present; else single CSV
-    fe_dir = _dtw_output_root(project_root) / "outputs" / "feature_engineering"
+    fe_dir = _dtw_output_root(project_root) / "feature_engineering"
     base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
     single_csv = fe_dir / f"{base_name}.csv"
     density_glob = list(fe_dir.glob(f"{base_name}_density_*.csv"))
@@ -169,7 +169,7 @@ def create_dtw_visuals(
             force=force,
         )
         # API/frontend expect these filenames (lambda_function.py, index.html)
-        plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
+        plots_dir = _dtw_output_root(project_root) / cohort_name / age_band_fname / "plots"
         overview_name = f"dtw_trajectory_analysis_{cohort_name}_{age_band_fname}.png"
         sample_name = f"dtw_sample_trajectories_{cohort_name}_{age_band_fname}.png"
         if plots_dir.exists():
@@ -244,7 +244,7 @@ def _upload_dtw_plots_to_dashboard_s3(
             logger.debug("SKIP_DASHBOARD_S3_UPLOAD set; DTW plots S3 upload skipped.")
         return
     age_band_fname = age_band.replace("-", "_")
-    plots_dir = _dtw_output_root(project_root) / "outputs" / cohort_name / age_band_fname / "plots"
+    plots_dir = _dtw_output_root(project_root) / cohort_name / age_band_fname / "plots"
     if not plots_dir.exists():
         if logger:
             logger.info("DTW plots upload skipped: plots_dir does not exist: %s", plots_dir)

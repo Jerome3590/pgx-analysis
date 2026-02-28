@@ -5,19 +5,53 @@
 
 This is **phase 9** of the PGx analysis pipeline. The notebook prebuilds all dashboard visualization artifacts (BupaR, DTW, FP-Growth) and uploads them to S3 for the risk calculator dashboard (step 10).
 
+## Folder layout (matches 10_risk_dashboard/visualizations)
+
+Each dashboard visualization tab has a folder here, aligned with `10_risk_dashboard/visualizations/`. **Each folder’s README starts with “Research questions this visual answers”**—what the visual is for and how feature importance drives BupaR, DTW, and FP-Growth to reduce noise and focus on what drives the target cohorts.
+
+| Folder | Dashboard tab | Produced here? | Output destination |
+|--------|----------------|-----------------|---------------------|
+| **bupar/** | BupaR Process Mining | Yes | `10_risk_dashboard/visualizations/bupar/` |
+| **causal/** | Causal Analysis | No (see [causal/README.md](causal/README.md)) | `10_risk_dashboard/visualizations/causal/` (from combine_shap_ffa_results) |
+| **cohort_pgx/** | PGx Cohort | Yes | `10_risk_dashboard/visualizations/cohort_pgx/` |
+| **dtw/** | DTW Trajectories | Yes | `10_risk_dashboard/visualizations/dtw/` |
+| **fpgrowth/** | FP-Growth Patterns | Yes | `10_risk_dashboard/visualizations/fpgrowth/` |
+| **feature_importance/** | Feature Importance | No (see [feature_importance/README.md](feature_importance/README.md)) | `10_risk_dashboard/visualizations/feature_importance/` (copied from 3a by notebook 4) |
+
+Feature importance heatmaps are produced in **3a_feature_importance**; notebook 4 **copies** them to `10_risk_dashboard/visualizations/feature_importance/` so deploy (notebook 5) syncs from the same location as other visuals.
+
 ## What runs here
 
 - **BupaR** – Process mining sequences and plots → `10_risk_dashboard/visualizations/bupar/`
 - **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`. Trajectories are binned by **event density** (events per month: low/medium/high/extreme); chart_data includes density-stratified series for the dashboard Event density filter.
 - **FP-Growth** – Risk-predictive co-occurrence (SHAP/FFA-gated, target-only): itemsets, network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
+- **Cohort PGx** – PharmGKB VIP reports and network topology → `10_risk_dashboard/visualizations/cohort_pgx/`
+- **Feature importance** – Heatmaps built in 3a; notebook 4 copies to `10_risk_dashboard/visualizations/feature_importance/` (per cohort + combined).
 
-Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
+Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth,cohort_pgx}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
 
 **Logs** are written under **`pgx-analysis/9_dashboard_visuals/logs/`** (e.g. `logs/5_dtw/`, `logs/bupaR/`, `logs/fpgrowth/`). Paths are resolved from the repo root (`REPO_ROOT`). Run the pipeline from **inside the repo** (e.g. `cd pgx-analysis && python 9_dashboard_visuals/run_dashboard_visuals.py`) so that logs end up in `pgx-analysis/9_dashboard_visuals/logs/` and not in a sibling directory.
 
 **Not used for feature engineering:** BupaR, DTW, and FP-Growth outputs under `outputs/feature_engineering/` (sequence features, trajectory/predictive-time CSVs, DTW alignment distances, itemsets/rules) are computed for dashboard visualization and analysis. Results are not added to model data due to concern about target leakage. DTW alignment IS computed using dtaidistance library; FP-Growth and BupaR also perform full analyses for dashboard insights.
 
 **FP-Growth:** This step uses **fpgrowth** (`9_dashboard_visuals/fpgrowth/`) for itemsets and visuals. **4_fpgrowth_analysis** is the template for that code and is **gitignored** (see `.gitignore`: `9_dashboard_visuals/4_fpgrowth_analysis/`); the committed pipeline is `fpgrowth` only.
+
+## How features are filtered by feature importance and used downstream
+
+1. **Source of importance**  
+   For each (cohort, age_band), **Step 3b** produces `cohort_feature_importance` (final feature importances). That is the same input used for model training (Step 4) and for SHAP/FFA (Steps 7–8). No other source is used for filtering; there are no fallbacks.
+
+2. **Allowed-codes list**  
+   The pipeline builds a single **allowed-codes** set per (cohort, age_band):
+   - **BupaR and DTW:** `get_shap_ffa_allowed_codes_combined()` in `py_helpers/shap_ffa_fpgrowth_utils.py` reads Step 3b cohort feature importance and returns the top-N codes by type (drug, ICD, CPT). These are written to `allowed_codes_shap_ffa_{cohort}_{age_band}.json` (under `10_risk_dashboard/visualizations/bupar/outputs/` or the path used by the driver). R (BupaR) and Python (DTW) use this list to **keep only events** whose drug, ICD, or CPT is in the set; all other events are dropped before process mining or trajectory building.
+   - **FP-Growth:** `get_final_feature_importance_codes()` loads the same Step 3b CSV and returns allowed items by type (`drug_name`, `icd_code`, `cpt_code`, `medical_code`). FP-Growth **mines itemsets and rules only over these items**; transactions are restricted to items in the allowed set so the patterns reflect what drives the model.
+
+3. **Downstream use**  
+   - **BupaR:** Event logs are filtered so each activity (drug/ICD/CPT) is in the allowed-codes JSON. Process matrices, activity frequency, and trace explorer then show only important-feature pathways.
+   - **DTW:** Trajectories are built from model_events after filtering: only events with at least one code (drug or ICD or CPT) in the allowed set are kept. DTW alignment and archetypes therefore reflect only important-feature sequences.
+   - **FP-Growth:** The transaction list passed to FP-Growth contains only allowed items; frequent itemsets and association rules are computed on this filtered set, so the dashboard shows co-occurrence among model-important codes only.
+
+**Implementation:** `py_helpers/shap_ffa_fpgrowth_utils.py` — `get_shap_ffa_allowed_codes_combined`, `write_shap_ffa_allowed_codes_for_bupar`, `get_final_feature_importance_codes`. Before any BupaR/DTW/FP-Growth run, `run_dashboard_visuals.py` (and notebook 4) ensure the allowed-codes file exists for every (cohort, age_band); if any is missing, the pipeline exits and does not run visuals.
 
 ## Feature importance sources for visuals
 

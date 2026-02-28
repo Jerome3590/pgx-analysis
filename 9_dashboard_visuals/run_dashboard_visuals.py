@@ -67,7 +67,7 @@ def check_shap_ffa_allowed_codes_prerequisite(combinations: list, repo_root: Pat
     Require SHAP/FFA combined allowed codes files for all (cohort, age_band).
     Returns (True, None) on success, (False, error_message) if any file is missing or empty.
     """
-    bupar_outputs = repo_root / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
+    bupar_outputs = repo_root / "10_risk_dashboard" / "visualizations" / "bupar"
     missing = []
     empty = []
     for cohort_name, age_band in combinations:

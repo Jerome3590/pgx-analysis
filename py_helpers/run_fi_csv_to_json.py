@@ -18,7 +18,7 @@ from py_helpers.feature_importance_heatmap import build_fi_dashboard_jsons
 
 def main():
     ap = argparse.ArgumentParser(description="Convert 3a FI CSVs to dashboard JSONs (filter by cohort/model/age_band).")
-    ap.add_argument("--outputs-base", type=Path, default=REPO_ROOT / "3a_feature_importance" / "outputs", help="Base dir for 3a outputs")
+    ap.add_argument("--outputs-base", type=Path, default=REPO_ROOT / "3a_feature_importance", help="Base dir for 3a outputs")
     ap.add_argument("--top-n", type=int, default=50, help="Top N features per age band for heatmaps")
     ap.add_argument("--single-top-n", type=int, default=100, help="Top N for single-age-band JSONs")
     args = ap.parse_args()

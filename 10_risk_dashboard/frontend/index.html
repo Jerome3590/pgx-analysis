@@ -1378,6 +1378,55 @@
     return (base ? base + "/" : "") + relativePath.replace(/^\//, "");
   }
 
+  // Manifest-driven static paths: load once, build URLs from dashboard_visual_objects.json (single source of truth).
+  let _manifestPromise = null;
+  async function getDashboardManifest() {
+    if (window.dashboardVisualManifest) return window.dashboardVisualManifest;
+    if (_manifestPromise) return _manifestPromise;
+    const manifestUrl = staticJsonPath("visualizations/dashboard_visual_objects.json");
+    _manifestPromise = fetch(manifestUrl).then(function(res) {
+      if (res.ok) return res.json();
+      return Promise.reject(new Error(res.status === 404 ? "manifest not found" : res.statusText));
+    }).then(function(data) {
+      window.dashboardVisualManifest = data;
+      return data;
+    });
+    return _manifestPromise;
+  }
+
+  function getManifestEntryByTab(manifest, tabName, cohort) {
+    const entries = (manifest.visual_objects || []).filter(function(o) { return (o.dashboard_tab || "") === tabName; });
+    if (tabName === "Feature Importance" && cohort === "combined" && entries.length > 1)
+      return entries.find(function(o) { return o.cohort_scope === "combined"; }) || entries[0];
+    if (tabName === "Feature Importance" && cohort && cohort !== "combined" && entries.length > 1)
+      return entries.find(function(o) { return o.cohort_scope === "per_cohort"; }) || entries[0];
+    return entries[0] || null;
+  }
+
+  function getStaticBasePath(entry, s3Prefix) {
+    if (!entry || !entry.s3_path) return "";
+    const prefix = (s3Prefix || "").replace(/\/$/, "") + "/";
+    let p = entry.s3_path.replace(new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "").replace(/^\//, "");
+    if (p.indexOf("{cohort}") === -1 && p.indexOf("{age_band}") === -1)
+      p = p.replace(/\/[^/]+$/, "");
+    return p.replace(/\/$/, "");
+  }
+
+  function buildStaticUrls(entry, cohort, ageBand, staticJsonPathFn) {
+    if (!entry || !staticJsonPathFn) return { basePath: "", urls: [] };
+    const manifest = window.dashboardVisualManifest || {};
+    const basePath = getStaticBasePath(entry, manifest.s3_prefix)
+      .replace(/\{cohort\}/g, cohort || "")
+      .replace(/\{age_band\}/g, ageBand || "");
+    const baseFname = ageBand ? (cohort + "_" + (ageBand || "").replace(/-/g, "_")) : cohort;
+    const files = entry.static_files || [];
+    const urls = files.map(function(f) {
+      const suffix = f.replace(/\{base\}/g, baseFname);
+      return staticJsonPathFn(basePath + "/" + suffix);
+    });
+    return { basePath: basePath ? staticJsonPathFn(basePath) : "", urls: urls };
+  }
+
   /** Log 4xx/5xx API response to console (error + paths_checked) and return parsed body for throwing. */
   async function logApiErrorResponseAndParse(resp, context) {
     let body = null;
@@ -2019,14 +2068,8 @@
     const container = document.getElementById("doc-manifest-container");
     if (!container) return;
     container.innerHTML = "<p class=\"doc-metrics-loading\">Loading manifest…</p>";
-    const manifestUrl = staticJsonPath("visualizations/dashboard_visual_objects.json");
-    fetch(manifestUrl)
-      .then(function(res) {
-        if (res.ok) return res.json();
-        return Promise.reject(new Error(res.status === 404 ? "not found" : res.statusText));
-      })
+    getDashboardManifest()
       .then(function(data) {
-        window.dashboardVisualManifest = data;
         const objects = data.visual_objects || [];
         if (objects.length === 0) {
           container.innerHTML = "<p class=\"doc-metrics-loading\">No visual objects in manifest.</p>";
@@ -2398,13 +2441,18 @@
     document.getElementById("causal-status").textContent = "Loading causal analysis...";
     document.getElementById("causal-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      // Prefer chart_data from Lambda (same pattern as Feature Importance: Lambda does filter + radar-ready)
-      let chartData = data.chart_data || null;
-      if (!chartData && data.causal_data) {
-        const prebuilt = data.causal_data;
+      let chartData = null;
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      const causalStaticUrl = manifest
+        ? (function() {
+            const entry = getManifestEntryByTab(manifest, "Causal Analysis");
+            const built = entry ? buildStaticUrls(entry, cohort, ageBand, staticJsonPath) : { urls: [] };
+            return built.urls[0] || staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json");
+          }())
+        : staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json");
+      const staticCausalResp = await fetch(causalStaticUrl);
+      if (staticCausalResp.ok) {
+        const prebuilt = await staticCausalResp.json();
         const top = prebuilt.top_causal_factors || [];
         const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
@@ -2425,20 +2473,49 @@
         }
         if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
       }
-      if (!chartData && data.causal_data_url) {
-        try {
-          const jsonResp = await fetch(data.causal_data_url);
-          if (jsonResp.ok) {
-            const prebuilt = await jsonResp.json();
-            const top = prebuilt.top_causal_factors || [];
-            chartData = {
-              causal_factors: top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) })),
-              shap_importance: top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) })),
-              filtered_by_codes: false
-            };
-            if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
+      // Fallback: API (Lambda may apply server-side filter or return causal_data_url)
+      if (!chartData) {
+        const resp = await fetch(`${API_BASE}/visualizations/causal?${params.toString()}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        chartData = data.chart_data || null;
+        if (!chartData && data.causal_data) {
+          const prebuilt = data.causal_data;
+          const top = prebuilt.top_causal_factors || [];
+          const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
+          const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
+          const selectedFeatureSet = new Set([
+            ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
+            ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
+            ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
+          ]);
+          const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
+          chartData = {
+            causal_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
+            shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
+            filtered_by_codes: selectedFeatureSet.size > 0
+          };
+          if (whatIfFeatureSet.size > 0) {
+            chartData.causal_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
+            chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
           }
-        } catch (_) { /* ignore */ }
+          if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
+        }
+        if (!chartData && data.causal_data_url) {
+          try {
+            const jsonResp = await fetch(data.causal_data_url);
+            if (jsonResp.ok) {
+              const prebuilt = await jsonResp.json();
+              const top = prebuilt.top_causal_factors || [];
+              chartData = {
+                causal_factors: top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) })),
+                shap_importance: top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) })),
+                filtered_by_codes: false
+              };
+              if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
+            }
+          } catch (_) { /* ignore */ }
+        }
       }
       if (!chartData) {
         document.getElementById("causal-status").textContent = "Causal data not found. Run combine_shap_ffa_results --upload-to-dashboard for this cohort/age band.";
@@ -2489,12 +2566,24 @@
     document.getElementById("dtw-status").textContent = "Loading DTW visualizations...";
     document.getElementById("dtw-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      // Prefer JSON inline (from Lambda) over fetching URLs; fall back to chart_data_url / sequence_heatmap_url when inline missing
-      if (data.chart_data) {
-        const chartData = data.chart_data;
+      let data = {};
+      const ageBandFname = ageBand.replace(/-/g, "_");
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
+      let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
+      let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "DTW Trajectories");
+        if (entry) {
+          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (built.urls[0]) chartUrl = built.urls[0];
+          if (built.urls[1]) heatmapUrl = built.urls[1];
+          if (built.basePath) dtwBasePath = built.basePath;
+        }
+      }
+      const [chartResp, hmResp] = await Promise.all([fetch(chartUrl), fetch(heatmapUrl)]);
+      if (chartResp.ok) {
+        const chartData = await chartResp.json();
         if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
         if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
         if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
@@ -2505,29 +2594,58 @@
         if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
         if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
         if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
-      } else if (data.chart_data_url) {
-        try {
-          const chartResp = await fetch(data.chart_data_url);
-          if (chartResp.ok) {
-            const chartData = await chartResp.json();
-            if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
-            if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
-            if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
-            if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
-            if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
-            if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
-            if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
-            if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
-            if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
-            if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
-          }
-        } catch (_) { /* chart_data.json optional */ }
+        data.chart_data = chartData;
       }
-      if (!data.sequence_heatmap && data.sequence_heatmap_url) {
-        try {
-          const hmResp = await fetch(data.sequence_heatmap_url);
-          if (hmResp.ok) data.sequence_heatmap = await hmResp.json();
-        } catch (_) { /* sequence_heatmap.json optional */ }
+      if (hmResp.ok) {
+        data.sequence_heatmap = await hmResp.json();
+      }
+      // Overview/sample images: same-origin paths (pipeline writes dtw_trajectory_analysis_*, dtw_sample_trajectories_*)
+      if (chartResp.ok) {
+        const plotsBase = (dtwBasePath.indexOf("/") === 0 || dtwBasePath.indexOf("http") === 0) ? dtwBasePath.replace(/\/?$/, "") + "/plots" : staticJsonPath(dtwBasePath + "/plots");
+        data.overview_image = plotsBase + "/dtw_trajectory_analysis_" + cohort + "_" + ageBandFname + ".png";
+        data.sample_trajectories_image = plotsBase + "/dtw_sample_trajectories_" + cohort + "_" + ageBandFname + ".png";
+      }
+      // Fallback: API when static chart_data missing
+      if (!data.chart_data && !data.sequence_heatmap) {
+        const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+        if (data.chart_data) {
+          const chartData = data.chart_data;
+          if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+          if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+          if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+          if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+          if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+          if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+          if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+          if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+          if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+        } else if (data.chart_data_url) {
+          try {
+            const chartResp2 = await fetch(data.chart_data_url);
+            if (chartResp2.ok) {
+              const chartData = await chartResp2.json();
+              if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+              if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+              if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+              if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+              if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+              if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+              if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+              if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+              if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+              if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+            }
+          } catch (_) { /* chart_data.json optional */ }
+        }
+        if (!data.sequence_heatmap && data.sequence_heatmap_url) {
+          try {
+            const hmResp2 = await fetch(data.sequence_heatmap_url);
+            if (hmResp2.ok) data.sequence_heatmap = await hmResp2.json();
+          } catch (_) { /* sequence_heatmap.json optional */ }
+        }
       }
       window.dtwChartData = data;
       const densityFilter = document.getElementById("dtw-event-density")?.value || "all";
@@ -2572,9 +2690,52 @@
     document.getElementById("fpgrowth-status").textContent = "Loading FP-Growth visualizations (drug names)...";
     document.getElementById("fpgrowth-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=drug_name`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const ageBandFname = ageBand.replace(/-/g, "_");
+      const prefix = cohort + "_" + ageBandFname;
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
+      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json");
+      let emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json");
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "FP-Growth Patterns");
+        if (entry) {
+          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (built.basePath) fgBasePath = built.basePath;
+          if (built.urls[0]) itemsetsJsonUrl = built.urls[0];
+          if (built.urls[1]) emptyStateUrl = built.urls[1];
+        }
+      }
+      const fgBase = fgBasePath.indexOf("/") === 0 || fgBasePath.indexOf("http") === 0 ? fgBasePath.replace(/\/?$/, "") : staticJsonPath(fgBasePath);
+      const plotsBase = fgBase + (fgBase.slice(-1) === "/" ? "" : "/") + "plots/";
+      let data = {
+        network_combined_html: plotsBase + prefix + "_combined_rules_network.html",
+        itemsets_image: plotsBase + prefix + "_drug_name_combined_top_itemsets.png",
+        support_image: plotsBase + prefix + "_drug_name_combined_top_itemsets.png",
+        network_html: plotsBase + prefix + "_drug_name_target_rules_network.html",
+        network_png: plotsBase + prefix + "_drug_name_target_rules_network.png",
+        itemsets_interactive: plotsBase + prefix + "_drug_name_itemsets_interactive.html",
+        network_interactive: plotsBase + prefix + "_drug_name_network_interactive.html"
+      };
+      const [itemsetsResp, emptyResp] = await Promise.all([fetch(itemsetsJsonUrl), fetch(emptyStateUrl)]);
+      if (emptyResp.ok) {
+        try {
+          data = await emptyResp.json();
+        } catch (_) {
+          data = { empty: true, message: "Empty state" };
+        }
+      } else if (itemsetsResp.ok) {
+        try {
+          data.itemsets_data = await itemsetsResp.json();
+        } catch (_) {}
+      }
+      if (!data.itemsets_data && !data.empty) {
+        data = null;
+      }
+      if (!data) {
+        const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=drug_name`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+      }
       renderFPGrowthVisualizations(data, { cohort, ageBand });
       document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
       document.getElementById("fpgrowth-status").className = "status-message success";
@@ -2596,19 +2757,35 @@
     document.getElementById("cohort-pgx-status").textContent = "Loading PGx Cohort network...";
     document.getElementById("cohort-pgx-status").className = "status-message info";
     try {
-      const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
       const iframe = document.getElementById("cohort-pgx-iframe");
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      let staticPgxUrl = staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/network_topology.html");
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "PGx Cohort");
+        if (entry) {
+          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (built.urls[0]) staticPgxUrl = built.urls[0];
+        }
+      }
+      const staticResp = await fetch(staticPgxUrl, { method: "HEAD" });
       if (iframe) {
-        if (data.network_topology_url) {
-          iframe.src = data.network_topology_url;
+        if (staticResp.ok) {
+          iframe.src = staticPgxUrl;
           document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
           document.getElementById("cohort-pgx-status").className = "status-message success";
         } else {
-          iframe.src = "about:blank";
-          document.getElementById("cohort-pgx-status").textContent = "Network topology not available. Run Cohort PGx pipeline (build_network_topology) and sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3.";
-          document.getElementById("cohort-pgx-status").className = "status-message error";
+          const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}`);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (data.network_topology_url) {
+            iframe.src = data.network_topology_url;
+            document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
+            document.getElementById("cohort-pgx-status").className = "status-message success";
+          } else {
+            iframe.src = "about:blank";
+            document.getElementById("cohort-pgx-status").textContent = "Network topology not available. Run Cohort PGx pipeline (build_network_topology) and sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3.";
+            document.getElementById("cohort-pgx-status").className = "status-message error";
+          }
         }
       }
     } catch (err) {
@@ -2629,25 +2806,83 @@
     document.getElementById("bupar-status").textContent = "Loading BupaR visualizations...";
     document.getElementById("bupar-status").className = "status-message info";
     try {
-      const [urlResp, freqResp] = await Promise.all([
-        fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`),
-        fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}`)
-      ]);
-      if (!urlResp.ok) {
-        const body = await logApiErrorResponseAndParse(urlResp, "BupaR");
-        throw new Error(body && body.error ? body.error : `HTTP ${urlResp.status}`);
+      const ageBandFname = ageBand.replace(/-/g, "_");
+      const base = cohort + "_" + ageBandFname;
+      const preSuffix = cohort === "opioid_ed" ? "pre_f1120" : "pre_hcg";
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      let baseUrl = staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots");
+      let freqUrls = [
+        staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_activity_frequency.json"),
+        staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_pre_target_activity_frequency.json"),
+        staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_post_target_activity_frequency.json")
+      ];
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "BupaR Process Mining");
+        if (entry) {
+          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (built.basePath) baseUrl = built.basePath;
+          if (built.urls.length >= 3) freqUrls = [built.urls[0], built.urls[1], built.urls[2]];
+        }
       }
-      const data = await urlResp.json();
+      let data = {
+        activity_frequency_image: baseUrl + "/" + base + "_overall_activity_frequency.png",
+        pre_target_frequency_image: baseUrl + "/" + base + "_" + preSuffix + "_activity_frequency.png",
+        sequence_image: baseUrl + "/" + base + "_activity_sequence_top.png",
+        trace_explorer_pre_image: baseUrl + "/" + base + "_trace_explorer_" + preSuffix + ".png",
+        process_matrix_drug_drug: baseUrl + "/" + base + "_process_matrix_drug_drug.png"
+      };
+      const [overallResp, preResp, postResp] = await Promise.all(freqUrls.map(u => fetch(u)));
+      let freqData = null;
+      if (overallResp.ok || preResp.ok || postResp.ok) {
+        freqData = {};
+        if (overallResp.ok) {
+          try { freqData.overall = await overallResp.json(); } catch (_) {}
+        }
+        if (preResp.ok) {
+          try { freqData.pre_target = await preResp.json(); } catch (_) {}
+        }
+        if (postResp.ok) {
+          try { freqData.post_target = await postResp.json(); } catch (_) {}
+        }
+      }
+      const hasStaticFreq = freqData && (freqData.overall || freqData.pre_target || freqData.post_target);
+      const jsonUrls = [
+        baseUrl + "/" + base + "_trace_explorer_plot.json",
+        baseUrl + "/" + base + "_process_matrix_drug_drug.json",
+        baseUrl + "/" + base + "_activity_sequence_top.json"
+      ];
+      const [traceResp, matrixResp, seqResp] = await Promise.all(jsonUrls.map(u => fetch(u)));
+      if (traceResp.ok) {
+        try { data.trace_explorer_plot = await traceResp.json(); } catch (_) {}
+      }
+      if (matrixResp.ok) {
+        try { data.process_matrix_drug_drug = await matrixResp.json(); } catch (_) {}
+      }
+      if (seqResp.ok) {
+        try { data.activity_sequence_top = await seqResp.json(); } catch (_) {}
+      }
+      const hasStaticData = hasStaticFreq || data.trace_explorer_plot || data.process_matrix_drug_drug || data.activity_sequence_top;
+      if (!hasStaticData) {
+        const [urlResp, freqResp] = await Promise.all([
+          fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`),
+          fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}`)
+        ]);
+        if (!urlResp.ok) {
+          const body = await logApiErrorResponseAndParse(urlResp, "BupaR");
+          throw new Error(body && body.error ? body.error : `HTTP ${urlResp.status}`);
+        }
+        data = await urlResp.json();
+        if (freqResp.ok) {
+          try {
+            freqData = await freqResp.json();
+          } catch (_) {
+            freqData = null;
+          }
+        }
+      }
       const selected = Array.from(document.querySelectorAll('#bupar-visual-checkboxes .bupar-visual-cb:checked')).map(c => c.dataset.visualKey).filter(Boolean);
       renderBupaRVisualizations(data, Array.isArray(selected) && selected.length > 0 ? selected : undefined, { cohort, ageBand });
-      // Activity frequency: JSON from API → Plotly bar charts on frontend (same pattern as DTW charts)
-      if (freqResp.ok) {
-        let freqData = null;
-        try {
-          freqData = await freqResp.json();
-        } catch (_) {
-          freqData = null;
-        }
+      if (freqData && (freqData.overall || freqData.pre_target || freqData.post_target)) {
         renderBupaRActivityFrequencyCharts(freqData);
         document.getElementById("bupar-status").textContent = "BupaR visualizations loaded (images + activity frequency Plotly charts).";
       } else {
@@ -2705,11 +2940,19 @@
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
       let data = null;
-      // Same-origin JSON from S3: visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json (or .../combined/...)
-      const fiJsonPath = cohort === "combined"
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      let fiJsonPath = cohort === "combined"
         ? "visualizations/feature_importance/combined/aggregated_fi_heatmap.json"
-        : `visualizations/feature_importance/${cohort}/aggregated_fi_heatmap.json`;
-      const staticUrl = staticJsonPath(fiJsonPath);
+        : "visualizations/feature_importance/" + cohort + "/aggregated_fi_heatmap.json";
+      let staticUrl = staticJsonPath(fiJsonPath);
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "Feature Importance", cohort);
+        if (entry) {
+          const built = buildStaticUrls(entry, cohort === "combined" ? "" : cohort, "", staticJsonPath);
+          const jsonUrl = built.urls && built.urls.find ? built.urls.find(function(u) { return u && u.indexOf(".json") !== -1; }) : null;
+          if (jsonUrl) staticUrl = jsonUrl;
+        }
+      }
       const staticResp = await fetch(staticUrl);
       if (staticResp.ok) {
         const raw = await staticResp.json();

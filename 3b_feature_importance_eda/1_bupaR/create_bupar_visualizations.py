@@ -141,9 +141,9 @@ def copy_visualizations_to_feature_importance_eda(cohort: str, age_band: str) ->
     """Copy visualizations from BupaR output directory to Feature Importance EDA outputs."""
     age_band_fname = age_band_to_fname(age_band)
     
-    # Try possible source locations (canonical: 10_risk_dashboard/visualizations/bupar/outputs)
+    # Try possible source locations (canonical: 10_risk_dashboard/visualizations/bupar)
     possible_sources = [
-        PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs" / cohort / age_band_fname / "plots",
+        PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / cohort / age_band_fname / "plots",
         PROJECT_ROOT / "10_risk_dashboard" / "bupaR_dashboard_visual" / "outputs" / cohort / age_band_fname / "plots",
     ]
     

@@ -227,18 +227,18 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
     r = subprocess.run(["aws", "s3", "sync", str(frontend_dir), s3_uri, "--region", "us-east-1"])
     if r.returncode == 0:
         print("Frontend synced.")
-        # Upload feature importance heatmaps (Step 3a / 2_feature_importance) for dashboard tab
+        # Upload feature importance heatmaps (notebook 4 copies 3a → visualizations/feature_importance; sync from there)
         # Match pattern: S3_VISUALIZATIONS_BUILDS=1 → upload to .../builds/ (notebook 4); else final (notebook 5)
-        fi_base = REPO_ROOT / "3a_feature_importance" / "outputs"
+        fi_base = VISUAL_ROOT / "feature_importance"
         prefix_clean = s3_prefix.strip("/")
         use_fi_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
         fi_builds_suffix = "/builds" if use_fi_builds else ""
         fi_prefix = f"{prefix_clean}/visualizations/feature_importance{fi_builds_suffix}"
         uploaded_fi = 0
         for cohort in COHORT_NAMES:
-            plots_dir = fi_base / cohort / "plots"
-            local_png = plots_dir / f"{cohort}_aggregated_fi_heatmap.png"
-            local_json = plots_dir / f"{cohort}_aggregated_fi_heatmap.json"
+            cohort_dir = fi_base / cohort
+            local_png = cohort_dir / "aggregated_fi_heatmap.png"
+            local_json = cohort_dir / "aggregated_fi_heatmap.json"
             if local_png.exists():
                 s3_key = f"{fi_prefix}/{cohort}/aggregated_fi_heatmap.png"
                 r2 = subprocess.run(
@@ -259,7 +259,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
                     print(f"  Uploaded FI heatmap data: {s3_key_json}")
             # Per-model heatmap JSONs (same pattern: row_labels, column_labels, matrix) for model filter
             for model in ("catboost", "xgboost", "xgboost_rf"):
-                m_json = plots_dir / f"{cohort}_{model}_fi_heatmap.json"
+                m_json = cohort_dir / f"{model}_fi_heatmap.json"
                 if m_json.exists():
                     m_key = f"{fi_prefix}/{cohort}/{model}_fi_heatmap.json"
                     r2m = subprocess.run(
@@ -269,7 +269,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
                     if r2m.returncode == 0:
                         uploaded_fi += 1
                         print(f"  Uploaded FI heatmap data: {m_key}")
-        combined_png = fi_base / "plots" / "combined_cohorts_feature_importance_heatmap.png"
+        combined_png = fi_base / "combined_cohorts_feature_importance_heatmap.png"
         if combined_png.exists():
             s3_key_combined = f"{fi_prefix}/combined_cohorts_feature_importance_heatmap.png"
             r3 = subprocess.run(
@@ -280,7 +280,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
                 uploaded_fi += 1
                 print(f"  Uploaded FI heatmap: {s3_key_combined}")
         # Combined cohort heatmap JSON for dashboard Plotly (GET ?cohort=combined)
-        combined_json = fi_base / "combined" / "aggregated_fi_heatmap.json"
+        combined_json = fi_base / "combined" / "aggregated_fi_heatmap.json"  # unchanged path under viz
         if combined_json.exists():
             s3_key_combined_json = f"{fi_prefix}/combined/aggregated_fi_heatmap.json"
             r3j = subprocess.run(
@@ -293,7 +293,7 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
         if uploaded_fi:
             print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
         elif fi_base.exists():
-            print("  No feature importance heatmaps found under 3a_feature_importance/outputs (run 2_feature_importance to generate).")
+            print("  No feature importance heatmaps found under 10_risk_dashboard/visualizations/feature_importance (run notebook 4 FI heatmaps + copy).")
         # Upload causal dashboard JSON (Causal Analysis tab): visualizations/causal -> S3 visualizations/causal/
         causal_script = DASHBOARD_DIR / "data_preparation" / "upload_causal_outputs_to_s3.py"
         if causal_script.exists():

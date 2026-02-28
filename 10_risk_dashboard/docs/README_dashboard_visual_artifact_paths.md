@@ -8,7 +8,7 @@ Do not use virtual-hosted style. Bucket = `S3_DASHBOARD_BUCKET` (e.g. `jerome-di
 
 **EC2 paths** are relative to repo root on EC2 (e.g. `/home/pgx3874/pgx-analysis`). **Age bands:** EC2/file paths use underscore (e.g. `25_44`); **S3 paths use hyphen** (e.g. `25-44`). **S3 object key** = prefix + path below (no leading slash).
 
-**`10_risk_dashboard/outputs/`** contains only **models**, **cpic**, and **metadata** (for Lambda/container and same-origin deploy). All visualization artifacts (causal, DTW, FP-Growth, BupaR, feature importance, cohort_pgx) live under **`10_risk_dashboard/visualizations/`** or their step folders (e.g. `3a_feature_importance/outputs/` for FI source).
+**`10_risk_dashboard/outputs/`** contains only **models**, **cpic**, and **metadata** (for Lambda/container and same-origin deploy). All visualization artifacts (causal, DTW, FP-Growth, BupaR, feature importance, cohort_pgx) live under **`10_risk_dashboard/visualizations/`** or their step folders (e.g. `3a_feature_importance/` for FI source).
 
 **Related:** [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md), [DASHBOARD_TABS.md](DASHBOARD_TABS.md).
 
@@ -20,15 +20,15 @@ All paths below are relative to **repo root** (`project_root`). If outputs are n
 
 | Script / step | Writes to (under repo root) |
 |---------------|-----------------------------|
-| **create_dtw_trajectories.py** | `10_risk_dashboard/visualizations/dtw/outputs/feature_engineering/dtw_features_{cohort}_{age_band_fname}.csv` |
+| **create_dtw_trajectories.py** | `10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band_fname}.csv` |
 | **create_dtw_features.py** | Same dir: `dtw_features_*_density_{bin}.csv`, `common_sequences_*_density_{bin}.json` (or single `dtw_features_*.csv` + `common_sequences_*.json` when no density bins) |
-| **create_dtw_visuals.py** | Reads from `.../dtw/outputs/feature_engineering/`; writes `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/chart_data.json`, `sequence_heatmap.json`, `plots/*` |
-| **create_bupar_visuals.py** | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/*` |
-| **create_plots.py** (FP-Growth) | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` |
+| **create_dtw_visuals.py** | Reads from `.../dtw/feature_engineering/`; writes `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/chart_data.json`, `sequence_heatmap.json`, `plots/*` |
+| **create_bupar_visuals.py** | `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/*` |
+| **create_plots.py** (FP-Growth) | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/`, `.../data/` |
 | **upload_causal_outputs_to_s3.py** (source) | Reads from `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` (written by combine_shap_ffa_results / causal pipeline) |
 | **build_network_topology.py** (Cohort PGx) | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` |
 
-**DTW:** Notebook 4 must pass `--project-root str(REPO_ROOT)` to all three DTW steps (trajectories, features, visuals) so they use the same root. The check script expects `chart_data.json` and `sequence_heatmap.json` under `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/`.
+**DTW:** Notebook 4 must pass `--project-root str(REPO_ROOT)` to all three DTW steps (trajectories, features, visuals) so they use the same root. The check script expects `chart_data.json` and `sequence_heatmap.json` under `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/`.
 
 ---
 
@@ -39,10 +39,10 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 | Visualization | EC2 location (underscore age band) | Upload/sync script | S3 key under prefix (hyphen age band) | Lambda (same key) |
 |---------------|------------------------------------|--------------------|----------------------------------------|-------------------|
 | **Causal** | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `upload_causal_outputs_to_s3.py` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | ✓ `handle_visualizations_causal` |
-| **DTW** | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_visuals.py` (upload helpers) | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`, `visualizations/dtw/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_dtw` |
-| **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/` (and data/) | `create_plots.py` → `create_all_fpgrowth_plots` (s3_prefix = prefix/visualizations/fpgrowth) | `visualizations/fpgrowth/{cohort}/{age_band}/plots/*`, `visualizations/fpgrowth/{cohort}/{age_band}/data/*` | ✓ `handle_visualizations_fpgrowth` |
-| **BupaR** | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `create_bupar_visuals.py` → `upload_bupar_plots_to_dashboard_s3` | `visualizations/bupar/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_bupar` |
-| **Feature importance** | `3a_feature_importance/outputs/{cohort}/plots/` (and `outputs/plots/`, `outputs/combined/`) | `pgx_dashboard_visuals.py` (when DEPLOY_FRONTEND=1) or notebook 5 deploy | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png` or `.json`, `visualizations/feature_importance/combined/aggregated_fi_heatmap.json`, `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` | ✓ `handle_visualizations_feature_importance` |
+| **DTW** | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_visuals.py` (upload helpers) | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`, `visualizations/dtw/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_dtw` |
+| **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/` (and data/) | `create_plots.py` → `create_all_fpgrowth_plots` (s3_prefix = prefix/visualizations/fpgrowth) | `visualizations/fpgrowth/{cohort}/{age_band}/plots/*`, `visualizations/fpgrowth/{cohort}/{age_band}/data/*` | ✓ `handle_visualizations_fpgrowth` |
+| **BupaR** | `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/` | `create_bupar_visuals.py` → `upload_bupar_plots_to_dashboard_s3` | `visualizations/bupar/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_bupar` |
+| **Feature importance** | `3a_feature_importance/{cohort}/plots/` (and `plots/`, `combined/`) | `pgx_dashboard_visuals.py` (when DEPLOY_FRONTEND=1) or notebook 5 deploy | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png` or `.json`, `visualizations/feature_importance/combined/aggregated_fi_heatmap.json`, `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` | ✓ `handle_visualizations_feature_importance` |
 | **Cohort PGx** | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `sync_cohort_pgx_to_s3.py` or `build_network_topology.py` upload | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/*` | ✓ `handle_visualizations_cohort_pgx` |
 
 **S3 layout (bucket prefix = e.g. `vcu/pgx-risk-calculator/`):**
@@ -62,7 +62,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| Feature Importance | Feature Importance by Age Band | `aggregated_fi_heatmap.png` or `.json` | `3a_feature_importance/outputs/{cohort}/aggregated_fi_heatmap.png` or `3a_feature_importance/outputs/plots/combined_cohorts_feature_importance_heatmap.png` | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png` or `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` (combined: `visualizations/feature_importance/combined/aggregated_fi_heatmap.json` when present) |
+| Feature Importance | Feature Importance by Age Band | `aggregated_fi_heatmap.png` or `.json` | `3a_feature_importance/{cohort}/aggregated_fi_heatmap.png` or `3a_feature_importance/plots/combined_cohorts_feature_importance_heatmap.png` | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png` or `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` (combined: `visualizations/feature_importance/combined/aggregated_fi_heatmap.json` when present) |
 
 ---
 
@@ -83,7 +83,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| BupaR Process Mining | Sequences to Target Outcomes (drugs) | `{base}_activity_sequence_top.png` | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/{base}_activity_sequence_top.png` | `bupar/{cohort}/{age_band}/plots/{base}_activity_sequence_top.png` |
+| BupaR Process Mining | Sequences to Target Outcomes (drugs) | `{base}_activity_sequence_top.png` | `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/{base}_activity_sequence_top.png` | `bupar/{cohort}/{age_band}/plots/{base}_activity_sequence_top.png` |
 | BupaR Process Mining | Overall Activity Frequency (drugs) | `{base}_activity_frequency.json` (+ optional PNG/HTML) | `.../plots/{base}_activity_frequency.json`, `{base}_overall_activity_frequency.png`, `{base}_activity_frequency_interactive.html` | `bupar/{cohort}/{age_band}/plots/{base}_activity_frequency.json`, `.../plots/{base}_overall_activity_frequency.png`, `.../plots/{base}_activity_frequency_interactive.html` |
 | BupaR Process Mining | Pre-Target Activity Frequency (drugs) | `{base}_pre_target_activity_frequency.json`, `{base}_{pre}_activity_frequency.png` | `.../plots/{base}_pre_target_activity_frequency.json`, `.../plots/{base}_{pre}_activity_frequency.png` | `bupar/{cohort}/{age_band}/plots/{base}_pre_target_activity_frequency.json`, `.../plots/{base}_{pre}_activity_frequency.png` |
 | BupaR Process Mining | Post-Target Activity Frequency (drugs) | `{base}_post_target_activity_frequency.json` | `.../plots/{base}_post_target_activity_frequency.json` | `bupar/{cohort}/{age_band}/plots/{base}_post_target_activity_frequency.json` |
@@ -98,7 +98,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| DTW Trajectories | Trajectory Analysis Overview (drugs) | Trajectory cluster plot image | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/plots/*.png` | `dtw/{cohort}/{age_band}/plots/*.png` |
+| DTW Trajectories | Trajectory Analysis Overview (drugs) | Trajectory cluster plot image | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/plots/*.png` | `dtw/{cohort}/{age_band}/plots/*.png` |
 | DTW Trajectories | Sample Trajectories (drugs) | (same) | (same) | (same) |
 | DTW Trajectories | Trajectory Metrics | `chart_data.json` (metrics) | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
 | DTW Trajectories | High-Risk vs Low-Risk Trajectories (drugs) | `chart_data.json` → `high_risk_trajectories` | (same) | (same) |
@@ -111,7 +111,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 **Event density:** When the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), chart_data includes the keys above so the dashboard can filter Routine vs No Routine and High-Risk charts by bin (All | Low | Medium | High | Extreme). See `10_risk_dashboard/visualizations/dtw/README.md`.
 
-**DTW run order:** `create_dtw_features` writes to `outputs/feature_engineering/` (CSV + common_sequences). **`create_dtw_visuals`** reads that CSV, builds `chart_data.json` and `sequence_heatmap.json`, writes them under `outputs/{cohort}/{age_band_fname}/`, and uploads to S3. The artifact path check expects these JSONs in that output dir; run `create_dtw_visuals` per cohort/age_band after feature engineering.
+**DTW run order:** `create_dtw_features` writes to `feature_engineering/` (CSV + common_sequences). **`create_dtw_visuals`** reads that CSV, builds `chart_data.json` and `sequence_heatmap.json`, writes them under `{cohort}/{age_band_fname}/`, and uploads to S3. The artifact path check expects these JSONs in that output dir; run `create_dtw_visuals` per cohort/age_band after feature engineering.
 
 ---
 
@@ -119,7 +119,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| FP-Growth Patterns | Top Itemsets | `{base}_drug_name_combined_top_itemsets.png`, `drug_name_itemsets.json` | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `.../data/drug_name_itemsets.json` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `fpgrowth/{cohort}/{age_band}/data/drug_name_itemsets.json` |
+| FP-Growth Patterns | Top Itemsets | `{base}_drug_name_combined_top_itemsets.png`, `drug_name_itemsets.json` | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `.../data/drug_name_itemsets.json` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `fpgrowth/{cohort}/{age_band}/data/drug_name_itemsets.json` |
 | FP-Growth Patterns | Itemset Support Distribution | (same itemsets data) | (same) | (same) |
 | FP-Growth Patterns | Drug Association Network | `{base}_combined_rules_network.html` | `.../plots/{cohort}_{age_band_fname}_combined_rules_network.html` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_combined_rules_network.html` |
 

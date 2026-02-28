@@ -34,7 +34,7 @@ RUN_INTEGRATION = os.environ.get("RUN_VISUALS_INTEGRATION", "").strip().lower() 
 
 def _bupar_plots_dirs_to_check():
     out = []
-    base = VISUAL_ROOT / "bupar" / "outputs"
+    base = VISUAL_ROOT / "bupar"
     if base.exists():
         for cohort_dir in base.iterdir():
             if not cohort_dir.is_dir() or cohort_dir.name.startswith("allowed_codes"):
@@ -56,7 +56,7 @@ def _bupar_plots_dirs_to_check():
 
 def _dtw_plots_dirs_to_check():
     out = []
-    base = VISUAL_ROOT / "dtw" / "outputs"
+    base = VISUAL_ROOT / "dtw"
     if base.exists():
         for cohort_dir in base.iterdir():
             if not cohort_dir.is_dir() or cohort_dir.name == "feature_engineering":
@@ -98,7 +98,7 @@ def _fpgrowth_plots_dirs_to_check():
 
 def _allowed_codes_path(cohort: str, age_band: str) -> Path:
     age_fname = age_band.replace("-", "_")
-    return VISUAL_ROOT / "bupar" / "outputs" / f"allowed_codes_shap_ffa_{cohort}_{age_fname}.json"
+    return VISUAL_ROOT / "bupar" / f"allowed_codes_shap_ffa_{cohort}_{age_fname}.json"
 
 
 def _model_events_path(cohort: str, age_band: str) -> Path:
@@ -166,7 +166,7 @@ class TestBupaRVisualsOutputs(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, f"BupaR failed: {r.stderr or r.stdout}")
         age_fname = age_band.replace("-", "_")
-        plots_dir = VISUAL_ROOT / "bupar" / "outputs" / cohort / age_fname / "plots"
+        plots_dir = VISUAL_ROOT / "bupar" / cohort / age_fname / "plots"
         self.assertTrue(plots_dir.exists(), f"Plots dir should exist: {plots_dir}")
         pngs = list(plots_dir.glob("*.png"))
         htmls = list(plots_dir.glob("*.html"))
@@ -208,7 +208,7 @@ class TestDTWVisualsOutputs(unittest.TestCase):
             )
             if r1.returncode != 0:
                 self.skipTest(f"DTW trajectories failed: {r1.stderr[:400]}")
-        csv_path = VISUAL_ROOT / "dtw" / "outputs" / "feature_engineering" / f"dtw_features_{cohort}_{age_fname}.csv"
+        csv_path = VISUAL_ROOT / "dtw" / "feature_engineering" / f"dtw_features_{cohort}_{age_fname}.csv"
         if not csv_path.exists():
             self.skipTest("DTW features CSV not produced")
         vis_script = STEP9 / "dtw" / "create_dtw_visuals.py"
@@ -222,7 +222,7 @@ class TestDTWVisualsOutputs(unittest.TestCase):
             timeout=120,
         )
         self.assertEqual(r2.returncode, 0, f"DTW visuals failed: {r2.stderr or r2.stdout}")
-        plots_dir = VISUAL_ROOT / "dtw" / "outputs" / cohort / age_fname / "plots"
+        plots_dir = VISUAL_ROOT / "dtw" / cohort / age_fname / "plots"
         self.assertTrue(plots_dir.exists(), f"DTW plots dir should exist: {plots_dir}")
         files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.json"))
         self.assertGreater(len(files), 0, f"DTW should produce .png or .json in {plots_dir}")
@@ -263,7 +263,7 @@ class TestFPGrowthVisualsOutputs(unittest.TestCase):
         if r.returncode != 0:
             self.skipTest(f"FP-Growth failed: {r.stderr[:400]}")
         age_fname = age_band.replace("-", "_")
-        plots_dir = VISUAL_ROOT / "fpgrowth" / "outputs" / cohort / age_fname / "plots"
+        plots_dir = VISUAL_ROOT / "fpgrowth" / cohort / age_fname / "plots"
         if plots_dir.exists():
             files = list(plots_dir.glob("*.png")) + list(plots_dir.glob("*.html"))
             self.assertGreater(len(files), 0, f"FP-Growth should produce .png or .html in {plots_dir}")
