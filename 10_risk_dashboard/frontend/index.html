@@ -2614,7 +2614,7 @@
       if (hmResp.ok) {
         data.sequence_heatmap = await hmResp.json();
       }
-      // Pattern: JSON where able for Plotly, PNG only as fallback (from API). Use manifest URL for trajectory_overview_plot when present.
+      // Pattern: JSON where able for Plotly, PNG only as fallback. Try manifest/static URL first; if 404, get trajectory_overview_plot from API (Lambda reads from S3).
       if (!data.trajectory_overview_plot) {
         const plotJsonUrl = trajectoryPlotJsonUrl || (dtwBasePath ? ((dtwBasePath.indexOf("/") === 0 || dtwBasePath.indexOf("http") === 0) ? dtwBasePath.replace(/\/?$/, "") + "/plots/trajectory_overview_plot.json" : staticJsonPath(dtwBasePath + "/plots/trajectory_overview_plot.json")) : null);
         if (plotJsonUrl) {
@@ -2626,8 +2626,20 @@
             }
           } catch (_) { /* optional */ }
         }
+        // When static URL 404s (file not synced to S3), API may still have it (Lambda inlines from S3 when small)
+        if (!data.trajectory_overview_plot && (data.chart_data || data.sequence_heatmap)) {
+          try {
+            const apiResp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+            if (apiResp.ok) {
+              const apiData = await apiResp.json();
+              if (apiData.trajectory_overview_plot) data.trajectory_overview_plot = apiData.trajectory_overview_plot;
+              if (apiData.overview_interactive) data.overview_interactive = apiData.overview_interactive;
+              if (apiData.overview_image) data.overview_image = apiData.overview_image;
+              if (apiData.sample_trajectories_image) data.sample_trajectories_image = apiData.sample_trajectories_image;
+            }
+          } catch (_) { /* optional */ }
+        }
       }
-      // Overview/sample PNG URLs only from API when objects exist on S3; do not synthesize to avoid 404s.
       // Fallback: API when static chart_data missing
       if (!data.chart_data && !data.sequence_heatmap) {
         const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
