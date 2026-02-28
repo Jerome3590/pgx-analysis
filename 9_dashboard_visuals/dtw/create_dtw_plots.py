@@ -494,6 +494,9 @@ def create_trajectory_cluster_plots(
     except Exception:
         pass
 
+    if written:
+        names = [p.name for p in written]
+        print(f"[INFO] DTW plots successful: {names}")
     return written
 
 

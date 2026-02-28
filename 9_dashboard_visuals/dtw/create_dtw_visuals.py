@@ -30,7 +30,7 @@ import sys
 import tempfile
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -159,15 +159,18 @@ def create_dtw_visuals(
     _log("info", "Loaded %d patients with %d DTW features", len(dtw_df), len(dtw_df.columns) - 1)
 
     # Create 3D/1D trajectory cluster plots (Plotly) then upload plots to dashboard bucket
+    plot_written: List[str] = []
     try:
         from create_dtw_plots import create_trajectory_cluster_plots
-        create_trajectory_cluster_plots(
+        written_paths = create_trajectory_cluster_plots(
             project_root=project_root,
             cohort_name=cohort_name,
             age_band=age_band,
             dtw_df=dtw_df,
             force=force,
         )
+        if written_paths:
+            plot_written = [p.name for p in written_paths]
         # API/frontend expect these filenames (lambda_function.py, index.html)
         plots_dir = _dtw_output_root(project_root) / cohort_name / age_band_fname / "plots"
         overview_name = f"dtw_trajectory_analysis_{cohort_name}_{age_band_fname}.png"
@@ -180,6 +183,7 @@ def create_dtw_visuals(
                     dest = plots_dir / name
                     if dest != src:
                         shutil.copy2(src, dest)
+                        plot_written.append(name)
                         _log("info", "Wrote %s for API overview/sample URLs", name)
     except Exception as e:
         _log("warning", "DTW trajectory cluster plots failed: %s", e)
@@ -225,6 +229,10 @@ def create_dtw_visuals(
     except Exception as exc:  # pragma: no cover
         _log("warning", "Could not save pipeline checkpoint: %s", exc)
 
+    successful = ["chart_data.json", "sequence_heatmap.json"]
+    if plot_written:
+        successful.append("plots: " + ", ".join(plot_written))
+    _log("info", "DTW visuals successful: %s", successful)
     _log("info", "DTW artifacts (EC2): chart_data=%s ; sequence_heatmap=%s ; plots_dir=%s", chart_path, heatmap_path, plots_dir)
     _log("info", "Done.")
     _log("info", "DTW visuals complete. Plots and chart_data uploaded to dashboard S3: trajectory cluster plots (3D/1D), chart_data.json, sequence_heatmap.json. CSV files not uploaded; dashboard uses plots only.")
