@@ -46,8 +46,8 @@
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/fpgrowth",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/",
-      "notes": "{cohort}/{age_band_fname}/plots/, data/; uploaded by 4_dashboard_visuals",
-      "static_files": ["data/drug_name_itemsets.json", "plots/empty_state.json"]
+      "notes": "{cohort}/{age_band_fname}/: drug_name_*.json at root, plots/*.html, *.png; Step 6 sync",
+      "static_files": ["drug_name_itemsets.json", "plots/{base}_combined_rules_network.html", "plots/{base}_drug_name_combined_top_itemsets.png"]
     },
     {
       "visual_name": "Cohort PGx network topology",
