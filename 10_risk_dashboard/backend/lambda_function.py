@@ -75,6 +75,9 @@ USE_CONTAINER_MODELS = os.path.exists(MODEL_BASE_PATH)
 _model_cache: Dict[str, Dict[str, Any]] = {}
 _cache_timestamps: Dict[str, float] = {}
 
+# Dashboard manifest cache (single source of truth for viz paths; same JSON the frontend loads)
+_dashboard_manifest: Optional[Dict[str, Any]] = None
+
 s3_client = boto3.client("s3")
 
 
@@ -88,6 +91,22 @@ def _s3_object_exists(bucket: str, key: str) -> bool:
         code = e.response.get("Error", {}).get("Code")
         if code in ("404", "NoSuchKey", "403", "AccessDenied"):
             return False
+        raise
+
+
+def _get_dashboard_manifest() -> Optional[Dict[str, Any]]:
+    """Load dashboard_visual_objects.json from S3 (same manifest the frontend uses). Cached in memory."""
+    global _dashboard_manifest
+    if _dashboard_manifest is not None:
+        return _dashboard_manifest
+    key = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/dashboard_visual_objects.json"
+    try:
+        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
+        _dashboard_manifest = json.loads(obj["Body"].read().decode("utf-8"))
+        return _dashboard_manifest
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "403", "AccessDenied"):
+            return None
         raise
 
 
@@ -1470,6 +1489,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
     them inline (chart_data, sequence_heatmap) so the frontend can render without a second request
     and works even when bucket is not public. Also returns chart_data_url and sequence_heatmap_url
     for fallback. Overview/sample images: only included if objects exist (HEAD check).
+    Uses dashboard_visual_objects.json (manifest) when available so API and frontend share the same paths.
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1480,20 +1500,46 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/dtw/{cohort}/{age_band}"
+        prefix: Optional[str] = None
+        chart_data_key: Optional[str] = None
+        sequence_heatmap_key: Optional[str] = None
+
+        # Prefer manifest: use full path from s3_path + static_files (single source of truth)
+        manifest = _get_dashboard_manifest()
+        if manifest:
+            visual_objects = manifest.get("visual_objects") or []
+            dtw_entry = next(
+                (o for o in visual_objects if (o.get("dashboard_tab") or "") == "DTW Trajectories"),
+                None,
+            )
+            if dtw_entry and dtw_entry.get("s3_path") and dtw_entry.get("static_files"):
+                s3_path = (dtw_entry["s3_path"] or "").rstrip("/")
+                prefix = s3_path.replace("{cohort}", cohort).replace("{age_band}", age_band)
+                static_files = dtw_entry["static_files"]
+                if len(static_files) >= 2:
+                    chart_data_key = f"{prefix}/{static_files[0]}"
+                    sequence_heatmap_key = f"{prefix}/{static_files[1]}"
+
+        if prefix is None:
+            prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/dtw/{cohort}/{age_band}"
+        if chart_data_key is None:
+            chart_data_key = f"{prefix}/chart_data.json"
+        if sequence_heatmap_key is None:
+            sequence_heatmap_key = f"{prefix}/sequence_heatmap.json"
+
         plots_key = f"{prefix}/plots"
         bucket = S3_DASHBOARD_BUCKET
 
         payload = {
-            "chart_data_url": _dashboard_s3_url(f"{prefix}/chart_data.json"),
-            "sequence_heatmap_url": _dashboard_s3_url(f"{prefix}/sequence_heatmap.json"),
+            "chart_data_url": _dashboard_s3_url(chart_data_key),
+            "sequence_heatmap_url": _dashboard_s3_url(sequence_heatmap_key),
             "metrics": {},
         }
 
-        # Prefer JSON: load chart_data and sequence_heatmap from S3 when present (one round-trip, works without public read)
+        # Prefer JSON: load chart_data and sequence_heatmap from S3 (full path from manifest when available)
         for key, s3_key in [
-            ("chart_data", f"{prefix}/chart_data.json"),
-            ("sequence_heatmap", f"{prefix}/sequence_heatmap.json"),
+            ("chart_data", chart_data_key),
+            ("sequence_heatmap", sequence_heatmap_key),
         ]:
             try:
                 obj = s3_client.get_object(Bucket=bucket, Key=s3_key)
@@ -1753,8 +1799,8 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /visualizations/bupar?cohort=...&age_band=...
     Returns HTTPS URLs only for BupaR plot objects that exist in S3 (HEAD check).
-    S3 key pattern (must include "visualizations"): {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/
-    Example: vcu/pgx-risk-calculator/visualizations/bupar/opioid_ed/45-54/plots/opioid_ed_45_54_*.png
+    Uses dashboard_visual_objects.json (manifest) when available so API and frontend share the same paths.
+    Fallback: S3 key pattern {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -1765,41 +1811,81 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         age_band_fname = age_band.replace("-", "_")
-        # Key must include "visualizations" (sync/deploy uses this path; do not use .../bupar/... without it)
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
-        base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
         base = f"{cohort}_{age_band_fname}"
-
-        # RQ-only artifact keys (RESEARCH_QUESTIONS_ARTIFACTS.md). Do not request archived artifacts.
-        # URLs for PNG fallbacks; frontend prefers full JSON (activity_frequency API, trace_explorer_plot, etc.) with filters
-        candidates: List[Tuple[str, str]] = [
-            ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
-            ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
-            ("sequence_image", f"{base_key}/{base}_activity_sequence_top.png"),
-            ("trace_explorer_pre_image", f"{base_key}/{base}_trace_explorer_{pre_suffix}.png"),
-            ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"),
-        ]
+        pre_suffix = "pre_f1120" if cohort == "opioid_ed" else "pre_hcg"
 
         payload: Dict[str, Any] = {}
-        for payload_key, s3_key in candidates:
-            if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
-                payload[payload_key] = _dashboard_s3_url(s3_key)
+        base_key: Optional[str] = None
 
-        # Prefer JSON for frontend Plotly/Chart: load trace_explorer_plot, process_matrix_drug_drug, activity_sequence_top when present
-        for key, s3_key in [
-            ("trace_explorer_plot", f"{base_key}/{base}_trace_explorer_plot.json"),
-            ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.json"),
-            ("activity_sequence_top", f"{base_key}/{base}_activity_sequence_top.json"),
-        ]:
-            try:
-                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=s3_key)
-                payload[key] = json.loads(obj["Body"].read().decode("utf-8"))
-            except ClientError as e:
-                if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
-                    raise
-            except (json.JSONDecodeError, TypeError):
-                pass
+        # Prefer manifest: use full path from s3_path + static_files (single source of truth)
+        manifest = _get_dashboard_manifest()
+        if manifest:
+            visual_objects = manifest.get("visual_objects") or []
+            bupar_entry = next(
+                (o for o in visual_objects if (o.get("dashboard_tab") or "") == "BupaR Process Mining"),
+                None,
+            )
+            if bupar_entry and bupar_entry.get("s3_path") and bupar_entry.get("static_files"):
+                s3_path = (bupar_entry["s3_path"] or "").rstrip("/")
+                base_key = s3_path.replace("{cohort}", cohort).replace("{age_band}", age_band)
+                static_files = [f.replace("{base}", base) for f in bupar_entry["static_files"]]
+                # Payload key by manifest static_files index (order must match manifest)
+                # 6=overall_activity_frequency, 7=activity_sequence_top, 8=process_matrix_drug_drug,
+                # 9=pre_f1120_activity_frequency, 10=pre_hcg_activity_frequency,
+                # 11=trace_explorer_pre_f1120, 12=trace_explorer_pre_hcg
+                image_indices = [
+                    ("activity_frequency_image", 6),
+                    ("sequence_image", 7),
+                    ("process_matrix_drug_drug", 8),
+                    ("pre_target_frequency_image", 9 if cohort == "opioid_ed" else 10),
+                    ("trace_explorer_pre_image", 11 if cohort == "opioid_ed" else 12),
+                ]
+                for payload_key, idx in image_indices:
+                    if idx < len(static_files):
+                        s3_key = f"{base_key}/{static_files[idx]}"
+                        if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
+                            payload[payload_key] = _dashboard_s3_url(s3_key)
+                # JSON from manifest static_files indices 3, 4, 5
+                for payload_key, idx in [("trace_explorer_plot", 3), ("process_matrix_drug_drug", 4), ("activity_sequence_top", 5)]:
+                    if idx < len(static_files):
+                        s3_key = f"{base_key}/{static_files[idx]}"
+                        try:
+                            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=s3_key)
+                            payload[payload_key] = json.loads(obj["Body"].read().decode("utf-8"))
+                        except ClientError as e:
+                            if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
+                                raise
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
+        # Fallback when manifest missing or no BupaR entry: hardcoded paths (must match manifest layout)
+        if base_key is None:
+            prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
+            base_key = f"{prefix}/{cohort}/{age_band}/plots"
+            candidates: List[Tuple[str, str]] = [
+                ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
+                ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
+                ("sequence_image", f"{base_key}/{base}_activity_sequence_top.png"),
+                ("trace_explorer_pre_image", f"{base_key}/{base}_trace_explorer_{pre_suffix}.png"),
+                ("process_matrix_drug_drug", f"{base_key}/{base}_process_matrix_drug_drug.png"),
+            ]
+            for payload_key, s3_key in candidates:
+                if _s3_object_exists(S3_DASHBOARD_BUCKET, s3_key):
+                    payload[payload_key] = _dashboard_s3_url(s3_key)
+            for key, json_file in [
+                ("trace_explorer_plot", f"{base}_trace_explorer_plot.json"),
+                ("process_matrix_drug_drug", f"{base}_process_matrix_drug_drug.json"),
+                ("activity_sequence_top", f"{base}_activity_sequence_top.json"),
+            ]:
+                s3_key = f"{base_key}/{json_file}"
+                try:
+                    obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=s3_key)
+                    payload[key] = json.loads(obj["Body"].read().decode("utf-8"))
+                except ClientError as e:
+                    if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
+                        raise
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
         return _response(200, payload)
     except Exception as e:
