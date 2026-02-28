@@ -2694,24 +2694,26 @@
       const prefix = cohort + "_" + ageBandFname;
       const manifest = await getDashboardManifest().catch(function() { return null; });
       let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
-      // S3 sync puts drug_name_itemsets.json at root (not data/); try root first, then data/ for backward compatibility
       let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json");
-      let emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json");
+      const emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json"); // not in manifest; fallback only
+      let manifestNetworkHtml = null;
+      let manifestItemsetsPng = null;
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "FP-Growth Patterns");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
           if (built.basePath) fgBasePath = built.basePath;
           if (built.urls[0]) itemsetsJsonUrl = built.urls[0];
-          if (built.urls[1]) emptyStateUrl = built.urls[1];
+          if (built.urls.length >= 2) manifestNetworkHtml = built.urls[1];
+          if (built.urls.length >= 3) manifestItemsetsPng = built.urls[2];
         }
       }
       const fgBase = fgBasePath.indexOf("/") === 0 || fgBasePath.indexOf("http") === 0 ? fgBasePath.replace(/\/?$/, "") : staticJsonPath(fgBasePath);
       const plotsBase = fgBase + (fgBase.slice(-1) === "/" ? "" : "/") + "plots/";
       let data = {
-        network_combined_html: plotsBase + prefix + "_combined_rules_network.html",
-        itemsets_image: plotsBase + prefix + "_drug_name_combined_top_itemsets.png",
-        support_image: plotsBase + prefix + "_drug_name_combined_top_itemsets.png",
+        network_combined_html: manifestNetworkHtml != null ? manifestNetworkHtml : (plotsBase + prefix + "_combined_rules_network.html"),
+        itemsets_image: manifestItemsetsPng != null ? manifestItemsetsPng : (plotsBase + prefix + "_drug_name_combined_top_itemsets.png"),
+        support_image: manifestItemsetsPng != null ? manifestItemsetsPng : (plotsBase + prefix + "_drug_name_combined_top_itemsets.png"),
         network_html: plotsBase + prefix + "_drug_name_target_rules_network.html",
         network_png: plotsBase + prefix + "_drug_name_target_rules_network.png",
         itemsets_interactive: plotsBase + prefix + "_drug_name_itemsets_interactive.html",
@@ -2817,12 +2819,19 @@
         staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_pre_target_activity_frequency.json"),
         staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_post_target_activity_frequency.json")
       ];
+      let jsonUrls = [
+        baseUrl + "/" + base + "_trace_explorer_plot.json",
+        baseUrl + "/" + base + "_process_matrix_drug_drug.json",
+        baseUrl + "/" + base + "_activity_sequence_top.json"
+      ];
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "BupaR Process Mining");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
           if (built.basePath) baseUrl = built.basePath;
           if (built.urls.length >= 3) freqUrls = [built.urls[0], built.urls[1], built.urls[2]];
+          // Use manifest URLs for trace_explorer_plot, process_matrix_drug_drug, activity_sequence_top (static_files indices 3,4,5)
+          if (built.urls.length >= 6) jsonUrls = [built.urls[3], built.urls[4], built.urls[5]];
         }
       }
       let data = {
@@ -2847,11 +2856,6 @@
         }
       }
       const hasStaticFreq = freqData && (freqData.overall || freqData.pre_target || freqData.post_target);
-      const jsonUrls = [
-        baseUrl + "/" + base + "_trace_explorer_plot.json",
-        baseUrl + "/" + base + "_process_matrix_drug_drug.json",
-        baseUrl + "/" + base + "_activity_sequence_top.json"
-      ];
       const [traceResp, matrixResp, seqResp] = await Promise.all(jsonUrls.map(u => fetch(u)));
       if (traceResp.ok) {
         try { data.trace_explorer_plot = await traceResp.json(); } catch (_) {}
@@ -2946,12 +2950,19 @@
         ? "visualizations/feature_importance/combined/aggregated_fi_heatmap.json"
         : "visualizations/feature_importance/" + cohort + "/aggregated_fi_heatmap.json";
       let staticUrl = staticJsonPath(fiJsonPath);
+      let heatmapPngUrlFromManifest = null;
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "Feature Importance", cohort);
         if (entry) {
           const built = buildStaticUrls(entry, cohort === "combined" ? "" : cohort, "", staticJsonPath);
-          const jsonUrl = built.urls && built.urls.find ? built.urls.find(function(u) { return u && u.indexOf(".json") !== -1; }) : null;
-          if (jsonUrl) staticUrl = jsonUrl;
+          // Manifest static_files order: [json, png]
+          if (built.urls && built.urls.length >= 1) {
+            const jsonUrl = built.urls.find(function(u) { return u && u.indexOf(".json") !== -1; }) || built.urls[0];
+            staticUrl = jsonUrl;
+          }
+          if (built.urls && built.urls.length >= 2) {
+            heatmapPngUrlFromManifest = built.urls.find(function(u) { return u && u.indexOf(".png") !== -1; }) || built.urls[1];
+          }
         }
       }
       const staticResp = await fetch(staticUrl);
@@ -2960,7 +2971,7 @@
         // Normalize: same-origin returns raw heatmap JSON; envelope like API for consistent handling below
         data = { heatmap_data: raw };
         const pngPath = fiJsonPath.replace(/\.json$/i, ".png");
-        data.heatmap_url = staticJsonPath(pngPath);
+        data.heatmap_url = heatmapPngUrlFromManifest != null ? heatmapPngUrlFromManifest : staticJsonPath(pngPath);
       }
       if (!data) {
         const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
