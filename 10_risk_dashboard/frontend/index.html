@@ -2571,6 +2571,7 @@
       let data = {};
       const ageBandFname = ageBand.replace(/-/g, "_");
       const manifest = await getDashboardManifest().catch(function() { return null; });
+      // Same manifest pattern as BupaR: defaults first, then override from manifest (buildStaticUrls)
       let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
       let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
       let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
@@ -2578,8 +2579,8 @@
         const entry = getManifestEntryByTab(manifest, "DTW Trajectories");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
-          if (built.urls[0]) chartUrl = built.urls[0];
-          if (built.urls[1]) heatmapUrl = built.urls[1];
+          if (built.urls.length >= 1) chartUrl = built.urls[0];
+          if (built.urls.length >= 2) heatmapUrl = built.urls[1];
           if (built.basePath) dtwBasePath = built.basePath;
         }
       }
@@ -3680,7 +3681,8 @@
           }
         }
         if (typeof tracePngUrl === 'string' && tracePngUrl) {
-          el.innerHTML = '<img src="' + tracePngUrl + '" style="max-width: 100%;" onerror="this.parentElement.innerHTML=\\"<p class=\\"status-message\\" style=\\"margin:0;\\">Image not found.</p>\\";" />';
+          el.innerHTML = '<img src="' + tracePngUrl + '" style="max-width: 100%;" alt="" />';
+          el.querySelector('img').onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
           continue;
         }
         el.innerHTML = '<p class="status-message" style="margin:0;">Trace Explorer not available. Run the BupaR pipeline for this cohort/age band.</p>';
@@ -3734,7 +3736,8 @@
         el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available. Run the BupaR pipeline for this cohort/age band.</p>';
         continue;
       }
-      el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" onerror="this.parentElement.innerHTML=\\"<p class=\\"status-message\\" style=\\"margin:0;\\">Image not found.</p>\\";" />';
+      el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" alt="" />';
+      el.querySelector('img').onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
     }
     for (const visualKey of BUPAR_VISUAL_KEYS_INDEX.map(v => v.key)) {
       if (keys.includes(visualKey)) continue;
