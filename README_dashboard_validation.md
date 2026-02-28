@@ -43,6 +43,7 @@ After deploy, verify S3 against the manifest using [10_risk_dashboard/docs/S3_VE
 - [ ] **S3 URLs:** All visualization asset URLs are **path-style** (`https://s3.{region}.amazonaws.com/{bucket}/{prefix}/...`). No virtual-hosted style. Base URL / prefix come from config or manifest.
 - [ ] **API:** Risk, metadata, and visualization fallback use the same `API_BASE` and endpoints as in [backend/README.md](10_risk_dashboard/backend/README.md).
 - [ ] **Manifest:** After Step 6, `visualizations/dashboard_visual_objects.json` is present on S3 and its `static_files` and `s3_path` entries match what the frontend requests.
+- [ ] **JSON-first panels:** Any panel with a JSON artifact in the manifest uses it first (Plotly or data), PNG/image fallback only. Check: Feature Importance (JSON then PNG), FP-Growth Top Itemsets and Itemset Support Distribution (drug_name_itemsets.json then PNG), BupaR per manifest notes.
 - [ ] **Sync exclusions:** Step 6 does not upload `.ipynb_checkpoints`, `*checkpoint*`, or `Rplots.pdf`; see “Manifest-first and S3 sync” above.
 
 ---
