@@ -1417,7 +1417,12 @@
     let p = entry.s3_path.replace(new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "").replace(/^\//, "");
     // Ensure we never return a path that starts with the prefix (avoids double prefix when staticJsonPath prepends pathname)
     if (prefix.length > 0 && p.indexOf(prefix) === 0) p = p.slice(prefix.length);
-    if (p.indexOf("{cohort}") === -1 && p.indexOf("{age_band}") === -1)
+    // When we have static_files, base must be a directory. Strip trailing filename if present.
+    if (entry.static_files && entry.static_files.length) {
+      const lastSegment = p.replace(/\/$/, "").split("/").pop() || "";
+      if (lastSegment && lastSegment.indexOf("{") === -1 && /\.(json|png|html?|pdf)$/i.test(lastSegment))
+        p = p.replace(/\/[^/]+$/, "");
+    } else if (p.indexOf("{cohort}") === -1 && p.indexOf("{age_band}") === -1)
       p = p.replace(/\/[^/]+$/, "");
     return p.replace(/\/$/, "");
   }
