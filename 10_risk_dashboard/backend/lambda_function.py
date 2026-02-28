@@ -1601,6 +1601,13 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         except (json.JSONDecodeError, TypeError):
             pass
 
+        # When no trajectory overview on S3, still return a JSON message so the dashboard can show it (no 404)
+        if not payload.get("trajectory_overview_plot"):
+            payload["trajectory_overview_plot"] = {
+                "message": "No trajectory overview for this cohort/age band. Run create_dtw_visuals (notebook 4) and sync to S3 (notebook 5 Step 6).",
+                "empty": True,
+            }
+
         # Fallback: image URLs when Plotly JSON not present (avoid broken image when pipeline not run)
         overview_key = f"{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png"
         sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"

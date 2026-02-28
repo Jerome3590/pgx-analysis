@@ -2591,8 +2591,7 @@
           if (built.urls.length >= 1) chartUrl = built.urls[0];
           if (built.urls.length >= 2) heatmapUrl = built.urls[1];
           if (built.urls.length >= 3) trajectoryPlotJsonUrl = built.urls[2]; // plots/trajectory_overview_plot.json
-          if (built.urls.length >= 4) data.overview_image = built.urls[3];   // plots/dtw_trajectory_analysis_{base}.png from S3
-          if (built.urls.length >= 5) data.sample_trajectories_image = built.urls[4]; // plots/dtw_sample_trajectories_{base}.png from S3
+          // Do not set overview_image/sample_trajectories_image from manifest: PNGs are optional (pipeline may only write HTML + trajectory_overview_plot.json). Use API fallback when static JSON 404s so we only set image URLs when they exist on S3.
           if (built.basePath) dtwBasePath = built.basePath;
         }
       }
@@ -2633,6 +2632,8 @@
             if (apiResp.ok) {
               const apiData = await apiResp.json();
               if (apiData.trajectory_overview_plot) data.trajectory_overview_plot = apiData.trajectory_overview_plot;
+              if (apiData.chart_data && !data.chart_data) data.chart_data = apiData.chart_data;
+              if (apiData.sequence_heatmap && !data.sequence_heatmap) data.sequence_heatmap = apiData.sequence_heatmap;
               if (apiData.overview_interactive) data.overview_interactive = apiData.overview_interactive;
               if (apiData.overview_image) data.overview_image = apiData.overview_image;
               if (apiData.sample_trajectories_image) data.sample_trajectories_image = apiData.sample_trajectories_image;
@@ -2690,7 +2691,7 @@
         dtwSelected.push(...getDTWVisualSelection(cohort));
       }
       renderDTWVisualizations(data, densityFilter, dtwSelected.length ? dtwSelected : undefined);
-      const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message);
+      const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message) || (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message);
       document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
     } catch (err) {
@@ -3307,6 +3308,8 @@
         overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
+      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
+        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">' + (data.trajectory_overview_plot.message || 'No trajectory overview for this cohort/age band.') + '</p>';
       } else if (data.overview_image) {
         overviewEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.overview_image) + '" style="max-width: 100%;" alt="" />';
         var _img = overviewEl.querySelector('img');
@@ -3327,6 +3330,8 @@
         sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-sample-plot', fig.data, fig.layout || {}, fig.config || {});
+      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
+        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">' + (data.trajectory_overview_plot.message || 'No sample trajectories for this cohort/age band.') + '</p>';
       } else if (data.sample_trajectories_image) {
         sampleEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.sample_trajectories_image) + '" style="max-width: 100%;" alt="" />';
         var _img = sampleEl.querySelector('img');
