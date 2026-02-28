@@ -1,6 +1,14 @@
 {
   "repo_root": "",
   "s3_prefix": "vcu/pgx-risk-calculator",
+  "manifest_version": "1.0",
+  "description": "Single source of truth for dashboard tab → S3 paths and static files. Frontend loads this first and builds static URLs from s3_path + static_files. API fallback when objects are missing.",
+  "metadata_files": [
+    "metadata/model_performance_metrics.json",
+    "metadata/opioid_ed.json",
+    "metadata/non_opioid_ed.json"
+  ],
+  "metadata_notes": "Required for Documentation tab (metrics) and cohort/drug/ICD/CPT dropdowns. Step 6 uploads these under prefix.",
   "visual_objects": [
     {
       "visual_name": "Feature importance heatmap (per cohort)",
@@ -8,7 +16,7 @@
       "path_type": "file_pattern",
       "path": "10_risk_dashboard/visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png",
-      "notes": "per cohort; notebook 4 copies from 3a; notebook 5 uploads from visualizations/feature_importance",
+      "notes": "Per cohort; notebook 4 copies from 3a; notebook 5 uploads from visualizations/feature_importance.",
       "static_files": ["aggregated_fi_heatmap.json", "aggregated_fi_heatmap.png"],
       "cohort_scope": "per_cohort"
     },
@@ -18,7 +26,7 @@
       "path_type": "file",
       "path": "10_risk_dashboard/visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png",
-      "notes": "combined cohorts; notebook 4 copies from 3a",
+      "notes": "Combined cohorts; notebook 4 copies from 3a.",
       "static_files": ["combined/aggregated_fi_heatmap.json", "combined_cohorts_feature_importance_heatmap.png"],
       "cohort_scope": "combined"
     },
@@ -28,17 +36,39 @@
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/bupar",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/bupar/{cohort}/{age_band}/plots/",
-      "notes": "{cohort}/{age_band_fname}/plots/; uploaded by 4_dashboard_visuals",
-      "static_files": ["{base}_activity_frequency.json", "{base}_pre_target_activity_frequency.json", "{base}_post_target_activity_frequency.json", "{base}_trace_explorer_plot.json", "{base}_process_matrix_drug_drug.json", "{base}_activity_sequence_top.json", "{base}_overall_activity_frequency.png", "{base}_activity_sequence_top.png", "{base}_process_matrix_drug_drug.png", "{base}_pre_f1120_activity_frequency.png", "{base}_pre_hcg_activity_frequency.png", "{base}_trace_explorer_pre_f1120.png", "{base}_trace_explorer_pre_hcg.png", "{base}_trace_explorer_post_f1120.png", "{base}_trace_explorer_post_hcg.png"]
+      "notes": "{base}={cohort}_{age_band_fname}. JSON + Plotly first for Trace Explorer, Trace Explorer Pre-Target, Process Matrix, Sequences to Target, activity frequency; PNG fallback. Uploaded by 4_dashboard_visuals.",
+      "static_files": [
+        "{base}_activity_frequency.json",
+        "{base}_pre_target_activity_frequency.json",
+        "{base}_post_target_activity_frequency.json",
+        "{base}_trace_explorer_plot.json",
+        "{base}_process_matrix_drug_drug.json",
+        "{base}_activity_sequence_top.json",
+        "{base}_overall_activity_frequency.png",
+        "{base}_activity_sequence_top.png",
+        "{base}_process_matrix_drug_drug.png",
+        "{base}_pre_f1120_activity_frequency.png",
+        "{base}_pre_hcg_activity_frequency.png",
+        "{base}_trace_explorer_pre_f1120.png",
+        "{base}_trace_explorer_pre_hcg.png",
+        "{base}_trace_explorer_post_f1120.png",
+        "{base}_trace_explorer_post_hcg.png"
+      ]
     },
     {
-      "visual_name": "DTW chart_data.json + sequence_heatmap + plots",
+      "visual_name": "DTW chart_data and sequence_heatmap and plots",
       "dashboard_tab": "DTW Trajectories",
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/dtw",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/dtw/{cohort}/{age_band}/",
-      "notes": "{cohort}/{age_band_fname}/chart_data.json, sequence_heatmap.json, plots/; uploaded by 4_dashboard_visuals",
-      "static_files": ["chart_data.json", "sequence_heatmap.json", "plots/trajectory_overview_plot.json", "plots/dtw_trajectory_analysis_{base}.png", "plots/dtw_sample_trajectories_{base}.png"]
+      "notes": "{base}={cohort}_{age_band_fname}. chart_data.json, sequence_heatmap.json, plots/trajectory_overview_plot.json; optional plots/dtw_trajectory_cluster_*_*.html discovered by API for overview_interactive. Uploaded by 4_dashboard_visuals.",
+      "static_files": [
+        "chart_data.json",
+        "sequence_heatmap.json",
+        "plots/trajectory_overview_plot.json",
+        "plots/dtw_trajectory_analysis_{base}.png",
+        "plots/dtw_sample_trajectories_{base}.png"
+      ]
     },
     {
       "visual_name": "FP-Growth itemsets and drug network",
@@ -46,8 +76,13 @@
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/fpgrowth",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/",
-      "notes": "{cohort}/{age_band_fname}/: drug_name_*.json at root, plots/*.html, *.png; Step 6 sync",
-      "static_files": ["drug_name_itemsets.json", "plots/{base}_combined_rules_network.html", "plots/{base}_drug_name_combined_top_itemsets.png"]
+      "notes": "{base}={cohort}_{age_band_fname}. drug_name_itemsets.json at root; plots: network HTML, itemsets PNG. plots/empty_state.json when pipeline finds no rules. Step 6 sync.",
+      "static_files": [
+        "drug_name_itemsets.json",
+        "plots/{base}_combined_rules_network.html",
+        "plots/{base}_drug_name_combined_top_itemsets.png",
+        "plots/empty_state.json"
+      ]
     },
     {
       "visual_name": "Cohort PGx network topology",
@@ -55,7 +90,7 @@
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/cohort_pgx/networks",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/cohort_pgx/networks/{cohort}/{age_band}/",
-      "notes": "EC2 {age_band_fname}; Step 6 sync_cohort_pgx_to_s3 → S3 hyphen",
+      "notes": "EC2 age_band_fname; Step 6 sync_cohort_pgx_to_s3 → S3 hyphen.",
       "static_files": ["network_topology.html"]
     },
     {
@@ -64,7 +99,7 @@
       "path_type": "file_pattern",
       "path": "10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/causal/{cohort}/{age_band}/causal_data.json",
-      "notes": "upload_causal_outputs_to_s3 → visualizations/causal/ (S3 hyphen)",
+      "notes": "upload_causal_outputs_to_s3 → visualizations/causal/ (S3 hyphen). One file per cohort/age_band.",
       "static_files": ["causal_data.json"]
     }
   ]
