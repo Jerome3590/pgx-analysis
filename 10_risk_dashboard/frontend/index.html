@@ -2694,7 +2694,8 @@
       const prefix = cohort + "_" + ageBandFname;
       const manifest = await getDashboardManifest().catch(function() { return null; });
       let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
-      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json");
+      // S3 sync puts drug_name_itemsets.json at root (not data/); try root first, then data/ for backward compatibility
+      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json");
       let emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json");
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "FP-Growth Patterns");
