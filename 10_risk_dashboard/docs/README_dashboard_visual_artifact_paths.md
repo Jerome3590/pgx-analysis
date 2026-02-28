@@ -139,8 +139,8 @@ These paths match what the **frontend** expects when using **static-first** load
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| FP-Growth Patterns | Top Itemsets | `{base}_drug_name_combined_top_itemsets.png`, `drug_name_itemsets.json` | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `.../data/drug_name_itemsets.json` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_drug_name_combined_top_itemsets.png`, `fpgrowth/{cohort}/{age_band}/data/drug_name_itemsets.json` |
-| FP-Growth Patterns | Itemset Support Distribution | (same itemsets data) | (same) | (same) |
+| FP-Growth Patterns | Top Itemsets | `drug_name_itemsets.json` (JSON first, Plotly), `{base}_drug_name_combined_top_itemsets.png` (fallback) | `.../drug_name_itemsets.json`, `.../plots/{base}_drug_name_combined_top_itemsets.png` | `fpgrowth/{cohort}/{age_band}/drug_name_itemsets.json`, `fpgrowth/{cohort}/{age_band}/plots/{base}_*.png` |
+| FP-Growth Patterns | Itemset Support Distribution | Same: `drug_name_itemsets.json` first (Plotly), PNG fallback | (same) | (same) |
 | FP-Growth Patterns | Drug Association Network | `{base}_combined_rules_network.html` | `.../plots/{cohort}_{age_band_fname}_combined_rules_network.html` | `fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band_fname}_combined_rules_network.html` |
 
 ---

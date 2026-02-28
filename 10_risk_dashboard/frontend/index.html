@@ -3581,14 +3581,49 @@
         itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data. Run pipeline and upload itemsets JSON, or use image URL.</p>";
       }
     }
-    // Support image (fallback; itemsets JSON covers the main chart)
-    if (data.support_image) {
-      var supportEl = document.getElementById("fpgrowth-support-image");
-      supportEl.innerHTML = '<img src="' + data.support_image + '" style="max-width: 100%;" alt="Itemset support" />';
-      var _img = supportEl.querySelector('img');
-      if (_img) _img.onerror = function() { supportEl.innerHTML = ''; };
-    } else {
-      document.getElementById("fpgrowth-support-image").innerHTML = "";
+    // Itemset Support Distribution: JSON first (Plotly from itemsets_data), then PNG fallback
+    var supportEl = document.getElementById("fpgrowth-support-image");
+    if (supportEl) {
+      if (data.itemsets_data && Array.isArray(data.itemsets_data) && data.itemsets_data.length > 0) {
+        const rows = data.itemsets_data
+          .map(function (r) {
+            const label = Array.isArray(r.itemsets) ? r.itemsets.slice(0, 5).join(", ") : String(r.itemsets || "");
+            return { label: label || "(empty)", support: Number(r.support) };
+          })
+          .filter(function (r) { return r.label && !isNaN(r.support); })
+          .sort(function (a, b) { return b.support - a.support; })
+          .slice(0, TOP_N);
+        if (rows.length) {
+          const y = rows.map(function (r) { return r.label; });
+          const x = rows.map(function (r) { return r.support; });
+          const divId = "fpgrowth-support-plotly";
+          supportEl.innerHTML = "<div id=\"" + divId + "\" style=\"width:100%;height:500px;\"></div>";
+          if (window.Plotly) {
+            Plotly.newPlot(divId, [{
+              type: "bar",
+              x: x,
+              y: y,
+              orientation: "h",
+              marker: { color: "teal" },
+              hovertext: rows.map(function (r) { return "Support: " + r.support.toFixed(4); }),
+              hoverinfo: "text"
+            }], {
+              margin: { l: 200, r: 50, t: 40, b: 50 },
+              xaxis: { title: "Support", showgrid: true },
+              yaxis: { title: "Itemset", autorange: "reversed" },
+              height: 500
+            }, { responsive: true });
+          }
+        } else {
+          supportEl.innerHTML = "<p class=\"status-message info\">No itemsets data for support distribution.</p>";
+        }
+      } else if (data.support_image) {
+        supportEl.innerHTML = '<img src="' + data.support_image + '" style="max-width: 100%;" alt="Itemset support" />';
+        var _img = supportEl.querySelector('img');
+        if (_img) _img.onerror = function() { supportEl.innerHTML = ''; };
+      } else {
+        supportEl.innerHTML = "";
+      }
     }
     // Network: use proxy URL so HTML is served with Content-Type text/html (renders in iframe instead of download)
     const networkEl = document.getElementById("fpgrowth-network-container");
