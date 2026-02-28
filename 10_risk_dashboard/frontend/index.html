@@ -3618,11 +3618,14 @@
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
     });
     const typepairKey = 'drug_drug';  // Drug-only: only Drug × Drug process matrix
+    var pmImg = data['process_matrix_' + typepairKey + '_image'];
+    var pmFallback = data['process_matrix_' + typepairKey];
+    var processMatrixImageUrl = (typeof pmImg === 'string' && pmImg) ? pmImg : (typeof pmFallback === 'string' && pmFallback) ? pmFallback : undefined;
     const imageMap = {
       'bupar-sequence-image': data.sequence_image,
       'bupar-trace-explorer-image': data.trace_explorer_pre_image,
       'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-process-matrix-typepair-image': data['process_matrix_' + typepairKey + '_image'] != null ? data['process_matrix_' + typepairKey + '_image'] : data['process_matrix_' + typepairKey]
+      'bupar-process-matrix-typepair-image': processMatrixImageUrl
     };
     const keyToElement = {
       activity_frequency: null,
@@ -3682,7 +3685,8 @@
         }
         if (typeof tracePngUrl === 'string' && tracePngUrl) {
           el.innerHTML = '<img src="' + tracePngUrl + '" style="max-width: 100%;" alt="" />';
-          el.querySelector('img').onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
+          var imgEl = el.querySelector('img');
+          if (imgEl) imgEl.onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
           continue;
         }
         el.innerHTML = '<p class="status-message" style="margin:0;">Trace Explorer not available. Run the BupaR pipeline for this cohort/age band.</p>';
@@ -3737,7 +3741,8 @@
         continue;
       }
       el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" alt="" />';
-      el.querySelector('img').onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
+      var imgEl = el.querySelector('img');
+      if (imgEl) imgEl.onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
     }
     for (const visualKey of BUPAR_VISUAL_KEYS_INDEX.map(v => v.key)) {
       if (keys.includes(visualKey)) continue;

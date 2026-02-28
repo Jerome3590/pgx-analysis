@@ -2185,7 +2185,9 @@
         el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available for this cohort/age band.</p>';
         continue;
       }
-      el.innerHTML = `<img src="${imageUrl}" style="max-width: 100%;" onerror="this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';" />`;
+      el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" alt="" />';
+      var imgEl = el.querySelector('img');
+      if (imgEl) imgEl.onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
     }
     // Clear panels that are not selected so they don't show stale content when toggled back
     for (const visualKey of BUPAR_VISUAL_KEYS.map(v => v.key)) {
