@@ -1377,6 +1377,14 @@
     const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
     return (base ? base + "/" : "") + relativePath.replace(/^\//, "");
   }
+  // Avoid double prefix: ensure img/asset URL is absolute (leading / or https:). Use for all BupaR/DTW image URLs.
+  function ensureAbsoluteUrl(url) {
+    if (typeof url !== 'string' || !url) return url;
+    if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) return url;
+    if (url.indexOf('/') === 0) return url;
+    var base = window.location.pathname.replace(/\/[^/]*$/, '') || '';
+    return base ? base + '/' + url.replace(/^\//, '') : '/' + url.replace(/^\//, '');
+  }
 
   // Manifest-driven static paths: load once, build URLs from dashboard_visual_objects.json (single source of truth).
   let _manifestPromise = null;
@@ -2571,7 +2579,7 @@
       let data = {};
       const ageBandFname = ageBand.replace(/-/g, "_");
       const manifest = await getDashboardManifest().catch(function() { return null; });
-      // Same manifest pattern as BupaR: defaults first, then override from manifest (buildStaticUrls)
+      // DTW: all URLs from manifest when present (chart_data, sequence_heatmap, dtwBasePath for overview/sample images). Avoids double prefix.
       let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
       let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
       let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
@@ -2816,6 +2824,7 @@
       const base = cohort + "_" + ageBandFname;
       const preSuffix = cohort === "opioid_ed" ? "pre_f1120" : "pre_hcg";
       const manifest = await getDashboardManifest().catch(function() { return null; });
+      // BupaR: all URLs from manifest when present (freqUrls, jsonUrls, data.* images). Avoids double prefix; single source of truth.
       let baseUrl = staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots");
       let freqUrls = [
         staticJsonPath("visualizations/bupar/" + cohort + "/" + ageBand + "/plots/" + base + "_activity_frequency.json"),
@@ -3154,7 +3163,6 @@
     }
   }
 
-  const dtwImgOnErrorIndex = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
   const DTW_VISUAL_KEYS = [
     { key: 'overview', label: 'Trajectory Overview' },
     { key: 'sample', label: 'Sample Trajectories' },
@@ -3276,7 +3284,9 @@
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
       } else if (data.overview_image) {
-        overviewEl.innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+        overviewEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.overview_image) + '" style="max-width: 100%;" alt="" />';
+        var _img = overviewEl.querySelector('img');
+        if (_img) _img.onerror = function() { overviewEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
       } else {
         overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory overview not available. Run create_dtw_visuals (after create_dtw_features) and upload plots to dashboard S3.</p>';
       }
@@ -3294,7 +3304,9 @@
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-sample-plot', fig.data, fig.layout || {}, fig.config || {});
       } else if (data.sample_trajectories_image) {
-        sampleEl.innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnErrorIndex}" />`;
+        sampleEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.sample_trajectories_image) + '" style="max-width: 100%;" alt="" />';
+        var _img = sampleEl.querySelector('img');
+        if (_img) _img.onerror = function() { sampleEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
       } else {
         sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">Sample trajectories not available. Run create_dtw_visuals and upload plots to dashboard S3.</p>';
       }
@@ -3528,14 +3540,19 @@
           itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data to display.</p>";
         }
       } else if (data.itemsets_image) {
-        itemsetsEl.innerHTML = "<img src=\"" + data.itemsets_image + "\" style=\"max-width: 100%;\" alt=\"Top itemsets\" onerror=\"this.parentElement.innerHTML=\\\"<p class=\\\"status-message info\\\">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>\\\";\" />";
+        itemsetsEl.innerHTML = '<img src="' + data.itemsets_image + '" style="max-width: 100%;" alt="Top itemsets" />';
+        var _img = itemsetsEl.querySelector('img');
+        if (_img) _img.onerror = function() { itemsetsEl.innerHTML = '<p class="status-message info" style="margin:0;">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'; };
       } else {
         itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data. Run pipeline and upload itemsets JSON, or use image URL.</p>";
       }
     }
     // Support image (fallback; itemsets JSON covers the main chart)
     if (data.support_image) {
-      document.getElementById("fpgrowth-support-image").innerHTML = "<img src=\"" + data.support_image + "\" style=\"max-width: 100%;\" alt=\"Itemset support\" onerror=\"this.parentElement.innerHTML=''\" />";
+      var supportEl = document.getElementById("fpgrowth-support-image");
+      supportEl.innerHTML = '<img src="' + data.support_image + '" style="max-width: 100%;" alt="Itemset support" />';
+      var _img = supportEl.querySelector('img');
+      if (_img) _img.onerror = function() { supportEl.innerHTML = ''; };
     } else {
       document.getElementById("fpgrowth-support-image").innerHTML = "";
     }
@@ -3622,10 +3639,10 @@
     var pmFallback = data['process_matrix_' + typepairKey];
     var processMatrixImageUrl = (typeof pmImg === 'string' && pmImg) ? pmImg : (typeof pmFallback === 'string' && pmFallback) ? pmFallback : undefined;
     const imageMap = {
-      'bupar-sequence-image': data.sequence_image,
-      'bupar-trace-explorer-image': data.trace_explorer_pre_image,
-      'bupar-trace-explorer-pre-image': data.trace_explorer_pre_image,
-      'bupar-process-matrix-typepair-image': processMatrixImageUrl
+      'bupar-sequence-image': ensureAbsoluteUrl(data.sequence_image),
+      'bupar-trace-explorer-image': ensureAbsoluteUrl(data.trace_explorer_pre_image),
+      'bupar-trace-explorer-pre-image': ensureAbsoluteUrl(data.trace_explorer_pre_image),
+      'bupar-process-matrix-typepair-image': ensureAbsoluteUrl(processMatrixImageUrl)
     };
     const keyToElement = {
       activity_frequency: null,
@@ -3684,7 +3701,7 @@
           }
         }
         if (typeof tracePngUrl === 'string' && tracePngUrl) {
-          el.innerHTML = '<img src="' + tracePngUrl + '" style="max-width: 100%;" alt="" />';
+          el.innerHTML = '<img src="' + ensureAbsoluteUrl(tracePngUrl) + '" style="max-width: 100%;" alt="" />';
           var imgEl = el.querySelector('img');
           if (imgEl) imgEl.onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
           continue;
@@ -3740,7 +3757,7 @@
         el.innerHTML = '<p class="status-message" style="margin:0;">Visual not available. Run the BupaR pipeline for this cohort/age band.</p>';
         continue;
       }
-      el.innerHTML = '<img src="' + imageUrl + '" style="max-width: 100%;" alt="" />';
+      el.innerHTML = '<img src="' + ensureAbsoluteUrl(imageUrl) + '" style="max-width: 100%;" alt="" />';
       var imgEl = el.querySelector('img');
       if (imgEl) imgEl.onerror = function() { el.innerHTML = '<p class="status-message" style="margin:0;">Image not found.</p>'; };
     }

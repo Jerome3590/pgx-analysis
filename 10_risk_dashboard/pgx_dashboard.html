@@ -1846,7 +1846,6 @@
     }
   }
 
-  const dtwImgOnError = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'margin:0;\\'>Image not found. Run pipeline to generate.</p>';";
   const DTW_VISUAL_KEYS_PGX = [
     { key: 'overview', label: 'Trajectory Overview' },
     { key: 'sample', label: 'Sample Trajectories' },
@@ -1942,7 +1941,9 @@
       } else if (data.overview_interactive) {
         overviewEl.innerHTML = `<iframe src="${data.overview_interactive}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="DTW Trajectory Clusters"></iframe>`;
       } else if (data.overview_image) {
-        overviewEl.innerHTML = `<img src="${data.overview_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+        overviewEl.innerHTML = '<img src="' + data.overview_image + '" style="max-width: 100%;" alt="" />';
+        var _img = overviewEl.querySelector('img');
+        if (_img) _img.onerror = function() { overviewEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
       }
     }
     var sampleEl = document.getElementById("dtw-sample-trajectories-image");
@@ -1955,7 +1956,9 @@
         sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
         Plotly.react('dtw-sample-plot', data.trajectory_overview_plot.data, data.trajectory_overview_plot.layout || {}, data.trajectory_overview_plot.config || {});
       } else if (data.sample_trajectories_image) {
-        sampleEl.innerHTML = `<img src="${data.sample_trajectories_image}" style="max-width: 100%;" onerror="${dtwImgOnError}" />`;
+        sampleEl.innerHTML = '<img src="' + data.sample_trajectories_image + '" style="max-width: 100%;" alt="" />';
+        var _img = sampleEl.querySelector('img');
+        if (_img) _img.onerror = function() { sampleEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
       }
     }
     // Render trajectory metrics chart
@@ -1987,16 +1990,17 @@
       return;
     }
 
-    const fpgrowthImgOnError = "this.parentElement.innerHTML='<p class=\\'status-message\\' style=\\'padding:1rem;\\'>Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>';";
     // Render itemsets: prioritize interactive HTML, fall back to static PNG
     const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
     if (itemsetsEl) {
       const itemsetsUrl = data.itemsets_interactive || data.itemsets_image;
       if (itemsetsUrl) {
         if (itemsetsUrl.endsWith('.html')) {
-          itemsetsEl.innerHTML = `<iframe src="${itemsetsUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth itemsets"></iframe>`;
+          itemsetsEl.innerHTML = '<iframe src="' + itemsetsUrl + '" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth itemsets"></iframe>';
         } else {
-          itemsetsEl.innerHTML = `<img src="${itemsetsUrl}" style="max-width: 100%;" onerror="${fpgrowthImgOnError}" />`;
+          itemsetsEl.innerHTML = '<img src="' + itemsetsUrl + '" style="max-width: 100%;" alt="" />';
+          var _img = itemsetsEl.querySelector('img');
+          if (_img) _img.onerror = function() { itemsetsEl.innerHTML = '<p class="status-message" style="padding:1rem;">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'; };
         }
       }
     }
@@ -2007,9 +2011,11 @@
       const supportUrl = data.itemsets_interactive || data.support_image;
       if (supportUrl) {
         if (supportUrl.endsWith('.html')) {
-          supportEl.innerHTML = `<iframe src="${supportUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth support"></iframe>`;
+          supportEl.innerHTML = '<iframe src="' + supportUrl + '" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth support"></iframe>';
         } else {
-          supportEl.innerHTML = `<img src="${supportUrl}" style="max-width: 100%;" onerror="${fpgrowthImgOnError}" />`;
+          supportEl.innerHTML = '<img src="' + supportUrl + '" style="max-width: 100%;" alt="" />';
+          var _img = supportEl.querySelector('img');
+          if (_img) _img.onerror = function() { supportEl.innerHTML = '<p class="status-message" style="padding:1rem;">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'; };
         }
       }
     }
@@ -2020,9 +2026,11 @@
       const networkUrl = data.network_interactive || data.network_html || data.network_png;
       if (networkUrl) {
         if (networkUrl.endsWith('.html')) {
-          networkEl.innerHTML = `<iframe src="${networkUrl}" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>`;
+          networkEl.innerHTML = '<iframe src="' + networkUrl + '" style="width: 100%; height: 900px; border: 1px solid #ddd;" title="FP-Growth network"></iframe>';
         } else {
-          networkEl.innerHTML = `<img src="${networkUrl}" style="max-width: 100%;" onerror="${fpgrowthImgOnError}" />`;
+          networkEl.innerHTML = '<img src="' + networkUrl + '" style="max-width: 100%;" alt="" />';
+          var _img = networkEl.querySelector('img');
+          if (_img) _img.onerror = function() { networkEl.innerHTML = '<p class="status-message" style="padding:1rem;">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'; };
         }
       }
     }
