@@ -10,7 +10,7 @@ Use this README to validate changes to the dashboard frontend (`10_risk_dashboar
 
 | Layer | Source of truth | Purpose |
 |-------|-----------------|--------|
-| **Manifest** | `10_risk_dashboard/visualizations/dashboard_visual_objects.json` | Tab → `s3_prefix`, `visual_objects[]` with `s3_path` and `static_files`. Frontend loads manifest first and builds static URLs from it. |
+| **Manifest** | `10_risk_dashboard/visualizations/dashboard_visual_objects.json` | **Single source of truth for all data visual requirements:** `metadata_files` (Documentation/dropdowns) and `visual_objects[]` (per-tab `s3_path` + `static_files`). Frontend loads manifest first and builds static URLs from it. |
 | **Path mapping** | [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) | Tab & visual (heading) → data artifact → EC2 path → S3 object key (path-style). |
 | **S3** | Bucket + prefix (e.g. `vcu/pgx-risk-calculator/`) | After Step 6, objects under the prefix must match what the manifest and frontend expect. |
 | **Frontend** | `10_risk_dashboard/frontend/index.html` | Tabs, section IDs, visual headings, and URLs must align with manifest and path mapping; all asset URLs use **path-style** S3. |
@@ -51,6 +51,7 @@ After deploy, verify S3 against the manifest using [10_risk_dashboard/docs/S3_VE
 
 | Doc | Purpose |
 |-----|--------|
+| [10_risk_dashboard/frontend/README.md](10_risk_dashboard/frontend/README.md) | **Artifact usage:** Manifest-driven URLs; JSON + Plotly first for BupaR (Trace Explorer, Trace Explorer Pre-Target, Process Matrix, etc.); DTW/FP-Growth/Causal static-first. |
 | [README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) | Full mapping: tab & visual → artifact → EC2 path → S3 key. |
 | [S3_VERIFICATION_REPORT.md](10_risk_dashboard/docs/S3_VERIFICATION_REPORT.md) | Check S3 keys against manifest and frontend expectations. |
 | [RESEARCH_QUESTIONS_ARTIFACTS.md](10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md) | RQ artifact allowlists (e.g. BupaR filenames). |
