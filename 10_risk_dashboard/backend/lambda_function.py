@@ -1604,12 +1604,18 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         # Fallback: image URLs when Plotly JSON not present (avoid broken image when pipeline not run)
         overview_key = f"{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png"
         sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"
-        overview_html_key = f"{plots_key}/dtw_trajectory_cluster_interactive_{cohort}_{age_band_fname}.html"
+        # Interactive HTML: pipeline writes 1d/3d; try interactive, then 1d, then 3d
+        overview_html_key = None
+        for suffix in ("interactive", "1d", "3d"):
+            candidate = f"{plots_key}/dtw_trajectory_cluster_{suffix}_{cohort}_{age_band_fname}.html"
+            if _s3_object_exists(bucket, candidate):
+                overview_html_key = candidate
+                break
         if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, overview_key):
             payload["overview_image"] = _dashboard_s3_url(overview_key)
         if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, sample_key):
             payload["sample_trajectories_image"] = _dashboard_s3_url(sample_key)
-        if _s3_object_exists(bucket, overview_html_key):
+        if overview_html_key:
             payload["overview_interactive"] = _dashboard_s3_url(overview_html_key)
 
         return _response(200, payload)
