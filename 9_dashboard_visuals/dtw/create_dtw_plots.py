@@ -101,6 +101,10 @@ def _code_counts_from_seq_pattern_str(df: pd.DataFrame) -> Tuple[pd.DataFrame, O
     if not rows:
         return pd.DataFrame(), target_series
     count_df = pd.DataFrame(rows).set_index("mi_person_key").fillna(0).astype(int)
+    # Restrict to drug columns only so cluster axes and hover never show ICD/CPT (defensive)
+    drug_cols = [c for c in count_df.columns if str(c).upper().startswith("DRUG:")]
+    if drug_cols:
+        count_df = count_df[drug_cols].copy()
     return count_df, target_series
 
 
@@ -314,7 +318,16 @@ def create_trajectory_cluster_plots(
                 {"reason": "no_top_codes", "count_df_rows": len(count_df), "n_axes_required": n_axes},
             )]
 
-    code_cols = top_codes[:n_axes]
+    # Use only drug codes for axes and hover (DTW is drug-only; exclude any legacy ICD/CPT)
+    code_cols = [c for c in top_codes if str(c).upper().startswith("DRUG:")][:n_axes]
+    if not code_cols:
+        return [_write_empty_trajectory_overview(
+            plots_dir,
+            f"No trajectory overview for {cohort_name}/{age_band}: no drug codes for axes (count_df has only non-DRUG columns or empty).",
+            cohort_name,
+            age_band,
+            {"reason": "no_drug_codes_for_axes", "count_df_rows": len(count_df), "top_codes_sample": top_codes[:5]},
+        )]
     labels = _cluster_points(count_df, code_cols, n_clusters=n_clusters)
     count_df = count_df.copy()
     count_df["cluster"] = labels

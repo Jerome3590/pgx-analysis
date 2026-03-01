@@ -22,6 +22,11 @@ Output CSV columns (minimal for visualization):
 - events_per_month: trajectory_length / (temporal_span_days/30) when span > 0, else NaN
 - event_density_bin: Trajectory bin by event density ('low', 'medium', 'high', 'extreme'), aligned with FP-Growth
 
+Model data (parquet) columns needed for N3 time-between metrics:
+- Event timestamp: one of event_date, incurred_date, service_date, event_timestamp, claim_date, event_dt (first present in schema is used for ordering and for mean_days_between_events / days_first_event_to_target).
+- target (0/1), mi_person_key, drug_name, primary_icd_diagnosis_code, procedure_code.
+- Target date column: first_f1120_date (opioid_ed) or first_o11_p_date (non_opioid_ed) or legacy names; used for "days to target" and lookback window.
+
 Requirements:
 - 4_model_data (Step 4) with model_events parquet
 - 7_shap_analysis and 8_ffa_analysis (Steps 7-8) for SHAP/FFA important codes
@@ -271,6 +276,11 @@ def extract_patient_trajectories(
     _log("info", "DTW expected (model_events): %s; plus one of target_date: %s", DTW_EXPECTED_COLUMNS, candidates)
     _log("info", "DTW have (model_events columns, %d): %s", len(sorted_cols), sorted_cols)
     missing_expected = [c for c in DTW_EXPECTED_COLUMNS if c not in col_names]
+    # event_date can be satisfied by another timestamp column (resolved below)
+    if "event_date" in missing_expected:
+        event_date_candidates_check = ["event_date", "incurred_date", "service_date", "event_timestamp", "claim_date", "event_dt"]
+        if any(c in col_names for c in event_date_candidates_check):
+            missing_expected = [c for c in missing_expected if c != "event_date"]
     if missing_expected:
         _log("warning", "DTW model_events missing expected columns: %s", missing_expected)
     if "target" not in col_names:
@@ -288,6 +298,18 @@ def extract_patient_trajectories(
         return pd.DataFrame(), 0
     if target_date_col is None:
         target_date_col = "event_date"
+
+    # Event date (timestamp) for ordering and N3 time-between: use first available timestamp column
+    event_date_candidates = ["event_date", "incurred_date", "service_date", "event_timestamp", "claim_date", "event_dt"]
+    event_date_col = None
+    for c in event_date_candidates:
+        if c in col_names:
+            event_date_col = c
+            break
+    if event_date_col is None:
+        _log("error", "Model data has no event timestamp column. Expected one of %s. Found columns: %s", event_date_candidates, sorted_cols)
+        return pd.DataFrame(), 0
+    _log("info", "DTW event_date (timestamp): chosen column %s for ordering and N3 time-between", event_date_col)
 
     # Log target distribution in source (row counts) to verify case/control mapping
     con_count = duckdb.connect(":memory:")
@@ -332,13 +354,21 @@ def extract_patient_trajectories(
         f"CAST(FLOOR(CAST({target_date_col} AS DOUBLE)) % 100 AS INTEGER)) "
         f"ELSE CAST({target_date_col} AS DATE) END"
     )
+    # Same normalization for event timestamp column (used for ordering and N3 time-between)
+    event_date_expr = (
+        f"CASE WHEN typeof({event_date_col}) IN ('INTEGER', 'BIGINT') THEN "
+        f"make_date(CAST(FLOOR(CAST({event_date_col} AS DOUBLE)/10000.0) AS INTEGER), "
+        f"CAST(FLOOR(CAST({event_date_col} AS DOUBLE)/100.0) % 100 AS INTEGER), "
+        f"CAST(FLOOR(CAST({event_date_col} AS DOUBLE)) % 100 AS INTEGER)) "
+        f"ELSE CAST({event_date_col} AS DATE) END"
+    )
     # Extract trajectories with cutoff dates (target = before target event, control = all events)
     query = f"""
     WITH patient_events AS (
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            CAST(event_date AS DATE) as event_date,
+            ({event_date_expr}) as event_date,
             drug_name,
             primary_icd_diagnosis_code,
             procedure_code,
@@ -388,7 +418,7 @@ def extract_patient_trajectories(
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            CAST(event_date AS DATE) as event_date,
+            ({event_date_expr}) as event_date,
             drug_name,
             primary_icd_diagnosis_code,
             procedure_code,
@@ -456,7 +486,7 @@ def extract_patient_trajectories(
     count_query = f"""
     WITH patient_events AS (
         SELECT CAST(mi_person_key AS VARCHAR) as mi_person_key, target,
-               CAST(event_date AS DATE) as event_date, ({target_date_expr}) as target_date
+               ({event_date_expr}) as event_date, ({target_date_expr}) as target_date
         FROM read_parquet('{path_str}')
         {filter_clause}
     ),
@@ -475,13 +505,13 @@ def extract_patient_trajectories(
         _log("warning", "Could not get event count: %s; using 0", e)
         n_events_analyzed = 0
 
-    # Time-between metrics (N3: times between sequences) — same DATE normalization as main query
+    # Time-between metrics (N3: times between sequences) — use event timestamp column for gaps and days to target
     time_query = f"""
     WITH patient_events AS (
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            CAST(event_date AS DATE) as event_date,
+            ({event_date_expr}) as event_date,
             ({target_date_expr}) as target_date
         FROM read_parquet('{model_data_path}')
         {filter_clause}
@@ -549,7 +579,7 @@ def extract_patient_trajectories(
         SELECT
             CAST(mi_person_key AS VARCHAR) as mi_person_key,
             target,
-            CAST(event_date AS DATE) as event_date,
+            ({event_date_expr}) as event_date,
             ({target_date_expr}) as target_date
         FROM read_parquet('{path_str}')
         {filter_clause}
@@ -647,7 +677,7 @@ def extract_patient_trajectories(
             SELECT
                 CAST(mi_person_key AS VARCHAR) as mi_person_key,
                 target,
-                CAST(event_date AS DATE) as event_date,
+                ({event_date_expr}) as event_date,
                 REPLACE(REPLACE(COALESCE(primary_icd_diagnosis_code, ''), '.', ''), '-', '') as icd_norm,
                 ({target_date_expr}) as target_date
             FROM read_parquet('{path_str}')
