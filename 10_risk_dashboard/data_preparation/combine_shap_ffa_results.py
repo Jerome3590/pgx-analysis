@@ -522,14 +522,17 @@ def generate_dashboard_outputs_phts_style(
     mn, mx = vals.min(), vals.max()
     combined_importance = combined_importance.copy()
     combined_importance["combined_importance_norm"] = (vals - mn) / (mx - mn + 1e-10)
-    # Top K causal table (PHTS columns: feature, causal_responsibility, shap_importance, rule_frequency, total_rules)
-    top_causal = combined_importance.head(top_k).copy()
-    top_causal = top_causal.rename(columns={"combined_importance_norm": "causal_responsibility"})
-    if "causal_responsibility" not in top_causal.columns:
-        top_causal["causal_responsibility"] = top_causal.get("combined_importance", top_causal.iloc[:, 1])
-    top_causal["shap_importance"] = top_causal.get("shap_norm", top_causal["causal_responsibility"])
-    top_causal["rule_frequency"] = 0
-    top_causal["total_rules"] = 0
+    # Include all features with importance > 0 in JSON (dashboard filter: Top 10 / Top 20 / All)
+    combined_importance = combined_importance[vals > 0].sort_values(col, ascending=False)
+    all_causal = combined_importance.copy()
+    all_causal = all_causal.rename(columns={"combined_importance_norm": "causal_responsibility"})
+    if "causal_responsibility" not in all_causal.columns:
+        all_causal["causal_responsibility"] = all_causal.get("combined_importance", all_causal.iloc[:, 1])
+    all_causal["shap_importance"] = all_causal.get("shap_norm", all_causal["causal_responsibility"])
+    all_causal["rule_frequency"] = 0
+    all_causal["total_rules"] = 0
+    # Top K for CSV / summary (backward compat)
+    top_causal = all_causal.head(top_k).copy()
     # Summary (PHTS format)
     combined_filtered = combined_importance
     summary = {
@@ -537,15 +540,15 @@ def generate_dashboard_outputs_phts_style(
         "top_k": top_k,
         "mean_importance": float(combined_filtered["combined_importance_norm"].mean()),
         "max_importance": float(combined_filtered["combined_importance_norm"].max()),
-        "top_feature": top_causal.iloc[0]["feature"] if len(top_causal) > 0 else None,
-        "top_feature_importance": float(top_causal.iloc[0]["causal_responsibility"]) if len(top_causal) > 0 else None,
+        "top_feature": all_causal.iloc[0]["feature"] if len(all_causal) > 0 else None,
+        "top_feature_importance": float(all_causal.iloc[0]["causal_responsibility"]) if len(all_causal) > 0 else None,
     }
     dashboard_data = {
         "cohort": cohort,
         "age_band": age_band,
         "timestamp": datetime.now().isoformat(),
         "ffa_method": "shap_ffa_combined",
-        "top_causal_factors": top_causal.to_dict("records"),
+        "top_causal_factors": all_causal.to_dict("records"),
         "summary": summary,
         "feature_importance": combined_filtered.head(50).to_dict("records"),
         "notes": {

@@ -125,9 +125,9 @@ def get_aggregated_fi_heatmap_data(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 200,
+    top_n: Optional[int] = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 500,
+    max_rows: Optional[int] = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Dict[str, Any]]:
@@ -188,10 +188,13 @@ def get_aggregated_fi_heatmap_data(
 
     column_order = [b for b in CANONICAL_AGE_BAND_ORDER if b in loaded_bands]
     combined = pd.concat(all_dfs, ignore_index=True)
+    combined = combined[combined["importance"] > 0]
 
     top_features_set = set()
     for _ab in loaded_bands:
-        sub = combined[combined["age_band"] == _ab].nlargest(top_n, "importance")
+        sub = combined[combined["age_band"] == _ab]
+        if top_n is not None:
+            sub = sub.nlargest(top_n, "importance")
         top_features_set.update(sub["feature"].tolist())
     top_features = list(top_features_set)
     if not top_features:
@@ -207,7 +210,7 @@ def get_aggregated_fi_heatmap_data(
     pivot["_mean"] = pivot[column_order].mean(axis=1)
     pivot = pivot.sort_values("_mean", ascending=False).drop(columns=["_mean"])
     pivot = pivot.reindex(columns=column_order)
-    if len(pivot) > max_rows:
+    if max_rows is not None and len(pivot) > max_rows:
         pivot = pivot.iloc[:max_rows]
 
     row_labels = [_feature_label_for_display(str(i)) for i in pivot.index]
@@ -244,9 +247,9 @@ def get_fi_heatmap_data_for_model(
     age_bands: List[str],
     outputs_base: Path,
     model: str,
-    top_n: int = 200,
+    top_n: Optional[int] = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 500,
+    max_rows: Optional[int] = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Dict[str, Any]]:
@@ -300,9 +303,12 @@ def get_fi_heatmap_data_for_model(
 
     column_order = [b for b in CANONICAL_AGE_BAND_ORDER if b in loaded_bands]
     combined = pd.concat(all_dfs, ignore_index=True)
+    combined = combined[combined["importance"] > 0]
     top_features_set = set()
     for _ab in loaded_bands:
-        sub = combined[combined["age_band"] == _ab].nlargest(top_n, "importance")
+        sub = combined[combined["age_band"] == _ab]
+        if top_n is not None:
+            sub = sub.nlargest(top_n, "importance")
         top_features_set.update(sub["feature"].tolist())
     top_features = list(top_features_set)
     if not top_features:
@@ -317,7 +323,7 @@ def get_fi_heatmap_data_for_model(
     pivot["_mean"] = pivot[column_order].mean(axis=1)
     pivot = pivot.sort_values("_mean", ascending=False).drop(columns=["_mean"])
     pivot = pivot.reindex(columns=column_order)
-    if len(pivot) > max_rows:
+    if max_rows is not None and len(pivot) > max_rows:
         pivot = pivot.iloc[:max_rows]
 
     return {
@@ -335,7 +341,7 @@ def get_single_age_band_fi(
     age_band: str,
     outputs_base: Path,
     model: str,
-    top_n: int = 100,
+    top_n: Optional[int] = 100,
     importance_col: Optional[str] = None,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
@@ -372,7 +378,9 @@ def get_single_age_band_fi(
     if not col:
         return None
     df = df[["feature", col]].copy()
-    df = df.nlargest(top_n, col)
+    df = df[df[col] > 0]
+    if top_n is not None:
+        df = df.nlargest(top_n, col)
     features = [
         {"feature": _feature_label_for_display(str(row["feature"])), "importance": float(row[col])}
         for _, row in df.iterrows()
@@ -445,10 +453,10 @@ def discover_fi_available(outputs_base: Path) -> Dict[str, Any]:
 
 def build_fi_dashboard_jsons(
     outputs_base: Path,
-    top_n: int = 200,
-    single_band_top_n: int = 200,
+    top_n: Optional[int] = 200,
+    single_band_top_n: Optional[int] = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 500,
+    max_rows: Optional[int] = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Dict[str, Any]:
@@ -516,9 +524,9 @@ def write_aggregated_fi_heatmap_json(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 200,
+    top_n: Optional[int] = 200,
     importance_col: Optional[str] = None,
-    max_rows: int = 500,
+    max_rows: Optional[int] = 500,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
 ) -> Optional[Path]:
@@ -542,15 +550,16 @@ def create_aggregated_fi_heatmap(
     cohort: str,
     age_bands: List[str],
     outputs_base: Path,
-    top_n: int = 200,
+    top_n: Optional[int] = 200,
     importance_col: Optional[str] = None,
+    max_rows: Optional[int] = 500,
 ) -> Optional[Path]:
     """
     Create cross-age-band feature importance heatmap from Step 3b cohort_feature_importance only (no fallback).
 
     Loads {cohort}_{age_band_fname}_aggregated_feature_importance.csv for each
     age_band from outputs_base / cohort, builds feature × age_band matrix (union
-    of top_n features across age bands), and saves a heatmap to
+    of top_n features across age bands, or all with importance > 0 if top_n is None), and saves a heatmap to
     outputs_base/cohort/plots/{cohort}_aggregated_fi_heatmap.png.
     Also writes outputs_base/cohort/plots/{cohort}_aggregated_fi_heatmap.json for dashboard.
 
@@ -558,9 +567,10 @@ def create_aggregated_fi_heatmap(
         cohort: Cohort name (e.g. opioid_ed, non_opioid_ed).
         age_bands: List of age bands (e.g. ["13-24", "25-44"]).
         outputs_base: Base directory for heatmap outputs (e.g. 3a_feature_importance). Input CSVs are from Step 3b only.
-        top_n: Number of top features per age band to include in union (default 200).
+        top_n: Number of top features per age band to include in union (default 200). None = all with importance > 0.
         importance_col: Column name for importance (default: first of scaled_importance_mean,
             importance_mean, importance_scaled, importance_normalized).
+        max_rows: Max rows in heatmap (default 500). None = no limit.
 
     Returns:
         Path to saved heatmap PNG, or None if no CSVs found / < 2 age bands.
@@ -571,7 +581,7 @@ def create_aggregated_fi_heatmap(
 
     data = get_aggregated_fi_heatmap_data(
         cohort, age_bands, outputs_base,
-        top_n=top_n, importance_col=importance_col,
+        top_n=top_n, importance_col=importance_col, max_rows=max_rows,
         project_root=_resolve_project_root(outputs_base), filter_final=True,
     )
     if not data:
@@ -614,7 +624,7 @@ def create_aggregated_fi_heatmap(
 def create_combined_cohorts_fi_heatmap(
     outputs_base: Path,
     cohorts: Dict[str, List[str]],
-    top_n: int = 80,
+    top_n: Optional[int] = 80,
     importance_col: Optional[str] = None,
     project_root: Optional[Path] = None,
     filter_final: bool = True,
@@ -688,12 +698,15 @@ def create_combined_cohorts_fi_heatmap(
     if not cohort_names:
         return None
 
-    # Union of features that appear in any cohort, ordered by max summed importance across cohorts
+    # Union of features that appear in any cohort with importance > 0, ordered by max summed importance
     all_features: Dict[str, float] = {}
     for c in cohort_names:
         for f, v in summed[c].items():
-            all_features[f] = max(all_features.get(f, 0.0), v)
-    top_features = sorted(all_features.keys(), key=lambda x: -all_features[x])[:top_n]
+            if v > 0:
+                all_features[f] = max(all_features.get(f, 0.0), v)
+    top_features = sorted(all_features.keys(), key=lambda x: -all_features[x])
+    if top_n is not None:
+        top_features = top_features[:top_n]
     if not top_features:
         return None
 

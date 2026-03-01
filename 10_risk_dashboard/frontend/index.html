@@ -935,6 +935,14 @@
           <small style="color: #64748b;">Same format as your selections (ICD, CPT, or drug codes). Charts will show a second trace for this scenario.</small>
         </div>
         <div class="control-group full-width">
+          <label for="causal-top-n">Show features:</label>
+          <select id="causal-top-n" aria-label="Number of features to show">
+            <option value="10">Top 10</option>
+            <option value="20" selected>Top 20</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
           <button id="btnLoadCausal">Load Causal Analysis</button>
           <button id="btnClearCausalFilters" type="button" class="secondary">Clear filters</button>
         </div>
@@ -971,6 +979,14 @@
             <option value="opioid_ed">Opioid ED</option>
             <option value="non_opioid_ed">Polypharmacy</option>
             <option value="combined">Combined cohorts</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="fi-top-n">Show features:</label>
+          <select id="fi-top-n" aria-label="Number of features to show">
+            <option value="10">Top 10</option>
+            <option value="20" selected>Top 20</option>
+            <option value="all">All</option>
           </select>
         </div>
         <div class="control-group full-width">
@@ -2537,7 +2553,8 @@
         document.getElementById("causal-status").className = "status-message error";
         return;
       }
-      renderCausalCharts(chartData);
+      window.causalChartDataFull = chartData;
+      applyCausalTopNAndRender();
       const nCausal = (chartData.causal_factors || []).length;
       const nWhatIf = (chartData.causal_factors_whatif || []).length;
       if (chartData.filtered_by_codes) {
@@ -2568,6 +2585,8 @@
     clearMultiSelect(cptsEl);
     document.getElementById("btnLoadCausal")?.click();
   });
+
+  document.getElementById("causal-top-n")?.addEventListener("change", () => { applyCausalTopNAndRender(); });
 
   // DTW Visualizations Tab
   document.getElementById("btnLoadDTW")?.addEventListener("click", async () => {
@@ -2957,6 +2976,18 @@
   if (fiHeatmapImg) fiHeatmapImg.style.display = "none";
   if (fiHeatmapChart) fiHeatmapChart.style.display = "none";
 
+  function applyFITopNAndRender() {
+    const full = window.fiHeatmapDataFull;
+    if (!full || !full.row_labels || !full.matrix) return;
+    const sel = document.getElementById("fi-top-n");
+    const val = sel ? sel.value : "20";
+    const n = val === "all" ? null : Math.max(1, parseInt(val, 10) || 20);
+    const sliced = n != null
+      ? { row_labels: full.row_labels.slice(0, n), column_labels: full.column_labels, matrix: full.matrix.slice(0, n), cohort: full.cohort, model: full.model, metric: full.metric }
+      : full;
+    renderFIHeatmapFromData(sliced);
+  }
+
   function renderFIHeatmapFromData(heatmapData) {
     if (!fiHeatmapChart || !window.Plotly || !heatmapData || !heatmapData.row_labels || !heatmapData.column_labels || !heatmapData.matrix) return;
     const trace = {
@@ -3032,7 +3063,8 @@
       }
 
       if (data && data.heatmap_data) {
-        renderFIHeatmapFromData(data.heatmap_data);
+        window.fiHeatmapDataFull = data.heatmap_data;
+        applyFITopNAndRender();
         // If JSON didn't render (e.g. wrong shape), fall back to image so we always show one visual
         var chartVisible = fiHeatmapChart && fiHeatmapChart.style.display !== "none" && fiHeatmapChart.innerHTML !== "";
         if (!chartVisible && data.heatmap_url) {
@@ -3061,10 +3093,30 @@
         document.getElementById("fi-status").className = "status-message error";
       }
     } catch (err) {
-      document.getElementById("fi-status").textContent = `Error: ${err.message}`;
+        document.getElementById("fi-status").textContent = `Error: ${err.message}`;
       document.getElementById("fi-status").className = "status-message error";
     }
   });
+
+  document.getElementById("fi-top-n")?.addEventListener("change", function() { applyFITopNAndRender(); });
+
+  function applyCausalTopNAndRender() {
+    const full = window.causalChartDataFull;
+    if (!full) return;
+    const sel = document.getElementById("causal-top-n");
+    const val = sel ? sel.value : "20";
+    const n = val === "all" ? null : Math.max(1, parseInt(val, 10) || 20);
+    const slice = (arr) => (Array.isArray(arr) && n != null ? arr.slice(0, n) : arr);
+    const data = {
+      causal_factors: slice(full.causal_factors),
+      shap_importance: slice(full.shap_importance),
+      causal_factors_whatif: slice(full.causal_factors_whatif),
+      shap_importance_whatif: slice(full.shap_importance_whatif),
+      feature_interactions: full.feature_interactions,
+      filtered_by_codes: full.filtered_by_codes
+    };
+    renderCausalCharts(data);
+  }
 
   // Helper functions to render visualizations
   function renderCausalCharts(data) {
@@ -3854,18 +3906,21 @@
 
       // Process Matrix (Drug × Drug): prefer heatmap from JSON when available
       if (visualKey === 'process_matrix_typepair' && data.process_matrix_drug_drug && Array.isArray(data.process_matrix_drug_drug.antecedent) && window.Plotly) {
+        function stripDrugPrefix(s) { return (s && typeof s === 'string') ? s.replace(/^DRUG:\s*/i, '').trim() : (s || ''); }
+        function normalizeDrugLabel(s) {
+          var t = stripDrugPrefix(s);
+          return t.split(/\s+/).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }).join(' ');
+        }
         var pm = data.process_matrix_drug_drug;
         var ant = pm.antecedent || [];
         var con = Array.isArray(pm.consequent) ? pm.consequent : [];
-        var rows = [].concat(ant).filter(Boolean);
-        var cols = [].concat(con).filter(Boolean);
-        rows = [...new Set(rows)].sort();
-        cols = [...new Set(cols)].sort();
+        var rows = [...new Set(ant.map(normalizeDrugLabel).filter(Boolean))].sort();
+        var cols = [...new Set(con.map(normalizeDrugLabel).filter(Boolean))].sort();
         var z = rows.map(function(r) {
           return cols.map(function(c) {
             var i = -1;
             for (var k = 0; k < ant.length; k++) {
-              if (ant[k] === r && con[k] === c) { i = k; break; }
+              if (normalizeDrugLabel(ant[k]) === r && normalizeDrugLabel(con[k]) === c) { i = k; break; }
             }
             return i >= 0 ? (pm.n && pm.n[i] != null ? Number(pm.n[i]) : 0) : 0;
           });
