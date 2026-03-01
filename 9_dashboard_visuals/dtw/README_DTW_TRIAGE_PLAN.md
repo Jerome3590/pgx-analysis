@@ -10,7 +10,7 @@ Plan to fix DTW/BupaR errors and align visuals with research questions (drug-onl
 
 | Visual / endpoint | Current behavior | Action |
 |-------------------|------------------|--------|
-| **DTW** (`/visualizations/dtw`) | Lambda already returns 200 with `chart_data`, `sequence_heatmap`, `trajectory_overview_plot` (message/empty when missing). Static files (chart_data.json, sequence_heatmap.json, trajectory_overview_plot.json) still 404 when not on S3. | **Done for API.** Optional: pipeline writes minimal `chart_data.json` / `sequence_heatmap.json` / `trajectory_overview_plot.json` (with message/empty) for every cohort/age so static-first requests get JSON instead of 404. |
+| **DTW** (`/visualizations/dtw`) | Lambda returns 200 with `trajectory_overview_plot` (message/empty when missing). **Pipeline:** `create_dtw_plots.create_trajectory_cluster_plots()` now **always** writes `trajectory_overview_plot.json`—either full Plotly payload or `{"message": "...", "empty": true}` when the visual is not produced (missing features, no codes, etc.). Step 6 syncs it; static or API then returns 200 + JSON. |
 | **BupaR** | Manifest lists static files; missing files → 404. API may return URLs only. | Ensure Lambda/backend returns 200 with payload that includes per-artifact `message`/`empty` when an object is missing on S3 (same pattern as DTW). Frontend shows message when `empty` + `message` present. |
 | **FP-Growth** | Pipeline can write `empty_state.json`; frontend/API already use it. | Confirm all cohort/age paths get either real data or empty_state.json; document in manifest/README. |
 | **Causal** | causal_data.json per cohort/age. | If pipeline does not produce for a cohort/age, write minimal JSON `{"message": "...", "empty": true}` to S3 (or API returns it when object missing). |
@@ -18,7 +18,7 @@ Plan to fix DTW/BupaR errors and align visuals with research questions (drug-onl
 
 **Implementation notes:**
 - **Lambda:** For each visualization endpoint, when an S3 object is missing, set the corresponding payload key to `{"message": "...", "empty": true}` (already done for DTW trajectory_overview_plot; extend to chart_data/sequence_heatmap if needed, and to BupaR/FP-Growth/Causal where applicable).
-- **Pipeline (optional):** In notebook 4 / create_* scripts, when a cohort/age produces no data, write a minimal JSON file (e.g. `chart_data.json` with `{"message": "No DTW data for this cohort/age band.", "empty": true}`) so S3 sync still delivers something and static-first requests get 200 + JSON.
+- **Pipeline (DTW):** Implemented. `create_dtw_plots.py` writes `trajectory_overview_plot.json` on every run—full payload when the visual is produced, or empty-state JSON on all early-exit paths. Empty-state includes `message` (cohort/age + reason), `empty: true`, `cohort`, `age_band`, and `metrics` (e.g. `reason`: `plotly_unavailable` | `sklearn_unavailable` | `features_csv_missing` | `no_seq_pattern_str` | `no_code_counts` | `no_top_codes`; plus `dtw_rows`, `count_df_rows`, `n_axes_required`, `csv_path` where applicable). Dashboard displays message and optional metrics block. Production-ready.
 
 ---
 
@@ -39,7 +39,7 @@ Plan to fix DTW/BupaR errors and align visuals with research questions (drug-onl
 
 ## 3. Target Pathway Patterns (drugs) — filter to drugs only
 
-**Goal:** Target Pathway Patterns chart shows **drugs only** (research question: drug-only pathways).
+**Addressed by drug-only trajectories.** With trajectory construction and plots using drug-only data (see §4), target pathway patterns are derived from the same drug-only sequences. If a separate filter is needed in the chart data builder, add drug-only filter there as well.
 
 **Current:** `_compute_target_pathway_patterns` in `create_dtw_visuals.py` aggregates all tokens from `seq_pattern_str` (DRUG:X, ICD:Y, CPT:Z) and returns top 8 codes.
 
@@ -54,9 +54,9 @@ Plan to fix DTW/BupaR errors and align visuals with research questions (drug-onl
 
 ## 4. Trajectory Analysis Overview (drugs) and Sample Trajectories (drugs) — filter to drugs only
 
-**Goal:** Trajectory cluster overview and sample trajectories are **drug-only**: cluster and plot based on drug code counts only, so the visual answers drug-sequence research questions.
+**Done.** DTW is **drug-only for both cohorts** at trajectory construction (`create_dtw_trajectories.py`); `seq_pattern_str` and `seq_pattern_monthly` contain only DRUG: tokens. `create_dtw_plots._code_counts_from_seq_pattern_str` counts only DRUG: tokens.
 
-**Current:** `create_dtw_plots.create_trajectory_cluster_plots` uses `_code_counts_from_seq_pattern_str`, which counts **all** tokens (DRUG, ICD, CPT). `_top_codes` then picks top N codes across all types; 3D uses top 3 codes (may mix drug/ICD/CPT), 1D uses top 1.
+**Previous:** `create_dtw_plots.create_trajectory_cluster_plots` had used `_code_counts_from_seq_pattern_str` counting all tokens (DRUG, ICD, CPT). `_top_codes` then picks top N codes across all types; 3D uses top 3 codes (may mix drug/ICD/CPT), 1D uses top 1.
 
 **Action:**
 - **Option A (recommended):** In `create_dtw_plots.py`, add a filter so that when building `count_df` (or when selecting `code_cols`), only **DRUG:** tokens are used. That implies:

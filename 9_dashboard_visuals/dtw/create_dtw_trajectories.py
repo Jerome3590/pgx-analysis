@@ -11,8 +11,8 @@ Output CSV columns (minimal for visualization):
 - target: Target outcome (0/1)
 - seq_pattern_str: Event-ordered sequence of activity codes (e.g., "DRUG:Med_ICD:F1120_CPT:99213")
 - seq_pattern_monthly: Calendar-month sequence; one token per month "YYYY-MM:CODE1_CODE2|..." (codes sorted
-  alphabetically within month). opioid_ed = all activity types; non_opioid_ed (polypharmacy) = drug only.
-- admin_icd_event_count: Count of administrative ICD codes (routine vs no routine)
+  alphabetically within month). Both cohorts = drug only (DRUG: tokens).
+- admin_icd_event_count: Count of events with administrative ICD codes (used to identify routine appointments: 1+ = routine, 0 = no routine)
 - trajectory_length: Number of events
 - trajectory_diversity: Number of unique activities
 - dtw_min_distance: Placeholder (NaN); DTW distances computed in create_dtw_features.py (Step 2)
@@ -25,7 +25,7 @@ Output CSV columns (minimal for visualization):
 Requirements:
 - 4_model_data (Step 4) with model_events parquet
 - 7_shap_analysis and 8_ffa_analysis (Steps 7-8) for SHAP/FFA important codes
-- 1b_apcd_event_filter/administrative_codes_lookup.json for routine analysis
+- 1b_apcd_event_filter/administrative_codes_lookup.json — administrative ICD codes that identify routine appointments (e.g. well visits, screenings)
 
 Runtime: ~1-2 minutes per cohort/age_band (fast!)
 """
@@ -81,7 +81,7 @@ DTW_TRAJECTORY_CSV_COLUMNS = [
     "event_density_bin",
 ]
 
-# Polypharmacy = drug-only for monthly; opioid_ed = all activity types
+# DTW is drug-only for both cohorts (opioid_ed and non_opioid_ed).
 POLYPHARMACY_COHORT = "non_opioid_ed"
 
 # Density bins for trajectories (same order as FP-Growth: low -> medium -> high -> extreme)
@@ -148,7 +148,7 @@ def _split_allowed_codes_by_type(allowed_codes: Set[str]) -> Tuple[Set[str], Set
 
 
 def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
-    """Load administrative ICD codes from 1b_apcd_event_filter/administrative_codes_lookup.json."""
+    """Load administrative ICD codes used to identify routine appointments (well visits, screenings) from 1b_apcd_event_filter/administrative_codes_lookup.json."""
     path = project_root / "1b_apcd_event_filter" / "administrative_codes_lookup.json"
     if not path.exists():
         print(f"[WARN] Administrative codes lookup not found at {path}")
@@ -158,7 +158,8 @@ def _load_administrative_icd_codes(project_root: Path) -> Set[str]:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         codes = data.get("administrative_codes", {}).get("icd", [])
-        return set(str(c) for c in codes)
+        # Normalize for matching parquet (dots/dashes stripped)
+        return set(_normalize_code_for_match(str(c)) for c in codes if c is not None)
     except Exception as exc:
         print(f"[WARN] Could not load administrative codes: {exc}")
         return set()
@@ -227,7 +228,7 @@ def extract_patient_trajectories(
     drug_set, icd_set, cpt_set = _split_allowed_codes_by_type(allowed_codes)
     use_filter = True
 
-    # Get administrative ICD codes for routine vs no routine analysis
+    # Administrative ICD codes identify routine appointments (1+ events with these codes = routine)
     admin_codes = _load_administrative_icd_codes(project_root)
     _log("info", "Loaded %d administrative ICD codes", len(admin_codes))
 
@@ -295,10 +296,8 @@ def extract_patient_trajectories(
     con = duckdb.connect(":memory:")
 
     if use_filter:
-        # Build filter expressions (OR semantics: drug OR any ICD OR CPT). Use ALL allowed codes
-        # (no limit) so drug-heavy cohorts (e.g. non_opioid_ed 65-74, 75-84) get trajectories.
+        # DTW is drug-only for both cohorts: only events with allowed drug codes.
         def safe_sql_list(codes: Set[str]) -> str:
-            # Escape single quotes for SQL; return ('a','b',...)
             escaped = [f"'{str(c).replace(chr(39), chr(39)+chr(39))}'" for c in codes if c]
             return "(" + ",".join(escaped) + ")" if escaped else "(NULL)"
 
@@ -307,20 +306,11 @@ def extract_patient_trajectories(
             filters.append(
                 f"REPLACE(REPLACE(drug_name, '.', ''), '-', '') IN {safe_sql_list(drug_set)}"
             )
-        if icd_set:
-            filters.append(
-                f"REPLACE(REPLACE(primary_icd_diagnosis_code, '.', ''), '-', '') IN {safe_sql_list(icd_set)}"
-            )
-        if cpt_set:
-            filters.append(
-                f"REPLACE(REPLACE(procedure_code, '.', ''), '-', '') IN {safe_sql_list(cpt_set)}"
-            )
-
         if filters:
-            filter_clause = f"WHERE ({' OR '.join(filters)})"
+            filter_clause = f"WHERE ({' AND '.join(filters)}) AND drug_name IS NOT NULL AND drug_name != ''"
         else:
-            filter_clause = ""
-        _log("info", "Filter: drugs=%d, ICD=%d, CPT=%d (all used)", len(drug_set), len(icd_set), len(cpt_set))
+            filter_clause = "WHERE drug_name IS NOT NULL AND drug_name != ''"
+        _log("info", "Filter: drug-only, drugs=%d (ICD/CPT excluded for DTW)", len(drug_set))
     else:
         filter_clause = ""
 
@@ -367,21 +357,8 @@ def extract_patient_trajectories(
         SELECT
             mi_person_key,
             target,
-            STRING_AGG(
-                CASE
-                    WHEN drug_name IS NOT NULL AND drug_name != '' THEN 'DRUG:' || drug_name
-                    WHEN primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != ''
-                        THEN 'ICD:' || primary_icd_diagnosis_code
-                    WHEN procedure_code IS NOT NULL AND procedure_code != '' THEN 'CPT:' || procedure_code
-                    ELSE NULL
-                END,
-                '_'
-                ORDER BY event_date
-            ) FILTER (WHERE
-                drug_name IS NOT NULL OR
-                primary_icd_diagnosis_code IS NOT NULL OR
-                procedure_code IS NOT NULL
-            ) as seq_pattern_str,
+            STRING_AGG('DRUG:' || drug_name, '_' ORDER BY event_date)
+                FILTER (WHERE drug_name IS NOT NULL AND drug_name != '') as seq_pattern_str,
             COUNT(*) as trajectory_length,
             COUNT(DISTINCT COALESCE(drug_name, '') || '|' || COALESCE(primary_icd_diagnosis_code, '') || '|' || COALESCE(procedure_code, '')) as trajectory_diversity
         FROM filtered_events
@@ -394,11 +371,9 @@ def extract_patient_trajectories(
     _log("info", "Extracting trajectories from model_events...")
     df = con.execute(query).df()
 
-    # Monthly trajectory: one token per calendar month, codes sorted alphabetically for alignment.
-    # opioid_ed = all activity types (drug, ICD, CPT); polypharmacy (non_opioid_ed) = drug only.
-    monthly_drug_only = cohort_name == POLYPHARMACY_COHORT
-    monthly_where = "AND drug_name IS NOT NULL AND drug_name != ''" if monthly_drug_only else ""
-    _log("info", "Monthly trajectory: %s", "drug only (polypharmacy)" if monthly_drug_only else "all activity types (opioid_ed)")
+    # Monthly trajectory: one token per calendar month, drug only for both cohorts.
+    monthly_where = "AND drug_name IS NOT NULL AND drug_name != ''"
+    _log("info", "Monthly trajectory: drug only (both cohorts)")
     monthly_events_query = f"""
     WITH patient_events AS (
         SELECT
@@ -431,18 +406,9 @@ def extract_patient_trajectories(
         mi_person_key,
         target,
         event_date,
-        CASE
-            WHEN drug_name IS NOT NULL AND drug_name != '' THEN 'DRUG:' || drug_name
-            WHEN primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != ''
-                THEN 'ICD:' || primary_icd_diagnosis_code
-            WHEN procedure_code IS NOT NULL AND procedure_code != '' THEN 'CPT:' || procedure_code
-            ELSE NULL
-        END as code
+        'DRUG:' || drug_name as code
     FROM filtered_events
-    WHERE
-        (drug_name IS NOT NULL AND drug_name != '')
-        OR (primary_icd_diagnosis_code IS NOT NULL AND primary_icd_diagnosis_code != '')
-        OR (procedure_code IS NOT NULL AND procedure_code != '')
+    WHERE drug_name IS NOT NULL AND drug_name != ''
     """
     try:
         events_df = con.execute(monthly_events_query).df()
@@ -659,22 +625,49 @@ def extract_patient_trajectories(
         _log("warning", "No trajectories extracted")
         return df, n_events_analyzed
 
-    # Compute admin_icd_event_count for each patient
-    _log("info", "Computing administrative ICD event counts...")
-
-    def count_admin_icds(seq_str):
-        """Count administrative ICD codes in sequence."""
-        if not seq_str or pd.isna(seq_str):
-            return 0
-        count = 0
-        for token in seq_str.split('_'):
-            if token.startswith('ICD:'):
-                icd_code = token[4:]
-                if icd_code in admin_codes:
-                    count += 1
-        return count
-
-    df['admin_icd_event_count'] = df['seq_pattern_str'].apply(count_admin_icds)
+    # Admin codes identify routine appointments: count events per patient with administrative ICD codes (same time window as trajectories).
+    # Trajectories are drug-only so seq_pattern_str has no ICD tokens; we query model_events directly for admin ICD counts.
+    _log("info", "Counting administrative ICD events (routine appointments) from model_events...")
+    if admin_codes:
+        def _safe_sql_list(codes: Set[str]) -> str:
+            escaped = [f"'{str(c).replace(chr(39), chr(39)+chr(39))}'" for c in codes if c]
+            return "(" + ",".join(escaped) + ")" if escaped else "(NULL)"
+        admin_list = _safe_sql_list(admin_codes)
+        admin_query = f"""
+        WITH patient_events AS (
+            SELECT
+                CAST(mi_person_key AS VARCHAR) as mi_person_key,
+                target,
+                CAST(event_date AS DATE) as event_date,
+                REPLACE(REPLACE(COALESCE(primary_icd_diagnosis_code, ''), '.', ''), '-', '') as icd_norm,
+                ({target_date_expr}) as target_date
+            FROM read_parquet('{path_str}')
+        ),
+        filtered_events AS (
+            SELECT mi_person_key, icd_norm
+            FROM patient_events
+            WHERE
+                ((target = 1 AND event_date < target_date
+                  AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+                 OR (target = 0))
+                AND icd_norm IN {admin_list}
+        )
+        SELECT mi_person_key, COUNT(*)::INTEGER as admin_icd_event_count
+        FROM filtered_events
+        GROUP BY mi_person_key
+        """
+        try:
+            admin_df = con.execute(admin_query).df()
+            if not admin_df.empty:
+                df = df.merge(admin_df, on="mi_person_key", how="left")
+                df["admin_icd_event_count"] = df["admin_icd_event_count"].fillna(0).astype(int)
+            else:
+                df["admin_icd_event_count"] = 0
+        except Exception as e:
+            _log("warning", "Admin ICD count query failed: %s; setting admin_icd_event_count=0", e)
+            df["admin_icd_event_count"] = 0
+    else:
+        df["admin_icd_event_count"] = 0
 
     _log("info", "Trajectory summary: events_analyzed=%d, alignments_found=%d", n_events_analyzed, len(df))
     _log("info", "  Mean length: %.1f; mean diversity: %.1f; admin_icd_event_count sum: %s", df["trajectory_length"].mean(), df["trajectory_diversity"].mean(), df["admin_icd_event_count"].sum())

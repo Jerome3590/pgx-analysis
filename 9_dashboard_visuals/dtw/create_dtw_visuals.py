@@ -204,24 +204,58 @@ def create_dtw_visuals(
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band, logger=logger)
 
     # Prebuild chart data (routine vs no routine, high-risk trajectories); write locally and upload to S3
+    # No empty artifacts: when nothing is produced, write JSON with message + metrics (why) so dashboard can show reason.
     out_dir.mkdir(parents=True, exist_ok=True)
     chart_data = _build_dtw_chart_data(dtw_df)
     if chart_data is None:
-        _log("warning", "DTW chart_data not produced for %s/%s: empty dataframe (writing minimal file so artifact path exists)", cohort_name, age_band)
-        chart_data = {}
+        _log("warning", "DTW chart_data not produced for %s/%s: empty dataframe (writing empty-state JSON with message and metrics)", cohort_name, age_band)
+        chart_data = {
+            "message": f"No DTW chart data for {cohort_name}/{age_band}.",
+            "empty": True,
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "metrics": {"reason": "empty_dataframe", "dtw_rows": 0},
+        }
     elif not chart_data:
-        _log("warning", "DTW chart_data empty for %s/%s: no routine_comparison, high_risk, or N3 data (check admin_icd_event_count, target, seq_pattern_str, row count)", cohort_name, age_band)
-    # Write always so artifact path check passes; dashboard can show empty state
+        _log("warning", "DTW chart_data empty for %s/%s: no routine_comparison, high_risk, or N3 data (writing empty-state JSON)", cohort_name, age_band)
+        chart_data = {
+            "message": f"No DTW chart data for {cohort_name}/{age_band} (no routine, high_risk, or N3 charts built).",
+            "empty": True,
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "metrics": {"reason": "no_charts_built", "dtw_rows": len(dtw_df), "has_admin_icd": "admin_icd_event_count" in dtw_df.columns, "has_target": "target" in dtw_df.columns, "has_seq_pattern_str": "seq_pattern_str" in dtw_df.columns},
+        }
     with open(chart_path, "w", encoding="utf-8") as f:
         json.dump(chart_data, f, indent=0)
     _log("info", "Wrote %s", chart_path)
     _upload_dtw_chart_data_to_dashboard_s3(project_root, cohort_name, age_band, chart_data, logger=logger)
 
-    # Sequence heatmap (code × position counts by ICD/CPT/Drug); write locally and upload to S3
+    # Sequence heatmap (code × position counts); no empty artifacts: when no data, write JSON with message + metrics (why).
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
     if heatmap_data is None:
-        _log("warning", "DTW sequence_heatmap not produced for %s/%s: empty dataframe or missing seq_pattern_str (writing minimal file so artifact path exists)", cohort_name, age_band)
-        heatmap_data = {"drug": {"codes": [], "positions": [], "counts": []}, "icd": {"codes": [], "positions": [], "counts": []}, "cpt": {"codes": [], "positions": [], "counts": []}}
+        _log("warning", "DTW sequence_heatmap not produced for %s/%s (writing empty-state JSON with message and metrics)", cohort_name, age_band)
+        heatmap_data = {
+            "message": f"No sequence heatmap for {cohort_name}/{age_band}.",
+            "empty": True,
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "metrics": {"reason": "empty_dataframe_or_no_seq_pattern_str", "dtw_rows": len(dtw_df) if dtw_df is not None and not dtw_df.empty else 0},
+        }
+    else:
+        # If all slices are empty (no codes), still provide envelope so dashboard can show why
+        has_any = any(
+            (h.get("codes") or h.get("counts"))
+            for h in (heatmap_data.get("drug"), heatmap_data.get("icd"), heatmap_data.get("cpt"))
+            if isinstance(h, dict)
+        )
+        if not has_any and len(dtw_df) > 0:
+            heatmap_data = {
+                "message": f"No sequence heatmap data for {cohort_name}/{age_band} (no code counts in sequences).",
+                "empty": True,
+                "cohort": cohort_name,
+                "age_band": age_band,
+                "metrics": {"reason": "no_code_counts", "dtw_rows": len(dtw_df)},
+            }
     with open(heatmap_path, "w", encoding="utf-8") as f:
         json.dump(heatmap_data, f, indent=0)
     _log("info", "Wrote %s", heatmap_path)
@@ -360,7 +394,10 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
 
 
 def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Mean medical events and mean prescription (drug) events by routine vs no routine. Shows that routine screenings associate with lower medical and prescription event counts."""
+    """Mean medical and mean prescription (drug) events per patient by routine vs no routine.
+    Lets you see whether routine care (admin ICD = routine appointments) is associated with lower
+    drug counts: if Routine has lower mean prescription events than No routine, that supports
+    routine care driving down prescription/drug utilization."""
     if df.empty or "admin_icd_event_count" not in df.columns:
         return None
     need = ["admin_icd_event_count", "trajectory_length"]
