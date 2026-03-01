@@ -3507,7 +3507,11 @@
           yaxis: { title: data.times_between_sequences.y_label || 'Days' }
         }, { responsive: true });
       } else {
-        timesBetweenEl.innerHTML = '<p class="status-message info">Times between sequences (N3) will appear here when the pipeline provides time-between metrics.</p>';
+        const hasChartData = data.chart_data && !data.chart_data.empty;
+        const msg = hasChartData
+          ? 'chart_data.json was loaded but does not include N3 time-between metrics for this cohort/age. Re-run the DTW pipeline (create_dtw_trajectories → create_dtw_features → create_dtw_visuals) so chart_data is rebuilt with mean_days_between_events and admin_icd_event_count, then re-sync to S3.'
+          : 'Times between sequences (N3) will appear here when the pipeline provides time-between metrics (in chart_data.json).';
+        timesBetweenEl.innerHTML = '<p class="status-message info">' + msg + '</p>';
       }
     }
     const timeToTargetEl = document.getElementById('dtw-time-to-target-container');
@@ -3527,7 +3531,7 @@
           yaxis: { title: data.time_to_target_sequences.y_label || 'Days' }
         }, { responsive: true });
       } else {
-        timeToTargetEl.innerHTML = '';
+        timeToTargetEl.innerHTML = '';  // No placeholder when N3 time-to-target missing (same as times_between message in panel above)
       }
     }
 
