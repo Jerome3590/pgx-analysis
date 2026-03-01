@@ -206,9 +206,16 @@ def extract_patient_trajectories(
     _log("info", "Using model_events: %s", model_data_path)
 
     # SHAP/FFA combined allowed codes file is required (same prerequisite as BupaR); we never use all events.
+    # For extreme-density cohorts (e.g. non_opioid_ed_extreme_density), use the base cohort's allowed_codes.
     age_band_fname = age_band.replace("-", "_")
     bupar_output_root = project_root / "10_risk_dashboard" / "visualizations" / "bupar"
     allowed_codes_path = bupar_output_root / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
+    if not allowed_codes_path.exists() and cohort_name.endswith("_extreme_density"):
+        base_cohort = cohort_name.replace("_extreme_density", "")
+        fallback_path = bupar_output_root / f"allowed_codes_shap_ffa_{base_cohort}_{age_band_fname}.json"
+        if fallback_path.exists():
+            allowed_codes_path = fallback_path
+            _log("info", "Using base cohort allowed_codes for extreme: %s", allowed_codes_path)
     if not allowed_codes_path.exists():
         print(
             f"[ERROR] SHAP/FFA allowed codes file is required (prerequisite). Not found: {allowed_codes_path}\n"
@@ -242,9 +249,11 @@ def extract_patient_trajectories(
     con_schema.close()
 
     # Ordered candidates per cohort (canonical first; legacy/fallback names that may exist in parquet)
-    if cohort_name == "opioid_ed":
+    # For extreme-density cohorts, use base cohort's target date column (same schema as source)
+    _cohort_for_target = cohort_name.replace("_extreme_density", "") if cohort_name.endswith("_extreme_density") else cohort_name
+    if _cohort_for_target == "opioid_ed":
         candidates = ["first_f1120_date", "first_opioid_ed_date"]
-    elif cohort_name == "non_opioid_ed":
+    elif _cohort_for_target == "non_opioid_ed":
         candidates = ["first_o11_p_date", "first_ed_non_opioid_date", "first_opioid_ed_date"]  # last: Step 4 legacy fallback
     else:
         candidates = ["event_date"]
@@ -274,7 +283,7 @@ def extract_patient_trajectories(
             target_date_col = c
             break
     _log("info", "DTW target_date: expected one of %s; chosen: %s", candidates, target_date_col)
-    if target_date_col is None and cohort_name in ("opioid_ed", "non_opioid_ed"):
+    if target_date_col is None and _cohort_for_target in ("opioid_ed", "non_opioid_ed"):
         _log("error", "Model data has no target date column. Expected one of %s. Found columns: %s", candidates, sorted_cols)
         return pd.DataFrame(), 0
     if target_date_col is None:
