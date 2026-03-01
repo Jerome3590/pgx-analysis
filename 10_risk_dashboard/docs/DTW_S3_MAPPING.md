@@ -1,5 +1,9 @@
 # DTW tab: S3 layout vs manifest / API
 
+## No empty artifacts
+
+When a DTW plot or chart doesn’t produce data, the pipeline **always** writes a JSON artifact with `message`, `empty: true`, `cohort`, `age_band`, and `metrics` (e.g. `reason`, `dtw_rows`) so the dashboard can show why there is no output. Never leave a missing file or plain `{}`. Applies to `chart_data.json`, `sequence_heatmap.json`, and `plots/trajectory_overview_plot.json`.
+
 ## Where the file lives on EC2 (local before sync)
 
 All DTW outputs are written under the **dashboard visualizations** tree, not under `9_dashboard_visuals`:
@@ -11,6 +15,20 @@ All DTW outputs are written under the **dashboard visualizations** tree, not und
 | **trajectory_overview_plot.json** | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/plots/trajectory_overview_plot.json` |
 | chart_data.json | `.../dtw/{cohort}/{age_band_fname}/chart_data.json` |
 | sequence_heatmap.json | `.../dtw/{cohort}/{age_band_fname}/sequence_heatmap.json` |
+
+## All DTW objects: EC2 path and S3 path
+
+`{cohort}` = e.g. `opioid_ed`, `non_opioid_ed`. EC2 uses **underscore** in age band (e.g. `25_44`); S3 uses **hyphen** (e.g. `25-44`). S3 keys are under the dashboard prefix (e.g. `vcu/pgx-risk-calculator/`).
+
+| DTW artifact | EC2 path (relative to repo root) | S3 object key (under prefix) |
+|--------------|-----------------------------------|-------------------------------|
+| chart_data.json | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/chart_data.json` | `visualizations/dtw/{cohort}/{age_band}/chart_data.json` |
+| sequence_heatmap.json | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/sequence_heatmap.json` | `visualizations/dtw/{cohort}/{age_band}/sequence_heatmap.json` |
+| trajectory_overview_plot.json | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/plots/trajectory_overview_plot.json` | `visualizations/dtw/{cohort}/{age_band}/plots/trajectory_overview_plot.json` |
+| dtw_trajectory_analysis (PNG) | `.../dtw/{cohort}/{age_band_fname}/plots/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png` | `visualizations/dtw/{cohort}/{age_band}/plots/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png` |
+| dtw_sample_trajectories (PNG) | `.../dtw/{cohort}/{age_band_fname}/plots/dtw_sample_trajectories_{cohort}_{age_band_fname}.png` | `visualizations/dtw/{cohort}/{age_band}/plots/dtw_sample_trajectories_{cohort}_{age_band_fname}.png` |
+| dtw_trajectory_cluster (HTML) | `.../dtw/{cohort}/{age_band_fname}/plots/dtw_trajectory_cluster_1d_{cohort}_{age_band_fname}.html` (or `3d_`) | `visualizations/dtw/{cohort}/{age_band}/plots/dtw_trajectory_cluster_1d_{cohort}_{age_band_fname}.html` (or `3d_`) |
+| dtw_trajectory_cluster (PNG, optional) | `.../dtw/{cohort}/{age_band_fname}/plots/dtw_trajectory_cluster_1d_{cohort}_{age_band_fname}.png` (or `3d_`) | `visualizations/dtw/{cohort}/{age_band}/plots/dtw_trajectory_cluster_1d_{cohort}_{age_band_fname}.png` (or `3d_`) |
 
 **Example (opioid_ed, 25–44):**
 

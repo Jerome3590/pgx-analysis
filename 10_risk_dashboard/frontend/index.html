@@ -2587,20 +2587,21 @@
       // DTW: all URLs from manifest when present (chart_data, sequence_heatmap, dtwBasePath for overview/sample images). Avoids double prefix.
       let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
       let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
+      let overviewPlotUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/plots/trajectory_overview_plot.json");
       let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
-      let trajectoryPlotJsonUrl = null; // from manifest when available
+      let dtwBuilt = null;
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "DTW Trajectories");
         if (entry) {
-          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
-          if (built.urls.length >= 1) chartUrl = built.urls[0];
-          if (built.urls.length >= 2) heatmapUrl = built.urls[1];
-          if (built.urls.length >= 3) trajectoryPlotJsonUrl = built.urls[2]; // plots/trajectory_overview_plot.json
-          // Do not set overview_image/sample_trajectories_image from manifest: PNGs are optional (pipeline may only write HTML + trajectory_overview_plot.json). Use API fallback when static JSON 404s so we only set image URLs when they exist on S3.
-          if (built.basePath) dtwBasePath = built.basePath;
+          dtwBuilt = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (dtwBuilt.urls.length >= 1) chartUrl = dtwBuilt.urls[0];
+          if (dtwBuilt.urls.length >= 2) heatmapUrl = dtwBuilt.urls[1];
+          if (dtwBuilt.urls.length >= 3) overviewPlotUrl = dtwBuilt.urls[2];
+          if (dtwBuilt.basePath) dtwBasePath = dtwBuilt.basePath;
         }
       }
-      const [chartResp, hmResp] = await Promise.all([fetch(chartUrl), fetch(heatmapUrl)]);
+      // JSON-first: fetch chart_data, sequence_heatmap, trajectory_overview_plot from static (manifest URLs) in parallel.
+      const [chartResp, hmResp, overviewResp] = await Promise.all([fetch(chartUrl), fetch(heatmapUrl), fetch(overviewPlotUrl)]);
       if (chartResp.ok) {
         const chartData = await chartResp.json();
         if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
@@ -2618,33 +2619,31 @@
       if (hmResp.ok) {
         data.sequence_heatmap = await hmResp.json();
       }
-      // Pattern: JSON where able for Plotly, PNG only as fallback. Try manifest/static URL first; if 404, get trajectory_overview_plot from API (Lambda reads from S3).
-      if (!data.trajectory_overview_plot) {
-        const plotJsonUrl = trajectoryPlotJsonUrl || (dtwBasePath ? ((dtwBasePath.indexOf("/") === 0 || dtwBasePath.indexOf("http") === 0) ? dtwBasePath.replace(/\/?$/, "") + "/plots/trajectory_overview_plot.json" : staticJsonPath(dtwBasePath + "/plots/trajectory_overview_plot.json")) : null);
-        if (plotJsonUrl) {
-          try {
-            const plotResp = await fetch(plotJsonUrl);
-            if (plotResp.ok) {
-              const plotJson = await plotResp.json();
-              if (plotJson && (plotJson.data || (Array.isArray(plotJson.traces) && plotJson.traces.length))) data.trajectory_overview_plot = plotJson;
-            }
-          } catch (_) { /* optional */ }
-        }
-        // When static URL 404s (file not synced to S3), API may still have it (Lambda inlines from S3 when small)
-        if (!data.trajectory_overview_plot && (data.chart_data || data.sequence_heatmap)) {
-          try {
-            const apiResp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
-            if (apiResp.ok) {
-              const apiData = await apiResp.json();
-              if (apiData.trajectory_overview_plot) data.trajectory_overview_plot = apiData.trajectory_overview_plot;
-              if (apiData.chart_data && !data.chart_data) data.chart_data = apiData.chart_data;
-              if (apiData.sequence_heatmap && !data.sequence_heatmap) data.sequence_heatmap = apiData.sequence_heatmap;
-              if (apiData.overview_interactive) data.overview_interactive = apiData.overview_interactive;
-              if (apiData.overview_image) data.overview_image = apiData.overview_image;
-              if (apiData.sample_trajectories_image) data.sample_trajectories_image = apiData.sample_trajectories_image;
-            }
-          } catch (_) { /* optional */ }
-        }
+      if (overviewResp.ok) {
+        try {
+          data.trajectory_overview_plot = await overviewResp.json();
+        } catch (_) { /* invalid JSON */ }
+      }
+      // PNG/HTML fallbacks from manifest (JSON-first: overview already from trajectory_overview_plot.json when present).
+      if (dtwBuilt && dtwBuilt.urls.length >= 5) {
+        if (!data.overview_image) data.overview_image = dtwBuilt.urls[3];
+        if (!data.sample_trajectories_image) data.sample_trajectories_image = dtwBuilt.urls[4];
+        if (!data.overview_interactive && dtwBuilt.urls.length >= 7) data.overview_interactive = dtwBuilt.urls[6] || dtwBuilt.urls[5];
+      }
+      // API fallback only when static did not provide trajectory_overview_plot or chart/heatmap.
+      if (!data.trajectory_overview_plot && (data.chart_data || data.sequence_heatmap)) {
+        try {
+          const apiResp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+          if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (apiData.trajectory_overview_plot) data.trajectory_overview_plot = apiData.trajectory_overview_plot;
+            if (apiData.chart_data && !data.chart_data) data.chart_data = apiData.chart_data;
+            if (apiData.sequence_heatmap && !data.sequence_heatmap) data.sequence_heatmap = apiData.sequence_heatmap;
+            if (apiData.overview_interactive && !data.overview_interactive) data.overview_interactive = apiData.overview_interactive;
+            if (apiData.overview_image && !data.overview_image) data.overview_image = apiData.overview_image;
+            if (apiData.sample_trajectories_image && !data.sample_trajectories_image) data.sample_trajectories_image = apiData.sample_trajectories_image;
+          }
+        } catch (_) { /* optional */ }
       }
       // Fallback: API when static chart_data missing
       if (!data.chart_data && !data.sequence_heatmap) {
@@ -3314,7 +3313,10 @@
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
       } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
-        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">' + (data.trajectory_overview_plot.message || 'No trajectory overview for this cohort/age band.') + '</p>';
+        var msg = data.trajectory_overview_plot.message || 'No trajectory overview for this cohort/age band.';
+        var metrics = data.trajectory_overview_plot.metrics;
+        var metricsHtml = (metrics && typeof metrics === 'object' && Object.keys(metrics).length) ? '<pre class="status-message" style="margin:0.5rem 0 0; font-size:0.85em; white-space:pre-wrap;">' + JSON.stringify(metrics, null, 2) + '</pre>' : '';
+        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">' + msg + '</p>' + metricsHtml;
       } else if (data.overview_image) {
         overviewEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.overview_image) + '" style="max-width: 100%;" alt="" />';
         var _img = overviewEl.querySelector('img');
@@ -3336,7 +3338,10 @@
         var fig = data.trajectory_overview_plot;
         Plotly.react('dtw-sample-plot', fig.data, fig.layout || {}, fig.config || {});
       } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
-        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">' + (data.trajectory_overview_plot.message || 'No sample trajectories for this cohort/age band.') + '</p>';
+        var msg = data.trajectory_overview_plot.message || 'No sample trajectories for this cohort/age band.';
+        var metrics = data.trajectory_overview_plot.metrics;
+        var metricsHtml = (metrics && typeof metrics === 'object' && Object.keys(metrics).length) ? '<pre class="status-message" style="margin:0.5rem 0 0; font-size:0.85em; white-space:pre-wrap;">' + JSON.stringify(metrics, null, 2) + '</pre>' : '';
+        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">' + msg + '</p>' + metricsHtml;
       } else if (data.sample_trajectories_image) {
         sampleEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.sample_trajectories_image) + '" style="max-width: 100%;" alt="" />';
         var _img = sampleEl.querySelector('img');

@@ -47,13 +47,36 @@ def _ensure_plots_dir(plots_dir: Path) -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
 
 
+def _write_empty_trajectory_overview(
+    plots_dir: Path,
+    message: str,
+    cohort_name: str,
+    age_band: str,
+    metrics: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """Write trajectory_overview_plot.json with message/empty and metrics for dashboard when visual not produced."""
+    _ensure_plots_dir(plots_dir)
+    out_json = plots_dir / "trajectory_overview_plot.json"
+    payload = {
+        "message": message,
+        "empty": True,
+        "cohort": cohort_name,
+        "age_band": age_band,
+    }
+    if metrics:
+        payload["metrics"] = metrics
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    print(f"[INFO] Wrote empty state: {out_json}")
+    return out_json
+
+
 def _code_counts_from_seq_pattern_str(df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
     """
     Build patient x code count matrix from DTW features with seq_pattern_str.
 
-    Returns:
-        count_df: index = mi_person_key, columns = code, values = count.
-        target_series: target per mi_person_key if present, else None.
+    DTW is drug-only for both cohorts: only tokens with prefix DRUG: are counted
+    (trajectory construction already produces drug-only sequences; this enforces it).
     """
     if "seq_pattern_str" not in df.columns:
         return pd.DataFrame(), None
@@ -68,7 +91,12 @@ def _code_counts_from_seq_pattern_str(df: pd.DataFrame) -> Tuple[pd.DataFrame, O
         if not isinstance(seq, str):
             seq = str(seq)
         tokens = (s.strip() for s in seq.split("_") if s.strip())
-        counts = Counter(s for s in tokens if s.lower() not in _SKIP_TOKENS)
+        # Drug-only: count only DRUG: tokens (both cohorts); skip placeholder values
+        drug_tokens = [
+            s for s in tokens
+            if s.upper().startswith("DRUG:") and s.split(":", 1)[-1].strip().lower() not in _SKIP_TOKENS
+        ]
+        counts = Counter(drug_tokens)
         rows.append({"mi_person_key": pid, **counts})
     if not rows:
         return pd.DataFrame(), target_series
@@ -182,15 +210,11 @@ def create_trajectory_cluster_plots(
     If dtw_df is None, loads DTW features from
     project_root/10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band}.csv.
 
-    Returns list of written paths (HTML, and PNG if kaleido available).
-    """
-    if not PLOTLY_AVAILABLE:
-        print("[WARN] Plotly not available; skipping DTW trajectory cluster plots")
-        return []
-    if not SKLEARN_AVAILABLE:
-        print("[WARN] sklearn not available; skipping DTW trajectory cluster plots")
-        return []
+    When the visual cannot be produced, always writes trajectory_overview_plot.json with
+    {"message": "...", "empty": true} so the dashboard gets 200 + JSON (production-ready).
 
+    Returns list of written paths (HTML, PNG if kaleido available, and always JSON).
+    """
     age_band_fname = age_band.replace("-", "_")
     plots_dir = (
         project_root
@@ -202,24 +226,61 @@ def create_trajectory_cluster_plots(
         / "plots"
     )
 
+    if not PLOTLY_AVAILABLE:
+        print("[WARN] Plotly not available; skipping DTW trajectory cluster plots")
+        return [_write_empty_trajectory_overview(
+            plots_dir,
+            f"No trajectory overview for {cohort_name}/{age_band}: Plotly not available.",
+            cohort_name,
+            age_band,
+            {"reason": "plotly_unavailable"},
+        )]
+    if not SKLEARN_AVAILABLE:
+        print("[WARN] sklearn not available; skipping DTW trajectory cluster plots")
+        return [_write_empty_trajectory_overview(
+            plots_dir,
+            f"No trajectory overview for {cohort_name}/{age_band}: sklearn not available.",
+            cohort_name,
+            age_band,
+            {"reason": "sklearn_unavailable"},
+        )]
+
     if dtw_df is None:
         fe_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "feature_engineering"
         csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
         if not csv_path.exists():
             print(f"[WARN] DTW features not found: {csv_path}; skipping cluster plots")
-            return []
+            return [_write_empty_trajectory_overview(
+                plots_dir,
+                f"No trajectory overview for {cohort_name}/{age_band}: DTW features CSV not found.",
+                cohort_name,
+                age_band,
+                {"reason": "features_csv_missing", "csv_path": str(csv_path)},
+            )]
         dtw_df = pd.read_csv(csv_path)
         if "mi_person_key" in dtw_df.columns:
             dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
 
     if "seq_pattern_str" not in dtw_df.columns:
         print("[WARN] DTW features have no seq_pattern_str; skipping trajectory cluster plots")
-        return []
+        return [_write_empty_trajectory_overview(
+            plots_dir,
+            f"No trajectory overview for {cohort_name}/{age_band}: features have no seq_pattern_str (rows={len(dtw_df)}).",
+            cohort_name,
+            age_band,
+            {"reason": "no_seq_pattern_str", "dtw_rows": len(dtw_df), "columns": list(dtw_df.columns)},
+        )]
 
     count_df, target_series = _code_counts_from_seq_pattern_str(dtw_df)
     if count_df.empty:
         print("[WARN] No code counts from seq_pattern_str; skipping cluster plots")
-        return []
+        return [_write_empty_trajectory_overview(
+            plots_dir,
+            f"No trajectory overview for {cohort_name}/{age_band}: no code counts from seq_pattern_str (dtw_rows={len(dtw_df)}).",
+            cohort_name,
+            age_band,
+            {"reason": "no_code_counts", "dtw_rows": len(dtw_df)},
+        )]
 
     # Load event years from model_data for year filtering
     year_map = _load_event_years_from_model_data(
@@ -245,7 +306,13 @@ def create_trajectory_cluster_plots(
     if len(top_codes) < n_axes:
         print(f"[WARN] Fewer than {n_axes} codes for axes; using {len(top_codes)}")
         if not top_codes:
-            return []
+            return [_write_empty_trajectory_overview(
+                plots_dir,
+                f"No trajectory overview for {cohort_name}/{age_band}: no top codes for axes (count_df_rows={len(count_df)}, n_axes_required={n_axes}).",
+                cohort_name,
+                age_band,
+                {"reason": "no_top_codes", "count_df_rows": len(count_df), "n_axes_required": n_axes},
+            )]
 
     code_cols = top_codes[:n_axes]
     labels = _cluster_points(count_df, code_cols, n_clusters=n_clusters)

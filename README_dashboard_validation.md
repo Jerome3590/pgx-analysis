@@ -21,6 +21,8 @@ Do not use virtual-hosted style. See [README_dashboard_visual_artifact_paths.md]
 
 **Age bands:** EC2/local use **underscore** (e.g. `25_44`); S3 keys use **hyphen** (e.g. `25-44`).
 
+**No empty artifacts.** When a plot or chart doesn’t produce data, the pipeline must **always** write a JSON artifact with `message`, `empty: true`, and `metrics` (e.g. reason, row counts) so the dashboard can show why there is no output. Never leave a missing file or plain `{}`. Applies to DTW (`chart_data.json`, `sequence_heatmap.json`, `trajectory_overview_plot.json`) and any other visualization that can have “no data” (see [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md)).
+
 ---
 
 ## Manifest-first and S3 sync (Step 6)
@@ -44,6 +46,7 @@ After deploy, verify S3 against the manifest using [10_risk_dashboard/docs/S3_VE
 - [ ] **API:** Risk, metadata, and visualization fallback use the same `API_BASE` and endpoints as in [backend/README.md](10_risk_dashboard/backend/README.md).
 - [ ] **Manifest:** After Step 6, `visualizations/dashboard_visual_objects.json` is present on S3 and its `static_files` and `s3_path` entries match what the frontend requests.
 - [ ] **JSON-first panels:** Any panel with a JSON artifact in the manifest uses it first (Plotly or data), PNG/image fallback only. Check: Feature Importance (JSON then PNG), FP-Growth Top Itemsets and Itemset Support Distribution (drug_name_itemsets.json then PNG), BupaR per manifest notes.
+- [ ] **No empty artifacts:** When a plot doesn’t produce data, the pipeline writes a JSON with `message` and `metrics` (why); no missing files or plain `{}`. See “No empty artifacts” above and path mapping doc.
 - [ ] **Sync exclusions:** Step 6 does not upload `.ipynb_checkpoints`, `*checkpoint*`, or `Rplots.pdf`; see “Manifest-first and S3 sync” above.
 
 ---

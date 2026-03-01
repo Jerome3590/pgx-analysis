@@ -61,13 +61,15 @@
       "path_type": "directory",
       "path": "10_risk_dashboard/visualizations/dtw",
       "s3_path": "vcu/pgx-risk-calculator/visualizations/dtw/{cohort}/{age_band}/",
-      "notes": "{base}={cohort}_{age_band_fname}. chart_data.json, sequence_heatmap.json, plots/trajectory_overview_plot.json; optional plots/dtw_trajectory_cluster_*_*.html discovered by API for overview_interactive. Uploaded by 4_dashboard_visuals.",
+      "notes": "{base}={cohort}_{age_band_fname}. JSON-first: chart_data.json (0), sequence_heatmap.json (1), plots/trajectory_overview_plot.json (2) from static; PNG fallbacks (3)(4), interactive HTML (5)(6). All DTW S3 paths under this base. Uploaded by 4_dashboard_visuals.",
       "static_files": [
         "chart_data.json",
         "sequence_heatmap.json",
         "plots/trajectory_overview_plot.json",
         "plots/dtw_trajectory_analysis_{base}.png",
-        "plots/dtw_sample_trajectories_{base}.png"
+        "plots/dtw_sample_trajectories_{base}.png",
+        "plots/dtw_trajectory_cluster_1d_{base}.html",
+        "plots/dtw_trajectory_cluster_3d_{base}.html"
       ]
     },
     {
