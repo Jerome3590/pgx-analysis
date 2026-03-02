@@ -451,7 +451,7 @@ Create compact, model-ready event datasets filtered to include only events with 
 
 ### Purpose
 
-Build patient-level feature tables from model events (Step 4) using the refined feature list (Step 3c) for final model training.
+Build patient-level feature tables from model events (Step 4) using the refined feature list (Step 3c) for final model training. Feature engineering for the final model **never generates** trajectory, sequence, or itemset features—only n_events, item_* (drug/ICD/CPT), PGx counts, and other schema features; FPGrowth/BupaR/DTW are for visualization and (DTW) protocol filtering only.
 
 ### Process
 
@@ -888,6 +888,8 @@ Permutation importance **does NOT preserve row-level associations**.
 - **Protocol Filtering:** Excels at identifying standard care protocols (both targets and controls follow)
 - **Non-Predictive:** These protocols are non-predictive by design
 - **Solution:** Event/ICD filtering in Step 1b; trajectory visualization in Step 9, not as model features
+
+**Feature set for final model:** Feature engineering for the final model **never generates** trajectory, sequence, or itemset features. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; n_drugs from PGx step), and other schema features. FPGrowth, BupaR, and DTW are used for dashboard visualizations (and DTW for protocol filtering) only.
 
 ### Why Aggregated Features Are Used Directly
 

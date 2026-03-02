@@ -98,7 +98,7 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
         (except those with 'interval' in the name)
       - Datetime helper columns: 'target_time', 'first_time'
       - DTW-derived features (any column with 'dtw' in its name)
-      - Trajectory/sequence/itemset features (to avoid target leakage; not used in training)
+      - Trajectory/sequence/itemset (defensive only; feature engineering never generates these)
       - Any feature whose name contains 'F1120'
       - Non-predictive markers/confounders (SUBOXONE, BUPRENORPHINE, F1123)
       - For non_opioid_ed cohort: ICD and CPT features (polypharmacy uses drugs only)
@@ -182,15 +182,15 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
         if len(dtw_features) > 10:
             print(f"  ... and {len(dtw_features) - 10} more")
 
-    # 4b. Trajectory / sequence / itemset (REMOVED if present; we do not calculate these—only n_events, item_*, PGx counts)
+    # 4b. Trajectory / sequence / itemset (defensive only; feature engineering never generates these—only n_events, item_*, PGx)
     traj_seq_itemset = [
         c for c in cols
         if "trajectory" in c.lower() or "sequence" in c.lower() or "itemset" in c.lower()
     ]
     leakage.update(traj_seq_itemset)
     if traj_seq_itemset:
-        print(f"\n[INFO] Trajectory/sequence/itemset features (TARGET LEAKAGE risk): {len(traj_seq_itemset)}")
-        print("[INFO] REMOVED - we do not use trajectory, sequence, or itemset features in model training")
+        print(f"\n[INFO] Trajectory/sequence/itemset columns found (unexpected): {len(traj_seq_itemset)}")
+        print("[INFO] Removed defensively; feature engineering does not produce these.")
         for f in traj_seq_itemset[:10]:
             print(f"  - {f}")
         if len(traj_seq_itemset) > 10:

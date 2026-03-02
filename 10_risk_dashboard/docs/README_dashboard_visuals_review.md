@@ -18,7 +18,7 @@ The dashboard visuals **effectively address all core research questions** with a
 |-------------------|-------------|---------|--------|
 | **RQ1:** Routine vs no routine appointments → outcomes | DTW Trajectories | Routine comparison, trajectory metrics, admin ICD analysis | ✅ **Well-addressed** |
 | **RQ2:** Sequences leading to target outcomes | BupaR Process Mining | Top traces, activity sequences, pre-target frequency | ✅ **Well-addressed** |
-| **RQ3:** Time intervals between sequences | BupaR Process Mining | Gantt charts, milestones, inter-activity times | ✅ **Well-addressed** |
+| **RQ3:** Time intervals between sequences | DTW, BupaR | DTW: time-between and time-to-target for **aligned** sequences (more accurate than straight BupaR: alignment makes intervals comparable across patients; BupaR straight aggregate mixes stages). BupaR: activity frequency, trace explorer, sequences. | ✅ **Well-addressed** |
 | **RQ4:** ICD/CPT/Drug connections → target | FP-Growth Patterns | Co-occurrence networks, itemsets by type | ✅ **Well-addressed** |
 | **RQ5:** Features driving outcome & relationships | Causal Analysis | FFA + SHAP importance, feature interactions | ✅ **Well-addressed** |
 | **RQ6:** Drug combinations → polypharmacy ED | Causal Analysis + BupaR | Drug-focused causal factors, sequence analysis | ✅ **Well-addressed** |
@@ -64,8 +64,9 @@ The dashboard visuals **effectively address all core research questions** with a
 - Coverage:
   - Top traces (sequences leading to target)
   - Activity frequencies (overall, pre-target, post-target)
-  - Gantt charts showing temporal progression
-  - Process maps with directly-follows relationships
+  - Trace explorer (aggregated activity frequency)
+  - Activity sequence top
+  - Optional: time-between summary for N3
 - SHAP/FFA filtered: Uses top 500 important codes
 - **Recommendation:** ✅ Excellent coverage; consider adding interactive HTML versions per BUPAR_OPTIMIZATION_RECOMMENDATIONS.md
 

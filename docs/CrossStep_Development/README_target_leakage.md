@@ -4,6 +4,8 @@
 
 This document outlines our approach to preventing **target leakage** in the final model and ensuring all features are **truly predictive** (i.e., available at prediction time without knowledge of the target outcome).
 
+**Current pipeline:** Feature engineering for the final model **never generates** trajectory, sequence, or itemset features. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; n_drugs from PGx step), and other schema features. Any removal of trajectory/sequence/itemset in `remove_target_leakage.py` or `run_final_model.py` is **defensive only** (in case of legacy or alternate paths). FPGrowth and BupaR are used for **dashboard visualizations** only; DTW is used for **protocol filtering** only.
+
 ## Important Distinction: Feature Engineering vs. Final Model
 
 **For Feature Engineering and Exploratory Analysis:**
@@ -161,47 +163,23 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 
 ---
 
-### 2b. Sequence Features ✅
+### 2b. Sequence Features
 
-**Kept:**
-- `is_top_sequence` - Binary indicator if patient has a top-frequency sequence (from pre-F1120 events)
-- `is_rare_sequence` - Binary indicator if patient has a rare sequence (from pre-F1120 events)
-- Sequence frequency features (if calculated from pre-F1120 events only)
+**In the current pipeline:** Feature engineering **does not produce** sequence (or trajectory/itemset) columns for the final model. BupaR is used for dashboard visualizations only. The following would be kept *if* we built them (we do not):
 
-**Why kept:** These features capture **important sequence patterns** from events BEFORE F1120:
-- **Predictive**: Based on pre-target event sequences
-- **Pattern-based**: Capture common and rare event sequences leading up to target
-- **Available for controls**: Can be calculated for control patients using reference dates
+- `is_top_sequence`, `is_rare_sequence`, sequence frequency features (from pre-F1120 events only)
 
-**Source:** `5_bupaR_analysis/create_sequence_features.py`, `5_bupaR_analysis/add_bupar_features_to_model_data.py`
+**Why they would be predictive if used:** Based on pre-target event sequences; available for controls with a reference date. See `5_bupaR_analysis/` for BupaR outputs (visualization only).
 
 ---
 
-### 3. FP-Growth Features ✅
+### 3. FP-Growth Features
 
-**Kept:**
-- **Itemset features**: Binary indicators for top N itemsets (e.g., `drug_name_itemset_0_match`, `icd_code_itemset_5_match`)
-- **Itemset support scores**: Support values for matched itemsets (e.g., `drug_name_itemset_0_support`)
-- **Rule features**: Binary indicators for top N association rules (e.g., `drug_name_rule_0_match`)
-- **Rule confidence/lift scores**: Confidence and lift values for matched rules (e.g., `drug_name_rule_0_confidence`, `drug_name_rule_0_lift`)
-- **Summary features**: 
-  - `*_itemsets_matched_count` - Count of matched itemsets per patient
-  - `*_itemsets_max_support` - Maximum support among matched itemsets
-  - `*_rules_matched_count` - Count of matched rules per patient
-  - `*_rules_max_confidence` - Maximum confidence among matched rules
-  - `*_rules_max_lift` - Maximum lift among matched rules
+**In the current pipeline:** Feature engineering **does not produce** itemset (or trajectory/sequence) columns for the final model. FP-Growth is used for dashboard visualizations only. The following would be kept *if* we built them (we do not):
 
-**Why kept:** FP-Growth features capture **important rules and itemsets** from pre-F1120 events:
-- **Predictive**: Based on co-occurrence patterns, not target event timing
-- **Available for controls**: Can be calculated for any patient with events
-- **Pattern-based**: Capture associations between drugs, diagnoses, and procedures
-- **Important patterns**: Top itemsets and rules represent frequent and meaningful associations
+- Itemset match/support features, rule match/confidence/lift features, summary counts
 
-**Example:**
-- Patient has itemset `[AMOXICILLIN, F10.10]` → `drug_name_itemset_2_match = 1`, `drug_name_itemset_2_support = 0.15`
-- Patient matches rule `AMOXICILLIN → F10.10` → `drug_name_rule_5_match = 1`, `drug_name_rule_5_confidence = 0.8`
-
-**Source:** `10_risk_dashboard/visualizations/fpgrowth/create_fpgrowth_features.py`
+**Why they would be predictive if used:** Based on pre-F1120 co-occurrence patterns; available for controls. See `10_risk_dashboard/visualizations/fpgrowth/` for FP-Growth outputs (visualization only).
 
 ---
 
@@ -222,19 +200,16 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 
 ## Feature Engineering Approach
 
-### For Target Patients
+### For Target Patients (current pipeline)
 
-1. **Pre-event features**: Calculate from events before target event date
-2. **Time intervals**: Calculate from all available events (no target reference)
-3. **FP-Growth**: Match patient events to frequent itemsets/rules
-4. **PGx**: Map patient drugs to gene-allele frequencies
+1. **Pre-event / count features**: n_events and related counts from events before target event date
+2. **Item features**: item_* (drug/ICD/CPT) from feature importance
+3. **PGx**: pgx_num_drugs, pgx_num_cpic_drugs; n_drugs from PGx step
+4. We **do not** build trajectory, sequence, or itemset features for the model; FPGrowth/BupaR are visualization-only
 
 ### For Control Patients
 
-1. **Pre-event features**: Calculate from events before a **reference date** (e.g., first event, cohort entry)
-2. **Time intervals**: Calculate from all available events (same as targets)
-3. **FP-Growth**: Match patient events to frequent itemsets/rules (same as targets)
-4. **PGx**: Map patient drugs to gene-allele frequencies (same as targets)
+Same methodology with a **reference date** (e.g., first event, cohort entry) instead of target event date.
 
 **Key principle:** Control patients should have features calculated using the **same methodology** as target patients, just with a different reference point (not target event date).
 
@@ -242,7 +217,7 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 
 ## Implementation Details
 
-### Script: `8_final_model/remove_target_leakage.py`
+### Script: `6_final_model/remove_target_leakage.py`
 
 This script identifies and removes target leakage features from the final feature table:
 
@@ -265,22 +240,16 @@ This script creates predictive time interval features:
 - cpt_interval_* (mean, median, std, min, max, count)
 ```
 
-### Script: `8_final_model/build_final_cohort_model_features.py`
+### Script: `6_final_model/build_final_cohort_model_features.py`
 
-This script builds the final feature table **without** leakage features:
+This script builds the final feature table. Feature engineering **never generates** trajectory, sequence, or itemset columns.
 
 ```python
-# Merged features (PRESERVED):
-1. Pre-event features (pre_*)
-2. Predictive time intervals (drug_interval_*, icd_interval_*, cpt_interval_*)
-3. FP-Growth features:
-   - Important itemsets (top N itemsets with match indicators and support scores)
-   - Important rules (top N rules with match indicators, confidence, and lift scores)
-   - Summary statistics (matched counts, max support/confidence/lift)
-4. Sequence features (is_top_sequence, is_rare_sequence)
-5. PGx features (allele frequencies, risk scores)
+# Features actually produced:
+- n_events, item_* (drug/ICD/CPT from feature importance), PGx counts, demographics, etc.
 
-# NOT merged (REMOVED):
+# NOT produced (and removed defensively if ever present):
+- Trajectory/sequence/itemset features (we do not build these)
 - Post-event features (post_*)
 - Time-to-target features (time_to_*)
 - Target-referenced time windows (*_30d, *_90d, *_180d)
