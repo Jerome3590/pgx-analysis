@@ -326,6 +326,9 @@ def extract_patient_trajectories(
     # Build SQL query with SHAP/FFA filtering
     con = duckdb.connect(":memory:")
 
+    # Clause that keeps all drug events (no SHAP/FFA filter); used for fallback when filter yields 0 trajectories.
+    drug_only_clause = "WHERE drug_name IS NOT NULL AND drug_name != ''"
+
     if use_filter:
         # DTW is drug-only for both cohorts: only events with allowed drug codes.
         def safe_sql_list(codes: Set[str]) -> str:
@@ -340,10 +343,13 @@ def extract_patient_trajectories(
         if filters:
             filter_clause = f"WHERE ({' AND '.join(filters)}) AND drug_name IS NOT NULL AND drug_name != ''"
         else:
-            filter_clause = "WHERE drug_name IS NOT NULL AND drug_name != ''"
+            filter_clause = drug_only_clause
         _log("info", "Filter: drug-only, drugs=%d (ICD/CPT excluded for DTW)", len(drug_set))
+        if drug_set:
+            sample = sorted(drug_set)[:5]
+            _log("info", "Allowed drug codes sample (normalized): %s", sample)
     else:
-        filter_clause = ""
+        filter_clause = drug_only_clause
 
     # Normalize target_date to DATE (parquet may have VARCHAR, TIMESTAMP, or INTEGER YYYYMMDD).
     # Use CAST(col AS DOUBLE) in the integer branch so both CASE branches type-check when col is TIMESTAMP.
@@ -409,6 +415,71 @@ def extract_patient_trajectories(
 
     _log("info", "Extracting trajectories from model_events...")
     df = con.execute(query).df()
+
+    # If SHAP/FFA drug filter matched no events (e.g. allowed codes don't match model_events drug_name normalization),
+    # retry using all drug events so we still get trajectories when patients have drug events.
+    if df.empty and use_filter and drug_set:
+        try:
+            total_drug_events = con.execute(
+                f"SELECT COUNT(*) FROM read_parquet('{path_str}') {drug_only_clause}"
+            ).fetchone()[0]
+            _log(
+                "warning",
+                "No trajectories with SHAP/FFA drug filter (%d codes). Total drug events in model_events: %d; trying fallback: all drug events.",
+                len(drug_set),
+                total_drug_events,
+            )
+        except Exception:
+            _log(
+                "warning",
+                "No trajectories with SHAP/FFA drug filter (%d codes); trying fallback: all drug events.",
+                len(drug_set),
+            )
+        filter_clause = drug_only_clause
+        query_fallback = f"""
+    WITH patient_events AS (
+        SELECT
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            target,
+            ({event_date_expr}) as event_date,
+            drug_name,
+            primary_icd_diagnosis_code,
+            procedure_code,
+            ({target_date_expr}) as target_date
+        FROM read_parquet('{path_str}')
+        {filter_clause}
+    ),
+    filtered_events AS (
+        SELECT
+            mi_person_key,
+            target,
+            event_date,
+            drug_name,
+            primary_icd_diagnosis_code,
+            procedure_code
+        FROM patient_events
+        WHERE
+            (target = 1 AND event_date < target_date
+             AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+            OR (target = 0)
+    ),
+    trajectories AS (
+        SELECT
+            mi_person_key,
+            target,
+            STRING_AGG('DRUG:' || drug_name, '_' ORDER BY event_date)
+                FILTER (WHERE drug_name IS NOT NULL AND drug_name != '') as seq_pattern_str,
+            COUNT(*) as trajectory_length,
+            COUNT(DISTINCT COALESCE(drug_name, '') || '|' || COALESCE(primary_icd_diagnosis_code, '') || '|' || COALESCE(procedure_code, '')) as trajectory_diversity
+        FROM filtered_events
+        GROUP BY mi_person_key, target
+    )
+    SELECT * FROM trajectories
+    WHERE seq_pattern_str IS NOT NULL
+    """
+        df = con.execute(query_fallback).df()
+        if not df.empty:
+            _log("info", "Fallback succeeded: %d trajectories using all drug events (no SHAP/FFA filter).", len(df))
 
     # Monthly trajectory: one token per calendar month, drug only for both cohorts.
     monthly_where = "AND drug_name IS NOT NULL AND drug_name != ''"
@@ -741,14 +812,16 @@ def main():
         script_name="create_dtw_trajectories"
     )
 
-    # Output path
+    # Output paths (parquet primary; CSV for backward compatibility)
     output_dir = _dtw_output_root(project_root) / "feature_engineering"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
+    base_name = f"dtw_features_{args.cohort}_{age_band_fname}"
+    output_path_csv = output_dir / f"{base_name}.csv"
+    output_path_parquet = output_dir / f"{base_name}.parquet"
 
-    # Idempotency check
-    if not args.force and output_path.exists():
-        logger.info("Output exists at %s; skipping (use --force to re-run)", output_path)
+    # Idempotency check (either format present)
+    if not args.force and (output_path_parquet.exists() or output_path_csv.exists()):
+        logger.info("Output exists at %s or %s; skipping (use --force to re-run)", output_path_parquet, output_path_csv)
         return
 
     with step_block("5_dtw", "create_dtw_trajectories", logger=logger.logger):
@@ -765,11 +838,14 @@ def main():
 
         if df.empty:
             logger.warning("No trajectories extracted; writing placeholder artifacts and continuing pipeline.")
-            # Placeholder CSV (headers only) so create_dtw_features finds the file and skips gracefully
+            # Placeholder parquet + CSV so create_dtw_features finds the file and skips gracefully
             placeholder_df = pd.DataFrame(columns=DTW_TRAJECTORY_CSV_COLUMNS)
-            placeholder_df.to_csv(output_path, index=False)
-            added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
-            placeholder_df.to_csv(added_path, index=False)
+            placeholder_df.to_parquet(output_path_parquet, index=False)
+            placeholder_df.to_csv(output_path_csv, index=False)
+            added_path_csv = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
+            added_path_parquet = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.parquet"
+            placeholder_df.to_csv(added_path_csv, index=False)
+            placeholder_df.to_parquet(added_path_parquet, index=False)
             # Status JSON with event/alignment counts so downstream and logs are clear
             status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
             status = {
@@ -782,12 +858,13 @@ def main():
             }
             with open(status_path, "w", encoding="utf-8") as f:
                 json.dump(status, f, indent=2)
-            logger.info("Wrote placeholder CSV and %s (events=%d, alignments=0)", status_path.name, n_events_analyzed)
+            logger.info("Wrote placeholder parquet/CSV and %s (events=%d, alignments=0)", status_path.name, n_events_analyzed)
             logger.log_summary()
             return
-        # Save
-        df.to_csv(output_path, index=False)
-        logger.info("Saved %d trajectories to %s", len(df), output_path)
+        # Save parquet (primary) and CSV (backward compatibility)
+        df.to_parquet(output_path_parquet, index=False)
+        df.to_csv(output_path_csv, index=False)
+        logger.info("Saved %d trajectories to %s and %s", len(df), output_path_parquet, output_path_csv)
         logger.info("Columns: %s", list(df.columns))
 
         # Status JSON with counts (for create_dtw_features and reporting)
@@ -803,10 +880,12 @@ def main():
         with open(status_path, "w", encoding="utf-8") as f:
             json.dump(status, f, indent=2)
 
-        # Also copy to dtw_added_features (expected by create_dtw_visuals.py)
-        added_path = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
-        df.to_csv(added_path, index=False)
-        logger.info("Also saved to %s (for create_dtw_visuals.py)", added_path)
+        # Also write dtw_added_features (expected by create_dtw_visuals.py)
+        added_path_csv = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.csv"
+        added_path_parquet = output_dir / f"dtw_added_features_{args.cohort}_{age_band_fname}.parquet"
+        df.to_csv(added_path_csv, index=False)
+        df.to_parquet(added_path_parquet, index=False)
+        logger.info("Also saved to %s and %s (for create_dtw_visuals.py)", added_path_parquet, added_path_csv)
     
     logger.log_summary()
 

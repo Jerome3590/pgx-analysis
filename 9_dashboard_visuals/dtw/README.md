@@ -18,7 +18,8 @@
 
 ## Pipeline and technical details
 
-- **Pipeline:** Filter by feature importance → build cohort trajectories (target-anchored, lookback) → DTW (distances, clustering, archetypes) → dashboard chart_data and plots. See [README_DTW_COHORT_ANALYSIS.md](README_DTW_COHORT_ANALYSIS.md) for full cohort DTW analysis and [README_DTW_S3_CHECKPOINTS.md](README_DTW_S3_CHECKPOINTS.md) for S3 checkpoint behavior.
+- **Pipeline:** Filter by feature importance → build cohort trajectories (target-anchored, lookback) → DTW (distances, clustering, archetypes) → dashboard chart_data and plots. For large cohorts (e.g. 65-74, 75-84), the trajectory cluster plot is built from a **subsample** (cap 25k rows) to avoid OOM; chart_data and dashboard tables use the full data. See [README_DTW_COHORT_ANALYSIS.md](README_DTW_COHORT_ANALYSIS.md) and [README_DTW_S3_CHECKPOINTS.md](README_DTW_S3_CHECKPOINTS.md).
+- **Data format:** Trajectories and DTW features are written as **Parquet** (primary) and **CSV** (backward compatibility). Downstream steps (create_dtw_features, create_dtw_visuals, create_dtw_plots) **prefer Parquet** when present and use **DuckDB** for reading parquet where available; they fall back to CSV otherwise. Model events are read from parquet via DuckDB in create_dtw_trajectories.
 - **Outputs:** `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap, plots/). Notebook 5 Step 6 syncs to S3.
 
 **No empty artifacts.** When a plot or chart doesn’t produce data, the pipeline **always** writes a JSON artifact with `message`, `empty: true`, `cohort`, `age_band`, and `metrics` (e.g. `reason`, `dtw_rows`) so the dashboard can show why there is no output. Never leave a missing file or plain `{}`. Applies to `chart_data.json`, `sequence_heatmap.json`, and `plots/trajectory_overview_plot.json`. See [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](../../10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md#dtw-trajectories) for the full DTW EC2 + S3 path table.
@@ -61,3 +62,26 @@ Each bar chart object includes **x**, **y**, **type**, **name**, **x_label**, **
 | `plots/dtw_sample_trajectories_{cohort}_{age}.png` | Same (copy) | Same as above. | Same as above. |
 
 The pipeline **always** writes `chart_data.json`, `sequence_heatmap.json`, and `trajectory_overview_plot.json` (full payload or empty-state JSON with message + metrics). Step 6 syncs them so the dashboard never gets 404. HTML and PNGs are only written when the visual is produced (kaleido required for PNGs). Full EC2 + S3 path table: [README_dashboard_visual_artifact_paths.md § DTW Trajectories](../../10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md#dtw-trajectories).
+
+---
+
+### Troubleshooting: "No DTW chart data for {cohort}/{age_band}"
+
+1. **Check create_dtw_visuals logs**  
+   Local: `logs/dtw_s3/{cohort}/{age_band}/create_dtw_visuals_*.log` or `9_dashboard_visuals/logs/5_dtw/create_dtw_visuals_{cohort}_{age_band_fname}_*.log`.  
+   Look for:
+   - **"Loaded 0 patients"** → The DTW features CSV has **no data rows** (header only). Cause is upstream in `create_dtw_features` or `create_dtw_trajectories`.
+   - **"DTW features not found"** → CSV missing; run `create_dtw_trajectories` then `create_dtw_features` for that cohort/age_band.
+   - **"empty dataframe"** / **"charts_not_built"** → Same as 0 patients or rows dropped (e.g. all `seq_pattern_str` empty).
+
+2. **If "Loaded 0 patients"**  
+   The CSV at `10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band_fname}.csv` exists but has zero data rows. Check:
+   - **create_dtw_features** logs for that cohort/age_band: did it read any trajectories? Did DTW alignment produce no rows?
+   - **create_dtw_trajectories** logs: did it extract any trajectories? If you see **"No trajectories with SHAP/FFA drug filter"** then the allowed drug codes (from `allowed_codes_shap_ffa_{cohort}_{age_band}.json`) did not match any `drug_name` in model_events (e.g. normalization or naming mismatch). The script **automatically retries using all drug events** (no SHAP/FFA filter) so you still get trajectories when patients have drug events; look for **"Fallback succeeded: N trajectories using all drug events"** in the same run. If fallback also yields 0, check model_events path and target/lookback (e.g. target date column, max lookback months).
+   - **create_dtw_trajectories** output: does the trajectories CSV (or the input to create_dtw_features) have any rows for this cohort/age_band?
+
+3. **Plots missing for some age bands (e.g. 65-74, 75-84) but chart_data exists**  
+   Large cohorts can cause the trajectory cluster plot step to run out of memory (OOM). The pipeline **subsamples to 25,000 rows** when building the cluster plot (chart_data and dashboard still use the full CSV). If you see **"DTW trajectory cluster plots failed (MemoryError)"** in create_dtw_visuals logs, either re-run (subsampling should now avoid OOM) or reduce `MAX_PLOT_ROWS` in `create_dtw_plots.py` or increase process memory.
+
+4. **S3 logs**  
+   If the pipeline runs on EC2 and uploads logs to S3, see [README_DTW_S3_CHECKPOINTS.md](README_DTW_S3_CHECKPOINTS.md) for log locations (e.g. `s3://pgx-repository/5_dtw_log/{cohort}/{age_band}/`).
