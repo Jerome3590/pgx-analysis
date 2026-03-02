@@ -9,11 +9,13 @@ Usage:
     python prepare_lambda_dir.py [--download-s3] [--source-local]
 """
 
+import os
 import sys
 import argparse
 import shutil
 import subprocess
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -79,62 +81,62 @@ def copy_file(source: Path, dest: Path) -> bool:
         return False
 
 
+def _prepare_models_one_cohort_age(
+    cohort: str, age_band: str, download_s3: bool
+) -> tuple:
+    """Copy or download one cohort/age_band models. Returns (cohort, age_band, success)."""
+    age_band_fname = age_band.replace("-", "_")
+    source_dir = MODELS_SOURCE / cohort / age_band_fname
+    dest_dir = LAMBDA_DIR / "models" / cohort / age_band_fname
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    if download_s3:
+        s3_prefix = f"{S3_MODELS_PREFIX}/{cohort}/{age_band_fname}"
+        model_files = [
+            "catboost.joblib", "xgboost.joblib", "xgboost.json", "feature_schema.json",
+            "risk_distribution_2019.json",
+        ]
+        for model_file in model_files:
+            s3_key = f"{s3_prefix}/{model_file}"
+            local_path = dest_dir / model_file
+            if not download_from_s3(s3_key, local_path) and source_dir.joinpath(model_file).exists():
+                copy_file(source_dir / model_file, local_path)
+    else:
+        if not source_dir.exists():
+            return (cohort, age_band, False)
+        for file_path in source_dir.glob("*"):
+            if file_path.is_file():
+                if not copy_file(file_path, dest_dir / file_path.name):
+                    return (cohort, age_band, False)
+    return (cohort, age_band, True)
+
+
 def prepare_models(download_s3: bool = False) -> bool:
-    """Prepare models directory."""
-    log("Preparing models...")
-    
+    """Prepare models directory (parallel over cohort/age_band)."""
+    log("Preparing models (parallel)...")
     models_dest = LAMBDA_DIR / "models"
     models_dest.mkdir(parents=True, exist_ok=True)
-    
+    tasks = [
+        (cohort, age_band)
+        for cohort, age_bands in REQUIRED_COHORTS.items()
+        for age_band in age_bands
+    ]
+    n_workers = max(1, os.cpu_count() or 1)
     success = True
-    
-    for cohort, age_bands in REQUIRED_COHORTS.items():
-        for age_band in age_bands:
-            age_band_fname = age_band.replace("-", "_")
-            
-            # Source paths
-            source_dir = MODELS_SOURCE / cohort / age_band_fname
-            dest_dir = models_dest / cohort / age_band_fname
-            
-            if download_s3:
-                # Download from S3
-                log(f"  Downloading {cohort}/{age_band} models from S3...")
-                s3_prefix = f"{S3_MODELS_PREFIX}/{cohort}/{age_band_fname}"
-                
-                # Download model files (including 2019 risk distribution for dashboard histogram)
-                for model_file in [
-                    "catboost.joblib", "xgboost.joblib", "xgboost.json", "feature_schema.json",
-                    "risk_distribution_2019.json"
-                ]:
-                    s3_key = f"{s3_prefix}/{model_file}"
-                    local_path = dest_dir / model_file
-                    if download_from_s3(s3_key, local_path):
-                        log(f"    ✓ Downloaded {model_file}")
-                    else:
-                        # Try local fallback
-                        local_source = source_dir / model_file
-                        if local_source.exists():
-                            copy_file(local_source, local_path)
-                            log(f"    ✓ Copied {model_file} from local")
-            else:
-                # Copy from local
-                if not source_dir.exists():
-                    error(f"  Models not found: {source_dir}")
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(_prepare_models_one_cohort_age, c, ab, download_s3): (c, ab)
+            for c, ab in tasks
+        }
+        for future in as_completed(futures):
+            c, ab = futures[future]
+            try:
+                _, _, ok = future.result()
+                if not ok and not download_s3:
+                    error(f"  Models not found: {c}/{ab}")
                     success = False
-                    continue
-                
-                log(f"  Copying {cohort}/{age_band} models...")
-                dest_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Copy all files from source
-                for file_path in source_dir.glob("*"):
-                    if file_path.is_file():
-                        dest_path = dest_dir / file_path.name
-                        if copy_file(file_path, dest_path):
-                            log(f"    ✓ Copied {file_path.name}")
-                        else:
-                            success = False
-    
+            except Exception as e:
+                error(f"  Error {c}/{ab}: {e}")
+                success = False
     if not success:
         error("  Run: python 10_risk_dashboard/data_preparation/prepare_models.py --all")
         error("  (Requires 6_final_model outputs; run Step 6 first if needed.)")
@@ -392,11 +394,13 @@ def main():
     # Create lambda_dir
     LAMBDA_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Prepare all components (generate metrics first so outputs/metadata has it for Docker COPY)
+    # Run metrics and metadata in parallel (independent), then models and data
     success = True
-    run_generate_metrics(download_s3=args.download_s3)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_metrics = executor.submit(run_generate_metrics, args.download_s3)
+        f_meta = executor.submit(prepare_metadata, args.download_s3)
+        success = f_metrics.result() and f_meta.result()
     success &= prepare_models(download_s3=args.download_s3)
-    success &= prepare_metadata(download_s3=args.download_s3)
     success &= prepare_data(download_s3=args.download_s3)
     
     log("")

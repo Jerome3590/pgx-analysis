@@ -25,7 +25,9 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -266,10 +268,21 @@ def main():
         parser.print_help()
         return 0
 
-    print("Building 2019 risk distributions (idempotent)...")
-    for cohort, age_bands in cohorts:
-        for age_band in age_bands:
-            build_distribution_for_cohort_age(cohort, age_band)
+    tasks = [(c, ab) for c, age_bands in cohorts for ab in age_bands]
+    n_workers = max(1, os.cpu_count() or 1)
+    print(f"Building 2019 risk distributions (idempotent, {n_workers} workers)...")
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(build_distribution_for_cohort_age, c, ab): (c, ab)
+            for c, ab in tasks
+        }
+        for future in as_completed(futures):
+            c, ab = futures[future]
+            try:
+                ok = future.result()
+                print(f"  {'Done' if ok else 'Skip'}: {c}/{ab}", flush=True)
+            except Exception as e:
+                print(f"  Error {c}/{ab}: {e}", flush=True)
     print("Done.")
     return 0
 

@@ -23,7 +23,8 @@ python prepare_models.py --all
 3. Extracts feature schemas from training data: prefers **Parquet** at `6_final_model/outputs/.../inputs/model_train/final_features.parquet`, else the legacy CSV. Uses **DuckDB** when available for efficient reads and percentiles; falls back to pandas otherwise.
 4. Writes to `10_risk_dashboard/outputs/models/` (used by `prepare_lambda_dir.py` and Docker build)
 
-**Progress:** The script prints progress per cohort/age_band and flushes stdout so when run from notebook 5 (e.g. `python -u prepare_models.py --all`) you see output as it runs. The 2019 distribution subprocess has a 600s timeout.
+**Parallelism:** Uses all available CPU cores: age_bands are processed in parallel per cohort (ProcessPoolExecutor); S3 upload (when used) is parallel (ThreadPoolExecutor). The 2019 distribution step runs once per cohort and uses ProcessPoolExecutor over all cohort/age_band pairs.
+**Progress:** Progress is printed as each age_band completes. The 2019 distribution subprocess has a 600s timeout.
 
 **Outputs:** (under `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/`)
 - `catboost.joblib`, `xgboost.joblib`, optionally `xgboost_rf.joblib`
