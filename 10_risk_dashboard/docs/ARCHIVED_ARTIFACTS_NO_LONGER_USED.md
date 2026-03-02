@@ -25,9 +25,10 @@
 
 | Artifact | Reason not used |
 |----------|------------------|
+| **Sample Trajectories (drugs)** / `dtw_sample_trajectories_*.png` | **Removed.** This visual is no longer produced or displayed on the dashboard. |
 | Full DTW distance matrices / alignment CSVs (if kept beyond chart_data) | Dashboard uses `chart_data.json` and `sequence_heatmap.json` only. Heavy alignment outputs not served. |
 | Non-drug sequence heatmap slices | Dashboard uses **drug-only** sequence heatmap; ICD/CPT slices not displayed. |
-| Legacy trajectory CSVs not fed into chart_data | Only chart_data and sequence_heatmap (and overview/sample images) are used. |
+| Legacy trajectory CSVs not fed into chart_data | Only chart_data and sequence_heatmap (and overview image when present) are used. |
 
 ---
 

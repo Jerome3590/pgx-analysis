@@ -2688,7 +2688,7 @@
       let data = {};
       const ageBandFname = ageBand.replace(/-/g, "_");
       const manifest = await getDashboardManifest().catch(function() { return null; });
-      // DTW: all URLs from manifest when present (chart_data, sequence_heatmap, dtwBasePath for overview/sample images). Avoids double prefix.
+      // DTW: all URLs from manifest when present (chart_data, sequence_heatmap, dtwBasePath for overview image). Sample Trajectories visual removed.
       let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
       let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
       let overviewPlotUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/plots/trajectory_overview_plot.json");
@@ -2743,7 +2743,6 @@
       // PNG/HTML fallbacks from manifest (JSON-first: overview already from trajectory_overview_plot.json when present).
       if (dtwBuilt && dtwBuilt.urls.length >= 5) {
         if (!data.overview_image) data.overview_image = dtwBuilt.urls[3];
-        if (!data.sample_trajectories_image) data.sample_trajectories_image = dtwBuilt.urls[4];
         if (!data.overview_interactive && dtwBuilt.urls.length >= 7) data.overview_interactive = dtwBuilt.urls[6] || dtwBuilt.urls[5];
       }
       // API fallback only when static did not provide trajectory_overview_plot or chart/heatmap.
@@ -2757,7 +2756,6 @@
             if (apiData.sequence_heatmap && !data.sequence_heatmap) data.sequence_heatmap = apiData.sequence_heatmap;
             if (apiData.overview_interactive && !data.overview_interactive) data.overview_interactive = apiData.overview_interactive;
             if (apiData.overview_image && !data.overview_image) data.overview_image = apiData.overview_image;
-            if (apiData.sample_trajectories_image && !data.sample_trajectories_image) data.sample_trajectories_image = apiData.sample_trajectories_image;
           }
         } catch (_) { /* optional */ }
       }
