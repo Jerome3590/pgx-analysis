@@ -52,7 +52,7 @@ def _dtw_output_root(project_root: Path) -> Path:
 
 
 def _read_dtw_features_parquet_or_csv(path_parquet: Path, path_csv: Path) -> Optional[pd.DataFrame]:
-    """Load DataFrame from parquet if present, else CSV. Uses DuckDB for parquet when available."""
+    """Load DataFrame from parquet if present, else CSV. Prefer Parquet + DuckDB for transformations."""
     if path_parquet.exists():
         try:
             import duckdb
@@ -66,6 +66,35 @@ def _read_dtw_features_parquet_or_csv(path_parquet: Path, path_csv: Path) -> Opt
     if path_csv.exists():
         return pd.read_csv(path_csv)
     return None
+
+
+_N3_METRIC_COLUMNS = ("mean_days_between_events", "days_first_event_to_target")
+
+
+def _agg_n3_via_duckdb(df: pd.DataFrame, metric_col: str, bucket_label_0: str, bucket_label_else: str) -> Optional[pd.DataFrame]:
+    """Run N3-style bucket aggregation in DuckDB when available. Returns agg with columns bucket, mean_days, n."""
+    if metric_col not in _N3_METRIC_COLUMNS:
+        return None
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    if df.empty or metric_col not in df.columns or "admin_icd_event_count" not in df.columns:
+        return None
+    con = duckdb.connect(":memory:")
+    try:
+        con.register("t", df[["admin_icd_event_count", metric_col]].dropna(subset=[metric_col]))
+        if con.execute("SELECT COUNT(*) FROM t").fetchone()[0] < 4:
+            return None
+        # metric_col is from allowlist _N3_METRIC_COLUMNS
+        agg = con.execute(
+            "SELECT CASE WHEN admin_icd_event_count = 0 THEN ? ELSE ? END AS bucket, "
+            "AVG(" + metric_col + ") AS mean_days, COUNT(*) AS n FROM t GROUP BY 1 ORDER BY 1",
+            [bucket_label_0, bucket_label_else],
+        ).df()
+        return agg
+    finally:
+        con.close()
 
 
 if str(DTW_VIZ_DIR) not in sys.path:
@@ -397,11 +426,51 @@ def _count_drug_events_in_sequence(seq_str: Any) -> int:
     return sum(1 for t in s.split("_") if t.strip().upper().startswith("DRUG:"))
 
 
+def _agg_routine_comparison_via_duckdb(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Outcome rate by routine vs no routine using DuckDB when available. Returns chart dict or None."""
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    if df.empty or "target" not in df.columns or "admin_icd_event_count" not in df.columns:
+        return None
+    con = duckdb.connect(":memory:")
+    try:
+        bucket_0 = "No routine appointments (0 admin ICD events)"
+        bucket_1 = "Routine appointments (1+ admin ICD events)"
+        con.register("t", df[["admin_icd_event_count", "target"]])
+        agg = con.execute(
+            "SELECT CASE WHEN admin_icd_event_count = 0 THEN ? ELSE ? END AS bucket, "
+            "AVG(target) AS target_rate, COUNT(*) AS n FROM t GROUP BY 1 ORDER BY 1",
+            [bucket_0, bucket_1],
+        ).df()
+        if agg.empty or len(agg) < 2 or agg["n"].sum() < 10:
+            return None
+        agg = agg.set_index("bucket").reindex([bucket_0, bucket_1]).reset_index()
+        agg = agg.dropna(subset=["target_rate"])
+        if agg.empty or agg["n"].sum() == 0:
+            return None
+        return {
+            "x": agg["bucket"].astype(str).tolist(),
+            "y": [float(round(v, 4)) for v in agg["target_rate"]],
+            "n": [int(v) for v in agg["n"]],
+            "type": "bar",
+            "name": "Outcome rate",
+            "x_label": "Routine vs no routine (admin ICD filter)",
+            "y_label": "Target outcome rate",
+        }
+    finally:
+        con.close()
+
+
 def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Outcome rate by routine vs no routine (admin ICD filter) or by trajectory intensity. Prebuilt on EC2."""
+    """Outcome rate by routine vs no routine (admin ICD filter) or by trajectory intensity. Uses DuckDB when available."""
     if df.empty or "target" not in df.columns:
         return None
     if "admin_icd_event_count" in df.columns:
+        res = _agg_routine_comparison_via_duckdb(df)
+        if res is not None:
+            return res
         use_df = df[["admin_icd_event_count", "target"]].copy()
         use_df["bucket"] = use_df["admin_icd_event_count"].apply(
             lambda x: "No routine appointments (0 admin ICD events)" if x == 0 else "Routine appointments (1+ admin ICD events)"
@@ -445,11 +514,44 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
     }
 
 
+def _agg_routine_comparison_counts_via_duckdb(use_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Aggregate routine_comparison_counts in DuckDB when available. use_df must have bucket, medical_event_count, drug_event_count."""
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    if use_df.empty or "bucket" not in use_df.columns or len(use_df) < 10:
+        return None
+    con = duckdb.connect(":memory:")
+    try:
+        con.register("t", use_df[["bucket", "medical_event_count", "drug_event_count"]])
+        agg = con.execute(
+            "SELECT bucket, AVG(medical_event_count) AS mean_medical, AVG(drug_event_count) AS mean_drug, COUNT(*) AS n FROM t GROUP BY bucket ORDER BY bucket"
+        ).df()
+        bucket_0 = "No routine appointments (0 admin ICD events)"
+        bucket_1 = "Routine appointments (1+ admin ICD events)"
+        order = [bucket_0, bucket_1]
+        agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
+        agg = agg.dropna(subset=["mean_medical", "mean_drug"])
+        if agg.empty or agg["n"].sum() == 0:
+            return None
+        return {
+            "x": agg["bucket"].astype(str).tolist(),
+            "series": [
+                {"name": "Mean medical events (ICD/CPT) per patient", "y": [float(round(v, 2)) for v in agg["mean_medical"]]},
+                {"name": "Mean prescription events (drugs) per patient", "y": [float(round(v, 2)) for v in agg["mean_drug"]]},
+            ],
+            "n": [int(v) for v in agg["n"]],
+            "type": "bar",
+            "x_label": "Routine vs no routine (admin ICD filter)",
+            "y_label": "Mean events per patient",
+        }
+    finally:
+        con.close()
+
+
 def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """Mean medical and mean prescription (drug) events per patient by routine vs no routine.
-    Lets you see whether routine care (admin ICD = routine appointments) is associated with lower
-    drug counts: if Routine has lower mean prescription events than No routine, that supports
-    routine care driving down prescription/drug utilization."""
+    """Mean medical and mean prescription (drug) events per patient by routine vs no routine. Uses DuckDB for aggregation when available."""
     if df.empty or "admin_icd_event_count" not in df.columns:
         return None
     need = ["admin_icd_event_count", "trajectory_length"]
@@ -464,6 +566,9 @@ def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[st
     use_df = use_df.dropna(subset=["bucket", "trajectory_length"])
     if len(use_df) < 10:
         return None
+    res = _agg_routine_comparison_counts_via_duckdb(use_df)
+    if res is not None:
+        return res
     agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
         mean_medical=("medical_event_count", "mean"),
         mean_drug=("drug_event_count", "mean"),
@@ -474,7 +579,6 @@ def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[st
     agg = agg.dropna(subset=["mean_medical", "mean_drug"])
     if agg.empty or agg["n"].sum() == 0:
         return None
-    # Frontend: multi-series bar chart; n for robustness (multiple visuals)
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "series": [
@@ -522,24 +626,25 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
 
 def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """N3: Mean days between consecutive drug events by routine vs no routine (times between sequences).
-    Uses drug-only trajectories; mean_days_between_events is defined only for sequences with >=2 events."""
-    if df.empty or "mean_days_between_events" not in df.columns:
+    Uses Parquet+DuckDB for aggregation when available; else pandas. mean_days_between_events is defined only for sequences with >=2 events."""
+    if df.empty or "mean_days_between_events" not in df.columns or "admin_icd_event_count" not in df.columns:
         return None
-    if "admin_icd_event_count" not in df.columns:
-        return None
-    use_df = df[["admin_icd_event_count", "mean_days_between_events"]].copy()
-    use_df["bucket"] = use_df["admin_icd_event_count"].apply(
-        lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
-    )
-    use_df = use_df.dropna(subset=["mean_days_between_events"])
-    # Require at least 4 trajectories with >=2 drug events (so mean_days_between_events is defined)
-    if len(use_df) < 4:
-        return None
-    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
-        mean_days=("mean_days_between_events", "mean"),
-        n=("mean_days_between_events", "count"),
-    )
-    order = ["No routine (0 admin ICD events)", "Routine (1+ admin ICD events)"]
+    bucket_0 = "No routine (0 admin ICD events)"
+    bucket_1 = "Routine (1+ admin ICD events)"
+    agg = _agg_n3_via_duckdb(df, "mean_days_between_events", bucket_0, bucket_1)
+    if agg is None:
+        use_df = df[["admin_icd_event_count", "mean_days_between_events"]].copy()
+        use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+            lambda x: bucket_0 if x == 0 else bucket_1
+        )
+        use_df = use_df.dropna(subset=["mean_days_between_events"])
+        if len(use_df) < 4:
+            return None
+        agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
+            mean_days=("mean_days_between_events", "mean"),
+            n=("mean_days_between_events", "count"),
+        )
+    order = [bucket_0, bucket_1]
     agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
     agg = agg.dropna(subset=["mean_days"])
     if agg.empty:
@@ -556,28 +661,29 @@ def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any
 
 
 def _compute_time_to_target_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """N3: Mean days from first drug event to target (target=1 only) by routine vs no routine."""
+    """N3: Mean days from first drug event to target (target=1 only) by routine vs no routine. Uses DuckDB when available."""
     if df.empty or "days_first_event_to_target" not in df.columns or "target" not in df.columns:
         return None
     target_df = df[df["target"] == 1].copy()
-    if len(target_df) < 4:
+    if len(target_df) < 4 or "admin_icd_event_count" not in target_df.columns:
         return None
-    if "admin_icd_event_count" not in target_df.columns:
-        return None
-    use_df = target_df[["admin_icd_event_count", "days_first_event_to_target"]].dropna(
-        subset=["days_first_event_to_target"]
-    )
-    # Require at least 4 target=1 trajectories with valid days to target
-    if len(use_df) < 4:
-        return None
-    use_df["bucket"] = use_df["admin_icd_event_count"].apply(
-        lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
-    )
-    agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
-        mean_days=("days_first_event_to_target", "mean"),
-        n=("days_first_event_to_target", "count"),
-    )
-    order = ["No routine (0 admin ICD events)", "Routine (1+ admin ICD events)"]
+    bucket_0 = "No routine (0 admin ICD events)"
+    bucket_1 = "Routine (1+ admin ICD events)"
+    agg = _agg_n3_via_duckdb(target_df, "days_first_event_to_target", bucket_0, bucket_1)
+    if agg is None:
+        use_df = target_df[["admin_icd_event_count", "days_first_event_to_target"]].dropna(
+            subset=["days_first_event_to_target"]
+        )
+        if len(use_df) < 4:
+            return None
+        use_df["bucket"] = use_df["admin_icd_event_count"].apply(
+            lambda x: bucket_0 if x == 0 else bucket_1
+        )
+        agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
+            mean_days=("days_first_event_to_target", "mean"),
+            n=("days_first_event_to_target", "count"),
+        )
+    order = [bucket_0, bucket_1]
     agg = agg.set_index("bucket").reindex([b for b in order if b in agg.index]).reset_index()
     agg = agg.dropna(subset=["mean_days"])
     if agg.empty:
@@ -755,25 +861,44 @@ def _build_chart_data_summary(dtw_df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def _reason_routine_comparison(df: pd.DataFrame) -> str:
-    """Reason string when routine_comparison is not built."""
-    if df.empty or "target" not in df.columns:
-        return "missing target or empty dataframe"
+    """Reason string when routine_comparison is not built. Used for charts_not_built and error logging."""
+    if df.empty:
+        return "empty dataframe"
+    if "target" not in df.columns:
+        return "missing target column"
     if "admin_icd_event_count" not in df.columns and "trajectory_length" not in df.columns:
         return "missing admin_icd_event_count and trajectory_length"
-    if "admin_icd_event_count" in df.columns and len(df) < 10:
-        return "fewer than 10 rows"
+    if "admin_icd_event_count" in df.columns:
+        if len(df) < 10:
+            return "fewer than 10 rows (have %d)" % len(df)
+        n_no_routine = int((df["admin_icd_event_count"] == 0).sum())
+        n_routine = int((df["admin_icd_event_count"] > 0).sum())
+        if n_no_routine == 0 or n_routine == 0:
+            return "only one bucket (routine vs no routine): n_no_routine=%d, n_routine=%d" % (n_no_routine, n_routine)
+        return "insufficient data or only one bucket (routine vs no routine)"
+    if "trajectory_length" in df.columns and len(df) < 10:
+        return "fewer than 10 rows (have %d)" % len(df)
     return "insufficient data or only one bucket (routine vs no routine)"
 
 
 def _reason_routine_comparison_counts(df: pd.DataFrame) -> str:
-    """Reason string when routine_comparison_counts is not built."""
+    """Reason string when routine_comparison_counts is not built. Used for charts_not_built and error logging."""
     if df.empty:
         return "empty dataframe"
     if "admin_icd_event_count" not in df.columns:
         return "missing admin_icd_event_count"
-    if "trajectory_length" not in df.columns or "seq_pattern_str" not in df.columns:
-        return "missing trajectory_length or seq_pattern_str"
-    return "insufficient rows or aggregation"
+    if "trajectory_length" not in df.columns:
+        return "missing trajectory_length"
+    if "seq_pattern_str" not in df.columns:
+        return "missing seq_pattern_str"
+    use_df = df[["admin_icd_event_count", "trajectory_length", "seq_pattern_str"]].dropna(subset=["trajectory_length"])
+    if len(use_df) < 10:
+        return "fewer than 10 rows after dropna (have %d)" % len(use_df)
+    n_no_routine = int((use_df["admin_icd_event_count"] == 0).sum())
+    n_routine = int((use_df["admin_icd_event_count"] > 0).sum())
+    if n_no_routine == 0 or n_routine == 0:
+        return "only one bucket: n_no_routine=%d, n_routine=%d" % (n_no_routine, n_routine)
+    return "insufficient rows or aggregation failed"
 
 
 def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger] = None) -> Optional[Dict[str, Any]]:
@@ -801,14 +926,18 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
         out["routine_comparison"] = routine
         charts_built.append("routine_comparison")
     else:
-        charts_not_built["routine_comparison"] = _reason_routine_comparison(dtw_df)
+        reason = _reason_routine_comparison(dtw_df)
+        charts_not_built["routine_comparison"] = reason
+        _log_n3("info", "routine_comparison (Routine vs No Routine outcomes): not built — %s", reason)
 
     routine_counts = _compute_dtw_routine_comparison_counts(dtw_df)
     if routine_counts:
         out["routine_comparison_counts"] = routine_counts
         charts_built.append("routine_comparison_counts")
     else:
-        charts_not_built["routine_comparison_counts"] = _reason_routine_comparison_counts(dtw_df)
+        reason = _reason_routine_comparison_counts(dtw_df)
+        charts_not_built["routine_comparison_counts"] = reason
+        _log_n3("info", "routine_comparison_counts (medical/prescription events by routine): not built — %s", reason)
 
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:

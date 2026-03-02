@@ -333,8 +333,11 @@ def extract_extreme_density_cohort(
     out_dir = model_events_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
     ids_csv_path = out_dir / f"extreme_density_patients_{age_band_fname}.csv"
-    extreme_ids.to_frame(name="mi_person_key").to_csv(ids_csv_path, index=False)
-    logger.info("Wrote extreme-density patient list to %s", ids_csv_path)
+    ids_parquet_path = out_dir / f"extreme_density_patients_{age_band_fname}.parquet"
+    ids_df = extreme_ids.to_frame(name="mi_person_key")
+    ids_df.to_csv(ids_csv_path, index=False)
+    ids_df.to_parquet(ids_parquet_path, index=False)
+    logger.info("Wrote extreme-density patient list to %s and %s", ids_csv_path, ids_parquet_path)
 
     # ------------------------------------------------------------------
     # Step 3: Split original model_events into (extreme) and (filtered)

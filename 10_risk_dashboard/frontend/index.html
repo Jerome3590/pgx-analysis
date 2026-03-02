@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PGx Risk Assessment Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%238b5cf6' rx='4'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-family='system-ui'>P</text></svg>" />
+  <!-- Patch canvas getContext so Plotly (and other libs) get willReadFrequently: true and avoid console warnings -->
+  <script>
+    (function() {
+      var getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(contextType, contextAttributes) {
+        if (contextType === '2d' && (contextAttributes == null || contextAttributes.willReadFrequently === undefined)) {
+          contextAttributes = Object.assign({}, contextAttributes || {}, { willReadFrequently: true });
+        }
+        return getContext.call(this, contextType, contextAttributes);
+      };
+    })();
+  </script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
@@ -3405,14 +3417,31 @@
         document.querySelectorAll('.dtw-panel').forEach(p => {
           p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
         });
+        syncDTWRoutineSubtabVisibility(keys);
       });
     });
+    syncDTWRoutineSubtabVisibility(selected);
   }
   function applyDTWPanelVisibility(selectedKeys) {
     const keys = selectedKeys && selectedKeys.length ? selectedKeys : DTW_VISUAL_KEYS.map(v => v.key);
     document.querySelectorAll('.dtw-panel').forEach(p => {
       p.style.display = keys.includes(p.dataset.visualKey) ? '' : 'none';
     });
+    syncDTWRoutineSubtabVisibility(keys);
+  }
+  function syncDTWRoutineSubtabVisibility(selectedKeys) {
+    const keys = selectedKeys && selectedKeys.length ? selectedKeys : DTW_VISUAL_KEYS.map(v => v.key);
+    const showRoutine = keys.includes('routine_comparison');
+    const routineSubtabBtn = document.querySelector('#dtw-visualizations-tab .dtw-subtab[data-dtw-subtab="routine"]');
+    if (routineSubtabBtn) {
+      routineSubtabBtn.style.display = showRoutine ? '' : 'none';
+      if (!showRoutine) {
+        const activeBtn = document.querySelector('#dtw-visualizations-tab .dtw-subtab.active');
+        if (activeBtn && activeBtn.getAttribute('data-dtw-subtab') === 'routine') {
+          switchDTWSubtab('overview');
+        }
+      }
+    }
   }
   function renderDTWVisualizations(data, densityFilter, selectedKeys) {
     applyDTWPanelVisibility(selectedKeys);

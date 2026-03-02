@@ -152,9 +152,22 @@ def load_code_metadata_from_csv(
 
     CSV columns: code_col (e.g. 'E11.9', '99213', 'Metformin'), desc_col, optionally category_col.
     """
-    if not path.exists():
+    path_pq = path.with_suffix(".parquet") if path.suffix.lower() != ".parquet" else path
+    path_csv = path if path.suffix.lower() == ".csv" else path.with_suffix(".csv")
+    if path_pq.exists():
+        try:
+            import duckdb
+            con = duckdb.connect(":memory:")
+            try:
+                df = con.execute("SELECT * FROM read_parquet(?)", [str(path_pq)]).df()
+            finally:
+                con.close()
+        except ImportError:
+            df = pd.read_parquet(path_pq)
+    elif path_csv.exists():
+        df = pd.read_csv(path_csv)
+    else:
         return {}
-    df = pd.read_csv(path)
     if code_col not in df.columns or desc_col not in df.columns:
         return {}
     out = {}
