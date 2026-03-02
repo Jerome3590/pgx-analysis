@@ -14,12 +14,14 @@ Usage:
     python prepare_models.py --all
 """
 
+import os
 import sys
 import json
 import argparse
 import logging
 import subprocess
 import importlib.util
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import joblib
@@ -352,100 +354,95 @@ def _run_2019_distribution_script(cohort: str) -> None:
         print(f"  Note: 2019 distribution script skipped ({e}).", flush=True)
 
 
-def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
-    """Prepare models for a cohort."""
-    print(f"\n{'='*60}", flush=True)
-    print(f"Preparing models for {cohort}", flush=True)
-    print(f"{'='*60}", flush=True)
-    
-    for age_band in age_bands:
-        print(f"\nProcessing {age_band}...", flush=True)
-        age_band_fname = age_band.replace("-", "_")
-        output_dir = OUTPUT_DIR / cohort / age_band_fname
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Extract feature schema and model weights
-        print("  Extracting feature schema and model weights...", flush=True)
-        feature_schema = extract_feature_schema(cohort, age_band)
-        
-         # If no features were found (e.g., training data missing for this age_band),
-        # skip model preparation for this band.
-        n_features = feature_schema.get('n_features', len(feature_schema.get('features', [])))
-        if n_features == 0:
-            print(f"  No features found for {cohort} / {age_band} (training data missing or empty). Skipping.")
+def _prepare_one_age_band(cohort: str, age_band: str) -> Tuple[str, str, bool]:
+    """
+    Process one (cohort, age_band): extract schema, write JSON, load/save models.
+    Used by ProcessPoolExecutor; must be top-level for pickling.
+    Returns (cohort, age_band, success).
+    """
+    age_band_fname = age_band.replace("-", "_")
+    output_dir = OUTPUT_DIR / cohort / age_band_fname
+    output_dir.mkdir(parents=True, exist_ok=True)
+    feature_schema = extract_feature_schema(cohort, age_band)
+    n_features = feature_schema.get("n_features", len(feature_schema.get("features", [])))
+    if n_features == 0:
+        return (cohort, age_band, False)
+    schema_path = output_dir / "feature_schema.json"
+    with open(schema_path, "w") as f:
+        json.dump(feature_schema, f, indent=2)
+    for model_type in ("catboost", "xgboost", "xgboost_rf"):
+        model = load_model(cohort, age_band, model_type)
+        if model is None:
             continue
+        model_path = output_dir / f"{model_type}.joblib"
+        if isinstance(model, Path):
+            model_path = output_dir / f"{model_type}.json"
+            import shutil
+            shutil.copy(model, model_path)
+        else:
+            save_model(model, model_path, model_type)
+    return (cohort, age_band, True)
 
-        schema_path = output_dir / 'feature_schema.json'
-        with open(schema_path, 'w') as f:
-            json.dump(feature_schema, f, indent=2)
-        print(f"  Saved feature schema ({n_features} features)")
-        if 'model_weights' in feature_schema:
-            print("  Model weights included in schema")
-        
-        # Load and save models
-        model_types = ['catboost', 'xgboost', 'xgboost_rf']
-        for model_type in model_types:
-            print(f"  Loading {model_type} model...", flush=True)
-            model = load_model(cohort, age_band, model_type)
-            
-            if model is None:
-                # Step 6 saves only the best XGBoost variant; xgboost_rf is expected missing when best is xgb
-                msg = "skipping (optional; pipeline saves only best XGBoost variant)" if model_type == "xgboost_rf" else "not found, skipping"
-                print(f"    {model_type} {msg}")
-                continue
-            
-            model_path = output_dir / f'{model_type}.joblib'
-            if isinstance(model, Path):
-                # For JSON models, save as JSON
-                model_path = output_dir / f'{model_type}.json'
-                import shutil
-                shutil.copy(model, model_path)
-            else:
-                save_model(model, model_path, model_type)
-        
-        print(f"  Complete: {output_dir}")
-    
-    # Idempotent: build 2019 holdout risk distributions for this cohort (all age_bands)
+
+def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
+    """Prepare models for a cohort using all available cores (parallel over age_bands)."""
+    n_workers = max(1, os.cpu_count() or 1)
+    print(f"\n{'='*60}", flush=True)
+    print(f"Preparing models for {cohort} ({len(age_bands)} age bands, {n_workers} workers)", flush=True)
+    print(f"{'='*60}", flush=True)
+
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {executor.submit(_prepare_one_age_band, cohort, ab): ab for ab in age_bands}
+        for future in as_completed(futures):
+            age_band = futures[future]
+            try:
+                c, ab, ok = future.result()
+                if ok:
+                    print(f"  Complete: {cohort}/{ab}", flush=True)
+                else:
+                    print(f"  Skip (no features): {cohort}/{ab}", flush=True)
+            except Exception as e:
+                print(f"  Error {cohort}/{age_band}: {e}", flush=True)
+
     _run_2019_distribution_script(cohort)
-    
     print(f"\n{'='*60}")
     print(f"Model preparation complete for {cohort}")
     print(f"{'='*60}")
 
 
+def _upload_one_cohort_age_to_s3(cohort: str, age_band: str) -> None:
+    """Upload one cohort/age_band directory to S3. Used by ThreadPoolExecutor."""
+    import boto3
+    s3_client = boto3.client("s3")
+    bucket = "pgxdatalake"
+    prefix = "gold/dashboard/models"
+    age_band_fname = age_band.replace("-", "_")
+    local_dir = OUTPUT_DIR / cohort / age_band_fname
+    if not local_dir.exists():
+        return
+    for file_path in local_dir.glob("*"):
+        if file_path.is_file():
+            s3_key = f"{prefix}/{cohort}/{age_band_fname}/{file_path.name}"
+            s3_client.upload_file(str(file_path), bucket, s3_key)
+
+
 def upload_to_s3(cohort: str, age_bands: List[str]):
-    """Upload prepared models to S3."""
+    """Upload prepared models to S3 (parallel over age_bands)."""
     try:
-        import boto3
-        s3_client = boto3.client('s3')
-        bucket = 'pgxdatalake'
-        prefix = 'gold/dashboard/models'
-        
-        print("\nUploading models to S3...")
-        
-        for age_band in age_bands:
-            age_band_fname = age_band.replace("-", "_")
-            local_dir = OUTPUT_DIR / cohort / age_band_fname
-            
-            if not local_dir.exists():
-                continue
-            
-            for file_path in local_dir.glob('*'):
-                if file_path.is_file():
-                    s3_key = f"{prefix}/{cohort}/{age_band_fname}/{file_path.name}"
-                    s3_client.upload_file(
-                        str(file_path),
-                        bucket,
-                        s3_key
-                    )
-                    print(f"  Uploaded: s3://{bucket}/{s3_key}")
-        
-        print("S3 upload complete!")
-        
+        import boto3  # noqa: F401
     except ImportError:
         print("boto3 not available, skipping S3 upload")
-    except Exception as e:
-        print(f"Failed to upload to S3: {e}")
+        return
+    n_workers = max(1, os.cpu_count() or 1)
+    print("\nUploading models to S3 (parallel)...")
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = [executor.submit(_upload_one_cohort_age_to_s3, cohort, ab) for ab in age_bands]
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"  S3 upload error: {e}")
+    print("S3 upload complete!")
 
 
 def main():
