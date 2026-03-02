@@ -219,6 +219,7 @@ def create_dtw_visuals(
             "empty": True,
             "cohort": cohort_name,
             "age_band": age_band,
+            "summary": _build_chart_data_summary(dtw_df) if dtw_df is not None else _build_chart_data_summary(pd.DataFrame()),
             "metrics": {
                 "reason": "empty_dataframe",
                 "dtw_rows": 0,
@@ -234,9 +235,10 @@ def create_dtw_visuals(
             "empty": True,
             "cohort": cohort_name,
             "age_band": age_band,
+            "summary": _build_chart_data_summary(dtw_df) if dtw_df is not None else _build_chart_data_summary(pd.DataFrame()),
             "metrics": {
                 "reason": "no_charts_built",
-                "dtw_rows": len(dtw_df),
+                "dtw_rows": len(dtw_df) if dtw_df is not None else 0,
                 "charts_built": [],
                 "charts_not_built": {},
                 "success": False,
@@ -399,10 +401,11 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
     agg = agg.dropna(subset=["target_rate"])
     if agg.empty or agg["n"].sum() == 0:
         return None
-    # Frontend expects: x, y, type, x_label, y_label, and optional name (index.html)
+    # Frontend expects: x, y, type, x_label, y_label; n for robustness (multiple visuals)
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "n": [int(v) for v in agg["n"]],
         "type": "bar",
         "name": "Outcome rate",
         "x_label": x_label,
@@ -439,13 +442,14 @@ def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[st
     agg = agg.dropna(subset=["mean_medical", "mean_drug"])
     if agg.empty or agg["n"].sum() == 0:
         return None
-    # Frontend: multi-series bar chart (same x, two y series)
+    # Frontend: multi-series bar chart; n for robustness (multiple visuals)
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "series": [
             {"name": "Mean medical events (ICD/CPT) per patient", "y": [float(round(v, 2)) for v in agg["mean_medical"]]},
             {"name": "Mean prescription events (drugs) per patient", "y": [float(round(v, 2)) for v in agg["mean_drug"]]},
         ],
+        "n": [int(v) for v in agg["n"]],
         "type": "bar",
         "x_label": "Routine vs no routine (admin ICD filter)",
         "y_label": "Mean events per patient",
@@ -472,10 +476,11 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
     agg = use_df.groupby("q", as_index=False, observed=True).agg(target_rate=("target", "mean"), n=("target", "count"))
     if agg.empty or agg["n"].sum() == 0:
         return None
-    # Frontend expects: x, y, type, x_label, y_label, and optional name (index.html)
+    # Frontend: x, y, n for robustness (multiple visuals)
     return {
         "x": [str(v) for v in agg["q"]],
         "y": [float(round(v, 4)) for v in agg["target_rate"]],
+        "n": [int(v) for v in agg["n"]],
         "type": "bar",
         "name": "Outcome rate by archetype",
         "x_label": "Trajectory archetype (by DTW distance)" if col == "dtw_min_distance" else "Trajectory archetype (by length)",
@@ -484,7 +489,8 @@ def _compute_dtw_high_risk_trajectories(df: pd.DataFrame) -> Optional[Dict[str, 
 
 
 def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """N3: Mean days between consecutive events by routine vs no routine (times between sequences)."""
+    """N3: Mean days between consecutive drug events by routine vs no routine (times between sequences).
+    Uses drug-only trajectories; mean_days_between_events is defined only for sequences with >=2 events."""
     if df.empty or "mean_days_between_events" not in df.columns:
         return None
     if "admin_icd_event_count" not in df.columns:
@@ -494,7 +500,8 @@ def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any
         lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
     )
     use_df = use_df.dropna(subset=["mean_days_between_events"])
-    if len(use_df) < 10:
+    # Require at least 4 trajectories with >=2 drug events (so mean_days_between_events is defined)
+    if len(use_df) < 4:
         return None
     agg = use_df.groupby("bucket", as_index=False, observed=True).agg(
         mean_days=("mean_days_between_events", "mean"),
@@ -508,6 +515,7 @@ def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "y": [float(round(v, 1)) for v in agg["mean_days"]],
+        "n": [int(v) for v in agg["n"]],
         "type": "bar",
         "name": "Mean days between consecutive events",
         "x_label": "Routine vs no routine (admin ICD filter)",
@@ -516,18 +524,19 @@ def _compute_times_between_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any
 
 
 def _compute_time_to_target_sequences(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-    """N3: Mean days from first event to target (target=1 only) by routine vs no routine."""
+    """N3: Mean days from first drug event to target (target=1 only) by routine vs no routine."""
     if df.empty or "days_first_event_to_target" not in df.columns or "target" not in df.columns:
         return None
     target_df = df[df["target"] == 1].copy()
-    if len(target_df) < 5:
+    if len(target_df) < 4:
         return None
     if "admin_icd_event_count" not in target_df.columns:
         return None
     use_df = target_df[["admin_icd_event_count", "days_first_event_to_target"]].dropna(
         subset=["days_first_event_to_target"]
     )
-    if len(use_df) < 5:
+    # Require at least 4 target=1 trajectories with valid days to target
+    if len(use_df) < 4:
         return None
     use_df["bucket"] = use_df["admin_icd_event_count"].apply(
         lambda x: "No routine (0 admin ICD events)" if x == 0 else "Routine (1+ admin ICD events)"
@@ -544,6 +553,7 @@ def _compute_time_to_target_sequences(df: pd.DataFrame) -> Optional[Dict[str, An
     return {
         "x": agg["bucket"].astype(str).tolist(),
         "y": [float(round(v, 1)) for v in agg["mean_days"]],
+        "n": [int(v) for v in agg["n"]],
         "type": "bar",
         "name": "Mean days from first event to target",
         "x_label": "Routine vs no routine (admin ICD filter)",
@@ -658,6 +668,60 @@ def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any
 DENSITY_BINS = ("low", "medium", "high", "extreme")
 
 
+def _build_chart_data_summary(dtw_df: pd.DataFrame) -> Dict[str, Any]:
+    """Build a reusable summary block for chart_data.json so multiple visuals can use the same counts and stats.
+    All trajectories are drug-only; one row = one patient trajectory."""
+    if dtw_df is None or dtw_df.empty:
+        return {
+            "total_trajectories": 0,
+            "trajectories_with_time_between": 0,
+            "trajectories_target1_with_time_to_target": 0,
+            "trajectory_length": {"min": None, "max": None, "mean": None, "median": None},
+            "has_dtw_distances": False,
+            "target_counts": {"target_1": 0, "target_0": 0},
+        }
+    total = int(len(dtw_df))
+    # Trajectories with >=2 drug events (so mean_days_between_events is defined)
+    if "mean_days_between_events" in dtw_df.columns:
+        n_time_between = int(dtw_df["mean_days_between_events"].notna().sum())
+    else:
+        n_time_between = 0
+    # Target=1 with valid days to target
+    if "target" in dtw_df.columns and "days_first_event_to_target" in dtw_df.columns:
+        target1 = dtw_df[dtw_df["target"] == 1]
+        n_time_to_target = int(target1["days_first_event_to_target"].notna().sum())
+    else:
+        n_time_to_target = 0
+    # Trajectory length stats (drug events per trajectory)
+    if "trajectory_length" in dtw_df.columns:
+        tl = dtw_df["trajectory_length"].dropna()
+        if len(tl) > 0:
+            tlstats = {
+                "min": int(tl.min()),
+                "max": int(tl.max()),
+                "mean": float(round(tl.mean(), 2)),
+                "median": float(round(tl.median(), 2)),
+            }
+        else:
+            tlstats = {"min": None, "max": None, "mean": None, "median": None}
+    else:
+        tlstats = {"min": None, "max": None, "mean": None, "median": None}
+    has_dtw = "dtw_min_distance" in dtw_df.columns and dtw_df["dtw_min_distance"].notna().any()
+    if "target" in dtw_df.columns:
+        t1 = int((dtw_df["target"] == 1).sum())
+        t0 = int((dtw_df["target"] == 0).sum())
+    else:
+        t1 = t0 = 0
+    return {
+        "total_trajectories": total,
+        "trajectories_with_time_between": n_time_between,
+        "trajectories_target1_with_time_to_target": n_time_to_target,
+        "trajectory_length": tlstats,
+        "has_dtw_distances": bool(has_dtw),
+        "target_counts": {"target_1": t1, "target_0": t0},
+    }
+
+
 def _reason_routine_comparison(df: pd.DataFrame) -> str:
     """Reason string when routine_comparison is not built."""
     if df.empty or "target" not in df.columns:
@@ -681,9 +745,13 @@ def _reason_routine_comparison_counts(df: pd.DataFrame) -> str:
 
 
 def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger] = None) -> Optional[Dict[str, Any]]:
-    """Build routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard.
-    When event_density_bin is present, also builds *_by_density so the dashboard can filter by event density.
-    Always adds metrics.charts_built and metrics.charts_not_built so output is either successful JSON or JSON with explicit build status."""
+    """Build chart_data.json for dashboard and other visuals. Structure is robust for multiple consumers:
+    - summary: total_trajectories, trajectories_with_time_between, trajectories_target1_with_time_to_target,
+      trajectory_length (min/max/mean/median), has_dtw_distances, target_counts (target_1, target_0).
+    - Each chart object includes n (sample sizes per category) where applicable for reliability/display.
+    - routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns,
+      times_between_sequences, time_to_target_sequences; when event_density_bin present, *_by_density too.
+    - metrics: dtw_rows, charts_built, charts_not_built, success."""
     def _log_n3(level: str, msg: str, *args: Any) -> None:
         if logger is not None:
             getattr(logger, level)(msg, *args)
@@ -691,6 +759,8 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
     if dtw_df.empty:
         return None
     out: Dict[str, Any] = {}
+    # Reusable summary for multiple visuals (counts, trajectory stats, target split)
+    out["summary"] = _build_chart_data_summary(dtw_df)
     charts_built: List[str] = []
     charts_not_built: Dict[str, str] = {}
 

@@ -23,6 +23,31 @@
 
 **No empty artifacts.** When a plot or chart doesn’t produce data, the pipeline **always** writes a JSON artifact with `message`, `empty: true`, `cohort`, `age_band`, and `metrics` (e.g. `reason`, `dtw_rows`) so the dashboard can show why there is no output. Never leave a missing file or plain `{}`. Applies to `chart_data.json`, `sequence_heatmap.json`, and `plots/trajectory_overview_plot.json`. See [10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md](../../10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md#dtw-trajectories) for the full DTW EC2 + S3 path table.
 
+### chart_data.json: parameters and what they tell us
+
+The pipeline writes a **robust** `chart_data.json` so multiple visuals (dashboard, reports, API consumers) can use the same structure.
+
+| Section / key | Type | What it tells us |
+|---------------|------|------------------|
+| **summary** | object | Cohort-level counts and stats (always present). |
+| summary.total_trajectories | number | Number of drug-only trajectories (one per patient with ≥1 drug event). |
+| summary.trajectories_with_time_between | number | Trajectories with ≥2 drug events, so mean_days_between_events is defined (used for N3 “times between”). |
+| summary.trajectories_target1_with_time_to_target | number | Target=1 trajectories with valid days_first_event_to_target (used for N3 “time to target”). |
+| summary.trajectory_length | { min, max, mean, median } | Drug events per trajectory: spread and center. |
+| summary.has_dtw_distances | boolean | Whether DTW alignment was run (dtw_min_distance present). |
+| summary.target_counts | { target_1, target_0 } | Case/control split. |
+| **routine_comparison** | chart | Outcome rate by routine vs no routine (admin ICD). **n**: sample size per bucket. |
+| **routine_comparison_counts** | chart | Mean medical and prescription events per patient by routine vs no routine. **n**: per bucket. |
+| **high_risk_trajectories** | chart | Outcome rate by trajectory archetype (Q1–Q4 by DTW distance or length). **n**: per quartile. |
+| **times_between_sequences** | chart | N3: mean days between consecutive drug events, by routine vs no routine. **n**: trajectories per bucket. |
+| **time_to_target_sequences** | chart | N3: mean days from first drug event to target (target=1 only), by routine vs no routine. **n**: per bucket. |
+| **target_pathway_patterns** | chart | Common codes in target=1 trajectories; metadata has total_target_patients, total_control_patients. |
+| **metrics** | object | dtw_rows (same as summary.total_trajectories), charts_built, charts_not_built, success. |
+
+Each bar chart object includes **x**, **y**, **type**, **name**, **x_label**, **y_label**, and when applicable **n** (array of sample sizes, same order as **x**) so visuals can show “n = …” or gate on reliability.
+
+---
+
 ### Files the DTW visual code creates (and when they’re missing)
 
 | File | Created by | When it exists | When it’s missing |
