@@ -146,9 +146,14 @@ def create_dtw_visuals(
         )
 
     keys_expected_dtw = ["mi_person_key", "target", "seq_pattern_str", "admin_icd_event_count", "dtw_min_distance", "trajectory_length"]
+    keys_expected_n3 = ["mean_days_between_events", "days_first_event_to_target", "admin_icd_event_count"]
     keys_received_dtw = list(dtw_df.columns)
-    _log("info", "keys_expected (DTW features): %s", keys_expected_dtw)
-    _log("info", "keys_received (DTW features): %s", keys_received_dtw)
+    available = set(dtw_df.columns)
+    missing_core = [k for k in keys_expected_dtw if k not in available]
+    missing_n3 = [k for k in keys_expected_n3 if k not in available]
+    _log("info", "DTW columns for cohort %s/%s: available=%s", cohort_name, age_band, keys_received_dtw)
+    _log("info", "DTW columns expected (core): %s; missing=%s", keys_expected_dtw, missing_core if missing_core else "none")
+    _log("info", "DTW columns expected (N3 time-between): %s; missing=%s", keys_expected_n3, missing_n3 if missing_n3 else "none")
 
     # --- Validate and coerce data structure for visualizations ---
     if "mi_person_key" not in dtw_df.columns:
@@ -725,11 +730,17 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
         _log_n3("info", "N3 times_between_sequences: built with %d categories (mean days between consecutive events by routine vs no routine)", len(times_between.get("x", [])))
     else:
         if "mean_days_between_events" not in dtw_df.columns:
-            charts_not_built["times_between_sequences"] = "missing mean_days_between_events (run create_dtw_trajectories with timestamp column)"
+            reason = "missing mean_days_between_events (run create_dtw_trajectories with timestamp column)"
+            charts_not_built["times_between_sequences"] = reason
+            _log_n3("info", "N3 times_between_sequences: not built — %s", reason)
         elif "admin_icd_event_count" not in dtw_df.columns:
-            charts_not_built["times_between_sequences"] = "missing admin_icd_event_count"
+            reason = "missing admin_icd_event_count"
+            charts_not_built["times_between_sequences"] = reason
+            _log_n3("info", "N3 times_between_sequences: not built — %s", reason)
         else:
-            charts_not_built["times_between_sequences"] = "insufficient rows or no valid mean_days_between_events"
+            reason = "insufficient rows or no valid mean_days_between_events"
+            charts_not_built["times_between_sequences"] = reason
+            _log_n3("info", "N3 times_between_sequences: not built — %s", reason)
 
     time_to_target = _compute_time_to_target_sequences(dtw_df)
     if time_to_target:
@@ -738,9 +749,13 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
         _log_n3("info", "N3 time_to_target_sequences: built with %d categories (mean days from first event to target by routine vs no routine)", len(time_to_target.get("x", [])))
     else:
         if "days_first_event_to_target" not in dtw_df.columns:
-            charts_not_built["time_to_target_sequences"] = "missing days_first_event_to_target (run create_dtw_trajectories with timestamp column)"
+            reason = "missing days_first_event_to_target (run create_dtw_trajectories with timestamp column)"
+            charts_not_built["time_to_target_sequences"] = reason
+            _log_n3("info", "N3 time_to_target_sequences: not built — %s", reason)
         else:
-            charts_not_built["time_to_target_sequences"] = "insufficient target=1 rows or no valid days_first_event_to_target"
+            reason = "insufficient target=1 rows or no valid days_first_event_to_target"
+            charts_not_built["time_to_target_sequences"] = reason
+            _log_n3("info", "N3 time_to_target_sequences: not built — %s", reason)
 
     # Stratify by event_density_bin for dashboard filter (same bins as create_dtw_trajectories)
     if "event_density_bin" in dtw_df.columns:
