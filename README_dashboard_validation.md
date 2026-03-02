@@ -47,7 +47,14 @@ After deploy, verify S3 against the manifest using [10_risk_dashboard/docs/S3_VE
 - [ ] **Manifest:** After Step 6, `visualizations/dashboard_visual_objects.json` is present on S3 and its `static_files` and `s3_path` entries match what the frontend requests.
 - [ ] **JSON-first panels:** Any panel with a JSON artifact in the manifest uses it first (Plotly or data), PNG/image fallback only. Check: Feature Importance (JSON then PNG), FP-Growth Top Itemsets and Itemset Support Distribution (drug_name_itemsets.json then PNG), BupaR per manifest notes.
 - [ ] **No empty artifacts:** When a plot doesn’t produce data, the pipeline writes a JSON with `message` and `metrics` (why); no missing files or plain `{}`. See “No empty artifacts” above and path mapping doc.
-- [ ] **Sync exclusions:** Step 6 does not upload `.ipynb_checkpoints`, `*checkpoint*`, or `Rplots.pdf`; see “Manifest-first and S3 sync” above.
+- [ ] **Sync exclusions:** Step 6 does not upload `.ipynb_checkpoints`, `*checkpoint*`, or `Rplots.pdf`; see "Manifest-first and S3 sync" above.
+- [ ] **CORS:** Dashboard bucket has CORS applied so direct S3 URLs work from the dashboard origin. Step 6 runs `apply_dashboard_bucket_cors.py`; see [10_risk_dashboard/docs/S3_CORS_SETUP.md](10_risk_dashboard/docs/S3_CORS_SETUP.md). see “Manifest-first and S3 sync” above.
+
+---
+
+## Optional uploads from notebook 4
+
+**Notebook 4** can upload **Causal** and **Feature importance** to S3 after building (cells "Upload Causal dashboard JSON to S3" and "Upload feature importance heatmaps to S3"). Same paths as Step 6; running them lets the Causal Analysis and Feature Importance tabs have data without running a full deploy. **Step 6** remains the single place that syncs all visuals on deploy.
 
 ---
 
@@ -59,4 +66,5 @@ After deploy, verify S3 against the manifest using [10_risk_dashboard/docs/S3_VE
 | [README_dashboard_visual_artifact_paths.md](10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) | Full mapping: tab & visual → artifact → EC2 path → S3 key. |
 | [S3_VERIFICATION_REPORT.md](10_risk_dashboard/docs/S3_VERIFICATION_REPORT.md) | Check S3 keys against manifest and frontend expectations. |
 | [RESEARCH_QUESTIONS_ARTIFACTS.md](10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md) | RQ artifact allowlists (e.g. BupaR filenames). |
+| [S3_CORS_SETUP.md](10_risk_dashboard/docs/S3_CORS_SETUP.md) | CORS config for direct S3 URL fetches (DTW, causal, BupaR, FP-Growth, cohort_pgx). |
 | [README_validate_frontend_updates.md](10_risk_dashboard/docs/README_validate_frontend_updates.md) | Redirects here (project root). |

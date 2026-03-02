@@ -19,9 +19,10 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
   - Query params: `cohort` (opioid_ed | non_opioid_ed)
   - Returns: Age bands and code lists (drugs, ICDs, CPTs)
 
-- **`POST /risk`** - Risk score from ensemble, filtered by user-selected cohort and features
-  - Body: `{cohort, age_band, drugs[], icds[], cpts[]}`
-  - Returns: Risk score, risk band, model breakdown
+- **`POST /risk`** - Risk score from best model per cohort/age_band (or 2019 baseline when no codes)
+  - Body: `{cohort, age_band, drugs[], icds[], cpts[]}` (optional: `age`)
+  - When no Drug/ICD/CPT codes: returns **baseline_risk** (actual 2019 outcome rate). When any code is provided: returns the **best model’s** predicted probability (MC-CV best per cohort/age_band).
+  - Returns: `risk_score`, `risk_band`, `is_baseline`, `model_breakdown`, `dist` (2019 histogram when available)
 
 - **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
   - Body: `{base: {...}, scenarios: [...]}`
@@ -106,3 +107,9 @@ A **502** from API Gateway usually means the Lambda **timed out** or **ran out o
   ```
 - **Large trajectory_overview_plot.json:** The handler skips loading `trajectory_overview_plot.json` when it is larger than 2 MB (frontend falls back to overview/sample image URLs). If you still see 502, ensure DTW chart_data and sequence_heatmap in S3 are not unusually large.
 - **CORS:** If the browser reports "blocked by CORS" instead of 502, enable CORS on the API Gateway API (OPTIONS method returning `Access-Control-Allow-Origin`) so requests from `https://jerome-dixon.io` are allowed. See `../deployment/README.md` (test OPTIONS with curl).
+
+## Risk score: recommendations
+
+- **Best model only:** We run only the model(s) with non-zero weight (best per cohort/age_band), so cold start and failure surface are reduced.
+- **Baseline when no codes:** No Drug/ICD/CPT → return 2019 outcome rate; with codes → model probability. Keeps risk calibrated to the 2019 population.
+- **Implemented:** Risk band thresholds from `risk_distribution_2019.json` (33rd/67th percentiles); comparison uses baseline when base or scenario has no codes; `codes_used`/`codes_unknown` and `model_used` in response; `interpretation` in API and frontend.

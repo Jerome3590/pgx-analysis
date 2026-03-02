@@ -19,13 +19,34 @@ python prepare_models.py --all
 
 **What it does:**
 1. Loads models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` (e.g. `xgboost.joblib`, `catboost.joblib`)
-2. Reads MC-CV results from `6_final_model/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_mc_cv_results.csv` for model weights
+2. Reads MC-CV results from `6_final_model/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_mc_cv_results.csv` to select the best model per cohort/age_band (weight 1.0 for best, 0 for others)
 3. Extracts feature schemas from `6_final_model/outputs/.../{cohort}_{age_band_fname}_train_final_features_no_leakage.csv`
 4. Writes to `10_risk_dashboard/outputs/models/` (used by `prepare_lambda_dir.py` and Docker build)
 
 **Outputs:** (under `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/`)
 - `catboost.joblib`, `xgboost.joblib`, optionally `xgboost_rf.joblib`
 - `feature_schema.json`
+- `risk_distribution_2019.json` (built idempotently after models; 2019 holdout predicted-probability distribution for the risk histogram)
+
+At the end of each cohort run, the script invokes `prepare_risk_distribution_2019.py` for that cohort so the 2019 distribution is available in the same pipeline.
+
+### `prepare_risk_distribution_2019.py`
+
+Builds the 2019 holdout risk distribution used by the dashboard risk tab (idempotent). Run automatically as part of `prepare_models.py --all`, or standalone:
+
+```bash
+python prepare_risk_distribution_2019.py --cohort opioid_ed
+python prepare_risk_distribution_2019.py --all
+```
+
+**Inputs:**
+- `6_final_model/outputs/{cohort}/{age_band_fname}/inputs/model_test/final_features.parquet` (2019 test set)
+- `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/feature_schema.json` and model joblibs (must exist; run `prepare_models.py` first)
+
+**Outputs:** (idempotent overwrite)
+- `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/risk_distribution_2019.json` (`bins`, `counts`, `n_patients`, `baseline_risk`, `risk_band_thresholds` (33rd/67th %ile), `description`, `bin_edges_pct`)
+
+Lambda includes this in the POST /risk response as `dist` when present so the UI can show "Risk Distribution (2019 holdout)". When the user enters **no** Drug, ICD, or CPT codes, the API returns `risk_score` = `baseline_risk` (actual 2019 outcome rate); as the user adds codes, risk is the model's classification probability.
 
 ### `generate_metadata.py`
 
