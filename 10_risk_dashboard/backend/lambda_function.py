@@ -24,9 +24,10 @@ Environment Variables:
 
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from io import BytesIO
 
 import boto3
@@ -51,6 +52,13 @@ try:
 except ImportError:
     EXCEL_AVAILABLE = False
     print("Warning: openpyxl not available. Excel reading may fail.")
+
+# DuckDB for efficient CPIC Parquet reads (preferred over Excel when parquet file is present)
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
 
 # Configuration
 S3_BUCKET = os.environ.get("PGX_RESULTS_BUCKET", "pgxdatalake")
@@ -1188,130 +1196,126 @@ def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address
     return result
 
 
+def _dataframe_to_cpic_dict(df: Any) -> Dict[str, List[Dict[str, Any]]]:
+    """Build gene -> list of drug-info dicts from CPIC DataFrame (Excel or Parquet)."""
+    cpic_data = {}
+    gene_col = None
+    drug_col = None
+    guideline_col = None
+    cpic_level_col = None
+    fda_label_col = None
+    for col in df.columns:
+        col_lower = str(col).lower()
+        if "gene" in col_lower and gene_col is None:
+            gene_col = col
+        elif "drug" in col_lower and drug_col is None:
+            drug_col = col
+        elif "guideline" in col_lower and guideline_col is None:
+            guideline_col = col
+        elif "cpic" in col_lower and "level" in col_lower and cpic_level_col is None:
+            cpic_level_col = col
+        elif ("fda" in col_lower or "label" in col_lower) and fda_label_col is None:
+            fda_label_col = col
+    if not gene_col or not drug_col:
+        return cpic_data
+    for _, row in df.iterrows():
+        gene = str(row.get(gene_col, "")).upper().strip()
+        drug = str(row.get(drug_col, "")).strip()
+        if not gene or not drug or gene == "NAN" or drug == "NAN":
+            continue
+        if gene not in cpic_data:
+            cpic_data[gene] = []
+        if not any(d["drug"] == drug for d in cpic_data[gene]):
+            cpic_data[gene].append({
+                "drug": drug,
+                "guideline": str(row.get(guideline_col, "")) if guideline_col else "",
+                "cpic_level": str(row.get(cpic_level_col, "")) if cpic_level_col else "",
+                "pgx_on_fda_label": str(row.get(fda_label_col, "")) if fda_label_col else "",
+            })
+    return cpic_data
+
+
 def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
     """
-    Load CPIC gene-drug pairs data from the master Excel file.
-    Uses the official CPIC Excel file: cpic_gene-drug_pairs.xlsx
-    Tries container path first, then S3.
+    Load CPIC gene-drug pairs. Prefers Parquet via DuckDB (faster), then Excel.
+    Tries: container parquet -> container Excel -> S3 parquet -> S3 Excel.
     """
-    # Try container path first (master Excel file)
-    container_excel_path = "/var/task/data/cpic_gene-drug_pairs.xlsx"
-    s3_excel_path = f"{METADATA_PREFIX}/cpic_gene-drug_pairs.xlsx"
-    
-    cpic_data = {}
-    
-    # Try loading Excel file from container
-    try:
-        if os.path.exists(container_excel_path):
-            import pandas as pd
-            df = pd.read_excel(container_excel_path)
-            
-            # Standardize column names (handle variations)
-            gene_col = None
-            drug_col = None
-            guideline_col = None
-            cpic_level_col = None
-            fda_label_col = None
-            
-            for col in df.columns:
-                col_lower = col.lower()
-                if 'gene' in col_lower and gene_col is None:
-                    gene_col = col
-                elif 'drug' in col_lower and drug_col is None:
-                    drug_col = col
-                elif 'guideline' in col_lower and guideline_col is None:
-                    guideline_col = col
-                elif 'cpic' in col_lower and 'level' in col_lower and cpic_level_col is None:
-                    cpic_level_col = col
-                elif ('fda' in col_lower or 'label' in col_lower) and fda_label_col is None:
-                    fda_label_col = col
-            
-            if gene_col and drug_col:
-                for _, row in df.iterrows():
-                    gene = str(row.get(gene_col, "")).upper().strip()
-                    drug = str(row.get(drug_col, "")).strip()
-                    
-                    if gene and drug and gene != "NAN" and drug != "NAN":
-                        if gene not in cpic_data:
-                            cpic_data[gene] = []
-                        
-                        # Check for duplicates
-                        if not any(d["drug"] == drug for d in cpic_data[gene]):
-                            cpic_data[gene].append({
-                                "drug": drug,
-                                "guideline": str(row.get(guideline_col, "")) if guideline_col else "",
-                                "cpic_level": str(row.get(cpic_level_col, "")) if cpic_level_col else "",
-                                "pgx_on_fda_label": str(row.get(fda_label_col, "")) if fda_label_col else ""
-                            })
-            
+    import pandas as pd
+
+    container_parquet = "/var/task/data/cpic_gene-drug_pairs.parquet"
+    container_excel = "/var/task/data/cpic_gene-drug_pairs.xlsx"
+    s3_parquet_key = f"{METADATA_PREFIX}/cpic_gene-drug_pairs.parquet"
+    s3_excel_key = f"{METADATA_PREFIX}/cpic_gene-drug_pairs.xlsx"
+
+    # 1) Container Parquet (DuckDB)
+    if DUCKDB_AVAILABLE and os.path.exists(container_parquet):
+        try:
+            con = duckdb.connect(":memory:")
+            df = con.execute("SELECT * FROM read_parquet(?)", [container_parquet]).fetchdf()
+            con.close()
+            cpic_data = _dataframe_to_cpic_dict(df)
             if cpic_data:
-                print(f"Loaded {sum(len(drugs) for drugs in cpic_data.values())} gene-drug pairs from Excel file")
+                n = sum(len(drugs) for drugs in cpic_data.values())
+                print(f"Loaded {n} gene-drug pairs from Parquet (DuckDB)")
                 return cpic_data
-    except ImportError:
-        print("ERROR: pandas not available. Cannot load CPIC Excel file.")
-        raise
-    except Exception as e:
-        print(f"Error loading CPIC Excel from container: {e}")
-    
-    # Try S3 Excel file
+        except Exception as e:
+            print(f"CPIC Parquet (container) failed: {e}, trying Excel...")
+
+    # 2) Container Excel
+    if EXCEL_AVAILABLE and os.path.exists(container_excel):
+        try:
+            df = pd.read_excel(container_excel, engine="openpyxl")
+            cpic_data = _dataframe_to_cpic_dict(df)
+            if cpic_data:
+                n = sum(len(drugs) for drugs in cpic_data.values())
+                print(f"Loaded {n} gene-drug pairs from Excel (container)")
+                return cpic_data
+        except Exception as e:
+            print(f"CPIC Excel (container) failed: {e}")
+
+    # 3) S3 Parquet (DuckDB)
+    if DUCKDB_AVAILABLE:
+        try:
+            s3 = boto3.client("s3")
+            obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_parquet_key)
+            body = obj["Body"].read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as f:
+                f.write(body)
+                tmp = f.name
+            try:
+                con = duckdb.connect(":memory:")
+                df = con.execute("SELECT * FROM read_parquet(?)", [tmp]).fetchdf()
+                con.close()
+                cpic_data = _dataframe_to_cpic_dict(df)
+                if cpic_data:
+                    n = sum(len(drugs) for drugs in cpic_data.values())
+                    print(f"Loaded {n} gene-drug pairs from Parquet (S3)")
+                    return cpic_data
+            finally:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+        except Exception as e:
+            print(f"CPIC Parquet (S3) failed: {e}, trying S3 Excel...")
+
+    # 4) S3 Excel
     try:
-        import pandas as pd
-        s3 = boto3.client('s3')
-        obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_excel_path)
-        
-        # Read Excel from S3
-        excel_data = obj['Body'].read()
-        df = pd.read_excel(BytesIO(excel_data))
-        
-        # Same column detection logic as above
-        gene_col = None
-        drug_col = None
-        guideline_col = None
-        cpic_level_col = None
-        fda_label_col = None
-        
-        for col in df.columns:
-            col_lower = col.lower()
-            if 'gene' in col_lower and gene_col is None:
-                gene_col = col
-            elif 'drug' in col_lower and drug_col is None:
-                drug_col = col
-            elif 'guideline' in col_lower and guideline_col is None:
-                guideline_col = col
-            elif 'cpic' in col_lower and 'level' in col_lower and cpic_level_col is None:
-                cpic_level_col = col
-            elif ('fda' in col_lower or 'label' in col_lower) and fda_label_col is None:
-                fda_label_col = col
-        
-        if gene_col and drug_col:
-            for _, row in df.iterrows():
-                gene = str(row.get(gene_col, "")).upper().strip()
-                drug = str(row.get(drug_col, "")).strip()
-                
-                if gene and drug and gene != "NAN" and drug != "NAN":
-                    if gene not in cpic_data:
-                        cpic_data[gene] = []
-                    
-                    if not any(d["drug"] == drug for d in cpic_data[gene]):
-                        cpic_data[gene].append({
-                            "drug": drug,
-                            "guideline": str(row.get(guideline_col, "")) if guideline_col else "",
-                            "cpic_level": str(row.get(cpic_level_col, "")) if cpic_level_col else "",
-                            "pgx_on_fda_label": str(row.get(fda_label_col, "")) if fda_label_col else ""
-                        })
-        
+        s3 = boto3.client("s3")
+        obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_excel_key)
+        df = pd.read_excel(BytesIO(obj["Body"].read()), engine="openpyxl")
+        cpic_data = _dataframe_to_cpic_dict(df)
         if cpic_data:
-            print(f"Loaded {sum(len(drugs) for drugs in cpic_data.values())} gene-drug pairs from S3 Excel")
+            n = sum(len(drugs) for drugs in cpic_data.values())
+            print(f"Loaded {n} gene-drug pairs from Excel (S3)")
             return cpic_data
-    except ImportError:
-        print("ERROR: pandas not available. Cannot load CPIC Excel file from S3.")
-        raise
     except Exception as e:
-        print(f"Error loading CPIC Excel from S3: {e}")
-        raise
-    
-    # If we get here, CPIC data loading failed
-    raise FileNotFoundError("CPIC Excel file not found in container or S3. Please ensure cpic_gene-drug_pairs.xlsx is available.")
+        print(f"CPIC Excel (S3) failed: {e}")
+
+    raise FileNotFoundError(
+        "CPIC data not found. Ensure cpic_gene-drug_pairs.parquet or cpic_gene-drug_pairs.xlsx "
+        "is in container data/ or S3 under gold/dashboard/metadata/."
+    )
 
 
 def load_interaction_analysis(cohort: str, age_band: str, model_type: str = "xgboost") -> pd.DataFrame:

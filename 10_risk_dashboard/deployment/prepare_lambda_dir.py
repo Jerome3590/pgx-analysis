@@ -217,32 +217,34 @@ def prepare_metadata(download_s3: bool = False) -> bool:
 
 
 def prepare_data(download_s3: bool = False) -> bool:
-    """Prepare data directory (CPIC Excel file)."""
-    log("Preparing data (CPIC Excel)...")
-    
+    """Prepare data directory (CPIC Excel and Parquet for Lambda)."""
+    log("Preparing data (CPIC Excel + Parquet)...")
+
     data_dest = LAMBDA_DIR / "data"
     data_dest.mkdir(parents=True, exist_ok=True)
-    
-    cpic_file = "cpic_gene-drug_pairs.xlsx"
-    source_path = DATA_SOURCE / cpic_file
-    dest_path = data_dest / cpic_file
-    
+
+    cpic_xlsx = "cpic_gene-drug_pairs.xlsx"
+    cpic_parquet = "cpic_gene-drug_pairs.parquet"
+    source_xlsx = DATA_SOURCE / cpic_xlsx
+    source_parquet = DATA_SOURCE / cpic_parquet
+    dest_xlsx = data_dest / cpic_xlsx
+    dest_parquet = data_dest / cpic_parquet
+
     if download_s3:
-        # Download from S3
-        log(f"  Downloading CPIC data from S3...")
-        s3_key = f"{S3_DATA_PREFIX}/{cpic_file}"
-        if download_from_s3(s3_key, dest_path):
-            log(f"    ✓ Downloaded {cpic_file}")
+        log("  Downloading CPIC data from S3...")
+        if download_from_s3(f"{S3_DATA_PREFIX}/{cpic_xlsx}", dest_xlsx):
+            log(f"    ✓ Downloaded {cpic_xlsx}")
+        if download_from_s3(f"{S3_DATA_PREFIX}/{cpic_parquet}", dest_parquet):
+            log(f"    ✓ Downloaded {cpic_parquet}")
+        if dest_xlsx.exists():
             return True
-        else:
-            # Try local fallback
-            if source_path.exists():
-                copy_file(source_path, dest_path)
-                log(f"    ✓ Copied {cpic_file} from local")
-                return True
-    
+        if source_xlsx.exists():
+            copy_file(source_xlsx, dest_xlsx)
+            log(f"    ✓ Copied {cpic_xlsx} from local")
+            return True
+
     # Copy from local; if missing, try to run prepare_cpic_data once
-    if not source_path.exists():
+    if not source_xlsx.exists():
         log("  CPIC file missing; running prepare_cpic_data.py...")
         try:
             r = subprocess.run(
@@ -253,27 +255,29 @@ def prepare_data(download_s3: bool = False) -> bool:
                 timeout=120,
             )
             if r.returncode != 0:
-                error(f"  CPIC data not found: {source_path}")
+                error(f"  CPIC data not found: {source_xlsx}")
                 if r.stderr:
                     error(f"  prepare_cpic_data: {r.stderr.strip()[:200]}")
                 error("  Run: python 10_risk_dashboard/data_preparation/prepare_cpic_data.py")
                 return False
-            if not source_path.exists():
-                error(f"  CPIC data still not found after prepare_cpic_data: {source_path}")
+            if not source_xlsx.exists():
+                error(f"  CPIC data still not found after prepare_cpic_data: {source_xlsx}")
                 return False
             log("  ✓ prepare_cpic_data produced CPIC file")
         except Exception as e:
-            error(f"  CPIC data not found: {source_path}")
+            error(f"  CPIC data not found: {source_xlsx}")
             error(f"  Failed to run prepare_cpic_data: {e}")
             error("  Run: python 10_risk_dashboard/data_preparation/prepare_cpic_data.py")
             return False
 
     log("  Copying CPIC data...")
-    if copy_file(source_path, dest_path):
-        log(f"    ✓ Copied {cpic_file}")
-        return True
-    
-    return False
+    ok = copy_file(source_xlsx, dest_xlsx)
+    if ok:
+        log(f"    ✓ Copied {cpic_xlsx}")
+    if source_parquet.exists():
+        if copy_file(source_parquet, dest_parquet):
+            log(f"    ✓ Copied {cpic_parquet} (DuckDB will use this in Lambda)")
+    return ok
 
 
 def verify_lambda_dir() -> bool:
@@ -322,9 +326,10 @@ def verify_lambda_dir() -> bool:
     if not data_dir.exists():
         issues.append("data/ directory missing")
     else:
-        cpic_file = data_dir / "cpic_gene-drug_pairs.xlsx"
-        if not cpic_file.exists():
-            issues.append("data/cpic_gene-drug_pairs.xlsx missing")
+        cpic_xlsx = data_dir / "cpic_gene-drug_pairs.xlsx"
+        cpic_parquet = data_dir / "cpic_gene-drug_pairs.parquet"
+        if not cpic_xlsx.exists() and not cpic_parquet.exists():
+            issues.append("data/ missing cpic_gene-drug_pairs.xlsx or cpic_gene-drug_pairs.parquet")
     
     if issues:
         error("Verification failed:")
@@ -412,7 +417,7 @@ def main():
         log("  │   ├── metadata_non_opioid_ed.json")
         log("  │   └── model_performance_metrics.json")
         log("  └── data/")
-        log("      └── cpic_gene-drug_pairs.xlsx")
+        log("      └── cpic_gene-drug_pairs.xlsx (+ .parquet if prepared)")
         log("")
         log("Next steps:")
         log("  1. Verify: python prepare_lambda_dir.py --verify-only")

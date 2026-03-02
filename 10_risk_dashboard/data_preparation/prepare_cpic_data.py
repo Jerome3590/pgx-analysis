@@ -5,6 +5,9 @@ Prepare CPIC master Excel file for Lambda deployment.
 Copies the master Excel file from 5_pgx_analysis/cpic/ to outputs/cpic/ for the
 Docker container. If the Excel file is missing, falls back to 5_pgx_analysis/data/
 CSV (cpicPairs.csv or cpic.csv) and converts to the expected .xlsx for Lambda.
+
+Uses DuckDB for CSV reads when available; writes a Parquet copy alongside the
+Excel for efficient downstream use where supported.
 """
 
 import sys
@@ -22,8 +25,53 @@ SOURCE_CSV = PROJECT_ROOT / "5_pgx_analysis" / "data" / "cpic.csv"
 
 DEST_DIR = PROJECT_ROOT / "10_risk_dashboard" / "outputs" / "cpic"
 DEST_EXCEL = DEST_DIR / "cpic_gene-drug_pairs.xlsx"
+DEST_PARQUET = DEST_DIR / "cpic_gene-drug_pairs.parquet"
 
 CPIC_XLSX_URL = "https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx"
+
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
+
+
+def _read_csv_with_duckdb(csv_path: Path):
+    """Read CSV via DuckDB when available; returns DataFrame or None on failure."""
+    if not DUCKDB_AVAILABLE:
+        return None
+    try:
+        con = duckdb.connect(":memory:")
+        path_str = str(csv_path.resolve())
+        df = con.execute("SELECT * FROM read_csv_auto(?)", [path_str]).fetchdf()
+        con.close()
+        return df
+    except Exception:
+        return None
+
+
+def _write_parquet_copy(df, dest_parquet: Path) -> bool:
+    """Write DataFrame to Parquet; use DuckDB when available else pandas. Returns True if written."""
+    dest_parquet = Path(dest_parquet)
+    if DUCKDB_AVAILABLE:
+        try:
+            con = duckdb.connect(":memory:")
+            con.register("cpic_df", df)
+            # DuckDB COPY TO expects path as literal; path is from our DEST_PARQUET
+            path_str = str(dest_parquet.resolve().as_posix()).replace("'", "''")
+            con.execute(f"COPY cpic_df TO '{path_str}' (FORMAT PARQUET)")
+            con.close()
+            return True
+        except Exception:
+            pass
+    try:
+        import pandas as pd
+        if isinstance(df, pd.DataFrame):
+            df.to_parquet(dest_parquet, index=False)
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _download_cpic_excel() -> bool:
@@ -73,6 +121,13 @@ def prepare_cpic_data():
         print(f"Using official Excel: {SOURCE_EXCEL} -> {DEST_EXCEL}")
         shutil.copy2(SOURCE_EXCEL, DEST_EXCEL)
         print(f"OK: Copied {SOURCE_EXCEL.name} ({DEST_EXCEL.stat().st_size / 1024:.1f} KB)")
+        import pandas as pd
+        try:
+            df = pd.read_excel(DEST_EXCEL, engine="openpyxl")
+            if not df.empty and _write_parquet_copy(df, DEST_PARQUET):
+                print(f"  Parquet copy: {DEST_PARQUET.name}")
+        except Exception as e:
+            print(f"  (Parquet copy skipped: {e})")
         print(f"\nOK: CPIC data prepared in {DEST_DIR}")
         print("  File will be included in Docker container at /var/task/data/")
         return
@@ -82,6 +137,7 @@ def prepare_cpic_data():
         import openpyxl  # noqa: F401
     except ImportError:
         openpyxl = None
+    import pandas as pd
     for csv_path in (SOURCE_CSV_PAIRS, SOURCE_CSV):
         if not csv_path.exists():
             continue
@@ -90,14 +146,19 @@ def prepare_cpic_data():
             print("  Install with: pip install openpyxl")
             break
         try:
-            import pandas as pd
             print(f"Using CSV fallback (Excel is preferred when available): {csv_path}")
-            df = pd.read_csv(csv_path)
+            df = _read_csv_with_duckdb(csv_path)
+            if df is None:
+                df = pd.read_csv(csv_path)
+            else:
+                print("  (read via DuckDB)")
             # Lambda expects columns with gene/drug (case-insensitive); ensure we have something
             if df.empty:
                 continue
             df.to_excel(DEST_EXCEL, index=False, engine="openpyxl")
             print(f"OK: Wrote {DEST_EXCEL} ({DEST_EXCEL.stat().st_size / 1024:.1f} KB) from {csv_path.name}")
+            if _write_parquet_copy(df, DEST_PARQUET):
+                print(f"  Parquet copy: {DEST_PARQUET.name}")
             print(f"\nOK: CPIC data prepared in {DEST_DIR}")
             print("  File will be included in Docker container at /var/task/data/")
             return
