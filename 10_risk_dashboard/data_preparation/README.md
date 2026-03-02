@@ -25,7 +25,7 @@ python prepare_models.py --all
 
 **Outputs:** (under `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/`)
 - `catboost.joblib`, `xgboost.joblib`, optionally `xgboost_rf.joblib`
-- `feature_schema.json`
+- `feature_schema.json` (includes `patient_bucket_thresholds` for n_events and n_drugs only — 33rd/67th percentiles from training — used for risk bucket low/medium/high; n_drugs is built in the PGx analysis step; n_pgx_drugs is a separate input)
 - `risk_distribution_2019.json` (built idempotently after models; 2019 holdout predicted-probability distribution for the risk histogram)
 
 At the end of each cohort run, the script invokes `prepare_risk_distribution_2019.py` for that cohort so the 2019 distribution is available in the same pipeline.
