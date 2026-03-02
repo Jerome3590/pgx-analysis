@@ -20,8 +20,10 @@ python prepare_models.py --all
 **What it does:**
 1. Loads models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` (e.g. `xgboost.joblib`, `catboost.joblib`)
 2. Reads MC-CV results from `6_final_model/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_mc_cv_results.csv` to select the best model per cohort/age_band (weight 1.0 for best, 0 for others)
-3. Extracts feature schemas from `6_final_model/outputs/.../{cohort}_{age_band_fname}_train_final_features_no_leakage.csv`
+3. Extracts feature schemas from training data: prefers **Parquet** at `6_final_model/outputs/.../inputs/model_train/final_features.parquet`, else the legacy CSV. Uses **DuckDB** when available for efficient reads and percentiles; falls back to pandas otherwise.
 4. Writes to `10_risk_dashboard/outputs/models/` (used by `prepare_lambda_dir.py` and Docker build)
+
+**Progress:** The script prints progress per cohort/age_band and flushes stdout so when run from notebook 5 (e.g. `python -u prepare_models.py --all`) you see output as it runs. The 2019 distribution subprocess has a 600s timeout.
 
 **Outputs:** (under `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/`)
 - `catboost.joblib`, `xgboost.joblib`, optionally `xgboost_rf.joblib`

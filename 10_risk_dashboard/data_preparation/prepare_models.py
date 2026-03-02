@@ -19,24 +19,27 @@ import json
 import argparse
 import logging
 import subprocess
+import importlib.util
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import joblib
 import pandas as pd
-import numpy as np
 
-# Add project root to path
-# This script is in 10_risk_dashboard/data_preparation/
-# Project root is 3 levels up
+try:
+    import duckdb
+    DUCKDB_AVAILABLE = True
+except ImportError:
+    DUCKDB_AVAILABLE = False
+
+# Add project root to path (script is in 10_risk_dashboard/data_preparation/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-try:
-    from catboost import CatBoostClassifier
-    import xgboost as xgb
-    MODEL_LIBS_AVAILABLE = True
-except ImportError:
-    MODEL_LIBS_AVAILABLE = False
+MODEL_LIBS_AVAILABLE = (
+    importlib.util.find_spec("catboost") is not None
+    and importlib.util.find_spec("xgboost") is not None
+)
+if not MODEL_LIBS_AVAILABLE:
     print("Warning: Model libraries not available. Some operations may fail.")
 
 # Configuration
@@ -46,7 +49,7 @@ OUTPUT_DIR = PROJECT_ROOT / '10_risk_dashboard' / 'outputs' / 'models'  # For Do
 S3_MODEL_PREFIX = 'gold/dashboard/models'  # Optional S3 backup location
 
 # Age bands (each cohort has all age bands; from py_helpers.constants)
-from py_helpers.constants import REQUIRED_COHORTS
+from py_helpers.constants import REQUIRED_COHORTS  # noqa: E402
 OPIOID_ED_AGE_BANDS = REQUIRED_COHORTS["opioid_ed"]
 POLYPHARMACY_AGE_BANDS = REQUIRED_COHORTS["non_opioid_ed"]
 
@@ -61,6 +64,7 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
         joblib_path = model_dir / 'catboost.joblib'
         if joblib_path.exists():
             if MODEL_LIBS_AVAILABLE:
+                from catboost import CatBoostClassifier
                 model = CatBoostClassifier()
                 model.load_model(str(joblib_path))
                 return model
@@ -155,66 +159,154 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
     return weights
 
 
+def _resolve_train_data_path(cohort: str, age_band_fname: str) -> Tuple[Optional[Path], str]:
+    """Resolve training data path: prefer Parquet (efficient), fallback to CSV. Returns (path, 'parquet'|'csv') or (None, '')."""
+    parquet_path = FINAL_MODEL_DIR / cohort / age_band_fname / "inputs" / "model_train" / "final_features.parquet"
+    csv_path = FINAL_MODEL_DIR / cohort / age_band_fname / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
+    if parquet_path.exists():
+        return parquet_path, "parquet"
+    if csv_path.exists():
+        return csv_path, "csv"
+    return None, ""
+
+
+def _extract_feature_schema_duckdb(data_path: Path, data_format: str) -> Dict[str, Any]:
+    """
+    Use DuckDB for efficient reads and aggregations on Parquet or CSV.
+    Returns feature_names, defaults (medians), patient_bucket_thresholds, n_samples.
+    Path is passed as parameter to avoid injection; table/source is our own path.
+    """
+    exclude_cols = {"mi_person_key", "target", "event_year", "cohort_name", "age_band"}
+    path_str = str(data_path.resolve())
+
+    con = duckdb.connect(":memory:")
+    # Use parameterized query for path; reader is fixed (read_parquet or read_csv_auto)
+    reader = "read_parquet(?)" if data_format == "parquet" else "read_csv_auto(?)"
+    params = [path_str]
+
+    try:
+        # Column names and types (path passed as param; reader is read_parquet(?) or read_csv_auto(?))
+        desc = con.execute(f"DESCRIBE SELECT * FROM {reader}", params).fetchall()  # nosec B608
+        columns = [row[0] for row in desc]
+        types = {row[0]: row[1] for row in desc}
+        feature_names = [c for c in columns if c not in exclude_cols]
+
+        # Row count (efficient)
+        n_samples = con.execute(f"SELECT count(*) FROM {reader}", params).fetchone()[0]  # nosec B608
+
+        # Bucket percentiles (33rd/67th) for n_events, n_drugs — single pass over data
+        patient_bucket_thresholds = {}
+        bucket_vars = ["n_events", "n_drugs"]
+        for var in bucket_vars:
+            if var not in columns:
+                continue
+            try:
+                # var from bucket_vars; path in params. Reader and var are from our code, not user input.
+                q = f"SELECT quantile_cont(\"{var}\", 0.33) AS q33, quantile_cont(\"{var}\", 0.67) AS q67 FROM {reader}"
+                row = con.execute(q, params).fetchone()  # nosec B608
+                if row and row[0] is not None and row[1] is not None:
+                    patient_bucket_thresholds[var] = {"low_medium": float(row[0]), "medium_high": float(row[1])}
+            except Exception:
+                pass
+        if patient_bucket_thresholds:
+            print(f"  Patient bucket thresholds: {list(patient_bucket_thresholds.keys())} (DuckDB)", flush=True)
+
+        # Defaults: median per numeric feature
+        defaults = {}
+        numeric_features = [
+            c for c in feature_names
+            if types.get(c, "").upper() in ("INTEGER", "BIGINT", "DOUBLE", "FLOAT", "REAL")
+        ]
+        if numeric_features:
+            median_exprs = ", ".join(f'median("{c}") AS "{c}"' for c in numeric_features)
+            try:
+                med_df = con.execute(f"SELECT {median_exprs} FROM {reader}", params).fetchdf()  # nosec B608
+                for c in numeric_features:
+                    if c in med_df.columns and pd.notna(med_df[c].iloc[0]):
+                        defaults[c] = float(med_df[c].iloc[0])
+                    else:
+                        defaults[c] = 0.0
+            except Exception:
+                pass
+        for c in feature_names:
+            if c not in defaults:
+                defaults[c] = 0.0
+
+        return {
+            "feature_names": feature_names,
+            "defaults": defaults,
+            "patient_bucket_thresholds": patient_bucket_thresholds,
+            "n_samples": n_samples,
+        }
+    finally:
+        con.close()
+
+
 def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
     """
-    Extract feature schema from training data.
-    
-    Returns feature names and default values.
+    Extract feature schema from training data. Prefers Parquet + DuckDB for efficient reads and transforms.
+    Falls back to CSV (with DuckDB if available, else pandas).
     """
     age_band_fname = age_band.replace("-", "_")
-    
-    # Try to load training data
-    train_data_path = FINAL_MODEL_DIR / cohort / age_band_fname / f'{cohort}_{age_band_fname}_train_final_features_no_leakage.csv'
-    
-    if not train_data_path.exists():
-        print(f"Warning: Training data not found: {train_data_path}")
-        return {'features': [], 'defaults': {}, 'model_weights': {}}
-    
-    # Load a sample of training data for feature list and defaults
-    df = pd.read_csv(train_data_path, nrows=1000)
-    
-    # Get feature names (exclude target columns)
-    exclude_cols = ['mi_person_key', 'target', 'event_year', 'cohort_name', 'age_band']
-    feature_names = [col for col in df.columns if col not in exclude_cols]
-    
-    # Calculate default values (medians for numeric, 0 for binary)
+    data_path, data_format = _resolve_train_data_path(cohort, age_band_fname)
+
+    if data_path is None:
+        print("Warning: Training data not found (checked parquet and CSV).", flush=True)
+        return {"features": [], "defaults": {}, "model_weights": {}}
+
+    print(f"  Using {'Parquet' if data_format == 'parquet' else 'CSV'}: {data_path.name}", flush=True)
+
+    if DUCKDB_AVAILABLE:
+        try:
+            schema = _extract_feature_schema_duckdb(data_path, data_format)
+            model_weights = calculate_model_weights(cohort, age_band)
+            out = {
+                "features": schema["feature_names"],
+                "defaults": schema["defaults"],
+                "model_weights": model_weights,
+                "n_features": len(schema["feature_names"]),
+                "n_samples": schema["n_samples"],
+            }
+            if schema["patient_bucket_thresholds"]:
+                out["patient_bucket_thresholds"] = schema["patient_bucket_thresholds"]
+            return out
+        except Exception as e:
+            print(f"  Warning: DuckDB path failed ({e}), falling back to pandas.", flush=True)
+
+    # Fallback: pandas on CSV (or parquet via pandas)
+    if data_format == "parquet":
+        df = pd.read_parquet(data_path)
+    else:
+        df = pd.read_csv(data_path, nrows=100_000)
+    exclude_cols = {"mi_person_key", "target", "event_year", "cohort_name", "age_band"}
+    feature_names = [c for c in df.columns if c not in exclude_cols]
     defaults = {}
-    for feature in feature_names:
-        if feature in df.columns:
-            if df[feature].dtype in ['int64', 'float64']:
-                defaults[feature] = float(df[feature].median())
-            else:
-                defaults[feature] = 0.0
-    
-    # Risk bucket thresholds (low/medium/high) from n_events and n_drugs only (n_pgx_drugs is separate input)
-    # Use full training data for stable 33rd/67th percentiles
-    bucket_vars = ['n_events', 'n_drugs']
+    for c in feature_names:
+        if c in df.columns and df[c].dtype in ["int64", "float64"]:
+            defaults[c] = float(df[c].median())
+        else:
+            defaults[c] = 0.0
+    bucket_vars = ["n_events", "n_drugs"]
     patient_bucket_thresholds = {}
-    try:
-        df_full = pd.read_csv(train_data_path, nrows=None)
-        for var in bucket_vars:
-            if var not in df_full.columns:
-                continue
-            q33 = float(df_full[var].quantile(0.33))
-            q67 = float(df_full[var].quantile(0.67))
-            patient_bucket_thresholds[var] = {'low_medium': q33, 'medium_high': q67}
-        if patient_bucket_thresholds:
-            print(f"  Patient bucket thresholds: {list(patient_bucket_thresholds.keys())}")
-    except Exception as e:
-        print(f"  Warning: could not compute patient_bucket_thresholds: {e}")
-    
-    # Calculate model weights based on MC-CV performance
+    for var in bucket_vars:
+        if var in df.columns:
+            try:
+                patient_bucket_thresholds[var] = {
+                    "low_medium": float(df[var].quantile(0.33)),
+                    "medium_high": float(df[var].quantile(0.67)),
+                }
+            except Exception:
+                pass
     model_weights = calculate_model_weights(cohort, age_band)
-    
     out = {
-        'features': feature_names,
-        'defaults': defaults,
-        'model_weights': model_weights,
-        'n_features': len(feature_names),
-        'n_samples': len(df)
+        "features": feature_names,
+        "defaults": defaults,
+        "model_weights": model_weights,
+        "n_features": len(feature_names),
+        "n_samples": len(df),
     }
     if patient_bucket_thresholds:
-        out['patient_bucket_thresholds'] = patient_bucket_thresholds
+        out["patient_bucket_thresholds"] = patient_bucket_thresholds
     return out
 
 
@@ -223,6 +315,7 @@ def save_model(model: Any, output_path: Path, model_type: str):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     if model_type == 'catboost':
+        from catboost import CatBoostClassifier
         if isinstance(model, CatBoostClassifier):
             model.save_model(str(output_path))
         else:
@@ -243,6 +336,7 @@ def _run_2019_distribution_script(cohort: str) -> None:
     script = Path(__file__).resolve().parent / "prepare_risk_distribution_2019.py"
     if not script.exists():
         return
+    print(f"  Running 2019 risk distribution script for {cohort} (timeout 600s)...", flush=True)
     try:
         subprocess.run(
             [sys.executable, str(script), "--cohort", cohort],
@@ -251,24 +345,27 @@ def _run_2019_distribution_script(cohort: str) -> None:
             text=True,
             timeout=600,
         )
+        print("  Completed 2019 distribution script.", flush=True)
+    except subprocess.TimeoutExpired:
+        print("  Note: 2019 distribution script timed out after 600s.", flush=True)
     except Exception as e:
-        print(f"  Note: 2019 distribution script skipped ({e})")
+        print(f"  Note: 2019 distribution script skipped ({e}).", flush=True)
 
 
 def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
     """Prepare models for a cohort."""
-    print(f"\n{'='*60}")
-    print(f"Preparing models for {cohort}")
-    print(f"{'='*60}")
+    print(f"\n{'='*60}", flush=True)
+    print(f"Preparing models for {cohort}", flush=True)
+    print(f"{'='*60}", flush=True)
     
     for age_band in age_bands:
-        print(f"\nProcessing {age_band}...")
+        print(f"\nProcessing {age_band}...", flush=True)
         age_band_fname = age_band.replace("-", "_")
         output_dir = OUTPUT_DIR / cohort / age_band_fname
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Extract feature schema and model weights
-        print("  Extracting feature schema and model weights...")
+        print("  Extracting feature schema and model weights...", flush=True)
         feature_schema = extract_feature_schema(cohort, age_band)
         
          # If no features were found (e.g., training data missing for this age_band),
@@ -283,12 +380,12 @@ def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
             json.dump(feature_schema, f, indent=2)
         print(f"  Saved feature schema ({n_features} features)")
         if 'model_weights' in feature_schema:
-            print(f"  Model weights included in schema")
+            print("  Model weights included in schema")
         
         # Load and save models
         model_types = ['catboost', 'xgboost', 'xgboost_rf']
         for model_type in model_types:
-            print(f"  Loading {model_type} model...")
+            print(f"  Loading {model_type} model...", flush=True)
             model = load_model(cohort, age_band, model_type)
             
             if model is None:
@@ -324,7 +421,7 @@ def upload_to_s3(cohort: str, age_bands: List[str]):
         bucket = 'pgxdatalake'
         prefix = 'gold/dashboard/models'
         
-        print(f"\nUploading models to S3...")
+        print("\nUploading models to S3...")
         
         for age_band in age_bands:
             age_band_fname = age_band.replace("-", "_")
@@ -391,12 +488,12 @@ def main():
         parser.print_help()
         return
     
-    print("\n" + "="*60)
-    print("Preparing models for Lambda Container (ECR) deployment")
-    print("="*60)
-    print("Models will be placed in: models/")
-    print("This directory will be copied into Docker container image")
-    print("="*60 + "\n")
+    print("\n" + "="*60, flush=True)
+    print("Preparing models for Lambda Container (ECR) deployment", flush=True)
+    print("="*60, flush=True)
+    print("Models will be placed in: models/", flush=True)
+    print("This directory will be copied into Docker container image", flush=True)
+    print("="*60 + "\n", flush=True)
     
     for cohort, age_bands in cohorts:
         prepare_models_for_cohort(cohort, age_bands)
