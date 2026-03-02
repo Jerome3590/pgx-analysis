@@ -624,6 +624,11 @@ def extract_patient_trajectories(
     if "temporal_span_days" not in df.columns:
         df["temporal_span_days"] = float("nan")
 
+    # N3 time-based metrics logging (timestamped event column used for ordering and gaps)
+    n_mean_days = int(df["mean_days_between_events"].notna().sum()) if "mean_days_between_events" in df.columns else 0
+    n_days_to_target = int(df["days_first_event_to_target"].notna().sum()) if "days_first_event_to_target" in df.columns else 0
+    _log("info", "N3 time-based metrics (timestamp column %s): trajectories with mean_days_between_events=%d, with days_first_event_to_target=%d", event_date_col, n_mean_days, n_days_to_target)
+
     # Event density: events per month (trajectory_length / (span_days/30)); NaN when span <= 0
     span_days = df["temporal_span_days"]
     length = df["trajectory_length"].astype(float)

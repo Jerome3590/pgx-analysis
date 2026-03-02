@@ -621,12 +621,9 @@
     #dtw-visualizations-tab .dtw-subpanel.active {
       display: block;
     }
-    /* FP-Growth: 2×1 grid — row 1: Top Itemsets + Itemset Support; row 2: Drug Association Network (full width) */
+    /* FP-Growth: 1×1 grid — Itemset Support Distribution, then Drug Association Network (full width each) */
     #fpgrowth-visualizations-tab .panels {
-      grid-template-columns: 1fr 1fr;
-    }
-    #fpgrowth-visualizations-tab .panels .panel.full-width {
-      grid-column: 1 / -1;
+      grid-template-columns: 1fr;
     }
     #fpgrowth-visualizations-tab #fpgrowth-network-container {
       width: 100%;
@@ -1138,10 +1135,6 @@
             <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;">Cluster overview of drug sequences; drug-only trajectories.</small></p>
             <div id="dtw-overview-image"></div>
           </div>
-          <div class="panel dtw-panel" data-visual-key="sample">
-            <h2>Sample Trajectories (drugs)</h2>
-            <div id="dtw-sample-trajectories-image"></div>
-          </div>
           <div class="panel dtw-panel" data-visual-key="metrics">
             <h2>Trajectory Metrics</h2>
             <div id="dtw-metrics-chart"></div>
@@ -1225,11 +1218,7 @@
       </div>
       <div id="fpgrowth-status" class="status-message">Select cohort and age band, then click Load. Drug-name itemsets and network only.</div>
       <div class="panels">
-        <div class="panel">
-          <h2>Top Itemsets</h2>
-          <div id="fpgrowth-itemsets-image"></div>
-        </div>
-        <div class="panel">
+        <div class="panel full-width">
           <h2>Itemset Support Distribution</h2>
           <div id="fpgrowth-support-image"></div>
         </div>
@@ -1315,7 +1304,7 @@
             <tr><th>Question</th><th>Tab(s)</th><th>Visuals</th></tr>
           </thead>
           <tbody>
-            <tr><td>N1: Routine vs no routine appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs No Routine (Outcomes), trajectory overview, sample trajectories, metrics</td></tr>
+            <tr><td>N1: Routine vs no routine appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs No Routine (Outcomes), trajectory overview, metrics</td></tr>
             <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
             <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
             <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Drug association network, top itemsets (drug names only)</td></tr>
@@ -2622,26 +2611,38 @@
       // JSON-first: fetch chart_data, sequence_heatmap, trajectory_overview_plot from static (manifest URLs) in parallel.
       const [chartResp, hmResp, overviewResp] = await Promise.all([fetch(chartUrl), fetch(heatmapUrl), fetch(overviewPlotUrl)]);
       if (chartResp.ok) {
-        const chartData = await chartResp.json();
-        if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
-        if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
-        if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
-        if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
-        if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
-        if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
-        if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
-        if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
-        if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
-        if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+        var chartData = null;
+        try { chartData = await chartResp.json(); } catch (_) { chartData = { empty: true, message: 'chart_data.json is invalid or empty.' }; }
+        if (!chartData || typeof chartData !== 'object') chartData = { empty: true, message: 'chart_data.json is invalid or empty.' };
         data.chart_data = chartData;
+        if (!chartData.empty) {
+          if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+          if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+          if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+          if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+          if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+          if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+          if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+          if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+          if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+          var m = {};
+          if (chartData.routine_comparison && chartData.routine_comparison.y) m.routine_comparison_series = chartData.routine_comparison.y.length;
+          if (chartData.times_between_sequences && chartData.times_between_sequences.y) m.times_between_categories = chartData.times_between_sequences.y.length;
+          if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m.target_pathway_codes = chartData.target_pathway_patterns.y.length;
+          if (chartData.high_risk_trajectories && chartData.high_risk_trajectories.y) m.high_risk_archetypes = chartData.high_risk_trajectories.y.length;
+          if (Object.keys(m).length) data.metrics = m;
+        }
       }
       if (hmResp.ok) {
-        data.sequence_heatmap = await hmResp.json();
+        try { data.sequence_heatmap = await hmResp.json(); } catch (_) { data.sequence_heatmap = { empty: true, message: 'sequence_heatmap.json is invalid or empty.' }; }
+        if (!data.sequence_heatmap || typeof data.sequence_heatmap !== 'object') data.sequence_heatmap = { empty: true, message: 'sequence_heatmap.json is invalid or empty.' };
       }
       if (overviewResp.ok) {
         try {
-          data.trajectory_overview_plot = await overviewResp.json();
-        } catch (_) { /* invalid JSON */ }
+          var overviewJson = await overviewResp.json();
+          data.trajectory_overview_plot = (overviewJson && typeof overviewJson === 'object') ? overviewJson : { empty: true, message: 'trajectory_overview_plot.json is invalid or empty.' };
+        } catch (_) { data.trajectory_overview_plot = { empty: true, message: 'trajectory_overview_plot.json is invalid or empty.' }; }
       }
       // PNG/HTML fallbacks from manifest (JSON-first: overview already from trajectory_overview_plot.json when present).
       if (dtwBuilt && dtwBuilt.urls.length >= 5) {
@@ -2696,6 +2697,12 @@
               if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
               if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
               if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+              var m2 = {};
+              if (chartData.routine_comparison && chartData.routine_comparison.y) m2.routine_comparison_series = chartData.routine_comparison.y.length;
+              if (chartData.times_between_sequences && chartData.times_between_sequences.y) m2.times_between_categories = chartData.times_between_sequences.y.length;
+              if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m2.target_pathway_codes = chartData.target_pathway_patterns.y.length;
+              if (chartData.high_risk_trajectories && chartData.high_risk_trajectories.y) m2.high_risk_archetypes = chartData.high_risk_trajectories.y.length;
+              if (Object.keys(m2).length) data.metrics = m2;
             }
           } catch (_) { /* chart_data.json optional */ }
         }
@@ -3246,7 +3253,6 @@
 
   const DTW_VISUAL_KEYS = [
     { key: 'overview', label: 'Trajectory Overview' },
-    { key: 'sample', label: 'Sample Trajectories' },
     { key: 'metrics', label: 'Trajectory Metrics' },
     { key: 'high_risk', label: 'High-Risk vs Low-Risk' },
     { key: 'times_between', label: 'Times Between / Time to Target' },
@@ -3300,6 +3306,9 @@
   }
   function renderDTWVisualizations(data, densityFilter, selectedKeys) {
     applyDTWPanelVisibility(selectedKeys);
+    function setEmptyMessage(el, msg) {
+      if (el) el.innerHTML = '<p class="status-message info" style="margin:0;">' + (msg || 'No data for this visual.') + '</p>';
+    }
     // Resolve chart data by event density filter (dashboard filter)
     const routineComparison = (densityFilter && densityFilter !== 'all' && data.routine_comparison_by_density && data.routine_comparison_by_density[densityFilter])
       ? data.routine_comparison_by_density[densityFilter] : data.routine_comparison;
@@ -3355,204 +3364,207 @@
     }
     const overviewEl = document.getElementById("dtw-overview-image");
     if (overviewEl) {
-      var plotSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces)
-        ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
-      if (plotSpec) {
-        overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
-        Plotly.newPlot('dtw-overview-plot', plotSpec.data, plotSpec.layout, { responsive: true });
-      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
-        overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
-        var fig = data.trajectory_overview_plot;
-        Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
-      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
-        var msg = data.trajectory_overview_plot.message || 'No trajectory overview for this cohort/age band.';
-        var metrics = data.trajectory_overview_plot.metrics;
-        var metricsHtml = (metrics && typeof metrics === 'object' && Object.keys(metrics).length) ? '<pre class="status-message" style="margin:0.5rem 0 0; font-size:0.85em; white-space:pre-wrap;">' + JSON.stringify(metrics, null, 2) + '</pre>' : '';
-        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">' + msg + '</p>' + metricsHtml;
-      } else if (data.overview_image) {
-        overviewEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.overview_image) + '" style="max-width: 100%;" alt="" />';
-        var _img = overviewEl.querySelector('img');
-        if (_img) _img.onerror = function() { overviewEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
-      } else {
-        overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory overview not available. Run create_dtw_visuals (after create_dtw_features) and upload plots to dashboard S3.</p>';
-      }
-    }
-    // Sample trajectories: same data or legacy fig; fallback image
-    const sampleEl = document.getElementById("dtw-sample-trajectories-image");
-    if (sampleEl) {
-      var sampleSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces)
-        ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
-      if (sampleSpec) {
-        sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
-        Plotly.newPlot('dtw-sample-plot', sampleSpec.data, sampleSpec.layout, { responsive: true });
-      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
-        sampleEl.innerHTML = '<div id="dtw-sample-plot" style="width:100%; min-height:500px;"></div>';
-        var fig = data.trajectory_overview_plot;
-        Plotly.react('dtw-sample-plot', fig.data, fig.layout || {}, fig.config || {});
-      } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
-        var msg = data.trajectory_overview_plot.message || 'No sample trajectories for this cohort/age band.';
-        var metrics = data.trajectory_overview_plot.metrics;
-        var metricsHtml = (metrics && typeof metrics === 'object' && Object.keys(metrics).length) ? '<pre class="status-message" style="margin:0.5rem 0 0; font-size:0.85em; white-space:pre-wrap;">' + JSON.stringify(metrics, null, 2) + '</pre>' : '';
-        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">' + msg + '</p>' + metricsHtml;
-      } else if (data.sample_trajectories_image) {
-        sampleEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.sample_trajectories_image) + '" style="max-width: 100%;" alt="" />';
-        var _img = sampleEl.querySelector('img');
-        if (_img) _img.onerror = function() { sampleEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
-      } else {
-        sampleEl.innerHTML = '<p class="status-message info" style="margin:0;">Sample trajectories not available. Run create_dtw_visuals and upload plots to dashboard S3.</p>';
-      }
+      try {
+        var plotSpec = data.trajectory_overview_plot && Array.isArray(data.trajectory_overview_plot.traces)
+          ? buildDTWTrajectoryPlotly(data.trajectory_overview_plot) : null;
+        if (plotSpec) {
+          overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
+          Plotly.newPlot('dtw-overview-plot', plotSpec.data, plotSpec.layout, { responsive: true });
+        } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.data) {
+          overviewEl.innerHTML = '<div id="dtw-overview-plot" style="width:100%; min-height:500px;"></div>';
+          var fig = data.trajectory_overview_plot;
+          Plotly.react('dtw-overview-plot', fig.data, fig.layout || {}, fig.config || {});
+        } else if (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message) {
+          var msg = data.trajectory_overview_plot.message || 'No trajectory overview for this cohort/age band.';
+          var metrics = data.trajectory_overview_plot.metrics;
+          var metricsHtml = (metrics && typeof metrics === 'object' && Object.keys(metrics).length) ? '<pre class="status-message" style="margin:0.5rem 0 0; font-size:0.85em; white-space:pre-wrap;">' + JSON.stringify(metrics, null, 2) + '</pre>' : '';
+          overviewEl.innerHTML = '<p class="status-message info" style="margin:0;">' + msg + '</p>' + metricsHtml;
+        } else if (data.overview_image) {
+          overviewEl.innerHTML = '<img src="' + ensureAbsoluteUrl(data.overview_image) + '" style="max-width: 100%;" alt="" />';
+          var _img = overviewEl.querySelector('img');
+          if (_img) _img.onerror = function() { overviewEl.innerHTML = '<p class="status-message" style="margin:0;">Image not found. Run pipeline to generate.</p>'; };
+        } else {
+          setEmptyMessage(overviewEl, 'Trajectory overview not available. Run create_dtw_visuals (after create_dtw_features) and upload plots to dashboard S3.');
+        }
+      } catch (e) { setEmptyMessage(overviewEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
     // Render trajectory metrics chart (prefer JSON: metrics from API or derived from chart_data)
     const metricsContainer = document.getElementById('dtw-metrics-chart');
-    if (metricsContainer && data.metrics && Object.keys(data.metrics).length > 0) {
-      const trace = {
-        x: Object.keys(data.metrics),
-        y: Object.values(data.metrics),
-        type: 'bar',
-        marker: { color: '#8b5cf6' }
-      };
-      Plotly.newPlot('dtw-metrics-chart', [trace], {
-        title: 'Trajectory Metrics',
-        xaxis: { title: 'Metric' },
-        yaxis: { title: 'Value' }
-      }, { responsive: true });
-    } else if (metricsContainer) {
-      metricsContainer.innerHTML = '<p class="status-message info" style="margin:0;">Trajectory metrics will appear here when chart_data.json is available (run create_dtw_visuals after create_dtw_features).</p>';
+    if (metricsContainer) {
+      try {
+        if (data.metrics && Object.keys(data.metrics).length > 0) {
+          const trace = {
+            x: Object.keys(data.metrics),
+            y: Object.values(data.metrics),
+            type: 'bar',
+            marker: { color: '#8b5cf6' }
+          };
+          Plotly.newPlot('dtw-metrics-chart', [trace], {
+            title: 'Trajectory Metrics',
+            xaxis: { title: 'Metric' },
+            yaxis: { title: 'Value' }
+          }, { responsive: true });
+        } else {
+          setEmptyMessage(metricsContainer, 'Trajectory metrics will appear here when chart_data.json is available (run create_dtw_visuals after create_dtw_features).');
+        }
+      } catch (e) { setEmptyMessage(metricsContainer, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // Routine vs no routine (outcomes) — same JSON pattern as other visuals: chart_data.routine_comparison (or by density)
     const routineEl = document.getElementById("dtw-routine-comparison-container");
     if (routineEl) {
-      if (routineComparison && routineComparison.x && routineComparison.y) {
-        const trace = {
-          x: routineComparison.x,
-          y: routineComparison.y,
-          type: routineComparison.type || 'bar',
-          name: routineComparison.name,
-          marker: { color: '#0ea5e9' }
-        };
-        routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
-        Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
-          title: (densityFilter && densityFilter !== 'all' ? `Outcome by routine vs non-routine (${densityFilter} density)` : (routineComparison.title || 'Outcome by routine vs non-routine (admin ICD)')),
-          xaxis: { title: routineComparison.x_label || 'Category' },
-          yaxis: { title: routineComparison.y_label || 'Value' }
-        }, { responsive: true });
-      } else {
-        routineEl.innerHTML = '<p class="status-message info">Routine vs non-routine comparison will appear here when chart_data.json provides routine_comparison (run create_dtw_visuals).</p>';
-      }
+      try {
+        if (routineComparison && routineComparison.x && routineComparison.y) {
+          const trace = {
+            x: routineComparison.x,
+            y: routineComparison.y,
+            type: routineComparison.type || 'bar',
+            name: routineComparison.name,
+            marker: { color: '#0ea5e9' }
+          };
+          routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
+          Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
+            title: (densityFilter && densityFilter !== 'all' ? `Outcome by routine vs non-routine (${densityFilter} density)` : (routineComparison.title || 'Outcome by routine vs non-routine (admin ICD)')),
+            xaxis: { title: routineComparison.x_label || 'Category' },
+            yaxis: { title: routineComparison.y_label || 'Value' }
+          }, { responsive: true });
+        } else {
+          const reason = (data.chart_data && data.chart_data.metrics && data.chart_data.metrics.charts_not_built && data.chart_data.metrics.charts_not_built.routine_comparison);
+          const msg = reason
+            ? ('Routine vs non-routine comparison was not built. ' + reason)
+            : 'Routine vs non-routine comparison will appear here when chart_data.json provides routine_comparison. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
+          setEmptyMessage(routineEl, msg);
+        }
+      } catch (e) { setEmptyMessage(routineEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // Routine vs no routine: medical and prescription event counts (chart_data.routine_comparison_counts or by density)
     const routineCountsEl = document.getElementById("dtw-routine-comparison-counts-container");
     if (routineCountsEl) {
-      const rc = routineComparisonCounts;
-      if (rc && rc.x && Array.isArray(rc.series) && rc.series.length > 0) {
-        const colors = ['#0ea5e9', '#10b981'];
-        const traces = rc.series.map((s, i) => ({
-          x: rc.x,
-          y: s.y,
-          type: 'bar',
-          name: s.name || (i === 0 ? 'Medical events' : 'Prescription events'),
-          marker: { color: colors[i % colors.length] }
-        }));
-        routineCountsEl.innerHTML = '<div id="dtw-routine-comparison-counts-chart"></div>';
-        Plotly.newPlot('dtw-routine-comparison-counts-chart', traces, {
-          barmode: 'group',
-          title: rc.title || 'Mean medical and prescription events per patient by routine vs no routine',
-          xaxis: { title: rc.x_label || 'Routine vs no routine' },
-          yaxis: { title: rc.y_label || 'Mean events per patient' }
-        }, { responsive: true });
-      } else {
-        routineCountsEl.innerHTML = '<p class="status-message info">Medical and prescription event counts by routine vs no routine will appear here when chart_data.json provides routine_comparison_counts (run create_dtw_visuals).</p>';
-      }
+      try {
+        const rc = routineComparisonCounts;
+        if (rc && rc.x && Array.isArray(rc.series) && rc.series.length > 0) {
+          const colors = ['#0ea5e9', '#10b981'];
+          const traces = rc.series.map((s, i) => ({
+            x: rc.x,
+            y: s.y,
+            type: 'bar',
+            name: s.name || (i === 0 ? 'Medical events' : 'Prescription events'),
+            marker: { color: colors[i % colors.length] }
+          }));
+          routineCountsEl.innerHTML = '<div id="dtw-routine-comparison-counts-chart"></div>';
+          Plotly.newPlot('dtw-routine-comparison-counts-chart', traces, {
+            barmode: 'group',
+            title: rc.title || 'Mean medical and prescription events per patient by routine vs no routine',
+            xaxis: { title: rc.x_label || 'Routine vs no routine' },
+            yaxis: { title: rc.y_label || 'Mean events per patient' }
+          }, { responsive: true });
+        } else {
+          const reason = (data.chart_data && data.chart_data.metrics && data.chart_data.metrics.charts_not_built && data.chart_data.metrics.charts_not_built.routine_comparison_counts);
+          const msg = reason
+            ? ('Medical and prescription event counts were not built. ' + reason)
+            : 'Medical and prescription event counts by routine vs no routine will appear here when chart_data.json provides routine_comparison_counts. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
+          setEmptyMessage(routineCountsEl, msg);
+        }
+      } catch (e) { setEmptyMessage(routineCountsEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // High-risk vs low-risk trajectories — same JSON pattern: chart_data.high_risk_trajectories (or by density)
     const highRiskEl = document.getElementById("dtw-high-risk-trajectories-container");
     if (highRiskEl) {
-      if (highRiskTrajectories && highRiskTrajectories.x && highRiskTrajectories.y) {
-        const trace = {
-          x: highRiskTrajectories.x,
-          y: highRiskTrajectories.y,
-          type: highRiskTrajectories.type || 'bar',
-          name: highRiskTrajectories.name,
-          marker: { color: '#8b5cf6' }
-        };
-        highRiskEl.innerHTML = '<div id="dtw-high-risk-chart"></div>';
-        Plotly.newPlot('dtw-high-risk-chart', [trace], {
-          title: (densityFilter && densityFilter !== 'all' ? `Trajectory archetypes by risk (${densityFilter} density)` : (highRiskTrajectories.title || 'Trajectory archetypes by risk / outcome')),
-          xaxis: { title: highRiskTrajectories.x_label || 'Archetype' },
-          yaxis: { title: highRiskTrajectories.y_label || 'Value' }
-        }, { responsive: true });
-      } else {
-        highRiskEl.innerHTML = '<p class="status-message info">High-risk vs low-risk trajectories will appear here when chart_data.json provides high_risk_trajectories (run create_dtw_visuals).</p>';
-      }
+      try {
+        if (highRiskTrajectories && highRiskTrajectories.x && highRiskTrajectories.y) {
+          const trace = {
+            x: highRiskTrajectories.x,
+            y: highRiskTrajectories.y,
+            type: highRiskTrajectories.type || 'bar',
+            name: highRiskTrajectories.name,
+            marker: { color: '#8b5cf6' }
+          };
+          highRiskEl.innerHTML = '<div id="dtw-high-risk-chart"></div>';
+          Plotly.newPlot('dtw-high-risk-chart', [trace], {
+            title: (densityFilter && densityFilter !== 'all' ? `Trajectory archetypes by risk (${densityFilter} density)` : (highRiskTrajectories.title || 'Trajectory archetypes by risk / outcome')),
+            xaxis: { title: highRiskTrajectories.x_label || 'Archetype' },
+            yaxis: { title: highRiskTrajectories.y_label || 'Value' }
+          }, { responsive: true });
+        } else {
+          setEmptyMessage(highRiskEl, 'High-risk vs low-risk trajectories will appear here when chart_data.json provides high_risk_trajectories (run create_dtw_visuals).');
+        }
+      } catch (e) { setEmptyMessage(highRiskEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // N3: Times between sequences
     const timesBetweenEl = document.getElementById('dtw-times-between-container');
     if (timesBetweenEl) {
-      if (data.times_between_sequences && data.times_between_sequences.x && data.times_between_sequences.y) {
-        const trace = {
-          x: data.times_between_sequences.x,
-          y: data.times_between_sequences.y,
-          type: data.times_between_sequences.type || 'bar',
-          name: data.times_between_sequences.name,
-          marker: { color: '#10b981' }
-        };
-        timesBetweenEl.innerHTML = '<div id="dtw-times-between-chart"></div>';
-        Plotly.newPlot('dtw-times-between-chart', [trace], {
-          title: 'Mean days between consecutive events (N3)',
-          xaxis: { title: data.times_between_sequences.x_label || 'Category' },
-          yaxis: { title: data.times_between_sequences.y_label || 'Days' }
-        }, { responsive: true });
-      } else {
-        const hasChartData = data.chart_data && !data.chart_data.empty;
-        const msg = hasChartData
-          ? 'chart_data.json was loaded but does not include N3 time-between metrics for this cohort/age. Re-run the DTW pipeline (create_dtw_trajectories → create_dtw_features → create_dtw_visuals) so chart_data is rebuilt with mean_days_between_events and admin_icd_event_count, then re-sync to S3.'
-          : 'Times between sequences (N3) will appear here when the pipeline provides time-between metrics (in chart_data.json).';
-        timesBetweenEl.innerHTML = '<p class="status-message info">' + msg + '</p>';
-      }
+      try {
+        if (data.times_between_sequences && data.times_between_sequences.x && data.times_between_sequences.y) {
+          const trace = {
+            x: data.times_between_sequences.x,
+            y: data.times_between_sequences.y,
+            type: data.times_between_sequences.type || 'bar',
+            name: data.times_between_sequences.name,
+            marker: { color: '#10b981' }
+          };
+          timesBetweenEl.innerHTML = '<div id="dtw-times-between-chart"></div>';
+          Plotly.newPlot('dtw-times-between-chart', [trace], {
+            title: 'Mean days between consecutive events (N3)',
+            xaxis: { title: data.times_between_sequences.x_label || 'Category' },
+            yaxis: { title: data.times_between_sequences.y_label || 'Days' }
+          }, { responsive: true });
+        } else {
+          const hasChartData = data.chart_data && !data.chart_data.empty;
+          const msg = hasChartData
+            ? 'chart_data.json was loaded but does not include N3 time-between metrics for this cohort/age. Re-run the DTW pipeline (create_dtw_trajectories → create_dtw_features → create_dtw_visuals) so chart_data is rebuilt with mean_days_between_events and admin_icd_event_count (requires timestamped event columns, e.g. event_date), then re-sync to S3.'
+            : 'Times Between Sequences (N3): mean days between consecutive events and mean days to target, by routine vs no routine (drug sequence context). This will appear when the pipeline provides time-between metrics using timestamped event columns (e.g. event_date) in chart_data.json.';
+          setEmptyMessage(timesBetweenEl, msg);
+        }
+      } catch (e) { setEmptyMessage(timesBetweenEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
     const timeToTargetEl = document.getElementById('dtw-time-to-target-container');
     if (timeToTargetEl) {
-      if (data.time_to_target_sequences && data.time_to_target_sequences.x && data.time_to_target_sequences.y) {
-        const trace = {
-          x: data.time_to_target_sequences.x,
-          y: data.time_to_target_sequences.y,
-          type: data.time_to_target_sequences.type || 'bar',
-          name: data.time_to_target_sequences.name,
-          marker: { color: '#f59e0b' }
-        };
-        timeToTargetEl.innerHTML = '<div id="dtw-time-to-target-chart"></div>';
-        Plotly.newPlot('dtw-time-to-target-chart', [trace], {
-          title: 'Mean days from first event to target (target=1, N3)',
-          xaxis: { title: data.time_to_target_sequences.x_label || 'Category' },
-          yaxis: { title: data.time_to_target_sequences.y_label || 'Days' }
-        }, { responsive: true });
-      } else {
-        timeToTargetEl.innerHTML = '';  // No placeholder when N3 time-to-target missing (same as times_between message in panel above)
-      }
+      try {
+        if (data.time_to_target_sequences && data.time_to_target_sequences.x && data.time_to_target_sequences.y) {
+          const trace = {
+            x: data.time_to_target_sequences.x,
+            y: data.time_to_target_sequences.y,
+            type: data.time_to_target_sequences.type || 'bar',
+            name: data.time_to_target_sequences.name,
+            marker: { color: '#f59e0b' }
+          };
+          timeToTargetEl.innerHTML = '<div id="dtw-time-to-target-chart"></div>';
+          Plotly.newPlot('dtw-time-to-target-chart', [trace], {
+            title: 'Mean days from first event to target (target=1, N3)',
+            xaxis: { title: data.time_to_target_sequences.x_label || 'Category' },
+            yaxis: { title: data.time_to_target_sequences.y_label || 'Days' }
+          }, { responsive: true });
+        } else {
+          setEmptyMessage(timeToTargetEl, 'Time to target (N3) will appear here when chart_data.json includes time_to_target_sequences.');
+        }
+      } catch (e) { setEmptyMessage(timeToTargetEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // Target pathway patterns (common codes in target=1 trajectories)
     const targetPathwayEl = document.getElementById('dtw-target-pathway-container');
-    if (targetPathwayEl && data.target_pathway_patterns && data.target_pathway_patterns.x && data.target_pathway_patterns.y) {
-      const trace = {
-        x: data.target_pathway_patterns.x,
-        y: data.target_pathway_patterns.y,
-        type: data.target_pathway_patterns.type || 'bar',
-        name: data.target_pathway_patterns.name,
-        marker: { color: '#6366f1' }
-      };
-      targetPathwayEl.innerHTML = '<div id="dtw-target-pathway-chart"></div>';
-      Plotly.newPlot('dtw-target-pathway-chart', [trace], {
-        title: 'Common codes in adverse event trajectories',
-        xaxis: { title: data.target_pathway_patterns.x_label || 'Activity Code' },
-        yaxis: { title: data.target_pathway_patterns.y_label || '% of target=1 patients' }
-      }, { responsive: true });
-    } else if (targetPathwayEl) {
-      targetPathwayEl.innerHTML = '<p class="status-message info">Target pathway patterns will appear here when the pipeline provides this view.</p>';
+    if (targetPathwayEl) {
+      try {
+        if (data.target_pathway_patterns && data.target_pathway_patterns.x && data.target_pathway_patterns.y) {
+          const trace = {
+            x: data.target_pathway_patterns.x,
+            y: data.target_pathway_patterns.y,
+            type: data.target_pathway_patterns.type || 'bar',
+            name: data.target_pathway_patterns.name,
+            marker: { color: '#6366f1' }
+          };
+          targetPathwayEl.innerHTML = '<div id="dtw-target-pathway-chart"></div>';
+          Plotly.newPlot('dtw-target-pathway-chart', [trace], {
+            title: 'Common codes in adverse event trajectories',
+            xaxis: { title: data.target_pathway_patterns.x_label || 'Activity Code' },
+            yaxis: { title: data.target_pathway_patterns.y_label || '% of target=1 patients' }
+          }, { responsive: true });
+        } else {
+          setEmptyMessage(targetPathwayEl, 'Target pathway patterns will appear here when the pipeline provides this view.');
+        }
+      } catch (e) { setEmptyMessage(targetPathwayEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
 
     // Common sequences heatmap: drug / ICD / CPT (opioid_ed includes all activity types)
@@ -3568,80 +3580,60 @@
   function renderDTWSequenceHeatmap(heatmapData, codeType) {
     const container = document.getElementById('dtw-sequence-heatmap-container');
     if (!container) return;
-    if (!heatmapData || !heatmapData[codeType] || !heatmapData[codeType].codes || heatmapData[codeType].codes.length === 0) {
-      container.innerHTML = '<p class="status-message info">Sequence heatmap (' + codeType + ') has no data for this cohort/age band. Try another activity type (Drug / ICD / CPT) or run create_dtw_visuals so trajectories include ' + codeType + ' codes.</p>';
+    function setHeatmapEmpty(msg) {
+      container.innerHTML = '<p class="status-message info" style="margin:0;">' + (msg || 'No data for this visual.') + '</p>';
+    }
+    if (!heatmapData) {
+      setHeatmapEmpty('Sequence heatmap data not available. Run create_dtw_visuals and upload to dashboard.');
       return;
     }
-    const slice = heatmapData[codeType];
-    const codes = slice.codes;
-    const positions = slice.positions;
-    const counts = slice.counts;
-    const z = counts;
-    const y = codes;
-    const x = positions.map(p => 'Step ' + (p + 1));
-    container.innerHTML = '<div id="dtw-sequence-heatmap-chart"></div>';
-    Plotly.newPlot('dtw-sequence-heatmap-chart', [{
-      z: z,
-      x: x,
-      y: y,
-      type: 'heatmap',
-      colorscale: 'Blues',
-      hovertemplate: '%{y} at %{x}: %{z} trajectories<extra></extra>'
-    }], {
-      title: 'Common sequences by position (' + codeType.toUpperCase() + ') — darker = more common',
-      xaxis: { title: 'Position in sequence' },
-      yaxis: { title: 'Code', autorange: 'reversed' },
-      margin: { t: 48, r: 120, b: 48, l: 120 }
-    }, { responsive: true });
+    if (heatmapData.empty && heatmapData.message) {
+      setHeatmapEmpty(heatmapData.message);
+      return;
+    }
+    if (!heatmapData[codeType] || !heatmapData[codeType].codes || heatmapData[codeType].codes.length === 0) {
+      setHeatmapEmpty('Sequence heatmap (' + codeType + ') has no data for this cohort/age band. Try another activity type (Drug / ICD / CPT) or run create_dtw_visuals so trajectories include ' + codeType + ' codes.');
+      return;
+    }
+    try {
+      const slice = heatmapData[codeType];
+      let codes = slice.codes;
+      const positions = slice.positions;
+      let counts = slice.counts;
+      // Sort by total count descending (highest-count codes first)
+      const indices = codes.map((_, i) => i);
+      indices.sort((a, b) => {
+        const sumA = counts[a].reduce((s, v) => s + (Number(v) || 0), 0);
+        const sumB = counts[b].reduce((s, v) => s + (Number(v) || 0), 0);
+        return sumB - sumA;
+      });
+      codes = indices.map(i => codes[i]);
+      counts = indices.map(i => counts[i]);
+      const z = counts;
+      const y = codes;
+      const x = positions.map(p => 'Step ' + (p + 1));
+      container.innerHTML = '<div id="dtw-sequence-heatmap-chart"></div>';
+      Plotly.newPlot('dtw-sequence-heatmap-chart', [{
+        z: z,
+        x: x,
+        y: y,
+        type: 'heatmap',
+        colorscale: [[0, 'rgb(255,255,224)'], [1, 'rgb(0,0,139)']],
+        hovertemplate: '%{y} at %{x}: %{z} trajectories<extra></extra>'
+      }], {
+        title: 'Common sequences by position (' + codeType.toUpperCase() + ') — darker blue = higher count',
+        xaxis: { title: 'Position in sequence' },
+        yaxis: { title: 'Code', autorange: 'reversed' },
+        margin: { t: 48, r: 120, b: 48, l: 120 }
+      }, { responsive: true });
+    } catch (e) {
+      setHeatmapEmpty('This visual could not be displayed. The data may be missing or in an unexpected format.');
+    }
   }
 
 
   function renderFPGrowthVisualizations(data, opts) {
     const TOP_N = 30;
-    // Itemsets: prefer JSON for client-side Plotly; fallback to image URL
-    const itemsetsEl = document.getElementById("fpgrowth-itemsets-image");
-    if (itemsetsEl) {
-      if (data.itemsets_data && Array.isArray(data.itemsets_data) && data.itemsets_data.length > 0) {
-        const rows = data.itemsets_data
-          .map(function (r) {
-            const label = Array.isArray(r.itemsets) ? r.itemsets.slice(0, 5).join(", ") : String(r.itemsets || "");
-            return { label: label || "(empty)", support: Number(r.support) };
-          })
-          .filter(function (r) { return r.label && !isNaN(r.support); })
-          .sort(function (a, b) { return b.support - a.support; })
-          .slice(0, TOP_N);
-        if (rows.length) {
-          const y = rows.map(function (r) { return r.label; });
-          const x = rows.map(function (r) { return r.support; });
-          const divId = "fpgrowth-itemsets-plotly";
-          itemsetsEl.innerHTML = "<div id=\"" + divId + "\" style=\"width:100%;height:500px;\"></div>";
-          if (window.Plotly) {
-            Plotly.newPlot(divId, [{
-              type: "bar",
-              x: x,
-              y: y,
-              orientation: "h",
-              marker: { color: "steelblue" },
-              hovertext: rows.map(function (r) { return "Support: " + r.support.toFixed(4); }),
-              hoverinfo: "text"
-            }], {
-              margin: { l: 200, r: 50, t: 40, b: 50 },
-              xaxis: { title: "Support", showgrid: true },
-              yaxis: { title: "Itemset", autorange: "reversed" },
-              height: 500
-            }, { responsive: true });
-          }
-        } else {
-          itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data to display.</p>";
-        }
-      } else if (data.itemsets_image) {
-        itemsetsEl.innerHTML = '<img src="' + data.itemsets_image + '" style="max-width: 100%;" alt="Top itemsets" />';
-        var _img = itemsetsEl.querySelector('img');
-        if (_img) _img.onerror = function() { itemsetsEl.innerHTML = '<p class="status-message info" style="margin:0;">Plot not found. Run 4_dashboard_visuals.ipynb to build visuals.</p>'; };
-      } else {
-        itemsetsEl.innerHTML = "<p class=\"status-message info\">No itemsets data. Run pipeline and upload itemsets JSON, or use image URL.</p>";
-      }
-    }
     // Itemset Support Distribution: JSON first (Plotly from itemsets_data), then PNG fallback
     var supportEl = document.getElementById("fpgrowth-support-image");
     if (supportEl) {

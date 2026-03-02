@@ -206,7 +206,7 @@ def create_dtw_visuals(
     # Prebuild chart data (routine vs no routine, high-risk trajectories); write locally and upload to S3
     # No empty artifacts: when nothing is produced, write JSON with message + metrics (why) so dashboard can show reason.
     out_dir.mkdir(parents=True, exist_ok=True)
-    chart_data = _build_dtw_chart_data(dtw_df)
+    chart_data = _build_dtw_chart_data(dtw_df, logger=logger)
     if chart_data is None:
         _log("warning", "DTW chart_data not produced for %s/%s: empty dataframe (writing empty-state JSON with message and metrics)", cohort_name, age_band)
         chart_data = {
@@ -214,16 +214,28 @@ def create_dtw_visuals(
             "empty": True,
             "cohort": cohort_name,
             "age_band": age_band,
-            "metrics": {"reason": "empty_dataframe", "dtw_rows": 0},
+            "metrics": {
+                "reason": "empty_dataframe",
+                "dtw_rows": 0,
+                "charts_built": [],
+                "charts_not_built": {},
+                "success": False,
+            },
         }
     elif not chart_data:
-        _log("warning", "DTW chart_data empty for %s/%s: no routine_comparison, high_risk, or N3 data (writing empty-state JSON)", cohort_name, age_band)
+        _log("warning", "DTW chart_data empty for %s/%s: no charts built (writing empty-state JSON with metrics)", cohort_name, age_band)
         chart_data = {
-            "message": f"No DTW chart data for {cohort_name}/{age_band} (no routine, high_risk, or N3 charts built).",
+            "message": f"No DTW chart data for {cohort_name}/{age_band} (no charts built).",
             "empty": True,
             "cohort": cohort_name,
             "age_band": age_band,
-            "metrics": {"reason": "no_charts_built", "dtw_rows": len(dtw_df), "has_admin_icd": "admin_icd_event_count" in dtw_df.columns, "has_target": "target" in dtw_df.columns, "has_seq_pattern_str": "seq_pattern_str" in dtw_df.columns},
+            "metrics": {
+                "reason": "no_charts_built",
+                "dtw_rows": len(dtw_df),
+                "charts_built": [],
+                "charts_not_built": {},
+                "success": False,
+            },
         }
     with open(chart_path, "w", encoding="utf-8") as f:
         json.dump(chart_data, f, indent=0)
@@ -641,31 +653,94 @@ def _build_sequence_heatmap_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any
 DENSITY_BINS = ("low", "medium", "high", "extreme")
 
 
-def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+def _reason_routine_comparison(df: pd.DataFrame) -> str:
+    """Reason string when routine_comparison is not built."""
+    if df.empty or "target" not in df.columns:
+        return "missing target or empty dataframe"
+    if "admin_icd_event_count" not in df.columns and "trajectory_length" not in df.columns:
+        return "missing admin_icd_event_count and trajectory_length"
+    if "admin_icd_event_count" in df.columns and len(df) < 10:
+        return "fewer than 10 rows"
+    return "insufficient data or only one bucket (routine vs no routine)"
+
+
+def _reason_routine_comparison_counts(df: pd.DataFrame) -> str:
+    """Reason string when routine_comparison_counts is not built."""
+    if df.empty:
+        return "empty dataframe"
+    if "admin_icd_event_count" not in df.columns:
+        return "missing admin_icd_event_count"
+    if "trajectory_length" not in df.columns or "seq_pattern_str" not in df.columns:
+        return "missing trajectory_length or seq_pattern_str"
+    return "insufficient rows or aggregation"
+
+
+def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger] = None) -> Optional[Dict[str, Any]]:
     """Build routine_comparison, routine_comparison_counts, high_risk_trajectories, target_pathway_patterns, and N3 times_between charts for dashboard.
-    When event_density_bin is present, also builds *_by_density so the dashboard can filter by event density."""
+    When event_density_bin is present, also builds *_by_density so the dashboard can filter by event density.
+    Always adds metrics.charts_built and metrics.charts_not_built so output is either successful JSON or JSON with explicit build status."""
+    def _log_n3(level: str, msg: str, *args: Any) -> None:
+        if logger is not None:
+            getattr(logger, level)(msg, *args)
+
     if dtw_df.empty:
         return None
-    out = {}
+    out: Dict[str, Any] = {}
+    charts_built: List[str] = []
+    charts_not_built: Dict[str, str] = {}
+
     routine = _compute_dtw_routine_comparison(dtw_df)
     if routine:
         out["routine_comparison"] = routine
+        charts_built.append("routine_comparison")
+    else:
+        charts_not_built["routine_comparison"] = _reason_routine_comparison(dtw_df)
+
     routine_counts = _compute_dtw_routine_comparison_counts(dtw_df)
     if routine_counts:
         out["routine_comparison_counts"] = routine_counts
+        charts_built.append("routine_comparison_counts")
+    else:
+        charts_not_built["routine_comparison_counts"] = _reason_routine_comparison_counts(dtw_df)
+
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:
         out["high_risk_trajectories"] = high_risk
+        charts_built.append("high_risk_trajectories")
+    else:
+        charts_not_built["high_risk_trajectories"] = "missing dtw_min_distance/trajectory_length or insufficient rows" if not dtw_df.empty else "empty dataframe"
+
     target_pathways = _compute_target_pathway_patterns(dtw_df)
     if target_pathways:
         out["target_pathway_patterns"] = target_pathways
-    # N3: times between sequences
+        charts_built.append("target_pathway_patterns")
+    else:
+        charts_not_built["target_pathway_patterns"] = "missing seq_pattern_str or fewer than 10 target=1 rows" if "target" in dtw_df.columns else "missing target"
+
+    # N3: times between sequences (requires mean_days_between_events from timestamped event column)
     times_between = _compute_times_between_sequences(dtw_df)
     if times_between:
         out["times_between_sequences"] = times_between
+        charts_built.append("times_between_sequences")
+        _log_n3("info", "N3 times_between_sequences: built with %d categories (mean days between consecutive events by routine vs no routine)", len(times_between.get("x", [])))
+    else:
+        if "mean_days_between_events" not in dtw_df.columns:
+            charts_not_built["times_between_sequences"] = "missing mean_days_between_events (run create_dtw_trajectories with timestamp column)"
+        elif "admin_icd_event_count" not in dtw_df.columns:
+            charts_not_built["times_between_sequences"] = "missing admin_icd_event_count"
+        else:
+            charts_not_built["times_between_sequences"] = "insufficient rows or no valid mean_days_between_events"
+
     time_to_target = _compute_time_to_target_sequences(dtw_df)
     if time_to_target:
         out["time_to_target_sequences"] = time_to_target
+        charts_built.append("time_to_target_sequences")
+        _log_n3("info", "N3 time_to_target_sequences: built with %d categories (mean days from first event to target by routine vs no routine)", len(time_to_target.get("x", [])))
+    else:
+        if "days_first_event_to_target" not in dtw_df.columns:
+            charts_not_built["time_to_target_sequences"] = "missing days_first_event_to_target (run create_dtw_trajectories with timestamp column)"
+        else:
+            charts_not_built["time_to_target_sequences"] = "insufficient target=1 rows or no valid days_first_event_to_target"
 
     # Stratify by event_density_bin for dashboard filter (same bins as create_dtw_trajectories)
     if "event_density_bin" in dtw_df.columns:
@@ -687,7 +762,17 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
             if hr:
                 out["high_risk_trajectories_by_density"][bin_name] = hr
 
-    return out or None
+    # Always attach metrics so output is either successful JSON or JSON with explicit build status
+    out["metrics"] = {
+        "dtw_rows": int(len(dtw_df)),
+        "charts_built": charts_built,
+        "charts_not_built": charts_not_built,
+        "success": len(charts_not_built) == 0,
+    }
+    if charts_not_built:
+        out.setdefault("message", "Some charts were not built; see metrics.charts_not_built for reasons.")
+    out["empty"] = len(charts_built) == 0  # true only when no charts built; frontend can show metrics
+    return out if out else None
 
 
 def _upload_dtw_chart_data_to_dashboard_s3(
