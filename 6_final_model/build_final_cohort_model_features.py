@@ -6,8 +6,9 @@ This script merges, for a specified `(cohort_name, age_band)`:
 - Base target patient list from `model_data`
 - PGx pharmacogenomics features (allele frequencies, drug-gene mappings)
 
-NOTE: BupaR, FP-Growth, and DTW features are NOT included to avoid target leakage.
-These features are used only for visualization/dashboard purposes, not for model training.
+NOTE: We do not calculate trajectory, sequence, or itemset features for the final model.
+Feature engineering for training uses only: base target list, item_* (drug/ICD/CPT from FI), and PGx
+(pgx_num_drugs, pgx_num_cpic_drugs, etc.). BupaR, FP-Growth, and DTW are for dashboard visualizations only.
 
 Outputs a patient-level CSV and Parquet (one row per `mi_person_key`) under:
   `6_final_model/outputs/{cohort_name}/{age_band_fname}/{cohort_name}_{age_band_fname}_train_final_features.csv`

@@ -21,8 +21,9 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
 
 - **`POST /risk`** - Risk score from best model per cohort/age_band (or 2019 baseline when no codes)
   - Body: `{cohort, age_band, drugs[], icds[], cpts[]}` (optional: `age`)
+  - **Optional body fields:** `n_events`, `n_drugs` — used for **risk bucket** (low/medium/high). `pgx_num_drugs`, `pgx_num_cpic_drugs` are **separate inputs** (for model/display only, not used for risk bucket). When not provided, schema defaults are used for the model.
   - When no Drug/ICD/CPT codes: returns **baseline_risk** (actual 2019 outcome rate). When any code is provided: returns the **best model’s** predicted probability (MC-CV best per cohort/age_band).
-  - Returns: `risk_score`, `risk_band`, `is_baseline`, `model_breakdown`, `dist` (2019 histogram when available)
+  - Returns: `risk_score`, `risk_band`, `is_baseline`, `patient_bucket`, `patient_bucket_detail` (n_events_bucket, n_drugs_bucket), `n_pgx_drugs`, `pgx_num_cpic_drugs`, `model_breakdown`, `dist` (2019 histogram when available)
 
 - **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
   - Body: `{base: {...}, scenarios: [...]}`

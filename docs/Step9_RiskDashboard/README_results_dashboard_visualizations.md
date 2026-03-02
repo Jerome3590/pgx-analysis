@@ -55,6 +55,18 @@ For API details (request/response shapes, endpoints), see `10_risk_dashboard/bac
 - **Comparison:** Same baseline-vs-model rule and input normalization apply to `POST /risk/comparison`; base and each scenario are evaluated consistently.
 - **Limitations:** No retry or fallback if the best model fails. No allowlist for cohort/age_band strings when provided explicitly (assume dashboard sends valid values). Probability outputs are clamped to [0, 1] for XGBoost raw outputs; model weights are normalized so zero weights fall back to equal weights or simple average.
 
+### Is the risk calculation approach correct?
+
+- **Target and train/test:** Models are trained on 2016–2018 data with a temporal holdout; the **2019 test set is never used for training**. The target is the same binary outcome (e.g. opioid-related ED or polypharmacy) that the dashboard describes. So the quantity being predicted is the right one.
+- **Baseline (no codes):** When the user supplies no Drug/ICD/CPT codes, we return **baseline_risk** = mean(target) in the **2019 test set** for that cohort/age_band. That is the **unconditional** outcome rate in the holdout population. Conceptually this is correct: “average risk in this group when we don’t condition on any codes.”
+- **With codes:** When the user supplies codes, we return the **model’s predicted probability** P(outcome | features) from the best model for that cohort/age_band. The model was trained on 2016–2018 and applied to the same feature schema; the number is an **estimated probability of the same outcome** in the same cohort/age_band. So we are comparing like with like (unconditional 2019 rate vs model-based conditional probability).
+- **No target leakage:** The outcome code (e.g. F1120 for opioid ED) is **excluded from inputs** in the Lambda feature builder and in code validation, so the model never sees the target as a feature. Correct.
+- **Feature alignment:** For the final model we **do not calculate** trajectory, sequence, or itemset features in feature engineering. We only build: **# events** (n_events), **# drugs / # CPIC drugs** (from PGx, e.g. pgx_num_drugs, pgx_num_cpic_drugs), and **item_*** binary indicators (drug/ICD/CPT from aggregated feature importance). BupaR, FP-Growth, and DTW are used for dashboard visualizations only, not for model training. At inference the dashboard sends only **cohort, age_band, and selected drugs/ICDs/CPTs** (and optionally age). The API does **not** require n_events, pgx_num_drugs, or pgx_num_cpic_drugs as inputs: those are filled from **schema defaults** (training medians) so the model gets consistent values without the user having to supply them.
+- **Calibration:** The model is **not** recalibrated on 2019. So absolute probabilities when the user adds codes may not be perfectly calibrated to 2019 rates; relative ordering and risk bands should still be meaningful. If needed, a future step could add 2019-based recalibration (e.g. Platt scaling or isotonic regression on the 2019 test set).
+- **Best model:** The single best model per cohort/age_band is chosen by a composite score (e.g. PR-AUC + normalized log loss) on the same MC-CV splits used for model selection. Using that one model for scoring is consistent with the pipeline and avoids mixing in weaker models.
+
+**Summary:** The approach is **methodologically correct**: same outcome, no leakage (including no trajectory/sequence/itemset in training), sensible baseline, and conditional risk from the chosen model. Remaining caveat: no explicit 2019 recalibration.
+
 ## Visualization Types
 
 ### 1. BupaR Process Mining

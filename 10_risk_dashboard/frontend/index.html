@@ -745,6 +745,16 @@
         </div>
       </div>
 
+      <div class="control-group" style="font-size: 0.875rem; color: #64748b;">
+        <span>Optional — Risk bucket (low/medium/high by n_events, n_drugs):</span>
+        <label># events <input type="number" id="inputNevents" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+        <label style="margin-left: 1rem;"># drugs <input type="number" id="inputNdrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+      </div>
+      <div class="control-group" style="font-size: 0.875rem; color: #64748b;">
+        <span>Optional — PGx (separate input, not used for risk bucket):</span>
+        <label># PGx drugs <input type="number" id="inputPgxDrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+        <label style="margin-left: 1rem;"># PGx CPIC drugs <input type="number" id="inputPgxCpic" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+      </div>
       <div class="control-group full-width">
         <div class="button-row">
           <button id="btnRisk">Calculate Risk Score</button>
@@ -764,6 +774,8 @@
       </div>
       <p id="risk-baseline-note" class="risk-baseline-note" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
       <p id="risk-interpretation" class="risk-interpretation" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-patient-bucket" class="risk-patient-bucket" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-pgx-separate" class="risk-pgx-separate" style="display: none; margin-top: 0.25rem; font-size: 0.8rem; color: #64748b;"></p>
       <p id="risk-codes-unknown" class="risk-codes-unknown" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;"></p>
     </div>
 
@@ -1752,17 +1764,19 @@
     setStatus("Calculating risk score...", "info");
 
     try {
+      const nEventsEl = document.getElementById("inputNevents");
+      const nDrugsEl = document.getElementById("inputNdrugs");
+      const pgxDrugsEl = document.getElementById("inputPgxDrugs");
+      const pgxCpicEl = document.getElementById("inputPgxCpic");
+      const payload = { age: age, cohort: cohort, age_band: ageBand, drugs: drugs, icds: icds, cpts: cpts };
+      if (nEventsEl && nEventsEl.value !== "" && !isNaN(Number(nEventsEl.value))) payload.n_events = Number(nEventsEl.value);
+      if (nDrugsEl && nDrugsEl.value !== "" && !isNaN(Number(nDrugsEl.value))) payload.n_drugs = Number(nDrugsEl.value);
+      if (pgxDrugsEl && pgxDrugsEl.value !== "" && !isNaN(Number(pgxDrugsEl.value))) payload.pgx_num_drugs = Number(pgxDrugsEl.value);
+      if (pgxCpicEl && pgxCpicEl.value !== "" && !isNaN(Number(pgxCpicEl.value))) payload.pgx_num_cpic_drugs = Number(pgxCpicEl.value);
       const resp = await fetch(`${API_BASE}/risk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          age: age,
-          cohort: cohort,
-          age_band: ageBand,
-          drugs: drugs,
-          icds: icds,
-          cpts: cpts
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!resp.ok) {
@@ -1847,6 +1861,39 @@
       } else {
         codesUnknownEl.textContent = "";
         codesUnknownEl.style.display = "none";
+      }
+    }
+
+    const patientBucketEl = document.getElementById("risk-patient-bucket");
+    if (patientBucketEl) {
+      if (data.patient_bucket) {
+        let txt = "Risk bucket (n_events, n_drugs): " + data.patient_bucket;
+        const detail = data.patient_bucket_detail;
+        if (detail && Object.keys(detail).length) {
+          const parts = [];
+          if (detail.n_events_bucket) parts.push("n_events: " + detail.n_events_bucket);
+          if (detail.n_drugs_bucket) parts.push("n_drugs: " + detail.n_drugs_bucket);
+          if (parts.length) txt += " (" + parts.join(", ") + ")";
+        }
+        patientBucketEl.textContent = txt;
+        patientBucketEl.className = "risk-patient-bucket " + data.patient_bucket;
+        patientBucketEl.style.display = "block";
+      } else {
+        patientBucketEl.textContent = "";
+        patientBucketEl.style.display = "none";
+      }
+    }
+    const pgxSeparateEl = document.getElementById("risk-pgx-separate");
+    if (pgxSeparateEl) {
+      if (data.n_pgx_drugs != null || data.pgx_num_cpic_drugs != null) {
+        const parts = [];
+        if (data.n_pgx_drugs != null) parts.push("PGx drugs: " + data.n_pgx_drugs);
+        if (data.pgx_num_cpic_drugs != null) parts.push("PGx CPIC: " + data.pgx_num_cpic_drugs);
+        pgxSeparateEl.textContent = parts.length ? parts.join(" · ") : "";
+        pgxSeparateEl.style.display = parts.length ? "block" : "none";
+      } else {
+        pgxSeparateEl.textContent = "";
+        pgxSeparateEl.style.display = "none";
       }
     }
     

@@ -453,6 +453,51 @@ def risk_band_from_score(score: float, thresholds: Optional[Dict[str, float]] = 
     return "high"
 
 
+def _bucket_one(value: float, thresholds: Dict[str, float]) -> str:
+    """Return low / medium / high for a single variable using low_medium and medium_high thresholds."""
+    low_med = thresholds.get("low_medium", 0)
+    med_high = thresholds.get("medium_high", float("inf"))
+    if value < low_med:
+        return "low"
+    if value < med_high:
+        return "medium"
+    return "high"
+
+
+def patient_bucket_from_inputs(
+    n_events: Optional[float],
+    n_drugs: Optional[float],
+    feature_schema: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Compute risk bucket (low/medium/high) from n_events and n_drugs only.
+    n_pgx_drugs is a separate input and is not used for this bucket.
+    Uses schema defaults for any missing value.
+    """
+    thresholds = feature_schema.get("patient_bucket_thresholds") or {}
+    if not thresholds:
+        return {"patient_bucket": None, "n_events_bucket": None, "n_drugs_bucket": None}
+    defaults = feature_schema.get("defaults", {})
+    n_events_val = n_events if n_events is not None else defaults.get("n_events", 0)
+    n_drugs_val = n_drugs if n_drugs is not None else defaults.get("n_drugs", 0)
+    n_events_bucket = _bucket_one(float(n_events_val), thresholds.get("n_events", {})) if "n_events" in thresholds else None
+    n_drugs_bucket = _bucket_one(float(n_drugs_val), thresholds.get("n_drugs", {})) if "n_drugs" in thresholds else None
+    buckets = [b for b in [n_events_bucket, n_drugs_bucket] if b is not None]
+    if not buckets:
+        patient_bucket = None
+    elif "high" in buckets:
+        patient_bucket = "high"
+    elif "medium" in buckets:
+        patient_bucket = "medium"
+    else:
+        patient_bucket = "low"
+    return {
+        "patient_bucket": patient_bucket,
+        "n_events_bucket": n_events_bucket,
+        "n_drugs_bucket": n_drugs_bucket,
+    }
+
+
 def get_codes_used_unknown(
     drugs: List[str],
     icds: List[str],
@@ -525,12 +570,13 @@ def build_feature_vector(
         if feature_name in features:
             features[feature_name] = 1.0
     
-    # Set default values for trajectory/sequence features
+    # Apply schema defaults for any feature not set by request (age / item_*).
+    # This includes n_events, pgx_num_drugs, pgx_num_cpic_drugs, etc. Dashboard does not need to send these;
+    # we use training medians so the model gets consistent inputs.
     defaults = feature_schema.get('defaults', {})
     for feature in features:
-        if feature.startswith('trajectory_') or feature.startswith('pre_') or feature.startswith('itemset_'):
-            if features[feature] == 0.0 and feature in defaults:
-                features[feature] = defaults[feature]
+        if features[feature] == 0.0 and feature in defaults:
+            features[feature] = defaults[feature]
     
     # Convert to array in correct order
     feature_list = [features.get(f, 0.0) for f in feature_schema.get('features', [])]
@@ -795,6 +841,31 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         icds = list(icds) if icds else []
     if not isinstance(cpts, list):
         cpts = list(cpts) if cpts else []
+    # Optional: n_events, n_drugs for risk bucket (low/medium/high); n_pgx_drugs, pgx_num_cpic_drugs as separate inputs (for model/display)
+    n_events = body.get("n_events")
+    n_drugs = body.get("n_drugs")
+    pgx_num_drugs = body.get("pgx_num_drugs")  # separate input, not used for risk bucket
+    pgx_num_cpic_drugs = body.get("pgx_num_cpic_drugs")
+    if n_events is not None:
+        try:
+            n_events = float(n_events)
+        except (TypeError, ValueError):
+            n_events = None
+    if n_drugs is not None:
+        try:
+            n_drugs = float(n_drugs)
+        except (TypeError, ValueError):
+            n_drugs = None
+    if pgx_num_drugs is not None:
+        try:
+            pgx_num_drugs = float(pgx_num_drugs)
+        except (TypeError, ValueError):
+            pgx_num_drugs = None
+    if pgx_num_cpic_drugs is not None:
+        try:
+            pgx_num_cpic_drugs = float(pgx_num_cpic_drugs)
+        except (TypeError, ValueError):
+            pgx_num_cpic_drugs = None
     
     # Resolve cohort, age_band, and effective numeric age for the model.
     if age_band_override and cohort:
@@ -840,10 +911,16 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             risk_band = risk_band_from_score(risk_score, thresholds)
             age_mapped = age >= 95 and age <= 114 and not age_band_override
             interpretation = "Estimated probability of target outcome (2019 holdout population) in this cohort and age band."
+            feature_schema_baseline = load_feature_schema(cohort, age_band)
+            bucket_info = patient_bucket_from_inputs(n_events, n_drugs, feature_schema_baseline)
             body = {
                 "risk_score": risk_score,
                 "risk_band": risk_band,
                 "is_baseline": True,
+                "patient_bucket": bucket_info.get("patient_bucket"),
+                "patient_bucket_detail": {k: v for k, v in bucket_info.items() if k != "patient_bucket" and v is not None},
+                "n_pgx_drugs": pgx_num_drugs,
+                "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
                 "model_breakdown": {},
                 "ensemble_info": {
                     "method": "baseline",
@@ -884,10 +961,15 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         if model_used:
             interpretation = f"Risk from {model_used} (best model for this cohort/age). " + interpretation
 
+        bucket_info = patient_bucket_from_inputs(n_events, n_drugs, feature_schema)
         body = {
             "risk_score": float(risk_score),
             "risk_band": risk_band,
             "is_baseline": False,
+            "patient_bucket": bucket_info.get("patient_bucket"),
+            "patient_bucket_detail": {k: v for k, v in bucket_info.items() if k != "patient_bucket" and v is not None},
+            "n_pgx_drugs": pgx_num_drugs,
+            "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
             "model_used": model_used,
             "model_breakdown": model_predictions,
             "ensemble_info": {

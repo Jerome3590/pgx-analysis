@@ -5,8 +5,10 @@ Remove target leakage from final feature table.
 This script:
 1. Removes post-event features (target leakage)
 2. Removes time-to-target features (target leakage)
-3. Identifies and documents remaining features for review
-4. Rebuilds feature table without leakage
+3. Removes trajectory/sequence/itemset features (not used in training; excluded to avoid target leakage)
+4. Removes DTW, F1120, and other leakage-related columns
+5. Identifies and documents remaining features for review
+6. Rebuilds feature table without leakage
 
 Usage:
     python remove_target_leakage.py --cohort-name opioid_ed --age-band 0-12
@@ -111,20 +113,28 @@ def remove_target_leakage(
     if len(dtw_features) > 10:
         print(f"  ... and {len(dtw_features) - 10} more")
     
+    # 4b. Trajectory / sequence / itemset features (REMOVED if present - we do not calculate these in feature engineering;
+    #     only n_events, item_*, and PGx counts are built for the final model; this is a defensive removal)
+    traj_seq_itemset = [c for c in df.columns if 'trajectory' in c.lower() or 'sequence' in c.lower() or 'itemset' in c.lower()]
+    leakage_features.extend(traj_seq_itemset)
+    if traj_seq_itemset:
+        print(f"\n[INFO] Trajectory/sequence/itemset features (TARGET LEAKAGE risk): {len(traj_seq_itemset)}")
+        print("[INFO] REMOVED - we do not use trajectory, sequence, or itemset features in model training")
+        for f in traj_seq_itemset[:10]:
+            print(f"  - {f}")
+        if len(traj_seq_itemset) > 10:
+            print(f"  ... and {len(traj_seq_itemset) - 10} more")
+    
     # Remove leakage features
     safe_features = [c for c in df.columns if c not in leakage_features]
     
-    # Verify important predictive features are preserved
-    sequence_features = [c for c in df.columns if 'sequence' in c.lower() or 'trace' in c.lower()]
+    # Summary of preserved predictive features (no trajectory/sequence/itemset)
     interval_features_kept = [c for c in safe_features if 'interval' in c.lower()]
-    fpgrowth_features_kept = [c for c in safe_features if any(x in c for x in ['itemset', 'rule', 'support', 'confidence', 'lift'])]
-    
-    print(f"\n[INFO] Preserving important predictive features:")
-    print(f"  Sequence features (top/rare): {len([c for c in sequence_features if c in safe_features])}")
+    print(f"\n[INFO] Preserving predictive features (no trajectory/sequence/itemset):")
     print(f"  Time interval features (between events): {len(interval_features_kept)}")
-    print(f"  FP-Growth features (itemsets/rules): {len(fpgrowth_features_kept)}")
     
-    print(f"\n[INFO] Removing {len(leakage_features)} leakage features")
+    print(f"\n[INFO] Other features preserved: {len(safe_features) - len(interval_features_kept)}")
+    print(f"[INFO] Removing {len(leakage_features)} leakage features")
     df_clean = df[safe_features].copy()
     
     # Verify no F1120 in feature names (should be excluded during feature engineering)
@@ -374,6 +384,9 @@ def remove_target_leakage(
             f.write(f"  - {feat}\n")
         f.write("\nDTW features (removed for replacement):\n")
         for feat in dtw_features:
+            f.write(f"  - {feat}\n")
+        f.write("\nTrajectory/sequence/itemset features (removed to avoid target leakage):\n")
+        for feat in traj_seq_itemset:
             f.write(f"  - {feat}\n")
         f.write("\nDatetime columns:\n")
         for feat in datetime_features:

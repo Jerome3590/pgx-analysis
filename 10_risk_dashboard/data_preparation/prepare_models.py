@@ -170,7 +170,7 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
         print(f"Warning: Training data not found: {train_data_path}")
         return {'features': [], 'defaults': {}, 'model_weights': {}}
     
-    # Load a sample of training data
+    # Load a sample of training data for feature list and defaults
     df = pd.read_csv(train_data_path, nrows=1000)
     
     # Get feature names (exclude target columns)
@@ -186,16 +186,36 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
             else:
                 defaults[feature] = 0.0
     
+    # Risk bucket thresholds (low/medium/high) from n_events and n_drugs only (n_pgx_drugs is separate input)
+    # Use full training data for stable 33rd/67th percentiles
+    bucket_vars = ['n_events', 'n_drugs']
+    patient_bucket_thresholds = {}
+    try:
+        df_full = pd.read_csv(train_data_path, nrows=None)
+        for var in bucket_vars:
+            if var not in df_full.columns:
+                continue
+            q33 = float(df_full[var].quantile(0.33))
+            q67 = float(df_full[var].quantile(0.67))
+            patient_bucket_thresholds[var] = {'low_medium': q33, 'medium_high': q67}
+        if patient_bucket_thresholds:
+            print(f"  Patient bucket thresholds: {list(patient_bucket_thresholds.keys())}")
+    except Exception as e:
+        print(f"  Warning: could not compute patient_bucket_thresholds: {e}")
+    
     # Calculate model weights based on MC-CV performance
     model_weights = calculate_model_weights(cohort, age_band)
     
-    return {
+    out = {
         'features': feature_names,
         'defaults': defaults,
         'model_weights': model_weights,
         'n_features': len(feature_names),
         'n_samples': len(df)
     }
+    if patient_bucket_thresholds:
+        out['patient_bucket_thresholds'] = patient_bucket_thresholds
+    return out
 
 
 def save_model(model: Any, output_path: Path, model_type: str):

@@ -98,6 +98,7 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
         (except those with 'interval' in the name)
       - Datetime helper columns: 'target_time', 'first_time'
       - DTW-derived features (any column with 'dtw' in its name)
+      - Trajectory/sequence/itemset features (to avoid target leakage; not used in training)
       - Any feature whose name contains 'F1120'
       - Non-predictive markers/confounders (SUBOXONE, BUPRENORPHINE, F1123)
       - For non_opioid_ed cohort: ICD and CPT features (polypharmacy uses drugs only)
@@ -180,6 +181,20 @@ def remove_target_leakage_features(df: pd.DataFrame, cohort: str, age_band: str)
             print(f"  - {f}")
         if len(dtw_features) > 10:
             print(f"  ... and {len(dtw_features) - 10} more")
+
+    # 4b. Trajectory / sequence / itemset (REMOVED if present; we do not calculate these—only n_events, item_*, PGx counts)
+    traj_seq_itemset = [
+        c for c in cols
+        if "trajectory" in c.lower() or "sequence" in c.lower() or "itemset" in c.lower()
+    ]
+    leakage.update(traj_seq_itemset)
+    if traj_seq_itemset:
+        print(f"\n[INFO] Trajectory/sequence/itemset features (TARGET LEAKAGE risk): {len(traj_seq_itemset)}")
+        print("[INFO] REMOVED - we do not use trajectory, sequence, or itemset features in model training")
+        for f in traj_seq_itemset[:10]:
+            print(f"  - {f}")
+        if len(traj_seq_itemset) > 10:
+            print(f"  ... and {len(traj_seq_itemset) - 10} more")
 
     # Remove initial leakage features
     safe_features = [c for c in cols if c not in leakage]
@@ -966,9 +981,11 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
     """
     Build final feature matrix using aggregated patient-level features + PGx features only.
     
-    NEW WORKFLOW:
-    - Uses aggregated patient-level features (drug/ICD/CPT encodings) directly (no additional encoding)
-    - Only adds PGx features (BupaR, DTW, FP-Growth moved to dashboard visualizations only)
+    We do not calculate trajectory, sequence, or itemset features. Only:
+    - n_events (count of events per patient from model_events)
+    - item_* binary features (drug/ICD/CPT from aggregated feature importance)
+    - PGx features (e.g. pgx_num_drugs, pgx_num_cpic_drugs from 5_pgx_analysis)
+    BupaR, DTW, FP-Growth are for dashboard visualizations only, not for model training.
     
     Inputs:
       - 4_model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet
