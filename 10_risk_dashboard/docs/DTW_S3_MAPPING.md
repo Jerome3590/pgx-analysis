@@ -44,12 +44,15 @@ The frontend fetches `trajectory_overview_plot.json` from the static plots path 
 
 ## Manifest (dashboard_visual_objects.json)
 
+- **File:** `10_risk_dashboard/visualizations/dashboard_visual_objects.json`
 - **Tab:** DTW Trajectories  
 - **s3_path:** `vcu/pgx-risk-calculator/visualizations/dtw/{cohort}/{age_band}/`  
-- **static_files:** `["chart_data.json", "sequence_heatmap.json"]`  
+- **static_files:** `["chart_data.json", "sequence_heatmap.json", "plots/trajectory_overview_plot.json", ...]`  
 
 So the **base path** for DTW is `.../visualizations/dtw/{cohort}/{age_band}/` (e.g. `opioid_ed/25-44` with hyphen).  
 All URLs for chart_data, sequence_heatmap, and `plots/` are built from this base.
+
+**chart_data.json** is expected to contain (when the pipeline produced data): `routine_comparison`, `routine_comparison_counts`, `high_risk_trajectories`, `target_pathway_patterns`, `times_between_sequences`, `time_to_target_sequences`, and optionally `*_by_density` and `event_density_bins`. If the file is missing on S3 or contains only `empty: true` and a `message`, the Routine vs No Routine and related panels will show the placeholder.
 
 ## Expected S3 layout (per cohort/age_band)
 
@@ -70,6 +73,28 @@ All URLs for chart_data, sequence_heatmap, and `plots/` are built from this base
 - **plots/trajectory_overview_plot.json**: Optional. Present where cluster plots exist (create_dtw_plots writes it; Step 6 syncs). If missing, the frontend may see a 404 for the static URL; it then requests the DTW API and uses `trajectory_overview_plot` from the response when Lambda has it (inline from S3 when &lt; 2MB).
 - **plots/*.html**: Present as `dtw_trajectory_cluster_1d_*` or `dtw_trajectory_cluster_3d_*`; API updated to use these for `overview_interactive` when `dtw_trajectory_cluster_interactive_*` is missing.
 - **plots/dtw_trajectory_analysis_*.png**, **plots/dtw_sample_trajectories_*.png**: Optional; created by pipeline only when `dtw_trajectory_cluster_*.png` exists (kaleido). If missing, dashboard uses `trajectory_overview_plot.json` (Plotly) or shows empty.
+
+## Why "Routine vs No Routine" or "routine_comparison_counts" don't render
+
+The **Routine vs No Routine (Outcomes)** and **Medical and prescription event counts** panels need `routine_comparison` and `routine_comparison_counts` inside `chart_data.json`. If you see placeholders:
+
+1. **Check that chart_data.json exists on S3** (dashboard bucket, under prefix):
+   ```bash
+   # Set your bucket and prefix, e.g.:
+   BUCKET=jerome-dixon.io
+   PREFIX=vcu/pgx-risk-calculator
+   COHORT=opioid_ed
+   AGE=65-74
+
+   aws s3 ls "s3://${BUCKET}/${PREFIX}/visualizations/dtw/${COHORT}/${AGE}/"
+   aws s3 cp "s3://${BUCKET}/${PREFIX}/visualizations/dtw/${COHORT}/${AGE}/chart_data.json" - | head -c 500
+   ```
+   - If the object does not exist: run the DTW pipeline for that cohort/age_band (`create_dtw_trajectories` → `create_dtw_features` → `create_dtw_visuals`) and sync to S3 (notebook 5 Step 6 or your sync script).
+   - If the object exists but contains `"empty": true` and a `message`: the pipeline wrote an empty-state JSON (e.g. no DTW features CSV, or CSV had too few rows / missing `admin_icd_event_count`). Re-run the pipeline from trajectories through visuals so a full `chart_data.json` is produced.
+
+2. **Manifest**: `dashboard_visual_objects.json` lists DTW under tab "DTW Trajectories" with `static_files`: `["chart_data.json", "sequence_heatmap.json", "plots/trajectory_overview_plot.json", ...]`. The frontend and API both use `visualizations/dtw/{cohort}/{age_band}/chart_data.json` (age_band with **hyphen**, e.g. `65-74`).
+
+3. **Pipeline conditions for routine_comparison**: `create_dtw_visuals` builds `routine_comparison` only when the DTW features CSV has `target` and `admin_icd_event_count` and at least 10 rows. It builds `routine_comparison_counts` when the CSV has `admin_icd_event_count`, `trajectory_length`, and `seq_pattern_str`. Ensure `create_dtw_trajectories` has run so the CSV includes `admin_icd_event_count` (from the administrative ICD lookup).
 
 ## Summary
 
