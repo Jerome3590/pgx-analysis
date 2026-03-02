@@ -4,6 +4,57 @@
 
 The dashboard includes three advanced visualization systems that complement the risk score by providing insights into patient pathways, frequent patterns, and trajectory similarities. All visualizations are filtered based on user-selected codes (drugs, ICDs, CPTs).
 
+## Risk Calculation
+
+The risk score is the **estimated probability of the target outcome** (e.g. opioid-related ED or polypharmacy) in the **2019 holdout population** context. It is computed by the backend API (`POST /risk`) and drives the risk band and interpretation shown in the dashboard.
+
+### When baseline vs when model
+
+| User input | Result |
+|------------|--------|
+| **No** Drug, ICD, or CPT codes | **Baseline risk:** the actual 2019 outcome rate for that cohort/age_band (from `risk_distribution_2019.json`). The UI shows “Baseline risk (2019 holdout population). Add Drug, ICD, or CPT codes to see personalized risk.” |
+| **Any** Drug, ICD, or CPT code provided | **Model risk:** the predicted probability from the **best model** for that cohort/age_band (single model with weight 1.0). The UI shows “Risk from &lt;model_used&gt; (best model for this cohort/age).” |
+
+So risk stays **calibrated to the 2019 population**: with no codes you see the population rate; with codes you see the model’s personalized estimate in that same context.
+
+### Best model per cohort/age_band
+
+For each (cohort, age_band) we use **one** best model (CatBoost, XGBoost, or XGBoost RF), chosen by composite score (PR-AUC + normalized log loss) in MC-CV. The API runs only that model and returns `model_used` (e.g. `"xgboost"`) when the score is from the model (not baseline).
+
+### Risk bands (Low / Medium / High)
+
+Risk bands are derived from **configurable thresholds**:
+
+- **Source:** `risk_distribution_2019.json` per cohort/age_band can include `risk_band_thresholds` (e.g. 33rd and 67th percentiles of 2019 predicted probabilities: `low_medium`, `medium_high`).
+- **Logic:** Score &lt; low_medium → Low; low_medium ≤ score &lt; medium_high → Medium; score ≥ medium_high → High. If thresholds are missing, the API falls back to default values (e.g. 0.2, 0.5).
+
+### Comparison (scenarios)
+
+`POST /risk/comparison` compares a **base** scenario to one or more **scenarios**. The same rule applies: if the base or a scenario has **no** Drug/ICD/CPT codes, that scenario’s score is the **baseline_risk** for that cohort/age_band; otherwise it is the model’s predicted probability.
+
+### Code validation and interpretation
+
+- **codes_used / codes_unknown:** The API validates provided drugs, ICDs, and CPTs against the model’s feature schema. It returns which codes were **used** by the model (affected the score) and which were **unknown** (not in the model; did not affect the score). The frontend can show “Not in model (did not affect score): …” for unknown codes.
+- **interpretation:** The API returns a short **interpretation** string (e.g. “Estimated probability of target outcome (2019 holdout context)…”; when not baseline, “Risk from &lt;model_used&gt; (best model for this cohort/age). …”). The dashboard displays this in the Risk Assessment tab.
+
+### Data flow: risk → visuals
+
+1. User selects cohort, age band, and optionally drugs/ICDs/CPTs.
+2. **Risk** is calculated (baseline or model) and shown with band, interpretation, and model/code info.
+3. **Visualizations** (BupaR, FP-Growth, DTW, Causal) load for the same cohort/age_band; where applicable they are filtered or contextualized by the user’s selected codes, so risk and visuals stay aligned.
+
+For API details (request/response shapes, endpoints), see `10_risk_dashboard/backend/README.md` and `10_risk_dashboard/data_preparation/README.md` (risk distribution and model preparation).
+
+### Risk calculation robustness
+
+- **Baseline when no codes:** If the user sends no Drug/ICD/CPT codes and `risk_distribution_2019.json` has `baseline_risk`, the API returns that value and does not load models. If the file is missing or has no `baseline_risk`, the API falls back to running the best model with an empty code set (all item features 0), so a score is still returned.
+- **Best model only:** Only the single best model per cohort/age_band is run (weight 1.0). If that model fails to load or predict, the request returns 500 with a clear error (no silent fallback to a different model).
+- **Input handling:** The API normalizes `drugs`/`icds`/`cpts` to lists (handles `null` or missing keys). Invalid JSON body returns 400 with a clear message. Cohort and age_band are validated via `determine_cohort_and_age_band` when inferred from age; dashboard-style requests use explicit cohort/age_band.
+- **Feature schema and codes:** Unknown codes (not in the model’s feature schema) do not affect the score; the API returns `codes_used` and `codes_unknown` so the UI can show what was used. Missing or empty feature schema is handled (default empty features, defaults applied where defined).
+- **Risk bands:** If `risk_band_thresholds` are missing from the 2019 distribution, the API uses default thresholds (e.g. 0.2, 0.5) so a band is always returned.
+- **Comparison:** Same baseline-vs-model rule and input normalization apply to `POST /risk/comparison`; base and each scenario are evaluated consistently.
+- **Limitations:** No retry or fallback if the best model fails. No allowlist for cohort/age_band strings when provided explicitly (assume dashboard sends valid values). Probability outputs are clamped to [0, 1] for XGBoost raw outputs; model weights are normalized so zero weights fall back to equal weights or simple average.
+
 ## Visualization Types
 
 ### 1. BupaR Process Mining
@@ -64,7 +115,7 @@ The dashboard includes three advanced visualization systems that complement the 
 
 ## Integration with Risk Score
 
-All visualizations complement the risk score by:
+See **[Risk Calculation](#risk-calculation)** above for how the score is computed (baseline vs model, best model, bands, comparison, and code validation). All visualizations complement the risk score by:
 
 1. **Contextualizing Risk**: Showing how selected codes appear in patient pathways
 2. **Pattern Discovery**: Revealing associations and sequences involving selected codes
@@ -105,6 +156,8 @@ User Selects Codes → Risk Score Calculated → Visualizations Load
 
 - **[README_results_dashboard_tabs.md](README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
 - **[README_results_dashboard.md](README_results_dashboard.md)** - Complete dashboard system overview
+- **Risk calculation (backend):** `10_risk_dashboard/backend/README.md` - API endpoints, baseline vs model, best model, comparison
+- **Risk data preparation:** `10_risk_dashboard/data_preparation/README.md` - risk_distribution_2019 (baseline_risk, risk_band_thresholds), prepare_models (best model per cohort/age_band)
 - **[README_bupar_dashboard_visualizations.md](README_bupar_dashboard_visualizations.md)** - BupaR process mining dashboard visualizations
 - **[README_fpgrowth_dashboard_visualizations.md](README_fpgrowth_dashboard_visualizations.md)** - FP-Growth pattern mining dashboard visualizations
 - **[README_dtw_dashboard_visualizations.md](README_dtw_dashboard_visualizations.md)** - DTW trajectory dashboard visualizations

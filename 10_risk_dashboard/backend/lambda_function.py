@@ -778,14 +778,23 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
       - The front end populates Drugs / CPT / ICD grids from aggregated feature
         importances and sends the selected codes as the drugs/icds/cpts lists.
     """
-    body = json.loads(event.get("body") or "{}")
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError as e:
+        return _response(400, {"error": "Invalid JSON body", "detail": str(e)})
     
     raw_age = body.get("age")
     age_band_override = body.get("age_band")
     cohort = body.get("cohort")
-    drugs = body.get("drugs", [])
-    icds = body.get("icds", [])
-    cpts = body.get("cpts", [])
+    drugs = body.get("drugs") if body.get("drugs") is not None else []
+    icds = body.get("icds") if body.get("icds") is not None else []
+    cpts = body.get("cpts") if body.get("cpts") is not None else []
+    if not isinstance(drugs, list):
+        drugs = list(drugs) if drugs else []
+    if not isinstance(icds, list):
+        icds = list(icds) if icds else []
+    if not isinstance(cpts, list):
+        cpts = list(cpts) if cpts else []
     
     # Resolve cohort, age_band, and effective numeric age for the model.
     if age_band_override and cohort:
@@ -912,10 +921,15 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
     """POST /risk/comparison. Base may include cohort and age_band (from cohort tab + age); else derived from age.
     When base or a scenario has no Drug/ICD/CPT codes, uses baseline_risk (2019 outcome rate) for consistency with POST /risk."""
-    body = json.loads(event.get("body") or "{}")
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError as e:
+        return _response(400, {"error": "Invalid JSON body", "detail": str(e)})
     
-    base = body.get("base", {})
-    scenarios = body.get("scenarios", [])
+    base = body.get("base") or {}
+    scenarios = body.get("scenarios")
+    if not isinstance(scenarios, list):
+        scenarios = []
     
     base_age = int(base.get("age", 0))
     cohort = base.get("cohort")
@@ -930,9 +944,15 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
         baseline_risk = dist_2019.get("baseline_risk") if dist_2019 else None
         feature_schema = load_feature_schema(cohort, age_band)
         
-        base_drugs = base.get("drugs", [])
-        base_icds = base.get("icds", [])
-        base_cpts = base.get("cpts", [])
+        base_drugs = base.get("drugs") or []
+        base_icds = base.get("icds") or []
+        base_cpts = base.get("cpts") or []
+        if not isinstance(base_drugs, list):
+            base_drugs = list(base_drugs) if base_drugs else []
+        if not isinstance(base_icds, list):
+            base_icds = list(base_icds) if base_icds else []
+        if not isinstance(base_cpts, list):
+            base_cpts = list(base_cpts) if base_cpts else []
         base_no_codes = not (base_drugs or base_icds or base_cpts)
         
         if base_no_codes and baseline_risk is not None:
@@ -946,9 +966,15 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
         
         scenario_results = []
         for scenario in scenarios:
-            s_drugs = scenario.get("drugs", [])
-            s_icds = scenario.get("icds", [])
-            s_cpts = scenario.get("cpts", [])
+            s_drugs = scenario.get("drugs") or []
+            s_icds = scenario.get("icds") or []
+            s_cpts = scenario.get("cpts") or []
+            if not isinstance(s_drugs, list):
+                s_drugs = list(s_drugs) if s_drugs else []
+            if not isinstance(s_icds, list):
+                s_icds = list(s_icds) if s_icds else []
+            if not isinstance(s_cpts, list):
+                s_cpts = list(s_cpts) if s_cpts else []
             s_no_codes = not (s_drugs or s_icds or s_cpts)
             if s_no_codes and baseline_risk is not None:
                 scenario_risk = float(baseline_risk)
