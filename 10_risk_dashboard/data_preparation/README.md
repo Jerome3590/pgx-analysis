@@ -101,13 +101,13 @@ python prepare_cpic_data.py
 ```
 
 **What it does:**
-1. Loads CPIC master Excel file
-2. Processes gene-drug pairs
-3. Prepares data for Lambda function
-4. Saves to `../outputs/cpic/`
+1. Prefers official CPIC Excel (or downloads it); fallback: CSV from `5_pgx_analysis/data/` (read with **DuckDB** when available, else pandas)
+2. Copies or converts to `cpic_gene-drug_pairs.xlsx` for the Lambda container
+3. Writes a **Parquet** copy (`cpic_gene-drug_pairs.parquet`) alongside the Excel for efficient downstream use
 
 **Outputs:**
-- CPIC data files for Lambda container
+- `outputs/cpic/cpic_gene-drug_pairs.xlsx` (Lambda container)
+- `outputs/cpic/cpic_gene-drug_pairs.parquet` (when DuckDB or pandas+pyarrow available)
 
 ### `combine_shap_ffa_results.py`
 
