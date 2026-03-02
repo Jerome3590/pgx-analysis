@@ -3232,13 +3232,16 @@
     renderCausalCharts(data);
   }
 
+  // Helper: strip item_ prefix for display on causal charts (x-axis / labels only)
+  function stripItemPrefix(s) { if (s == null) return ''; return String(s).replace(/^item_/i, ''); }
+
   // Helper functions to render visualizations
   function renderCausalCharts(data) {
     const hasWhatIf = data.causal_factors_whatif && data.causal_factors_whatif.length > 0;
     // Causal factors bar chart (optionally two traces: current + what-if)
     if (data.causal_factors && data.causal_factors.length > 0) {
       const traceCurrent = {
-        x: data.causal_factors.map(f => f.feature),
+        x: data.causal_factors.map(f => stripItemPrefix(f.feature)),
         y: data.causal_factors.map(f => f.importance),
         type: 'bar',
         name: 'Current',
@@ -3247,7 +3250,7 @@
       const traces = [traceCurrent];
       if (hasWhatIf) {
         traces.push({
-          x: data.causal_factors_whatif.map(f => f.feature),
+          x: data.causal_factors_whatif.map(f => stripItemPrefix(f.feature)),
           y: data.causal_factors_whatif.map(f => f.importance),
           type: 'bar',
           name: 'What-if',
@@ -3266,7 +3269,7 @@
     const hasWhatIfShap = data.shap_importance_whatif && data.shap_importance_whatif.length > 0;
     if (data.shap_importance && data.shap_importance.length > 0) {
       const traceCurrent = {
-        x: data.shap_importance.map(f => f.feature),
+        x: data.shap_importance.map(f => stripItemPrefix(f.feature)),
         y: data.shap_importance.map(f => f.importance),
         type: 'bar',
         name: 'Current',
@@ -3275,7 +3278,7 @@
       const traces = [traceCurrent];
       if (hasWhatIfShap) {
         traces.push({
-          x: data.shap_importance_whatif.map(f => f.feature),
+          x: data.shap_importance_whatif.map(f => stripItemPrefix(f.feature)),
           y: data.shap_importance_whatif.map(f => f.importance),
           type: 'bar',
           name: 'What-if',
@@ -3295,7 +3298,7 @@
     if (interactionsEl) {
       if (data.feature_interactions && Array.isArray(data.feature_interactions) && data.feature_interactions.length > 0) {
         const arr = data.feature_interactions;
-        const labels = arr.map(function(d) { return (d.features && d.features.join(' × ')) || d.feature || JSON.stringify(d); });
+        const labels = arr.map(function(d) { return (d.features && d.features.map(stripItemPrefix).join(' × ')) || stripItemPrefix(d.feature) || JSON.stringify(d); });
         const vals = arr.map(function(d) { return Number(d.importance != null ? d.importance : d.strength || 0); });
         if (window.Plotly) {
           Plotly.newPlot(interactionsEl, [{
@@ -3331,7 +3334,7 @@
         traces.push({
           type: 'scatterpolar',
           r: factors.map(f => f.importance / maxVal),
-          theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
+          theta: factors.map(f => { const lab = stripItemPrefix(f.feature); return lab.length > 20 ? lab.slice(0, 17) + '...' : lab; }),
           fill: 'toself',
           name: 'Current',
           marker: { color: '#3b82f6' }
@@ -3344,7 +3347,7 @@
         traces.push({
           type: 'scatterpolar',
           r: factors.map(f => f.importance / maxVal),
-          theta: factors.map(f => (f.feature && f.feature.length > 20) ? f.feature.slice(0, 17) + '...' : f.feature),
+          theta: factors.map(f => { const lab = stripItemPrefix(f.feature); return lab.length > 20 ? lab.slice(0, 17) + '...' : lab; }),
           fill: 'toself',
           name: 'What-if',
           marker: { color: '#f59e0b' }

@@ -40,10 +40,15 @@ For each (cohort, age_band) we use **one** best model (CatBoost, XGBoost, or XGB
 
 ### Risk bands (Low / Medium / High)
 
-Risk bands are derived from **configurable thresholds**:
+Risk bands use **fixed absolute probability thresholds** so the label matches user intuition (e.g. 7.7% is Low, not High):
 
-- **Source:** `risk_distribution_2019.json` per cohort/age_band can include `risk_band_thresholds` (e.g. 33rd and 67th percentiles of 2019 predicted probabilities: `low_medium`, `medium_high`).
-- **Logic:** Score &lt; low_medium → Low; low_medium ≤ score &lt; medium_high → Medium; score ≥ medium_high → High. If thresholds are missing, the API falls back to default values (e.g. 0.2, 0.5).
+| Band    | Condition        |
+|---------|------------------|
+| **Low** | score &lt; 20%   |
+| **Medium** | 20% ≤ score &lt; 50% |
+| **High**   | score ≥ 50%   |
+
+The API does **not** use cohort-relative percentiles (e.g. 33rd/67th of the 2019 predicted distribution) for the band label. Those percentiles are still computed and stored in `risk_distribution_2019.json` as `risk_band_thresholds` for the histogram and reference; the displayed band is always based on the absolute cutoffs above.
 
 ### Comparison (scenarios)
 
@@ -68,7 +73,7 @@ For API details (request/response shapes, endpoints), see `10_risk_dashboard/bac
 - **Best model only:** Only the single best model per cohort/age_band is run (weight 1.0). If that model fails to load or predict, the request returns 500 with a clear error (no silent fallback to a different model).
 - **Input handling:** The API normalizes `drugs`/`icds`/`cpts` to lists (handles `null` or missing keys). Invalid JSON body returns 400 with a clear message. Cohort and age_band are validated via `determine_cohort_and_age_band` when inferred from age; dashboard-style requests use explicit cohort/age_band.
 - **Feature schema and codes:** Unknown codes (not in the model’s feature schema) do not affect the score; the API returns `codes_used` and `codes_unknown` so the UI can show what was used. Missing or empty feature schema is handled (default empty features, defaults applied where defined).
-- **Risk bands:** If `risk_band_thresholds` are missing from the 2019 distribution, the API uses default thresholds (e.g. 0.2, 0.5) so a band is always returned.
+- **Risk bands:** The API always uses fixed absolute thresholds (low &lt;20%, medium 20–50%, high ≥50%) for the displayed band; the 2019 file’s `risk_band_thresholds` are not used for the label.
 - **Comparison:** Same baseline-vs-model rule and input normalization apply to `POST /risk/comparison`; base and each scenario are evaluated consistently.
 - **Limitations:** No retry or fallback if the best model fails. No allowlist for cohort/age_band strings when provided explicitly (assume dashboard sends valid values). Probability outputs are clamped to [0, 1] for XGBoost raw outputs; model weights are normalized so zero weights fall back to equal weights or simple average.
 
