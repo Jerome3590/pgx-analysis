@@ -101,8 +101,11 @@ def prepare_models(download_s3: bool = False) -> bool:
                 log(f"  Downloading {cohort}/{age_band} models from S3...")
                 s3_prefix = f"{S3_MODELS_PREFIX}/{cohort}/{age_band_fname}"
                 
-                # Download model files
-                for model_file in ["catboost.joblib", "xgboost.joblib", "xgboost.json", "feature_schema.json"]:
+                # Download model files (including 2019 risk distribution for dashboard histogram)
+                for model_file in [
+                    "catboost.joblib", "xgboost.joblib", "xgboost.json", "feature_schema.json",
+                    "risk_distribution_2019.json"
+                ]:
                     s3_key = f"{s3_prefix}/{model_file}"
                     local_path = dest_dir / model_file
                     if download_from_s3(s3_key, local_path):

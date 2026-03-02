@@ -18,6 +18,7 @@ import sys
 import json
 import argparse
 import logging
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import joblib
@@ -94,89 +95,63 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
 
 def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
     """
-    Calculate model weights based on MC-CV performance metrics.
-    
-    Uses composite score: 0.5 * PR-AUC + 0.5 * (1/(1+logloss))
-    Weights are normalized to sum to 1.0.
-    
+    Choose the best model per cohort/age_band based on MC-CV performance.
+
+    Uses composite score: 0.5 * PR-AUC + 0.5 * (1/(1+logloss)). The model with
+    the highest composite score gets weight 1.0; all others get 0.0. We always
+    use the best model for the respective cohort (and age_band).
+
     Returns:
         {
-            'catboost': weight,
-            'xgboost': weight,
-            'xgboost_rf': weight
+            'catboost': 0.0 or 1.0,
+            'xgboost': 0.0 or 1.0,
+            'xgboost_rf': 0.0 or 1.0
         }
     """
     age_band_fname = age_band.replace("-", "_")
-    # Step 6 saves MC-CV results at cohort/age_band_fname/ (not under models/)
+    default_models = ['catboost', 'xgboost', 'xgboost_rf']
     mc_cv_path = FINAL_MODEL_DIR / cohort / age_band_fname / f'{cohort}_{age_band_fname}_mc_cv_results.csv'
-    
+
     if not mc_cv_path.exists():
         print(f"Warning: MC-CV results not found: {mc_cv_path}")
         print("  Using equal weights (1.0 each)")
-        return {
-            'catboost': 1.0,
-            'xgboost': 1.0,
-            'xgboost_rf': 1.0
-        }
-    
-    # Load MC-CV results (Step 6 writes "XGBoost", "XGBoost_RF", "CatBoost" in CSV)
+        return {m: 1.0 / len(default_models) for m in default_models}
+
     df = pd.read_csv(mc_cv_path)
     csv_to_internal = {'XGBoost': 'xgboost', 'XGBoost_RF': 'xgboost_rf', 'CatBoost': 'catboost'}
-    
-    # Calculate composite scores for each model
+
     model_scores = {}
     for csv_name, internal_name in csv_to_internal.items():
         model_data = df[df['model'] == csv_name]
-        
         if len(model_data) == 0:
-            print(f"Warning: No MC-CV results for {internal_name}")
             continue
-        
         mean_logloss = model_data['logloss'].mean()
         mean_pr_auc = model_data['pr_auc'].mean()
-        
-        # Normalize logloss: 1 / (1 + logloss) - higher is better
         normalized_logloss_score = 1 / (1 + mean_logloss)
-        
-        # PR-AUC is already in [0, 1], higher is better
-        normalized_pr_auc_score = mean_pr_auc
-        
-        # Composite score: 0.5 * PR-AUC + 0.5 * normalized_logloss
-        composite_score = 0.5 * normalized_pr_auc_score + 0.5 * normalized_logloss_score
-        
+        composite_score = 0.5 * mean_pr_auc + 0.5 * normalized_logloss_score
         model_scores[internal_name] = {
             'mean_logloss': mean_logloss,
             'mean_pr_auc': mean_pr_auc,
             'composite_score': composite_score
         }
-    
-    # Normalize weights to sum to 1.0
-    total_score = sum(s['composite_score'] for s in model_scores.values())
-    default_models = ['catboost', 'xgboost', 'xgboost_rf']
-    
-    if total_score == 0 or len(model_scores) == 0:
-        print("Warning: All composite scores are zero or no MC-CV data, using equal weights")
-        n = len(default_models)
-        return {m: 1.0 / n for m in default_models}
-    
-    weights = {
-        model: model_scores[model]['composite_score'] / total_score
-        for model in model_scores.keys()
-    }
-    
-    # Ensure all three models have weights (fill missing with 0)
-    for model in ['catboost', 'xgboost', 'xgboost_rf']:
-        if model not in weights:
-            weights[model] = 0.0
-    
-    print(f"  Model weights (based on composite score):")
-    for model, weight in weights.items():
+
+    if not model_scores:
+        print("Warning: No MC-CV data, using equal weights")
+        return {m: 1.0 / len(default_models) for m in default_models}
+
+    best_model = max(model_scores.keys(), key=lambda m: model_scores[m]['composite_score'])
+    weights = {m: 1.0 if m == best_model else 0.0 for m in default_models}
+    for m in model_scores:
+        if m not in weights:
+            weights[m] = 0.0
+
+    print(f"  Best model for {cohort}/{age_band}: {best_model} (composite_score: {model_scores[best_model]['composite_score']:.4f})")
+    for model in default_models:
+        w = weights.get(model, 0.0)
         if model in model_scores:
-            score = model_scores[model]['composite_score']
-            print(f"    {model}: {weight:.4f} (composite_score: {score:.4f})")
+            print(f"    {model}: {w:.0f} (composite_score: {model_scores[model]['composite_score']:.4f})")
         else:
-            print(f"    {model}: {weight:.4f} (no MC-CV data)")
-    
+            print(f"    {model}: {w:.0f} (no MC-CV data)")
     return weights
 
 
@@ -243,6 +218,23 @@ def save_model(model: Any, output_path: Path, model_type: str):
     print(f"  Saved {model_type} model to: {output_path}")
 
 
+def _run_2019_distribution_script(cohort: str) -> None:
+    """Run prepare_risk_distribution_2019.py for this cohort (idempotent). No-op if script fails."""
+    script = Path(__file__).resolve().parent / "prepare_risk_distribution_2019.py"
+    if not script.exists():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(script), "--cohort", cohort],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+    except Exception as e:
+        print(f"  Note: 2019 distribution script skipped ({e})")
+
+
 def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
     """Prepare models for a cohort."""
     print(f"\n{'='*60}")
@@ -295,6 +287,9 @@ def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
                 save_model(model, model_path, model_type)
         
         print(f"  Complete: {output_dir}")
+    
+    # Idempotent: build 2019 holdout risk distributions for this cohort (all age_bands)
+    _run_2019_distribution_script(cohort)
     
     print(f"\n{'='*60}")
     print(f"Model preparation complete for {cohort}")

@@ -762,6 +762,9 @@
       <div style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">
         Using: <strong id="model-info"></strong>
       </div>
+      <p id="risk-baseline-note" class="risk-baseline-note" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-interpretation" class="risk-interpretation" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-codes-unknown" class="risk-codes-unknown" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;"></p>
     </div>
 
     <div class="panels">
@@ -1799,18 +1802,61 @@
     riskBandEl.className = `risk-band ${riskBand}`;
     
     let modelInfoText = `${cohort} / ${ageBand}`;
+    if (data.model_used) {
+      modelInfoText += ` (Risk from ${data.model_used})`;
+    }
     if (data.age_mapped && data.age_mapping_note) {
-      modelInfoText += ` (${data.age_mapping_note})`;
+      modelInfoText += ` — ${data.age_mapping_note}`;
     }
     modelInfoEl.textContent = modelInfoText;
+    
+    const baselineNoteEl = document.getElementById("risk-baseline-note");
+    if (baselineNoteEl) {
+      if (data.is_baseline) {
+        baselineNoteEl.textContent = "Baseline risk (2019 holdout population). Add Drug, ICD, or CPT codes to see personalized risk.";
+        baselineNoteEl.style.display = "block";
+      } else {
+        baselineNoteEl.textContent = "";
+        baselineNoteEl.style.display = "none";
+      }
+    }
+
+    const interpretationEl = document.getElementById("risk-interpretation");
+    if (interpretationEl) {
+      if (data.interpretation) {
+        interpretationEl.textContent = data.interpretation;
+        interpretationEl.style.display = "block";
+      } else {
+        interpretationEl.textContent = "";
+        interpretationEl.style.display = "none";
+      }
+    }
+
+    const codesUnknownEl = document.getElementById("risk-codes-unknown");
+    if (codesUnknownEl && data.codes_unknown) {
+      const u = data.codes_unknown;
+      const parts = [];
+      if (u.drugs && u.drugs.length) parts.push(u.drugs.length + " drug(s)");
+      if (u.icds && u.icds.length) parts.push(u.icds.length + " ICD(s)");
+      if (u.cpts && u.cpts.length) parts.push(u.cpts.length + " CPT(s)");
+      if (parts.length) {
+        const list = [].concat(u.drugs || [], u.icds || [], u.cpts || []).slice(0, 15);
+        const listStr = list.length > 0 ? ": " + list.join(", ") + (list.length < (u.drugs?.length + u.icds?.length + u.cpts?.length || 0) ? "…" : "") : "";
+        codesUnknownEl.textContent = "Not in model (did not affect score): " + parts.join(", ") + listStr;
+        codesUnknownEl.style.display = "block";
+      } else {
+        codesUnknownEl.textContent = "";
+        codesUnknownEl.style.display = "none";
+      }
+    }
     
     riskDisplayEl.style.display = "block";
 
     // Render model breakdown chart
     renderModelBreakdown(data.model_breakdown || {});
     
-    // Render risk distribution (placeholder)
-    renderRiskDistribution();
+    // Render risk distribution (2019 holdout when dist provided; else placeholder)
+    renderRiskDistribution(data.dist);
   }
 
   function renderModelBreakdown(modelBreakdown) {
@@ -1836,17 +1882,20 @@
     Plotly.newPlot('model-chart', [trace], layout, { responsive: true });
   }
 
-  function renderRiskDistribution() {
-    // Placeholder - would need distribution data from backend
-    const trace = {
-      x: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-      y: [100, 200, 300, 250, 200, 150, 100, 50, 25, 10, 5],
-      type: 'bar',
-      marker: { color: '#64748b' }
-    };
+  function renderRiskDistribution(dist) {
+    // Distribution should be 2019 holdout predicted-probability distribution; user's risk score is on this same scale.
+    const hasDist = dist && dist.bins && dist.counts && dist.bins.length > 0;
+    const trace = hasDist
+      ? { x: dist.bins.map(b => typeof b === 'number' ? b : Number(b)), y: dist.counts, type: 'bar', marker: { color: '#64748b' } }
+      : {
+          x: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+          y: [100, 200, 300, 250, 200, 150, 100, 50, 25, 10, 5],
+          type: 'bar',
+          marker: { color: '#94a3b8' }
+        };
 
     const layout = {
-      title: 'Risk Distribution (Example)',
+      title: hasDist ? 'Risk Distribution (2019 holdout)' : 'Risk Distribution (placeholder until 2019 data loaded)',
       xaxis: { title: 'Risk Score (%)' },
       yaxis: { title: 'Frequency' },
       margin: { t: 40, r: 20, b: 40, l: 60 }

@@ -197,7 +197,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "xgboost": risk,
             "xgboost_rf": risk,
         },
-        # Optional distribution for Plotly histogram; you can fetch this from S3 instead.
+        # Optional: 2019 holdout predicted-probability distribution (bins/counts) so UI shows where user's score sits.
         "dist": {
             "bins": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
             "counts": [100, 200, 300, 250, 200, 150, 100, 50, 25, 10],

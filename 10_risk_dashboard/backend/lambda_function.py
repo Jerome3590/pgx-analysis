@@ -367,6 +367,42 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Any:
         raise
 
 
+def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str, Any]]:
+    """Load 2019 holdout risk distribution (bins/counts, optional baseline_risk) from container or S3. Returns None if not found."""
+    age_band_fname = age_band.replace("-", "_")
+
+    def _from_data(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        bins = data.get("bins")
+        counts = data.get("counts")
+        if bins is None or counts is None or len(bins) != len(counts):
+            return None
+        out: Dict[str, Any] = {"bins": bins, "counts": counts}
+        if "baseline_risk" in data and data["baseline_risk"] is not None:
+            out["baseline_risk"] = float(data["baseline_risk"])
+        if "risk_band_thresholds" in data and isinstance(data["risk_band_thresholds"], dict):
+            out["risk_band_thresholds"] = {k: float(v) for k, v in data["risk_band_thresholds"].items()}
+        return out
+
+    if USE_CONTAINER_MODELS:
+        p = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "risk_distribution_2019.json")
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    data = json.load(f)
+                return _from_data(data)
+            except Exception:
+                pass
+    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/risk_distribution_2019.json"
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        data = json.loads(obj["Body"].read().decode("utf-8"))
+        return _from_data(data)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "NotFound"):
+            raise
+    return None
+
+
 def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
     """Load feature schema JSON from container filesystem or S3."""
     age_band_fname = age_band.replace("-", "_")
@@ -399,6 +435,55 @@ def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
             # Return default schema if not found
             return {'features': [], 'defaults': {}}
         raise
+
+
+# Default risk band thresholds (low < low_medium <= medium < medium_high <= high)
+DEFAULT_RISK_BAND_THRESHOLDS = {"low_medium": 0.2, "medium_high": 0.5}
+
+
+def risk_band_from_score(score: float, thresholds: Optional[Dict[str, float]] = None) -> str:
+    """Return low / medium / high from score and optional thresholds (from dist or schema)."""
+    t = thresholds or DEFAULT_RISK_BAND_THRESHOLDS
+    low_med = t.get("low_medium", 0.2)
+    med_high = t.get("medium_high", 0.5)
+    if score < low_med:
+        return "low"
+    if score < med_high:
+        return "medium"
+    return "high"
+
+
+def get_codes_used_unknown(
+    drugs: List[str],
+    icds: List[str],
+    cpts: List[str],
+    feature_schema: Dict[str, Any],
+) -> Dict[str, Dict[str, List[str]]]:
+    """Validate codes against feature schema; return codes_used and codes_unknown per type."""
+    feature_set = set(feature_schema.get("features", []))
+    used = {"drugs": [], "icds": [], "cpts": []}
+    unknown = {"drugs": [], "icds": [], "cpts": []}
+    for drug in drugs or []:
+        key = f"item_{drug.upper()}"
+        if key in feature_set:
+            used["drugs"].append(drug)
+        else:
+            unknown["drugs"].append(drug)
+    for icd in icds or []:
+        if str(icd).upper() == "F1120":
+            continue
+        key = f"item_{icd.upper()}"
+        if key in feature_set:
+            used["icds"].append(icd)
+        else:
+            unknown["icds"].append(icd)
+    for cpt in cpts or []:
+        key = f"item_{cpt.upper()}"
+        if key in feature_set:
+            used["cpts"].append(cpt)
+        else:
+            unknown["cpts"].append(cpt)
+    return {"codes_used": used, "codes_unknown": unknown}
 
 
 def build_feature_vector(
@@ -497,10 +582,13 @@ def predict_risk(
             'xgboost_rf': 1.0 / 3
         }
     
-    print(f"Using model weights: {model_weights}")
+    # When using best-model-only (one weight 1.0, others 0), run only models with weight > 0 (faster, fewer failures)
+    models_to_run = [m for m in model_types if model_weights.get(m, 0.0) > 0]
+    if not models_to_run:
+        models_to_run = model_types
+    print(f"Using model weights: {model_weights} (running: {models_to_run})")
     
-    # Run predictions for all three models
-    for model_type in model_types:
+    for model_type in models_to_run:
         try:
             model = load_model(cohort, age_band, model_type)
             
@@ -529,12 +617,11 @@ def predict_risk(
     if not predictions:
         raise RuntimeError(f"All models failed. Errors: {errors}")
     
-    # Check if we have all three models (for robustness)
     models_used = len(predictions)
     models_failed = list(errors.keys())
-    
-    if require_all_models and models_used < len(model_types):
-        print(f"Warning: Only {models_used}/{len(model_types)} models succeeded. "
+    required_count = len(models_to_run)
+    if require_all_models and models_used < required_count:
+        print(f"Warning: Only {models_used}/{required_count} required models succeeded. "
               f"Failed: {models_failed}")
         # Still proceed but log warning
     
@@ -559,6 +646,15 @@ def predict_risk(
         available_weights = {m: 1.0/len(predictions) for m in predictions.keys()}
         print("Warning: All model weights are zero, using simple average")
     
+    # Primary model used (best for this cohort/age when weights are best-model-only)
+    model_used = None
+    if available_weights:
+        by_weight = [(m, available_weights[m]) for m in predictions.keys() if available_weights.get(m, 0) > 0]
+        if by_weight:
+            model_used = max(by_weight, key=lambda x: x[1])[0]
+        elif predictions:
+            model_used = next(iter(predictions.keys()))
+
     return {
         'predictions': predictions,
         'ensemble_score': float(ensemble_score),
@@ -566,7 +662,8 @@ def predict_risk(
         'models_used': models_used,
         'models_failed': models_failed,
         'weights_used': available_weights,
-        'weights_source': weights_source
+        'weights_source': weights_source,
+        'model_used': model_used,
     }
 
 
@@ -722,35 +819,67 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             _, age_band = determine_cohort_and_age_band(age)
     
     try:
-        # Load feature schema
+        # Load 2019 distribution first (needed for baseline_risk when no codes, and for chart)
+        dist_2019 = load_risk_distribution_2019(cohort, age_band)
+
+        # No Drug/ICD/CPT codes => use 2019 baseline risk (actual outcome rate) so risk is calibrated to population
+        no_codes = not (drugs or icds or cpts)
+        baseline_risk = dist_2019.get("baseline_risk") if dist_2019 else None
+        if no_codes and baseline_risk is not None:
+            risk_score = float(baseline_risk)
+            thresholds = dist_2019.get("risk_band_thresholds") if dist_2019 else None
+            risk_band = risk_band_from_score(risk_score, thresholds)
+            age_mapped = age >= 95 and age <= 114 and not age_band_override
+            interpretation = "Estimated probability of target outcome (2019 holdout population) in this cohort and age band."
+            body = {
+                "risk_score": risk_score,
+                "risk_band": risk_band,
+                "is_baseline": True,
+                "model_breakdown": {},
+                "ensemble_info": {
+                    "method": "baseline",
+                    "models_used": 0,
+                    "models_failed": [],
+                    "weights": {},
+                    "weights_source": "2019_outcome_rate",
+                },
+                "age_band_used": age_band,
+                "cohort_used": cohort,
+                "age": age,
+                "age_mapped": age_mapped,
+                "age_mapping_note": f"Age {age} in age band 85-114" if age_mapped else None,
+                "codes_used": {"drugs": [], "icds": [], "cpts": []},
+                "codes_unknown": {"drugs": [], "icds": [], "cpts": []},
+                "interpretation": interpretation,
+            }
+            if dist_2019 is not None:
+                body["dist"] = dist_2019
+            return _response(200, body)
+
+        # Load feature schema and run ensemble when user has entered codes
         feature_schema = load_feature_schema(cohort, age_band)
-        
-        # Build feature vector
+        codes_validation = get_codes_used_unknown(drugs, icds, cpts, feature_schema)
         feature_vector = build_feature_vector(age, drugs, icds, cpts, feature_schema)
-        
-        # Predict using ensemble of all three models
         ensemble_result = predict_risk(cohort, age_band, feature_vector, require_all_models=True)
-        
+
         risk_score = ensemble_result['ensemble_score']
         model_predictions = ensemble_result['predictions']
-        
-        # Determine risk band
-        if risk_score < 0.2:
-            risk_band = "low"
-        elif risk_score < 0.5:
-            risk_band = "medium"
-        else:
-            risk_band = "high"
-        
-        # Age-driven path uses 85-114 for ages 85+
+        thresholds = dist_2019.get("risk_band_thresholds") if dist_2019 else None
+        risk_band = risk_band_from_score(risk_score, thresholds)
+
         age_mapped = age >= 95 and age <= 114 and not age_band_override
-        age_mapping_note = None
-        if age_mapped:
-            age_mapping_note = f"Age {age} in age band 85-114"
-        
-        return _response(200, {
+        age_mapping_note = f"Age {age} in age band 85-114" if age_mapped else None
+
+        model_used = ensemble_result.get("model_used")
+        interpretation = "Estimated probability of target outcome (2019 holdout context) for the selected codes in this cohort and age band."
+        if model_used:
+            interpretation = f"Risk from {model_used} (best model for this cohort/age). " + interpretation
+
+        body = {
             "risk_score": float(risk_score),
             "risk_band": risk_band,
+            "is_baseline": False,
+            "model_used": model_used,
             "model_breakdown": model_predictions,
             "ensemble_info": {
                 "method": ensemble_result['ensemble_method'],
@@ -763,8 +892,14 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "cohort_used": cohort,
             "age": age,
             "age_mapped": age_mapped,
-            "age_mapping_note": age_mapping_note
-        })
+            "age_mapping_note": age_mapping_note,
+            "codes_used": codes_validation["codes_used"],
+            "codes_unknown": codes_validation["codes_unknown"],
+            "interpretation": interpretation,
+        }
+        if dist_2019 is not None:
+            body["dist"] = dist_2019
+        return _response(200, body)
     
     except Exception as e:
         import traceback
@@ -775,7 +910,8 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
-    """POST /risk/comparison. Base may include cohort and age_band (from cohort tab + age); else derived from age."""
+    """POST /risk/comparison. Base may include cohort and age_band (from cohort tab + age); else derived from age.
+    When base or a scenario has no Drug/ICD/CPT codes, uses baseline_risk (2019 outcome rate) for consistency with POST /risk."""
     body = json.loads(event.get("body") or "{}")
     
     base = body.get("base", {})
@@ -790,37 +926,45 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
         cohort, age_band = determine_cohort_and_age_band(base_age)
     
     try:
+        dist_2019 = load_risk_distribution_2019(cohort, age_band)
+        baseline_risk = dist_2019.get("baseline_risk") if dist_2019 else None
         feature_schema = load_feature_schema(cohort, age_band)
         
-        # Calculate base risk using ensemble
-        base_feature_vector = build_feature_vector(
-            base_age,
-            base.get("drugs", []),
-            base.get("icds", []),
-            base.get("cpts", []),
-            feature_schema
-        )
-        base_ensemble = predict_risk(cohort, age_band, base_feature_vector, require_all_models=True)
-        base_risk = base_ensemble['ensemble_score']
+        base_drugs = base.get("drugs", [])
+        base_icds = base.get("icds", [])
+        base_cpts = base.get("cpts", [])
+        base_no_codes = not (base_drugs or base_icds or base_cpts)
         
-        # Calculate scenario risks using ensemble
+        if base_no_codes and baseline_risk is not None:
+            base_risk = float(baseline_risk)
+        else:
+            base_feature_vector = build_feature_vector(
+                base_age, base_drugs, base_icds, base_cpts, feature_schema
+            )
+            base_ensemble = predict_risk(cohort, age_band, base_feature_vector, require_all_models=True)
+            base_risk = base_ensemble['ensemble_score']
+        
         scenario_results = []
         for scenario in scenarios:
-            scenario_feature_vector = build_feature_vector(
-                base_age,
-                scenario.get("drugs", []),
-                scenario.get("icds", []),
-                scenario.get("cpts", []),
-                feature_schema
-            )
-            scenario_ensemble = predict_risk(cohort, age_band, scenario_feature_vector, require_all_models=True)
-            scenario_risk = scenario_ensemble['ensemble_score']
-            
+            s_drugs = scenario.get("drugs", [])
+            s_icds = scenario.get("icds", [])
+            s_cpts = scenario.get("cpts", [])
+            s_no_codes = not (s_drugs or s_icds or s_cpts)
+            if s_no_codes and baseline_risk is not None:
+                scenario_risk = float(baseline_risk)
+                scenario_ensemble_preds = {}
+            else:
+                scenario_feature_vector = build_feature_vector(
+                    base_age, s_drugs, s_icds, s_cpts, feature_schema
+                )
+                scenario_ensemble = predict_risk(cohort, age_band, scenario_feature_vector, require_all_models=True)
+                scenario_risk = scenario_ensemble['ensemble_score']
+                scenario_ensemble_preds = scenario_ensemble['predictions']
             scenario_results.append({
                 "name": scenario.get("name", "Scenario"),
                 "risk_score": float(scenario_risk),
                 "delta": float(scenario_risk - base_risk),
-                "model_breakdown": scenario_ensemble['predictions']
+                "model_breakdown": scenario_ensemble_preds
             })
         
         return _response(200, {
