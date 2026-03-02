@@ -6,7 +6,7 @@ This script merges, for a specified `(cohort_name, age_band)`:
 - Base target patient list from `model_data`
 - PGx pharmacogenomics features (allele frequencies, drug-gene mappings)
 
-NOTE: We do not calculate trajectory, sequence, or itemset features for the final model.
+NOTE: Feature engineering never generates trajectory, sequence, or itemset features for the final model (only n_events, item_*, PGx counts).
 Feature engineering for training uses only: base target list, item_* (drug/ICD/CPT from FI), and PGx
 (pgx_num_drugs, pgx_num_cpic_drugs, etc.). BupaR, FP-Growth, and DTW are for dashboard visualizations only.
 

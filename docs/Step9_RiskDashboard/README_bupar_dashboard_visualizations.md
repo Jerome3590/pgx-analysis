@@ -4,7 +4,7 @@
 
 BupaR process mining visualizations for the risk dashboard. These visualizations show patient pathways, activity sequences, and temporal patterns to complement risk predictions.
 
-**⚠️ Important**: BupaR visualizations are for **exploratory analysis only**. BupaR is also used in Feature Importance EDA for feature refinement (post-target analysis), but BupaR features are **NOT** used in the final model.
+**⚠️ Important**: We do **not** use BupaR for feature engineering due to target leakage concerns. We **do** use BupaR **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** (e.g. sequences to target, activity frequency) and dashboard display. BupaR is also used in Feature Importance EDA for feature refinement (post-target analysis).
 
 ## Purpose
 
@@ -146,7 +146,7 @@ Visualizations can be filtered by user-selected codes (drugs, ICDs, CPTs):
 
 ## Notes
 
-1. **Visualization and Analysis (Not Feature Engineering)**: BupaR features and process maps ARE generated for dashboard visualization and exploratory analysis. Results are not used for feature engineering (not added to model data) due to target leakage concerns.
+1. **Used with feature importance, not for feature engineering**: BupaR features and process maps ARE generated and used **with feature importance** for analysis and answering research questions and dashboard display. They are not used for feature engineering (not added to model data) due to target leakage concerns.
 
 2. **Feature Importance EDA Usage**: BupaR is also used in Feature Importance EDA (`3b_feature_importance_eda/`) for post-target analysis to identify leakage features. This is separate from dashboard visualizations.
 

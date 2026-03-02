@@ -123,7 +123,7 @@ This structure follows a **separation of concerns** approach:
   - **Causal Analysis** - FFA causal factors and SHAP importance with interactive charts
   - **DTW Trajectories** - Patient trajectory patterns, temporal metrics, and sample trajectories
   - **FP-Growth Patterns** - Frequent itemsets, support distributions, and co-occurrence networks
-  - **BupaR Process Mining** - Process flows, activity frequencies, Gantt charts, and sequence patterns
+  - **BupaR Process Mining** - Process flows, activity frequencies, and sequence patterns
   - **PGx Patient Card** - Generate pharmacogenomic cards from genetic variants
 
 **Features**:
@@ -277,7 +277,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
   - **Causal Analysis**: FFA causal factors and SHAP importance
   - **DTW Trajectories**: Patient trajectory patterns and temporal metrics
   - **FP-Growth Patterns**: Frequent itemsets, association rules, and co-occurrence networks
-  - **BupaR Process Mining**: Process flows, activity sequences, and Gantt charts
+  - **BupaR Process Mining**: Process flows, activity sequences, activity frequency, trace explorer
 
 ## API Endpoints
 
@@ -358,7 +358,7 @@ See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboar
 
 ## FP-Growth Network Visualization Integration
 
-**⚠️ Important**: FP-Growth features are **NOT** used in the final model due to target leakage concerns. However, FP-Growth network visualizations are valuable for **causal analysis and exploratory visualization** in the risk dashboard.
+**⚠️ Important**: We do not use FP-Growth for feature engineering (target leakage). We do use FP-Growth **with feature importance** for **analysis, answering research questions, and causal visualization** in the risk dashboard.
 
 ### Overview
 

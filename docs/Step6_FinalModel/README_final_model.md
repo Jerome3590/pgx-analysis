@@ -1,104 +1,60 @@
 # Final Model Development - PGx Analysis
 
-This module hosts the final prediction model pipeline combining features from FPGrowth, BupaR, and DTW analyses for patient-level classification.
+This module hosts the final prediction model pipeline for patient-level classification. **Authoritative description:** see `6_final_model/README.md` in the repo.
 
 ## Overview
 
-The final model integrates three complementary analysis methods to create comprehensive patient-level features:
+**Current pipeline:** Feature engineering for the final model **never generates** trajectory, sequence, or itemset features. The model uses only:
+- **n_events** (event count)
+- **item_*** (binary drug/ICD/CPT indicators from aggregated feature importance, e.g. SHAP/FFA)
+- **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; **n_drugs** is built in the PGx analysis step)
+- Demographics (e.g. age) and other non-item schema features
 
-1. **FPGrowth** - Frequent pattern mining (itemsets, association rules)
-2. **BupaR** - Process mining (sequence patterns, temporal flows)
-3. **DTW** - Trajectory analysis (patient clustering, similarity scores)
+**FPGrowth, BupaR, and DTW** are used for **dashboard visualizations** (and DTW for **protocol filtering** only). They do not produce columns in the final model feature table.
 
 ## Goals
 
 - Build cohort-level prediction models for target outcomes (opioid dependence, ED visits)
-- Integrate features from FPGrowth, BupaR, and DTW analyses
+- Use only n_events, item_*, PGx counts, and other schema features (no trajectory/sequence/itemset)
+- Use DTW for protocol filtering; FPGrowth and BupaR for dashboard visualizations only
 - Standardize feature extraction across pharmacy (drug_name) and medical (ICD/CPT) domains
 - Produce model explanations to guide feature reduction and clinical review
 
 ## Feature Schema
 
-The complete feature schema is defined in `final_feature_schema.json` (JSON Schema Draft 7).
+The complete feature schema is defined in `final_feature_schema.json` (JSON Schema Draft 7). **Feature categories in the actual pipeline:**
 
-### Feature Categories
+| Category | Description |
+|----------|-------------|
+| **n_events** | Event count (pre-target) |
+| **item_*** | Binary indicators for drugs/ICD/CPT from aggregated feature importance (SHAP/FFA) |
+| **PGx** | e.g. pgx_num_drugs, pgx_num_cpic_drugs; n_drugs from PGx analysis step |
+| **Demographics** | Age and other non-item schema features |
 
-| Category | Feature Count | Description |
-|----------|---------------|-------------|
-| **FPGrowth** | ~100-500 | Frequent itemsets, association rules, itemset metrics |
-| **BupaR** | ~50-200 | Process flow patterns, sequence features, temporal metrics |
-| **DTW** | ~20-25 | Trajectory clusters, similarity scores, temporal characteristics |
-| **Demographics** | ~10-15 | Age, gender, race, location, payer |
-| **Temporal** | ~5-10 | Event dates, temporal windows, seasonality |
-| **Total** | **~185-750** | Patient-level features for classification |
-
-### Key Features
-
-#### FPGrowth Features
-- **Frequent Itemsets**: Binary features for each frequent itemset (drugs, ICD codes, CPT codes)
-- **Association Rules**: Rule matching counts, confidence, and lift metrics
-  - `rules_target_icd_match`: Number of opioid dependence prediction rules matched
-  - `rules_target_ed_match`: Number of ED visit prediction rules matched
-  - `max_rule_confidence_target_icd`: Maximum confidence of matched rules
-  - `max_rule_lift_target_icd`: Maximum lift of matched rules
-- **Itemset Metrics**: Aggregated statistics (total unique items, avg support)
-- **Drug Encoding**: Global drug encoding for CatBoost categorical features
-
-#### BupaR Features
-- **Process Flow**: Path length, unique activities, path diversity
-- **Temporal**: Throughput time, waiting time, active time, avg time between activities
-- **Activity Frequencies**: Counts for each activity type
-- **Sequence Patterns**: Repetition indicators, complexity measures, common pattern matching
-- **Drug Sequences**: Sequence length, drug switches, concurrent drugs
-
-#### DTW Features
-- **Trajectory Clusters**: Cluster membership for drugs, ICD codes, CPT codes
-- **Trajectory Characteristics**: 
-  - Length (number of events)
-  - Diversity (unique items)
-  - Temporal span (days between first and last event)
-  - **Temporal density (events per month)** - clinically interpretable scale
-- **Similarity Scores**: Distance to archetypes, distance to target cases
-- **Cluster Properties**: Target rates, cluster sizes
-- **Multi-Modal**: Cross-modal cluster alignment (drug-ICD, drug-CPT)
+Trajectory, sequence, and itemset features are **not** produced by feature engineering and are **not** in the model schema. FPGrowth/BupaR/DTW outputs are used for visualizations and (DTW) protocol filtering only.
 
 ## Data Inputs
 
 ### Base Cohort Data
 - Gold cohort partitions: `s3://pgxdatalake/gold/cohorts/{cohort_name}/{age_band}/{event_year}/`
 
-### FPGrowth Features
-- **Source**: `s3://pgxdatalake/gold/fpgrowth/global/{item_type}/`
-- **Files**: 
-  - `rules_TARGET_ICD.json` - Opioid dependence prediction rules
-  - `rules_TARGET_ED.json` - ED visit prediction rules
-  - `rules_CONTROL.json` - Baseline/control rules
-  - `frequent_itemsets.parquet` - Frequent itemsets
+### Model Features
+- Final model features come from **model data + feature importance** (n_events, item_*, PGx, etc.). Feature engineering does **not** produce trajectory/sequence/itemset columns.
 
-### BupaR Features
-- **Source**: `s3://pgxdatalake/gold/bupar/{cohort_name}/{age_band}/{event_year}/`
-- **Files**:
-  - `process_flow_features.parquet`
-  - `sequence_patterns.parquet`
-  - `activity_frequencies.parquet`
-
-### DTW Features
-- **Source**: `s3://pgxdatalake/dtw_trajectories/{cohort_name}/{age_band}/{event_year}/`
-- **Files**:
-  - `trajectory_results_{item_type}.json`
-  - `patient_trajectories_{item_type}.parquet`
+### FPGrowth / BupaR / DTW (Visualization and Filtering Only)
+- FPGrowth and BupaR outputs are used for **dashboard visualizations**, not as model feature columns.
+- DTW is used for **protocol filtering** (preprocessing) only. See `6_final_model/README.md` for paths and details.
 
 ## Feature Engineering Pipeline
 
+The pipeline builds the final feature table from model data and feature importance (n_events, item_*, PGx, etc.). It does **not** load FPGrowth/BupaR/DTW as feature columns. Example flow:
+
 ```python
-# 1. Load base cohort data
+# 1. Load base cohort / model data
 cohort_df = load_cohort_data(cohort_name, age_band, event_year)
 
-# 2. Load FPGrowth features
-fpgrowth_features = load_fpgrowth_features(cohort_name, age_band, event_year)
-
-# 3. Load BupaR features
-bupar_features = load_bupar_features(cohort_name, age_band, event_year)
+# 2. Build item features from refined feature list (Step 3c)
+# 3. Add n_events, PGx counts, demographics; no trajectory/sequence/itemset
 
 # 4. Load DTW features
 dtw_features = load_dtw_features(cohort_name, age_band, event_year)
@@ -196,7 +152,7 @@ This layout is aligned with the broader visualization and causal analysis output
 ## Notebooks and Scripts
 
 - `7_final_model/final_model.ipynb`: MC-CV comparison (CatBoost, XGBoost, XGBoost RF), Optuna tuning, temporal calibration, and final model export.
-- `7_final_model/build_final_features_opioid_ed_0_12.py`: Builds the cohort 1, age 0–12 final feature table from `model_data`, BupaR, and DTW outputs.
+- `6_final_model/build_final_cohort_model_features.py`: Builds the final feature table (n_events, item_*, PGx, etc.). Feature engineering does not use BupaR/DTW/FPGrowth as feature columns; those are visualization/filtering only.
 
 ## Feature Validation
 
@@ -211,26 +167,17 @@ This layout is aligned with the broader visualization and causal analysis output
 - **Logistic Regression**: Standardize continuous features
 
 ### Expected Feature Importance
-- **High importance**: 
-  - FPGrowth: `rules_target_icd_match`, `max_rule_lift_target_icd`
-  - DTW: `trajectory_cluster_drug`, `cluster_target_rate_drug`
-  - BupaR: `path_length`, `throughput_time_days`
+- **High importance**: item_* (drug/ICD/CPT from SHAP/FFA), n_events, PGx-related counts. FPGrowth, DTW, and BupaR are not used as model features (visualization/filtering only).
 
 ## Important Notes
 
-1. **Temporal Density**: Always calculated as **events per month** (not per day) for clinical interpretability
-2. **Cohort-Specific**: Some features are cohort-specific (e.g., `days_to_target_event` only for ED_NON_OPIOID)
-3. **Null Handling**: Many DTW features may be null if patient not assigned to cluster or trajectory unavailable
-4. **Feature Count**: Actual feature count varies based on:
-   - Number of frequent itemsets discovered
-   - Number of activities in process flows
-   - Number of trajectory clusters
+1. **No trajectory/sequence/itemset**: Feature engineering never produces these; model uses n_events, item_*, PGx, and other schema features only.
+2. **Cohort-Specific**: Some features are cohort-specific (e.g., drug-only for polypharmacy).
+3. **DTW/BupaR/FPGrowth**: Used for dashboard visualizations and (DTW) protocol filtering only, not as model feature columns.
 
 ## TODOs
 
-- [ ] Implement feature engineering pipeline script
-- [ ] Create feature extraction utilities for FPGrowth, BupaR, DTW
-- [ ] Feature importance exploration: identify which features most strongly predict target outcomes
+- [ ] Feature importance exploration: identify which item_* and count features most strongly predict target outcomes
 - [ ] Use model-based importance and SHAP summaries to filter to manageable feature set
 - [ ] Post-model: revisit ICD/CPT/Drug heatmaps with top features only
 

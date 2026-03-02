@@ -4,7 +4,7 @@
 
 FP-Growth frequent pattern mining visualizations for the risk dashboard. Items are restricted to **SHAP/FFA allowed codes** (model-salient features), and mining runs on the **target cohort** only. Per FFA and SHAP, the resulting rules **predict risk**: they surface co-occurrence among features the model ranks as important for the outcome. These visualizations complement risk predictions by showing which risk-relevant codes tend to appear together.
 
-**Note:** FP-Growth outputs are used for **dashboard visualization only**; they are not fed back into model training. Rules describe co-occurrence in the target population and are not contrastive (we do not compare support in target vs control).
+**Note:** We do **not** use FP-Growth for feature engineering due to target leakage concerns. We **do** use FP-Growth **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** (e.g. code connections and itemsets) and dashboard display. Rules describe co-occurrence in the target population and are not contrastive (we do not compare support in target vs control).
 
 ## Purpose
 

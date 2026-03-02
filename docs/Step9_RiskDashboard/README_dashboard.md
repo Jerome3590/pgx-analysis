@@ -324,7 +324,7 @@ This organization provides:
   - **Causal Analysis** - FFA causal factors and SHAP importance with interactive charts
   - **DTW Trajectories** - Patient trajectory patterns, temporal metrics, and sample trajectories
   - **FP-Growth Patterns** - Frequent itemsets, support distributions, and co-occurrence networks
-  - **BupaR Process Mining** - Process flows, activity frequencies, Gantt charts, and sequence patterns
+  - **BupaR Process Mining** - Process flows, activity frequencies, and sequence patterns
   - **PGx Patient Card** - Generate pharmacogenomic cards from genetic variants
 
 **Features**:
@@ -394,7 +394,7 @@ This organization provides:
 
 3. **`bupar/`** - Process mining visualizations
    - **Scripts:** `create_bupar_visuals.py`, R scripts for process analysis
-   - **Outputs:** Process flows, activity frequencies, Gantt charts, sequence patterns
+   - **Outputs:** Process flows, activity frequencies, sequence patterns
 
 **Outputs**: Saved to `outputs/visualizations/` and uploaded to S3
 
@@ -424,7 +424,7 @@ The dashboard includes the following visualization tabs:
 - **Causal Analysis Tab**: Displays FFA causal factors and SHAP importance with interactive charts
 - **DTW Trajectories Tab**: Shows patient trajectory patterns, temporal metrics, and sample trajectories
 - **FP-Growth Patterns Tab**: Displays frequent itemsets, support distributions, and co-occurrence networks
-- **BupaR Process Mining Tab**: Shows process flows, activity frequencies, Gantt charts, and sequence patterns
+- **BupaR Process Mining Tab**: Shows process flows, activity frequencies, and sequence patterns
 
 ### Data Preparation
 
@@ -630,7 +630,7 @@ See [Step9_RiskDashboard/README_results_dashboard.md](Step9_RiskDashboard/README
 
 **BupaR Visualizations:**
 - **S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
-- **Files**: `*_overall_activity_frequency.png`, `*_gantt.png`, `*_activity_sequence_top.png`, etc.
+- **Files**: `*_overall_activity_frequency.png`, `*_trace_explorer_*.png`, `*_activity_sequence_top.png`, etc.
 
 **Note**: The Lambda function loads data from S3, so visualization files must be uploaded to S3 before deployment.
 
@@ -638,7 +638,7 @@ See [Step9_RiskDashboard/README_results_dashboard.md](Step9_RiskDashboard/README
 
 ## FP-Growth Network Visualization Integration
 
-**⚠️ Important**: FP-Growth features are **NOT** used in the final model due to target leakage concerns. However, FP-Growth network visualizations are valuable for **causal analysis and exploratory visualization** in the risk dashboard.
+**⚠️ Important**: We do not use FP-Growth for feature engineering (target leakage). We do use FP-Growth **with feature importance** for **analysis, answering research questions, and causal visualization** in the risk dashboard.
 
 ### Overview
 

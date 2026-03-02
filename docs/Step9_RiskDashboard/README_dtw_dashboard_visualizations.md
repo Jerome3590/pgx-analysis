@@ -4,9 +4,11 @@
 
 Dynamic Time Warping (DTW) trajectory visualizations for the risk dashboard. These visualizations show patient trajectory similarities, clustering patterns, and temporal sequences to complement risk predictions.
 
-**DTW Alignment IS Computed**: DTW distances are computed using the dtaidistance library (create_dtw_features.py) to measure trajectory similarity. Results are used for dashboard visualization and exploratory analysis only - not as model features due to target leakage concerns.
+**DTW Alignment IS Computed**: DTW distances are computed using the dtaidistance library (create_dtw_features.py) to measure trajectory similarity. We do **not** use DTW for feature engineering due to target leakage concerns. We **do** use DTW **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** (e.g. routine vs no routine, time-between aligned sequences) and dashboard display.
 
-**⚠️ Important**: DTW visualizations are for **exploratory analysis only**. Event-level filtering is in Step 1b (`1b_apcd_event_filter`). DTW features are **NOT** used in the final model.
+**⚠️ Important**: DTW is not used in the final model (target leakage). Event-level filtering is in Step 1b (`1b_apcd_event_filter`). DTW is used with feature importance for analysis and answering research questions.
+
+**Time-between (N3):** We use DTW to get time-between and time-to-target for **aligned** sequences. This is more accurate than a straight comparison using BupaR: alignment makes intervals comparable across patients (like-with-like), whereas a straight BupaR aggregate of consecutive-event intervals mixes different stages and sequence lengths and is less interpretable for “what times between sequences lead to target outcomes?”
 
 ## Purpose
 
@@ -175,7 +177,7 @@ Visualizations are displayed in the **DTW Trajectories** tab of the dashboard:
 ### Step 9: Dashboard Visualizations
 - DTW visualizations show trajectory similarities and clustering
 - **Not** used as model features
-- For exploratory analysis and clinical interpretation
+- For analysis, answering research questions, and clinical interpretation
 
 ## Dependencies
 
@@ -184,15 +186,15 @@ Visualizations are displayed in the **DTW Trajectories** tab of the dashboard:
 
 ## Notes
 
-1. **DTW Alignment Computed**: DTW distances ARE computed using dtaidistance library (create_dtw_features.py) for visualization and exploratory analysis. Not used as model features due to target leakage concerns.
+1. **DTW Alignment Computed**: DTW distances ARE computed using dtaidistance library (create_dtw_features.py). We do not use DTW for feature engineering (target leakage); we do use DTW with feature importance for analysis and answering research questions.
 
-2. **Event Filtering**: Event-level filtering runs in Step 1b (`1b_apcd_event_filter`). DTW visualizations show trajectory patterns for dashboard only; these are not predictive features.
+2. **Event Filtering**: Event-level filtering runs in Step 1b (`1b_apcd_event_filter`). DTW is not used for feature engineering (target leakage); it is used with feature importance for analysis and answering research questions and dashboard display.
 
 3. **Sequence Comparison**: DTW compares patient drug exposure sequences to identify similar trajectories. This helps understand patient groupings but does not directly predict outcomes.
 
 4. **Clustering**: Patient trajectories are analyzed based on DTW distance to prototype sequences. Visualizations show representative trajectories and statistics.
 
-5. **Temporal Features**: Time-based features are extracted but not used in the final model. They are available for reference and exploratory analysis.
+5. **Temporal Features**: Time-based features are extracted but not used in the final model. They are available for analysis, answering research questions, and reference.
 
 ## Related Documentation
 

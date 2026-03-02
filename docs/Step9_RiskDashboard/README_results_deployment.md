@@ -431,9 +431,8 @@ def build_feature_vector(age, drugs, icds, cpts, feature_schema):
     - item_{DRUG_NAME}: binary (1 if present)
     - item_{ICD_CODE}: binary (1 if present)
     - item_{CPT_CODE}: binary (1 if present)
-    - trajectory_*: numeric (set to 0 or median if not available)
-    - pre_*: numeric (set to 0 or median if not available)
-    - itemset_*: binary (set to 0 if not available)
+    - n_events, n_drugs, pgx_*, age, etc. from schema defaults
+    (Feature engineering never produces trajectory_*, sequence_*, or itemset_*; the schema has no such columns.)
     """
     features = {}
     
@@ -460,12 +459,10 @@ def build_feature_vector(age, drugs, icds, cpts, feature_schema):
         if feature_name in features:
             features[feature_name] = 1.0
     
-    # Set default values for trajectory/sequence features
-    # (These would ideally come from patient history, but for dashboard
-    #  we use median/default values)
+    # Set defaults for non-item features (n_events, n_drugs, pgx_*, age, etc.)
     for feature in features:
-        if feature.startswith('trajectory_') or feature.startswith('pre_'):
-            if features[feature] == 0.0:
+        if feature not in ('age',) and not feature.startswith('item_'):
+            if features.get(feature, 0.0) == 0.0:
                 features[feature] = feature_schema['defaults'].get(feature, 0.0)
     
     return features

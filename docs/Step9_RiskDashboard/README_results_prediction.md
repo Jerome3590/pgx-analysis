@@ -18,13 +18,9 @@ Yes! You can use the previously trained models with **just the inputs you care a
 }
 ```
 
-**What you DON'T need to provide:**
-- Patient history/trajectory features
-- Sequence features
-- Itemset features
-- Pre-F1120 event counts
-- DTW distances
-- Other derived features
+**What you DON'T need to provide (and are not in the model):**
+- Feature engineering **never generates** trajectory, sequence, or itemset features; the schema has no such columns.
+- n_events, n_drugs, pgx_num_drugs, pgx_num_cpic_drugs can be omitted; the API fills them from schema defaults if not provided.
 
 ### Step 2: Feature Vector Building
 
@@ -33,16 +29,18 @@ The `build_feature_vector()` function creates a complete feature vector:
 #### 2.1 Initialize All Features to Zero
 ```python
 # All features from training set initialized to 0.0
+# Schema includes: age, item_* (drug/ICD/CPT), n_events, n_drugs, pgx_*; no trajectory/sequence/itemset (never generated)
 features = {
     'age': 0.0,
     'item_AMOXICILLIN': 0.0,
     'item_R51': 0.0,
     'item_G89': 0.0,
     'item_80305': 0.0,
-    'trajectory_length': 0.0,
-    'pre_n_events': 0.0,
-    'itemset_14_match': 0.0,
-    # ... all other features
+    'n_events': 0.0,
+    'n_drugs': 0.0,
+    'pgx_num_drugs': 0.0,
+    'pgx_num_cpic_drugs': 0.0,
+    # ... all other item_* and schema features
 }
 ```
 
@@ -66,17 +64,18 @@ features['item_99213'] = 1.0
 
 #### 2.3 Fill Missing Features with Defaults
 ```python
-# For trajectory/sequence/itemset features, use median/default values
+# Non-item features (n_events, n_drugs, pgx_*, etc.) use schema defaults when not provided
 defaults = feature_schema.get('defaults', {})
 
-# Example defaults (calculated from training data medians):
-features['trajectory_length'] = defaults.get('trajectory_length', 15.0)
-features['pre_n_events'] = defaults.get('pre_n_events', 8.0)
-features['itemset_14_match'] = defaults.get('itemset_14_match', 0.0)
-# ... etc
+# Example defaults (from training data medians):
+features['n_events'] = defaults.get('n_events', 8.0)
+features['n_drugs'] = defaults.get('n_drugs', 3.0)
+features['pgx_num_drugs'] = defaults.get('pgx_num_drugs', 0.0)
+features['pgx_num_cpic_drugs'] = defaults.get('pgx_num_cpic_drugs', 0.0)
+# ... etc for all non-item features
 ```
 
-**Key Point**: Missing features get **median values from training data**, not zeros. This represents a "typical" patient profile.
+**Key Point**: The model schema does **not** include trajectory/sequence/itemset features (feature engineering never generates them). Missing non-item features get **default values from the schema** (e.g. training medians).
 
 ### Step 3: Model Prediction
 
@@ -160,7 +159,7 @@ ensemble_score = (
 **What happens:**
 - `item_AMOXICILLIN` = 1.0
 - All other item features = 0.0
-- Trajectory/sequence features = median values from training
+- n_events, n_drugs, pgx_* etc. from schema defaults
 - Models predict based on: age + one drug + typical patient profile
 
 ### Scenario 2: Complete Input (Age + Multiple Codes)
@@ -175,7 +174,7 @@ ensemble_score = (
 
 **What happens:**
 - All provided codes set to 1.0
-- Trajectory/sequence features still use defaults (you don't have patient history)
+- n_events, n_drugs, pgx_* use schema defaults when not provided
 - Models predict based on: age + multiple codes + typical patient profile
 
 ### Scenario 3: Polypharmacy (Age 65+, Drugs Only)
@@ -192,13 +191,13 @@ ensemble_score = (
 - Automatically uses `non_opioid_ed` cohort
 - Age band: `65-74`
 - Only drug features matter
-- Trajectory features use defaults
+- n_events, n_drugs, pgx_* use schema defaults when not provided
 
 ## Key Points
 
 ### ✅ What Works
 1. **Partial inputs are fine**: You only need ICD/CPT/drug codes you care about
-2. **Missing features handled**: Defaults fill in trajectory/sequence features
+2. **Missing features handled**: Schema defaults fill in n_events, n_drugs, pgx_*, etc. (no trajectory/sequence/itemset in schema)
 3. **Models are robust**: Trained on diverse patterns, handle partial inputs well
 4. **Age determines model**: Automatically selects correct cohort/age_band
 
@@ -210,14 +209,14 @@ ensemble_score = (
    - Codes not in training data are ignored (no error)
 
 2. **Default Values**:
-   - Trajectory/sequence features use **median values** from training
-   - This represents a "typical" patient, not a zero-risk patient
+   - Non-item features (n_events, n_drugs, pgx_*, etc.) use **schema defaults** (e.g. training medians)
+   - Feature engineering never produces trajectory/sequence/itemset; the schema has no such columns.
    - Predictions reflect: **your inputs + typical patient profile**
 
 3. **Model Limitations**:
    - Models trained on historical data (2016-2018)
    - Predictions assume similar patterns hold
-   - No patient-specific history (trajectory features are defaults)
+   - No patient-specific history (n_events/n_drugs etc. use defaults when not provided)
 
 ## Code Flow Diagram
 
@@ -236,7 +235,7 @@ build_feature_vector()
   Set item_AMOXICILLIN = 1.0
   Set item_R51 = 1.0, item_G89 = 1.0
   Set item_80305 = 1.0
-  Fill trajectory features = defaults (medians)
+  Fill non-item features (n_events, n_drugs, pgx_*, etc.) = schema defaults
   ↓
 Complete Feature Vector (e.g., 500 features)
   ↓
@@ -303,12 +302,9 @@ The system:
 4. ✅ Combines predictions using performance-based weights
 5. ✅ Returns ensemble risk score
 
-**You don't need:**
-- Patient history
-- Trajectory data
-- Sequence features
-- Itemset matches
-- Pre-event counts
+**You don't need (and the schema doesn't include):**
+- Trajectory/sequence/itemset features (feature engineering never generates these)
+- Patient history beyond what you supply (n_events, n_drugs, pgx_* can use schema defaults)
 
-**The models handle missing features automatically using training data medians.**
+**The API fills missing non-item features from the schema (e.g. training medians).**
 

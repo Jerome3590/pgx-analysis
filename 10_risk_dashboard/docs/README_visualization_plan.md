@@ -2,7 +2,7 @@
 
 **Reference:** [PGx Risk Calculator](https://jerome-dixon.io.s3.us-east-1.amazonaws.com/vcu/pgx-risk-calculator/index.html)
 
-This document is the **single source of truth** for the final production workflow, data visualization outputs, and research-question alignment. Prefer **full-dataset, filter-to-features**: pipeline produces cohort/age_band (and item_type where applicable) outputs; dashboard and Lambda only filter.
+This document is the **single source of truth** for the final production workflow, data visualization outputs, and research-question alignment. We do **not** use BupaR, DTW, or FP-Growth for feature engineering (target leakage). We **do** use them **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** as well as dashboard display. Prefer **full-dataset, filter-to-features**: pipeline produces cohort/age_band (and item_type where applicable) outputs; dashboard and Lambda only filter.
 
 **We only save and use visuals/artifacts tied to research questions.** The canonical mapping (RQ → tab → exact artifacts) is in **[RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md)**. Artifacts no longer used are documented in **[ARCHIVED_ARTIFACTS_NO_LONGER_USED.md](ARCHIVED_ARTIFACTS_NO_LONGER_USED.md)**.
 
@@ -27,8 +27,8 @@ This document is the **single source of truth** for the final production workflo
 | # | Tab | Purpose | Key outputs |
 |---|-----|---------|-------------|
 | 1 | **Causal Analysis** | Features driving outcome; relations; drug combinations → polypharmacy ED | FFA + SHAP importance, feature interactions, radar (optional). Data: Lambda `/causal/importance`, S3 gold/ffa_analysis, gold/shap_analysis. |
-| 2 | **BupaR Process Mining** | Sequences to target (N2); times between sequences (N3 optional) | Activity frequency (overall, pre-target), trace explorer (aggregated), activity sequence top. Static PNG + interactive HTML (year dropdown). No Gantt (see `9_dashboard_visuals/bupar/ARCHIVE_GANTT_REMOVAL.md`). |
-| 3 | **DTW Trajectories** | Routine vs no routine (N1); times between sequences (N3); drug sequences | Trajectory cluster plots, **Routine vs No Routine (Outcomes)** by admin ICD (highlights how routine screenings may reduce extreme outcomes), high-risk trajectories, times-between-sequences (N3), time-to-target (N3), target pathway patterns, common drug-sequences heatmap. chart_data.json. |
+| 2 | **BupaR Process Mining** | Sequences to target (N2); times between sequences (N3 optional) | Activity frequency (overall, pre-target), trace explorer (aggregated), activity sequence top. Static PNG + interactive HTML (year dropdown). |
+| 3 | **DTW Trajectories** | Routine vs no routine (N1); time-between for aligned sequences (N3, more accurate); drug sequences | Trajectory cluster plots, **Routine vs No Routine (Outcomes)** by admin ICD, high-risk trajectories, time-between and time-to-target for aligned sequences (N3), target pathway patterns, common drug-sequences heatmap. chart_data.json. |
 | 4 | **FP-Growth Patterns** | Risk-predictive co-occurrence (N4): **drug** connections in target, SHAP/FFA-gated | Co-occurrence network, top itemsets, support distribution. **Drug names only** (no item type selector). |
 
 **Creation code:** All visualization creation lives in **`9_dashboard_visuals/`** (step 9). Outputs are written under **`10_risk_dashboard/visualizations/`** and uploaded to the dashboard S3 bucket. See `10_risk_dashboard/visualizations/README.md` for directory layout and script names per tab.
@@ -41,7 +41,7 @@ This document is the **single source of truth** for the final production workflo
 |----|----------|-----|---------|
 | **N1** | Routine vs no routine appointments → outcomes? (How do routine screenings (admin codes) reduce extreme cohorts?) | DTW | **Routine vs No Routine (Outcomes)** chart (outcome rate by admin ICD), high-risk trajectories, trajectory overview. Core production analysis. |
 | **N2** | What sequences lead to target outcomes? | BupaR | Sequences to target, pre-target activity frequency, trace explorer (aggregated). |
-| **N3** | What times between sequences lead to target outcomes? | DTW, BupaR | DTW: times-between-sequences and time-to-target charts (by routine bucket). BupaR: optional future time-between summary. |
+| **N3** | What times between sequences lead to target outcomes? | DTW, BupaR | DTW: time-between and time-to-target for **aligned** sequences (more accurate); charts in chart_data.json (by routine bucket). BupaR: activity frequency and sequences. |
 | **N4** | Drug connections → target? | FP-Growth | Risk-predictive co-occurrence (SHAP/FFA-gated, target-only). Co-occurrence network, itemsets (**drug names only**). |
 | **N5** | What features drive outcome and how do they relate? | Causal | FFA, SHAP, feature interactions, radar (recommended). |
 | **N6** | What drug combinations drive polypharmacy ED? | Causal + BupaR | Causal drug factors; BupaR sequences / pre-target activity. |
@@ -61,8 +61,8 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 ## Implementation notes
 
 - **Causal:** Radar chart (top 5–8 features) can be built in frontend from causal_factors + shap_importance.
-- **BupaR:** Trace explorer is **aggregated activity frequency** (one bar per activity, ordered by frequency, aligned to N2/N6). Gantt not produced. **Implemented:** Pipeline exports overall, pre-target, and post-target activity frequency as JSON; `GET /visualizations/bupar/activity_frequency` returns all three; frontend renders three bar charts (Chart.js) with year dropdown. No need for pre-built HTML or iframes—API returns data, frontend visualizes with Chart.js/Plotly.js and applies filters client-side or via query params.
-- **DTW:** Three-step pipeline: `create_dtw_trajectories.py` (trajectory CSV with N3 metrics), `create_dtw_features.py` (alignment: DTW distances to prototype trajectories and export of **common sequences** as `common_sequences_{cohort}_{age_band}.json`), then `create_dtw_visuals.py` (plots and chart_data.json). Alignment uses dtaidistance; high-risk trajectory chart uses `dtw_min_distance` when present.
+- **BupaR:** Trace explorer is **aggregated activity frequency** (one bar per activity, ordered by frequency, aligned to N2/N6). **Implemented:** Pipeline exports overall, pre-target, and post-target activity frequency as JSON; `GET /visualizations/bupar/activity_frequency` returns all three; frontend renders three bar charts (Chart.js) with year dropdown. No need for pre-built HTML or iframes—API returns data, frontend visualizes with Chart.js/Plotly.js and applies filters client-side or via query params.
+- **DTW:** Three-step pipeline: `create_dtw_trajectories.py` (trajectory CSV with N3 metrics), `create_dtw_features.py` (alignment: DTW distances to prototype trajectories and export of **common sequences** as `common_sequences_{cohort}_{age_band}.json`), then `create_dtw_visuals.py` (plots and chart_data.json). We use DTW for **time-between on aligned sequences** (more accurate than a straight BupaR comparison: alignment makes intervals comparable across patients; a straight BupaR aggregate mixes stages and is less interpretable). Alignment uses dtaidistance; high-risk trajectory chart uses `dtw_min_distance` when present.
 - **FP-Growth:** Drug names only (no item type selector). Itemsets: JSON for client Plotly when available. **Network plot: EC2-built HTML only** (no JSON); iframe or proxy.
 
 ---

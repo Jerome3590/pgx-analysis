@@ -1,15 +1,16 @@
 # Final Model Development - PGx Analysis
 
-This module (`6_final_model`) hosts the final prediction model pipeline combining features from FPGrowth, BupaR, and DTW analyses for patient-level classification.
+This module (`6_final_model`) hosts the final prediction model pipeline for patient-level classification.
 
 ## Overview
 
-The final model integrates two complementary analysis methods to create comprehensive patient-level features:
+**Feature set:** Feature engineering for the final model **never generates** trajectory, sequence, or itemset features. The model uses only:
+- **n_events** (event count)
+- **item_*** (binary drug/ICD/CPT indicators from aggregated feature importance, e.g. SHAP/FFA)
+- **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; **n_drugs** is built in the PGx analysis step)
+- Demographics (e.g. age) and other non-item schema features
 
-1. **FPGrowth** - Frequent pattern mining (itemsets, association rules)
-2. **BupaR** - Process mining (sequence patterns, temporal flows)
-
-**Important:** DTW (Dynamic Time Warping) is used for **protocol filtering** (preprocessing) to remove standard care patterns, **not as features** in the final model. Sequence information comes from **BupaR**, not DTW.
+**FPGrowth, BupaR, and DTW** are used for **dashboard visualizations** (and DTW for **protocol filtering** only). They do not produce columns in the final model feature table. Any removal of trajectory/sequence/itemset in leakage scripts is **defensive only** (in case of legacy or alternate paths).
 
 ### Temporal Validation Strategy
 
@@ -30,8 +31,8 @@ The final model integrates two complementary analysis methods to create comprehe
 ## Goals
 
 - Build cohort-level prediction models for target outcomes (opioid dependence, ED visits)
-- Integrate features from FPGrowth and BupaR analyses
-- Use DTW for protocol filtering (preprocessing) to remove standard care patterns
+- Use only n_events, item_* (from feature importance), PGx counts, and other schema features (no trajectory/sequence/itemset)
+- Use DTW for protocol filtering (preprocessing) only; FPGrowth and BupaR for dashboard visualizations only
 - Standardize feature extraction across pharmacy (drug_name) and medical (ICD/CPT) domains
 - Produce model explanations to guide feature reduction and clinical review
 
@@ -39,81 +40,36 @@ The final model integrates two complementary analysis methods to create comprehe
 
 The complete feature schema is defined in `final_feature_schema.json` (JSON Schema Draft 7).
 
-### Feature Categories
+### Feature Categories (Actual Pipeline)
 
-| Category | Feature Count | Description |
-|----------|---------------|-------------|
-| **FPGrowth** | ~100-500 | Frequent itemsets, association rules, itemset metrics |
-| **BupaR** | ~50-200 | Process flow patterns, sequence features, temporal metrics |
-| **PGx** | 2 | CPIC drug counts only (`pgx_num_drugs`, `pgx_num_cpic_drugs`); alleles used in PGx card via patient-submitted SNP data |
-| **Pre-event counts** | ~5-10 | Event counts before target (drugs, ICDs, CPTs, unique activities) |
-| **Demographics** | ~10-15 | Age, gender, race, location, payer |
-| **Temporal** | ~5-10 | Event dates, temporal windows, seasonality |
-| **Total** | **~185-750** | Patient-level features for classification |
+Feature engineering for the final model **does not produce** trajectory, sequence, or itemset columns. The model uses:
 
-**Note:** DTW features are **NOT included** in the final model. DTW is used for protocol filtering (preprocessing) only.
+| Category | Description |
+|----------|-------------|
+| **n_events** | Event count (pre-target) |
+| **item_*** | Binary indicators for drugs/ICD/CPT from aggregated feature importance (SHAP/FFA) |
+| **PGx** | e.g. pgx_num_drugs, pgx_num_cpic_drugs; **n_drugs** is built in the PGx analysis step |
+| **Demographics** | Age, and any other non-item schema features |
+| **Other** | Any other schema features produced by the pipeline (no trajectory/sequence/itemset) |
 
-### Key Features
-
-#### FPGrowth Features
-- **Frequent Itemsets**: Binary features for each frequent itemset (drugs, ICD codes, CPT codes)
-- **Association Rules**: Rule matching counts, confidence, and lift metrics
-  - `rules_target_icd_match`: Number of opioid dependence prediction rules matched
-  - `rules_target_ed_match`: Number of ED visit prediction rules matched
-  - `max_rule_confidence_target_icd`: Maximum confidence of matched rules
-  - `max_rule_lift_target_icd`: Maximum lift of matched rules
-- **Itemset Metrics**: Aggregated statistics (total unique items, avg support)
-- **Drug Encoding**: Global drug encoding for CatBoost categorical features
-
-#### BupaR Features
-- **Process Flow**: Path length, unique activities, path diversity
-- **Temporal**: Throughput time, waiting time, active time, avg time between activities
-- **Activity Frequencies**: Counts for each activity type
-- **Sequence Patterns**: Repetition indicators, complexity measures, common pattern matching
-  - Top sequences: Frequent sequence patterns (e.g., `overall_is_top_sequence`, `overall_top_sequence_frequency`)
-  - Rare sequences: Uncommon sequence patterns (e.g., `overall_is_rare_sequence`, `overall_rare_sequence_frequency`)
-  - Sequence categories: Classification of patient sequences
-- **Drug Sequences**: Sequence length, drug switches, concurrent drugs
-
-**Note:** BupaR provides all sequence information for the final model. DTW is not used for sequence features.
-
-#### DTW Role: Protocol Filtering (Not Features)
-
-**DTW is used for preprocessing/filtering, NOT as features in the final model.**
-
-- **Purpose**: Identify and filter out protocol-like events (standard care patterns)
-- **Method**: Uses time windows between consecutive events to identify protocol events (< 7 days apart)
-- **Output**: Filtered `model_events_no_protocols.parquet` for cleaner feature engineering
-- **Rationale**: DTW captures standard care protocols that both targets and controls follow, representing noise rather than predictive signal
-- **Sequence Information**: All sequence features come from **BupaR**, not DTW
-
-See `6_dtw_analysis/DTW_ROLE.md` and `6_dtw_analysis/PROTOCOL_FILTERING.md` for details.
+**FPGrowth and BupaR** are used for **dashboard visualizations only**, not for model feature columns. **DTW** is used for **protocol filtering** (preprocessing) only, not as features. See `6_dtw_analysis/DTW_ROLE.md` and `6_dtw_analysis/PROTOCOL_FILTERING.md` for DTW details.
 
 ## Data Inputs
 
 ### Base Cohort Data
 - Gold cohort partitions: `s3://pgxdatalake/gold/cohorts/{cohort_name}/{age_band}/{event_year}/`
 
-### FPGrowth Features
-- **Source**: `s3://pgxdatalake/gold/fpgrowth/global/{item_type}/`
-- **Files**: 
-  - `rules_TARGET_ICD.json` - Opioid dependence prediction rules
-  - `rules_TARGET_ED.json` - ED visit prediction rules
-  - `rules_CONTROL.json` - Baseline/control rules
-  - `frequent_itemsets.parquet` - Frequent itemsets
+### Model Features
+- Final model features come from **model data + feature importance** (n_events, item_*, PGx, etc.). Feature engineering **never produces** trajectory/sequence/itemset columns.
 
-### BupaR Features
-- **Source**: `s3://pgxdatalake/gold/bupar/{cohort_name}/{age_band}/{event_year}/`
-- **Files**:
-  - `process_flow_features.parquet`
-  - `sequence_patterns.parquet`
-  - `activity_frequencies.parquet`
+### FPGrowth / BupaR (Visualization Only)
+- FPGrowth and BupaR outputs are used for **dashboard visualizations**, not as columns in the final model feature table.
 
 ### DTW Protocol Filtering (Preprocessing)
 - **Purpose**: Filter protocol-like events before feature engineering
 - **Script**: `6_dtw_analysis/filter_protocol_events.py`
 - **Output**: `model_data/cohort_name={cohort}/age_band={age_band}/model_events_no_protocols.parquet`
-- **Note**: DTW features are **NOT** included in the final model. DTW is used only for preprocessing.
+- **Note**: DTW is used only for preprocessing; no DTW (or trajectory/sequence/itemset) features in the model.
 
 ## Step 6 Pipeline Overview
 
@@ -142,8 +98,8 @@ Step 6 for each `(cohort, age_band)` now has two main sub-steps:
 2. **6b – Final feature assembly and model selection**
    - Implemented in `6b_final_model_selection/run_final_model.py`:
      - Load event-level model data from `4a_model_data`, including protocol-filtered variants.
-     - Merge FP-Growth, BupaR, DTW, and PGx patient-level features.
-     - Apply target-leakage removal rules (post-event features, time-to-target, DTW-derived features, etc.).
+     - Build final feature table (n_events, item_*, PGx, etc.; no trajectory/sequence/itemset—feature engineering never produces these).
+     - Apply target-leakage removal rules (post-event features, time-to-target, DTW-derived features; defensive removal of any trajectory/sequence/itemset if ever present).
      - Restrict to numeric features and run Monte-Carlo CV for:
        - XGBoost (GPU if available).
        - CatBoost with `grow_policy="SymmetricTree"` (oblivious trees).
@@ -197,9 +153,9 @@ See `final_model.ipynb` for the full Python workflow:
 ## Notebooks and Scripts
 
 - `final_model.ipynb`: MC-CV comparison, Optuna tuning, temporal calibration, and final model export.
-- `build_final_cohort_model_features.py`: Builds the final feature table from `model_data`, FP-Growth, BupaR, and PGx features.
+- `build_final_cohort_model_features.py`: Builds the final feature table (n_events, item_*, PGx, etc.). Feature engineering never generates trajectory/sequence/itemset.
   - For `non_opioid_ed` cohort: Filters to drug-only item features (excludes ICD/CPT codes for polypharmacy analysis)
-- `remove_target_leakage.py`: Removes target leakage features including DTW features (DTW is for filtering, not features).
+- `remove_target_leakage.py`: Removes target leakage features; DTW and any trajectory/sequence/itemset removed defensively (we do not produce those columns).
   - Validates item_* features against event data to detect post-target leakage
   - Removes non-predictive markers (SUBOXONE, BUPRENORPHINE, F1123)
   - For `non_opioid_ed` cohort: Removes any ICD/CPT features that may have slipped through
