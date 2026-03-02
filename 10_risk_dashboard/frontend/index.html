@@ -2712,6 +2712,7 @@
         if (!chartData || typeof chartData !== 'object') chartData = { empty: true, message: 'chart_data.json is invalid or empty.' };
         data.chart_data = chartData;
         if (!chartData.empty) {
+          if (chartData.summary) data.dtw_summary = chartData.summary;
           if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
           if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
           if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
@@ -2723,6 +2724,11 @@
           if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
           if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
           var m = {};
+          if (chartData.summary) {
+            m.total_trajectories = chartData.summary.total_trajectories;
+            m.trajectories_with_time_between = chartData.summary.trajectories_with_time_between;
+            m.trajectories_target1_time_to_target = chartData.summary.trajectories_target1_with_time_to_target;
+          }
           if (chartData.routine_comparison && chartData.routine_comparison.y) m.routine_comparison_series = chartData.routine_comparison.y.length;
           if (chartData.times_between_sequences && chartData.times_between_sequences.y) m.times_between_categories = chartData.times_between_sequences.y.length;
           if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m.target_pathway_codes = chartData.target_pathway_patterns.y.length;
@@ -2766,6 +2772,7 @@
         data = await resp.json();
         if (data.chart_data) {
           const chartData = data.chart_data;
+          if (chartData.summary) data.dtw_summary = chartData.summary;
           if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
           if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
           if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
@@ -2781,6 +2788,7 @@
             const chartResp2 = await fetch(data.chart_data_url);
             if (chartResp2.ok) {
               const chartData = await chartResp2.json();
+              if (chartData.summary) data.dtw_summary = chartData.summary;
               if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
               if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
               if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
@@ -2792,6 +2800,11 @@
               if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
               if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
               var m2 = {};
+              if (chartData.summary) {
+                m2.total_trajectories = chartData.summary.total_trajectories;
+                m2.trajectories_with_time_between = chartData.summary.trajectories_with_time_between;
+                m2.trajectories_target1_time_to_target = chartData.summary.trajectories_target1_with_time_to_target;
+              }
               if (chartData.routine_comparison && chartData.routine_comparison.y) m2.routine_comparison_series = chartData.routine_comparison.y.length;
               if (chartData.times_between_sequences && chartData.times_between_sequences.y) m2.times_between_categories = chartData.times_between_sequences.y.length;
               if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m2.target_pathway_codes = chartData.target_pathway_patterns.y.length;
@@ -3482,18 +3495,31 @@
         }
       } catch (e) { setEmptyMessage(overviewEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }
-    // Render trajectory metrics chart (prefer JSON: metrics from API or derived from chart_data)
+    // Render trajectory metrics: prefer chart_data.summary (robust counts for multiple visuals), else metrics bar chart
     const metricsContainer = document.getElementById('dtw-metrics-chart');
     if (metricsContainer) {
       try {
-        if (data.metrics && Object.keys(data.metrics).length > 0) {
+        const summary = data.dtw_summary || (data.chart_data && data.chart_data.summary ? data.chart_data.summary : null);
+        if (summary) {
+          const tl = summary.trajectory_length || {};
+          const parts = [
+            'Total trajectories: ' + (summary.total_trajectories != null ? summary.total_trajectories.toLocaleString() : '—'),
+            'Target=1 / Target=0: ' + (summary.target_counts ? (summary.target_counts.target_1 + ' / ' + summary.target_counts.target_0) : '—'),
+            'With time-between (≥2 events): ' + (summary.trajectories_with_time_between != null ? summary.trajectories_with_time_between.toLocaleString() : '—'),
+            'Target=1 with time-to-target: ' + (summary.trajectories_target1_with_time_to_target != null ? summary.trajectories_target1_with_time_to_target.toLocaleString() : '—'),
+            'Trajectory length: min=' + (tl.min != null ? tl.min : '—') + ', max=' + (tl.max != null ? tl.max : '—') + ', mean=' + (tl.mean != null ? tl.mean : '—'),
+            'DTW distances: ' + (summary.has_dtw_distances ? 'yes' : 'no')
+          ];
+          metricsContainer.innerHTML = '<div class="dtw-summary-block" style="font-size:0.9em; line-height:1.6;">' + parts.map(p => '<div>' + p + '</div>').join('') + '</div>';
+        } else if (data.metrics && Object.keys(data.metrics).length > 0) {
           const trace = {
             x: Object.keys(data.metrics),
             y: Object.values(data.metrics),
             type: 'bar',
             marker: { color: '#8b5cf6' }
           };
-          Plotly.newPlot('dtw-metrics-chart', [trace], {
+          metricsContainer.innerHTML = '<div id="dtw-metrics-bar-chart"></div>';
+          Plotly.newPlot('dtw-metrics-bar-chart', [trace], {
             title: 'Trajectory Metrics',
             xaxis: { title: 'Metric' },
             yaxis: { title: 'Value' }
@@ -3514,7 +3540,9 @@
             y: routineComparison.y,
             type: routineComparison.type || 'bar',
             name: routineComparison.name,
-            marker: { color: '#0ea5e9' }
+            marker: { color: '#0ea5e9' },
+            text: Array.isArray(routineComparison.n) ? routineComparison.n.map(v => 'n=' + v) : undefined,
+            textposition: 'outside'
           };
           routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
           Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
@@ -3544,7 +3572,9 @@
             y: s.y,
             type: 'bar',
             name: s.name || (i === 0 ? 'Medical events' : 'Prescription events'),
-            marker: { color: colors[i % colors.length] }
+            marker: { color: colors[i % colors.length] },
+            text: Array.isArray(rc.n) ? (i === 0 ? rc.n.map(v => 'n=' + v) : undefined) : undefined,
+            textposition: i === 0 ? 'outside' : undefined
           }));
           routineCountsEl.innerHTML = '<div id="dtw-routine-comparison-counts-chart"></div>';
           Plotly.newPlot('dtw-routine-comparison-counts-chart', traces, {
@@ -3573,7 +3603,9 @@
             y: highRiskTrajectories.y,
             type: highRiskTrajectories.type || 'bar',
             name: highRiskTrajectories.name,
-            marker: { color: '#8b5cf6' }
+            marker: { color: '#8b5cf6' },
+            text: Array.isArray(highRiskTrajectories.n) ? highRiskTrajectories.n.map(v => 'n=' + v) : undefined,
+            textposition: 'outside'
           };
           highRiskEl.innerHTML = '<div id="dtw-high-risk-chart"></div>';
           Plotly.newPlot('dtw-high-risk-chart', [trace], {
@@ -3597,7 +3629,9 @@
             y: data.times_between_sequences.y,
             type: data.times_between_sequences.type || 'bar',
             name: data.times_between_sequences.name,
-            marker: { color: '#10b981' }
+            marker: { color: '#10b981' },
+            text: Array.isArray(data.times_between_sequences.n) ? data.times_between_sequences.n.map(v => 'n=' + v) : undefined,
+            textposition: 'outside'
           };
           timesBetweenEl.innerHTML = '<div id="dtw-times-between-chart"></div>';
           Plotly.newPlot('dtw-times-between-chart', [trace], {
@@ -3623,7 +3657,9 @@
             y: data.time_to_target_sequences.y,
             type: data.time_to_target_sequences.type || 'bar',
             name: data.time_to_target_sequences.name,
-            marker: { color: '#f59e0b' }
+            marker: { color: '#f59e0b' },
+            text: Array.isArray(data.time_to_target_sequences.n) ? data.time_to_target_sequences.n.map(v => 'n=' + v) : undefined,
+            textposition: 'outside'
           };
           timeToTargetEl.innerHTML = '<div id="dtw-time-to-target-chart"></div>';
           Plotly.newPlot('dtw-time-to-target-chart', [trace], {
