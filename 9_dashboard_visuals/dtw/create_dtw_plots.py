@@ -47,6 +47,13 @@ MAX_PLOT_ROWS = 25_000
 _SKIP_TOKENS = frozenset({"nan", "none", "null", ""})
 
 
+def _scalar_or_first(val: Any) -> Any:
+    """Return a scalar when val is a Series (e.g. duplicate index); otherwise return val. Avoids 'truth value of a Series is ambiguous'."""
+    if hasattr(val, "iloc") and hasattr(val, "__len__") and len(val) > 0:
+        return val.iloc[0]
+    return val
+
+
 def _ensure_plots_dir(plots_dir: Path) -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -254,6 +261,7 @@ def create_trajectory_cluster_plots(
         )]
 
     if dtw_df is None:
+        # Prefer Parquet + DuckDB for loading; fall back to pandas then CSV
         fe_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "feature_engineering"
         base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
         parquet_path = fe_dir / f"{base_name}.parquet"
@@ -396,9 +404,11 @@ def create_trajectory_cluster_plots(
             
             hover_list = []
             for i in year_df.index:
-                t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
-                y_str = f", year={int(year_df.loc[i, 'event_year'])}" if 'event_year' in year_df.columns and pd.notna(year_df.loc[i, 'event_year']) else ""
-                hover_list.append(f"mi_person_key={i}{t}{y_str}, {code_cols[0]}={year_df.loc[i, code_cols[0]]}")
+                t = "" if target_series is None or i not in target_series.index else f", target={_scalar_or_first(target_series.loc[i])}"
+                event_yr = _scalar_or_first(year_df.loc[i, "event_year"]) if "event_year" in year_df.columns else None
+                y_str = f", year={int(event_yr)}" if event_yr is not None and pd.notna(event_yr) else ""
+                code_val = _scalar_or_first(year_df.loc[i, code_cols[0]])
+                hover_list.append(f"mi_person_key={i}{t}{y_str}, {code_cols[0]}={code_val}")
             
             for c in sorted(year_df["cluster"].unique()):
                 mask = year_df["cluster"] == c
@@ -483,13 +493,13 @@ def create_trajectory_cluster_plots(
             
             hover_list = []
             for i in year_df.index:
-                t = "" if target_series is None or i not in target_series.index else f", target={target_series.loc[i]}"
-                y_str = f", year={int(year_df.loc[i, 'event_year'])}" if 'event_year' in year_df.columns and pd.notna(year_df.loc[i, 'event_year']) else ""
+                t = "" if target_series is None or i not in target_series.index else f", target={_scalar_or_first(target_series.loc[i])}"
+                event_yr = _scalar_or_first(year_df.loc[i, "event_year"]) if "event_year" in year_df.columns else None
+                y_str = f", year={int(event_yr)}" if event_yr is not None and pd.notna(event_yr) else ""
+                c0, c1, c2 = _scalar_or_first(year_df.loc[i, code_cols[0]]), _scalar_or_first(year_df.loc[i, code_cols[1]]), _scalar_or_first(year_df.loc[i, code_cols[2]])
                 hover_list.append(
                     f"mi_person_key={i}{t}{y_str}<br>"
-                    f"{code_cols[0]}={year_df.loc[i, code_cols[0]]}, "
-                    f"{code_cols[1]}={year_df.loc[i, code_cols[1]]}, "
-                    f"{code_cols[2]}={year_df.loc[i, code_cols[2]]}"
+                    f"{code_cols[0]}={c0}, {code_cols[1]}={c1}, {code_cols[2]}={c2}"
                 )
             
             for c in sorted(year_df["cluster"].unique()):

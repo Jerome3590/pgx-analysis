@@ -426,8 +426,10 @@ def summarize_extreme_density_cohort(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     patient_csv_path = out_dir / f"extreme_density_patient_summary_{age_band_fname}.csv"
+    patient_parquet_path = out_dir / f"extreme_density_patient_summary_{age_band_fname}.parquet"
     patient_summary_df.to_csv(patient_csv_path, index=False)
-    logger.info("Wrote patient-level summary CSV to %s", patient_csv_path)
+    patient_summary_df.to_parquet(patient_parquet_path, index=False)
+    logger.info("Wrote patient-level summary to %s and %s", patient_csv_path, patient_parquet_path)
 
     # ------------------------------------------------------------------
     # Drug / ICD / CPT frequency tables and plots
@@ -448,8 +450,10 @@ def summarize_extreme_density_cohort(
     ).df()
 
     drug_freq_path = out_dir / f"extreme_density_drug_frequency_{age_band_fname}.csv"
+    drug_freq_parquet_path = out_dir / f"extreme_density_drug_frequency_{age_band_fname}.parquet"
     drug_freq_df.to_csv(drug_freq_path, index=False)
-    logger.info("Wrote drug_name frequency table to %s", drug_freq_path)
+    drug_freq_df.to_parquet(drug_freq_parquet_path, index=False)
+    logger.info("Wrote drug_name frequency table to %s and %s", drug_freq_path, drug_freq_parquet_path)
 
     if not drug_freq_df.empty:
         top_n = min(30, len(drug_freq_df))
@@ -535,8 +539,10 @@ def summarize_extreme_density_cohort(
     icd_freq_df = con.execute(icd_freq_query).df()
 
     icd_freq_path = out_dir / f"extreme_density_icd_frequency_{age_band_fname}.csv"
+    icd_freq_parquet_path = out_dir / f"extreme_density_icd_frequency_{age_band_fname}.parquet"
     icd_freq_df.to_csv(icd_freq_path, index=False)
-    logger.info("Wrote ICD frequency table to %s", icd_freq_path)
+    icd_freq_df.to_parquet(icd_freq_parquet_path, index=False)
+    logger.info("Wrote ICD frequency table to %s and %s", icd_freq_path, icd_freq_parquet_path)
 
     if not icd_freq_df.empty:
         top_n = min(30, len(icd_freq_df))
@@ -567,8 +573,10 @@ def summarize_extreme_density_cohort(
     ).df()
 
     cpt_freq_path = out_dir / f"extreme_density_cpt_frequency_{age_band_fname}.csv"
+    cpt_freq_parquet_path = out_dir / f"extreme_density_cpt_frequency_{age_band_fname}.parquet"
     cpt_freq_df.to_csv(cpt_freq_path, index=False)
-    logger.info("Wrote CPT frequency table to %s", cpt_freq_path)
+    cpt_freq_df.to_parquet(cpt_freq_parquet_path, index=False)
+    logger.info("Wrote CPT frequency table to %s and %s", cpt_freq_path, cpt_freq_parquet_path)
 
     if not cpt_freq_df.empty:
         top_n = min(30, len(cpt_freq_df))

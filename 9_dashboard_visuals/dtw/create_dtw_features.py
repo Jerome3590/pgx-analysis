@@ -54,7 +54,7 @@ def _dtw_output_root(project_root: Path) -> Path:
 
 
 def _read_table_parquet_or_csv(path_parquet: Path, path_csv: Path):
-    """Load DataFrame from parquet if present, else CSV. Uses DuckDB for parquet when available."""
+    """Load DataFrame from parquet if present, else CSV. Prefer Parquet + DuckDB when available."""
     if path_parquet.exists():
         if duckdb is not None:
             con = duckdb.connect(":memory:")

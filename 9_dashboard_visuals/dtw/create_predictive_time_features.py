@@ -319,10 +319,11 @@ def create_predictive_time_features(
     output_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "outputs" / "feature_engineering"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    output_path = output_dir / f"predictive_time_features_{cohort_name}_{age_band_fname}.csv"
-    
-    print(f"\n[INFO] Saving predictive time features to {output_path}")
-    all_features.to_csv(output_path, index=False)
+    output_csv = output_dir / f"predictive_time_features_{cohort_name}_{age_band_fname}.csv"
+    output_parquet = output_dir / f"predictive_time_features_{cohort_name}_{age_band_fname}.parquet"
+    print(f"\n[INFO] Saving predictive time features to {output_parquet} and {output_csv}")
+    all_features.to_parquet(output_parquet, index=False)
+    all_features.to_csv(output_csv, index=False)
     print("[INFO] Done.")
 
 
