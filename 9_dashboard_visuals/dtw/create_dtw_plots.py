@@ -39,6 +39,10 @@ except ImportError:
 # Polypharmacy cohort: one axis only (1D plot)
 POLYPHARMACY_COHORT = "non_opioid_ed"
 
+# Cap rows used for building the cluster plot to avoid OOM on large cohorts (e.g. 65-74, 75-84).
+# Chart data and dashboard still use full CSV; only the trajectory cluster plot is built from a sample.
+MAX_PLOT_ROWS = 25_000
+
 # Tokens to exclude from code counts (missing/placeholder values in seq_pattern_str)
 _SKIP_TOKENS = frozenset({"nan", "none", "null", ""})
 
@@ -251,17 +255,29 @@ def create_trajectory_cluster_plots(
 
     if dtw_df is None:
         fe_dir = project_root / "10_risk_dashboard" / "visualizations" / "dtw" / "feature_engineering"
-        csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
-        if not csv_path.exists():
-            print(f"[WARN] DTW features not found: {csv_path}; skipping cluster plots")
+        base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
+        parquet_path = fe_dir / f"{base_name}.parquet"
+        csv_path = fe_dir / f"{base_name}.csv"
+        if parquet_path.exists():
+            if DUCKDB_AVAILABLE:
+                con = duckdb.connect(":memory:")
+                try:
+                    dtw_df = con.execute("SELECT * FROM read_parquet(?)", [str(parquet_path)]).df()
+                finally:
+                    con.close()
+            else:
+                dtw_df = pd.read_parquet(parquet_path)
+        elif csv_path.exists():
+            dtw_df = pd.read_csv(csv_path)
+        else:
+            print(f"[WARN] DTW features not found: {parquet_path} or {csv_path}; skipping cluster plots")
             return [_write_empty_trajectory_overview(
                 plots_dir,
-                f"No trajectory overview for {cohort_name}/{age_band}: DTW features CSV not found.",
+                f"No trajectory overview for {cohort_name}/{age_band}: DTW features not found.",
                 cohort_name,
                 age_band,
-                {"reason": "features_csv_missing", "csv_path": str(csv_path)},
+                {"reason": "features_missing", "parquet_path": str(parquet_path), "csv_path": str(csv_path)},
             )]
-        dtw_df = pd.read_csv(csv_path)
         if "mi_person_key" in dtw_df.columns:
             dtw_df["mi_person_key"] = dtw_df["mi_person_key"].astype(str)
 
@@ -274,6 +290,12 @@ def create_trajectory_cluster_plots(
             age_band,
             {"reason": "no_seq_pattern_str", "dtw_rows": len(dtw_df), "columns": list(dtw_df.columns)},
         )]
+
+    # Subsample for plotting to avoid OOM on large cohorts (e.g. 65-74, 75-84 with many patients).
+    original_rows = len(dtw_df)
+    if original_rows > MAX_PLOT_ROWS:
+        dtw_df = dtw_df.sample(n=MAX_PLOT_ROWS, random_state=42)
+        print(f"[INFO] Subsampled to {MAX_PLOT_ROWS} rows for cluster plot (original {original_rows}) to avoid memory issues.")
 
     count_df, target_series = _code_counts_from_seq_pattern_str(dtw_df)
     if count_df.empty:

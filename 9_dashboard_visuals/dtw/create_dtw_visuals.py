@@ -49,6 +49,25 @@ from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
 def _dtw_output_root(project_root: Path) -> Path:
     """Dashboard visualization outputs (step 10); creation code lives in 9_dashboard_visuals/dtw."""
     return project_root / "10_risk_dashboard" / "visualizations" / "dtw"
+
+
+def _read_dtw_features_parquet_or_csv(path_parquet: Path, path_csv: Path) -> Optional[pd.DataFrame]:
+    """Load DataFrame from parquet if present, else CSV. Uses DuckDB for parquet when available."""
+    if path_parquet.exists():
+        try:
+            import duckdb
+            con = duckdb.connect(":memory:")
+            try:
+                return con.execute("SELECT * FROM read_parquet(?)", [str(path_parquet)]).df()
+            finally:
+                con.close()
+        except ImportError:
+            return pd.read_parquet(path_parquet)
+    if path_csv.exists():
+        return pd.read_csv(path_csv)
+    return None
+
+
 if str(DTW_VIZ_DIR) not in sys.path:
     sys.path.insert(0, str(DTW_VIZ_DIR))  # noqa: E402 — so create_dtw_plots can be imported
 
@@ -97,28 +116,38 @@ def create_dtw_visuals(
         _log("info", "Pipeline checkpoint exists for 9_dashboard_visuals %s/%s and artifacts present; skipping (use --force to re-run)", cohort_name, age_band)
         return
 
-    # Load DTW features: prefer sub-cohort (per-density) CSVs when present; else single CSV
+    # Load DTW features: prefer sub-cohort (per-density) when present; else single. Prefer parquet then CSV.
     fe_dir = _dtw_output_root(project_root) / "feature_engineering"
     base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
+    single_parquet = fe_dir / f"{base_name}.parquet"
     single_csv = fe_dir / f"{base_name}.csv"
-    density_glob = list(fe_dir.glob(f"{base_name}_density_*.csv"))
-    _log("info", "DTW input: fe_dir=%s ; single_csv=%s (exists=%s) ; density_glob=%d files", fe_dir, single_csv, single_csv.exists(), len(density_glob))
+    density_parquet = list(fe_dir.glob(f"{base_name}_density_*.parquet"))
+    density_csv = list(fe_dir.glob(f"{base_name}_density_*.csv"))
+    bin_stems = {p.stem.replace(f"{base_name}_density_", "") for p in density_parquet + density_csv}
+    density_paths = [(fe_dir / f"{base_name}_density_{b}.parquet", fe_dir / f"{base_name}_density_{b}.csv") for b in sorted(bin_stems)]
+    _log("info", "DTW input: fe_dir=%s ; single (parquet=%s, csv=%s) ; density bins=%d", fe_dir, single_parquet.exists(), single_csv.exists(), len(bin_stems))
 
-    if density_glob:
-        # Sub-cohort outputs: load by filter and concatenate for chart_data
+    dtw_df = None
+    if density_paths:
+        # Sub-cohort outputs: load each bin (parquet or csv) and concatenate
         parts = []
-        for path in sorted(density_glob):
-            bin_name = path.stem.replace(f"{base_name}_density_", "")
-            part = pd.read_csv(path)
+        for path_pq, path_csv in density_paths:
+            part = _read_dtw_features_parquet_or_csv(path_pq, path_csv)
+            if part is None:
+                continue
+            bin_name = path_pq.stem.replace(f"{base_name}_density_", "") if path_pq.exists() else path_csv.stem.replace(f"{base_name}_density_", "")
             if "event_density_bin" not in part.columns:
                 part["event_density_bin"] = bin_name
             parts.append(part)
-        dtw_df = pd.concat(parts, ignore_index=True)
-        _log("info", "Loaded DTW features from %d density sub-cohorts: %s", len(parts), [p.stem for p in density_glob])
-    elif single_csv.exists():
-        _log("info", "Reading DTW features from %s", single_csv)
-        dtw_df = pd.read_csv(single_csv)
-    else:
+        if parts:
+            dtw_df = pd.concat(parts, ignore_index=True)
+            _log("info", "Loaded DTW features from %d density sub-cohorts", len(parts))
+    if dtw_df is None:
+        dtw_df = _read_dtw_features_parquet_or_csv(single_parquet, single_csv)
+        if dtw_df is not None:
+            _log("info", "Reading DTW features from %s or %s", single_parquet, single_csv)
+
+    if dtw_df is None:
         # Only skip if final dashboard visuals are already present; otherwise fail so the step is not silently skipped.
         out_dir = _dtw_output_root(project_root) / cohort_name / age_band_fname
         chart_path = out_dir / "chart_data.json"
@@ -128,20 +157,20 @@ def create_dtw_visuals(
         has_heatmap = heatmap_path.exists()
         has_plots = plots_dir.is_dir() and any(plots_dir.iterdir())
         if has_chart and has_heatmap and has_plots:
-            _log("info", "DTW features not found: %s; skipping (final visuals already present: chart_data, sequence_heatmap, plots)", single_csv)
+            _log("info", "DTW features not found: %s or %s; skipping (final visuals already present: chart_data, sequence_heatmap, plots)", single_parquet, single_csv)
             return
-        _log("warning", "DTW features not found: %s (and no density sub-cohorts); final visuals not present (chart_data=%s, sequence_heatmap=%s, plots=%s).", single_csv, has_chart, has_heatmap, has_plots)
+        _log("warning", "DTW features not found: %s / %s (and no density sub-cohorts); final visuals not present (chart_data=%s, sequence_heatmap=%s, plots=%s).", single_parquet, single_csv, has_chart, has_heatmap, has_plots)
         try:
             from py_helpers.model_data_paths import get_path_check_listings
-            path_listings = get_path_check_listings([str(single_csv)])
+            path_listings = get_path_check_listings([str(single_parquet), str(single_csv)])
             path_listings_str = " ; ".join(path_listings) if path_listings else ""
         except Exception:  # noqa: BLE001
             path_listings_str = ""
-        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features CSV not found expected_path=%s (no EC2 artifacts written, no S3 upload)", cohort_name, age_band, single_csv)
+        _log("error", "step=5_dtw cohort_name=%s age_band=%s error=DTW features not found expected_path=%s or %s (no EC2 artifacts written, no S3 upload)", cohort_name, age_band, single_parquet, single_csv)
         if path_listings_str:
             _log("error", "step=5_dtw path_listings: %s", path_listings_str)
-        raise FileNotFoundError(
-            f"DTW features CSV not found: {single_csv}. Final visuals not present (chart_data={has_chart}, sequence_heatmap={has_heatmap}, plots={has_plots}). "
+            raise FileNotFoundError(
+            f"DTW features not found: {single_parquet} or {single_csv}. Final visuals not present (chart_data={has_chart}, sequence_heatmap={has_heatmap}, plots={has_plots}). "
             "Run create_dtw_features/create_dtw_trajectories first, or ensure visuals exist for this cohort/age_band."
         )
 
@@ -205,7 +234,10 @@ def create_dtw_visuals(
                         plot_written.append(name)
                         _log("info", "Wrote %s for API overview/sample URLs", name)
     except Exception as e:
-        _log("warning", "DTW trajectory cluster plots failed: %s", e)
+        exc_type = type(e).__name__
+        _log("warning", "DTW trajectory cluster plots failed (%s): %s", exc_type, e)
+        if exc_type == "MemoryError":
+            _log("info", "Tip: cluster plot subsamples to 25,000 rows for large cohorts; if OOM persists, reduce MAX_PLOT_ROWS in create_dtw_plots.py or increase process memory.")
     _upload_dtw_plots_to_dashboard_s3(project_root, cohort_name, age_band, logger=logger)
 
     # Prebuild chart data (routine vs no routine, high-risk trajectories); write locally and upload to S3

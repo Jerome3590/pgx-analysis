@@ -29,6 +29,11 @@ import numpy as np
 import pandas as pd
 
 try:
+    import duckdb
+except ImportError:
+    duckdb = None
+
+try:
     from dtaidistance import dtw as dtw_lib
     DTW_AVAILABLE = True
 except ImportError:
@@ -46,6 +51,21 @@ from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
 def _dtw_output_root(project_root: Path) -> Path:
     """Dashboard visualization outputs (step 10); creation code in 9_dashboard_visuals/dtw."""
     return project_root / "10_risk_dashboard" / "visualizations" / "dtw"
+
+
+def _read_table_parquet_or_csv(path_parquet: Path, path_csv: Path):
+    """Load DataFrame from parquet if present, else CSV. Uses DuckDB for parquet when available."""
+    if path_parquet.exists():
+        if duckdb is not None:
+            con = duckdb.connect(":memory:")
+            try:
+                return con.execute("SELECT * FROM read_parquet(?)", [str(path_parquet)]).df()
+            finally:
+                con.close()
+        return pd.read_parquet(path_parquet)
+    if path_csv.exists():
+        return pd.read_csv(path_csv)
+    return None
 
 # Bins must match create_dtw_trajectories.DENSITY_BINS for per-bin alignment
 DENSITY_BINS = ("low", "medium", "high", "extreme")
@@ -229,12 +249,14 @@ def run_alignment(
 
     age_band_fname = age_band.replace("-", "_")
     fe_dir = _dtw_output_root(project_root) / "feature_engineering"
-    csv_path = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}.csv"
+    base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
+    parquet_path = fe_dir / f"{base_name}.parquet"
+    csv_path = fe_dir / f"{base_name}.csv"
     log("info", "DTW features output dir (EC2): %s", fe_dir)
-    if not csv_path.exists():
-        log("warning", "DTW features CSV not found: %s; run create_dtw_trajectories.py first.", csv_path)
+    df = _read_table_parquet_or_csv(parquet_path, csv_path)
+    if df is None:
+        log("warning", "DTW features not found: %s or %s; run create_dtw_trajectories.py first.", parquet_path, csv_path)
         return False
-    df = pd.read_csv(csv_path)
     if df.empty or "seq_pattern_str" not in df.columns:
         log("warning", "CSV empty or missing seq_pattern_str; skipping alignment.")
         # Read trajectory_status for event/alignment counts; write empty common_sequences with message
@@ -285,6 +307,8 @@ def run_alignment(
                     continue
                 bin_csv = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}_density_{bin_name}.csv"
                 bin_common = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{bin_name}.json"
+                bin_parquet = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}_density_{bin_name}.parquet"
+                df_out_bin.to_parquet(bin_parquet, index=False)
                 df_out_bin.to_csv(bin_csv, index=False)
                 with open(bin_common, "w", encoding="utf-8") as f:
                     json.dump(common_bin, f, indent=2)
@@ -311,18 +335,21 @@ def run_alignment(
         log("info", "Wrote empty common_sequences to %s", common_path)
         return False
 
+    df_out.to_parquet(parquet_path, index=False)
     df_out.to_csv(csv_path, index=False)
-    log("info", "Wrote augmented CSV to %s", csv_path)
+    log("info", "Wrote augmented parquet and CSV to %s / %s", parquet_path, csv_path)
 
     common_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}.json"
     with open(common_path, "w", encoding="utf-8") as f:
         json.dump(common_sequences, f, indent=2)
     log("info", "Wrote common sequences to %s", common_path)
 
+    added_parquet = fe_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.parquet"
     added_path = fe_dir / f"dtw_added_features_{cohort_name}_{age_band_fname}.csv"
-    if added_path.exists():
+    if added_path.exists() or added_parquet.exists():
+        df_out.to_parquet(added_parquet, index=False)
         df_out.to_csv(added_path, index=False)
-        log("info", "Updated %s", added_path)
+        log("info", "Updated %s and %s", added_parquet, added_path)
     return True
 
 
@@ -347,14 +374,15 @@ def main() -> None:
 
     age_band_fname = args.age_band.replace("-", "_")
     fe_dir = _dtw_output_root(project_root) / "feature_engineering"
+    parquet_path = fe_dir / f"dtw_features_{args.cohort}_{age_band_fname}.parquet"
     csv_path = fe_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
-    if not csv_path.exists():
-        logger.error("Not found: %s. Run create_dtw_trajectories.py first.", csv_path)
+    df = _read_table_parquet_or_csv(parquet_path, csv_path)
+    if df is None:
+        logger.error("Not found: %s or %s. Run create_dtw_trajectories.py first.", parquet_path, csv_path)
         sys.exit(1)
-    df = pd.read_csv(csv_path)
     if not args.force:
         if "dtw_min_distance" in df.columns and df["dtw_min_distance"].notna().any():
-            logger.info("CSV already has DTW distances; skipping (use --force to re-run).")
+            logger.info("Features already have DTW distances; skipping (use --force to re-run).")
             sys.exit(0)
         # Per-bin idempotency: if event_density_bin present and all density sub-cohorts exist, skip
         if "event_density_bin" in df.columns and df["event_density_bin"].notna().any():
@@ -362,10 +390,11 @@ def main() -> None:
             if bins_present:
                 base = f"dtw_features_{args.cohort}_{age_band_fname}"
                 all_exist = all(
-                    (fe_dir / f"{base}_density_{b}.csv").exists() for b in bins_present
+                    (fe_dir / f"{base}_density_{b}.parquet").exists() or (fe_dir / f"{base}_density_{b}.csv").exists()
+                    for b in bins_present
                 )
                 if all_exist:
-                    logger.info("Density sub-cohort CSVs already exist; skipping (use --force to re-run).")
+                    logger.info("Density sub-cohort outputs already exist; skipping (use --force to re-run).")
                     sys.exit(0)
 
     with step_block("5_dtw", "create_dtw_features", logger=logger):
