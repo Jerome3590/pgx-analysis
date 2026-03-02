@@ -123,7 +123,6 @@ These paths match what the **frontend** expects when using **static-first** load
 | Visual | Object type | File(s) |
 |--------|-------------|---------|
 | Trajectory Analysis Overview (drugs) | JSON (primary), PNG (fallback) | `plots/trajectory_overview_plot.json`, `plots/dtw_trajectory_analysis_{base}.png` |
-| Sample Trajectories (drugs) | JSON (primary), PNG (fallback) | `plots/trajectory_overview_plot.json`, `plots/dtw_sample_trajectories_{base}.png` |
 | Overview interactive (3D/1D) | HTML | `plots/dtw_trajectory_cluster_1d_*.html` or `dtw_trajectory_cluster_3d_*.html` (API-discovered) |
 | Trajectory Metrics, High-Risk, N3 times, Target Pathway, Routine vs No Routine, event counts, density filter | JSON | `chart_data.json` (single file; frontend uses keys) |
 | Common Sequences Heatmap | JSON | `sequence_heatmap.json` |
@@ -143,7 +142,6 @@ These paths match what the **frontend** expects when using **static-first** load
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
 | DTW Trajectories | Trajectory Analysis Overview (drugs) | Trajectory cluster plot image | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/plots/*.png` | `dtw/{cohort}/{age_band}/plots/*.png` |
-| DTW Trajectories | Sample Trajectories (drugs) | (same) | (same) | (same) |
 | DTW Trajectories | Trajectory Metrics | `chart_data.json` (metrics) | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
 | DTW Trajectories | High-Risk vs Low-Risk Trajectories (drugs) | `chart_data.json` → `high_risk_trajectories` | (same) | (same) |
 | DTW Trajectories | Times Between Sequences (N3) | `chart_data.json` → `times_between_sequences`, `time_to_target_sequences` | (same) | (same) |

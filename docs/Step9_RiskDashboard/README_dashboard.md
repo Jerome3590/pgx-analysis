@@ -622,7 +622,7 @@ See [Step9_RiskDashboard/README_results_dashboard.md](Step9_RiskDashboard/README
 
 **DTW Visualizations:**
 - **S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
-- **Files**: `dtw_trajectory_analysis_{cohort}_{age_band}.png`, `dtw_sample_trajectories_{cohort}_{age_band}.png`
+- **Files**: `dtw_trajectory_analysis_{cohort}_{age_band}.png` (Sample Trajectories removed)
 
 **FP-Growth Visualizations:**
 - **S3 Location**: `s3://pgxdatalake/gold/fpgrowth/{cohort}/{age_band}/plots/`

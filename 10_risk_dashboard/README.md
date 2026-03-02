@@ -342,7 +342,7 @@ See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboar
 
 **DTW Visualizations**:
 - **S3 Location**: `s3://pgxdatalake/gold/feature_importance/{cohort}/{age_band}/plots/`
-- **Files**: `dtw_trajectory_analysis_{cohort}_{age_band}.png`, `dtw_sample_trajectories_{cohort}_{age_band}.png`
+- **Files**: `dtw_trajectory_analysis_{cohort}_{age_band}.png` (Sample Trajectories removed)
 
 **FP-Growth Visualizations** (drug names only):
 - **S3 Location**: `{S3_DASHBOARD_BUCKET}/{S3_DASHBOARD_PREFIX}/fpgrowth/{cohort}/{age_band}/plots/`

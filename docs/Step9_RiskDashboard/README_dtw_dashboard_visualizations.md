@@ -33,12 +33,7 @@ DTW visualizations help clinicians understand:
 - **Description**: Overview visualization showing trajectory clustering and similarity patterns
 - **Use Case**: Understand overall trajectory structure and patient groupings
 
-### 3. Sample Trajectories
-- **File Pattern**: `dtw_sample_trajectories_{cohort}_{age_band}.png`
-- **Description**: Visualization of representative patient trajectories
-- **Use Case**: See examples of typical patient pathways
-
-### 4. Trajectory Metrics Chart
+### 3. Trajectory Metrics Chart
 - **Data Format**: JSON metrics file
 - **Description**: Bar chart showing trajectory metrics (cluster sizes, average distances, etc.)
 - **Use Case**: Understand trajectory statistics and cluster characteristics
@@ -92,7 +87,6 @@ DTW visuals are written under `10_risk_dashboard/visualizations/dtw/outputs/`. P
             ├── dtw_trajectory_cluster_3d_{cohort}_{age_band}.html   # or 1d for non_opioid_ed
             ├── dtw_trajectory_cluster_3d_{cohort}_{age_band}.png   # optional
             ├── dtw_trajectory_analysis_{cohort}_{age_band}.png
-            ├── dtw_sample_trajectories_{cohort}_{age_band}.png
             └── dtw_metrics_{cohort}_{age_band}.json
 ```
 
