@@ -25,6 +25,17 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
   - When no Drug/ICD/CPT codes: returns **baseline_risk** (actual 2019 outcome rate). When any code is provided: returns the **best model’s** predicted probability (MC-CV best per cohort/age_band).
   - Returns: `risk_score`, `risk_band`, `is_baseline`, `patient_bucket`, `patient_bucket_detail` (n_events_bucket, n_drugs_bucket), `n_pgx_drugs`, `pgx_num_cpic_drugs`, `model_breakdown`, `dist` (2019 histogram when available)
 
+**Risk band cutoffs (Low / Medium / High)**  
+The displayed `risk_band` uses **absolute probability thresholds** (not cohort-relative percentiles) so labels match user intuition (e.g. 7.7% is Low):
+
+| Band    | Condition (score = probability in [0, 1]) |
+|---------|--------------------------------------------|
+| **Low** | score &lt; 0.20 (&lt; 20%)                 |
+| **Medium** | 0.20 ≤ score &lt; 0.50 (20–50%)         |
+| **High**   | score ≥ 0.50 (≥ 50%)                   |
+
+Thresholds are fixed in the backend (`DEFAULT_RISK_BAND_THRESHOLDS`: `low_medium` = 0.2, `medium_high` = 0.5). The 2019 distribution file’s `risk_band_thresholds` (33rd/67th percentiles) are **not** used for the band label; they remain in `dist` for the histogram and reference only.
+
 - **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
   - Body: `{base: {...}, scenarios: [...]}`
   - Returns: Risk scores for base and scenarios
@@ -113,4 +124,4 @@ A **502** from API Gateway usually means the Lambda **timed out** or **ran out o
 
 - **Best model only:** We run only the model(s) with non-zero weight (best per cohort/age_band), so cold start and failure surface are reduced.
 - **Baseline when no codes:** No Drug/ICD/CPT → return 2019 outcome rate; with codes → model probability. Keeps risk calibrated to the 2019 population.
-- **Implemented:** Risk band thresholds from `risk_distribution_2019.json` (33rd/67th percentiles); comparison uses baseline when base or scenario has no codes; `codes_used`/`codes_unknown` and `model_used` in response; `interpretation` in API and frontend.
+- **Implemented:** Risk band uses **absolute cutoffs** (low &lt;20%, medium 20–50%, high ≥50%); comparison uses baseline when base or scenario has no codes; `codes_used`/`codes_unknown` and `model_used` in response; `interpretation` in API and frontend.

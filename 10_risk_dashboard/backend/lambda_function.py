@@ -445,13 +445,14 @@ def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
         raise
 
 
-# Default risk band thresholds (low < low_medium <= medium < medium_high <= high)
+# Risk band uses absolute thresholds (not cohort-relative percentiles) so labels match intuition (e.g. 7.7% = Low).
+# low: < 20%, medium: 20–50%, high: >= 50%
 DEFAULT_RISK_BAND_THRESHOLDS = {"low_medium": 0.2, "medium_high": 0.5}
 
 
 def risk_band_from_score(score: float, thresholds: Optional[Dict[str, float]] = None) -> str:
-    """Return low / medium / high from score and optional thresholds (from dist or schema)."""
-    t = thresholds or DEFAULT_RISK_BAND_THRESHOLDS
+    """Return low / medium / high from score using absolute thresholds (fixed cutoffs)."""
+    t = thresholds if thresholds is not None else DEFAULT_RISK_BAND_THRESHOLDS
     low_med = t.get("low_medium", 0.2)
     med_high = t.get("medium_high", 0.5)
     if score < low_med:
@@ -915,8 +916,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         baseline_risk = dist_2019.get("baseline_risk") if dist_2019 else None
         if no_codes and baseline_risk is not None:
             risk_score = float(baseline_risk)
-            thresholds = dist_2019.get("risk_band_thresholds") if dist_2019 else None
-            risk_band = risk_band_from_score(risk_score, thresholds)
+            risk_band = risk_band_from_score(risk_score, None)  # absolute thresholds: low <20%, medium 20-50%, high >=50%
             age_mapped = age >= 95 and age <= 114 and not age_band_override
             interpretation = "Estimated probability of target outcome (2019 holdout population) in this cohort and age band."
             feature_schema_baseline = load_feature_schema(cohort, age_band)
@@ -948,6 +948,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             }
             if dist_2019 is not None:
                 body["dist"] = dist_2019
+            body["risk_band_thresholds"] = DEFAULT_RISK_BAND_THRESHOLDS
             return _response(200, body)
 
         # Load feature schema and run ensemble when user has entered codes
@@ -958,8 +959,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 
         risk_score = ensemble_result['ensemble_score']
         model_predictions = ensemble_result['predictions']
-        thresholds = dist_2019.get("risk_band_thresholds") if dist_2019 else None
-        risk_band = risk_band_from_score(risk_score, thresholds)
+        risk_band = risk_band_from_score(risk_score, None)  # absolute thresholds: low <20%, medium 20-50%, high >=50%
 
         age_mapped = age >= 95 and age <= 114 and not age_band_override
         age_mapping_note = f"Age {age} in age band 85-114" if age_mapped else None

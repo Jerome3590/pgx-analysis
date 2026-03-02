@@ -47,9 +47,9 @@ python prepare_risk_distribution_2019.py --all
 - `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/feature_schema.json` and model joblibs (must exist; run `prepare_models.py` first)
 
 **Outputs:** (idempotent overwrite)
-- `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/risk_distribution_2019.json` (`bins`, `counts`, `n_patients`, `baseline_risk`, `risk_band_thresholds` (33rd/67th %ile), `description`, `bin_edges_pct`)
+- `10_risk_dashboard/outputs/models/{cohort}/{age_band_fname}/risk_distribution_2019.json` (`bins`, `counts`, `n_patients`, `baseline_risk`, `risk_band_thresholds` (33rd/67th %ile of 2019 predictions), `description`, `bin_edges_pct`)
 
-Lambda includes this in the POST /risk response as `dist` when present so the UI can show "Risk Distribution (2019 holdout)". When the user enters **no** Drug, ICD, or CPT codes, the API returns `risk_score` = `baseline_risk` (actual 2019 outcome rate); as the user adds codes, risk is the model's classification probability.
+Lambda includes this in the POST /risk response as `dist` when present so the UI can show "Risk Distribution (2019 holdout)". When the user enters **no** Drug, ICD, or CPT codes, the API returns `risk_score` = `baseline_risk` (actual 2019 outcome rate); as the user adds codes, risk is the model's classification probability. **Risk band label (Low/Medium/High)** is based on **absolute cutoffs** in the API (low &lt;20%, medium 20–50%, high ≥50%), not the 33rd/67th percentiles in this file; those percentiles remain in the JSON for the histogram and reference only.
 
 ### `generate_metadata.py`
 
