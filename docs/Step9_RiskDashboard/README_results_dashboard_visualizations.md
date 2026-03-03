@@ -10,7 +10,7 @@ The dashboard includes three advanced visualization systems that complement the 
 
 | Research question | How it is addressed |
 |-------------------|----------------------|
-| **RQ1:** Routine vs no routine appointments → outcomes | **DTW** trajectory visuals (routine comparison, trajectory metrics, event-density bins) focus on SHAP/FFA-important codes so trajectory clusters and routine vs no-routine comparisons reflect risk-relevant patterns. |
+| **RQ1:** Routine vs utilization appointments → outcomes | **DTW** trajectory visuals (routine comparison, trajectory metrics, event-density bins) focus on SHAP/FFA-important codes so trajectory clusters and routine vs utilization comparisons reflect risk-relevant patterns. |
 | **RQ2:** Sequences leading to target outcomes | **BupaR** process mining (top traces, activity sequences, Sankey flows) is built from event logs filtered to feature-important codes, so pathways and sequences are among the same drugs/ICDs/CPTs that drive the model. |
 | **RQ3:** Time intervals between sequences | **DTW** provides time-between and time-to-target for **aligned** sequences (more accurate than unaligned); charts in `chart_data.json` (`times_between_sequences`, `time_to_target_sequences`). **BupaR** activity frequency, trace explorer, and sequences use the same filtered codes. |
 | **RQ4:** ICD/CPT/Drug connections → target | **FP-Growth** itemsets and association rules are mined on **SHAP/FFA allowed codes** only (target cohort); co-occurrence networks and rules therefore describe associations among model-salient features. |

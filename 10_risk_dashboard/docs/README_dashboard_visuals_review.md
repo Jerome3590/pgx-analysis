@@ -16,7 +16,7 @@ The dashboard visuals **effectively address all core research questions** with a
 
 | Research Question | Primary Tab | Visuals | Status |
 |-------------------|-------------|---------|--------|
-| **RQ1:** Routine vs no routine appointments → outcomes | DTW Trajectories | Routine comparison, trajectory metrics, admin ICD analysis | ✅ **Well-addressed** |
+| **RQ1:** Routine vs utilization appointments → outcomes | DTW Trajectories | Routine comparison, trajectory metrics, admin ICD and utilization analysis | ✅ **Well-addressed** |
 | **RQ2:** Sequences leading to target outcomes | BupaR Process Mining | Top traces, activity sequences, pre-target frequency | ✅ **Well-addressed** |
 | **RQ3:** Time intervals between sequences | DTW, BupaR | DTW: time-between and time-to-target for **aligned** sequences (more accurate than straight BupaR: alignment makes intervals comparable across patients; BupaR straight aggregate mixes stages). BupaR: activity frequency, trace explorer, sequences. | ✅ **Well-addressed** |
 | **RQ4:** ICD/CPT/Drug connections → target | FP-Growth Patterns | Co-occurrence networks, itemsets by type | ✅ **Well-addressed** |
@@ -31,12 +31,12 @@ The dashboard visuals **effectively address all core research questions** with a
 - `4_dashboard_visuals.ipynb` runs `create_dtw_visuals.py` (visualization/publishing)
 - Comment in notebook: "we do not create DTW features in this pipeline" ✅ **Correct - DTW not used for modeling**
 - Workflow: Extract trajectories → Create visualizations → Explore SHAP/FFA results
-- Purpose: Answer research questions about routine vs. no routine appointments using final model's important features
+- Purpose: Answer research questions about routine vs. utilization appointments using final model's important features
 
 #### Actual Issue
 - **Trajectory extraction script is incomplete** - need lightweight version that creates:
   - `seq_pattern_str` (sequence of activity codes)
-  - `admin_icd_event_count` (routine vs no routine indicator)
+  - `admin_icd_event_count` (routine vs utilization indicator)
   - Basic metrics (`trajectory_length`, `trajectory_diversity`)
 - **Expensive DTW distance computations are NOT needed** - `create_dtw_plots.py` uses KMeans clustering on code counts, not DTW distances
 - One CSV exists (`dtw_features_non_opioid_ed_65_74.csv`) but most cohort/age_band combinations missing
@@ -49,11 +49,11 @@ The dashboard visuals **effectively address all core research questions** with a
 
 #### ✅ Well-Covered Areas
 
-**Routine vs No Routine Appointments (RQ1)**
+**Routine vs Utilization Appointments (RQ1)**
 - Location: DTW Trajectories tab
-- Metrics: `admin_icd_event_count` from administrative codes lookup
+- Metrics: `admin_icd_event_count` from administrative codes lookup; medical utilization bin for Routine × utilization
 - Visuals: 
-  - "Routine vs No Routine (Outcomes)" comparison chart
+  - "Routine vs Utilization (Outcomes)" comparison chart
   - "High-Risk vs Low-Risk Trajectories" by quartiles
   - "Common Pathway Patterns in Adverse Events" - shows top codes in target=1 trajectories
 - Data: Uses full pipeline data (2016-2019), SHAP/FFA filtered codes
@@ -129,7 +129,7 @@ def _cluster_points(
 - `mi_person_key` - Patient identifier
 - `target` - Target outcome (0/1)
 - `seq_pattern_str` - Sequence of activity codes (e.g., "DRUG:Med_ICD:F1120_CPT:99213")
-- `admin_icd_event_count` - Count of administrative ICD codes (routine vs no routine)
+- `admin_icd_event_count` - Count of administrative ICD codes (routine vs utilization)
 - `trajectory_length` - Number of events in trajectory
 - `trajectory_diversity` - Count of unique activity codes
 
@@ -162,7 +162,7 @@ Based on documentation (`README_DTW_COHORT_ANALYSIS.md`, `DTW_FEATURE_ANALYSIS.m
    - `trajectory_diversity`: Unique activity count
    - `dtw_distance_to_prototype_0` through `_4`: Distance to each prototype
    - `dtw_min/max/mean/std_distance`: Statistics across prototypes
-   - `admin_icd_event_count`: Routine vs no routine indicator
+   - `admin_icd_event_count`: Routine vs utilization indicator
 7. Output: `dtw_features_{cohort}_{age_band}.csv`
 
 **Performance Considerations:**
@@ -354,7 +354,7 @@ The dashboard visuals **strongly address all six research questions** with appro
 1. `create_dtw_trajectories.py` - Lightweight SQL-based extraction (~1-2 min per cohort/age_band)
 2. Integrated into `4_dashboard_visuals.ipynb` - Two-step DTW process (extraction → visualization)
 3. Three dashboard charts now created:
-   - **routine_comparison**: Outcome rate by routine vs no routine appointments
+   - **routine_comparison**: Outcome rate by routine vs utilization appointments
    - **high_risk_trajectories**: Outcome rate by trajectory quartiles
    - **target_pathway_patterns**: Common codes in target=1 trajectories
 

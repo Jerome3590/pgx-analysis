@@ -589,7 +589,7 @@
     .code-subpanel.active {
       display: block;
     }
-    /* DTW tab sub-tabs: Overview & Trajectories | Routine vs No Routine (clearly visible) */
+    /* DTW tab sub-tabs: Overview & Trajectories | Routine vs Utilization (clearly visible) */
     #dtw-visualizations-tab .dtw-subtabs-wrapper {
       margin: 1rem 0 1.25rem 0;
       padding: 0.5rem 0;
@@ -1106,12 +1106,12 @@
       </div>
     </div>
 
-    <!-- DTW Visualizations Tab: drug-only trajectories/sequences + Routine vs No Routine (admin codes) -->
+    <!-- DTW Visualizations Tab: drug-only trajectories/sequences + Routine vs Utilization (admin codes) -->
     <div id="dtw-visualizations-tab" class="tab-content">
       <p class="subtitle">
-        <strong>Research focus: drug, ICD, and CPT trajectories and sequences</strong>; and <strong>how routine screenings (admin codes) relate to outcomes</strong>. Opioid ED: drug, ICD, and CPT activity types. Heatmap: choose Drug / ICD / CPT. Routine sub-tab: outcome rate and event counts by routine vs no routine.
+        <strong>Research focus: drug, ICD, and CPT trajectories and sequences</strong>; and <strong>how routine screenings (admin codes) relate to outcomes</strong>. Opioid ED: drug, ICD, and CPT activity types. Heatmap: choose Drug / ICD / CPT. Routine vs Utilization sub-tab: outcome rate and event counts by routine and utilization.
         <br>
-        <small style="color: #64748b;">Select cohort and age band, then load. Use the sub-tabs below to switch between <strong>Overview &amp; Trajectories</strong> (drug-focused) and <strong>Routine vs No Routine</strong>. Data: full pipeline (2016–2019).</small>
+        <small style="color: #64748b;">Select cohort and age band, then load. Use the sub-tabs below to switch between <strong>Overview &amp; Trajectories</strong> (drug-focused) and <strong>Routine vs Utilization</strong>. Data: full pipeline (2016–2019).</small>
       </p>
       <div class="controls">
         <div class="control-group">
@@ -1152,7 +1152,7 @@
         <div class="dtw-subtabs-label">Sub-tab:</div>
         <div class="dtw-subtabs" role="tablist">
           <button type="button" class="dtw-subtab active" data-dtw-subtab="overview" onclick="switchDTWSubtab('overview')" aria-selected="true">Overview &amp; Trajectories (drugs)</button>
-          <button type="button" class="dtw-subtab" data-dtw-subtab="routine" onclick="switchDTWSubtab('routine')" aria-selected="false">Routine vs No Routine</button>
+          <button type="button" class="dtw-subtab" data-dtw-subtab="routine" onclick="switchDTWSubtab('routine')" aria-selected="false">Routine vs Utilization</button>
         </div>
       </div>
       <div class="panels">
@@ -1176,7 +1176,7 @@
           <div class="panel full-width dtw-panel" data-visual-key="times_between">
             <h2>Times Between Sequences (N3)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
-              <small style="color: #64748b;">Mean days between consecutive events and mean days to target, by routine vs no routine. Drug sequence context.</small>
+              <small style="color: #64748b;">Mean days between consecutive events and mean days to target, by routine vs utilization. Drug sequence context.</small>
             </p>
             <div id="dtw-times-between-container"></div>
             <div id="dtw-time-to-target-container"></div>
@@ -1206,15 +1206,19 @@
         </div>
         <div id="dtw-subpanel-routine" class="dtw-subpanel">
           <div class="panel full-width dtw-panel" data-visual-key="routine_comparison">
-            <h2>Routine vs No Routine (Outcomes)</h2>
+            <h2>Routine vs Utilization (Outcomes)</h2>
             <p class="subtitle" style="margin-bottom: 0.75rem;">
               <small style="color: #64748b;">Core analysis: Do routine screenings (administrative ICD codes) associate with better outcomes? Outcome rate by routine appointments (1+ admin ICD events) vs no routine (0 admin ICD). Highlights how routine care may reduce extreme outcomes. Data: full pipeline (2016–2019).</small>
             </p>
             <div id="dtw-routine-comparison-container"></div>
             <p class="subtitle" style="margin-top: 1rem; margin-bottom: 0.5rem;">
-              <small style="color: #64748b;">Mean medical events (ICD/CPT) and prescription events (drugs) per patient by routine vs no routine.</small>
+              <small style="color: #64748b;">Mean medical events (ICD/CPT) and prescription events (drugs) per patient by routine vs utilization.</small>
             </p>
             <div id="dtw-routine-comparison-counts-container"></div>
+            <p class="subtitle" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+              <small style="color: #64748b;">Outcome rate by routine vs utilization, stratified by full unfiltered medical utilization (low vs extreme). Does routine care associate with lower extreme medical events?</small>
+            </p>
+            <div id="dtw-routine-by-medical-container"></div>
           </div>
         </div>
       </div>
@@ -1331,7 +1335,7 @@
             <tr><th>Question</th><th>Tab(s)</th><th>Visuals</th></tr>
           </thead>
           <tbody>
-            <tr><td>N1: Routine vs no routine appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs No Routine (Outcomes), trajectory overview, metrics</td></tr>
+            <tr><td>N1: Routine vs utilization appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs Utilization (Outcomes), trajectory overview, metrics</td></tr>
             <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
             <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
             <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Drug association network, top itemsets (drug names only)</td></tr>
@@ -2727,6 +2731,7 @@
           if (chartData.summary) data.dtw_summary = chartData.summary;
           if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
           if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.routine_by_medical_utilization) data.routine_by_medical_utilization = chartData.routine_by_medical_utilization;
           if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
           if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
           if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
@@ -2787,6 +2792,7 @@
           if (chartData.summary) data.dtw_summary = chartData.summary;
           if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
           if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.routine_by_medical_utilization) data.routine_by_medical_utilization = chartData.routine_by_medical_utilization;
           if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
           if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
           if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
@@ -3380,7 +3386,7 @@
     { key: 'times_between', label: 'Times Between / Time to Target' },
     { key: 'target_pathway', label: 'Target Pathway Patterns' },
     { key: 'sequence_heatmap', label: 'Sequence Heatmap (Drug/ICD/CPT)' },
-    { key: 'routine_comparison', label: 'Routine vs No Routine' }
+    { key: 'routine_comparison', label: 'Routine vs Utilization' }
   ];
   const DTW_STORAGE_KEY = 'dtw_visuals_selection';
   function getDTWVisualSelection(cohort) {
@@ -3453,6 +3459,7 @@
       ? data.routine_comparison_by_density[densityFilter] : data.routine_comparison;
     const routineComparisonCounts = (densityFilter && densityFilter !== 'all' && data.routine_comparison_counts_by_density && data.routine_comparison_counts_by_density[densityFilter])
       ? data.routine_comparison_counts_by_density[densityFilter] : data.routine_comparison_counts;
+    const routineByMedical = data.routine_by_medical_utilization;
     const highRiskTrajectories = (densityFilter && densityFilter !== 'all' && data.high_risk_trajectories_by_density && data.high_risk_trajectories_by_density[densityFilter])
       ? data.high_risk_trajectories_by_density[densityFilter] : data.high_risk_trajectories;
 
@@ -3576,17 +3583,17 @@
             text: Array.isArray(routineComparison.n) ? routineComparison.n.map(v => 'n=' + v) : undefined,
             textposition: 'outside'
           };
-          routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>';
+          routineEl.innerHTML = '<div id="dtw-routine-comparison-chart"></div>' + (routineComparison.note ? '<p class="subtitle" style="margin-top:0.5rem;color:#64748b;"><small>' + (routineComparison.note.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</small></p>' : '');
           Plotly.newPlot('dtw-routine-comparison-chart', [trace], {
-            title: (densityFilter && densityFilter !== 'all' ? `Outcome by routine vs non-routine (${densityFilter} density)` : (routineComparison.title || 'Outcome by routine vs non-routine (admin ICD)')),
+            title: (densityFilter && densityFilter !== 'all' ? `Outcome by routine vs utilization (${densityFilter} density)` : (routineComparison.title || 'Outcome by routine vs utilization (admin ICD)')),
             xaxis: { title: routineComparison.x_label || 'Category' },
             yaxis: { title: routineComparison.y_label || 'Value' }
           }, { responsive: true });
         } else {
           const reason = (data.chart_data && data.chart_data.metrics && data.chart_data.metrics.charts_not_built && data.chart_data.metrics.charts_not_built.routine_comparison);
           const msg = reason
-            ? ('Routine vs non-routine comparison was not built. ' + reason)
-            : 'Routine vs non-routine comparison will appear here when chart_data.json provides routine_comparison. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
+            ? ('Routine vs utilization comparison was not built. ' + reason)
+            : 'Routine vs utilization comparison will appear here when chart_data.json provides routine_comparison. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
           setEmptyMessage(routineEl, msg);
         }
       } catch (e) { setEmptyMessage(routineEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
@@ -3608,21 +3615,51 @@
             text: Array.isArray(rc.n) ? (i === 0 ? rc.n.map(v => 'n=' + v) : undefined) : undefined,
             textposition: i === 0 ? 'outside' : undefined
           }));
-          routineCountsEl.innerHTML = '<div id="dtw-routine-comparison-counts-chart"></div>';
+          routineCountsEl.innerHTML = '<div id="dtw-routine-comparison-counts-chart"></div>' + (rc.note ? '<p class="subtitle" style="margin-top:0.5rem;color:#64748b;"><small>' + (rc.note.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</small></p>' : '');
           Plotly.newPlot('dtw-routine-comparison-counts-chart', traces, {
             barmode: 'group',
-            title: rc.title || 'Mean medical and prescription events per patient by routine vs no routine',
-            xaxis: { title: rc.x_label || 'Routine vs no routine' },
+            title: rc.title || 'Mean medical and prescription events per patient by routine vs utilization',
+            xaxis: { title: rc.x_label || 'Routine vs utilization' },
             yaxis: { title: rc.y_label || 'Mean events per patient' }
           }, { responsive: true });
         } else {
           const reason = (data.chart_data && data.chart_data.metrics && data.chart_data.metrics.charts_not_built && data.chart_data.metrics.charts_not_built.routine_comparison_counts);
           const msg = reason
             ? ('Medical and prescription event counts were not built. ' + reason)
-            : 'Medical and prescription event counts by routine vs no routine will appear here when chart_data.json provides routine_comparison_counts. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
+            : 'Medical and prescription event counts by routine vs utilization will appear here when chart_data.json provides routine_comparison_counts. Ensure chart_data.json exists at visualizations/dtw/{cohort}/{age_band}/ on S3 (run create_dtw_trajectories → create_dtw_features → create_dtw_visuals, then sync to S3).';
           setEmptyMessage(routineCountsEl, msg);
         }
       } catch (e) { setEmptyMessage(routineCountsEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
+    }
+
+    // Routine vs no routine by medical utilization (low vs extreme) — does routine care drive lower extreme medical events?
+    const routineByMedicalEl = document.getElementById("dtw-routine-by-medical-container");
+    if (routineByMedicalEl) {
+      try {
+        const rbm = routineByMedical;
+        if (rbm && rbm.x && Array.isArray(rbm.series) && rbm.series.length > 0) {
+          const colors = ['#0ea5e9', '#ef4444'];
+          const traces = rbm.series.map((s, i) => ({
+            x: rbm.x,
+            y: s.y,
+            type: 'bar',
+            name: s.name || ('Series ' + (i + 1)),
+            marker: { color: colors[i % colors.length] },
+            text: Array.isArray(s.n) ? s.n.map(v => 'n=' + v) : undefined,
+            textposition: 'outside'
+          }));
+          routineByMedicalEl.innerHTML = (rbm.note ? '<p class="subtitle" style="margin-bottom:0.5rem;color:#64748b;"><small>' + (rbm.note.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</small></p>' : '') + '<div id="dtw-routine-by-medical-chart"></div>';
+          Plotly.newPlot('dtw-routine-by-medical-chart', traces, {
+            barmode: 'group',
+            title: rbm.name || 'Outcome rate by routine and medical utilization',
+            xaxis: { title: rbm.x_label || 'Routine vs utilization' },
+            yaxis: { title: rbm.y_label || 'Target outcome rate' }
+          }, { responsive: true });
+        } else {
+          const reason = (data.chart_data && data.chart_data.metrics && data.chart_data.metrics.charts_not_built && data.chart_data.metrics.charts_not_built.routine_by_medical_utilization);
+          setEmptyMessage(routineByMedicalEl, reason ? ('Routine × medical utilization not built. ' + reason) : 'Outcome rate by routine and medical utilization (low vs extreme) will appear here when chart_data.json provides routine_by_medical_utilization. Re-run create_dtw_trajectories so medical_utilization_bin is populated.');
+        }
+      } catch (e) { setEmptyMessage(routineByMedicalEl, 'This visual could not be displayed.'); }
     }
 
     // High-risk vs low-risk trajectories — same JSON pattern: chart_data.high_risk_trajectories (or by density)
@@ -3675,7 +3712,7 @@
           const hasChartData = data.chart_data && !data.chart_data.empty;
           const msg = hasChartData
             ? 'chart_data.json was loaded but does not include N3 time-between metrics for this cohort/age. Re-run the DTW pipeline (create_dtw_trajectories → create_dtw_features → create_dtw_visuals) so chart_data is rebuilt with mean_days_between_events and admin_icd_event_count (requires timestamped event columns, e.g. event_date), then re-sync to S3.'
-            : 'Times Between Sequences (N3): mean days between consecutive events and mean days to target, by routine vs no routine (drug sequence context). This will appear when the pipeline provides time-between metrics using timestamped event columns (e.g. event_date) in chart_data.json.';
+            : 'Times Between Sequences (N3): mean days between consecutive events and mean days to target, by routine vs utilization (drug sequence context). This will appear when the pipeline provides time-between metrics using timestamped event columns (e.g. event_date) in chart_data.json.';
           setEmptyMessage(timesBetweenEl, msg);
         }
       } catch (e) { setEmptyMessage(timesBetweenEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }

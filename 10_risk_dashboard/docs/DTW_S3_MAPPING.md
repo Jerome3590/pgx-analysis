@@ -52,7 +52,7 @@ The frontend fetches `trajectory_overview_plot.json` from the static plots path 
 So the **base path** for DTW is `.../visualizations/dtw/{cohort}/{age_band}/` (e.g. `opioid_ed/25-44` with hyphen).  
 All URLs for chart_data, sequence_heatmap, and `plots/` are built from this base.
 
-**chart_data.json** is expected to contain (when the pipeline produced data): `routine_comparison`, `routine_comparison_counts`, `high_risk_trajectories`, `target_pathway_patterns`, `times_between_sequences`, `time_to_target_sequences`, and optionally `*_by_density` and `event_density_bins`. If the file is missing on S3 or contains only `empty: true` and a `message`, the Routine vs No Routine and related panels will show the placeholder.
+**chart_data.json** is expected to contain (when the pipeline produced data): `routine_comparison`, `routine_comparison_counts`, `routine_by_medical_utilization`, `high_risk_trajectories`, `target_pathway_patterns`, `times_between_sequences`, `time_to_target_sequences`, and optionally `*_by_density` and `event_density_bins`. If the file is missing on S3 or contains only `empty: true` and a `message`, the Routine vs Utilization and related panels will show the placeholder.
 
 ## Expected S3 layout (per cohort/age_band)
 
@@ -74,9 +74,9 @@ All URLs for chart_data, sequence_heatmap, and `plots/` are built from this base
 - **plots/*.html**: Present as `dtw_trajectory_cluster_1d_*` or `dtw_trajectory_cluster_3d_*`; API updated to use these for `overview_interactive` when `dtw_trajectory_cluster_interactive_*` is missing.
 - **plots/dtw_trajectory_analysis_*.png**, **plots/dtw_sample_trajectories_*.png**: Optional; created by pipeline only when `dtw_trajectory_cluster_*.png` exists (kaleido). If missing, dashboard uses `trajectory_overview_plot.json` (Plotly) or shows empty.
 
-## Why "Routine vs No Routine" or "routine_comparison_counts" don't render
+## Why "Routine vs Utilization" or "routine_comparison_counts" don't render
 
-The **Routine vs No Routine (Outcomes)** and **Medical and prescription event counts** panels need `routine_comparison` and `routine_comparison_counts` inside `chart_data.json`. If you see placeholders:
+The **Routine vs Utilization (Outcomes)** and **Medical and prescription event counts** panels need `routine_comparison` and `routine_comparison_counts` inside `chart_data.json`. If you see placeholders:
 
 1. **Check that chart_data.json exists on S3** (dashboard bucket, under prefix):
    ```bash

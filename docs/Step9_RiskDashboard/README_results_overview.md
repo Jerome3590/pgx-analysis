@@ -76,7 +76,7 @@ The dashboard is organized into four main tabs:
 - **DTW**: Trajectory clustering showing patient similarity and archetypes
 - **Causal Analysis**: Impact of removing individual codes on risk score
 
-**Feature importance and research questions:** Feature importance (Step 3 / SHAP / FFA) defines which codes drive the model. We do not use BupaR, FP-Growth, or DTW for feature engineering (target leakage). We do use them **with feature importance** for **analysis and answering research questions** (sequences, time intervals, code connections, routine vs no-routine, trajectory patterns) as well as dashboard display; visuals are restricted to those same codes. See [README_results_dashboard_visualizations.md](README_results_dashboard_visualizations.md) for the full RQ mapping.
+**Feature importance and research questions:** Feature importance (Step 3 / SHAP / FFA) defines which codes drive the model. We do not use BupaR, FP-Growth, or DTW for feature engineering (target leakage). We do use them **with feature importance** for **analysis and answering research questions** (sequences, time intervals, code connections, routine vs utilization, trajectory patterns) as well as dashboard display; visuals are restricted to those same codes. See [README_results_dashboard_visualizations.md](README_results_dashboard_visualizations.md) for the full RQ mapping.
 
 ### Incremental Deployment
 

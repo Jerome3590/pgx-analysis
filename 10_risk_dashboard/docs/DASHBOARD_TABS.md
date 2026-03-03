@@ -49,4 +49,4 @@ https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{object_key}
 
 **4_dashboard_visuals** = BupaR, DTW, and FP-Growth pipelines write to the EC2 paths above and upload to the dashboard bucket when run; Step 6 does not re-upload those.
 
-**Research focus (BupaR, DTW, FP-Growth):** Final production pipeline produces **drug-only** artifacts for BupaR/FP-Growth and drug sequence heatmap for DTW. **Routine vs no routine (admin codes)** remains a core analysis on the DTW tab: outcome rate by routine screenings (admin ICD) to highlight how routine care may reduce extreme outcomes; data comes from `chart_data.json` (`routine_comparison`).
+**Research focus (BupaR, DTW, FP-Growth):** Final production pipeline produces **drug-only** artifacts for BupaR/FP-Growth and drug sequence heatmap for DTW. **Routine vs utilization (admin codes and medical utilization)** remains a core analysis on the DTW tab: outcome rate by routine screenings (admin ICD) and utilization to highlight how routine care may reduce extreme outcomes; data comes from `chart_data.json` (`routine_comparison`, `routine_comparison_counts`, `routine_by_medical_utilization`).

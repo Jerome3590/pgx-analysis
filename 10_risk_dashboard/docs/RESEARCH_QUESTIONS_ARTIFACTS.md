@@ -10,7 +10,7 @@
 
 | ID | Research question | Tab(s) | Artifacts we keep and use |
 |----|-------------------|--------|----------------------------|
-| **N1** | Routine vs no routine appointments → outcomes? (How do routine screenings reduce extreme outcomes?) | DTW Trajectories | `chart_data.json`: `routine_comparison`, `routine_comparison_counts`. Trajectory overview image (drug-only), sample trajectories image when present. |
+| **N1** | Routine vs utilization appointments → outcomes? (How do routine screenings reduce extreme outcomes?) | DTW Trajectories | `chart_data.json`: `routine_comparison`, `routine_comparison_counts`, `routine_by_medical_utilization`. Trajectory overview image (drug-only), sample trajectories image when present. |
 | **N2** | What sequences lead to target outcomes? | BupaR Process Mining | Sequences to target: `*_activity_sequence_top.png`. Pre-target activity: `*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json`; `*_overall_activity_frequency.png` (optional fallback). Trace explorer: `*_trace_explorer_plot.json` or `*_trace_explorer_interactive.html`, `*_trace_explorer_pre_f1120.png` / `*_trace_explorer_pre_hcg.png`. |
 | **N3** | What times between sequences lead to target outcomes? | DTW Trajectories | DTW provides time-between and time-to-target for **aligned** sequences—more accurate than a straight BupaR comparison because alignment makes intervals comparable across patients (like-with-like); BupaR straight aggregate mixes stages. `chart_data.json`: `times_between_sequences`, `time_to_target_sequences` (when present). DTW overview/sample images for trajectory context. |
 | **N4** | Drug connections → target? (Risk-predictive co-occurrence) | FP-Growth Patterns | `*_combined_rules_network.html` (drug association network). `*_drug_name_combined_top_itemsets.png`. `.../data/drug_name_itemsets.json` (client Plotly). |
@@ -45,7 +45,7 @@
 - **API:** `GET /visualizations/bupar`, `GET /visualizations/bupar/activity_frequency`
 
 ### DTW Trajectories (N1, N3)
-- **Keep:** `chart_data.json` (routine_comparison, routine_comparison_counts, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns). `sequence_heatmap.json` (drug slice). Overview and sample trajectory images when generated.
+- **Keep:** `chart_data.json` (routine_comparison, routine_comparison_counts, routine_by_medical_utilization, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns). `sequence_heatmap.json` (drug slice). Overview and sample trajectory images when generated.
 - **Location:** `dtw/{cohort}/{age_band}/`
 - **API:** `GET /visualizations/dtw?cohort=&age_band=`
 
