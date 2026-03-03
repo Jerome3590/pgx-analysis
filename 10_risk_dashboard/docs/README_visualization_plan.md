@@ -28,7 +28,7 @@ This document is the **single source of truth** for the final production workflo
 |---|-----|---------|-------------|
 | 1 | **Causal Analysis** | Features driving outcome; relations; drug combinations → polypharmacy ED | FFA + SHAP importance, feature interactions, radar (optional). Data: Lambda `/causal/importance`, S3 gold/ffa_analysis, gold/shap_analysis. |
 | 2 | **BupaR Process Mining** | Sequences to target (N2); times between sequences (N3 optional) | Activity frequency (overall, pre-target), trace explorer (aggregated), activity sequence top. Static PNG + interactive HTML (year dropdown). |
-| 3 | **DTW Trajectories** | Routine vs no routine (N1); time-between for aligned sequences (N3, more accurate); drug sequences | Trajectory cluster plots, **Routine vs No Routine (Outcomes)** by admin ICD, high-risk trajectories, time-between and time-to-target for aligned sequences (N3), target pathway patterns, common drug-sequences heatmap. chart_data.json. |
+| 3 | **DTW Trajectories** | Routine vs utilization (N1); time-between for aligned sequences (N3, more accurate); drug sequences | Trajectory cluster plots, **Routine vs Utilization (Outcomes)** by admin ICD and utilization, high-risk trajectories, time-between and time-to-target for aligned sequences (N3), target pathway patterns, common drug-sequences heatmap. chart_data.json. |
 | 4 | **FP-Growth Patterns** | Risk-predictive co-occurrence (N4): **drug** connections in target, SHAP/FFA-gated | Co-occurrence network, top itemsets, support distribution. **Drug names only** (no item type selector). |
 
 **Creation code:** All visualization creation lives in **`9_dashboard_visuals/`** (step 9). Outputs are written under **`10_risk_dashboard/visualizations/`** and uploaded to the dashboard S3 bucket. See `10_risk_dashboard/visualizations/README.md` for directory layout and script names per tab.
@@ -39,7 +39,7 @@ This document is the **single source of truth** for the final production workflo
 
 | ID | Question | Tab | Visuals |
 |----|----------|-----|---------|
-| **N1** | Routine vs no routine appointments → outcomes? (How do routine screenings (admin codes) reduce extreme cohorts?) | DTW | **Routine vs No Routine (Outcomes)** chart (outcome rate by admin ICD), high-risk trajectories, trajectory overview. Core production analysis. |
+| **N1** | Routine vs utilization appointments → outcomes? (How do routine screenings (admin codes) reduce extreme cohorts?) | DTW | **Routine vs Utilization (Outcomes)** chart (outcome rate by admin ICD and utilization), routine × medical utilization chart, high-risk trajectories, trajectory overview. Core production analysis. |
 | **N2** | What sequences lead to target outcomes? | BupaR | Sequences to target, pre-target activity frequency, trace explorer (aggregated). |
 | **N3** | What times between sequences lead to target outcomes? | DTW, BupaR | DTW: time-between and time-to-target for **aligned** sequences (more accurate); charts in chart_data.json (by routine bucket). BupaR: activity frequency and sequences. |
 | **N4** | Drug connections → target? | FP-Growth | Risk-predictive co-occurrence (SHAP/FFA-gated, target-only). Co-occurrence network, itemsets (**drug names only**). |

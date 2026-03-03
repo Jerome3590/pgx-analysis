@@ -464,7 +464,7 @@ Trajectories are **binned by event density** (events per month) so analyses and 
 
 - **Computation** (`create_dtw_trajectories.py`): For each trajectory we compute `temporal_span_days` (first to last event), `events_per_month` = trajectory_length / (span_days/30), and `event_density_bin` using the same percentile cutoffs as FP-Growth: **low** (≤P25), **medium** (≤P50), **high** (≤P95), **extreme** (>P95). Single-event trajectories (span 0) are assigned to **low**.
 - **Chart data** (`create_dtw_visuals.py`): When the DTW features CSV has `event_density_bin`, `chart_data.json` includes `event_density_bins` and stratified series: `routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density` (one entry per bin: low, medium, high, extreme). Bins with fewer than 10 trajectories are omitted for that chart.
-- **Dashboard**: The DTW Trajectories tab has an **Event density** dropdown (All | Low | Medium | High | Extreme). After loading visualizations, changing the filter re-renders Routine vs No Routine, Routine event counts, and High-Risk vs Low-Risk Trajectories using the selected density slice when available; "All" uses the aggregate series.
+- **Dashboard**: The DTW Trajectories tab has an **Event density** dropdown (All | Low | Medium | High | Extreme). After loading visualizations, changing the filter re-renders Routine vs Utilization, Routine event counts, and High-Risk vs Low-Risk Trajectories using the selected density slice when available; "All" uses the aggregate series.
 
 ### 1. Similarity Matrix Heatmaps
 

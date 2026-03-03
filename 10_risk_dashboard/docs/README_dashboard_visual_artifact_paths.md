@@ -124,7 +124,7 @@ These paths match what the **frontend** expects when using **static-first** load
 |--------|-------------|---------|
 | Trajectory Analysis Overview (drugs) | JSON (primary), PNG (fallback) | `plots/trajectory_overview_plot.json`, `plots/dtw_trajectory_analysis_{base}.png` |
 | Overview interactive (3D/1D) | HTML | `plots/dtw_trajectory_cluster_1d_*.html` or `dtw_trajectory_cluster_3d_*.html` (API-discovered) |
-| Trajectory Metrics, High-Risk, N3 times, Target Pathway, Routine vs No Routine, event counts, density filter | JSON | `chart_data.json` (single file; frontend uses keys) |
+| Trajectory Metrics, High-Risk, N3 times, Target Pathway, Routine vs Utilization, event counts, Routine × utilization, density filter | JSON | `chart_data.json` (single file; frontend uses keys) |
 | Common Sequences Heatmap | JSON | `sequence_heatmap.json` |
 
 **All DTW objects: EC2 path and S3 path.** `{cohort}` = e.g. `opioid_ed`, `non_opioid_ed`. EC2 uses **underscore** in age band (e.g. `25_44`); S3 uses **hyphen** (e.g. `25-44`). Base EC2 = `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/`; S3 base = `visualizations/dtw/{cohort}/{age_band}/`.
@@ -147,11 +147,12 @@ These paths match what the **frontend** expects when using **static-first** load
 | DTW Trajectories | Times Between Sequences (N3) | `chart_data.json` → `times_between_sequences`, `time_to_target_sequences` | (same) | (same) |
 | DTW Trajectories | Target Pathway Patterns (drugs) | `chart_data.json` → `target_pathway_patterns` | (same) | (same) |
 | DTW Trajectories | Common Sequences Heatmap (Drugs only) | `sequence_heatmap.json` | `.../sequence_heatmap.json` | `dtw/{cohort}/{age_band}/sequence_heatmap.json` |
-| DTW Trajectories | Routine vs No Routine (Outcomes) | `chart_data.json` → `routine_comparison` | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
-| DTW Trajectories | (Routine vs No Routine event counts) | `chart_data.json` → `routine_comparison_counts` | (same) | (same) |
+| DTW Trajectories | Routine vs Utilization (Outcomes) | `chart_data.json` → `routine_comparison` | `.../chart_data.json` | `dtw/{cohort}/{age_band}/chart_data.json` |
+| DTW Trajectories | (Routine vs Utilization event counts) | `chart_data.json` → `routine_comparison_counts` | (same) | (same) |
+| DTW Trajectories | Routine × medical utilization | `chart_data.json` → `routine_by_medical_utilization` | (same) | (same) |
 | DTW Trajectories | Event density filter | `chart_data.json` → `event_density_bins`, `routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density` | (same) | (same) |
 
-**Event density:** When the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), chart_data includes the keys above so the dashboard can filter Routine vs No Routine and High-Risk charts by bin (All | Low | Medium | High | Extreme). See `10_risk_dashboard/visualizations/dtw/README.md`.
+**Event density:** When the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), chart_data includes the keys above so the dashboard can filter Routine vs Utilization and High-Risk charts by bin (All | Low | Medium | High | Extreme). See `10_risk_dashboard/visualizations/dtw/README.md`.
 
 **DTW run order:** `create_dtw_features` writes to `feature_engineering/` (CSV + common_sequences). **`create_dtw_visuals`** reads that CSV, builds `chart_data.json` and `sequence_heatmap.json`, writes them under `{cohort}/{age_band_fname}/`, and uploads to S3. The artifact path check expects these JSONs in that output dir; run `create_dtw_visuals` per cohort/age_band after feature engineering.
 

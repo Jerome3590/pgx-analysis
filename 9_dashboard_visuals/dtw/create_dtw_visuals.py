@@ -444,13 +444,13 @@ def _agg_routine_comparison_via_duckdb(df: pd.DataFrame) -> Optional[Dict[str, A
             "AVG(target) AS target_rate, COUNT(*) AS n FROM t GROUP BY 1 ORDER BY 1",
             [bucket_0, bucket_1],
         ).df()
-        if agg.empty or len(agg) < 2 or agg["n"].sum() < 10:
+        if agg.empty or agg["n"].sum() < 10:
             return None
         agg = agg.set_index("bucket").reindex([bucket_0, bucket_1]).reset_index()
         agg = agg.dropna(subset=["target_rate"])
         if agg.empty or agg["n"].sum() == 0:
             return None
-        return {
+        out = {
             "x": agg["bucket"].astype(str).tolist(),
             "y": [float(round(v, 4)) for v in agg["target_rate"]],
             "n": [int(v) for v in agg["n"]],
@@ -459,6 +459,9 @@ def _agg_routine_comparison_via_duckdb(df: pd.DataFrame) -> Optional[Dict[str, A
             "x_label": "Routine vs no routine (admin ICD filter)",
             "y_label": "Target outcome rate",
         }
+        if len(agg) == 1:
+            out["note"] = "Only one bucket present (all patients no routine or all routine). Add administrative ICD codes in 1b_apcd_event_filter/administrative_codes_lookup.json or ensure model_events has routine codes in primary/secondary ICD columns."
+        return out
     finally:
         con.close()
 
@@ -502,8 +505,7 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
     agg = agg.dropna(subset=["target_rate"])
     if agg.empty or agg["n"].sum() == 0:
         return None
-    # Frontend expects: x, y, type, x_label, y_label; n for robustness (multiple visuals)
-    return {
+    out = {
         "x": agg["bucket"].astype(str).tolist(),
         "y": [float(round(v, 4)) for v in agg["target_rate"]],
         "n": [int(v) for v in agg["n"]],
@@ -512,6 +514,9 @@ def _compute_dtw_routine_comparison(df: pd.DataFrame) -> Optional[Dict[str, Any]
         "x_label": x_label,
         "y_label": "Target outcome rate",
     }
+    if len(agg) == 1 and "admin_icd_event_count" in df.columns:
+        out["note"] = "Only one bucket present (all patients no routine or all routine). Add administrative ICD codes in 1b_apcd_event_filter/administrative_codes_lookup.json or ensure model_events has routine codes in primary/secondary ICD columns."
+    return out
 
 
 def _agg_routine_comparison_counts_via_duckdb(use_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
@@ -535,7 +540,7 @@ def _agg_routine_comparison_counts_via_duckdb(use_df: pd.DataFrame) -> Optional[
         agg = agg.dropna(subset=["mean_medical", "mean_drug"])
         if agg.empty or agg["n"].sum() == 0:
             return None
-        return {
+        out = {
             "x": agg["bucket"].astype(str).tolist(),
             "series": [
                 {"name": "Mean medical events (ICD/CPT) per patient", "y": [float(round(v, 2)) for v in agg["mean_medical"]]},
@@ -546,6 +551,9 @@ def _agg_routine_comparison_counts_via_duckdb(use_df: pd.DataFrame) -> Optional[
             "x_label": "Routine vs no routine (admin ICD filter)",
             "y_label": "Mean events per patient",
         }
+        if len(agg) == 1:
+            out["note"] = "Only one bucket present. Add administrative ICD codes in 1b_apcd_event_filter/administrative_codes_lookup.json or ensure model_events has routine codes in primary/secondary ICD columns."
+        return out
     finally:
         con.close()
 
@@ -579,7 +587,7 @@ def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[st
     agg = agg.dropna(subset=["mean_medical", "mean_drug"])
     if agg.empty or agg["n"].sum() == 0:
         return None
-    return {
+    out = {
         "x": agg["bucket"].astype(str).tolist(),
         "series": [
             {"name": "Mean medical events (ICD/CPT) per patient", "y": [float(round(v, 2)) for v in agg["mean_medical"]]},
@@ -589,6 +597,121 @@ def _compute_dtw_routine_comparison_counts(df: pd.DataFrame) -> Optional[Dict[st
         "type": "bar",
         "x_label": "Routine vs no routine (admin ICD filter)",
         "y_label": "Mean events per patient",
+    }
+    if len(agg) == 1:
+        out["note"] = "Only one bucket present. Add administrative ICD codes in 1b_apcd_event_filter/administrative_codes_lookup.json or ensure model_events has routine codes in primary/secondary ICD columns."
+    return out
+
+
+def _agg_routine_by_medical_via_duckdb(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Build routine × medical utilization chart in DuckDB when available. Returns chart dict or None."""
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    if df.empty or "target" not in df.columns or "admin_icd_event_count" not in df.columns or "medical_utilization_bin" not in df.columns:
+        return None
+    use = df[["admin_icd_event_count", "target", "medical_utilization_bin"]].copy()
+    use = use[use["medical_utilization_bin"].isin(("low", "extreme"))]
+    if len(use) < 10:
+        return None
+    con = duckdb.connect(":memory:")
+    try:
+        con.register("t", use)
+        agg = con.execute("""
+            SELECT
+                CASE WHEN admin_icd_event_count = 0 THEN 'No routine (0 admin ICD)' ELSE 'Routine (1+ admin ICD)' END AS routine_bucket,
+                medical_utilization_bin,
+                AVG(target) AS target_rate,
+                COUNT(*) AS n
+            FROM t
+            GROUP BY 1, 2
+            ORDER BY 1, 2
+        """).df()
+        con.unregister("t")
+    finally:
+        con.close()
+    if agg.empty or agg["n"].sum() < 10:
+        return None
+    routine_order = ["No routine (0 admin ICD)", "Routine (1+ admin ICD)"]
+    x_vals = [r for r in routine_order if r in agg["routine_bucket"].unique()]
+    if not x_vals:
+        return None
+    series = []
+    for med_bin, label in [("low", "Low medical utilization"), ("extreme", "Extreme medical utilization")]:
+        sub = agg[agg["medical_utilization_bin"] == med_bin]
+        if sub.empty:
+            continue
+        rate_by_routine = sub.set_index("routine_bucket")["target_rate"].reindex(x_vals).fillna(0)
+        n_by_routine = sub.set_index("routine_bucket")["n"].reindex(x_vals).fillna(0)
+        series.append({
+            "name": label,
+            "y": [float(round(v, 4)) for v in rate_by_routine.values],
+            "n": [int(v) for v in n_by_routine.values],
+        })
+    if not series:
+        return None
+    return {
+        "x": x_vals,
+        "series": series,
+        "type": "bar",
+        "x_label": "Routine vs no routine (admin ICD)",
+        "y_label": "Target outcome rate",
+        "name": "Outcome rate by routine and medical utilization (full unfiltered)",
+        "note": "Low vs extreme medical utilization from full unfiltered event count (target cohort). Shows whether routine care associates with lower extreme medical events.",
+    }
+
+
+def _compute_routine_by_medical_utilization(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    """Outcome rate by routine vs no routine, stratified by full unfiltered medical utilization (low vs extreme).
+    Uses DuckDB for aggregation when available; else pandas."""
+    if df.empty or "target" not in df.columns or "admin_icd_event_count" not in df.columns:
+        return None
+    if "medical_utilization_bin" not in df.columns:
+        return None
+    res = _agg_routine_by_medical_via_duckdb(df)
+    if res is not None:
+        return res
+    use_df = df[["admin_icd_event_count", "target", "medical_utilization_bin"]].copy()
+    use_df["routine_bucket"] = use_df["admin_icd_event_count"].apply(
+        lambda x: "No routine (0 admin ICD)" if x == 0 else "Routine (1+ admin ICD)"
+    )
+    use_df = use_df.dropna(subset=["routine_bucket", "medical_utilization_bin"])
+    medical_bins_show = ["low", "extreme"]
+    use_df = use_df[use_df["medical_utilization_bin"].isin(medical_bins_show)]
+    if len(use_df) < 10:
+        return None
+    agg = use_df.groupby(["routine_bucket", "medical_utilization_bin"], as_index=False, observed=True).agg(
+        target_rate=("target", "mean"),
+        n=("target", "count"),
+    )
+    routine_order = ["No routine (0 admin ICD)", "Routine (1+ admin ICD)"]
+    x_vals = [r for r in routine_order if r in agg["routine_bucket"].unique()]
+    if len(x_vals) < 1 or agg["n"].sum() < 10:
+        return None
+    series = []
+    for med_bin in medical_bins_show:
+        sub = agg[agg["medical_utilization_bin"] == med_bin]
+        if sub.empty:
+            continue
+        rate_by_routine = sub.set_index("routine_bucket")["target_rate"].reindex(x_vals).fillna(0)
+        n_by_routine = sub.set_index("routine_bucket")["n"].reindex(x_vals).fillna(0)
+        label = "Low medical utilization" if med_bin == "low" else "Extreme medical utilization"
+        series.append({
+            "name": label,
+            "y": [float(round(v, 4)) for v in rate_by_routine.values],
+            "n": [int(v) for v in n_by_routine.values],
+        })
+    if not series:
+        return None
+    return {
+        "x": x_vals,
+        "series": series,
+        "type": "bar",
+        "x_label": "Routine vs no routine (admin ICD)",
+        "y_label": "Target outcome rate",
+        "name": "Outcome rate by routine and medical utilization (full unfiltered)",
+        "note": "Low vs extreme medical utilization from full unfiltered event count (target cohort). Shows whether routine care associates with lower extreme medical events.",
     }
 
 
@@ -938,6 +1061,16 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
         reason = _reason_routine_comparison_counts(dtw_df)
         charts_not_built["routine_comparison_counts"] = reason
         _log_n3("info", "routine_comparison_counts (medical/prescription events by routine): not built — %s", reason)
+
+    routine_by_medical = _compute_routine_by_medical_utilization(dtw_df)
+    if routine_by_medical:
+        out["routine_by_medical_utilization"] = routine_by_medical
+        charts_built.append("routine_by_medical_utilization")
+    else:
+        if "medical_utilization_bin" not in dtw_df.columns:
+            charts_not_built["routine_by_medical_utilization"] = "missing medical_utilization_bin (re-run create_dtw_trajectories)"
+        else:
+            charts_not_built["routine_by_medical_utilization"] = "insufficient rows or no low/extreme medical bins"
 
     high_risk = _compute_dtw_high_risk_trajectories(dtw_df)
     if high_risk:

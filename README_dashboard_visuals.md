@@ -181,11 +181,11 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 ## DTW Trajectories tab (`dtw-visualizations-tab`)
 
-- [ ] **Subtitle:** Research focus (drug trajectories; routine screenings vs outcomes); cohort/age band select; sub-tabs: Overview & Trajectories (drugs), Routine vs No Routine.
-- [ ] **Controls:** Cohort, Age Band dropdowns; Load DTW Visualizations. Sub-tabs: "Overview & Trajectories (drugs)", "Routine vs No Routine".
+- [ ] **Subtitle:** Research focus (drug trajectories; routine screenings vs outcomes); cohort/age band select; sub-tabs: Overview & Trajectories (drugs), Routine vs Utilization.
+- [ ] **Controls:** Cohort, Age Band dropdowns; Load DTW Visualizations. Sub-tabs: "Overview & Trajectories (drugs)", "Routine vs Utilization".
 - [ ] **Overview sub-panel headings:** Trajectory Analysis Overview (drugs), Sample Trajectories (drugs), Trajectory Metrics, High-Risk vs Low-Risk Trajectories (drugs), Times Between Sequences (N3), Target Pathway Patterns (drugs), Common Sequences Heatmap (Drugs only).
-- [ ] **Routine sub-panel:** "Routine vs No Routine (Outcomes)" with copy about admin ICD and outcome rate; routine comparison counts container.
-- [ ] **API / data:** `chart_data.json` (routine_comparison, routine_comparison_counts, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns); `sequence_heatmap.json`; overview/sample images. Path README and RQ (N1, N3) match.
+- [ ] **Routine sub-panel:** "Routine vs Utilization (Outcomes)" with copy about admin ICD and utilization and outcome rate; routine comparison counts and Routine × medical utilization container.
+- [ ] **API / data:** `chart_data.json` (routine_comparison, routine_comparison_counts, routine_by_medical_utilization, high_risk_trajectories, times_between_sequences, time_to_target_sequences, target_pathway_patterns); `sequence_heatmap.json`; overview/sample images. Path README and RQ (N1, N3) match.
 
 ---
 

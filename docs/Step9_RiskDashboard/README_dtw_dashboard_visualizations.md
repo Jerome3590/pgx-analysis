@@ -4,7 +4,7 @@
 
 Dynamic Time Warping (DTW) trajectory visualizations for the risk dashboard. These visualizations show patient trajectory similarities, clustering patterns, and temporal sequences to complement risk predictions.
 
-**DTW Alignment IS Computed**: DTW distances are computed using the dtaidistance library (create_dtw_features.py) to measure trajectory similarity. We do **not** use DTW for feature engineering due to target leakage concerns. We **do** use DTW **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** (e.g. routine vs no routine, time-between aligned sequences) and dashboard display.
+**DTW Alignment IS Computed**: DTW distances are computed using the dtaidistance library (create_dtw_features.py) to measure trajectory similarity. We do **not** use DTW for feature engineering due to target leakage concerns. We **do** use DTW **with feature importance** (SHAP/FFA allowed codes) for **analysis and answering research questions** (e.g. routine vs utilization, time-between aligned sequences) and dashboard display.
 
 **⚠️ Important**: DTW is not used in the final model (target leakage). Event-level filtering is in Step 1b (`1b_apcd_event_filter`). DTW is used with feature importance for analysis and answering research questions.
 
@@ -56,7 +56,7 @@ DTW visualizations help clinicians understand:
 
 **`create_dtw_visuals.py`** - Publish DTW visuals for the dashboard
 - Copies DTW features to outputs, mirrors to feature_engineering_outputs, uploads to S3
-- Builds chart data (routine vs no routine, high-risk trajectories) and uploads to dashboard S3
+- Builds chart data (routine vs utilization, routine × medical utilization, high-risk trajectories) and uploads to dashboard S3
 - Calls `create_dtw_plots.py` to generate 3D/1D trajectory cluster plots, then uploads plots (PNG and HTML) to the dashboard bucket
 
 **`create_dtw_plots.py`** - Plotly trajectory cluster plots
@@ -152,7 +152,7 @@ Visualizations are displayed in the **DTW Trajectories** tab of the dashboard:
 
 ### Filtering
 
-**Event density (trajectory bin):** The DTW tab includes an **Event density** dropdown (All | Low | Medium | High | Extreme). It filters **Routine vs No Routine (Outcomes)**, **Routine vs No Routine (event counts)**, and **High-Risk vs Low-Risk Trajectories** by trajectory events-per-month bin. Data comes from `chart_data.json`: when the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), `create_dtw_visuals.py` writes `event_density_bins` and per-bin series (`routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density`). Changing the dropdown re-renders those three charts client-side from the already-loaded data; "All" uses the aggregate series. Bins align with FP-Growth (low/medium/high/extreme by percentiles).
+**Event density (trajectory bin):** The DTW tab includes an **Event density** dropdown (All | Low | Medium | High | Extreme). It filters **Routine vs Utilization (Outcomes)**, **Routine vs Utilization (event counts)**, and **High-Risk vs Low-Risk Trajectories** by trajectory events-per-month bin. Data comes from `chart_data.json`: when the trajectory CSV has `event_density_bin` (from `create_dtw_trajectories.py`), `create_dtw_visuals.py` writes `event_density_bins` and per-bin series (`routine_comparison_by_density`, `routine_comparison_counts_by_density`, `high_risk_trajectories_by_density`). Changing the dropdown re-renders those three charts client-side from the already-loaded data; "All" uses the aggregate series. Bins align with FP-Growth (low/medium/high/extreme by percentiles).
 
 **Code-based filtering (other tabs):** Visualizations on other tabs can be filtered by user-selected codes (e.g. Lambda returns filtered data for selected drugs/ICD/CPT). DTW tab filtering is density-only as above.
 

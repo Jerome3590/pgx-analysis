@@ -3,7 +3,7 @@
 ## Research questions this visual answers
 
 - **What are the typical care trajectories leading to the target event?** DTW clusters time-ordered sequences of diagnoses, procedures, and drugs in the lookback window before the anchor (e.g. first opioid-ED or first non-opioid ED encounter), so we see the main “on-ramp” pathways.
-- **How do trajectory archetypes differ by event density and outcome?** Chart data and plots support filters by event density (low/medium/high/extreme) and by outcome (e.g. routine vs no routine, high-risk vs low-risk), so we can compare pathways across utilization and risk.
+- **How do trajectory archetypes differ by event density and outcome?** Chart data and plots support filters by event density (low/medium/high/extreme) and by outcome (e.g. routine vs utilization, high-risk vs low-risk), so we can compare pathways across utilization and risk.
 - **Which trajectories are most predictive of the target?** By building trajectories only from **feature-important** codes, we reduce noise and focus on what the model uses—so the visual reflects what is actually driving our target cohorts.
 
 **Feature importance and drug-only.** We use only **SHAP/FFA important drug** codes when constructing trajectories. **DTW is drug-only for both cohorts** (opioid_ed and non_opioid_ed): only prescription (drug) events in the allowed set are included; ICD and CPT are excluded. That keeps DTW focused on drug pathways and aligns with drug-sequence research questions.
@@ -11,7 +11,7 @@
 ### How features are filtered and used downstream
 
 - The pipeline builds an **allowed-codes** set per (cohort, age_band) from Step 3b cohort feature importance (see [../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream](../README.md#how-features-are-filtered-by-feature-importance-and-used-downstream)).
-- DTW **trajectory construction** (Python) filters model_events to **drug transactions only**: only events whose drug is in the SHAP/FFA allowed drug set are kept; ICD and CPT events are excluded for both cohorts. **Routine vs no routine** (N1) uses **administrative ICD codes to identify routine appointments**: the lookup `1b_apcd_event_filter/administrative_codes_lookup.json` lists ICD codes for routine care (e.g. well visits, screenings). We count how many such events each patient has in the same time window as trajectories; 1+ = routine appointments, 0 = no routine. That `admin_icd_event_count` drives the dashboard’s “Routine vs no routine (admin ICD filter)” charts and N3 breakdowns. The routine_comparison_counts chart (mean prescription and medical events per patient by routine vs no routine) shows whether routine care is associated with lower drug counts—i.e. routine care driving down prescription utilization.
+- DTW **trajectory construction** (Python) filters model_events to **drug transactions only**: only events whose drug is in the SHAP/FFA allowed drug set are kept; ICD and CPT events are excluded for both cohorts. **Routine vs utilization** (N1) uses **administrative ICD codes to identify routine appointments** and **medical utilization** (medical events per patient) to bin patients: the lookup `1b_apcd_event_filter/administrative_codes_lookup.json` lists ICD codes for routine care (e.g. well visits, screenings). We count how many such events each patient has in the same time window as trajectories; 1+ = routine appointments, 0 = no routine. We also compute `medical_event_count_full` and bin it as `medical_utilization_bin` (low/medium/high). That drives the dashboard’s “Routine vs Utilization” sub-tab: outcome rate by routine vs utilization, mean prescription and medical events per patient, and a **Routine × medical utilization** chart (`routine_by_medical_utilization`) showing outcome rate by routine and utilization bin. N3 breakdowns (times between, time to target) are by routine bucket.
 - Clustering and archetypes are then computed on these filtered trajectories, so the dashboard shows pathway types that reflect only model-important features.
 
 ---
@@ -37,11 +37,12 @@ The pipeline writes a **robust** `chart_data.json` so multiple visuals (dashboar
 | summary.trajectory_length | { min, max, mean, median } | Drug events per trajectory: spread and center. |
 | summary.has_dtw_distances | boolean | Whether DTW alignment was run (dtw_min_distance present). |
 | summary.target_counts | { target_1, target_0 } | Case/control split. |
-| **routine_comparison** | chart | Outcome rate by routine vs no routine (admin ICD). **n**: sample size per bucket. |
-| **routine_comparison_counts** | chart | Mean medical and prescription events per patient by routine vs no routine. **n**: per bucket. |
+| **routine_comparison** | chart | Outcome rate by routine vs utilization (admin ICD). **n**: sample size per bucket. |
+| **routine_comparison_counts** | chart | Mean medical and prescription events per patient by routine vs utilization. **n**: per bucket. |
+| **routine_by_medical_utilization** | chart | Outcome rate by routine and medical utilization bin (Routine × utilization). **n**: per bucket. |
 | **high_risk_trajectories** | chart | Outcome rate by trajectory archetype (Q1–Q4 by DTW distance or length). **n**: per quartile. |
-| **times_between_sequences** | chart | N3: mean days between consecutive drug events, by routine vs no routine. **n**: trajectories per bucket. |
-| **time_to_target_sequences** | chart | N3: mean days from first drug event to target (target=1 only), by routine vs no routine. **n**: per bucket. |
+| **times_between_sequences** | chart | N3: mean days between consecutive drug events, by routine vs utilization. **n**: trajectories per bucket. |
+| **time_to_target_sequences** | chart | N3: mean days from first drug event to target (target=1 only), by routine vs utilization. **n**: per bucket. |
 | **target_pathway_patterns** | chart | Common codes in target=1 trajectories; metadata has total_target_patients, total_control_patients. |
 | **metrics** | object | dtw_rows (same as summary.total_trajectories), charts_built, charts_not_built, success. |
 
@@ -53,7 +54,7 @@ Each bar chart object includes **x**, **y**, **type**, **name**, **x_label**, **
 
 | File | Created by | When it exists | When it’s missing |
 |------|------------|----------------|-------------------|
-| `chart_data.json` | `create_dtw_visuals` | Full chart data (routine_comparison, high_risk, N3, etc.) when DTW dataframe has data. | **Always written.** If no data, empty-state JSON: `message`, `empty: true`, `cohort`, `age_band`, `metrics` (e.g. `reason`, `dtw_rows`, `has_admin_icd`, `has_target`). |
+| `chart_data.json` | `create_dtw_visuals` | Full chart data (routine_comparison, routine_comparison_counts, routine_by_medical_utilization, high_risk, N3, etc.) when DTW dataframe has data. | **Always written.** If no data, empty-state JSON: `message`, `empty: true`, `cohort`, `age_band`, `metrics` (e.g. `reason`, `dtw_rows`, `has_admin_icd`, `has_target`). |
 | `sequence_heatmap.json` | `create_dtw_visuals` | Full heatmap (drug/icd/cpt codes, positions, counts) when sequences exist. | **Always written.** If no data or no code counts, empty-state JSON: `message`, `empty: true`, `cohort`, `age_band`, `metrics` (e.g. `reason`, `dtw_rows`). |
 | `plots/trajectory_overview_plot.json` | `create_dtw_plots.create_trajectory_cluster_plots()` | **Always written.** Full Plotly payload when features exist and Plotly/sklearn available. | When visual is skipped, same function writes empty-state JSON: `message` (includes cohort/age and reason), `empty: true`, `cohort`, `age_band`, and `metrics` (e.g. `reason`, `dtw_rows`, `count_df_rows`, `n_axes_required`, `csv_path`) so the dashboard shows why no output. |
 | `plots/dtw_trajectory_cluster_*.html` | Same | Same conditions as above. | Same as above. |
