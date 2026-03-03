@@ -688,6 +688,151 @@ def extract_patient_trajectories(
         _log("warning", "Temporal span query failed: %s; adding NaN column", e)
         df["temporal_span_days"] = float("nan")
 
+    # Routine vs no routine and (if added) extreme vs low medical: use TARGET COHORT but FULL UNFILTERED events.
+    # Must run while con is still open (admin/medical queries use con).
+    # Do not apply drug or SHAP/FFA filters here — we need all event types (medical + pharmacy) so routine admin ICD
+    # and medical utilization are defined over full utilization for target and control.
+    _log("info", "Counting administrative ICD events (routine appointments) from model_events (full unfiltered, target cohort)...")
+    if admin_codes:
+        def _safe_sql_list(codes: Set[str]) -> str:
+            escaped = [f"'{str(c).replace(chr(39), chr(39)+chr(39))}'" for c in codes if c]
+            return "(" + ",".join(escaped) + ")" if escaped else "(NULL)"
+        admin_list = _safe_sql_list(admin_codes)
+        icd_diag_cols = sorted([c for c in col_names if "icd_diagnosis_code" in c])
+        if not icd_diag_cols:
+            icd_diag_cols = ["primary_icd_diagnosis_code"] if "primary_icd_diagnosis_code" in col_names else []
+        admin_match_conditions = " OR ".join(
+            f"REPLACE(REPLACE(COALESCE({c}, ''), '.', ''), '-', '') IN {admin_list}"
+            for c in icd_diag_cols
+        )
+        if not admin_match_conditions:
+            admin_match_conditions = "1=0"
+        _log("info", "Admin ICD columns used for routine count: %s", icd_diag_cols)
+        admin_query = f"""
+        WITH patient_events AS (
+            SELECT
+                CAST(mi_person_key AS VARCHAR) as mi_person_key,
+                target,
+                ({event_date_expr}) as event_date,
+                ({target_date_expr}) as target_date,
+                ({admin_match_conditions}) AS is_admin_icd
+            FROM read_parquet('{path_str}')
+        ),
+        filtered_events AS (
+            SELECT mi_person_key
+            FROM patient_events
+            WHERE
+                ((target = 1 AND event_date < target_date
+                  AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+                 OR (target = 0))
+                AND is_admin_icd
+        )
+        SELECT mi_person_key, COUNT(*)::INTEGER as admin_icd_event_count
+        FROM filtered_events
+        GROUP BY mi_person_key
+        """
+        try:
+            admin_df = con.execute(admin_query).df()
+            if not admin_df.empty:
+                df = df.merge(admin_df, on="mi_person_key", how="left")
+                df["admin_icd_event_count"] = df["admin_icd_event_count"].fillna(0).astype(int)
+            else:
+                df["admin_icd_event_count"] = 0
+        except Exception as e:
+            _log("warning", "Admin ICD count query failed: %s; setting admin_icd_event_count=0", e)
+            df["admin_icd_event_count"] = 0
+    else:
+        df["admin_icd_event_count"] = 0
+
+    _log("info", "Counting full unfiltered medical events per patient (for routine × medical utilization)...")
+    if "event_type" in col_names:
+        medical_where = "event_type = 'medical'"
+    else:
+        medical_where = "(COALESCE(primary_icd_diagnosis_code, '') != '' OR COALESCE(procedure_code, '') != '')"
+    medical_query = f"""
+    WITH patient_events AS (
+        SELECT
+            CAST(mi_person_key AS VARCHAR) as mi_person_key,
+            target,
+            ({event_date_expr}) as event_date,
+            ({target_date_expr}) as target_date
+        FROM read_parquet('{path_str}')
+        WHERE {medical_where}
+    ),
+    filtered_events AS (
+        SELECT mi_person_key
+        FROM patient_events
+        WHERE
+            ((target = 1 AND event_date < target_date
+              AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
+             OR (target = 0))
+    )
+    SELECT mi_person_key, COUNT(*)::INTEGER as medical_event_count_full
+    FROM filtered_events
+    GROUP BY mi_person_key
+    """
+    try:
+        medical_df = con.execute(medical_query).df()
+        if not medical_df.empty:
+            df = df.merge(medical_df, on="mi_person_key", how="left")
+            df["medical_event_count_full"] = df["medical_event_count_full"].fillna(0).astype(int)
+        else:
+            df["medical_event_count_full"] = 0
+    except Exception as e:
+        _log("warning", "Medical event count query failed: %s; setting medical_event_count_full=0", e)
+        df["medical_event_count_full"] = 0
+    if "medical_event_count_full" not in df.columns:
+        df["medical_event_count_full"] = 0
+
+    med_count = df["medical_event_count_full"].fillna(0)
+    try:
+        con.register("_t_med", df[["mi_person_key", "medical_event_count_full"]])
+        df_binned = con.execute("""
+            WITH stats AS (
+                SELECT
+                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY medical_event_count_full) AS p25,
+                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY medical_event_count_full) AS p50,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY medical_event_count_full) AS p95
+                FROM _t_med
+            ),
+            binned AS (
+                SELECT _t_med.mi_person_key,
+                    CASE
+                        WHEN _t_med.medical_event_count_full <= stats.p25 THEN 'low'
+                        WHEN _t_med.medical_event_count_full <= stats.p50 THEN 'medium'
+                        WHEN _t_med.medical_event_count_full <= stats.p95 THEN 'high'
+                        ELSE 'extreme'
+                    END AS medical_utilization_bin
+                FROM _t_med CROSS JOIN stats
+            )
+            SELECT * FROM binned
+        """).df()
+        con.unregister("_t_med")
+        df = df.drop(columns=["medical_utilization_bin"], errors="ignore").merge(df_binned, on="mi_person_key", how="left")
+        df["medical_utilization_bin"] = df["medical_utilization_bin"].fillna("low")
+        p25_m, p50_m, p95_m = float(med_count.quantile(0.25)), float(med_count.quantile(0.50)), float(med_count.quantile(0.95))
+    except Exception as e:
+        _log("warning", "DuckDB medical binning failed (%s); using pandas", e)
+        p25_m = float(med_count.quantile(0.25))
+        p50_m = float(med_count.quantile(0.50))
+        p95_m = float(med_count.quantile(0.95))
+
+        def _assign_medical_bin(val):
+            if val <= p25_m:
+                return "low"
+            if val <= p50_m:
+                return "medium"
+            if val <= p95_m:
+                return "high"
+            return "extreme"
+
+        df["medical_utilization_bin"] = med_count.apply(_assign_medical_bin)
+    _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f", p25_m, p50_m, p95_m)
+    for bin_name in DENSITY_BINS:
+        n = (df["medical_utilization_bin"] == bin_name).sum()
+        pct = 100.0 * n / len(df) if len(df) > 0 else 0
+        _log("info", "  %s: %d (%.1f%%)", bin_name, n, pct)
+
     con.close()
 
     # Ensure time columns exist
@@ -745,153 +890,6 @@ def extract_patient_trajectories(
     if df.empty:
         _log("warning", "No trajectories extracted")
         return df, n_events_analyzed
-
-    # Routine vs no routine and (if added) extreme vs low medical: use TARGET COHORT but FULL UNFILTERED events.
-    # Do not apply drug or SHAP/FFA filters here — we need all event types (medical + pharmacy) so routine admin ICD
-    # and medical utilization are defined over full utilization for target and control.
-    # Same lookback window as trajectories; check all ICD diagnosis columns (primary, two_icd, ...) for admin codes.
-    _log("info", "Counting administrative ICD events (routine appointments) from model_events (full unfiltered, target cohort)...")
-    if admin_codes:
-        def _safe_sql_list(codes: Set[str]) -> str:
-            escaped = [f"'{str(c).replace(chr(39), chr(39)+chr(39))}'" for c in codes if c]
-            return "(" + ",".join(escaped) + ")" if escaped else "(NULL)"
-        admin_list = _safe_sql_list(admin_codes)
-        icd_diag_cols = sorted([c for c in col_names if "icd_diagnosis_code" in c])
-        if not icd_diag_cols:
-            icd_diag_cols = ["primary_icd_diagnosis_code"] if "primary_icd_diagnosis_code" in col_names else []
-        admin_match_conditions = " OR ".join(
-            f"REPLACE(REPLACE(COALESCE({c}, ''), '.', ''), '-', '') IN {admin_list}"
-            for c in icd_diag_cols
-        )
-        if not admin_match_conditions:
-            admin_match_conditions = "1=0"
-        _log("info", "Admin ICD columns used for routine count: %s", icd_diag_cols)
-        admin_query = f"""
-        WITH patient_events AS (
-            SELECT
-                CAST(mi_person_key AS VARCHAR) as mi_person_key,
-                target,
-                ({event_date_expr}) as event_date,
-                ({target_date_expr}) as target_date,
-                ({admin_match_conditions}) AS is_admin_icd
-            FROM read_parquet('{path_str}')
-        ),
-        filtered_events AS (
-            SELECT mi_person_key
-            FROM patient_events
-            WHERE
-                ((target = 1 AND event_date < target_date
-                  AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
-                 OR (target = 0))
-                AND is_admin_icd
-        )
-        SELECT mi_person_key, COUNT(*)::INTEGER as admin_icd_event_count
-        FROM filtered_events
-        GROUP BY mi_person_key
-        """
-        try:
-            admin_df = con.execute(admin_query).df()
-            if not admin_df.empty:
-                df = df.merge(admin_df, on="mi_person_key", how="left")
-                df["admin_icd_event_count"] = df["admin_icd_event_count"].fillna(0).astype(int)
-            else:
-                df["admin_icd_event_count"] = 0
-        except Exception as e:
-            _log("warning", "Admin ICD count query failed: %s; setting admin_icd_event_count=0", e)
-            df["admin_icd_event_count"] = 0
-    else:
-        df["admin_icd_event_count"] = 0
-
-    # Full unfiltered medical event count (same lookback, target cohort) — ties routine vs no routine to extreme vs low medical for research question.
-    _log("info", "Counting full unfiltered medical events per patient (for routine × medical utilization)...")
-    if "event_type" in col_names:
-        medical_where = "event_type = 'medical'"
-    else:
-        medical_where = "(COALESCE(primary_icd_diagnosis_code, '') != '' OR COALESCE(procedure_code, '') != '')"
-    medical_query = f"""
-    WITH patient_events AS (
-        SELECT
-            CAST(mi_person_key AS VARCHAR) as mi_person_key,
-            target,
-            ({event_date_expr}) as event_date,
-            ({target_date_expr}) as target_date
-        FROM read_parquet('{path_str}')
-        WHERE {medical_where}
-    ),
-    filtered_events AS (
-        SELECT mi_person_key
-        FROM patient_events
-        WHERE
-            ((target = 1 AND event_date < target_date
-              AND DATEDIFF('month', event_date, target_date) <= {max_lookback_months})
-             OR (target = 0))
-    )
-    SELECT mi_person_key, COUNT(*)::INTEGER as medical_event_count_full
-    FROM filtered_events
-    GROUP BY mi_person_key
-    """
-    try:
-        medical_df = con.execute(medical_query).df()
-        if not medical_df.empty:
-            df = df.merge(medical_df, on="mi_person_key", how="left")
-            df["medical_event_count_full"] = df["medical_event_count_full"].fillna(0).astype(int)
-        else:
-            df["medical_event_count_full"] = 0
-    except Exception as e:
-        _log("warning", "Medical event count query failed: %s; setting medical_event_count_full=0", e)
-        df["medical_event_count_full"] = 0
-    if "medical_event_count_full" not in df.columns:
-        df["medical_event_count_full"] = 0
-
-    # Bin by full unfiltered medical utilization (low/medium/high/extreme) via DuckDB when available
-    med_count = df["medical_event_count_full"].fillna(0)
-    try:
-        con.register("_t_med", df[["mi_person_key", "medical_event_count_full"]])
-        df_binned = con.execute("""
-            WITH stats AS (
-                SELECT
-                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY medical_event_count_full) AS p25,
-                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY medical_event_count_full) AS p50,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY medical_event_count_full) AS p95
-                FROM _t_med
-            ),
-            binned AS (
-                SELECT _t_med.mi_person_key,
-                    CASE
-                        WHEN _t_med.medical_event_count_full <= stats.p25 THEN 'low'
-                        WHEN _t_med.medical_event_count_full <= stats.p50 THEN 'medium'
-                        WHEN _t_med.medical_event_count_full <= stats.p95 THEN 'high'
-                        ELSE 'extreme'
-                    END AS medical_utilization_bin
-                FROM _t_med CROSS JOIN stats
-            )
-            SELECT * FROM binned
-        """).df()
-        con.unregister("_t_med")
-        df = df.drop(columns=["medical_utilization_bin"], errors="ignore").merge(df_binned, on="mi_person_key", how="left")
-        df["medical_utilization_bin"] = df["medical_utilization_bin"].fillna("low")
-        p25_m, p50_m, p95_m = float(med_count.quantile(0.25)), float(med_count.quantile(0.50)), float(med_count.quantile(0.95))
-    except Exception as e:
-        _log("warning", "DuckDB medical binning failed (%s); using pandas", e)
-        p25_m = float(med_count.quantile(0.25))
-        p50_m = float(med_count.quantile(0.50))
-        p95_m = float(med_count.quantile(0.95))
-
-        def _assign_medical_bin(val):
-            if val <= p25_m:
-                return "low"
-            if val <= p50_m:
-                return "medium"
-            if val <= p95_m:
-                return "high"
-            return "extreme"
-
-        df["medical_utilization_bin"] = med_count.apply(_assign_medical_bin)
-    _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f", p25_m, p50_m, p95_m)
-    for bin_name in DENSITY_BINS:
-        n = (df["medical_utilization_bin"] == bin_name).sum()
-        pct = 100.0 * n / len(df) if len(df) > 0 else 0
-        _log("info", "  %s: %d (%.1f%%)", bin_name, n, pct)
 
     _log("info", "Trajectory summary: events_analyzed=%d, alignments_found=%d", n_events_analyzed, len(df))
     _log("info", "  Mean length: %.1f; mean diversity: %.1f; admin_icd_event_count sum: %s; medical_event_count_full sum: %s", df["trajectory_length"].mean(), df["trajectory_diversity"].mean(), df["admin_icd_event_count"].sum(), df["medical_event_count_full"].sum())
