@@ -1,0 +1,10 @@
+{
+  "message": "No trajectory overview for non_opioid_ed/65-74: no code counts from seq_pattern_str (dtw_rows=0).",
+  "empty": true,
+  "cohort": "non_opioid_ed",
+  "age_band": "65-74",
+  "metrics": {
+    "reason": "no_code_counts",
+    "dtw_rows": 0
+  }
+}
