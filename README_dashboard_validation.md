@@ -1,3 +1,23 @@
+# Data Visualization File Path Mapping
+
+## DTW Feature Engineering Output → Dashboard Visuals Input
+
+- **Feature Engineering Output:**
+  - Parquet file(s) written to:
+    - `pgx-analysis/10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band}.parquet`
+    - For density bins: `pgx-analysis/10_risk_dashboard/visualizations/dtw/feature_engineering/dtw_features_{cohort}_{age_band}_density_{bin}.parquet`
+
+- **Dashboard Visuals Input:**
+  - Visual creation scripts read from the same `feature_engineering` directory, using the above naming convention.
+  - Only Parquet files are used for compatibility and performance.
+
+- **Outputs:**
+  - All dashboard visual artifacts (plots, chart_data.json, sequence_heatmap.json) are written to:
+    - `pgx-analysis/10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band}/`
+
+**Validation:**
+  - Ensure that feature engineering always writes Parquet files to the `feature_engineering` directory with the correct naming convention.
+  - The dashboard visual scripts will automatically find and use these files.
 # Dashboard validation
 
 Use this README to validate changes to the dashboard frontend (`10_risk_dashboard/frontend/index.html`) and to Step 6 (S3 sync) so that **tabs**, **visual headings**, **S3 path-style URLs**, and **API usage** stay aligned with the **manifest** and **path mapping**.
