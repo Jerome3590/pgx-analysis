@@ -1583,17 +1583,16 @@ def main():
     # Set output path - intermediate file for DTW features only
     if not args.output:
         feature_eng_dir = (
-        _dtw_output_root(project_root)
-        / "outputs"
-        / "feature_engineering"
+            _dtw_output_root(project_root)
+            / "feature_engineering"
         )
         feature_eng_dir.mkdir(parents=True, exist_ok=True)
-        args.output = feature_eng_dir / f"dtw_features_{args.cohort}_{age_band_fname}.csv"
-    
+        # Save as Parquet for dashboard compatibility
+        args.output = feature_eng_dir / f"dtw_features_{args.cohort}_{age_band_fname}.parquet"
     # Save features
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    dtw_features.to_csv(output_path, index=False)
+    dtw_features.to_parquet(output_path, index=False)
     
     print(f"\nCreated {len(dtw_features.columns) - 1} DTW features for {len(dtw_features)} patients")
     print(f"Output format: Ready for merging with other features (uses mi_person_key)")

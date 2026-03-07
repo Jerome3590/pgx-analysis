@@ -149,22 +149,21 @@ def create_dtw_visuals(
     fe_dir = _dtw_output_root(project_root) / "feature_engineering"
     base_name = f"dtw_features_{cohort_name}_{age_band_fname}"
     single_parquet = fe_dir / f"{base_name}.parquet"
-    single_csv = fe_dir / f"{base_name}.csv"
+    # Only use Parquet for dashboard compatibility
     density_parquet = list(fe_dir.glob(f"{base_name}_density_*.parquet"))
-    density_csv = list(fe_dir.glob(f"{base_name}_density_*.csv"))
-    bin_stems = {p.stem.replace(f"{base_name}_density_", "") for p in density_parquet + density_csv}
-    density_paths = [(fe_dir / f"{base_name}_density_{b}.parquet", fe_dir / f"{base_name}_density_{b}.csv") for b in sorted(bin_stems)]
-    _log("info", "DTW input: fe_dir=%s ; single (parquet=%s, csv=%s) ; density bins=%d", fe_dir, single_parquet.exists(), single_csv.exists(), len(bin_stems))
+    bin_stems = {p.stem.replace(f"{base_name}_density_", "") for p in density_parquet}
+    density_paths = [(fe_dir / f"{base_name}_density_{b}.parquet", None) for b in sorted(bin_stems)]
+    _log("info", "DTW input: fe_dir=%s ; single (parquet=%s) ; density bins=%d", fe_dir, single_parquet.exists(), len(bin_stems))
 
     dtw_df = None
     if density_paths:
-        # Sub-cohort outputs: load each bin (parquet or csv) and concatenate
+        # Sub-cohort outputs: load each bin (parquet only) and concatenate
         parts = []
-        for path_pq, path_csv in density_paths:
-            part = _read_dtw_features_parquet_or_csv(path_pq, path_csv)
-            if part is None:
+        for path_pq, _ in density_paths:
+            if not path_pq.exists():
                 continue
-            bin_name = path_pq.stem.replace(f"{base_name}_density_", "") if path_pq.exists() else path_csv.stem.replace(f"{base_name}_density_", "")
+            part = pd.read_parquet(path_pq)
+            bin_name = path_pq.stem.replace(f"{base_name}_density_", "")
             if "event_density_bin" not in part.columns:
                 part["event_density_bin"] = bin_name
             parts.append(part)
@@ -172,9 +171,9 @@ def create_dtw_visuals(
             dtw_df = pd.concat(parts, ignore_index=True)
             _log("info", "Loaded DTW features from %d density sub-cohorts", len(parts))
     if dtw_df is None:
-        dtw_df = _read_dtw_features_parquet_or_csv(single_parquet, single_csv)
-        if dtw_df is not None:
-            _log("info", "Reading DTW features from %s or %s", single_parquet, single_csv)
+        if single_parquet.exists():
+            dtw_df = pd.read_parquet(single_parquet)
+            _log("info", "Reading DTW features from %s", single_parquet)
 
     if dtw_df is None:
         # Only skip if final dashboard visuals are already present; otherwise fail so the step is not silently skipped.
