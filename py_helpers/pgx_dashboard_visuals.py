@@ -19,10 +19,17 @@ Run from repo root (pgx-analysis). Prerequisites: 4_model_data, 7_shap_analysis,
 """
 
 # %%
+
+
 # --- Setup: paths for dashboard visual pipelines ---
 import sys
 import subprocess
+import os
 from pathlib import Path
+import numpy as np
+import json
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -66,7 +73,6 @@ EXTREME_COMBINATIONS = combinations.copy()
 # --- Run BupaR process mining (event logs, traces, plots; SHAP/FFA-filtered when available) ---
 # Parallel; idempotent unless FORCE_RERUN.
 FAIL_FAST = True  # set False to continue on first failure
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 force_flag = ["--force"] if FORCE_RERUN else []
 
@@ -87,23 +93,69 @@ with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
 print("BupaR done.")
 
 # %%
+
 # --- Run DTW visuals only (parallel; idempotent unless FORCE_RERUN). We do not create DTW features here. ---
+
+def save_time_between_events_histogram(cohort, age_band, bins=30):
+    """
+    Generate and save time-between-events histogram JSON for a given cohort and age band.
+    Reads DTW features parquet, computes histogram, writes JSON to outputs dir.
+    """
+    # File paths
+    age_band_fname = age_band.replace("-", "_")
+    features_path = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "dtw" / "feature_engineering" / f"dtw_features_{cohort}_{age_band_fname}.parquet"
+    output_dir = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "dtw" / "outputs" / cohort / age_band_fname
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "time_between_events_histogram.json"
+    if not features_path.exists():
+        print(f"[histogram] Features file missing: {features_path}")
+        return False
+    try:
+        df = pd.read_parquet(features_path)
+        if "mean_days_between_events" not in df.columns:
+            print(f"[histogram] Column mean_days_between_events missing in {features_path}")
+            return False
+        values = df["mean_days_between_events"].dropna().values
+        if len(values) == 0:
+            print(f"[histogram] No values for mean_days_between_events in {features_path}")
+            return False
+        counts, bin_edges = np.histogram(values, bins=bins)
+        histogram_json = {
+            "type": "histogram",
+            "cohort": cohort,
+            "age_band": age_band,
+            "bin_edges": bin_edges.tolist(),
+            "counts": counts.tolist(),
+            "n": int(len(values)),
+            "x_label": "Mean days between events",
+            "y_label": "Patient count"
+        }
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(histogram_json, f, indent=2)
+        print(f"[histogram] Saved: {json_path}")
+        return True
+    except Exception as e:
+        print(f"[histogram] Error for {cohort}/{age_band}: {e}")
+        return False
+
 def _run_dtw_one(cohort_name, age_band):
     r = subprocess.run(
         [str(get_workflow_python_bin()), str(DTW_VISUALS_SCRIPT), "--cohort-name", cohort_name, "--age-band", age_band] + force_flag,
         cwd=str(REPO_ROOT),
         capture_output=False,
     )
-    return (cohort_name, age_band, r.returncode)
+    # After DTW visuals, generate histogram JSON
+    hist_ok = save_time_between_events_histogram(cohort_name, age_band)
+    return (cohort_name, age_band, r.returncode, hist_ok)
 
 with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
     futures = {ex.submit(_run_dtw_one, c, ab): (c, ab) for c, ab in combinations}
     for fut in as_completed(futures):
-        cohort_name, age_band, code = fut.result()
-        print(f"  [DTW] {cohort_name} / {age_band} -> exit {code}")
+        cohort_name, age_band, code, hist_ok = fut.result()
+        print(f"  [DTW] {cohort_name} / {age_band} -> exit {code} | histogram: {'ok' if hist_ok else 'fail'}")
         if code != 0 and FAIL_FAST:
             raise RuntimeError(f"DTW create_dtw_visuals failed: {cohort_name} / {age_band}")
-print("DTW done.")
+print("DTW + histogram done.")
 
 # %%
 # --- Run extreme-density extract + DTW visuals only (parallel; idempotent unless FORCE_RERUN) ---

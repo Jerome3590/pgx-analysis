@@ -1220,6 +1220,13 @@
             </p>
             <div id="dtw-routine-by-medical-container"></div>
           </div>
+          <div class="panel full-width dtw-panel" data-visual-key="time_between_events_histogram">
+            <h2>Time Between Events Histogram</h2>
+            <p class="subtitle" style="margin-bottom: 0.75rem;">
+              <small style="color: #64748b;">Distribution of mean days between consecutive events (N3) for this cohort and age band. Data from DTW feature engineering pipeline.</small>
+            </p>
+            <div id="dtw-time-between-events-histogram-container"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1508,170 +1515,217 @@
   
   // Tab Elements
   const tabButtons = document.querySelectorAll(".tab-button");
-  const tabContents = document.querySelectorAll(".tab-content");
-  const drugSearchEl = document.getElementById("drug-search");
-  const icdSearchEl = document.getElementById("icd-search");
-  const cptSearchEl = document.getElementById("cpt-search");
-  const statusEl = document.getElementById("status");
-  const modelIndicatorEl = document.getElementById("model-indicator");
-  const riskDisplayEl = document.getElementById("risk-display");
-  const riskScoreEl = document.getElementById("risk-score");
-  const riskBandEl = document.getElementById("risk-band");
-  const modelInfoEl = document.getElementById("model-info");
-
-  let currentMetadata = null;
-  let currentCohort = null;
-  let currentAgeBand = null;
-
-  // ==============================
-  // UTILITY FUNCTIONS
-  // ==============================
-  function setStatus(msg, type = "info") {
-    statusEl.textContent = msg;
-    statusEl.className = type;
-  }
-
-  function getMultiSelectValues(selectEl) {
-    if (!selectEl || !selectEl.selectedOptions) return [];
-    return Array.from(selectEl.selectedOptions).map(o => o.value);
-  }
-
-  function clearOptions(selectEl) {
-    while (selectEl.firstChild) {
-      selectEl.removeChild(selectEl.firstChild);
-    }
-  }
-
-  // Age only determines age_band (same bands for both cohorts). Cohort is set by the cohort tab only.
-  function determineAgeBand(age) {
-    if (age >= 0 && age <= 12) return "0-12";
-    if (age >= 13 && age <= 24) return "13-24";
-    if (age >= 25 && age <= 44) return "25-44";
-    if (age >= 45 && age <= 54) return "45-54";
-    if (age >= 55 && age <= 64) return "55-64";
-    if (age >= 65 && age <= 74) return "65-74";
-    if (age >= 75 && age <= 84) return "75-84";
-    if (age >= 85 && age <= 114) return "85-114";
-    return null;
-  }
-
-  function updateModelIndicator() {
-    if (!currentCohort) {
-      modelIndicatorEl.textContent = "";
-      modelIndicatorEl.className = "model-indicator";
+  // DTW Visualizations Tab
+  document.getElementById("btnLoadDTW")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("dtw-cohort").value;
+    const ageBand = document.getElementById("dtw-age-band").value;
+    if (!cohort || !ageBand) {
+      document.getElementById("dtw-status").textContent = "Please select cohort and age band";
+      document.getElementById("dtw-status").className = "status-message error";
       return;
     }
-    if (currentCohort === "opioid_ed") {
-      modelIndicatorEl.textContent = "Opioid ED Risk Model";
-      modelIndicatorEl.className = "model-indicator";
-    } else {
-      modelIndicatorEl.textContent = "Polypharmacy Risk Model";
-      modelIndicatorEl.className = "model-indicator polypharmacy";
-    }
-  }
-
-  function filterOptions(selectEl, searchEl) {
-    const filter = searchEl.value.toLowerCase();
-    const options = selectEl.options;
-    
-    for (let i = 0; i < options.length; i++) {
-      const option = options[i];
-      const text = option.text.toLowerCase();
-      option.style.display = text.includes(filter) ? "" : "none";
-    }
-  }
-
-  // ==============================
-  // METADATA LOADING (static-first: S3/CloudFront then Lambda)
-  // ==============================
-  // Use ?metadata=api in the URL to skip the static request and avoid 404 when metadata/ is not deployed.
-  function preferApiMetadata() {
-    return (new URLSearchParams(window.location.search)).get("metadata") === "api";
-  }
-  async function loadMetadata(cohort) {
-    setStatus(`Loading metadata for ${cohort}...`, "info");
+    document.getElementById("dtw-status").textContent = "Loading DTW visualizations...";
+    document.getElementById("dtw-status").className = "status-message info";
     try {
-      let data = null;
-      if (!preferApiMetadata()) {
-        const staticUrl = staticJsonPath(`metadata/${cohort}.json`);
-        const staticResp = await fetch(staticUrl);
-        if (staticResp.ok) data = await staticResp.json();
-      }
-      if (!data) {
-        const metadataApiUrl = `${API_BASE}/metadata?cohort=${encodeURIComponent(cohort)}`;
-        const resp = await fetch(metadataApiUrl);
-        if (resp.ok) data = await resp.json();
-        if (!data) {
-          let detail = resp.statusText;
-          if (!resp.ok) {
-            try {
-              const text = await resp.text();
-              let j = null;
-              try { j = JSON.parse(text); detail = j.error || j.message || text; if (j && j.paths_checked) console.error("[Dashboard API]", resp.status, "Metadata", detail, { paths_checked: j.paths_checked }); } catch (_) { detail = text || detail; }
-            } catch (_) {}
-          }
-          throw new Error(`HTTP ${resp.status}: ${detail}`);
+      let data = {};
+      const ageBandFname = ageBand.replace(/-/g, "_");
+      const manifest = await getDashboardManifest().catch(function() { return null; });
+      // DTW: all URLs from manifest when present (chart_data, sequence_heatmap, dtwBasePath for overview image). Sample Trajectories visual removed.
+      let chartUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/chart_data.json");
+      let heatmapUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/sequence_heatmap.json");
+      let overviewPlotUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/plots/trajectory_overview_plot.json");
+      let histogramUrl = staticJsonPath("visualizations/dtw/" + cohort + "/" + ageBand + "/time_between_events_histogram.json");
+      let dtwBasePath = "visualizations/dtw/" + cohort + "/" + ageBand;
+      let dtwBuilt = null;
+      if (manifest) {
+        const entry = getManifestEntryByTab(manifest, "DTW Trajectories");
+        if (entry) {
+          dtwBuilt = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+          if (dtwBuilt.urls.length >= 1) chartUrl = dtwBuilt.urls[0];
+          if (dtwBuilt.urls.length >= 2) heatmapUrl = dtwBuilt.urls[1];
+          if (dtwBuilt.urls.length >= 3) overviewPlotUrl = dtwBuilt.urls[2];
+          if (dtwBuilt.basePath) dtwBasePath = dtwBuilt.basePath;
         }
       }
-      currentMetadata = data;
-      currentCohort = cohort;
-      const age = parseInt(ageEl.value) || 35;
-      currentAgeBand = determineAgeBand(age) || (cohort === "opioid_ed" ? "25-44" : "65-74");
-      updateCodeLists();
-      setStatus("Metadata loaded successfully", "success");
-      return data;
+      // JSON-first: fetch chart_data, sequence_heatmap, trajectory_overview_plot, and histogram from static (manifest URLs) in parallel.
+      const [chartResp, hmResp, overviewResp, histogramResp] = await Promise.all([
+        fetch(chartUrl),
+        fetch(heatmapUrl),
+        fetch(overviewPlotUrl),
+        fetch(histogramUrl)
+      ]);
+      if (chartResp.ok) {
+        var chartData = null;
+        try { chartData = await chartResp.json(); } catch (_) { chartData = { empty: true, message: 'chart_data.json is invalid or empty.' }; }
+        if (!chartData || typeof chartData !== 'object') chartData = { empty: true, message: 'chart_data.json is invalid or empty.' };
+        data.chart_data = chartData;
+        if (!chartData.empty) {
+          if (chartData.summary) data.dtw_summary = chartData.summary;
+          if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+          if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.routine_by_medical_utilization) data.routine_by_medical_utilization = chartData.routine_by_medical_utilization;
+          if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+          if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+          if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+          if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+          if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+          if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+          if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+          if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+          var m = {};
+          if (chartData.summary) {
+            m.total_trajectories = chartData.summary.total_trajectories;
+            m.trajectories_with_time_between = chartData.summary.trajectories_with_time_between;
+            m.trajectories_target1_time_to_target = chartData.summary.trajectories_target1_with_time_to_target;
+          }
+          if (chartData.routine_comparison && chartData.routine_comparison.y) m.routine_comparison_series = chartData.routine_comparison.y.length;
+          if (chartData.times_between_sequences && chartData.times_between_sequences.y) m.times_between_categories = chartData.times_between_sequences.y.length;
+          if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m.target_pathway_codes = chartData.target_pathway_patterns.y.length;
+          if (chartData.high_risk_trajectories && chartData.high_risk_trajectories.y) m.high_risk_archetypes = chartData.high_risk_trajectories.y.length;
+          if (Object.keys(m).length) data.metrics = m;
+        }
+      }
+      if (hmResp.ok) {
+        try { data.sequence_heatmap = await hmResp.json(); } catch (_) { data.sequence_heatmap = { empty: true, message: 'sequence_heatmap.json is invalid or empty.' }; }
+        if (!data.sequence_heatmap || typeof data.sequence_heatmap !== 'object') data.sequence_heatmap = { empty: true, message: 'sequence_heatmap.json is invalid or empty.' };
+      }
+      if (overviewResp.ok) {
+        try {
+          var overviewJson = await overviewResp.json();
+          data.trajectory_overview_plot = (overviewJson && typeof overviewJson === 'object') ? overviewJson : { empty: true, message: 'trajectory_overview_plot.json is invalid or empty.' };
+        } catch (_) { data.trajectory_overview_plot = { empty: true, message: 'trajectory_overview_plot.json is invalid or empty.' }; }
+      }
+      // Histogram JSON
+      if (histogramResp.ok) {
+        try {
+          data.time_between_events_histogram = await histogramResp.json();
+        } catch (_) {
+          data.time_between_events_histogram = null;
+        }
+      } else {
+        data.time_between_events_histogram = null;
+      }
+      // PNG/HTML fallbacks from manifest (JSON-first: overview already from trajectory_overview_plot.json when present).
+      if (dtwBuilt && dtwBuilt.urls.length >= 5) {
+        if (!data.overview_image) data.overview_image = dtwBuilt.urls[3];
+        if (!data.overview_interactive && dtwBuilt.urls.length >= 7) data.overview_interactive = dtwBuilt.urls[6] || dtwBuilt.urls[5];
+      }
+      // API fallback only when static did not provide trajectory_overview_plot or chart/heatmap.
+      if (!data.trajectory_overview_plot && (data.chart_data || data.sequence_heatmap)) {
+        try {
+          const apiResp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+          if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (apiData.trajectory_overview_plot) data.trajectory_overview_plot = apiData.trajectory_overview_plot;
+            if (apiData.chart_data && !data.chart_data) data.chart_data = apiData.chart_data;
+            if (apiData.sequence_heatmap && !data.sequence_heatmap) data.sequence_heatmap = apiData.sequence_heatmap;
+            if (apiData.overview_interactive && !data.overview_interactive) data.overview_interactive = apiData.overview_interactive;
+            if (apiData.overview_image && !data.overview_image) data.overview_image = apiData.overview_image;
+          }
+        } catch (_) { /* optional */ }
+      }
+      // Fallback: API when static chart_data missing
+      if (!data.chart_data && !data.sequence_heatmap) {
+        const resp = await fetch(`${API_BASE}/visualizations/dtw?cohort=${cohort}&age_band=${ageBand}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+        if (data.chart_data) {
+          const chartData = data.chart_data;
+          if (chartData.summary) data.dtw_summary = chartData.summary;
+          if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+          if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+          if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+          if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+          if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+          if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+          if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+          if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+          if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+          if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+        } else if (data.chart_data_url) {
+          try {
+            const chartResp2 = await fetch(data.chart_data_url);
+            if (chartResp2.ok) {
+              const chartData = await chartResp2.json();
+              if (chartData.summary) data.dtw_summary = chartData.summary;
+              if (chartData.routine_comparison) data.routine_comparison = chartData.routine_comparison;
+              if (chartData.routine_comparison_counts) data.routine_comparison_counts = chartData.routine_comparison_counts;
+              if (chartData.high_risk_trajectories) data.high_risk_trajectories = chartData.high_risk_trajectories;
+              if (chartData.target_pathway_patterns) data.target_pathway_patterns = chartData.target_pathway_patterns;
+              if (chartData.times_between_sequences) data.times_between_sequences = chartData.times_between_sequences;
+              if (chartData.time_to_target_sequences) data.time_to_target_sequences = chartData.time_to_target_sequences;
+              if (chartData.event_density_bins) data.event_density_bins = chartData.event_density_bins;
+              if (chartData.routine_comparison_by_density) data.routine_comparison_by_density = chartData.routine_comparison_by_density;
+              if (chartData.routine_comparison_counts_by_density) data.routine_comparison_counts_by_density = chartData.routine_comparison_counts_by_density;
+              if (chartData.high_risk_trajectories_by_density) data.high_risk_trajectories_by_density = chartData.high_risk_trajectories_by_density;
+              var m2 = {};
+              if (chartData.summary) {
+                m2.total_trajectories = chartData.summary.total_trajectories;
+                m2.trajectories_with_time_between = chartData.summary.trajectories_with_time_between;
+                m2.trajectories_target1_time_to_target = chartData.summary.trajectories_target1_with_time_to_target;
+              }
+              if (chartData.routine_comparison && chartData.routine_comparison.y) m2.routine_comparison_series = chartData.routine_comparison.y.length;
+              if (chartData.times_between_sequences && chartData.times_between_sequences.y) m2.times_between_categories = chartData.times_between_sequences.y.length;
+              if (chartData.target_pathway_patterns && chartData.target_pathway_patterns.y) m2.target_pathway_codes = chartData.target_pathway_patterns.y.length;
+              if (chartData.high_risk_trajectories && chartData.high_risk_trajectories.y) m2.high_risk_archetypes = chartData.high_risk_trajectories.y.length;
+              if (Object.keys(m2).length) data.metrics = m2;
+            }
+          } catch (_) { /* chart_data.json optional */ }
+        }
+        if (!data.sequence_heatmap && data.sequence_heatmap_url) {
+          try {
+            const hmResp2 = await fetch(data.sequence_heatmap_url);
+            if (hmResp2.ok) data.sequence_heatmap = await hmResp2.json();
+          } catch (_) { /* sequence_heatmap.json optional */ }
+        }
+      }
+      window.dtwChartData = data;
+      const densityFilter = document.getElementById("dtw-event-density")?.value || "all";
+      const dtwSelected = Array.from(document.querySelectorAll('#dtw-visual-checkboxes .dtw-visual-cb:checked')).map(c => c.dataset.visualKey);
+      if (!dtwSelected.length) {
+        const cohort = document.getElementById("dtw-cohort").value;
+        dtwSelected.push(...getDTWVisualSelection(cohort));
+      }
+      renderDTWVisualizations(data, densityFilter, dtwSelected.length ? dtwSelected : undefined);
+      // Render the histogram if present
+      renderTimeBetweenEventsHistogram(data.time_between_events_histogram);
+      const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message) || (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message);
+      document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
+      document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
     } catch (err) {
-      console.error("Error loading metadata:", err);
-      const isNetworkError = err.message === "Failed to fetch" || err.name === "TypeError";
-      const hint = isNetworkError
-        ? " (Check: API URL, CORS, and that the API is reachable from this origin.)"
-        : "";
-      setStatus(`Error loading metadata: ${err.message}${hint} [API: ${API_BASE}]`, "error");
-      return null;
+      document.getElementById("dtw-status").textContent = `Error: ${err.message}`;
+      document.getElementById("dtw-status").className = "status-message error";
     }
-  }
+  });
 
-  function updateCodeLists() {
-    if (!currentMetadata || !currentAgeBand) {
-      console.log("updateCodeLists: metadata or age band not available", {
-        hasMetadata: !!currentMetadata,
-        currentAgeBand: currentAgeBand
-      });
+  // Render the time-between-events histogram using Plotly
+  function renderTimeBetweenEventsHistogram(histogramJson) {
+    const container = document.getElementById("dtw-time-between-events-histogram-container");
+    if (!container) return;
+    container.innerHTML = "";
+    if (!histogramJson || !histogramJson.counts || !histogramJson.bin_edges) {
+      container.innerHTML = '<span style="color: #64748b; font-style: italic;">No histogram data available for this cohort/age band.</span>';
       return;
     }
-    
-    const codes = currentMetadata.codes[currentAgeBand] || { drugs: [], icds: [], cpts: [] };
-    
-    console.log("updateCodeLists: populating lists", {
-      ageBand: currentAgeBand,
-      drugCount: codes.drugs.length,
-      icdCount: codes.icds.length,
-      cptCount: codes.cpts.length
-    });
-    
-    populateSelect(drugsEl, codes.drugs.map(d => ({ value: d.code, text: `${d.display} (${d.importance.toFixed(3)})` })));
-    populateSelect(icdsEl, codes.icds.map(i => ({ value: i.code, text: `${i.display} (${i.importance.toFixed(3)})` })));
-    populateSelect(cptsEl, codes.cpts.map(c => ({ value: c.code, text: `${c.display} (${c.importance.toFixed(3)})` })));
-    
-    // Preserve selected values that still exist in new list
-    [drugsEl, icdsEl, cptsEl].forEach(sel => {
-      const selected = getMultiSelectValues(sel);
-      selected.forEach(v => {
-        const opt = Array.from(sel.options).find(o => o.value === v);
-        if (opt) opt.selected = true;
-      });
-    });
-    
-    renderPatientCodesTab();
-    updateCodesSummary();
-    updateSelectionDisplays();
+    const trace = {
+      x: histogramJson.bin_edges.slice(0, -1),
+      y: histogramJson.counts,
+      type: 'bar',
+      marker: { color: '#3b82f6' },
+      hovertemplate: 'Bin: %{x} days<br>Count: %{y}<extra></extra>'
+    };
+    const layout = {
+      title: 'Mean Days Between Events',
+      xaxis: { title: 'Mean Days Between Events', tickformat: ',d' },
+      yaxis: { title: 'Number of Patients', rangemode: 'tozero' },
+      margin: { t: 40, r: 20, b: 40, l: 60 },
+      bargap: 0.05,
+      plot_bgcolor: '#fff',
+      paper_bgcolor: '#fff',
+      height: 350
+    };
+    Plotly.newPlot(container, [trace], layout, { responsive: true });
   }
-
-  function updateCodesSummary() {
-    const el = document.getElementById("codes-summary-text");
-    if (!el) return;
-    const drugs = getMultiSelectValues(drugsEl);
-    const icds = getMultiSelectValues(icdsEl);
     const cpts = getMultiSelectValues(cptsEl);
     const total = drugs.length + icds.length + cpts.length;
     if (total === 0) {
@@ -3156,76 +3210,33 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
-      let data = null;
+      // Always use PNG artifact for heatmap visual
       const manifest = await getDashboardManifest().catch(function() { return null; });
-      let fiJsonPath = cohort === "combined"
-        ? "visualizations/feature_importance/combined/aggregated_fi_heatmap.json"
-        : "visualizations/feature_importance/" + cohort + "/aggregated_fi_heatmap.json";
-      let staticUrl = staticJsonPath(fiJsonPath);
-      let heatmapPngUrlFromManifest = null;
+      let heatmapPngUrl = null;
+      let cohortDir = cohort === "combined" ? "combined" : cohort;
       if (manifest) {
         const entry = getManifestEntryByTab(manifest, "Feature Importance", cohort);
         if (entry) {
           const built = buildStaticUrls(entry, cohort === "combined" ? "" : cohort, "", staticJsonPath);
           // Manifest static_files order: [json, png]
-          if (built.urls && built.urls.length >= 1) {
-            const jsonUrl = built.urls.find(function(u) { return u && u.indexOf(".json") !== -1; }) || built.urls[0];
-            staticUrl = jsonUrl;
-          }
           if (built.urls && built.urls.length >= 2) {
-            heatmapPngUrlFromManifest = built.urls.find(function(u) { return u && u.indexOf(".png") !== -1; }) || built.urls[1];
+            heatmapPngUrl = built.urls.find(function(u) { return u && u.indexOf(".png") !== -1; }) || built.urls[1];
           }
         }
       }
-      const staticResp = await fetch(staticUrl);
-      if (staticResp.ok) {
-        const raw = await staticResp.json();
-        // Normalize: same-origin returns raw heatmap JSON; envelope like API for consistent handling below
-        data = { heatmap_data: raw };
-        const pngPath = fiJsonPath.replace(/\.json$/i, ".png");
-        data.heatmap_url = heatmapPngUrlFromManifest != null ? heatmapPngUrlFromManifest : staticJsonPath(pngPath);
+      if (!heatmapPngUrl) {
+        // Fallback to static path if not found in manifest
+        heatmapPngUrl = staticJsonPath(`visualizations/feature_importance/${cohortDir}/aggregated_fi_heatmap.png`);
       }
-      if (!data) {
-        const resp = await fetch(`${API_BASE}/visualizations/feature_importance?cohort=${encodeURIComponent(cohort)}`);
-        if (!resp.ok) {
-          const body = await logApiErrorResponseAndParse(resp, "Feature Importance");
-          throw new Error(body && body.error ? body.error : `HTTP ${resp.status}`);
-        }
-        data = await resp.json();
-      }
-
-      if (data && data.heatmap_data) {
-        window.fiHeatmapDataFull = data.heatmap_data;
-        applyFITopNAndRender();
-        // If JSON didn't render (e.g. wrong shape), fall back to image so we always show one visual
-        var chartVisible = fiHeatmapChart && fiHeatmapChart.style.display !== "none" && fiHeatmapChart.innerHTML !== "";
-        if (!chartVisible && data.heatmap_url) {
-          if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
-          fiHeatmapImg.src = data.heatmap_url;
-          fiHeatmapImg.style.display = "block";
-          fiHeatmapImg.onerror = function() { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
-          document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (image).";
-          document.getElementById("fi-status").className = "status-message success";
-        } else if (chartVisible) {
-          document.getElementById("fi-status").textContent = "Feature importance heatmap loaded.";
-          document.getElementById("fi-status").className = "status-message success";
-        } else {
-          document.getElementById("fi-status").textContent = "Heatmap data format not recognized. Try image fallback or run pipeline.";
-          document.getElementById("fi-status").className = "status-message error";
-        }
-      } else if (data.heatmap_url) {
-        if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
-        fiHeatmapImg.src = data.heatmap_url;
-        fiHeatmapImg.style.display = "block";
-        fiHeatmapImg.onerror = function() { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
-        document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (image).";
-        document.getElementById("fi-status").className = "status-message success";
-      } else {
-        document.getElementById("fi-status").textContent = "No heatmap data for this view. Run Step 3a / 4_dashboard_visuals to generate.";
-        document.getElementById("fi-status").className = "status-message error";
-      }
+      if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
+      if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
+      fiHeatmapImg.src = heatmapPngUrl;
+      fiHeatmapImg.style.display = "block";
+      fiHeatmapImg.onerror = function() { document.getElementById("fi-status").textContent = "Heatmap image not found. Upload heatmap or run pipeline to generate."; document.getElementById("fi-status").className = "status-message error"; };
+      document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (image).";
+      document.getElementById("fi-status").className = "status-message success";
     } catch (err) {
-        document.getElementById("fi-status").textContent = `Error: ${err.message}`;
+      document.getElementById("fi-status").textContent = `Error: ${err.message}`;
       document.getElementById("fi-status").className = "status-message error";
     }
   });
