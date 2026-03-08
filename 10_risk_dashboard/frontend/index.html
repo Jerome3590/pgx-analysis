@@ -1400,7 +1400,7 @@
     </div>
   </div>
 
-<script>
+<!-- Main dashboard script moved to end of body for proper DOM loading -->
   // ==============================
   // CONFIGURATION
   // ==============================
@@ -4293,6 +4293,10 @@
     syncVisualizationCohortContext("opioid_ed");
     console.log("Metadata loaded successfully");
   });
+</script>
+<!-- Main dashboard script moved here for proper DOM loading -->
+<script>
+// ...existing code from lines 1403-4296...
 </script>
 </body>
 </html>
