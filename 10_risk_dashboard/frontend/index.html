@@ -1419,7 +1419,6 @@
   function staticJsonPath(relativePath) {
     const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
     return (base ? base + "/" : "") + relativePath.replace(/^\//, "");
-  }
   // Avoid double prefix: ensure img/asset URL is absolute (leading / or https:). Use for all BupaR/DTW image URLs.
   function ensureAbsoluteUrl(url) {
     if (typeof url !== 'string' || !url) return url;
