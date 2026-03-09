@@ -1401,6 +1401,7 @@
   </div>
 
 <!-- Main dashboard script moved to end of body for proper DOM loading -->
+<script>
   // ==============================
   // CONFIGURATION
   // ==============================
@@ -1412,13 +1413,22 @@
       const base = params.get("apiBase").replace(/\/$/, "");
       if (base) window.API_BASE_URL = base;
     }
+    if (params.has("staticBase")) {
+      const base = params.get("staticBase").replace(/\/$/, "");
+      if (base) window.STATIC_BASE_URL = base;
+    }
   })();
   const API_BASE = window.API_BASE_URL || "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod";
 
   // Static-first JSON: same-origin paths (S3/CloudFront) are tried first; Lambda API is fallback. See docs/STATIC_FIRST_JSON.md.
   function staticJsonPath(relativePath) {
+    if (window.STATIC_BASE_URL) {
+      return window.STATIC_BASE_URL.replace(/\/$/, "") + "/" + String(relativePath || "").replace(/^\//, "");
+    }
     const base = window.location.pathname.replace(/\/[^/]*$/, "") || "";
     return (base ? base + "/" : "") + relativePath.replace(/^\//, "");
+  }
+
   // Avoid double prefix: ensure img/asset URL is absolute (leading / or https:). Use for all BupaR/DTW image URLs.
   function ensureAbsoluteUrl(url) {
     if (typeof url !== 'string' || !url) return url;
@@ -1499,50 +1509,139 @@
 
   // DOM Elements
 
-  document.addEventListener('DOMContentLoaded', function() {
-    // DOM-dependent element references
-    const ageEl = document.getElementById("age");
-    const drugsEl = document.getElementById("drugs");
-    const icdsEl = document.getElementById("icds");
-    const cptsEl = document.getElementById("cpts");
+  const ageEl = document.getElementById("age");
+  const drugsEl = document.getElementById("drugs");
+  const icdsEl = document.getElementById("icds");
+  const cptsEl = document.getElementById("cpts");
 
-    // PGx Card Elements
-    const patientIdEl = document.getElementById("patient-id");
-    const snpInputEl = document.getElementById("snp-input");
-    const snpFileEl = document.getElementById("snp-file");
-    const btnGenerateCard = document.getElementById("btnGenerateCard");
-    const btnResetCard = document.getElementById("btnResetCard");
-    const pgxStatusEl = document.getElementById("pgx-status");
-    const pgxCardDisplayEl = document.getElementById("pgx-card-display");
+  const drugSearchEl = document.getElementById("drug-search");
+  const icdSearchEl = document.getElementById("icd-search");
+  const cptSearchEl = document.getElementById("cpt-search");
 
-    // Tab Elements
-    const tabButtons = document.querySelectorAll(".tab-button");
+  const statusEl = document.getElementById("status");
+  const modelIndicatorEl = document.getElementById("model-indicator");
 
-    // DTW Visualizations Tab
-    document.getElementById("btnLoadDTW")?.addEventListener("click", async () => {
-      // ...existing code...
+  const riskDisplayEl = document.getElementById("risk-display");
+  const riskScoreEl = document.getElementById("risk-score");
+  const riskBandEl = document.getElementById("risk-band");
+  const modelInfoEl = document.getElementById("model-info");
+
+  let currentCohort = document.querySelector(".cohort-tab-button.active")?.getAttribute("data-cohort") || "opioid_ed";
+  let currentAgeBand = null;
+  let currentMetadata = null;
+
+  function setStatus(message, type = "info") {
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.classList.remove("error", "success");
+    if (type === "error") statusEl.classList.add("error");
+    if (type === "success") statusEl.classList.add("success");
+  }
+
+  function getMultiSelectValues(selectEl) {
+    if (!selectEl) return [];
+    return Array.from(selectEl.selectedOptions || []).map(o => o.value);
+  }
+
+  function clearOptions(selectEl) {
+    if (!selectEl) return;
+    while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+  }
+
+  function filterOptions(selectEl, searchInputEl) {
+    if (!selectEl || !searchInputEl) return;
+    const q = String(searchInputEl.value || "").toLowerCase();
+    Array.from(selectEl.options).forEach(opt => {
+      const text = (opt.textContent || opt.value || "").toLowerCase();
+      opt.hidden = q && !text.includes(q);
     });
+  }
 
-    // All other event listeners and DOM-dependent code should be moved here as well
-    // ...existing code for event listeners and DOM usage...
+  function determineAgeBand(age) {
+    if (!Number.isFinite(age)) return null;
+    if (age < 13 || age > 114) return null;
+    if (age <= 24) return "13-24";
+    if (age <= 44) return "25-44";
+    if (age <= 54) return "45-54";
+    if (age <= 64) return "55-64";
+    if (age <= 74) return "65-74";
+    if (age <= 84) return "75-84";
+    return "85-114";
+  }
 
-    // Expose only necessary functions to window
-    window.switchTab = function(tabName) {
-      // ...existing code...
-    };
-    window.switchDTWSubtab = function(subtabId) {
-      // ...existing code...
-    };
-    window.removeDrugCode = function(code) {
-      // ...existing code...
-    };
-    window.removeIcdCode = function(code) {
-      // ...existing code...
-    };
-    window.removeCptCode = function(code) {
-      // ...existing code...
-    };
-  });
+  function updateModelIndicator() {
+    if (!modelIndicatorEl) return;
+    const cohortLabel = currentCohort === "non_opioid_ed" ? "Polypharmacy" : "Opioid ED";
+    modelIndicatorEl.textContent = cohortLabel;
+    modelIndicatorEl.classList.toggle("polypharmacy", currentCohort === "non_opioid_ed");
+  }
+
+  function updateCodeLists() {
+    if (!currentMetadata || !currentAgeBand) return;
+    const codesForAge = (currentMetadata.codes && currentMetadata.codes[currentAgeBand]) || { drugs: [], icds: [], cpts: [] };
+    populateSelect(drugsEl, codesForAge.drugs || []);
+    populateSelect(icdsEl, codesForAge.icds || []);
+    populateSelect(cptsEl, codesForAge.cpts || []);
+    updateSelectionDisplays();
+  }
+
+  function updateSelectionDisplays() {
+    if (typeof updateDrugDisplay === "function") updateDrugDisplay();
+    if (typeof updateIcdDisplay === "function") updateIcdDisplay();
+    if (typeof updateCptDisplay === "function") updateCptDisplay();
+    updateCodesSummary();
+  }
+
+  async function loadMetadata(cohort) {
+    const c = cohort || currentCohort || "opioid_ed";
+    currentCohort = c;
+    setStatus(`Loading metadata for ${c}…`, "info");
+    try {
+      // Static-first: prefer same-origin metadata/{cohort}.json (S3/CloudFront/static server)
+      // API fallback: GET /metadata?cohort=...
+      let data = null;
+      const staticUrl = staticJsonPath(`metadata/${encodeURIComponent(c)}.json`);
+      try {
+        const staticResp = await fetch(staticUrl, { cache: "no-store" });
+        if (staticResp.ok) {
+          data = await staticResp.json();
+        } else {
+          console.warn("[Dashboard] static metadata not available:", staticUrl, staticResp.status);
+        }
+      } catch (e) {
+        console.warn("[Dashboard] static metadata fetch failed:", staticUrl, e);
+      }
+
+      if (!data) {
+        const resp = await fetch(`${API_BASE}/metadata?cohort=${encodeURIComponent(c)}`);
+        if (!resp.ok) {
+          await logApiErrorResponseAndParse(resp, "metadata");
+          throw new Error(`metadata HTTP ${resp.status}`);
+        }
+        data = await resp.json();
+      }
+
+      currentMetadata = data;
+      const age = parseInt(ageEl && ageEl.value ? ageEl.value : "", 10);
+      currentAgeBand = determineAgeBand(age) || (data && Array.isArray(data.age_bands) && data.age_bands[0]) || currentAgeBand;
+      updateCodeLists();
+      updateModelIndicator();
+      setStatus("Metadata loaded.", "success");
+      return data;
+    } catch (e) {
+      console.error("loadMetadata error:", e);
+      setStatus("Error loading metadata. If running locally, ensure metadata/{cohort}.json exists or API_BASE is reachable (see console).", "error");
+      throw e;
+    }
+  }
+
+  const patientIdEl = document.getElementById("patient-id");
+  const snpInputEl = document.getElementById("snp-input");
+  const snpFileEl = document.getElementById("snp-file");
+  const btnGenerateCard = document.getElementById("btnGenerateCard");
+  const btnResetCard = document.getElementById("btnResetCard");
+  const pgxStatusEl = document.getElementById("pgx-status");
+  const pgxCardDisplayEl = document.getElementById("pgx-card-display");
 
   // Render the time-between-events histogram using Plotly
   function renderTimeBetweenEventsHistogram(histogramJson) {
@@ -1572,6 +1671,12 @@
     };
     Plotly.newPlot(container, [trace], layout, { responsive: true });
   }
+
+  function updateCodesSummary() {
+    const el = document.getElementById("codes-summary-text");
+    if (!el) return;
+    const drugs = getMultiSelectValues(drugsEl);
+    const icds = getMultiSelectValues(icdsEl);
     const cpts = getMultiSelectValues(cptsEl);
     const total = drugs.length + icds.length + cpts.length;
     if (total === 0) {
@@ -2009,30 +2114,38 @@
     });
   });
 
-  ageEl.addEventListener("input", () => {
+  if (ageEl) ageEl.addEventListener("input", () => {
     const age = parseInt(ageEl.value);
     // Cohort is from the tab only; age only updates age_band within current cohort
     currentAgeBand = determineAgeBand(age);
+    if (age < 13) {
+      setStatus("Age must be 13 or older. Age band 0-12 is not supported.", "error");
+    } else if (age > 114) {
+      setStatus("Age must be 114 or younger.", "error");
+    } else {
+      setStatus("Enter age and select codes, then click 'Calculate Risk Score'", "info");
+    }
     if (currentMetadata && currentAgeBand) {
       updateCodeLists();
     }
     updateModelIndicator();
+    renderPatientCodesTab();
   });
 
-  drugSearchEl.addEventListener("input", () => filterOptions(drugsEl, drugSearchEl));
-  icdSearchEl.addEventListener("input", () => filterOptions(icdsEl, icdSearchEl));
-  cptSearchEl.addEventListener("input", () => filterOptions(cptsEl, cptSearchEl));
+  if (drugSearchEl) drugSearchEl.addEventListener("input", () => filterOptions(drugsEl, drugSearchEl));
+  if (icdSearchEl) icdSearchEl.addEventListener("input", () => filterOptions(icdsEl, icdSearchEl));
+  if (cptSearchEl) cptSearchEl.addEventListener("input", () => filterOptions(cptsEl, cptSearchEl));
 
   // Update selection displays when codes are selected/deselected
-  drugsEl.addEventListener("change", () => {
+  if (drugsEl) drugsEl.addEventListener("change", () => {
     updateDrugDisplay();
     updateCodesSummary();
   });
-  icdsEl.addEventListener("change", () => {
+  if (icdsEl) icdsEl.addEventListener("change", () => {
     updateIcdDisplay();
     updateCodesSummary();
   });
-  cptsEl.addEventListener("change", () => {
+  if (cptsEl) cptsEl.addEventListener("change", () => {
     updateCptDisplay();
     updateCodesSummary();
   });
@@ -2259,27 +2372,9 @@
     });
   })();
 
-  document.getElementById("btnRisk").addEventListener("click", calculateRisk);
-  document.getElementById("btnComparison").addEventListener("click", compareScenarios);
-  document.getElementById("btnReset").addEventListener("click", resetForm);
-
-  // Hide CPT/ICD groups for polypharmacy (ages 65-114)
-  // Validate age range (13-114)
-  ageEl.addEventListener("input", () => {
-    const age = parseInt(ageEl.value);
-    
-    // Validate age range
-    if (age < 13) {
-      setStatus("Age must be 13 or older. Age band 0-12 is not supported.", "error");
-    } else if (age > 114) {
-      setStatus("Age must be 114 or younger.", "error");
-    } else {
-      setStatus("Enter age and select codes, then click 'Calculate Risk Score'", "info");
-    }
-    
-    const isPolypharmacy = age >= 65 && age <= 114;
-    renderPatientCodesTab();
-  });
+  document.getElementById("btnRisk")?.addEventListener("click", calculateRisk);
+  document.getElementById("btnComparison")?.addEventListener("click", compareScenarios);
+  document.getElementById("btnReset")?.addEventListener("click", resetForm);
 
   // ==============================
   // PGX CARD FUNCTIONALITY
@@ -2288,7 +2383,7 @@
   // Tab switching is done via onclick="switchTab('...')" on each tab button (PHTS-style).
 
   // PGx Card File Upload Handler
-  snpFileEl.addEventListener("change", async (e) => {
+  if (snpFileEl) snpFileEl.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -2302,12 +2397,12 @@
   });
 
   // Generate PGx Card
-  btnGenerateCard.addEventListener("click", async () => {
+  if (btnGenerateCard) btnGenerateCard.addEventListener("click", async () => {
     await generatePGxCard();
   });
 
   // Reset PGx Card
-  btnResetCard.addEventListener("click", () => {
+  if (btnResetCard) btnResetCard.addEventListener("click", () => {
     patientIdEl.value = "";
     snpInputEl.value = "";
     snpFileEl.value = "";
@@ -4140,12 +4235,6 @@
     syncVisualizationCohortContext("opioid_ed");
     console.log("Metadata loaded successfully");
   });
-</script>
-<!-- Main dashboard script moved here for proper DOM loading -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-// ...existing code from lines 1403-4296...
-});
 </script>
 </body>
 </html>
