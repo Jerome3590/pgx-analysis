@@ -1922,13 +1922,36 @@
   }
 
   function renderModelBreakdown(modelBreakdown) {
-    const models = Object.keys(modelBreakdown);
-    const scores = models.map(m => modelBreakdown[m] * 100);
+    const chartEl = document.getElementById('model-chart');
+    if (!chartEl) return;
+
+    const raw = modelBreakdown && typeof modelBreakdown === 'object' ? modelBreakdown : {};
+    const modelsAll = Object.keys(raw);
+    const pairs = modelsAll
+      .map(function(m) {
+        const v = raw[m];
+        const n = typeof v === 'number' ? v : (v != null ? Number(v) : NaN);
+        return { model: m, score: n };
+      })
+      .filter(function(p) { return Number.isFinite(p.score); })
+      .sort(function(a, b) { return b.score - a.score; });
+
+    if (!pairs.length || !window.Plotly) {
+      chartEl.innerHTML = '<p class="status-message info" style="margin:0;">No per-model scores available.</p>';
+      return;
+    }
+
+    const models = pairs.map(function(p) { return p.model; });
+    const scores = pairs.map(function(p) { return p.score * 100; });
+    const labels = scores.map(function(s) { return (Number.isFinite(s) ? s.toFixed(1) : '') + '%'; });
 
     const trace = {
       x: models,
       y: scores,
       type: 'bar',
+      text: labels,
+      textposition: 'auto',
+      hovertemplate: '%{x}: %{y:.1f}%<extra></extra>',
       marker: {
         color: ['#0f766e', '#3b82f6', '#8b5cf6']
       }
@@ -1941,7 +1964,7 @@
       margin: { t: 40, r: 20, b: 40, l: 60 }
     };
 
-    Plotly.newPlot('model-chart', [trace], layout, { responsive: true });
+    Plotly.newPlot('model-chart', [trace], layout, { responsive: true, displayModeBar: false });
   }
 
   function renderRiskDistribution(dist) {
