@@ -474,24 +474,21 @@ def _bucket_one(value: float, thresholds: Dict[str, float]) -> str:
 
 
 def patient_bucket_from_inputs(
-    n_events: Optional[float],
     n_drugs: Optional[float],
     feature_schema: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Compute risk bucket (low/medium/high) from n_events and n_drugs only.
+    Compute risk bucket (low/medium/high) from n_drugs only.
     n_pgx_drugs is a separate input and is not used for this bucket.
     Uses schema defaults for any missing value.
     """
     thresholds = feature_schema.get("patient_bucket_thresholds") or {}
     if not thresholds:
-        return {"patient_bucket": None, "n_events_bucket": None, "n_drugs_bucket": None}
+        return {"patient_bucket": None, "n_drugs_bucket": None}
     defaults = feature_schema.get("defaults", {})
-    n_events_val = n_events if n_events is not None else defaults.get("n_events", 0)
     n_drugs_val = n_drugs if n_drugs is not None else defaults.get("n_drugs", 0)
-    n_events_bucket = _bucket_one(float(n_events_val), thresholds.get("n_events", {})) if "n_events" in thresholds else None
     n_drugs_bucket = _bucket_one(float(n_drugs_val), thresholds.get("n_drugs", {})) if "n_drugs" in thresholds else None
-    buckets = [b for b in [n_events_bucket, n_drugs_bucket] if b is not None]
+    buckets = [b for b in [n_drugs_bucket] if b is not None]
     if not buckets:
         patient_bucket = None
     elif "high" in buckets:
@@ -502,7 +499,6 @@ def patient_bucket_from_inputs(
         patient_bucket = "low"
     return {
         "patient_bucket": patient_bucket,
-        "n_events_bucket": n_events_bucket,
         "n_drugs_bucket": n_drugs_bucket,
     }
 
@@ -546,7 +542,6 @@ def build_feature_vector(
     icds: List[str],
     cpts: List[str],
     feature_schema: Dict[str, Any],
-    n_events: Optional[float] = None,
     n_drugs: Optional[float] = None,
     pgx_num_drugs: Optional[float] = None,
     pgx_num_cpic_drugs: Optional[float] = None,
@@ -585,8 +580,6 @@ def build_feature_vector(
 
     # Optional numeric inputs: only apply when the feature exists in the schema.
     # These override schema defaults so the user can see how predictions change.
-    if n_events is not None and "n_events" in features:
-        features["n_events"] = float(n_events)
     if n_drugs is not None and "n_drugs" in features:
         features["n_drugs"] = float(n_drugs)
     if pgx_num_drugs is not None and "pgx_num_drugs" in features:
@@ -595,7 +588,7 @@ def build_feature_vector(
         features["pgx_num_cpic_drugs"] = float(pgx_num_cpic_drugs)
     
     # Apply schema defaults for any feature not set by request (age / item_*).
-    # This includes n_events, pgx_num_drugs, pgx_num_cpic_drugs, etc. Dashboard does not need to send these;
+    # This includes n_drugs, pgx_num_drugs, pgx_num_cpic_drugs, etc. Dashboard does not need to send these;
     # we use training medians so the model gets consistent inputs.
     defaults = feature_schema.get('defaults', {})
     for feature in features:
@@ -865,16 +858,10 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         icds = list(icds) if icds else []
     if not isinstance(cpts, list):
         cpts = list(cpts) if cpts else []
-    # Optional: n_events, n_drugs for risk bucket (low/medium/high); n_pgx_drugs, pgx_num_cpic_drugs as separate inputs (for model/display)
-    n_events = body.get("n_events")
+    # Optional: n_drugs for risk bucket (low/medium/high); n_pgx_drugs, pgx_num_cpic_drugs as separate inputs (for model/display)
     n_drugs = body.get("n_drugs")
     pgx_num_drugs = body.get("pgx_num_drugs")  # separate input, not used for risk bucket
     pgx_num_cpic_drugs = body.get("pgx_num_cpic_drugs")
-    if n_events is not None:
-        try:
-            n_events = float(n_events)
-        except (TypeError, ValueError):
-            n_events = None
     if n_drugs is not None:
         try:
             n_drugs = float(n_drugs)
@@ -935,7 +922,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             age_mapped = age >= 95 and age <= 114 and not age_band_override
             interpretation = "Estimated probability of target outcome (2019 holdout population) in this cohort and age band."
             feature_schema_baseline = load_feature_schema(cohort, age_band)
-            bucket_info = patient_bucket_from_inputs(n_events, n_drugs, feature_schema_baseline)
+            bucket_info = patient_bucket_from_inputs(n_drugs, feature_schema_baseline)
             body = {
                 "risk_score": risk_score,
                 "risk_band": risk_band,
@@ -975,7 +962,6 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             icds,
             cpts,
             feature_schema,
-            n_events=n_events,
             n_drugs=n_drugs,
             pgx_num_drugs=pgx_num_drugs,
             pgx_num_cpic_drugs=pgx_num_cpic_drugs,
@@ -994,13 +980,12 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         if model_used:
             interpretation = f"Risk from {model_used} (best model for this cohort/age). " + interpretation
 
-        bucket_info = patient_bucket_from_inputs(n_events, n_drugs, feature_schema)
+        bucket_info = patient_bucket_from_inputs(n_drugs, feature_schema)
         body = {
             "risk_score": float(risk_score),
             "risk_band": risk_band,
             "is_baseline": False,
             "model_inputs": {
-                "n_events": n_events,
                 "n_drugs": n_drugs,
                 "pgx_num_drugs": pgx_num_drugs,
                 "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
