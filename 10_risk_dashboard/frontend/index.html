@@ -3140,6 +3140,9 @@
 
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
+    const topNSel = document.getElementById("fi-top-n");
+    const topNVal = topNSel ? topNSel.value : "20";
+    const preferJson = topNVal === "10" || topNVal === "20";
     if (!cohort) {
       document.getElementById("fi-status").textContent = "Please select a view";
       document.getElementById("fi-status").className = "status-message error";
@@ -3151,8 +3154,10 @@
     if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
     if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
     try {
-      // Always use PNG artifact for heatmap visual
+      // Top 10 / Top 20: prefer JSON so we can slice deterministically and render via Plotly.
+      // Combined + All: prefer PNG (large artifact; no need for JSON rendering).
       const manifest = await getDashboardManifest().catch(function() { return null; });
+      let heatmapJsonUrl = null;
       let heatmapPngUrl = null;
       let cohortDir = cohort === "combined" ? "combined" : cohort;
       if (manifest) {
@@ -3161,10 +3166,40 @@
           const built = buildStaticUrls(entry, cohort === "combined" ? "" : cohort, "", staticJsonPath);
           // Manifest static_files order: [json, png]
           if (built.urls && built.urls.length >= 2) {
+            heatmapJsonUrl = built.urls.find(function(u) { return u && u.indexOf(".json") !== -1; }) || built.urls[0];
             heatmapPngUrl = built.urls.find(function(u) { return u && u.indexOf(".png") !== -1; }) || built.urls[1];
           }
         }
       }
+
+      if (preferJson) {
+        if (!heatmapJsonUrl) {
+          heatmapJsonUrl = staticJsonPath(`visualizations/feature_importance/${cohortDir}/aggregated_fi_heatmap.json`);
+        }
+        let data = null;
+        try {
+          const resp = await fetch(heatmapJsonUrl, { cache: "no-store" });
+          if (resp.ok) {
+            data = await resp.json();
+          } else {
+            console.warn("[Dashboard] FI JSON not available:", heatmapJsonUrl, resp.status);
+          }
+        } catch (e) {
+          console.warn("[Dashboard] FI JSON fetch failed:", heatmapJsonUrl, e);
+        }
+
+        if (data && data.row_labels && data.column_labels && data.matrix) {
+          window.fiHeatmapDataFull = data;
+          // Ensure cohort/model fields exist for title rendering
+          if (!window.fiHeatmapDataFull.cohort) window.fiHeatmapDataFull.cohort = cohort;
+          applyFITopNAndRender();
+          document.getElementById("fi-status").textContent = "Feature importance heatmap loaded (JSON).";
+          document.getElementById("fi-status").className = "status-message success";
+          return;
+        }
+        // If JSON not available, fall through to PNG fallback.
+      }
+
       if (!heatmapPngUrl) {
         // Fallback to static path if not found in manifest
         heatmapPngUrl = staticJsonPath(`visualizations/feature_importance/${cohortDir}/aggregated_fi_heatmap.png`);
