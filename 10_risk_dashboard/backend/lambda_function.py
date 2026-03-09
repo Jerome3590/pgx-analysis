@@ -545,7 +545,11 @@ def build_feature_vector(
     drugs: List[str],
     icds: List[str],
     cpts: List[str],
-    feature_schema: Dict[str, Any]
+    feature_schema: Dict[str, Any],
+    n_events: Optional[float] = None,
+    n_drugs: Optional[float] = None,
+    pgx_num_drugs: Optional[float] = None,
+    pgx_num_cpic_drugs: Optional[float] = None,
 ) -> np.ndarray:
     """
     Build feature vector matching model's expected schema.
@@ -578,6 +582,17 @@ def build_feature_vector(
         feature_name = f"item_{cpt.upper()}"
         if feature_name in features:
             features[feature_name] = 1.0
+
+    # Optional numeric inputs: only apply when the feature exists in the schema.
+    # These override schema defaults so the user can see how predictions change.
+    if n_events is not None and "n_events" in features:
+        features["n_events"] = float(n_events)
+    if n_drugs is not None and "n_drugs" in features:
+        features["n_drugs"] = float(n_drugs)
+    if pgx_num_drugs is not None and "pgx_num_drugs" in features:
+        features["pgx_num_drugs"] = float(pgx_num_drugs)
+    if pgx_num_cpic_drugs is not None and "pgx_num_cpic_drugs" in features:
+        features["pgx_num_cpic_drugs"] = float(pgx_num_cpic_drugs)
     
     # Apply schema defaults for any feature not set by request (age / item_*).
     # This includes n_events, pgx_num_drugs, pgx_num_cpic_drugs, etc. Dashboard does not need to send these;
@@ -954,7 +969,17 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         # Load feature schema and run ensemble when user has entered codes
         feature_schema = load_feature_schema(cohort, age_band)
         codes_validation = get_codes_used_unknown(drugs, icds, cpts, feature_schema)
-        feature_vector = build_feature_vector(age, drugs, icds, cpts, feature_schema)
+        feature_vector = build_feature_vector(
+            age,
+            drugs,
+            icds,
+            cpts,
+            feature_schema,
+            n_events=n_events,
+            n_drugs=n_drugs,
+            pgx_num_drugs=pgx_num_drugs,
+            pgx_num_cpic_drugs=pgx_num_cpic_drugs,
+        )
         ensemble_result = predict_risk(cohort, age_band, feature_vector, require_all_models=True)
 
         risk_score = ensemble_result['ensemble_score']
@@ -974,6 +999,12 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "risk_score": float(risk_score),
             "risk_band": risk_band,
             "is_baseline": False,
+            "model_inputs": {
+                "n_events": n_events,
+                "n_drugs": n_drugs,
+                "pgx_num_drugs": pgx_num_drugs,
+                "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
+            },
             "patient_bucket": bucket_info.get("patient_bucket"),
             "patient_bucket_detail": {k: v for k, v in bucket_info.items() if k != "patient_bucket" and v is not None},
             "n_pgx_drugs": pgx_num_drugs,
