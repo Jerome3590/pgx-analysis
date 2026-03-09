@@ -782,8 +782,8 @@
       </div>
       <p id="risk-baseline-note" class="risk-baseline-note" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
       <p id="risk-interpretation" class="risk-interpretation" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-codes-selected" class="risk-codes-selected" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; color: #475569;"></p>
       <p id="risk-patient-bucket" class="risk-patient-bucket" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
-      <p id="risk-codes-unknown" class="risk-codes-unknown" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;"></p>
     </div>
 
     <div class="panels">
@@ -1728,8 +1728,15 @@
     clearOptions(selectEl);
     options.forEach(opt => {
       const option = document.createElement("option");
-      option.value = typeof opt === "string" ? opt : opt.value;
-      option.textContent = typeof opt === "string" ? opt : opt.text;
+      if (typeof opt === "string") {
+        option.value = opt;
+        option.textContent = opt;
+      } else {
+        // Metadata generated from feature importance uses: { code, display, importance }
+        // Older/static shapes may use: { value, text }
+        option.value = opt.code != null ? String(opt.code) : (opt.value != null ? String(opt.value) : "");
+        option.textContent = opt.display != null ? String(opt.display) : (opt.text != null ? String(opt.text) : option.value);
+      }
       selectEl.appendChild(option);
     });
   }
@@ -1833,6 +1840,19 @@
     if (data.model_used) {
       modelInfoText += ` (Risk from ${data.model_used})`;
     }
+    // Show numeric inputs that can change the prediction (when provided), so users can see what was used.
+    // Prefer backend echo (model_inputs) since it reflects what the server parsed.
+    try {
+      const mi = data && data.model_inputs ? data.model_inputs : null;
+      const nEventsVal = mi && mi.n_events != null ? mi.n_events : (document.getElementById("inputNevents")?.value || "");
+      const nDrugsVal = mi && mi.n_drugs != null ? mi.n_drugs : (document.getElementById("inputNdrugs")?.value || "");
+      const cpicVal = mi && mi.pgx_num_cpic_drugs != null ? mi.pgx_num_cpic_drugs : (document.getElementById("inputCpicDrugs")?.value || "");
+      const parts = [];
+      if (nEventsVal !== "" && nEventsVal != null && !isNaN(Number(nEventsVal))) parts.push(`n_events=${Number(nEventsVal)}`);
+      if (nDrugsVal !== "" && nDrugsVal != null && !isNaN(Number(nDrugsVal))) parts.push(`n_drugs=${Number(nDrugsVal)}`);
+      if (cpicVal !== "" && cpicVal != null && !isNaN(Number(cpicVal))) parts.push(`cpic_drugs=${Number(cpicVal)}`);
+      if (parts.length) modelInfoText += ` — inputs: ${parts.join(", ")}`;
+    } catch (_) {}
     if (data.age_mapped && data.age_mapping_note) {
       modelInfoText += ` — ${data.age_mapping_note}`;
     }
@@ -1860,21 +1880,21 @@
       }
     }
 
-    const codesUnknownEl = document.getElementById("risk-codes-unknown");
-    if (codesUnknownEl && data.codes_unknown) {
-      const u = data.codes_unknown;
-      const parts = [];
-      if (u.drugs && u.drugs.length) parts.push(u.drugs.length + " drug(s)");
-      if (u.icds && u.icds.length) parts.push(u.icds.length + " ICD(s)");
-      if (u.cpts && u.cpts.length) parts.push(u.cpts.length + " CPT(s)");
-      if (parts.length) {
-        const list = [].concat(u.drugs || [], u.icds || [], u.cpts || []).slice(0, 15);
-        const listStr = list.length > 0 ? ": " + list.join(", ") + (list.length < (u.drugs?.length + u.icds?.length + u.cpts?.length || 0) ? "…" : "") : "";
-        codesUnknownEl.textContent = "Not in model (did not affect score): " + parts.join(", ") + listStr;
-        codesUnknownEl.style.display = "block";
+    const selectedEl = document.getElementById("risk-codes-selected");
+    if (selectedEl) {
+      const selDrugs = getMultiSelectValues(drugsEl);
+      const selIcds = getMultiSelectValues(icdsEl);
+      const selCpts = getMultiSelectValues(cptsEl);
+      const total = selDrugs.length + selIcds.length + selCpts.length;
+      if (total > 0) {
+        const list = [].concat(selDrugs, selIcds, selCpts);
+        const truncated = list.slice(0, 30);
+        const listStr = ": " + truncated.join(", ") + (list.length > truncated.length ? "…" : "");
+        selectedEl.textContent = `Selected codes (${selDrugs.length} drugs, ${selIcds.length} ICD, ${selCpts.length} CPT)` + listStr;
+        selectedEl.style.display = "block";
       } else {
-        codesUnknownEl.textContent = "";
-        codesUnknownEl.style.display = "none";
+        selectedEl.textContent = "";
+        selectedEl.style.display = "none";
       }
     }
 
@@ -3804,9 +3824,35 @@
     var supportEl = document.getElementById("fpgrowth-support-image");
     if (supportEl) {
       if (data.itemsets_data && Array.isArray(data.itemsets_data) && data.itemsets_data.length > 0) {
+        function stripDrugPrefixForLabel(s) {
+          return (s && typeof s === 'string') ? s.replace(/^DRUG:\s*/i, '').trim() : (s || '');
+        }
+        function normalizeDrugNameForLabel(s) {
+          var t = stripDrugPrefixForLabel(s);
+          if (!t) return '';
+          return t
+            .split(/\s+/)
+            .map(function(w) { return w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : ''; })
+            .join(' ')
+            .trim();
+        }
+        function formatItemsetLabel(itemsets) {
+          var arr = [];
+          if (Array.isArray(itemsets)) {
+            arr = itemsets;
+          } else if (typeof itemsets === 'string') {
+            arr = itemsets.split(',');
+          } else if (itemsets != null) {
+            arr = [String(itemsets)];
+          }
+          var cleaned = arr.map(normalizeDrugNameForLabel).filter(function(x) { return !!x; });
+          return cleaned.join(' : ');
+        }
         const rows = data.itemsets_data
           .map(function (r) {
-            const label = Array.isArray(r.itemsets) ? r.itemsets.slice(0, 5).join(", ") : String(r.itemsets || "");
+            var items = r.itemsets;
+            if (Array.isArray(items)) items = items.slice(0, 5);
+            const label = formatItemsetLabel(items);
             return { label: label || "(empty)", support: Number(r.support) };
           })
           .filter(function (r) { return r.label && !isNaN(r.support); })
