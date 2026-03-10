@@ -511,25 +511,56 @@ def get_codes_used_unknown(
 ) -> Dict[str, Dict[str, List[str]]]:
     """Validate codes against feature schema; return codes_used and codes_unknown per type."""
     feature_set = set(feature_schema.get("features", []))
+
+    def _candidate_features(code: str, code_type: str) -> List[str]:
+        """Return candidate item_* feature names for a user-provided code.
+
+        Important: drug codes in metadata are often like 'drug_AMOXICILLIN' and the
+        model feature is 'item_drug_AMOXICILLIN' (note: do NOT uppercase the 'drug_' prefix).
+        """
+        if code is None:
+            return []
+        raw = str(code).strip()
+        if not raw:
+            return []
+
+        # If caller already passed a full feature name
+        if raw.startswith("item_"):
+            return [raw]
+
+        if code_type == "drug":
+            # Preserve casing of prefixes like drug_ / cpic_ if present
+            base = raw
+            # Also tolerate labels like "DRUG: XYZ" from some visualizations
+            if base.upper().startswith("DRUG:"):
+                base = base.split(":", 1)[1].strip().replace(" ", "_")
+            return [
+                f"item_{base}",
+                f"item_{base.upper()}",
+            ]
+
+        # ICD/CPT are stored as uppercase codes in the schema (item_F1120, item_99213)
+        return [
+            f"item_{raw.upper()}",
+            f"item_{raw}",
+        ]
+
     used = {"drugs": [], "icds": [], "cpts": []}
     unknown = {"drugs": [], "icds": [], "cpts": []}
     for drug in drugs or []:
-        key = f"item_{drug.upper()}"
-        if key in feature_set:
+        if any(c in feature_set for c in _candidate_features(drug, "drug")):
             used["drugs"].append(drug)
         else:
             unknown["drugs"].append(drug)
     for icd in icds or []:
-        if str(icd).upper() == "F1120":
+        if icd.upper() == 'F1120':
             continue
-        key = f"item_{icd.upper()}"
-        if key in feature_set:
+        if any(c in feature_set for c in _candidate_features(icd, "icd")):
             used["icds"].append(icd)
         else:
             unknown["icds"].append(icd)
     for cpt in cpts or []:
-        key = f"item_{cpt.upper()}"
-        if key in feature_set:
+        if any(c in feature_set for c in _candidate_features(cpt, "cpt")):
             used["cpts"].append(cpt)
         else:
             unknown["cpts"].append(cpt)
@@ -558,25 +589,44 @@ def build_feature_vector(
     # Set age
     if 'age' in features:
         features['age'] = float(age)
-    
-    # Set item features (drugs, ICDs, CPTs)
+
+    def _set_item_feature(code: str, code_type: str) -> None:
+        """Set an item_* feature to 1.0 if it exists in the schema."""
+        if code is None:
+            return
+        raw = str(code).strip()
+        if not raw:
+            return
+
+        candidates: List[str]
+        if raw.startswith("item_"):
+            candidates = [raw]
+        elif code_type == "drug":
+            base = raw
+            if base.upper().startswith("DRUG:"):
+                base = base.split(":", 1)[1].strip().replace(" ", "_")
+            candidates = [f"item_{base}", f"item_{base.upper()}"]
+        else:
+            candidates = [f"item_{raw.upper()}", f"item_{raw}"]
+
+        for f in candidates:
+            if f in features:
+                features[f] = 1.0
+                return
+
+    # Set drug features
     for drug in drugs:
-        feature_name = f"item_{drug.upper()}"
-        if feature_name in features:
-            features[feature_name] = 1.0
-    
+        _set_item_feature(drug, "drug")
+
+    # Set ICD features
     for icd in icds:
-        # Exclude F1120 (target variable, not an input)
+        # Exclude F1120 from ICD codes (it's the target, not an input)
         if icd.upper() == 'F1120':
             continue
-        feature_name = f"item_{icd.upper()}"
-        if feature_name in features:
-            features[feature_name] = 1.0
+        _set_item_feature(icd, "icd")
     
     for cpt in cpts:
-        feature_name = f"item_{cpt.upper()}"
-        if feature_name in features:
-            features[feature_name] = 1.0
+        _set_item_feature(cpt, "cpt")
 
     # Optional numeric inputs: only apply when the feature exists in the schema.
     # These override schema defaults so the user can see how predictions change.
