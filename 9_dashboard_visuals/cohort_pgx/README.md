@@ -154,6 +154,19 @@ python build_network_topology.py \
   --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
   --output-dir outputs/networks/opioid_ed/25_44 \
   --no-comprehend
+
+# Validate AWS Comprehend output (writes summaries + full dumps by default)
+python build_network_topology.py \
+  --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
+  --output-dir outputs/networks/opioid_ed/25_44 \
+  --comprehend-audit-dir outputs/networks/opioid_ed/25_44/comprehend_audit
+
+# Summary-only (no full dumps)
+python build_network_topology.py \
+  --reports outputs/reports/opioid_ed_25_44_vip_reports.json \
+  --output-dir outputs/networks/opioid_ed/25_44 \
+  --comprehend-audit-dir outputs/networks/opioid_ed/25_44/comprehend_audit \
+  --comprehend-summary-only
 ```
 
 ## Installation

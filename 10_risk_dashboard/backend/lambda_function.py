@@ -68,6 +68,10 @@ S3_DASHBOARD_PREFIX = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calcul
 S3_DASHBOARD_REGION = os.environ.get("S3_DASHBOARD_REGION", "us-east-1")
 MODEL_CACHE_TTL = int(os.environ.get("MODEL_CACHE_TTL", "3600"))
 
+# Optional: fully offline/local testing paths (bypass S3)
+OFFLINE_METADATA_PATH = os.environ.get("PGX_OFFLINE_METADATA_PATH")
+OFFLINE_DATA_PATH = os.environ.get("PGX_OFFLINE_DATA_PATH")
+
 
 def _dashboard_s3_url(key: str) -> str:
     """Build path-style S3 URL for dashboard assets: https://s3.{region}.amazonaws.com/{bucket}/{key}"""
@@ -212,6 +216,16 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
     """
     metadata_file = f"metadata_{cohort}.json"
     container_path = Path(f"/var/task/metadata/{metadata_file}")
+
+    # Offline/local override (prefer explicit local path)
+    if OFFLINE_METADATA_PATH:
+        try:
+            p = Path(OFFLINE_METADATA_PATH) / metadata_file
+            if p.exists():
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load metadata from OFFLINE_METADATA_PATH: {e}")
     
     # Try container filesystem first
     if container_path.exists():
@@ -240,6 +254,20 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
 def handle_metrics(_event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /metrics — return prebuilt model performance metrics from S3 (no recomputation). Fallback to container bundle."""
     key = f"{METADATA_PREFIX}/model_performance_metrics.json"
+
+    # Offline/local override
+    if OFFLINE_METADATA_PATH:
+        try:
+            p = Path(OFFLINE_METADATA_PATH) / "model_performance_metrics.json"
+            if p.exists():
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                out = data if isinstance(data, dict) else {"by_cohort": {}, "payload": data}
+                if "source" not in out:
+                    out["source"] = "offline"
+                return _response(200, out)
+        except Exception as e:
+            print(f"Metrics offline load failed: {e}")
     try:
         obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
         data = json.loads(obj["Body"].read().decode("utf-8"))
@@ -1308,10 +1336,13 @@ def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
     """
     import pandas as pd
 
-    container_parquet = "/var/task/data/cpic_gene-drug_pairs.parquet"
-    container_excel = "/var/task/data/cpic_gene-drug_pairs.xlsx"
-    s3_parquet_key = f"{METADATA_PREFIX}/cpic_gene-drug_pairs.parquet"
-    s3_excel_key = f"{METADATA_PREFIX}/cpic_gene-drug_pairs.xlsx"
+    base_data_dir = OFFLINE_DATA_PATH or "/var/task/data"
+    container_parquet = os.path.join(base_data_dir, "cpic_gene-drug_pairs.parquet")
+    container_excel = os.path.join(base_data_dir, "cpic_gene-drug_pairs.xlsx")
+
+    # CPIC data is stored under gold/dashboard/data (not metadata)
+    s3_parquet_key = "gold/dashboard/data/cpic_gene-drug_pairs.parquet"
+    s3_excel_key = "gold/dashboard/data/cpic_gene-drug_pairs.xlsx"
 
     # 1) Container Parquet (DuckDB)
     if DUCKDB_AVAILABLE and os.path.exists(container_parquet):
@@ -1380,7 +1411,7 @@ def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
 
     raise FileNotFoundError(
         "CPIC data not found. Ensure cpic_gene-drug_pairs.parquet or cpic_gene-drug_pairs.xlsx "
-        "is in container data/ or S3 under gold/dashboard/metadata/."
+        "is in container data/ or S3 under gold/dashboard/data/."
     )
 
 

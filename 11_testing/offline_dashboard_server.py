@@ -9,6 +9,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OFFLINE_ROOT = os.path.join(PROJECT_ROOT, "11_testing", "offline_dashboard")
 STATIC_ROOT = os.path.join(OFFLINE_ROOT, "s3")
 MODELS_ROOT = os.path.join(OFFLINE_ROOT, "models")
+PGX_METADATA_ROOT = os.path.join(OFFLINE_ROOT, "pgx_metadata")
+PGX_DATA_ROOT = os.path.join(OFFLINE_ROOT, "pgx_data")
 BACKEND_ROOT = os.path.join(OFFLINE_ROOT, "code", "backend")
 
 
@@ -29,6 +31,15 @@ def _load_lambda():
     # Force lambda to prefer local models, avoiding S3
     if os.path.exists(MODELS_ROOT):
         os.environ.setdefault("MODEL_BASE_PATH", MODELS_ROOT)
+
+    # Force lambda to prefer local dashboard metadata/data (avoid S3)
+    if os.path.exists(PGX_METADATA_ROOT):
+        os.environ.setdefault("PGX_OFFLINE_METADATA_PATH", PGX_METADATA_ROOT)
+    if os.path.exists(PGX_DATA_ROOT):
+        os.environ.setdefault("PGX_OFFLINE_DATA_PATH", PGX_DATA_ROOT)
+
+    # Avoid boto3 trying IMDS when offline
+    os.environ.setdefault("AWS_EC2_METADATA_DISABLED", "true")
 
     import lambda_function  # type: ignore
     return lambda_function
