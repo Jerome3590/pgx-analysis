@@ -60,6 +60,8 @@ status/s3_upload_tracker.json
 .ipynb_checkpoints/
 __pycache__/
 
+.venv-offline/
+
 Notes/*
 logs/
 *.xlsx
