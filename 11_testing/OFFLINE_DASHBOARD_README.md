@@ -23,6 +23,8 @@ This pulls:
 
 - Dashboard static files from `s3://jerome-dixon.io/vcu/pgx-risk-calculator/` into `11_testing/offline_dashboard/s3/`
 - Lambda model artifacts from `s3://pgxdatalake/gold/dashboard/models/` into `11_testing/offline_dashboard/models/`
+- Lambda-side metadata from `s3://pgxdatalake/gold/dashboard/metadata/` into `11_testing/offline_dashboard/pgx_metadata/`
+- Lambda-side data (CPIC) from `s3://pgxdatalake/gold/dashboard/data/` into `11_testing/offline_dashboard/pgx_data/`
 - Code snapshots into `11_testing/offline_dashboard/code/`
 
 ```powershell
@@ -82,7 +84,13 @@ Use these to confirm the local API is working.
 curl "http://127.0.0.1:8000/prod/metadata?cohort=opioid_ed"
 ```
 
-### 3.2 Risk (example)
+### 3.2 Metrics
+
+```powershell
+curl "http://127.0.0.1:8000/prod/metrics"
+```
+
+### 3.3 Risk (example)
 
 ```powershell
 $body = @{
@@ -97,6 +105,19 @@ $body = @{
 } | ConvertTo-Json
 
 curl -Method POST "http://127.0.0.1:8000/prod/risk" -ContentType "application/json" -Body $body
+```
+
+### 3.4 PGx Card (example)
+
+```powershell
+$cardBody = @{
+  genes = @(
+    @{ gene = "CYP2C19"; diplotype = "*1/*2" },
+    @{ gene = "CYP2D6"; diplotype = "*1/*1" }
+  )
+} | ConvertTo-Json
+
+curl -Method POST "http://127.0.0.1:8000/prod/pgx/card" -ContentType "application/json" -Body $cardBody
 ```
 
 Expected in response:
@@ -186,3 +207,5 @@ Open the dashboard (URL above), then run these checks.
 - **Static mirror**: `11_testing/offline_dashboard/s3/`
 - **Models mirror**: `11_testing/offline_dashboard/models/`
 - **Code snapshot**: `11_testing/offline_dashboard/code/`
+- **Lambda metadata mirror**: `11_testing/offline_dashboard/pgx_metadata/`
+- **Lambda data mirror (CPIC)**: `11_testing/offline_dashboard/pgx_data/`

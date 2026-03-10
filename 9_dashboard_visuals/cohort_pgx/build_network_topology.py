@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 import argparse
 from collections import defaultdict, Counter
+import time
 
 import pandas as pd
 import numpy as np
@@ -56,6 +57,8 @@ class CohortPGxNetworkBuilder:
         self,
         reports_file: Path,
         use_comprehend: bool = True,
+        comprehend_audit_dir: Optional[Path] = None,
+        comprehend_dump_full: bool = False,
         logger: Optional[logging.Logger] = None,
     ):
         """
@@ -68,6 +71,8 @@ class CohortPGxNetworkBuilder:
         """
         self.reports_file = reports_file
         self.use_comprehend = use_comprehend and COMPREHEND_AVAILABLE
+        self.comprehend_audit_dir = Path(comprehend_audit_dir) if comprehend_audit_dir else None
+        self.comprehend_dump_full = bool(comprehend_dump_full)
         self.log = logger
 
         def _out(msg: str, *args, level: str = "info"):
@@ -128,6 +133,13 @@ class CohortPGxNetworkBuilder:
             except Exception as e:
                 self._out("Could not initialize AWS Comprehend: %s", e, level="warning")
                 self.use_comprehend = False
+
+        if self.comprehend_audit_dir:
+            try:
+                self.comprehend_audit_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                self._out("Could not create comprehend_audit_dir %s: %s", self.comprehend_audit_dir, e, level="warning")
+                self.comprehend_audit_dir = None
         
         # Network storage
         self.graph = nx.Graph()
@@ -137,6 +149,7 @@ class CohortPGxNetworkBuilder:
         self.drug_interactions = []  # list of (drug1, drug2, interaction_type, evidence)
         self.gene_tiers = {}  # gene_symbol -> tier (Tier 1, Tier 2, etc.)
         self.cpic_genes = set()  # genes with CPIC guidelines
+        self.comprehend_audit = {}
     
     def extract_text_from_report(self, report: Dict) -> str:
         """Extract all text content from a report."""
@@ -313,6 +326,7 @@ class CohortPGxNetworkBuilder:
         text = text[:5000].encode("utf-8").decode("utf-8", errors="ignore")
         
         try:
+            t0 = time.time()
             # Detect entities
             entities_response = self.comprehend_client.detect_entities(
                 Text=text,
@@ -333,6 +347,8 @@ class CohortPGxNetworkBuilder:
                 medical_entities = medical_response.get("Entities", [])
             except Exception:
                 medical_entities = []
+
+            elapsed_ms = int((time.time() - t0) * 1000)
             
             # Store entities
             for entity in entities_response.get("Entities", []):
@@ -348,15 +364,64 @@ class CohortPGxNetworkBuilder:
             for phrase in phrases_response.get("KeyPhrases", []):
                 phrase_text = phrase["Text"]
                 self.key_phrases[gene_symbol].append(phrase_text)
-            
-            return {
+
+            out = {
                 "entities": entities_response.get("Entities", []),
                 "key_phrases": phrases_response.get("KeyPhrases", []),
-                "medical_entities": medical_entities
+                "medical_entities": medical_entities,
             }
+
+            if self.comprehend_audit_dir:
+                ents = out.get("entities", []) or []
+                kp = out.get("key_phrases", []) or []
+                med = out.get("medical_entities", []) or []
+                type_counts = Counter([e.get("Type") for e in ents if isinstance(e, dict) and e.get("Type")])
+                score_vals = [float(e.get("Score")) for e in ents if isinstance(e, dict) and e.get("Score") is not None]
+                avg_score = float(sum(score_vals) / len(score_vals)) if score_vals else None
+                max_score = float(max(score_vals)) if score_vals else None
+
+                summary = {
+                    "gene_symbol": gene_symbol,
+                    "text_len": len(text),
+                    "elapsed_ms": elapsed_ms,
+                    "entities_count": len(ents),
+                    "key_phrases_count": len(kp),
+                    "medical_entities_count": len(med),
+                    "entity_type_counts": dict(type_counts),
+                    "entities_avg_score": avg_score,
+                    "entities_max_score": max_score,
+                    "medical_v2_available": True,
+                }
+                self.comprehend_audit[gene_symbol] = summary
+
+                try:
+                    with open(self.comprehend_audit_dir / f"{gene_symbol}_comprehend_summary.json", "w", encoding="utf-8") as f:
+                        json.dump(summary, f, indent=2)
+                except Exception as e:
+                    self._out("Failed to write comprehend summary for %s: %s", gene_symbol, e, level="warning")
+
+                if self.comprehend_dump_full:
+                    try:
+                        with open(self.comprehend_audit_dir / f"{gene_symbol}_comprehend_full.json", "w", encoding="utf-8") as f:
+                            json.dump(out, f)
+                    except Exception as e:
+                        self._out("Failed to write comprehend full dump for %s: %s", gene_symbol, e, level="warning")
+
+            return out
         
         except Exception as e:
             self._out("Comprehend error for %s: %s", gene_symbol, e, level="warning")
+            if self.comprehend_audit_dir:
+                summary = {
+                    "gene_symbol": gene_symbol,
+                    "error": str(e),
+                }
+                self.comprehend_audit[gene_symbol] = summary
+                try:
+                    with open(self.comprehend_audit_dir / f"{gene_symbol}_comprehend_summary.json", "w", encoding="utf-8") as f:
+                        json.dump(summary, f, indent=2)
+                except Exception:
+                    pass
             return {}
     
     def extract_drug_names(self, text: str) -> Set[str]:
@@ -1000,6 +1065,12 @@ def main():
     parser.add_argument("--cohort", type=str, default="unknown", help="Cohort name for log path (e.g. opioid_ed)")
     parser.add_argument("--age-band", type=str, default="unknown", help="Age band for log path (e.g. 25-44)")
     parser.add_argument("--no-comprehend", action="store_true", help="Disable AWS Comprehend")
+    parser.add_argument("--comprehend-audit-dir", type=Path, default=None, help="Directory to write Comprehend validation artifacts")
+    parser.add_argument(
+        "--comprehend-summary-only",
+        action="store_true",
+        help="When --comprehend-audit-dir is set, write only summaries (default writes full dumps too).",
+    )
     parser.add_argument("--no-upload", action="store_true", help="Do not upload outputs to dashboard S3 (default: upload like BupaR/DTW/FP-Growth)")
 
     args = parser.parse_args()
@@ -1026,6 +1097,8 @@ def main():
         builder = CohortPGxNetworkBuilder(
             reports_file=args.reports,
             use_comprehend=not args.no_comprehend,
+            comprehend_audit_dir=args.comprehend_audit_dir,
+            comprehend_dump_full=bool(args.comprehend_audit_dir) and (not args.comprehend_summary_only),
             logger=pl.logger,
         )
         graph = builder.build_network()
@@ -1041,6 +1114,22 @@ def main():
         else:
             pl.logger.info("Skipping dashboard S3 upload (--no-upload)")
         pl.logger.info("Network topology build complete. Output: %s", args.output_dir)
+
+        if args.comprehend_audit_dir:
+            try:
+                audit = {
+                    "reports_file": str(args.reports),
+                    "n_reports": len(builder.reports),
+                    "use_comprehend": bool(builder.use_comprehend),
+                    "dump_full": bool(not args.comprehend_summary_only),
+                    "by_gene": builder.comprehend_audit,
+                }
+                Path(args.comprehend_audit_dir).mkdir(parents=True, exist_ok=True)
+                with open(Path(args.comprehend_audit_dir) / "comprehend_summary.json", "w", encoding="utf-8") as f:
+                    json.dump(audit, f, indent=2)
+                pl.logger.info("Comprehend audit written: %s", str(Path(args.comprehend_audit_dir) / "comprehend_summary.json"))
+            except Exception as e:
+                pl.logger.warning("Failed to write combined comprehend_summary.json: %s", e)
         print("\n" + "=" * 80)
         print("Network topology build complete!")
         print(f"Logs saved to: {pl.log_file_path}")
