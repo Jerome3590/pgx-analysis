@@ -17,6 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+
+from py_helpers.duckdb_utils import duckdb_query_df_with_diagnostics
 import duckdb
 import warnings
 
@@ -96,8 +98,37 @@ def extract_drug_time_intervals(
     GROUP BY mi_person_key
     """
     
-    result = con.execute(query).df()
+    expected_cols = [
+        "mi_person_key",
+        "drug_interval_count",
+        "drug_interval_mean",
+        "drug_interval_median",
+        "drug_interval_std",
+        "drug_interval_min",
+        "drug_interval_max",
+    ]
+    expected_types = {
+        "mi_person_key": "BIGINT",
+        "drug_interval_count": "BIGINT",
+        "drug_interval_mean": "DOUBLE",
+        "drug_interval_median": "DOUBLE",
+        "drug_interval_std": "DOUBLE",
+        "drug_interval_min": "DOUBLE",
+        "drug_interval_max": "DOUBLE",
+    }
+    result, diag = duckdb_query_df_with_diagnostics(
+        con,
+        query,
+        expected_columns=expected_cols,
+        expected_types=expected_types,
+    )
     con.close()
+
+    if result.empty:
+        print(
+            f"[WARN] Drug interval query returned 0 rows (cohort={cohort_name} target_value={target_value} is_target_case={is_target_case}). "
+            f"Expected cols={expected_cols}; received cols={diag.get('received_columns')}; received types={diag.get('received_types')}"
+        )
     
     return result
 
@@ -158,9 +189,38 @@ def extract_icd_time_intervals(
     GROUP BY mi_person_key
     """
     
-    result = con.execute(query).df()
+    expected_cols = [
+        "mi_person_key",
+        "icd_interval_count",
+        "icd_interval_mean",
+        "icd_interval_median",
+        "icd_interval_std",
+        "icd_interval_min",
+        "icd_interval_max",
+    ]
+    expected_types = {
+        "mi_person_key": "BIGINT",
+        "icd_interval_count": "BIGINT",
+        "icd_interval_mean": "DOUBLE",
+        "icd_interval_median": "DOUBLE",
+        "icd_interval_std": "DOUBLE",
+        "icd_interval_min": "DOUBLE",
+        "icd_interval_max": "DOUBLE",
+    }
+    result, diag = duckdb_query_df_with_diagnostics(
+        con,
+        query,
+        expected_columns=expected_cols,
+        expected_types=expected_types,
+    )
     con.close()
-    
+
+    if result.empty:
+        print(
+            f"[WARN] ICD interval query returned 0 rows (cohort={cohort_name} target_value={target_value} is_target_case={is_target_case}). "
+            f"Expected cols={expected_cols}; received cols={diag.get('received_columns')}; received types={diag.get('received_types')}"
+        )
+
     return result
 
 
@@ -216,9 +276,38 @@ def extract_cpt_time_intervals(
     GROUP BY mi_person_key
     """
     
-    result = con.execute(query).df()
+    expected_cols = [
+        "mi_person_key",
+        "cpt_interval_count",
+        "cpt_interval_mean",
+        "cpt_interval_median",
+        "cpt_interval_std",
+        "cpt_interval_min",
+        "cpt_interval_max",
+    ]
+    expected_types = {
+        "mi_person_key": "BIGINT",
+        "cpt_interval_count": "BIGINT",
+        "cpt_interval_mean": "DOUBLE",
+        "cpt_interval_median": "DOUBLE",
+        "cpt_interval_std": "DOUBLE",
+        "cpt_interval_min": "DOUBLE",
+        "cpt_interval_max": "DOUBLE",
+    }
+    result, diag = duckdb_query_df_with_diagnostics(
+        con,
+        query,
+        expected_columns=expected_cols,
+        expected_types=expected_types,
+    )
     con.close()
-    
+
+    if result.empty:
+        print(
+            f"[WARN] CPT interval query returned 0 rows (cohort={cohort_name} target_value={target_value} is_target_case={is_target_case}). "
+            f"Expected cols={expected_cols}; received cols={diag.get('received_columns')}; received types={diag.get('received_types')}"
+        )
+
     return result
 
 

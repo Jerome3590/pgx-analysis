@@ -1003,8 +1003,8 @@
           <label for="fi-top-n">Show features:</label>
           <select id="fi-top-n" aria-label="Number of features to show">
             <option value="10">Top 10</option>
-            <option value="20" selected>Top 20</option>
-            <option value="all">All</option>
+            <option value="20">Top 20</option>
+            <option value="all" selected>All</option>
           </select>
         </div>
         <div class="control-group full-width">
@@ -3158,7 +3158,7 @@
   document.getElementById("btnLoadFeatureImportance")?.addEventListener("click", async () => {
     const cohort = document.getElementById("fi-cohort").value;
     const topNSel = document.getElementById("fi-top-n");
-    const topNVal = topNSel ? topNSel.value : "20";
+    const topNVal = topNSel ? topNSel.value : "all";
     const preferJson = topNVal === "10" || topNVal === "20";
     if (!cohort) {
       document.getElementById("fi-status").textContent = "Please select a view";

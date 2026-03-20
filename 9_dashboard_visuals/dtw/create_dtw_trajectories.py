@@ -63,6 +63,8 @@ from py_helpers.pipeline_logger import (  # noqa: E402
     PipelineLogger,
 )
 
+from py_helpers.duckdb_utils import duckdb_query_df_with_diagnostics  # noqa: E402
+
 
 def _dtw_output_root(project_root: Path) -> Path:
     """Dashboard visualization outputs (step 10); creation code in 9_dashboard_visuals/dtw."""
@@ -325,6 +327,90 @@ def extract_patient_trajectories(
         _log("warning", "Could not get target counts from parquet: %s", e)
     con_count.close()
 
+    # Write an explicit diagnostics artifact for this cohort/age_band so empties are easy to debug
+    try:
+        diag_dir = _dtw_output_root(project_root) / "feature_engineering"
+        diag_dir.mkdir(parents=True, exist_ok=True)
+        diag_path = diag_dir / f"dtw_model_events_diagnostics_{cohort_name}_{age_band_fname}.json"
+
+        con_diag = duckdb.connect(":memory:")
+        diag = {
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "target": "both",
+            "model_events_path": str(model_data_path),
+            "event_date_col": event_date_col,
+            "target_date_col": target_date_col,
+            "model_events_columns": sorted_cols,
+        }
+        try:
+            target_counts = con_diag.execute(
+                f"SELECT target, COUNT(*)::BIGINT AS n_rows FROM read_parquet('{path_str}') GROUP BY target ORDER BY target"
+            ).fetchall()
+            diag["target_row_counts"] = {str(t): int(n) for (t, n) in target_counts}
+        except Exception as e:
+            diag["target_row_counts_error"] = str(e)
+
+        try:
+            drug_counts = con_diag.execute(
+                f"""
+                SELECT
+                    target,
+                    SUM(CASE WHEN drug_name IS NOT NULL AND drug_name != '' THEN 1 ELSE 0 END)::BIGINT AS n_drug_rows,
+                    COUNT(DISTINCT CASE WHEN drug_name IS NOT NULL AND drug_name != '' THEN CAST(mi_person_key AS VARCHAR) ELSE NULL END)::BIGINT AS n_patients_with_drugs
+                FROM read_parquet('{path_str}')
+                GROUP BY target
+                ORDER BY target
+                """
+            ).fetchall()
+            diag["drug_row_counts_by_target"] = [
+                {
+                    "target": int(t) if t is not None else None,
+                    "n_drug_rows": int(nr) if nr is not None else 0,
+                    "n_patients_with_drugs": int(npd) if npd is not None else 0,
+                }
+                for (t, nr, npd) in drug_counts
+            ]
+        except Exception as e:
+            diag["drug_row_counts_by_target_error"] = str(e)
+
+        try:
+            top_drugs_all = con_diag.execute(
+                f"""
+                SELECT drug_name, COUNT(*)::BIGINT AS n
+                FROM read_parquet('{path_str}')
+                WHERE drug_name IS NOT NULL AND drug_name != ''
+                GROUP BY drug_name
+                ORDER BY n DESC
+                LIMIT 50
+                """
+            ).fetchall()
+            diag["top_drugs_overall"] = [{"drug_name": str(d), "n": int(n)} for (d, n) in top_drugs_all]
+        except Exception as e:
+            diag["top_drugs_overall_error"] = str(e)
+
+        try:
+            top_drugs_target = con_diag.execute(
+                f"""
+                SELECT drug_name, COUNT(*)::BIGINT AS n
+                FROM read_parquet('{path_str}')
+                WHERE target = 1 AND drug_name IS NOT NULL AND drug_name != ''
+                GROUP BY drug_name
+                ORDER BY n DESC
+                LIMIT 50
+                """
+            ).fetchall()
+            diag["top_drugs_target_1"] = [{"drug_name": str(d), "n": int(n)} for (d, n) in top_drugs_target]
+        except Exception as e:
+            diag["top_drugs_target_1_error"] = str(e)
+        con_diag.close()
+
+        with open(diag_path, "w", encoding="utf-8") as f:
+            json.dump(diag, f, indent=2)
+        _log("info", "Wrote DTW model_events diagnostics: %s", diag_path)
+    except Exception as e:
+        _log("warning", "Failed to write DTW model_events diagnostics: %s", e)
+
     # Build SQL query with SHAP/FFA filtering
     con = duckdb.connect(":memory:")
 
@@ -416,10 +502,37 @@ def extract_patient_trajectories(
     """
 
     _log("info", "Extracting trajectories from model_events...")
-    df = con.execute(query).df()
+    expected_cols = [
+        "mi_person_key",
+        "target",
+        "seq_pattern_str",
+        "trajectory_length",
+        "trajectory_diversity",
+    ]
+    expected_types = {
+        "mi_person_key": "VARCHAR",
+        "target": "INTEGER",
+        "seq_pattern_str": "VARCHAR",
+        "trajectory_length": "BIGINT",
+        "trajectory_diversity": "BIGINT",
+    }
+    df, diag_main = duckdb_query_df_with_diagnostics(
+        con,
+        query,
+        expected_columns=expected_cols,
+        expected_types=expected_types,
+    )
+    dtw_sql_diagnostics = {
+        "cohort": cohort_name,
+        "age_band": age_band,
+        "target": "both",
+        "query_name": "trajectories",
+        "diagnostics": diag_main,
+    }
 
     # If SHAP/FFA drug filter matched no events (e.g. allowed codes don't match model_events drug_name normalization),
     # retry using all drug events so we still get trajectories when patients have drug events.
+    fallback_diag = None
     if df.empty and use_filter and drug_set:
         try:
             total_drug_events = con.execute(
@@ -479,7 +592,17 @@ def extract_patient_trajectories(
     SELECT * FROM trajectories
     WHERE seq_pattern_str IS NOT NULL
     """
-        df = con.execute(query_fallback).df()
+        df, fallback_diag = duckdb_query_df_with_diagnostics(
+            con,
+            query_fallback,
+            expected_columns=expected_cols,
+            expected_types=expected_types,
+        )
+        if fallback_diag is not None:
+            dtw_sql_diagnostics["fallback"] = {
+                "query_name": "trajectories_fallback_all_drugs",
+                "diagnostics": fallback_diag,
+            }
         if not df.empty:
             _log("info", "Fallback succeeded: %d trajectories using all drug events (no SHAP/FFA filter).", len(df))
 
@@ -523,7 +646,34 @@ def extract_patient_trajectories(
     WHERE drug_name IS NOT NULL AND drug_name != ''
     """
     try:
-        events_df = con.execute(monthly_events_query).df()
+        monthly_expected_cols = ["mi_person_key", "target", "event_date", "code"]
+        monthly_expected_types = {
+            "mi_person_key": "VARCHAR",
+            "target": "INTEGER",
+            "event_date": "DATE",
+            "code": "VARCHAR",
+        }
+        events_df, diag_monthly = duckdb_query_df_with_diagnostics(
+            con,
+            monthly_events_query,
+            expected_columns=monthly_expected_cols,
+            expected_types=monthly_expected_types,
+        )
+        dtw_sql_diagnostics["monthly_events"] = {
+            "query_name": "monthly_events",
+            "target": "both",
+            "diagnostics": diag_monthly,
+        }
+        if events_df.empty:
+            _log(
+                "warning",
+                "Monthly events query returned 0 rows (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+                cohort_name,
+                age_band,
+                monthly_expected_cols,
+                diag_monthly.get("received_columns"),
+                diag_monthly.get("received_types"),
+            )
         if not events_df.empty and "code" in events_df.columns:
             events_df = events_df.dropna(subset=["code"])
         if not events_df.empty:
@@ -639,7 +789,33 @@ def extract_patient_trajectories(
     LEFT JOIN first_to_target f ON a.mi_person_key = f.mi_person_key
     """
     try:
-        time_df = con.execute(time_query).df()
+        time_expected_cols = ["mi_person_key", "mean_days_between_events", "days_first_event_to_target"]
+        time_expected_types = {
+            "mi_person_key": "VARCHAR",
+            "mean_days_between_events": "DOUBLE",
+            "days_first_event_to_target": "DOUBLE",
+        }
+        time_df, diag_time = duckdb_query_df_with_diagnostics(
+            con,
+            time_query,
+            expected_columns=time_expected_cols,
+            expected_types=time_expected_types,
+        )
+        dtw_sql_diagnostics["time_between"] = {
+            "query_name": "time_between",
+            "target": "both",
+            "diagnostics": diag_time,
+        }
+        if time_df.empty:
+            _log(
+                "warning",
+                "Time-between query returned 0 rows (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+                cohort_name,
+                age_band,
+                time_expected_cols,
+                diag_time.get("received_columns"),
+                diag_time.get("received_types"),
+            )
         if not time_df.empty and "mi_person_key" in time_df.columns:
             df = df.merge(time_df, on="mi_person_key", how="left")
         else:
@@ -679,7 +855,29 @@ def extract_patient_trajectories(
     SELECT * FROM span
     """
     try:
-        span_df = con.execute(span_query).df()
+        span_expected_cols = ["mi_person_key", "temporal_span_days"]
+        span_expected_types = {"mi_person_key": "VARCHAR", "temporal_span_days": "DOUBLE"}
+        span_df, diag_span = duckdb_query_df_with_diagnostics(
+            con,
+            span_query,
+            expected_columns=span_expected_cols,
+            expected_types=span_expected_types,
+        )
+        dtw_sql_diagnostics["temporal_span"] = {
+            "query_name": "temporal_span",
+            "target": "both",
+            "diagnostics": diag_span,
+        }
+        if span_df.empty:
+            _log(
+                "warning",
+                "Temporal span query returned 0 rows (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+                cohort_name,
+                age_band,
+                span_expected_cols,
+                diag_span.get("received_columns"),
+                diag_span.get("received_types"),
+            )
         if not span_df.empty and "mi_person_key" in span_df.columns:
             df = df.merge(span_df[["mi_person_key", "temporal_span_days"]], on="mi_person_key", how="left")
         else:
@@ -732,7 +930,29 @@ def extract_patient_trajectories(
         GROUP BY mi_person_key
         """
         try:
-            admin_df = con.execute(admin_query).df()
+            admin_expected_cols = ["mi_person_key", "admin_icd_event_count"]
+            admin_expected_types = {"mi_person_key": "VARCHAR", "admin_icd_event_count": "INTEGER"}
+            admin_df, diag_admin = duckdb_query_df_with_diagnostics(
+                con,
+                admin_query,
+                expected_columns=admin_expected_cols,
+                expected_types=admin_expected_types,
+            )
+            dtw_sql_diagnostics["admin_icd_count"] = {
+                "query_name": "admin_icd_count",
+                "target": "both",
+                "diagnostics": diag_admin,
+            }
+            if admin_df.empty:
+                _log(
+                    "warning",
+                    "Admin ICD count query returned 0 rows (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+                    cohort_name,
+                    age_band,
+                    admin_expected_cols,
+                    diag_admin.get("received_columns"),
+                    diag_admin.get("received_types"),
+                )
             if not admin_df.empty:
                 df = df.merge(admin_df, on="mi_person_key", how="left")
                 df["admin_icd_event_count"] = df["admin_icd_event_count"].fillna(0).astype(int)
@@ -772,7 +992,29 @@ def extract_patient_trajectories(
     GROUP BY mi_person_key
     """
     try:
-        medical_df = con.execute(medical_query).df()
+        med_expected_cols = ["mi_person_key", "medical_event_count_full"]
+        med_expected_types = {"mi_person_key": "VARCHAR", "medical_event_count_full": "INTEGER"}
+        medical_df, diag_med = duckdb_query_df_with_diagnostics(
+            con,
+            medical_query,
+            expected_columns=med_expected_cols,
+            expected_types=med_expected_types,
+        )
+        dtw_sql_diagnostics["medical_event_count_full"] = {
+            "query_name": "medical_event_count_full",
+            "target": "both",
+            "diagnostics": diag_med,
+        }
+        if medical_df.empty:
+            _log(
+                "warning",
+                "Medical event count query returned 0 rows (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+                cohort_name,
+                age_band,
+                med_expected_cols,
+                diag_med.get("received_columns"),
+                diag_med.get("received_types"),
+            )
         if not medical_df.empty:
             df = df.merge(medical_df, on="mi_person_key", how="left")
             df["medical_event_count_full"] = df["medical_event_count_full"].fillna(0).astype(int)
@@ -784,40 +1026,14 @@ def extract_patient_trajectories(
     if "medical_event_count_full" not in df.columns:
         df["medical_event_count_full"] = 0
 
-    med_count = df["medical_event_count_full"].fillna(0)
+    # Bin by full unfiltered medical events to support routine × utilization charts
     try:
-        con.register("_t_med", df[["mi_person_key", "medical_event_count_full"]])
-        df_binned = con.execute("""
-            WITH stats AS (
-                SELECT
-                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY medical_event_count_full) AS p25,
-                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY medical_event_count_full) AS p50,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY medical_event_count_full) AS p95
-                FROM _t_med
-            ),
-            binned AS (
-                SELECT _t_med.mi_person_key,
-                    CASE
-                        WHEN _t_med.medical_event_count_full <= stats.p25 THEN 'low'
-                        WHEN _t_med.medical_event_count_full <= stats.p50 THEN 'medium'
-                        WHEN _t_med.medical_event_count_full <= stats.p95 THEN 'high'
-                        ELSE 'extreme'
-                    END AS medical_utilization_bin
-                FROM _t_med CROSS JOIN stats
-            )
-            SELECT * FROM binned
-        """).df()
-        con.unregister("_t_med")
-        df = df.drop(columns=["medical_utilization_bin"], errors="ignore").merge(df_binned, on="mi_person_key", how="left")
-        df["medical_utilization_bin"] = df["medical_utilization_bin"].fillna("low")
-        p25_m, p50_m, p95_m = float(med_count.quantile(0.25)), float(med_count.quantile(0.50)), float(med_count.quantile(0.95))
-    except Exception as e:
-        _log("warning", "DuckDB medical binning failed (%s); using pandas", e)
+        med_count = df["medical_event_count_full"].fillna(0).astype(float)
         p25_m = float(med_count.quantile(0.25))
         p50_m = float(med_count.quantile(0.50))
         p95_m = float(med_count.quantile(0.95))
 
-        def _assign_medical_bin(val):
+        def _assign_medical_bin(val: float) -> str:
             if val <= p25_m:
                 return "low"
             if val <= p50_m:
@@ -827,11 +1043,14 @@ def extract_patient_trajectories(
             return "extreme"
 
         df["medical_utilization_bin"] = med_count.apply(_assign_medical_bin)
-    _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f", p25_m, p50_m, p95_m)
-    for bin_name in DENSITY_BINS:
-        n = (df["medical_utilization_bin"] == bin_name).sum()
-        pct = 100.0 * n / len(df) if len(df) > 0 else 0
-        _log("info", "  %s: %d (%.1f%%)", bin_name, n, pct)
+        _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f", p25_m, p50_m, p95_m)
+        for bin_name in DENSITY_BINS:
+            n = (df["medical_utilization_bin"] == bin_name).sum()
+            pct = 100.0 * n / len(df) if len(df) > 0 else 0
+            _log("info", "  %s: %d (%.1f%%)", bin_name, n, pct)
+    except Exception as e:
+        _log("warning", "Medical utilization binning failed: %s; defaulting to 'low'", e)
+        df["medical_utilization_bin"] = "low"
 
     con.close()
 
@@ -885,10 +1104,25 @@ def extract_patient_trajectories(
     # Schema compatibility: dtw_min_distance (not computed here)
     df["dtw_min_distance"] = float("nan")
 
+    # Attach full SQL diagnostics so main() can write them into trajectory_status JSON
+    try:
+        df.attrs["dtw_sql_diagnostics"] = dtw_sql_diagnostics
+    except Exception:
+        pass
+
     _log("info", "Extracted %d patient trajectories", len(df))
 
     if df.empty:
-        _log("warning", "No trajectories extracted")
+        _log(
+            "warning",
+            "No trajectories extracted (cohort=%s age_band=%s). Expected cols=%s; received cols=%s; received types=%s",
+            cohort_name,
+            age_band,
+            expected_cols,
+            diag_main.get("received_columns"),
+            diag_main.get("received_types"),
+        )
+        df.attrs["dtw_sql_diagnostics"] = dtw_sql_diagnostics
         return df, n_events_analyzed
 
     _log("info", "Trajectory summary: events_analyzed=%d, alignments_found=%d", n_events_analyzed, len(df))
@@ -955,6 +1189,11 @@ def main():
             placeholder_df.to_parquet(added_path_parquet, index=False)
             # Status JSON with event/alignment counts so downstream and logs are clear
             status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
+            diagnostics = {}
+            try:
+                diagnostics = getattr(df, "attrs", {}).get("dtw_sql_diagnostics", {}) if df is not None else {}
+            except Exception:
+                diagnostics = {}
             status = {
                 "skipped": True,
                 "n_events_analyzed": n_events_analyzed,
@@ -962,6 +1201,8 @@ def main():
                 "message": f"Events analyzed: {n_events_analyzed}; alignments (trajectories) found: 0. No trajectories extracted (check model_events, allowed_codes, or filter).",
                 "cohort": args.cohort,
                 "age_band": args.age_band,
+                "target": "both",
+                "sql_diagnostics": diagnostics,
             }
             with open(status_path, "w", encoding="utf-8") as f:
                 json.dump(status, f, indent=2)
@@ -976,6 +1217,11 @@ def main():
 
         # Status JSON with counts (for create_dtw_features and reporting)
         status_path = output_dir / f"trajectory_status_{args.cohort}_{age_band_fname}.json"
+        diagnostics = {}
+        try:
+            diagnostics = getattr(df, "attrs", {}).get("dtw_sql_diagnostics", {}) if df is not None else {}
+        except Exception:
+            diagnostics = {}
         status = {
             "skipped": False,
             "n_events_analyzed": n_events_analyzed,
@@ -983,6 +1229,8 @@ def main():
             "message": f"Events analyzed: {n_events_analyzed}; alignments (trajectories) found: {n_alignments_found}.",
             "cohort": args.cohort,
             "age_band": args.age_band,
+            "target": "both",
+            "sql_diagnostics": diagnostics,
         }
         with open(status_path, "w", encoding="utf-8") as f:
             json.dump(status, f, indent=2)

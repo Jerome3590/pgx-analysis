@@ -16,6 +16,8 @@ from typing import Optional, Dict, Any, Union
 
 import duckdb
 
+import pandas as pd
+
 # Global state for worker temp directory management
 _cleanup_registered = False
 _worker_temp_dir_cache = None
@@ -121,8 +123,71 @@ def create_simple_duckdb_connection(logger, tmp_dir: Optional[str] = None, s3_re
         return conn
         
     except Exception as e:
-        logger.error(f"❌ Failed to create DuckDB connection: {e}")
+        logger.error(f"❌ Error creating DuckDB connection: {e}")
         raise
+
+
+def describe_duckdb_query_schema(con: duckdb.DuckDBPyConnection, query_sql: str) -> Dict[str, str]:
+    """Return {column_name: duckdb_type} for a SELECT query.
+
+    Uses DuckDB DESCRIBE on a wrapped subquery so CTEs are supported.
+    """
+    q = (query_sql or "").strip().rstrip(";")
+    if not q:
+        return {}
+    try:
+        rows = con.execute(f"DESCRIBE SELECT * FROM ({q}) q").fetchall()
+        # DuckDB returns: (column_name, column_type, null, key, default, extra)
+        return {str(r[0]): str(r[1]) for r in rows if r and len(r) >= 2}
+    except Exception:
+        return {}
+
+
+def duckdb_query_df_with_diagnostics(
+    con: duckdb.DuckDBPyConnection,
+    query_sql: str,
+    *,
+    expected_columns: Optional[list[str]] = None,
+    expected_types: Optional[Dict[str, str]] = None,
+) -> tuple[pd.DataFrame, Dict[str, Any]]:
+    """Execute query and return (df, diagnostics).
+
+    Diagnostics always include received schema when available and echo expected schema.
+    Intended for empty-result debugging.
+    """
+    expected_columns = expected_columns or []
+    expected_types = expected_types or {}
+
+    received_types = describe_duckdb_query_schema(con, query_sql)
+    received_columns = list(received_types.keys()) if received_types else []
+
+    try:
+        df = con.execute((query_sql or "").rstrip(";")).df()
+    except Exception as e:
+        return (
+            pd.DataFrame(),
+            {
+                "ok": False,
+                "error": str(e),
+                "expected_columns": expected_columns,
+                "expected_types": expected_types,
+                "received_columns": received_columns,
+                "received_types": received_types,
+            },
+        )
+
+    return (
+        df,
+        {
+            "ok": True,
+            "row_count": int(len(df)),
+            "expected_columns": expected_columns,
+            "expected_types": expected_types,
+            "received_columns": received_columns,
+            "received_types": received_types,
+        },
+    )
+
 
 def get_duckdb_connection(tmp_dir: Optional[str] = None, s3_region: str = "us-east-1", logger=None):
     """Get a simple DuckDB connection - wrapper for backward compatibility"""
