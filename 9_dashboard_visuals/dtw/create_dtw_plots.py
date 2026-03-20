@@ -20,6 +20,8 @@ from typing import Any, List, Optional, Tuple, Dict
 import pandas as pd
 import numpy as np
 
+from py_helpers.duckdb_utils import duckdb_query_df_with_diagnostics
+
 try:
     import plotly.graph_objects as go
     from sklearn.cluster import KMeans
@@ -168,6 +170,8 @@ def _load_event_years_from_model_data(
         print(f"[WARN] model_data not found at {model_data_path}")
         return {}
     
+    expected_cols = ["mi_person_key", "event_year"]
+    expected_types = {"mi_person_key": "VARCHAR", "event_year": "BIGINT"}
     try:
         con = duckdb.connect(":memory:")
         
@@ -192,8 +196,20 @@ def _load_event_years_from_model_data(
         WHERE CAST(mi_person_key AS VARCHAR) IN ({','.join("'" + str(k) + "'" for k in mi_person_keys)})
         """
         
-        df = con.execute(query).df()
+        df, diag = duckdb_query_df_with_diagnostics(
+            con,
+            query,
+            expected_columns=expected_cols,
+            expected_types=expected_types,
+        )
         con.close()
+
+        if df.empty:
+            print(
+                f"[WARN] DTW model_data year query returned 0 rows for {cohort_name}/{age_band} (target=both). "
+                f"Expected={expected_cols}; received={diag.get('received_columns')}"
+            )
+            return {}
         
         # Convert to dict
         year_map = {}

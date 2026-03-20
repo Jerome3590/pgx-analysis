@@ -124,6 +124,20 @@ def create_dtw_visuals(
             prefix = "[%s] " % level.upper()
             print(prefix + (msg % args if args else msg))
 
+    def _load_trajectory_sql_diagnostics() -> Dict[str, Any]:
+        """Load SQL diagnostics emitted by create_dtw_trajectories (when available)."""
+        try:
+            age_band_fname_local = age_band.replace("-", "_")
+            fe_dir = _dtw_output_root(project_root) / "feature_engineering"
+            status_path = fe_dir / f"trajectory_status_{cohort_name}_{age_band_fname_local}.json"
+            if not status_path.exists():
+                return {}
+            with open(status_path, encoding="utf-8") as f:
+                status = json.load(f)
+            return status.get("sql_diagnostics") or {}
+        except Exception:
+            return {}
+
     age_band_fname = age_band.replace("-", "_")
     dtw_out = _dtw_output_root(project_root)
     out_dir = dtw_out / cohort_name / age_band_fname
@@ -274,6 +288,7 @@ def create_dtw_visuals(
     chart_data = _build_dtw_chart_data(dtw_df, logger=logger)
     if chart_data is None:
         _log("warning", "DTW chart_data not produced for %s/%s: empty dataframe (writing empty-state JSON with message and metrics)", cohort_name, age_band)
+        sql_diag = _load_trajectory_sql_diagnostics()
         chart_data = {
             "message": f"No DTW chart data for {cohort_name}/{age_band}.",
             "empty": True,
@@ -285,11 +300,13 @@ def create_dtw_visuals(
                 "dtw_rows": 0,
                 "charts_built": [],
                 "charts_not_built": {},
+                "sql_diagnostics": sql_diag,
                 "success": False,
             },
         }
     elif not chart_data:
         _log("warning", "DTW chart_data empty for %s/%s: no charts built (writing empty-state JSON with metrics)", cohort_name, age_band)
+        sql_diag = _load_trajectory_sql_diagnostics()
         chart_data = {
             "message": f"No DTW chart data for {cohort_name}/{age_band} (no charts built).",
             "empty": True,
@@ -301,6 +318,7 @@ def create_dtw_visuals(
                 "dtw_rows": len(dtw_df) if dtw_df is not None else 0,
                 "charts_built": [],
                 "charts_not_built": {},
+                "sql_diagnostics": sql_diag,
                 "success": False,
             },
         }
@@ -313,12 +331,17 @@ def create_dtw_visuals(
     heatmap_data = _build_sequence_heatmap_data(dtw_df)
     if heatmap_data is None:
         _log("warning", "DTW sequence_heatmap not produced for %s/%s (writing empty-state JSON with message and metrics)", cohort_name, age_band)
+        sql_diag = _load_trajectory_sql_diagnostics()
         heatmap_data = {
             "message": f"No sequence heatmap for {cohort_name}/{age_band}.",
             "empty": True,
             "cohort": cohort_name,
             "age_band": age_band,
-            "metrics": {"reason": "empty_dataframe_or_no_seq_pattern_str", "dtw_rows": len(dtw_df) if dtw_df is not None and not dtw_df.empty else 0},
+            "metrics": {
+                "reason": "empty_dataframe_or_no_seq_pattern_str",
+                "dtw_rows": len(dtw_df) if dtw_df is not None and not dtw_df.empty else 0,
+                "sql_diagnostics": sql_diag,
+            },
         }
     else:
         # If all slices are empty (no codes), still provide envelope so dashboard can show why
