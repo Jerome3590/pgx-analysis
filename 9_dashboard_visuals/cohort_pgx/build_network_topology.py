@@ -1005,11 +1005,12 @@ def _upload_network_to_dashboard_s3(
     output_dir: Path,
     cohort_name: str,
     age_band: str,
+    bin_name: Optional[str] = None,
     logger: Optional[logging.Logger] = None,
 ) -> int:
     """
     Upload network topology outputs to the dashboard S3 bucket (same pattern as BupaR/DTW/FP-Growth).
-    Puts files under {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/.
+    Puts files under {S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/[density/{bin}/].
     When SKIP_DASHBOARD_S3_UPLOAD=1, no upload (notebook 5 Step 6 syncs from local). Returns number of files uploaded.
     """
     if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
@@ -1027,7 +1028,8 @@ def _upload_network_to_dashboard_s3(
     # S3 paths use hyphen (25-44); EC2 output_dir uses underscore (25_44)
     use_builds = (os.environ.get("S3_VISUALIZATIONS_BUILDS", "") or "").strip().lower() in ("1", "true", "yes")
     builds_suffix = "/builds" if use_builds else ""
-    s3_prefix = f"{dashboard_prefix}/visualizations/cohort_pgx{builds_suffix}/networks/{cohort_name}/{age_band}"
+    _bin_suffix = f"/density/{bin_name}" if bin_name else ""
+    s3_prefix = f"{dashboard_prefix}/visualizations/cohort_pgx{builds_suffix}/networks/{cohort_name}/{age_band}{_bin_suffix}"
 
     try:
         from py_helpers.checkpoint_utils import upload_file_to_s3
@@ -1071,6 +1073,8 @@ def main():
         action="store_true",
         help="When --comprehend-audit-dir is set, write only summaries (default writes full dumps too).",
     )
+    parser.add_argument("--bin", dest="bin_name", default=None,
+                        help="Event density bin (low/medium/high/extreme); used for S3 upload path prefix")
     parser.add_argument("--no-upload", action="store_true", help="Do not upload outputs to dashboard S3 (default: upload like BupaR/DTW/FP-Growth)")
 
     args = parser.parse_args()
@@ -1107,7 +1111,8 @@ def main():
         builder.export_network_data(args.output_dir)
         if not args.no_upload:
             n = _upload_network_to_dashboard_s3(
-                args.output_dir, args.cohort, args.age_band, logger=pl.logger,
+                args.output_dir, args.cohort, args.age_band,
+                bin_name=args.bin_name, logger=pl.logger,
             )
             if n:
                 pl.logger.info("Cohort PGx upload complete: %d file(s) to dashboard S3", n)
