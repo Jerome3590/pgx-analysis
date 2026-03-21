@@ -585,7 +585,7 @@ def load_global_drug_mapping() -> Optional[pd.DataFrame]:
         logger.info(f"Loaded global drug-to-CPIC mapping from S3 ({len(df)} drugs)")
         return df
     except Exception as e:
-        logger.debug(f"Could not download global drug mapping from S3: {e}")
+        logger.warning(f"Could not download global drug mapping from S3: {e}")
     
     return None
 

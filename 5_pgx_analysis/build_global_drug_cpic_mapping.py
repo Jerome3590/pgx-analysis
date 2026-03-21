@@ -392,6 +392,16 @@ def main():
     # Save mapping table
     mapping_df.to_csv(output_path, index=False)
     logger.info(f"Saved global drug-to-CPIC mapping to {output_path}")
+
+    # Upload to S3 so EC2/Lambda instances can download it without the local file
+    try:
+        import boto3
+        from py_helpers.constants import S3_BUCKET
+        s3_key = "gold/pgx_features/global/drug_cpic_mapping_global.csv"
+        boto3.client("s3").upload_file(str(output_path), S3_BUCKET, s3_key)
+        logger.info("Uploaded global drug mapping to s3://%s/%s", S3_BUCKET, s3_key)
+    except Exception as e:
+        logger.warning("Could not upload global drug mapping to S3 (local file still saved): %s", e)
     
     # Save validation file (only drugs needing review)
     validation_df = mapping_df[mapping_df['needs_review'] == True].copy()
