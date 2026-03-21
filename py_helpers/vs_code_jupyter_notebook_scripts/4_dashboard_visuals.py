@@ -1044,13 +1044,15 @@ COHORT_PGX_REPORTS_DIR = VISUAL_ROOT / "cohort_pgx" / "reports"
 COHORT_PGX_NETWORKS_DIR = VISUAL_ROOT / "cohort_pgx" / "networks"
 
 # Scripts
-FETCH_VIP_REPORTS_SCRIPT = COHORT_PGX_DIR / "fetch_vip_reports.py"
+FETCH_VIP_REPORTS_SCRIPT     = COHORT_PGX_DIR / "fetch_vip_reports.py"
+FETCH_PUBMED_CITATIONS_SCRIPT = COHORT_PGX_DIR / "fetch_pubmed_citations.py"
 BUILD_NETWORK_TOPOLOGY_SCRIPT = COHORT_PGX_DIR / "build_network_topology.py"
 
 print(f"Cohort PGx directory: {COHORT_PGX_DIR}")
 print(f"Scripts:")
-print(f"  Fetch VIP reports: {FETCH_VIP_REPORTS_SCRIPT} {'✓' if FETCH_VIP_REPORTS_SCRIPT.exists() else '✗'}")
-print(f"  Build network: {BUILD_NETWORK_TOPOLOGY_SCRIPT} {'✓' if BUILD_NETWORK_TOPOLOGY_SCRIPT.exists() else '✗'}")
+print(f"  Fetch VIP reports:     {FETCH_VIP_REPORTS_SCRIPT} {'✓' if FETCH_VIP_REPORTS_SCRIPT.exists() else '✗'}")
+print(f"  Fetch PubMed cites:    {FETCH_PUBMED_CITATIONS_SCRIPT} {'✓' if FETCH_PUBMED_CITATIONS_SCRIPT.exists() else '✗'}")
+print(f"  Build network:         {BUILD_NETWORK_TOPOLOGY_SCRIPT} {'✓' if BUILD_NETWORK_TOPOLOGY_SCRIPT.exists() else '✗'}")
 print()
 print(f"Outputs:")
 print(f"  Reports: {COHORT_PGX_REPORTS_DIR}")
@@ -1131,6 +1133,93 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS_PGX) as ex:
 
 print("\n✓ VIP reports fetched for all cohorts (full-cohort + per-bin)")
 print(f"  Output: {COHORT_PGX_REPORTS_DIR}")
+
+# %% [markdown]
+# ### Step 1.5: Fetch PubMed Citations (Literature QA)
+#
+# For each cohort/age band (and per density bin), query NCBI PubMed E-utilities to retrieve
+# supporting literature for the PGx genes found in the VIP reports.  Follows the same
+# search methodology as `lit_review/lit_review.qmd` (search_pubmed_all pattern):
+#   - Date range: last 5 years  (`{year-5}:{year}[PDAT]`)
+#   - Query 1: gene + pharmacogenomics MeSH  (general clinical evidence)
+#   - Query 2: gene + cohort-context keyword  (opioid / emergency department)
+#   - XML efetch to capture PMC IDs + BioC JSON full-text URL
+#
+# **Prerequisites**: VIP reports from Step 1 must exist.
+#
+# **Output per cohort/age band**: `pubmed_citations.json` in the networks output directory
+# (same location as `network_topology.html`), synced to S3 by `sync_cohort_pgx_to_s3.py`.
+#
+# **Rate limiting**: 3 req/s without API key; pass `--ncbi-api-key` env var to speed up.
+# **Runtime**: ~1-3 min per cohort/age band (NCBI polite limit).
+
+# %%
+# Fetch PubMed citations for all cohort/age_band combinations (full-cohort + per-bin)
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Optional NCBI API key (set env var NCBI_API_KEY to use; raises rate limit to 10 req/s)
+import os as _os
+_NCBI_API_KEY = _os.environ.get("NCBI_API_KEY") or None
+
+def run_fetch_pubmed_citations(cohort_name, age_band, bin_name=None):
+    """Fetch PubMed citations for one cohort/age band (optionally per density bin)."""
+    age_band_fname = age_band.replace("-", "_")
+    bin_suffix = f"_{bin_name}" if bin_name else ""
+    reports_file = COHORT_PGX_REPORTS_DIR / f"{cohort_name}_{age_band_fname}{bin_suffix}_vip_reports.json"
+    output_dir = (
+        COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname / "density" / bin_name
+        if bin_name
+        else COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname
+    )
+
+    if not reports_file.exists():
+        return (cohort_name, age_band, bin_name, -1, f"Reports file not found: {reports_file}", "")
+
+    args = [
+        str(PYTHON_BIN), str(FETCH_PUBMED_CITATIONS_SCRIPT),
+        "--cohort", cohort_name,
+        "--age-band", age_band,
+        "--reports", str(reports_file),
+        "--output-dir", str(output_dir),
+    ]
+    if bin_name:
+        args += ["--bin", bin_name]
+    if _NCBI_API_KEY:
+        args += ["--ncbi-api-key", _NCBI_API_KEY]
+
+    result = subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    return (cohort_name, age_band, bin_name, result.returncode, result.stdout, result.stderr)
+
+# Task list mirrors VIP reports: full-cohort + per-bin for each combination
+_pubmed_tasks = [
+    (c, ab, None) for c, ab in COHORT_PGX_COHORTS
+] + [
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+]
+print(f"Fetching PubMed citations for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"  NCBI API key: {'set (10 req/s)' if _NCBI_API_KEY else 'not set (3 req/s polite limit)'}; total tasks: {len(_pubmed_tasks)}")
+print()
+
+# Max 2 concurrent tasks to respect NCBI rate limits (same as VIP reports step)
+MAX_WORKERS_PUBMED = 2
+
+with ThreadPoolExecutor(max_workers=MAX_WORKERS_PUBMED) as ex:
+    futures = {ex.submit(run_fetch_pubmed_citations, c, ab, b): (c, ab, b) for c, ab, b in _pubmed_tasks}
+    for fut in as_completed(futures):
+        cohort_name, age_band, bin_name, code, stdout, stderr = fut.result()
+        label = f"{cohort_name} / {age_band}" + (f" [{bin_name}]" if bin_name else "")
+        if code == 0:
+            print(f"  [PubMed Citations] {label} -> SUCCESS")
+        else:
+            print(f"  [PubMed Citations] {label} -> FAILED (exit {code})")
+            if stderr:
+                print(f"    stderr: {stderr[:800]}{'...' if len(stderr) > 800 else ''}")
+            if FAIL_FAST:
+                raise RuntimeError(f"Fetch PubMed citations failed: {label}")
+
+print("\n✓ PubMed citations fetched for all cohorts (full-cohort + per-bin)")
+print(f"  Output: {COHORT_PGX_NETWORKS_DIR} (pubmed_citations.json alongside network_topology.html)")
 
 # %% [markdown]
 # ### Step 2: Build Network Topology
