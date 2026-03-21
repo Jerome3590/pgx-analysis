@@ -16,6 +16,98 @@ The dashboard provides multiple capabilities:
 5. **BupaR Process Mining** - View process flows and activity sequences
 6. **PGx Patient Card Generator** - Generate pharmacogenomic cards from genetic variants
 
+## Actionable Intelligence Loop
+
+The dashboard closes a full intelligence loop from historic insurance claims to patient-level pharmacogenomic action guidance, structured as an **OODA loop** (Observe → Orient → Decide → Act). Every step is scoped to the **event density bin the patient belongs to** (low / medium / high / extreme), matching how the models were trained.
+
+> **OODA loop** (John Boyd): a decision-making cycle in which faster, tighter loops produce decisive advantage.
+> Applied here: claims data drives continuous tightening of the clinical decision — from population risk signal down to a specific gene to test and a CPIC-guided dose adjustment.
+
+```mermaid
+flowchart TD
+    A["🏥 Insurance Claims\nHistoric 2016–2018"]
+
+    subgraph PIPELINE["Data Pipeline · EC2 / Notebooks 3-4"]
+        B["Per-bin Model Training\nXGBoost · CatBoost · XGBoost RF\nlow / medium / high / extreme"]
+        C["SHAP + FFA Causal Analysis\ncombined_importance.csv · top causal drugs"]
+        D["CPIC Drug → Gene Mapping\nPharmGKB VIP Reports"]
+        E["Drug-anchored PubMed Queries\ngene_scores · pgx_radar_data.json"]
+    end
+
+    A --> B & C
+    C --> D --> E
+
+    subgraph OBSERVE["① OBSERVE · Risk Assessment"]
+        F["Age + drug / ICD / CPT codes"]
+        G["Risk Score + n_event_bin\n+ per-bin causal factors"]
+        H["What-if Simulation\nΔ risk if codes change"]
+    end
+
+    subgraph ORIENT["② ORIENT · PGx Evidence"]
+        I["⚡ PGx Action Plan ready\ncohort profile for patient's density bin"]
+        J["Gene Actionability Radar\nObserve: Causal Signal\nOrient: Literature · VIP Evidence"]
+    end
+
+    subgraph DECIDE["③ DECIDE · Clinical Validity"]
+        K["CPIC Gene Classification\nDosing Guideline Availability\nOptional SNP Refinement"]
+    end
+
+    subgraph ACT["④ ACT · Personalized Guidance"]
+        L["Personalized PGx Card\nCPIC dosing guidance per allele\n→ prescribing change / genetic test order"]
+    end
+
+    B -->|"Lambda inference\n(per-bin model)"| F
+    E -->|"radar_chart_url"| I
+    F --> G --> H
+    G -->|"View PGx Card →"| I
+    I --> J --> K --> L
+    L -. "next encounter\nupdates risk" .-> F
+
+    subgraph RQ["Research Analysis Tabs · RQ Coverage"]
+        M["Causal Analysis\nN5 · N6 · RQ1 · RQ2"]
+        N["BupaR Process Mining\nN2 · N3"]
+        O["DTW Trajectories\nN1 · RQ2"]
+        P["FP-Growth Patterns\nN4"]
+        Q["PGx Cohort Network\ngene–drug–phenotype topology"]
+        R["Feature Importance\nage-band heatmap"]
+    end
+
+    G -. "same cohort / age / bin" .-> M & N & O & P
+    E --> Q
+    B --> R
+```
+
+### Research Question Coverage
+
+```mermaid
+flowchart LR
+    RQ1["RQ1 · Polypharmacy\nDrug window → outcome?\nWhich drugs?"]
+    RQ2["RQ2 · Opioid ED\nCPT/ICD/drugs predict ED?\nSequences? Causality?"]
+    N1["N1 · Routine vs utilization\n→ outcomes?"]
+    N2["N2 · Which sequences\n→ target?"]
+    N3["N3 · Time between events\n→ outcome?"]
+    N4["N4 · ICD/CPT/Drug\nconnections → target?"]
+    N5["N5 · Feature drivers\n+ relationships?"]
+    N6["N6 · Drug combinations\n→ polypharmacy?"]
+
+    RA["Causal Analysis\nFFA + SHAP + radar"]
+    FP["FP-Growth\ndrug itemsets + network"]
+    BP["BupaR Process Mining\nsequences + Gantt"]
+    DT["DTW Trajectories\nclusters + high-risk"]
+    PG["PGx Cohort\ngene network + radar"]
+    RS["Risk Assessment\nscore + what-if"]
+
+    RQ1 --> RA & FP & BP & RS
+    RQ2 --> RA & FP & BP & DT & RS
+    N1  --> DT
+    N2  --> BP
+    N3  --> BP & DT
+    N4  --> FP
+    N5  --> RA
+    N6  --> RA & BP
+    RA  --> PG
+```
+
 ## Directory Structure
 
 ```text
