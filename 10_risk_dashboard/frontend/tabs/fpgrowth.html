@@ -1,0 +1,46 @@
+
+      <p class="subtitle">
+        <strong>Research focus:</strong> What drug sequences and combinations lead to target outcome?
+        <br>
+        <small style="color: #64748b;">Drug names only — itemsets and association rules from pharmacy events. Cleaner visuals for interpreting drug-driven patterns.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="fpgrowth-cohort">Cohort:</label>
+          <select id="fpgrowth-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="fpgrowth-age-band">Age Band:</label>
+          <select id="fpgrowth-age-band"></select>
+        </div>
+        <div class="control-group">
+          <label for="fpgrowth-n-event-bin">Event density:</label>
+          <select id="fpgrowth-n-event-bin" aria-label="FP-Growth event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadFPGrowth">Load FP-Growth Visualizations</button>
+        </div>
+      </div>
+      <div id="fpgrowth-status" class="status-message">Select cohort and age band, then click Load. Drug-name itemsets and network only.</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>Itemset Support Distribution</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> How frequently do different drug combinations co-occur in patient records, and how does support vary across combination sizes? Support = the proportion of patients who received all drugs in a given itemset. The distribution reveals whether frequent patterns are driven by a few universally common medications or spread across many specific combinations. High-support itemsets are the strongest drug co-occurrence signals in this cohort.</small></p>
+          <div id="fpgrowth-support-image"></div>
+        </div>
+        <div class="panel full-width">
+          <h2>Drug Association Network</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs are most strongly associated with each other in this cohort, and do these associations cluster into polypharmacy groups? Nodes = drugs; edges = association rules (confidence: if a patient takes Drug A, they also take Drug B). Edge thickness/color reflects rule strength (lift). Dense clusters indicate polypharmacy combinations — groups of drugs that are routinely prescribed together — which may represent treatment regimens, drug interaction risks, or shared therapeutic targets relevant to the adverse outcome.</small></p>
+          <div id="fpgrowth-network-container"></div>
+        </div>
+      </div>
+    

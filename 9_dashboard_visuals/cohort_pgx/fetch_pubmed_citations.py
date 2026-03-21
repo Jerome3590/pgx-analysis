@@ -59,7 +59,8 @@ _COHORT_CONTEXT: Dict[str, str] = {
 }
 _DEFAULT_CONTEXT = "pharmacogenomics"
 
-OUTPUT_FILENAME = "pubmed_citations.json"
+OUTPUT_FILENAME   = "pubmed_citations.json"
+RADAR_FILENAME    = "pgx_radar_data.json"
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +72,61 @@ def _date_range_filter() -> str:
     current_year = datetime.now().year
     start_year   = current_year - LIT_REVIEW_YEARS
     return f"{start_year}:{current_year}[PDAT]"
+
+
+# ---------------------------------------------------------------------------
+# Drug name helpers  (drug-anchored context queries)
+# ---------------------------------------------------------------------------
+
+def _load_top_drugs(
+    project_root: Path,
+    cohort_name: str,
+    age_band: str,
+    bin_name: Optional[str] = None,
+    top_n: int = 5,
+) -> List[str]:
+    """
+    Load top N drug/feature names from combined_importance.csv so PubMed context
+    queries are anchored to the actual drugs driving each gene's inclusion.
+    Tries per-bin path first, then full-cohort, then dashboard outputs.
+    """
+    import csv
+    age_band_fname = age_band.replace("-", "_")
+    causal_base = project_root / "10_risk_dashboard" / "visualizations" / "causal"
+    candidates: List[Path] = []
+    if bin_name:
+        candidates.append(causal_base / cohort_name / age_band_fname / bin_name / "combined_importance.csv")
+    candidates.append(causal_base / cohort_name / age_band_fname / "combined_importance.csv")
+    candidates.append(
+        project_root / "10_risk_dashboard" / "outputs" / cohort_name / age_band_fname / "combined_importance.csv"
+    )
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            with open(path, newline="", encoding="utf-8") as fh:
+                reader = csv.DictReader(fh)
+                rows = list(reader)
+            if not rows:
+                continue
+            for col in ("drug_name", "feature", "code", "name", "feature_name"):
+                if col in rows[0]:
+                    drugs = [r[col].strip() for r in rows if r.get(col, "").strip()][:top_n]
+                    if drugs:
+                        logger.info("Top drugs from %s (col=%s): %s", path.name, col, drugs)
+                        return drugs
+        except Exception as exc:
+            logger.debug("Could not read top drugs from %s: %s", path, exc)
+    return []
+
+
+def _vip_tier_score(vip_tier: Any) -> float:
+    """Map PharmGKB VIP tier to 0–1 actionability score (Tier 1 = highest evidence)."""
+    try:
+        t = int(str(vip_tier).strip())
+        return max(0.0, round((4 - t) / 3.0, 4))  # 1→1.0  2→0.67  3→0.33
+    except (TypeError, ValueError):
+        return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -230,22 +286,27 @@ def _query_gene(
     delay: float,
     retmax_pgx: int,
     retmax_ctx: int,
+    top_drugs: Optional[List[str]] = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Run two date-ranged PubMed queries for one gene:
       1. pharmacogenomics: "{gene}"[Gene Name] AND pharmacogenomics[MeSH Terms]
-      2. cohort_context  : "{gene}"[Gene Name] AND "{context_kw}"[Title/Abstract]
+      2. drug-anchored   : "{gene}"[Gene Name] AND ("drug1" OR "drug2" ...)[Title/Abstract]
+         Falls back to cohort context keyword when no top_drugs are available.
 
     Fetches XML for PMC IDs; deduplicates across queries.
     """
-    context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
-
     # Query 1: gene + pharmacogenomics (mirrors "pharmacovigilance pharmacogenomics" searches)
     q_pgx  = f'"{gene_symbol}"[Gene Name] AND pharmacogenomics[MeSH Terms]'
     pgx_pmids = _esearch(q_pgx, retmax_pgx, api_key, session, delay)
 
-    # Query 2: gene + cohort context (mirrors opioid / emergency department PGx searches)
-    q_ctx  = f'"{gene_symbol}"[Gene Name] AND "{context_kw}"[Title/Abstract]'
+    # Query 2: drug-anchored context (uses top causal drugs; fallback = cohort context keyword)
+    if top_drugs:
+        drug_terms = " OR ".join(f'"{d}"[Title/Abstract]' for d in top_drugs[:5])
+        q_ctx = f'"{gene_symbol}"[Gene Name] AND ({drug_terms})'
+    else:
+        context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
+        q_ctx = f'"{gene_symbol}"[Gene Name] AND "{context_kw}"[Title/Abstract]'
     ctx_pmids_raw = _esearch(q_ctx, retmax_ctx, api_key, session, delay)
     # Deduplicate: remove PMIDs already captured by query 1
     pgx_set   = set(pgx_pmids)
@@ -266,6 +327,100 @@ def _query_gene(
 
 
 # ---------------------------------------------------------------------------
+# Gene actionability scoring + Plotly radar
+# ---------------------------------------------------------------------------
+
+_RADAR_COLORS = [
+    "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#06b6d4", "#84cc16", "#f97316", "#ec4899",
+    "#14b8a6", "#a855f7",
+]
+
+
+def _compute_gene_scores(
+    citations: Dict[str, Any],
+    reports: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Compute per-gene actionability scores across five dimensions:
+      cpic_gene, has_dosing_guideline, vip_tier_score, citation_score, causal_rank_score.
+    All values normalised to [0, 1] for radar chart rendering.
+    """
+    total = len(citations)
+    max_cits = max(
+        (len(v.get("pharmacogenomics", [])) + len(v.get("cohort_context", []))
+         for v in citations.values()),
+        default=1,
+    ) or 1
+    rank_map = {(r.get("gene_symbol") or ""): i for i, r in enumerate(reports)}
+    scores: Dict[str, Any] = {}
+    for gene, data in citations.items():
+        total_cits = len(data.get("pharmacogenomics", [])) + len(data.get("cohort_context", []))
+        rank = rank_map.get(gene, len(rank_map))
+        causal_rank_norm = round(1.0 - rank / max(total - 1, 1), 4) if total > 1 else 1.0
+        scores[gene] = {
+            "cpic_gene":            1 if data.get("cpic_gene") else 0,
+            "has_dosing_guideline": 1 if data.get("has_cpic_dosing_guideline") else 0,
+            "vip_tier_score":       _vip_tier_score(data.get("vip_tier", "")),
+            "citation_score":       round(total_cits / max_cits, 4),
+            "causal_rank_score":    causal_rank_norm,
+            "citation_count":       total_cits,
+            "causal_rank":          rank + 1,
+        }
+    return scores
+
+
+def _build_radar_data(gene_scores: Dict[str, Any], top_n: int = 12) -> Optional[Dict[str, Any]]:
+    """
+    Build Plotly Scatterpolar radar figure JSON for the top N genes.
+    Saved separately as pgx_radar_data.json so the dashboard can load it independently.
+    Returns None when plotly is not installed.
+    """
+    try:
+        import plotly.graph_objects as go  # type: ignore
+    except ImportError:
+        logger.warning("plotly not installed; pgx_radar_data.json will be skipped")
+        return None
+
+    categories = ["CPIC Gene", "Dosing Guideline", "VIP Evidence", "Literature", "Causal Rank"]
+    top_genes = list(gene_scores.items())[:top_n]
+    traces = []
+    for i, (gene, s) in enumerate(top_genes):
+        r = [
+            float(s["cpic_gene"]),
+            float(s["has_dosing_guideline"]),
+            float(s["vip_tier_score"]),
+            float(s["citation_score"]),
+            float(s["causal_rank_score"]),
+        ]
+        color = _RADAR_COLORS[i % len(_RADAR_COLORS)]
+        traces.append(
+            go.Scatterpolar(
+                r=r + [r[0]],
+                theta=categories + [categories[0]],
+                fill="toself",
+                name=gene,
+                line=dict(color=color, width=2),
+                opacity=0.75,
+            ).to_plotly_json()
+        )
+
+    layout = go.Layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(size=10)),
+            angularaxis=dict(tickfont=dict(size=11)),
+        ),
+        showlegend=True,
+        legend=dict(font=dict(size=11)),
+        title=dict(text="Gene Actionability Profile", font=dict(size=14)),
+        height=480,
+        margin=dict(l=60, r=60, t=60, b=40),
+    ).to_plotly_json()
+
+    return {"data": traces, "layout": layout}
+
+
+# ---------------------------------------------------------------------------
 # Main fetch function
 # ---------------------------------------------------------------------------
 
@@ -279,6 +434,7 @@ def fetch_pubmed_citations(
     retmax_pgx: int = 5,
     retmax_ctx: int = 3,
     force: bool = False,
+    project_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """
     Load VIP reports JSON, query PubMed for each gene, save citations JSON.
@@ -318,6 +474,15 @@ def fetch_pubmed_citations(
         "contact: see https://pubmed.ncbi.nlm.nih.gov/help/#api)"
     )
 
+    # Load top drugs from combined_importance.csv for drug-anchored context queries
+    top_drugs: List[str] = []
+    if project_root:
+        top_drugs = _load_top_drugs(project_root, cohort_name, age_band, bin_name)
+        if top_drugs:
+            logger.info("Drug-anchored context query: %s", top_drugs)
+        else:
+            logger.info("No combined_importance.csv found; using cohort context keyword fallback")
+
     context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
     citations:  Dict[str, Any] = {}
     total = len(reports)
@@ -335,18 +500,29 @@ def fetch_pubmed_citations(
             delay=delay,
             retmax_pgx=retmax_pgx,
             retmax_ctx=retmax_ctx,
+            top_drugs=top_drugs,
         )
         n_pgx = len(gene_cits["pharmacogenomics"])
         n_ctx = len(gene_cits["cohort_context"])
-        logger.info("  %s: %d PGx, %d cohort-context citations", gene, n_pgx, n_ctx)
+        logger.info("  %s: %d PGx, %d drug-anchored citations", gene, n_pgx, n_ctx)
         citations[gene] = {
             "gene_name":                report.get("gene_name") or "",
             "vip_url":                  report.get("vip_url") or "",
             "cpic_gene":                bool(report.get("cpic_gene")),
             "has_cpic_dosing_guideline": bool(report.get("has_cpic_dosing_guideline")),
+            "vip_tier":                 report.get("vip_tier") or "",
             "pharmacogenomics":          gene_cits["pharmacogenomics"],
             "cohort_context":            gene_cits["cohort_context"],
         }
+
+    # Compute per-gene actionability scores and radar chart
+    gene_scores = _compute_gene_scores(citations, reports)
+    radar_data  = _build_radar_data(gene_scores)
+    if radar_data:
+        radar_file = output_dir / RADAR_FILENAME
+        with open(radar_file, "w", encoding="utf-8") as fh:
+            json.dump(radar_data, fh, separators=(",", ":"))
+        logger.info("Saved radar chart: %s", radar_file)
 
     current_year = datetime.now().year
     result: Dict[str, Any] = {
@@ -354,9 +530,11 @@ def fetch_pubmed_citations(
         "age_band":        age_band,
         "bin":             bin_name,
         "generated_at":    datetime.now(timezone.utc).isoformat(),
-        "date_range":      f"{current_year - LIT_REVIEW_YEARS}–{current_year}",
-        "context_keyword": context_kw,
+        "date_range":      f"{current_year - LIT_REVIEW_YEARS}\u2013{current_year}",
+        "context_keyword": ", ".join(top_drugs[:3]) if top_drugs else context_kw,
+        "top_drugs":       top_drugs,
         "genes_queried":   len(citations),
+        "gene_scores":     gene_scores,
         "citations":       citations,
     }
 
@@ -366,7 +544,7 @@ def fetch_pubmed_citations(
     total_pgx = sum(len(v["pharmacogenomics"]) for v in citations.values())
     total_ctx = sum(len(v["cohort_context"])   for v in citations.values())
     logger.info(
-        "Saved %s  genes=%d  pgx=%d  ctx=%d",
+        "Saved %s  genes=%d  pgx=%d  drug-anchored=%d",
         output_file, len(citations), total_pgx, total_ctx,
     )
     return result
@@ -392,6 +570,8 @@ def main() -> None:
                         help="Max results per gene – cohort-context query (default 3)")
     parser.add_argument("--ncbi-api-key", default=None,
                         help="NCBI E-utilities API key (raises rate limit to 10 req/s)")
+    parser.add_argument("--project-root", type=Path, default=None,
+                        help="Repo root for locating combined_importance.csv (drug-anchored queries)")
     parser.add_argument("--force", action="store_true",
                         help="Re-fetch even when output already exists")
     args = parser.parse_args()
@@ -411,6 +591,7 @@ def main() -> None:
         retmax_pgx=args.retmax_pgx,
         retmax_ctx=args.retmax_context,
         force=args.force,
+        project_root=args.project_root,
     )
     n = len(result.get("citations") or {})
     bin_label = f" [{args.bin_name}]" if args.bin_name else ""

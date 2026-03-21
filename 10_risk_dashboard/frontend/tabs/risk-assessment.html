@@ -1,0 +1,74 @@
+
+      <p class="subtitle">
+        Assess risk for <strong>Opioid ED</strong> or <strong>Polypharmacy</strong>. Select the cohort with the tabs above; age selects the age band within that cohort (both cohorts use the full set of age bands).
+        <br>
+        <small style="color: #64748b;">Uses best-performing model for the selected cohort and age band (CatBoost, XGBoost, or XGBoost RF — shown after calculation).</small>
+        <br>
+        <small style="color: #64748b;">Age band 0-12 is excluded. Use the <strong>Opioid ED</strong> or <strong>Polypharmacy</strong> tab above to switch cohort.</small>
+        <span id="model-indicator" class="model-indicator"></span>
+      </p>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="age">Age</label>
+        <input type="number" id="age" min="13" max="114" value="35" />
+        <small style="color: #64748b; font-size: 0.75rem;">
+          Cohort is set by the tabs above. Age (0-114) selects the age band; risk requires age 13+.
+        </small>
+      </div>
+
+      <div class="control-group" id="codes-summary-group">
+        <div class="patient-codes-summary">
+          <span id="codes-summary-text">No codes selected. Go to <strong>Drugs</strong>, <strong>CPT Codes</strong>, or <strong>ICD Codes</strong> tab to add codes; selections are used for the risk calculation below.</span>
+          <button type="button" class="button-secondary btn-edit-codes" id="btnEditCodes" onclick="switchTab('drugs')">Edit codes</button>
+        </div>
+      </div>
+
+      <div class="control-group" style="font-size: 0.875rem; color: #64748b;">
+        <span>Optional — Patient counts (per mi_person_key):</span>
+        <label># drugs <input type="number" id="inputNdrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+        <label style="margin-left: 1rem;"># CPIC drugs <input type="number" id="inputCpicDrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+      </div>
+      <div class="control-group full-width">
+        <div class="button-row">
+          <button id="btnRisk">Calculate Risk Score</button>
+          <button id="btnComparison" class="button-secondary">Compare Scenarios</button>
+          <button id="btnReset" class="button-secondary">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status">Enter age and select codes, then click 'Calculate Risk Score'</div>
+
+    <div class="risk-display" id="risk-display" style="display: none;">
+      <div class="risk-score" id="risk-score">--</div>
+      <div class="risk-band" id="risk-band"></div>
+      <div id="n-event-bin-badge" class="n-event-bin-badge" style="display:none;"></div>
+      <div id="risk-calibration-note" style="display:none; margin-top: 0.4rem; font-size: 0.78rem; color: #64748b;"></div>
+      <div style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">
+        Using: <strong id="model-info"></strong>
+      </div>
+      <p id="risk-baseline-note" class="risk-baseline-note" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-interpretation" class="risk-interpretation" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+      <p id="risk-codes-selected" class="risk-codes-selected" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; color: #475569;"></p>
+      <p id="risk-patient-bucket" class="risk-patient-bucket" style="display: none; margin-top: 0.5rem; font-size: 0.875rem; color: #475569;"></p>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <h2>Model Breakdown</h2>
+        <div id="model-chart"></div>
+      </div>
+      <div class="panel">
+        <h2>Risk Distribution</h2>
+        <div id="risk-dist-chart"></div>
+      </div>
+    </div>
+
+    <div class="comparison-mode" id="comparison-mode">
+      <div class="panel">
+        <h2>Scenario Comparison</h2>
+        <div class="comparison-scenarios" id="comparison-scenarios"></div>
+      </div>
+    </div>
+    

@@ -1,0 +1,116 @@
+
+      <p class="subtitle">
+        Your PGx card is built from cohort-level analysis of insurance claims combined with PharmGKB/CPIC gene–drug evidence — providing actionable intelligence on which genes to consider testing.
+        <br><small style="color:#64748b;">Select your cohort profile to see the identified PGx genes. Optionally enter your genetic variants to personalize the view to your specific alleles.</small>
+      </p>
+
+      <!-- Step 1: Cohort Profile (base layer from claims analysis) -->
+      <div class="pgx-input-section">
+        <div class="control-group">
+          <label for="pgx-card-cohort">Cohort</label>
+          <select id="pgx-card-cohort">
+            <option value="">-- Select Cohort --</option>
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Non-Opioid ED (Polypharmacy)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="pgx-card-age-band">Age Band</label>
+          <select id="pgx-card-age-band">
+            <option value="">-- Select Age Band --</option>
+            <option value="13-24">13–24</option>
+            <option value="25-44">25–44</option>
+            <option value="45-54">45–54</option>
+            <option value="55-64">55–64</option>
+            <option value="65-74">65–74</option>
+            <option value="75-84">75–84</option>
+            <option value="85-114">85–114</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="pgx-card-bin">Event Density <small style="color:#94a3b8;">— auto-set from Risk Assessment</small></label>
+          <select id="pgx-card-bin">
+            <option value="">All densities</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadPgxCardProfile">Load Cohort PGx Profile</button>
+        </div>
+      </div>
+
+      <div id="pgx-card-status" class="status-message">Select cohort and age band, then click 'Load Cohort PGx Profile'</div>
+
+      <!-- Cohort profile: radar chart + gene list -->
+      <div id="pgx-cohort-profile-section" style="display:none;">
+        <div class="panels">
+          <div class="panel full-width">
+            <h2>Gene Actionability Profile</h2>
+            <p class="subtitle"><small style="color:#64748b;">Radar shows each identified PGx gene scored across five actionability dimensions derived from claims analysis and PharmGKB/CPIC data.</small></p>
+            <div id="pgx-card-radar-chart" style="min-height:460px;"></div>
+          </div>
+        </div>
+        <div class="panels">
+          <div class="panel full-width">
+            <h2>Identified PGx Genes <span id="pgx-cohort-gene-count" style="font-size:0.875rem;font-weight:400;color:#64748b;"></span></h2>
+            <div id="pgx-cohort-genes-content"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Optional SNP refinement (shown after cohort profile loads) -->
+      <div id="pgx-snp-refine-section" style="display:none;">
+        <div style="margin-top:1.5rem;padding:1.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.75rem;">
+          <h2 style="margin:0 0 0.5rem;">Refine with Your Genetic Variants <span style="font-size:0.875rem;font-weight:400;color:#94a3b8;">(Optional)</span></h2>
+          <p style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">Enter your alleles to filter the cohort profile to genes where you have a known variant — personalizing from cohort-level to patient-level.</p>
+          <div class="pgx-input-section">
+            <div class="control-group">
+              <label for="patient-id">Patient ID <span style="color:#94a3b8;font-weight:400;">(Optional)</span></label>
+              <input type="text" id="patient-id" placeholder="Leave blank for full privacy" />
+            </div>
+            <div class="control-group">
+              <label for="snp-input">Gene Variants</label>
+              <small style="color:#64748b;font-size:0.75rem;display:block;margin-bottom:0.5rem;">Format: Gene,Variant1,Variant2 per line. Example: CYP2D6,*1,*2</small>
+              <textarea id="snp-input" rows="6" placeholder="CYP2D6,*1,*2&#10;CYP2C19,*1,*17&#10;CYP2C9,*1,*2"></textarea>
+            </div>
+            <div class="control-group">
+              <label for="snp-file">Or Upload File</label>
+              <input type="file" id="snp-file" accept=".csv,.xlsx,.txt" />
+            </div>
+            <div class="control-group full-width">
+              <button id="btnGenerateCard">Generate Personalized Card</button>
+              <button id="btnResetCard" class="button-secondary">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="pgx-status" class="status-message" style="display:none;"></div>
+
+      <div id="pgx-card-display" style="display: none;">
+        <div class="pgx-card">
+          <div class="pgx-card-header">
+            <h2>Personalized PGx Card</h2>
+            <div id="pgx-patient-id" style="margin-top: 0.5rem;"></div>
+            <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">
+              <strong>Cohort-informed, variant-filtered.</strong> CPIC drug guidance for genes where you have a known variant, based on this cohort's claims analysis.
+            </p>
+          </div>
+          <div class="pgx-card-section">
+            <h3>Genes Tested</h3>
+            <div id="pgx-genes-list"></div>
+          </div>
+          <div class="pgx-card-section">
+            <h3>Drugs Requiring Dosing Modifications</h3>
+            <div id="pgx-drugs-list"></div>
+          </div>
+          <div class="pgx-card-section">
+            <h3>Gene Details</h3>
+            <div id="pgx-gene-details"></div>
+          </div>
+        </div>
+      </div>
+    

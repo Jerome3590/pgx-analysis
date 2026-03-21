@@ -1,0 +1,18 @@
+
+      <p class="subtitle">
+        Select <strong>Drugs</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. Drugs are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+      </p>
+      <div class="tab-content-inner" style="padding: 1.5rem;">
+        <div class="control-group">
+          <label for="drugs">Drug Names (search below, then select from list)</label>
+          <div class="code-search">
+            <input type="text" id="drug-search" placeholder="Search drugs..." aria-label="Filter drug list" />
+          </div>
+          <select id="drugs" multiple aria-label="Selected drugs for model"></select>
+          <div style="margin-top: 1rem;">
+            <strong>Selected Drugs:</strong>
+            <div id="selected-drugs-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
+          </div>
+        </div>
+      </div>
+    

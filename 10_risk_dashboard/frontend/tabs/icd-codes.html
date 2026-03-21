@@ -1,0 +1,18 @@
+
+      <p class="subtitle">
+        Select <strong>ICD codes</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. ICD codes are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+      </p>
+      <div class="tab-content-inner">
+        <div class="control-group">
+          <label for="icds">ICD Codes (search below, then select from list)</label>
+          <div class="code-search">
+            <input type="text" id="icd-search" placeholder="Search ICD codes..." aria-label="Filter ICD list" />
+          </div>
+          <select id="icds" multiple aria-label="Selected ICD codes for model"></select>
+          <div style="margin-top: 1rem;">
+            <strong>Selected ICD Codes:</strong>
+            <div id="selected-icds-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
+          </div>
+        </div>
+      </div>
+    
