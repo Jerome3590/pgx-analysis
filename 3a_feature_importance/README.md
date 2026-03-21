@@ -638,7 +638,7 @@ Four publication-ready plots are automatically generated:
 - **Shows:** Drug / ICD / CPT breakdown of top features
 
 **Location:**
-- Local: `3_feature_importance/outputs/plots/`
+- Local: `3a_feature_importance/outputs/{cohort}/plots/` (and `PGX_FEATURE_IMPORTANCE_OUTPUTS/{cohort}/plots/` when the env var is set)
 - S3: `s3://pgxdatalake/gold/feature_importance/cohort_name={cohort}/age_band={age}/event_year={year}/plots/`
 
 **Note:** The `plots/` subdirectory is automatically created when running the analysis. All visualization files are saved here following the standard output structure framework.
@@ -918,13 +918,13 @@ head(features, 20) %>% select(rank, feature, importance_scaled, n_models)
 
 ### Optional: Writing Step 3 outputs to NVMe
 
-By default, Step 3 writes to `3_feature_importance/outputs/{cohort}/` under the project root. On EC2 you can send these outputs to NVMe for faster I/O:
+By default, Step 3a writes to `3a_feature_importance/outputs/{cohort}/` under the project root. On EC2 you can send these outputs to NVMe for faster I/O:
 
 ```bash
-export PGX_FEATURE_IMPORTANCE_OUTPUTS=/mnt/nvme/feature_importance/outputs
+export PGX_FEATURE_IMPORTANCE_OUTPUTS=/mnt/nvme/3a_feature_importance/outputs
 ```
 
-Then run the Step 3 scripts as usual; CSVs and `plots/` will be written under that path. Downstream steps (3b, 4a, etc.) look for `3_feature_importance/outputs/` under the project; if you use NVMe, either symlink that directory to the NVMe path or set the same env when reading (if those steps support it).
+Then run the Step 3a scripts as usual; CSVs and `plots/` will be written under that path. Downstream steps (3b, Step 4 model data, etc.) expect the same layout; if you use NVMe, either symlink `3a_feature_importance/outputs` to the NVMe path or set `PGX_FEATURE_IMPORTANCE_OUTPUTS` consistently when reading.
 
 ### Parallel Processing Configuration
 

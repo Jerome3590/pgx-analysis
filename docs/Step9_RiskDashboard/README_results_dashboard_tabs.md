@@ -68,7 +68,7 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR Container) → M
   - Similarity matrices
 
 **Data Sources**:
-- BupaR outputs from Step 5a (`gold/bupar/{cohort}/{age_band}/`)
+- BupaR outputs from dashboard pipeline / Step 3b refinement (`gold/bupar/{cohort}/{age_band}/` and related paths under `9_dashboard_visuals/`)
 - FP-Growth outputs from Step 5b (`gold/fpgrowth/cohort/cohort_name={cohort}/age_band={age_band}/`)
 - DTW outputs from Step 5d (`gold/dtw_trajectories/{cohort}/{age_band}/`)
 

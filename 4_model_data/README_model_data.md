@@ -4,7 +4,7 @@
 
 This directory contains event-level `model_events.parquet` files used as inputs to:
 
-- Step 5a–5d feature engineering (FP-Growth, BupaR, DTW, PGx)
+- Step 5 PGx features, Step 6 final models, and dashboard mining visualizations (BupaR, FP-Growth, DTW under `9_dashboard_visuals/`) that consume cohort / model data
 - Step 6 final models (RandomForest, XGBoost, CatBoost)
 
 Each file corresponds to a specific `(cohort_name, age_band)` cell:
@@ -42,7 +42,7 @@ This asymmetry is intentional and standard for classification problems:
 
 Step 4 removes target leakage when building model data: for **case events**, only events **strictly before** the target date are kept. Model_events uses explicit target-date column names: **`first_f1120_date`** (opioid_ed; F11.20 = opioid use disorder) and **`first_o11_p_date`** (non_opioid_ed; O11_P = canonical ED identifier, includes P51b/O11/P33, 21-day drug window). See 2_create_cohort README § HCG-Based ED Visit Targets. Events on or after the target date are dropped.
 
-**Legacy / misnamed target-date column:** For non_opioid_ed, the target date is filled from a single cohort column (either `first_ed_non_opioid_date` or, for legacy cohorts, `first_opioid_ed_date`). The **values** are the same; only the **output name** differs. If existing model_events.parquet has `first_opioid_ed_date` or `first_ed_non_opioid_date` instead of `first_o11_p_date`, you can simply **rename that column** to `first_o11_p_date`; no recomputation is needed.
+**Target-date column naming (`non_opioid_ed`):** The target date is taken from one cohort column (`first_ed_non_opioid_date` or `first_opioid_ed_date` depending on export). Semantics align; canonical model_events output uses **`first_o11_p_date`**. If an older parquet still has the alternate names, **rename** to `first_o11_p_date` rather than recomputing events.
 
 ### Feature-Importance Filtering
 

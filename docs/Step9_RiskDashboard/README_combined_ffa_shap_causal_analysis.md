@@ -176,21 +176,21 @@ python 8_ffa_analysis/run_full_ffa_analysis.py \
 ### Advanced Options
 
 ```bash
-python 10_results/combine_shap_ffa_results.py \
+python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \
     --cohort non_opioid_ed \
     --age-band 65-74 \
     --top-k 20 \                    # Top K features for consensus
     --weight-shap 0.5 \             # Weight for SHAP (default: 0.5)
     --weight-ffa 0.5 \              # Weight for FFA (default: 0.5)
     --n-patients 100 \              # Number of patients to analyze
-    --output-dir 10_results/outputs
+    --output-dir 10_risk_dashboard/visualizations/causal
 ```
 
 ### Parameters
 
 - `--cohort`: Cohort name (e.g., `non_opioid_ed`, `opioid_ed`)
 - `--age-band`: Age band (e.g., `65-74`)
-- `--output-dir`: Output directory (default: `10_results/outputs`)
+- `--output-dir`: Base output directory (default: `10_risk_dashboard/visualizations/causal`; results are written under `{output-dir}/{cohort}/{age_band}/`)
 - `--top-k`: Number of top features for consensus analysis (default: 20)
 - `--weight-shap`: Weight for SHAP in combined importance (default: 0.5)
 - `--weight-ffa`: Weight for FFA in combined importance (default: 0.5)

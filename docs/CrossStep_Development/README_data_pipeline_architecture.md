@@ -470,12 +470,11 @@ s3://pgxdatalake/gold/
     └── interaction_analysis.parquet
 ```
 
-### Backward Compatibility
+### Interchange formats
 
-- **CSV files maintained** where needed for legacy code
-- **Parquet preferred** for all new operations
-- **Automatic fallback** in Step 8 (checks Parquet first, then CSV)
-- **Dual output** in Step 6 (both CSV and Parquet saved)
+- **Parquet** is the default for large analytical outputs; some steps still emit **CSV** for human review or downstream tools that expect it.
+- **Step 8 (FFA)** readers check Parquet first, then CSV when present.
+- **Step 6** may write both formats where the training/export path requires it.
 
 ### Idempotency and Checkpoint System
 

@@ -57,7 +57,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 ### Step 7: SHAP Analysis
 **Code**: `7_shap_analysis/`
 
-- **SHAP Analysis** – Global and local SHAP values for CatBoost and XGBoost models (see `docs/README_analysis_workflow.md` for details)
+- **SHAP Analysis** – Global and local SHAP values for CatBoost and XGBoost models (see [`CrossStep_Workflow/README_analysis_workflow.md`](CrossStep_Workflow/README_analysis_workflow.md))
 - Used by Step 8 (FFA) to prioritize and filter rules
 
 ### Step 8: Formal Feature Attribution (FFA)

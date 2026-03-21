@@ -75,12 +75,12 @@ The PGx Patient Card feature has been integrated into the dashboard as a second 
 
 The system uses CPIC (Clinical Pharmacogenomics Implementation Consortium) data to match genes to drugs:
 
-- **Data Source**: Master Excel file `cpic_gene-drug_pairs.xlsx` from `7_pgx_analysis/cpic/`
+- **Data Source**: Master Excel file `cpic_gene-drug_pairs.xlsx` from `5_pgx_analysis/cpic/` (see `10_risk_dashboard/data_preparation/prepare_cpic_data.py` to stage copies for Lambda)
   - Official CPIC gene-drug pairs file (573 pairs, 300 drugs, 121 genes)
   - Download from: https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
 - **Storage**: 
   - Primary: Container filesystem (`/var/task/data/cpic_gene-drug_pairs.xlsx`)
-  - Fallback: S3 (`gold/dashboard/metadata/cpic_gene-drug_pairs.xlsx`)
+  - Fallback: S3 (`gold/dashboard/data/cpic_gene-drug_pairs.xlsx`; Parquet may be used when present)
 - **Format**: Excel file with columns: Gene, Drug, Guideline, CPIC Level, FDA Label, etc.
 
 ## Implementation Details

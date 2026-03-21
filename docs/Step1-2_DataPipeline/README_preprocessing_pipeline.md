@@ -11,7 +11,6 @@ pgx_analysis/input_data/
 ├── 3_apcd_clean.py            # Main orchestrator (supports global-imputation)
 ├── 2_global_imputation.py     # Global demographic imputation script
 ├── 3a_clean_pharmacy.py       # Optimized pharmacy data processing
-├── clean_pharmacy_legacy.py   # Legacy pharmacy data processing
 ├── 3b_clean_medical.py        # Medical claims processing
 ├── drug_mappings/            # Drug name normalization files
 │   ├── a_mappings.json       # A-Z drug mappings (26 files)
@@ -110,37 +109,6 @@ python 1_apcd_input_data/3_apcd_clean.py \
   --output-root s3://pgxdatalake/gold/medical \
   --min-year 2016 --max-year 2020 \
   --workers 6
-```
-
-### 🔄 **Legacy: Original Two-Phase Approach**
-
-If you prefer the original approach (using demographics lookup only):
-
-#### Phase 1: Global Imputation (Demographics Only)
-```bash
-python apcd_clean.py --job global-imputation \
-                     --pharmacy-input s3://pgxdatalake/silver/pharmacy/**/*.parquet \
-                     --medical-input s3://pgxdatalake/silver/medical/**/*.parquet \
-                     --output-root s3://pgxdatalake/silver/imputed \
-                     --lookahead-years 5 \
-                     --threads 16 --mem-gb 1024
-```
-
-#### Phase 2: Partition Processing (With Demographics Lookup)
-```bash
-# Pharmacy processing
-python 1_apcd_input_data/3_apcd_clean.py --job pharmacy \
-                     --pharmacy-input s3://pgxdatalake/silver/imputed/pharmacy_partitioned/**/*.parquet \
-                     --output-root s3://pgxdatalake/gold/pharmacy \
-                     --workers 12 \
-                     --threads 4 --mem-gb 8
-
-# Medical processing
-python 1_apcd_input_data/3_apcd_clean.py --job medical \
-                     --medical-input s3://pgxdatalake/silver/imputed/medical_partitioned/**/*.parquet \
-                     --output-root s3://pgxdatalake/gold/medical \
-                     --workers 12 \
-                     --threads 4 --mem-gb 8
 ```
 
 ## Performance Characteristics
@@ -266,14 +234,7 @@ python 1_apcd_input_data/3_apcd_clean.py --job medical \
 5. **Data Validation**: Comprehensive quality checks and error handling
 6. **Output Generation**: Save cleaned data to gold tier
 
-### Legacy Partition Processing Process
-
-1. **Original Data Loading**: Load raw pharmacy/medical data
-2. **Demographics Lookup Join**: LEFT JOIN with pre-imputed demographics
-3. **Age Band Filtering**: Instant filtering using pre-imputed age data
-4. **Drug Name Normalization**: Apply drug mapping transformations
-5. **Data Validation**: Comprehensive quality checks and error handling
-6. **Output Generation**: Save cleaned data to gold tier
+If pre-imputed partitions are missing for a worker, the cleaner can **fall back** to raw silver plus the demographics lookup (slower path, same intended gold schema when configured).
 
 ## Data Quality Improvements
 
@@ -619,33 +580,14 @@ echo "✅ Complete optimized pipeline completed at: $(date)"
 - Ensure high-bandwidth S3 access
 - Optimize DuckDB settings for your hardware
 
-## Data Flow Comparison
+## Production data flow
 
-### Optimized Approach (Recommended)
 ```
-Original Data (Silver)
-    ↓
-Global Imputation (Phase 1)
-    ↓
-Imputed Partitioned Data (Silver)
-    ↓
-Optimized Partition Processing (Phase 2)
-    ↓
-Final Gold Data
+Bronze → Global imputation (Phase 1) → Imputed partitioned silver
+    → Partition cleaning (Phase 2) → Gold pharmacy / medical
 ```
 
-### Legacy Approach
-```
-Original Data (Silver)
-    ↓
-Global Imputation (Phase 1) - Demographics Only
-    ↓
-Demographics Lookup Table (Silver)
-    ↓
-Partition Processing with Lookup (Phase 2)
-    ↓
-Final Gold Data
-```
+**Lesson learned:** Run **global imputation once**, then drive gold from **partitioned imputed** inputs so workers stay small and parallelize cleanly.
 
 ## Support
 

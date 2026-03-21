@@ -29,7 +29,7 @@ ensemble_score = Σ(prediction_i × weight_i) / Σ(weight_i)
 
 **Weight Calculation**:
 
-Weights are calculated from MC-CV (Monte Carlo Cross-Validation) results from Step 8 (Final Model):
+Weights are calculated from MC-CV (Monte Carlo Cross-Validation) results from **Step 6** (`6_final_model`):
 
 1. **Composite Score** for each model:
    ```

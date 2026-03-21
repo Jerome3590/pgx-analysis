@@ -10,7 +10,8 @@ This project integrates [Optuna](https://optuna.org/) for automated hyperparamet
 - Store and report the best hyperparameters and scores in the model summary.
 
 See `train_final_model.py` for integration details.
-# Step 8: Final Model Development
+
+## Step 6: Final model (`6_final_model/`)
 
 This folder contains documentation for final model training, evaluation, and CatBoost details.
 
@@ -22,6 +23,6 @@ This folder contains documentation for final model training, evaluation, and Cat
 ## Related Documentation
 
 - **Step 3**: See [`../Step3_FeatureImportance/`](../Step3_FeatureImportance/) for feature importance analysis
-- **Step 10**: See [`../Step9_RiskDashboard/`](../Step9_RiskDashboard/) for dashboard deployment
+- **Step 9**: See [`../Step9_RiskDashboard/`](../Step9_RiskDashboard/) for dashboard deployment
 - **Main Index**: See [`../README.md`](../README.md) for complete documentation index
 

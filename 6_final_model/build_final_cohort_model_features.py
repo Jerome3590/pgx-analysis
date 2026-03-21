@@ -266,16 +266,6 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
             / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
         )
 
-    # Fallback to legacy 7_pgx_analysis path
-    if not pgx_csv.exists():
-        pgx_csv = (
-            project_root
-            / "7_pgx_analysis"
-            / "outputs"
-            / "feature_engineering"
-            / f"pgx_added_features_{cohort_name}_{age_band_fname}.csv"
-        )
-
     pgx_df = None
     if pgx_csv.exists():
         pgx_df = pd.read_csv(pgx_csv)

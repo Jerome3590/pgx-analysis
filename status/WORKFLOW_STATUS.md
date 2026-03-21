@@ -5,38 +5,19 @@
 
 ---
 
-## Previous End-to-End Run (2025-12-10) – LEGACY PIPELINE
+## Production workflow (authoritative)
 
-Status: ✅ Complete (for historical reference only; used `4_model_data` and older step layout).  
-Model performance and step details are preserved below but superseded by the refactored run.
-
-### Summary (Legacy)
-- Step 3: Feature Importance – complete, artifacts preserved under `3a_feature_importance/outputs/`
-- Step 4: FP-Growth Analysis – complete
-- Step 5: BupaR Analysis – complete
-- Step 6: DTW Analysis – complete
-- Step 7: PGx Analysis – complete
-- Step 8: Final Model – complete (XGBoost RF best model, ~155 features)
-
-> See earlier sections of this file for full legacy metrics and notes.
+**Run order:** `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`  
+**Details:** Repository root `README.md` and `README_execution_workflow.md`.
 
 ---
 
-## Current Workflow (Final Production Pipeline)
+## Current snapshot (this file)
 
 **As of:** 2026-01-07  
-**Status:** ✅ Final production workflow definition
+**Status:** Production workflow definition (see section above)
 
-**Workflow Execution:** Run via the five workflow notebooks: `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`. Legacy notebooks and scripts are in `archived/`.
-```bash
-# Single cohort/age band (legacy)
-bash archived/utility_scripts/run_cohort_workflow.sh <cohort_name> <age_band>
-
-# All cohorts (legacy)
-bash archived/utility_scripts/run_opioid_ed_workflow.sh
-bash archived/utility_scripts/run_non_opioid_ed_workflow.sh
-bash archived/utility_scripts/run_all_cohorts_workflow.sh
-```
+**Execution:** Use the five notebooks; parallelize `(cohort, age_band)` with separate kernels or instances when I/O allows.
 
 **Performance Configuration:**
 - DuckDB threads: 4 per connection (optimized for 32-core EC2)
@@ -257,7 +238,7 @@ Legend (same as above):
 - ✅ CatBoost FFA removed (not performed); CatBoost SHAP used for feature importance filtering in XGBoost FFA
 - ✅ Rule selection logic: first 100 + random 100 + top 300 SHAP-filtered rules
 - ✅ DuckDB threads increased to 4 per connection (optimized for 32-core EC2)
-- ✅ Workflow execution via three notebooks; legacy scripts in `archived/utility_scripts/`
+- ✅ Workflow execution via five notebooks (see top of this file)
 - ✅ All steps are idempotent (skip completed steps automatically)
 
 ### 2025-12-31 – Workflow Layout Updated

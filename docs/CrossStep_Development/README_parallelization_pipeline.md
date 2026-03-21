@@ -676,16 +676,16 @@ export FFA_N_JOBS=2  # Default: 2 workers
 
 ## SHAP + FFA Combination Analysis
 
-The combination script (`10_results/combine_shap_ffa_results.py`) aggregates results from both methods. This is a lightweight post-processing step that doesn't require parallelization.
+The combination script (`10_risk_dashboard/data_preparation/combine_shap_ffa_results.py`) aggregates results from both methods. This is a lightweight post-processing step that doesn't require parallelization.
 
 ### Configuration
 
 ```bash
 # Basic usage (single-threaded, fast)
-python 10_results/combine_shap_ffa_results.py \
+python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \
     --cohort non_opioid_ed \
     --age-band 65-74 \
-    --output-dir 10_results/outputs
+    --output-dir 10_risk_dashboard/visualizations/causal
 ```
 
 ### Parallelization Strategy
@@ -735,17 +735,17 @@ python 10_risk_dashboard/visualizations/fpgrowth/run_single_cohort_fpgrowth.py \
     --cohort-name non_opioid_ed \
     --age-band 65-74
 
-# Step 3: SHAP Analysis (if available)
-python 8_final_model/add_shap_analysis.py \
+# Step 3: SHAP Analysis (Step 7)
+python 7_shap_analysis/add_shap_analysis.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 
-# Step 4: FFA Analysis (memory-conservative)
+# Step 4: FFA Analysis (Step 8, memory-conservative)
 export FFA_MAX_SAMPLES=10000
 python 8_ffa_analysis/run_full_ffa_analysis.py
 
 # Step 5: Combine Results (single-threaded, fast)
-python 10_results/combine_shap_ffa_results.py \
+python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \
     --cohort non_opioid_ed \
     --age-band 65-74
 ```

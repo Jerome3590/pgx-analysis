@@ -143,10 +143,10 @@ Why this change?
 - Partition-first inputs unlock full parallelism (48 workers × 1 thread each) which greatly reduces overall runtime and increases cloud efficiency.
 - Global imputation already writes partitioned outputs (`global_imputation.py` saves `*_partitioned` directories under `silver/imputed/`); using those early avoids redundant transformation work.
 
-Compatibility and behavior
-- Backwards compatible: operators may still pass the legacy `--raw-medical s3://pgxdatalake/silver/medical/*.parquet` or `--raw-pharmacy` paths. The orchestrator will automatically resolve those to the imputed/partitioned equivalents when available.
-- Validation: the input validation routine will attempt both the raw silver path and the imputed/partitioned path. This surfaces clear errors if neither exists.
-- Override: to explicitly target a non-partitioned raw path, pass `--raw-medical`/`--raw-pharmacy` with the exact S3 URI you want. The orchestrator will use the value you provide.
+**CLI behavior**
+- **Default:** Prefer imputed **partitioned** silver (`silver/imputed/..._partitioned/`) for scale and parallelism.
+- **Raw silver URIs:** You may pass `--raw-medical` / `--raw-pharmacy` (e.g. broad `silver/medical/*.parquet` globs). When possible, the orchestrator **resolves** those to the imputed/partitioned paths; validation checks both layouts and fails clearly if neither exists.
+- **Explicit override:** Pass `--raw-medical` / `--raw-pharmacy` with the exact URI you want to force a specific source (use sparingly on large runs).
 
 Examples
 
