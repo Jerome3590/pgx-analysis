@@ -3218,8 +3218,11 @@
       }
 
       if (!heatmapPngUrl) {
-        // Fallback to static path if not found in manifest
-        heatmapPngUrl = staticJsonPath(`visualizations/feature_importance/${cohortDir}/aggregated_fi_heatmap.png`);
+        // Fallback to static path if not found in manifest.
+        // Combined uses a different filename at the root (matches lambda + manifest static_files[1]).
+        heatmapPngUrl = cohort === "combined"
+          ? staticJsonPath("visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png")
+          : staticJsonPath(`visualizations/feature_importance/${cohortDir}/aggregated_fi_heatmap.png`);
       }
       if (fiHeatmapChart) { fiHeatmapChart.style.display = "none"; fiHeatmapChart.innerHTML = ""; }
       if (fiHeatmapImg) { fiHeatmapImg.style.display = "none"; fiHeatmapImg.removeAttribute("src"); }
