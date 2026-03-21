@@ -605,25 +605,26 @@ def get_age_band(age):
 
 ## File Structure
 
+Canonical dashboard code lives under **`10_risk_dashboard/`** (Step 9: risk calculator, API, deployment):
+
 ```
-10_results/
-├── README_DASHBOARD_IMPLEMENTATION.md  (this file)
-├── generate_metadata.py                (Step 1)
-├── prepare_models.py                   (Step 2)
-├── lambda_function.py                  (Step 3)
-├── index.html                         (Step 4)
-├── requirements.txt                   (Lambda dependencies)
-├── test/
-│   ├── test_lambda.py
-│   ├── test_feature_building.py
-│   └── test_metadata.py
-└── deployment/
-    ├── terraform/                      (Infrastructure as Code)
-    ├── cloudformation/                 (Alternative IaC)
-    └── scripts/
-        ├── deploy_lambda.sh
-        └── deploy_dashboard.sh
+10_risk_dashboard/
+├── backend/
+│   └── lambda_function.py              # Lambda handler
+├── frontend/
+│   └── index.html                      # Dashboard UI (and related assets)
+├── data_preparation/
+│   ├── prepare_models.py               # Package Step 6 models + feature_schema for deploy
+│   ├── prepare_cpic_data.py            # Stage CPIC Excel/Parquet for container
+│   ├── generate_metadata.py            # metadata_{cohort}.json for dropdowns
+│   └── combine_shap_ffa_results.py     # Optional SHAP + FFA dashboard merge
+├── deployment/                         # Docker, ECR, deploy scripts
+├── outputs/                            # Local staging (models/, metadata/, cpic/, …)
+├── requirements.txt                    # Lambda / container dependencies
+└── docs/                               # Dashboard-specific notes
 ```
+
+See also the repository root **`README.md`** for the full step map (1a–2 → 3a–3c → 4–8 → 9).
 
 ---
 
@@ -641,7 +642,8 @@ def get_age_band(age):
 ## References
 
 - Feature Importance Files: `3a_feature_importance/outputs/`
-- Final Models: `8_final_model/outputs/`
-- FFA Analysis: `9_ffa_analysis/outputs/`
+- Final Models: `6_final_model/outputs/`
+- SHAP Analysis: `7_shap_analysis/outputs/`
+- FFA Analysis: `8_ffa_analysis/outputs/`
 - S3 Data Lake: `s3://pgxdatalake/gold/`
 

@@ -10,7 +10,7 @@ This module (`6_final_model`) hosts the final prediction model pipeline for pati
 - **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; **n_drugs** is built in the PGx analysis step)
 - Demographics (e.g. age) and other non-item schema features
 
-**FPGrowth, BupaR, and DTW** are used for **dashboard visualizations** (and DTW for **protocol filtering** only). They do not produce columns in the final model feature table. Any removal of trajectory/sequence/itemset in leakage scripts is **defensive only** (in case of legacy or alternate paths).
+**FPGrowth, BupaR, and DTW** are used for **dashboard visualizations** (and DTW for **protocol filtering**). They do not produce columns in the final model feature table. Leakage scripts still drop trajectory/sequence/itemset column names **defensively** if they appear.
 
 ### Temporal Validation Strategy
 
@@ -135,7 +135,7 @@ then the best-performing base model is further tuned before being evaluated on a
 
 ### MC-CV Split Strategy (Feature Importance vs Final Model)
 
-- **Feature importance stage (3_feature_importance):**
+- **Feature importance stage (`3a_feature_importance`):**
   - Uses **`N_SPLITS = 10`** MC-CV splits per model (CatBoost, XGBoost, XGBoost RF) to keep the heavy permutation-importance workload tractable while still providing stable estimates of feature importance.
   - These runs define the **feature set and relative importance rankings** that feed into this final model module.
 
@@ -173,7 +173,7 @@ For distributed training or additional compute resources, train and test dataset
 
 **Local Structure:**
 ```
-8_final_model/inputs/{cohort}/{age_band}/
+6_final_model/inputs/{cohort}/{age_band}/
 ├── model_train/
 │   ├── final_features.parquet    # Training data (2016-2018)
 │   └── metadata.json              # Dataset metadata
@@ -201,13 +201,13 @@ s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/
 **Usage:**
 ```bash
 # Prepare and upload train/test datasets
-python 8_final_model/prepare_train_test_s3.py --cohort-name opioid_ed --age-band 0-12
+python 6_final_model/prepare_train_test_s3.py --cohort-name opioid_ed --age-band 0-12
 
 # Load from local inputs folder (recommended)
 import pandas as pd
 
-train_df = pd.read_parquet('8_final_model/inputs/opioid_ed/0_12/model_train/final_features.parquet')
-test_df = pd.read_parquet('8_final_model/inputs/opioid_ed/0_12/model_test/final_features.parquet')
+train_df = pd.read_parquet('6_final_model/inputs/opioid_ed/0_12/model_train/final_features.parquet')
+test_df = pd.read_parquet('6_final_model/inputs/opioid_ed/0_12/model_test/final_features.parquet')
 
 # Or load from S3 inputs location (for distributed training)
 import s3fs
@@ -216,8 +216,8 @@ train_df = pd.read_parquet('s3://pgxdatalake/gold/final_model/opioid_ed/0-12/inp
 test_df = pd.read_parquet('s3://pgxdatalake/gold/final_model/opioid_ed/0-12/inputs/model_test/final_features.parquet', filesystem=s3)
 
 # Or load from local inputs folder
-train_df = pd.read_parquet('8_final_model/inputs/opioid_ed/0_12/model_train/final_features.parquet')
-test_df = pd.read_parquet('8_final_model/inputs/opioid_ed/0_12/model_test/final_features.parquet')
+train_df = pd.read_parquet('6_final_model/inputs/opioid_ed/0_12/model_train/final_features.parquet')
+test_df = pd.read_parquet('6_final_model/inputs/opioid_ed/0_12/model_test/final_features.parquet')
 ```
 
 ## Model Visualizations
@@ -230,14 +230,14 @@ After extracting feature importances with `extract_final_feature_importance.py`,
 
 ```bash
 # Create all visualization plots
-python 8_final_model/create_model_plots.py \
+python 6_final_model/create_model_plots.py \
     --cohort-name opioid_ed \
     --age-band 0-12 \
     --event-year 2019
 ```
 
 **Output Location:**
-- **Local**: `8_final_model/outputs/{cohort}/{age_band}/plots/`
+- **Local**: `6_final_model/outputs/{cohort}/{age_band}/plots/`
 - **S3**: `s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/plots/`
 
 ### Visualization Plots
@@ -305,8 +305,8 @@ The script creates **6 publication-quality plots** plus **2 mapping visualizatio
 from py_helpers.create_feature_importance_visualizations import create_feature_importance_plots
 
 plot_files = create_feature_importance_plots(
-    aggregated_file='8_final_model/outputs/opioid_ed/0_12/opioid_ed_0_12_final_feature_importance_aggregated_scaled.csv',
-    output_dir='8_final_model/outputs/opioid_ed/0_12',
+    aggregated_file='6_final_model/outputs/opioid_ed/0_12/opioid_ed_0_12_final_feature_importance_aggregated_scaled.csv',
+    output_dir='6_final_model/outputs/opioid_ed/0_12',
     cohort_name='opioid_ed',
     age_band='0-12',
     event_year=2019,
@@ -441,7 +441,7 @@ Use the provided analysis script to calculate cohort-specific thresholds:
 
 ```bash
 # Analyze trigger features for a specific cohort/age band
-python 8_final_model/analyze_trigger_features.py \
+python 6_final_model/analyze_trigger_features.py \
     --cohort-name opioid_ed \
     --age-band 0-12
 ```

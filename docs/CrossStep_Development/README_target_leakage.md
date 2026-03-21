@@ -4,7 +4,7 @@
 
 This document outlines our approach to preventing **target leakage** in the final model and ensuring all features are **truly predictive** (i.e., available at prediction time without knowledge of the target outcome).
 
-**Current pipeline:** Feature engineering for the final model **never generates** trajectory, sequence, or itemset features. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs; n_drugs from PGx step), and other schema features. Any removal of trajectory/sequence/itemset in `remove_target_leakage.py` or `run_final_model.py` is **defensive only** (in case of legacy or alternate paths). FPGrowth and BupaR are used for **dashboard visualizations** only; DTW is used for **protocol filtering** only.
+**Production pipeline:** Feature engineering for the final model **does not** build trajectory, sequence, or itemset columns. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs), and other schema features. `remove_target_leakage.py` / `run_final_model.py` still strip trajectory/sequence/itemset names **defensively** if those columns ever appear. FPGrowth and BupaR feed **dashboard visualizations** only; DTW supports **protocol filtering** and visuals, not the training matrix.
 
 ## Important Distinction: Feature Engineering vs. Final Model
 
@@ -194,7 +194,7 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 - **Drug exposure** (historical, available before prediction)
 - **Population allele frequencies** (reference data, not patient-specific)
 
-**Source:** `7_pgx_analysis/create_pgx_features_patient_level.py`
+**Source:** `5_pgx_analysis/create_pgx_features_patient_level.py`
 
 ---
 
@@ -301,10 +301,10 @@ Add features that capture temporal patterns without referencing target:
 
 ## References
 
-- **Target Leakage Detection**: `8_final_model/remove_target_leakage.py`
+- **Target Leakage Detection**: `6_final_model/remove_target_leakage.py`
 - **Predictive Time Features**: `6_dtw_analysis/create_predictive_time_features.py`
-- **Feature Table Building**: `8_final_model/build_final_cohort_model_features.py`
-- **Removed Features List**: `8_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_removed_leakage_features.txt`
+- **Feature Table Building**: `6_final_model/build_final_cohort_model_features.py`
+- **Removed Features List**: `6_final_model/outputs/{cohort}/{age_band}/{cohort}_{age_band}_removed_leakage_features.txt`
 
 ---
 

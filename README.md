@@ -101,7 +101,7 @@ pgx-analysis/
 ├── 7_shap_analysis/              # Step 7: SHAP-based post-model analysis
 ├── 8_ffa_analysis/               # Step 8: Formal Feature Attribution (FFA) analysis
 ├── 10_risk_dashboard/            # Step 9: Risk calculator + dashboard, API, deployment
-├── archived/                     # Legacy notebooks and scripts
+├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
 ├── r_helpers/                    # Shared R utilities
 ├── docs/                         # Comprehensive documentation
@@ -287,7 +287,7 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 ### Shared Utilities
 - `py_helpers/` - S3, DuckDB, logging, constants
 - `r_helpers/` - R-based utilities
-- `archived/` - Legacy workflows and scripts
+- `archived/` - Archived notebooks and scripts (optional reference)
 
 ---
 

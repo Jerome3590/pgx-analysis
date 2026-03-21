@@ -20,7 +20,7 @@ python prepare_models.py --all
 **What it does:**
 1. Loads models from `6_final_model/outputs/{cohort}/{age_band_fname}/models/` (e.g. `xgboost.joblib`, `catboost.joblib`)
 2. Reads MC-CV results from `6_final_model/outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_mc_cv_results.csv` to select the best model per cohort/age_band (weight 1.0 for best, 0 for others)
-3. Extracts feature schemas from training data: prefers **Parquet** at `6_final_model/outputs/.../inputs/model_train/final_features.parquet`, else the legacy CSV. Uses **DuckDB** when available for efficient reads and percentiles; falls back to pandas otherwise.
+3. Extracts feature schemas from training data: prefers **Parquet** at `6_final_model/outputs/.../inputs/model_train/final_features.parquet`, else exported **CSV** train features. Uses **DuckDB** when available for efficient reads and percentiles; falls back to pandas otherwise.
 4. Writes to `10_risk_dashboard/outputs/models/` (used by `prepare_lambda_dir.py` and Docker build)
 
 **Parallelism:** Uses all available CPU cores: age_bands are processed in parallel per cohort (ProcessPoolExecutor); S3 upload (when used) is parallel (ThreadPoolExecutor). The 2019 distribution step runs once per cohort and uses ProcessPoolExecutor over all cohort/age_band pairs.

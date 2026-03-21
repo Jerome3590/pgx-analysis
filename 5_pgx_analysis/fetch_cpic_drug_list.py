@@ -152,7 +152,7 @@ def create_static_reference() -> list:
 
 def main():
     """Fetch CPIC drug list and save to file."""
-    output_path = PROJECT_ROOT / "7_pgx_analysis" / "data" / "cpic_drug_list.json"
+    output_path = PROJECT_ROOT / "5_pgx_analysis" / "data" / "cpic_drug_list.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     drugs = []

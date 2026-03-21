@@ -6,6 +6,7 @@ This script maps drugs identified in the analysis to relevant pharmacogenes
 (e.g., CYP2D6, CYP2C19, TPMT, DPYD) based on established pharmacogenomic knowledge.
 """
 
+import os
 import sys
 import pandas as pd
 from pathlib import Path
@@ -549,14 +550,37 @@ def validate_fuzzy_matches(validation_file: Path, min_score: float = 95.0) -> No
 def load_global_drug_mapping() -> Optional[pd.DataFrame]:
     """
     Load global drug-to-CPIC mapping table if it exists (checks local first, then S3).
-    
+
+    Override local path: set PGX_DRUG_CPIC_MAPPING_PATH to a CSV path on disk.
+    Override S3 object: set PGX_DRUG_CPIC_MAPPING_S3 to s3://bucket/key (single source).
+    Additional S3 buckets for the default key (after primary): PGX_DRUG_CPIC_MAPPING_S3_FALLBACK_BUCKETS
+    as a comma-separated list (e.g. pgx-repository).
+
     Returns:
     --------
     Optional[pd.DataFrame]
         DataFrame with drug_name, cpic_drug_name, fuzzy_score, match_method columns, or None if not found
     """
     global_mapping_path = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_global.csv"
-    
+    s3_key = "gold/pgx_features/global/drug_cpic_mapping_global.csv"
+
+    env_local = os.environ.get("PGX_DRUG_CPIC_MAPPING_PATH")
+    if env_local:
+        p = Path(env_local).expanduser()
+        if p.is_file():
+            try:
+                df = pd.read_csv(p)
+                logger.info(
+                    "Loaded global drug-to-CPIC mapping from PGX_DRUG_CPIC_MAPPING_PATH %s (%s drugs)",
+                    p,
+                    len(df),
+                )
+                return df
+            except Exception as e:
+                logger.warning("Could not read PGX_DRUG_CPIC_MAPPING_PATH %s: %s", p, e)
+        else:
+            logger.warning("PGX_DRUG_CPIC_MAPPING_PATH set but not a file: %s", p)
+
     # Try local file first
     if global_mapping_path.exists():
         try:
@@ -565,28 +589,76 @@ def load_global_drug_mapping() -> Optional[pd.DataFrame]:
             return df
         except Exception as e:
             logger.warning(f"Could not load global drug mapping: {e}")
-    
-    # Try downloading from S3
+
+    # Try downloading from S3 (optional full URI override)
+    env_s3 = os.environ.get("PGX_DRUG_CPIC_MAPPING_S3")
+    if env_s3 and env_s3.startswith("s3://"):
+        rest = env_s3[5:]
+        if "/" in rest:
+            bucket, key = rest.split("/", 1)
+        else:
+            logger.warning("Invalid PGX_DRUG_CPIC_MAPPING_S3 (expected s3://bucket/key): %s", env_s3)
+            bucket, key = "", ""
+        if bucket and key:
+            try:
+                import boto3
+                s3_client = boto3.client("s3")
+                s3_client.head_object(Bucket=bucket, Key=key)
+                global_mapping_path.parent.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(bucket, key, str(global_mapping_path))
+                logger.info(
+                    "Downloaded global drug-to-CPIC mapping from PGX_DRUG_CPIC_MAPPING_S3 s3://%s/%s",
+                    bucket,
+                    key,
+                )
+                df = pd.read_csv(global_mapping_path)
+                logger.info(f"Loaded global drug-to-CPIC mapping from S3 ({len(df)} drugs)")
+                return df
+            except Exception as e:
+                logger.warning("Could not download global drug mapping from PGX_DRUG_CPIC_MAPPING_S3: %s", e)
+
     try:
         import boto3
         from py_helpers.constants import S3_BUCKET
-        
-        s3_client = boto3.client('s3')
-        s3_key = "gold/pgx_features/global/drug_cpic_mapping_global.csv"
-        
-        # Ensure directory exists
-        global_mapping_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Download from S3
-        s3_client.download_file(S3_BUCKET, s3_key, str(global_mapping_path))
-        logger.info(f"Downloaded global drug-to-CPIC mapping from s3://{S3_BUCKET}/{s3_key}")
-        
-        df = pd.read_csv(global_mapping_path)
-        logger.info(f"Loaded global drug-to-CPIC mapping from S3 ({len(df)} drugs)")
-        return df
+
+        s3_client = boto3.client("s3")
+        buckets: list[str] = [S3_BUCKET]
+        extra = os.environ.get("PGX_DRUG_CPIC_MAPPING_S3_FALLBACK_BUCKETS")
+        if extra:
+            buckets.extend(b.strip() for b in extra.split(",") if b.strip())
+        else:
+            buckets.append("pgx-repository")
+        seen: set[str] = set()
+        buckets = [b for b in buckets if b and b not in seen and not seen.add(b)]
+
+        last_error: Optional[Exception] = None
+        for bucket in buckets:
+            try:
+                s3_client.head_object(Bucket=bucket, Key=s3_key)
+                global_mapping_path.parent.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(bucket, s3_key, str(global_mapping_path))
+                logger.info(
+                    "Downloaded global drug-to-CPIC mapping from s3://%s/%s",
+                    bucket,
+                    s3_key,
+                )
+                df = pd.read_csv(global_mapping_path)
+                logger.info(f"Loaded global drug-to-CPIC mapping from S3 ({len(df)} drugs)")
+                return df
+            except Exception as e:
+                last_error = e
+                logger.debug("Global mapping not at s3://%s/%s: %s", bucket, s3_key, e)
+
+        if last_error is not None:
+            logger.warning(
+                "Could not download global drug mapping from S3 (tried %s key=%s): %s",
+                buckets,
+                s3_key,
+                last_error,
+            )
     except Exception as e:
         logger.warning(f"Could not download global drug mapping from S3: {e}")
-    
+
     return None
 
 

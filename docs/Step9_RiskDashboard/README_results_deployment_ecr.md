@@ -15,10 +15,10 @@ This guide covers deploying the PGx Risk Dashboard using AWS Lambda with contain
 ## Quick Start
 
 ```bash
-# 1. Prepare models
-python prepare_models.py --all
+# 1. Prepare models (from repository root)
+python 10_risk_dashboard/data_preparation/prepare_models.py --all
 
-# 2. Build and push container image
+# 2. Build and push container image (from 10_risk_dashboard/deployment or as documented there)
 ./docker_build.sh
 
 # 3. Create Lambda function (see below)
@@ -29,13 +29,13 @@ python prepare_models.py --all
 ### Step 1: Prepare Models
 
 ```bash
-cd 10_results
-python prepare_models.py --all
+# From repository root
+python 10_risk_dashboard/data_preparation/prepare_models.py --all
 ```
 
-This creates the `models/` directory structure:
+This creates the packaged model layout under `10_risk_dashboard/outputs/models/`:
 ```
-models/
+10_risk_dashboard/outputs/models/
 ├── opioid_ed/
 │   ├── 13_24/
 │   │   ├── catboost.joblib

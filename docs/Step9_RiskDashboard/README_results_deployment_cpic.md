@@ -2,11 +2,11 @@
 
 ## Overview
 
-The PGx Patient Card feature uses the **master Excel file** from `7_pgx_analysis` as the primary data source for gene-drug interactions.
+The PGx Patient Card feature uses the **master Excel file** from `5_pgx_analysis` as the primary data source for gene-drug interactions.
 
 ## Master Excel File
 
-- **Source**: `7_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx`
+- **Source**: `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx`
 - **Official Download**: https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
 - **Content**: 573 gene-drug pairs, 300 drugs, 121 genes
 - **Format**: Excel (.xlsx) file with columns:
@@ -23,24 +23,25 @@ The PGx Patient Card feature uses the **master Excel file** from `7_pgx_analysis
 
 ### 1. Prepare CPIC Data
 
-Run the preparation script to copy the master Excel file:
+From the **repository root**, run the preparation script (copies or downloads into `10_risk_dashboard/outputs/cpic/` for packaging):
 
 ```bash
-cd 10_results
-python prepare_cpic_data.py
+python 10_risk_dashboard/data_preparation/prepare_cpic_data.py
 ```
 
 This will:
-- Copy `cpic_gene-drug_pairs.xlsx` from `7_pgx_analysis/cpic/` to `10_results/data/`
+- Prefer `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx` (or download the official file into that path if missing)
+- Write staged copies to `10_risk_dashboard/outputs/cpic/` (`cpic_gene-drug_pairs.xlsx` and, when possible, `.parquet`)
 
 ### 2. Verify Files
 
 Check that the file is in place:
 
 ```bash
-ls -lh 10_results/data/
+ls -lh 10_risk_dashboard/outputs/cpic/
 # Should show:
 # - cpic_gene-drug_pairs.xlsx
+# - cpic_gene-drug_pairs.parquet (when Excel was read successfully)
 ```
 
 ### 3. Docker Build
@@ -59,16 +60,17 @@ The file will be available in the container at:
 For redundancy, upload to S3:
 
 ```bash
-aws s3 cp 10_results/data/cpic_gene-drug_pairs.xlsx \
-  s3://pgxdatalake/gold/dashboard/metadata/cpic_gene-drug_pairs.xlsx
+aws s3 cp 10_risk_dashboard/outputs/cpic/cpic_gene-drug_pairs.xlsx \
+  s3://pgxdatalake/gold/dashboard/data/cpic_gene-drug_pairs.xlsx
 ```
 
 ## Loading Priority
 
 The Lambda function loads CPIC data in this order:
 
-1. **Container Excel** (`/var/task/data/cpic_gene-drug_pairs.xlsx`) - **PRIMARY**
-2. **S3 Excel** (`gold/dashboard/metadata/cpic_gene-drug_pairs.xlsx`) - Fallback
+1. **Container Parquet** (`/var/task/data/cpic_gene-drug_pairs.parquet`) when present — **preferred** (see `lambda_function.py`)
+2. **Container Excel** (`/var/task/data/cpic_gene-drug_pairs.xlsx`)
+3. **S3** (`gold/dashboard/data/cpic_gene-drug_pairs.parquet` / `.xlsx`) — Fallback
 
 ## Dependencies
 
@@ -87,13 +89,12 @@ To update the CPIC data:
 1. Download the latest Excel file from CPIC:
    ```bash
    wget https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx \
-     -O 7_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
+     -O 5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
    ```
 
 2. Run the preparation script:
    ```bash
-   cd 10_results
-   python prepare_cpic_data.py
+   python 10_risk_dashboard/data_preparation/prepare_cpic_data.py
    ```
 
 3. Rebuild and redeploy the Docker container
@@ -123,8 +124,8 @@ Expected response includes:
 ## Troubleshooting
 
 ### Excel file not found
-- Check that `prepare_cpic_data.py` ran successfully
-- Verify file exists in `10_results/data/`
+- Check that `10_risk_dashboard/data_preparation/prepare_cpic_data.py` ran successfully
+- Verify file exists in `10_risk_dashboard/outputs/cpic/` (or that `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx` exists for the next run)
 - Check Docker build logs for COPY errors
 
 ### pandas/openpyxl import errors

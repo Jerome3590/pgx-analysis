@@ -2,7 +2,7 @@
 
 ## Overview
 
-The ensemble uses **performance-based weights** calculated from Monte Carlo Cross-Validation (MC-CV) results from Step 8 (Final Model). This ensures that better-performing models contribute more to the final prediction.
+The ensemble uses **performance-based weights** calculated from Monte Carlo Cross-Validation (MC-CV) results from **Step 6** (`6_final_model`). This ensures that better-performing models contribute more to the final prediction.
 
 ## Weight Calculation Process
 
@@ -10,7 +10,7 @@ The ensemble uses **performance-based weights** calculated from Monte Carlo Cros
 
 During model preparation (`prepare_models.py`), the script reads:
 ```
-8_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_mc_cv_results.csv
+6_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_mc_cv_results.csv
 ```
 
 This CSV contains performance metrics for each model across multiple MC-CV splits:
@@ -159,7 +159,7 @@ If models are retrained and MC-CV results change:
 
 ## References
 
-- MC-CV Results: `8_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_mc_cv_results.csv`
-- Model Summary: `8_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_model_summary.txt`
-- Feature Schema: `10_results/models/{cohort}/{age_band}/feature_schema.json`
+- MC-CV Results: `6_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_mc_cv_results.csv`
+- Model Summary: `6_final_model/outputs/{cohort}/{age_band}/models/{cohort}_{age_band}_model_summary.txt`
+- Feature Schema (after `10_risk_dashboard/data_preparation/prepare_models.py`): `10_risk_dashboard/outputs/models/{cohort}/{age_band}/feature_schema.json` (also uploaded under `s3://pgxdatalake/gold/dashboard/models/...` for Lambda)
 

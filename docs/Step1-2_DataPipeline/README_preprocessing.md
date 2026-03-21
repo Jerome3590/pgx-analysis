@@ -392,14 +392,7 @@ When initial TXT conversion encounters invalid rows, they are moved to `s3://pgx
 5. **Data Validation**: Comprehensive quality checks and error handling
 6. **Output Generation**: Save cleaned data to gold tier
 
-### Legacy Partition Processing Process
-
-1. **Original Data Loading**: Load raw pharmacy/medical data
-2. **Demographics Lookup Join**: LEFT JOIN with pre-imputed demographics
-3. **Age Band Filtering**: Instant filtering using pre-imputed age data
-4. **Drug Name Normalization**: Apply drug mapping transformations
-5. **Data Validation**: Comprehensive quality checks and error handling
-6. **Output Generation**: Save cleaned data to gold tier
+If pre-imputed partitions are missing for a worker, the cleaner can **fall back** to raw silver plus the demographics lookup (slower path, same intended gold schema when configured).
 
 ## Data Quality Improvements
 
@@ -745,33 +738,14 @@ echo "✅ Complete optimized pipeline completed at: $(date)"
 - Ensure high-bandwidth S3 access
 - Optimize DuckDB settings for your hardware
 
-## Data Flow Comparison
+## Production data flow
 
-### Optimized Approach (Recommended)
 ```
-Original Data (Silver)
-    ↓
-Global Imputation (Phase 1)
-    ↓
-Imputed Partitioned Data (Silver)
-    ↓
-Optimized Partition Processing (Phase 2)
-    ↓
-Final Gold Data
+Bronze → Global imputation (Phase 1) → Imputed partitioned silver
+    → Partition cleaning (Phase 2) → Gold pharmacy / medical
 ```
 
-### Legacy Approach
-```
-Original Data (Silver)
-    ↓
-Global Imputation (Phase 1) - Demographics Only
-    ↓
-Demographics Lookup Table (Silver)
-    ↓
-Partition Processing with Lookup (Phase 2)
-    ↓
-Final Gold Data
-```
+**Lesson learned:** Run **global imputation once**, then drive gold from **partitioned imputed** inputs so workers stay small and parallelize cleanly.
 
 ## Support
 

@@ -395,14 +395,6 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 - Workflow: `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`
 - Dashboard visuals (alternative to Phase 4): `pgx_dashboard_visuals.py` (from repo root)
 
-Legacy shell scripts are in `archived/utility_scripts/` (if present):
-
-```bash
-# For a single cohort/age band (legacy):
-bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
-# ... etc.
-```
-
 **Note**: After automated Steps 3–8, you still need to:
 1. Run Step 1 (cleanup) manually
 2. Run Step 2 (cohort creation) manually (polypharmacy uses fixed 21-day window)

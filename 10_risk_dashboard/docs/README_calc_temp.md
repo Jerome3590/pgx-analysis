@@ -46,7 +46,7 @@ Run the notebook from the project root or from `10_risk_dashboard` so that paths
 
 - **Feature importance:**  
   - Step 3b: `3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv`  
-  - Step 3 (fallback): `3_feature_importance/outputs/{cohort}/{age_band}/{cohort}_{age_band}_aggregated_feature_importance.csv`
+  - Step 3a (fallback): `3a_feature_importance/outputs/{cohort}/{cohort}_{age_band}_aggregated_feature_importance.csv` (layout may vary; see `3a_feature_importance/README.md`)
 - **Final models:** `6_final_model/outputs/{cohort}/{age_band}/`
 - **SHAP/FFA (optional):** Step 7 and Step 8 outputs (see `combine_shap_ffa_results.py`).
 

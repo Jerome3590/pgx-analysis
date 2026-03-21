@@ -154,8 +154,8 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 ├── update_cpic_drug_list.py           # Update CPIC drug list from pairs file
 ├── fetch_cpic_drug_list.py            # Fetch CPIC drug list (fallback)
 ├── search_pubmed_drug_gene.py         # PubMed search for drug-gene relationships (optional)
-├── WORKFLOW_USAGE.md                  # Legacy workflow description (current pipeline: CPIC drug counts only; no alleles)
-├── README_pgx.md                      # Legacy doc (current: README.md — CPIC drug counts only; alleles in PGx card)
+├── WORKFLOW_USAGE.md                  # Drug–CPIC mapping in production (supplements this README)
+├── README_pgx.md                      # Short pointer to README.md / WORKFLOW_USAGE.md
 ├── outputs/                           # Analysis outputs
 │   ├── feature_engineering/           # Final PGx features
 │   │   └── pgx_features_{cohort}_{age_band}.csv
@@ -196,30 +196,21 @@ drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 - **`outputs/feature_engineering/pgx_added_features_{cohort}_{age_band}.csv`**: Final PGx features used by **Step 6** (`run_final_model.py`). Written by `add_pgx_features_to_model_data.py`; outputs are only under `5_pgx_analysis/outputs/` and S3 `gold/pgx_features/{cohort}/{age_band}/`.
 - **`outputs/global/drug_cpic_mapping_global.csv`**: Global drug-to-CPIC mapping (tracked in Git as shared resource)
 
-### Legacy/Unused Files (Not Tracked)
+### Optional / local-only data
 
-The following files exist in the `data/` directory but are **not used** by the current workflow and are **not tracked in Git**:
-- `data/*.zip` files (various PharmGKB/CPIC data archives - not used)
-- `data/pgx_allele_frequencies_global.csv` (not used - allele frequencies removed)
-- `data/pgx_drug_gene_mappings_global.csv` (not used - replaced by outputs/global/)
+Some large or optional files under `data/` may be untracked (archives, experiments). **Step 5 in production** relies on `cpic_drug_list.json`, CPIC pairs sources, and **`outputs/global/drug_cpic_mapping_global.csv`** as documented above.
 
-### Documentation Files
+### Documentation
 
-- **`README.md`**: Main documentation (this file) - **USE THIS**
-- **`WORKFLOW_USAGE.md`**: Outdated documentation (references old allele frequency workflow)
-- **`README_pgx.md`**: Legacy documentation (references old workflow with Step 7)
+- **`README.md`** — This file (operator reference)
+- **`WORKFLOW_USAGE.md`** — How drug–CPIC mapping fits the pipeline
+- **`README_pgx.md`** — Index pointer
 
 ---
 
 ## Output Files
 
-**For complete output paths documentation, see:** [`docs/README_analysis_workflow.md`](../docs/README_analysis_workflow.md#output-paths-summary)
-
-The output paths summary has been migrated to the main pipeline documentation. See the link above for:
-- Local file paths (prerequisite files, global cache, feature files)
-- S3 output paths (primary location, global cache, legacy paths, checkpoints)
-- File naming conventions
-- Idempotency check information
+**Output paths and checkpoints** are summarized in [`docs/CrossStep_Workflow/README_analysis_workflow.md`](../docs/CrossStep_Workflow/README_analysis_workflow.md) and Step 5 overview under `docs/Step5_PGxAnalysis/`.
 
 ---
 
@@ -276,7 +267,15 @@ This step follows the standard analysis workflow pattern:
 3. **Output Structure**: Results saved to `outputs/feature_engineering/` and uploaded to S3
 4. **Sequential Execution**: Must complete Step 4 before running this step
 
-See `docs/README_analysis_workflow.md` for the complete workflow framework.
+See [`docs/CrossStep_Workflow/README_analysis_workflow.md`](../docs/CrossStep_Workflow/README_analysis_workflow.md) for the full pipeline picture.
+
+---
+
+## Production lessons learned
+
+- **Global mapping is mandatory for meaningful `pgx_num_cpic_drugs`.** Missing local file + missing S3 object ⇒ all counts read as non-CPIC. Ship `drug_cpic_mapping_global.csv` with the worker or guarantee the `gold/pgx_features/global/` object exists.
+- **Refresh mapping** when Step 3a drug vocab changes significantly (`build_global_drug_cpic_mapping.py`, then verify uploads).
+- **Inference vs training:** This step only needs claims-derived drug names and the mapping; genotype is handled in the **PGx card** path, not here.
 
 ---
 
@@ -301,8 +300,9 @@ Alleles are **not** used in this analysis pipeline. They are used in the **PGx c
 ### Global Drug Mapping Not Found
 
 If `drug_cpic_mapping_global.csv` is not found:
-1. Check S3: `s3://pgxdatalake/gold/pgx_features/global/drug_cpic_mapping_global.csv`
-2. Or regenerate: `python 5_pgx_analysis/build_global_drug_cpic_mapping.py`
+1. Check S3: `s3://pgxdatalake/gold/pgx_features/global/drug_cpic_mapping_global.csv` (fallback bucket attempts are implemented in `map_drugs_to_genes.load_global_drug_mapping`)
+2. Or regenerate and upload: `python 5_pgx_analysis/build_global_drug_cpic_mapping.py` (uploads to the gold path when AWS credentials allow)
+3. On workers without the repo file: upload the CSV to one of those S3 paths, or set `PGX_DRUG_CPIC_MAPPING_PATH` to a local file, or `PGX_DRUG_CPIC_MAPPING_S3` to a full `s3://bucket/key`
 
 ### No CPIC Drugs Identified
 

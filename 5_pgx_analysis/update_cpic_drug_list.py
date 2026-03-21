@@ -8,7 +8,7 @@ a JSON file for fuzzy matching.
 
 Primary source: Official CPIC Excel file from CPIC website
   - Download from: https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
-  - Location: 7_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
+  - Location: 5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
 
 Fallback: CPIC pairs CSV file (data/cpicPairs.csv)
 """
@@ -29,15 +29,15 @@ def update_cpic_drug_list():
 
     Primary source: Official CPIC Excel file from CPIC website
       - Download from: https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
-      - Location: 7_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
+      - Location: 5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
 
     Fallback: CPIC pairs CSV file (data/cpicPairs.csv)
     """
 
     # Try official CPIC Excel file first (primary source)
-    cpic_excel_path = PROJECT_ROOT / "7_pgx_analysis" / "cpic" / "cpic_gene-drug_pairs.xlsx"
-    cpic_pairs_path = PROJECT_ROOT / "7_pgx_analysis" / "data" / "cpicPairs.csv"
-    output_path = PROJECT_ROOT / "7_pgx_analysis" / "data" / "cpic_drug_list.json"
+    cpic_excel_path = PROJECT_ROOT / "5_pgx_analysis" / "cpic" / "cpic_gene-drug_pairs.xlsx"
+    cpic_pairs_path = PROJECT_ROOT / "5_pgx_analysis" / "data" / "cpicPairs.csv"
+    output_path = PROJECT_ROOT / "5_pgx_analysis" / "data" / "cpic_drug_list.json"
 
     # Read CPIC pairs - prefer Excel file if available (PRIMARY SOURCE)
     source_name = None

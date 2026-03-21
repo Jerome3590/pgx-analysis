@@ -128,9 +128,9 @@ s3://pgx-repository/pipeline_checkpoints/{step_name}/{cohort}/{age_band}/checkpo
 | **7: SHAP** | ⏳ | Local binary | TODO | `pipeline_checkpoints/7_shap_analysis/{cohort}/{age_band}/` |
 | **8: FFA** | ⏳ | Local JSON | TODO | `pipeline_checkpoints/8_ffa_analysis/{cohort}/{age_band}/` |
 | **9: Combined Analysis** | ⏳ | Not yet implemented | TODO | `pipeline_checkpoints/combined_analysis/{cohort}/{age_band}/` |
-| **10: Dashboard Visuals** | ✅ | Yes (DTW) | Yes | `pipeline_checkpoints/9_dashboard_visuals/{cohort}/{age_band}/` |
+| **9: Dashboard visuals** | ✅ | Yes (DTW) | Yes | `pipeline_checkpoints/9_dashboard_visuals/{cohort}/{age_band}/` |
 
-**Note:** Step 10 (dashboard visuals) uses checkpoint name `9_dashboard_visuals` for historical reasons.
+**Note:** Checkpoint folder is `9_dashboard_visuals` (matches **Step 9** in the main pipeline; see root `README.md`). Notebook **`4_dashboard_visuals.ipynb`** runs this step.
 
 ### Helper Module: checkpoint_utils.py
 
@@ -330,7 +330,7 @@ Use `./utility_scripts/cleanup_cohort_data.sh` to clear:
 | Location | Purpose |
 |----------|---------|
 | `s3://pgx-repository/pipeline_checkpoints/` | Step checkpoints used by `py_helpers.checkpoint_utils` (1b, 4_model_data, 6, etc.). Steps skip if checkpoint exists. |
-| `s3://pgx-repository/pgx-pipeline-status/` | Legacy/alternate pipeline status (create_cohort, feature_importance_eda, model_data, final_model). |
+| `s3://pgx-repository/pgx-pipeline-status/` | Alternate pipeline status keys used by some utilities (cohort, FI EDA, model_data, final_model). |
 
 Clearing these forces steps to re-run (unless they also check for output files in S3).
 
@@ -349,8 +349,8 @@ Clearing these forces steps to re-run (unless they also check for output files i
 | `gold/shap_analysis/` | 7 | SHAP outputs. |
 | `gold/ffa_analysis/` | 8 | FFA (AXP) outputs. |
 | `gold/combined_analysis/` | 9 | Combined risk dashboard inputs. |
-| `gold/models/` | 6 (legacy) | Legacy trained models path. |
-| `gold/4a_model_data/` | 4 (legacy) | Legacy model data path. |
+| `gold/models/` | 6 | Alternate trained-model prefix (some tooling still references it). |
+| `gold/4a_model_data/` | 4 | Alternate model-data prefix; prefer `gold/cohorts_model_data/`. |
 
 #### 3. EC2 / Local Artifacts
 
@@ -368,8 +368,7 @@ Clearing these forces steps to re-run (unless they also check for output files i
 | `data/gold/cohorts/` | 2 | Project-local copy of cohort parquet (same layout as S3 gold/cohorts). |
 | `2_create_cohort/` (cohort_metrics, etc.) | 2 | Local cohort metrics. |
 | `3b_feature_importance_eda/outputs/` | 3b | Feature importance EDA. **Preserved by default.** |
-| `3_feature_importance/outputs/` | 3a | Feature importance (legacy naming). **Preserved by default.** |
-| `3a_feature_importance/outputs/` | 3a | Feature importance MC CV + aggregated FI. **Preserved by default.** |
+| `3a_feature_importance/outputs/` | 3a | Monte Carlo feature importance (aggregated FI, plots). **Preserved by default.** |
 | `1b_apcd_event_filter/outputs/` | 1b | Event filter outputs, for_review. |
 | `4_model_data/` (local outputs under project) | 4 | model_events*.parquet if written to project. |
 | `5_pgx_analysis/` outputs | 5 | PGx feature files. |
@@ -393,10 +392,9 @@ Clearing these forces steps to re-run (unless they also check for output files i
    - `pgx-pipeline-status/feature_importance_eda`
    - **Use `--clear-feature-importance` flag to clear these**
 
-3. **Historical feature importance bucket:**
-   - `s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/`
-   - Has versioning enabled - never deleted
-   - Step 1b reads from this when local/pgxdatalake FI is missing
+3. **Read-only baseline feature importance (pgx-repository):**
+   - `s3://pgx-repository/pgx-analysis/3_feature_importance/outputs/` — versioned store of **aggregated baseline FI** used when building the second FI pass and when 1b needs FI that is not yet on `pgxdatalake` / local.
+   - **Do not delete**; Step 3a second-pass writes go to **pgxdatalake** only so this baseline is never overwritten.
 
 4. **Baseline aggregated feature importances:**
    - `_baseline/` under `gold/feature_importance/` in pgxdatalake
@@ -535,7 +533,7 @@ Clearing these forces steps to re-run (unless they also check for output files i
 - [1_cohort_workflow.ipynb](../1_cohort_workflow.ipynb) - Cohort creation (Step 2)
 - [2_feature_importance.ipynb](../2_feature_importance.ipynb) - Feature importance (Steps 3a/3b)
 - [3_model_train_shap_ffa.ipynb](../3_model_train_shap_ffa.ipynb) - Model training and analysis (Steps 4-8)
-- [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb) - Dashboard visuals (Step 10)
+- [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb) - Dashboard visuals (Step 9, `9_dashboard_visuals/`)
 - [5_build_and_deploy.ipynb](../5_build_and_deploy.ipynb) - Build and deploy risk calculator
 
 ---

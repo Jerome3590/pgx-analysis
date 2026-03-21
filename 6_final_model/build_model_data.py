@@ -187,7 +187,7 @@ def build_model_data(
         
         # 1.5 PGx Features (with target and control)
         logger.info("\n--- PGx Features ---")
-        pgx_create = PROJECT_ROOT / "7_pgx_analysis" / "create_pgx_features_patient_level.py"
+        pgx_create = PROJECT_ROOT / "5_pgx_analysis" / "create_pgx_features_patient_level.py"
         if pgx_create.exists():
             success = run_script(
                 pgx_create,
@@ -197,7 +197,7 @@ def build_model_data(
             if not success:
                 logger.warning("PGx feature creation failed, continuing...")
         
-        pgx_add = PROJECT_ROOT / "7_pgx_analysis" / "add_pgx_features_to_model_data.py"
+        pgx_add = PROJECT_ROOT / "5_pgx_analysis" / "add_pgx_features_to_model_data.py"
         if pgx_add.exists():
             success = run_script(
                 pgx_add,

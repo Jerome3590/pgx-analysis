@@ -1,10 +1,7 @@
-# PGx (Pharmacogenomics) — Legacy Doc
+# PGx Step 5 — quick pointer
 
-**Use [README.md](README.md) for current documentation.**
+**Authoritative doc:** [`README.md`](README.md)
 
-The current Step 5 pipeline is **CPIC drug counts only**:
+**Drug mapping details:** [`WORKFLOW_USAGE.md`](WORKFLOW_USAGE.md)
 
-- **Features:** `pgx_num_drugs`, `pgx_num_cpic_drugs` (no alleles, no gene-level features in this step).
-- **Alleles:** Not used here. Alleles are used in the **PGx card** when patients submit SNP data with alleles encoded (dashboard/Lambda).
-
-This file described an older workflow (e.g. `7_pgx_analysis` paths, `add_allele_frequencies.py`, drug–gene exposure counts). That workflow is superseded by the simpler CPIC drug-count approach in `README.md`.
+For end-to-end context, see the repository root **`README.md`** (steps 4 → 5 → 6).

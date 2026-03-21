@@ -65,7 +65,7 @@ Based on final production workflow with DuckDB optimizations (4 threads per conn
 - Steps 3a–3b (Feature Importance) are complete and reused
 - Steps 4–9 are sequential per cohort (Step 7 must complete before Step 8)
 - DuckDB uses 4 threads per connection (optimized for 32-core EC2)
-- Run via the three workflow notebooks; legacy shell scripts are in `archived/utility_scripts/`
+- Run the **five workflow notebooks** in order (see table below). Use notebook cells or parallel terminals for multiple `(cohort, age_band)` when I/O allows.
 
 ---
 
@@ -73,13 +73,11 @@ Based on final production workflow with DuckDB optimizations (4 threads per conn
 
 ### Strategy 1: All Cohorts in Parallel (Maximum Throughput)
 
-**Run the five workflow notebooks in order** (1 → 2 → 5 → 6 → 7). For parallel cohort execution within a notebook, run cells for multiple (cohort, age_band) in separate kernels or use the notebook’s loop over cohorts/age bands.
-
-Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.sh`) are in **archived/utility_scripts/**; use the notebooks as the primary entry point.
+**Run the five workflow notebooks in order:** `1_cohort_workflow.ipynb` → `2_feature_importance.ipynb` → `3_model_train_shap_ffa.ipynb` → `4_dashboard_visuals.ipynb` → `5_build_and_deploy.ipynb`. For parallel cohort execution within a step, run cells for multiple `(cohort, age_band)` in separate kernels or processes when the step supports it.
 
 ![Workflow Execution](workflow_execution.png)
 
-**Primary entry:** Run the three workflow notebooks in order. For per-cohort parallel runs, use the notebook cells or (legacy) `archived/utility_scripts/run_cohort_workflow.sh` per cohort/age_band in separate terminals.
+**Primary entry:** Same notebook sequence. For per-cohort parallelism, duplicate the environment per cohort/age_band (separate kernels or EC2 instances) so NVMe and DuckDB temp paths do not contend.
 
 **Total Wall Time:** ~6 hours (bottleneck is the longest cohort: 55-64 or 65-74)
 
@@ -127,15 +125,13 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 **Batch 1: Opioid ED cohorts (4 cohorts in parallel)**
 ```bash
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
-```
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb```
 - Cohorts: 13-24, 25-44, 45-54, 55-64
 - **Time:** ~6 hours (bottleneck: 55-64)
 
 **Batch 2: Non-Opioid ED cohorts (3 cohorts in parallel)**
 ```bash
-# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
-```
+# Use workflow notebooks```
 - Cohorts: 65-74, 75-84, 85-114 (full set for non_opioid_ed)
 - **Time:** ~6 hours (bottleneck: 65-74)
 
@@ -155,8 +151,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Single command runs all cohorts
-# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
-```
+# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb```
 
 **Expected:** All complete in ~6 hours (bottleneck: 55-64 or 65-74)
 
@@ -170,12 +165,10 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Day 1: Opioid ED cohorts (4 cohorts in parallel)
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
-# Expected: ~6 hours
+# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb# Expected: ~6 hours
 
 # Day 2: Non-Opioid ED cohorts (3 cohorts in parallel)
-# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
-# Expected: ~6 hours
+# Use workflow notebooks# Expected: ~6 hours
 ```
 
 **Total Wall Time:** ~12 hours
@@ -186,9 +179,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 
 ```bash
 # Run individual cohorts
-# Use workflow notebooks; legacy: archived/utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
-# archived/utility_scripts/run_cohort_workflow.sh opioid_ed 25-44
-# ... etc
+# Use workflow notebooks; one cohort/age_band per run or parallelize as above
 ```
 
 **Total Wall Time:** ~18-20 hours (if sequential)
@@ -250,8 +241,7 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 **Best Strategy: Run all 7 cohorts in parallel**
 
 ```bash
-# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_all_cohorts_workflow.sh)
-```
+# Use 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb```
 
 **Why:**
 1. **Optimal CPU utilization:** ~28 cores (87.5%) - no oversubscription
@@ -273,28 +263,21 @@ Legacy shell scripts (e.g. `run_cohort_workflow.sh`, `run_all_cohorts_workflow.s
 ### Run All Cohorts in Parallel (Recommended)
 
 ```bash
-# Run 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb for Steps 4-9 (or archived/utility_scripts/run_all_cohorts_workflow.sh)
-```
+# Run 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb for Steps 4-9```
 
 **Expected:** All cohorts complete in ~6 hours
 
 ### Run Cohort Groups Separately
 
-```bash
+```text
 # Opioid ED cohorts (4 cohorts in parallel)
-# Use 1_cohort_workflow.ipynb, 2_feature_importance.ipynb, 3_model_train_shap_ffa.ipynb, 4_dashboard_visuals.ipynb, 5_build_and_deploy.ipynb (or archived/utility_scripts/run_opioid_ed_workflow.sh)
-
-# Non-Opioid ED cohorts (3 cohorts in parallel)
-# Use workflow notebooks (or archived/utility_scripts/run_non_opioid_ed_workflow.sh)
+# Run: 1_cohort_workflow.ipynb → 2_feature_importance.ipynb → 3_model_train_shap_ffa.ipynb → 4_dashboard_visuals.ipynb → 5_build_and_deploy.ipynb
+# Non-Opioid ED cohorts (3 cohorts in parallel): same notebook chain for those cohort/age_band cells
 ```
 
 ### Run Individual Cohorts
 
-```bash
-# Single cohort/age band
-bash archived/utility_scripts/run_cohort_workflow.sh opioid_ed 13-24
-bash archived/utility_scripts/run_cohort_workflow.sh non_opioid_ed 65-74
-```
+Use the same notebooks; execute only the `(cohort, age_band)` cells you need. Parallelize with separate kernels or machines if resources allow.
 
 **Available Cohorts:**
 - **opioid_ed**: 13-24, 25-44, 45-54, 55-64
