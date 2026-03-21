@@ -703,6 +703,31 @@
       border-radius: 0.25rem;
       color: #0f172a;
     }
+    /* PGx Cohort – Supporting Literature (PubMed citations) */
+    .pgx-citations-section { margin-top: 1.5rem; }
+    .pgx-gene-card { border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 0.6rem; background: #fff; }
+    .pgx-gene-card summary { padding: 0.65rem 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #0f172a; list-style: none; user-select: none; flex-wrap: wrap; }
+    .pgx-gene-card summary::-webkit-details-marker { display: none; }
+    .pgx-gene-card summary:hover { background: #f8fafc; border-radius: 0.5rem; }
+    .pgx-gene-card[open] > summary { border-bottom: 1px solid #e2e8f0; border-radius: 0.5rem 0.5rem 0 0; }
+    .pgx-gene-full-name { font-weight: 400; color: #64748b; font-size: 0.85rem; }
+    .pgx-cpic-badge  { background: #dbeafe; color: #1d4ed8; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 0.25rem; }
+    .pgx-dosing-badge { background: #dcfce7; color: #15803d; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 0.25rem; }
+    .pgx-vip-link  { font-size: 0.78rem; color: #7c3aed; margin-left: auto; text-decoration: none; white-space: nowrap; }
+    .pgx-vip-link:hover { text-decoration: underline; }
+    .pgx-cit-count { margin-left: auto; font-size: 0.78rem; color: #94a3b8; }
+    .pgx-gene-card-body { padding: 0.75rem 1rem 0.5rem; }
+    .pgx-citations-group { margin-bottom: 0.75rem; }
+    .pgx-citations-group h4 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin: 0 0 0.4rem; }
+    .pgx-citation-list { list-style: none; padding: 0; margin: 0; }
+    .pgx-citation-list li { padding: 0.35rem 0; border-bottom: 1px solid #f1f5f9; }
+    .pgx-citation-list li:last-child { border-bottom: none; }
+    .pgx-citation-title { color: #1d4ed8; text-decoration: none; font-size: 0.875rem; }
+    .pgx-citation-title:hover { text-decoration: underline; }
+    .pgx-citation-meta { font-size: 0.77rem; color: #64748b; margin-top: 0.1rem; }
+    .pgx-no-cits { font-size: 0.84rem; color: #94a3b8; font-style: italic; }
+    .pgx-citations-meta-bar { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.9rem; }
+
     #patient-codes-tab .code-subpanel .panel-heading {
       font-size: 1.1rem;
       font-weight: 600;
@@ -1361,6 +1386,17 @@
           <div id="cohort-pgx-iframe-container" style="min-height: 600px;">
             <iframe id="cohort-pgx-iframe" style="width: 100%; height: 700px; border: 1px solid #e2e8f0; border-radius: 0.5rem;" title="Cohort PGx network topology"></iframe>
           </div>
+        </div>
+      </div>
+
+      <!-- Supporting Literature (PubMed) – populated by JS after network loads -->
+      <div id="cohort-pgx-citations-section" class="pgx-citations-section" style="display:none;">
+        <div class="panel full-width">
+          <h2>Supporting Literature (PubMed)</h2>
+          <p class="subtitle"><small style="color:#64748b;">Top publications (last 5 years) supporting each PGx gene identified in this cohort. Sourced via NCBI PubMed E-utilities using the same <em>search_pubmed_all</em> search methodology as the project literature review. Click a gene to expand citations.</small></p>
+          <div id="cohort-pgx-citations-meta" class="pgx-citations-meta-bar"></div>
+          <div id="cohort-pgx-citations-loading" style="display:none;color:#64748b;font-size:0.875rem;">Loading citations…</div>
+          <div id="cohort-pgx-citations-content"></div>
         </div>
       </div>
     </div>
@@ -3062,6 +3098,69 @@
     }
   });
 
+  // ---- PGx Cohort: Supporting Literature helpers ----
+
+  function _renderPgxCitations(data) {
+    const section  = document.getElementById("cohort-pgx-citations-section");
+    const metaBar  = document.getElementById("cohort-pgx-citations-meta");
+    const content  = document.getElementById("cohort-pgx-citations-content");
+    const loading  = document.getElementById("cohort-pgx-citations-loading");
+    if (!section || !content) return;
+    if (loading) loading.style.display = "none";
+    const citations = data.citations || {};
+    const genes = Object.keys(citations);
+    if (!genes.length) {
+      content.innerHTML = '<p class="pgx-no-cits">No citations available for this cohort.</p>';
+      section.style.display = "";
+      return;
+    }
+    const ctxKw = data.context_keyword || "cohort context";
+    if (metaBar) metaBar.textContent = genes.length + " genes queried · Date range: " + (data.date_range || "last 5 years") + " · Context keyword: " + ctxKw;
+
+    function _citList(items, label) {
+      if (!items || !items.length) return '<p class="pgx-no-cits">No ' + label + ' citations found in the last 5 years.</p>';
+      return '<ul class="pgx-citation-list">' + items.map(function(c) {
+        var authors = (c.authors && c.authors.length) ? c.authors.join(", ") + (c.authors.length >= 3 ? " et al." : "") : "";
+        var meta = [authors, c.journal, c.year].filter(Boolean).join(" · ");
+        var ftLink = c.full_text_url ? ' · <a href="' + c.full_text_url + '" target="_blank" rel="noopener">Full text (PMC)</a>' : "";
+        var pmcTag = c.pmc_id ? ' <span style="color:#94a3b8;font-size:0.72rem;">' + c.pmc_id + "</span>" : "";
+        return '<li><a class="pgx-citation-title" href="' + c.url + '" target="_blank" rel="noopener">' + (c.title || c.pmid) + '</a><div class="pgx-citation-meta">' + meta + ftLink + pmcTag + '</div></li>';
+      }).join("") + "</ul>";
+    }
+
+    content.innerHTML = genes.map(function(gene) {
+      var g = citations[gene];
+      var badges = (g.cpic_gene ? '<span class="pgx-cpic-badge">CPIC</span> ' : '') + (g.has_cpic_dosing_guideline ? '<span class="pgx-dosing-badge">Dosing</span>' : '');
+      var vipLink = g.vip_url ? '<a class="pgx-vip-link" href="' + g.vip_url + '" target="_blank" rel="noopener" title="ClinPGx VIP page">VIP ↗</a>' : "";
+      var fullName = g.gene_name ? '<span class="pgx-gene-full-name">' + g.gene_name + "</span>" : "";
+      var pgxCount = (g.pharmacogenomics || []).length;
+      var ctxCount = (g.cohort_context   || []).length;
+      var total = pgxCount + ctxCount;
+      var ctxLabel = ctxKw.charAt(0).toUpperCase() + ctxKw.slice(1);
+      return '<details class="pgx-gene-card"><summary><span>' + gene + "</span> " + fullName + " " + badges + " " + vipLink + '<span class="pgx-cit-count">' + total + ' citation' + (total !== 1 ? 's' : '') + "</span></summary>"
+        + '<div class="pgx-gene-card-body">'
+        + '<div class="pgx-citations-group"><h4>Pharmacogenomics Evidence (' + pgxCount + ')</h4>' + _citList(g.pharmacogenomics, "pharmacogenomics") + "</div>"
+        + '<div class="pgx-citations-group"><h4>' + ctxLabel + ' Context (' + ctxCount + ')</h4>' + _citList(g.cohort_context, ctxKw) + "</div>"
+        + "</div></details>";
+    }).join("");
+    section.style.display = "";
+  }
+
+  async function _loadPgxCitations(citationsUrl) {
+    var section = document.getElementById("cohort-pgx-citations-section");
+    var loading = document.getElementById("cohort-pgx-citations-loading");
+    if (!citationsUrl || !section) return;
+    section.style.display = "";
+    if (loading) loading.style.display = "";
+    try {
+      var resp = await fetch(citationsUrl);
+      if (!resp.ok) { if (loading) loading.style.display = "none"; return; }
+      _renderPgxCitations(await resp.json());
+    } catch(e) {
+      if (loading) loading.style.display = "none";
+    }
+  }
+
   // PGx Cohort Tab: load network topology URL and show in iframe
   document.getElementById("btnLoadCohortPgx")?.addEventListener("click", async () => {
     const cohort = document.getElementById("cohort-pgx-cohort").value;
@@ -3075,11 +3174,17 @@
     const binLabelPgx = nEventBinPgx && nEventBinPgx !== "all" ? ` [${nEventBinPgx} density]` : "";
     document.getElementById("cohort-pgx-status").textContent = `Loading PGx Cohort network${binLabelPgx}...`;
     document.getElementById("cohort-pgx-status").className = "status-message info";
+    // Reset citations section for fresh load
+    const _citSec = document.getElementById("cohort-pgx-citations-section");
+    if (_citSec) { _citSec.style.display = "none"; }
+    const _citContent = document.getElementById("cohort-pgx-citations-content");
+    if (_citContent) _citContent.innerHTML = "";
     try {
       const iframe = document.getElementById("cohort-pgx-iframe");
       const manifest = await getDashboardManifest().catch(function() { return null; });
       // Per-bin: try density/{bin}/network_topology.html first; full-cohort otherwise
-      let staticPgxUrl = (nEventBinPgx && nEventBinPgx !== "all")
+      const _binPath = nEventBinPgx && nEventBinPgx !== "all";
+      let staticPgxUrl = _binPath
         ? staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/density/" + nEventBinPgx + "/network_topology.html")
         : (function() {
             if (manifest) {
@@ -3091,12 +3196,17 @@
             }
             return staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/network_topology.html");
           }());
+      // Static citations URL mirrors the network topology directory
+      const staticCitationsUrl = _binPath
+        ? staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/density/" + nEventBinPgx + "/pubmed_citations.json")
+        : staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/pubmed_citations.json");
       const staticResp = await fetch(staticPgxUrl, { method: "HEAD" });
       if (iframe) {
         if (staticResp.ok) {
           iframe.src = staticPgxUrl;
           document.getElementById("cohort-pgx-status").textContent = `PGx Cohort network loaded${binLabelPgx}. View in iframe above.`;
           document.getElementById("cohort-pgx-status").className = "status-message success";
+          _loadPgxCitations(staticCitationsUrl);
         } else {
           const binParam = nEventBinPgx && nEventBinPgx !== "all" ? `&n_event_bin=${encodeURIComponent(nEventBinPgx)}` : "";
           const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}${binParam}`);
@@ -3107,6 +3217,7 @@
             const fallbackNote = data.data_scope === "full_cohort_fallback" && data.message ? ` (${data.message})` : "";
             document.getElementById("cohort-pgx-status").textContent = `PGx Cohort network loaded${binLabelPgx}. View in iframe above.${fallbackNote}`;
             document.getElementById("cohort-pgx-status").className = data.data_scope === "full_cohort_fallback" ? "status-message info" : "status-message success";
+            _loadPgxCitations(data.citations_url || staticCitationsUrl);
           } else {
             iframe.src = "about:blank";
             document.getElementById("cohort-pgx-status").textContent = "Network topology not available. Run Cohort PGx pipeline (build_network_topology) and sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3.";
