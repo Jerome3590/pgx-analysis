@@ -662,6 +662,81 @@ def load_global_drug_mapping() -> Optional[pd.DataFrame]:
     return None
 
 
+def ensure_global_drug_mapping(
+    cohort: Optional[str] = None,
+    age_band: Optional[str] = None,
+) -> Optional[pd.DataFrame]:
+    """
+    Load global drug-to-CPIC mapping; if missing locally and on S3, run ``build_global_drug_cpic_mapping.py``.
+
+    - **Idempotent:** the build script skips when a **non-empty** CSV exists and is newer than all
+      source feature-importance files (unless ``--force`` is used inside a retry).
+    - Disable auto-build: set ``PGX_AUTO_BUILD_GLOBAL_MAPPING=0`` (only ``load_global_drug_mapping`` runs).
+
+    Parameters
+    ----------
+    cohort, age_band
+        Passed to the build script so minimal checkouts can still find cohort FI when present.
+
+    Returns
+    -------
+    Same as ``load_global_drug_mapping`` (may be empty DataFrame if no FI sources exist).
+    """
+    if os.environ.get("PGX_AUTO_BUILD_GLOBAL_MAPPING", "1").strip().lower() in (
+        "0",
+        "false",
+        "no",
+    ):
+        return load_global_drug_mapping()
+
+    df = load_global_drug_mapping()
+    if df is not None and len(df) > 0:
+        return df
+
+    global_mapping_path = (
+        PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_global.csv"
+    )
+    need_force = False
+    if df is not None and len(df) == 0:
+        need_force = True
+    elif global_mapping_path.exists() and global_mapping_path.stat().st_size < 64:
+        # Header-only or tiny broken file — rebuild
+        need_force = True
+
+    logger.warning(
+        "Global drug-to-CPIC mapping missing or empty; running build_global_drug_cpic_mapping.py "
+        "(cohort=%s age_band=%s, force=%s)",
+        cohort,
+        age_band,
+        need_force,
+    )
+
+    import subprocess
+
+    def _run_build(with_force: bool) -> int:
+        script = PROJECT_ROOT / "5_pgx_analysis" / "build_global_drug_cpic_mapping.py"
+        cmd = [sys.executable, str(script)]
+        if cohort:
+            cmd.extend(["--cohort", cohort])
+        if age_band:
+            cmd.extend(["--age-band", age_band])
+        if with_force:
+            cmd.append("--force")
+        proc = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
+        return proc.returncode
+
+    rc = _run_build(with_force=need_force)
+    df = load_global_drug_mapping()
+    if rc != 0:
+        logger.error(
+            "build_global_drug_cpic_mapping.py failed (exit %s). "
+            "Ensure 5_pgx_analysis/data/cpic_drug_list.json (or CPIC Excel/CSV) exists and "
+            "feature-importance CSVs are present under 3a_feature_importance/outputs or synced paths.",
+            rc,
+        )
+    return df
+
+
 def map_drugs_to_genes(
     drug_names: List[str],
     output_path: Optional[Path] = None,

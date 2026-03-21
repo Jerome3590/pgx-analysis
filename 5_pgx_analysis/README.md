@@ -299,7 +299,9 @@ Alleles are **not** used in this analysis pipeline. They are used in the **PGx c
 
 ### Global Drug Mapping Not Found
 
-If `drug_cpic_mapping_global.csv` is not found:
+`create_pgx_features_patient_level.py` calls **`ensure_global_drug_mapping()`**: it loads the CSV (local env overrides, then S3), and if still missing or empty it runs **`build_global_drug_cpic_mapping.py`** for the same `--cohort` / `--age_band`, then re-loads. Set **`PGX_AUTO_BUILD_GLOBAL_MAPPING=0`** to turn off auto-build (load only).
+
+If `drug_cpic_mapping_global.csv` is still not found after that:
 1. Check S3: `s3://pgxdatalake/gold/pgx_features/global/drug_cpic_mapping_global.csv` (fallback bucket attempts are implemented in `map_drugs_to_genes.load_global_drug_mapping`)
 2. Or regenerate and upload: `python 5_pgx_analysis/build_global_drug_cpic_mapping.py` (uploads to the gold path when AWS credentials allow)
 3. On workers without the repo file: upload the CSV to one of those S3 paths, or set `PGX_DRUG_CPIC_MAPPING_PATH` to a local file, or `PGX_DRUG_CPIC_MAPPING_S3` to a full `s3://bucket/key`
