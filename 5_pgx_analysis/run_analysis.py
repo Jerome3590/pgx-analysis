@@ -232,7 +232,15 @@ def run_pgx_analysis(
 
     with function_block("5_pgx_analysis", "run_pgx_analysis", logger=logger):
         logger.info("Starting PGx analysis for %s / %s", cohort_name, age_band)
-        logger.info("Using global drug-to-CPIC mapping from outputs/global/drug_cpic_mapping_global.csv")
+        _cpic_map_path = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global" / "drug_cpic_mapping_global.csv"
+        if _cpic_map_path.exists():
+            logger.info("CPIC drug mapping found locally: %s", _cpic_map_path)
+        else:
+            logger.warning(
+                "CPIC drug mapping NOT found at %s — subprocess will attempt S3 download. "
+                "Run build_global_drug_cpic_mapping.py --force first to avoid CPIC drugs = 0.",
+                _cpic_map_path,
+            )
 
         if not skip_feature_engineering:
             if not create_pgx_features_step(cohort_name, age_band, logger=logger):

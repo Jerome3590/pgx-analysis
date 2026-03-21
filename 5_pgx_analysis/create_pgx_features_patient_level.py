@@ -54,40 +54,21 @@ def create_patient_pgx_features(
     """
     age_band_fname = age_band.replace("-", "_")
     
-    # Load global drug-to-CPIC mapping to identify CPIC drugs
-    global_out_dir = project_root / "5_pgx_analysis" / "outputs" / "global"
-    global_drug_mapping_path = global_out_dir / "drug_cpic_mapping_global.csv"
-    
-    # Try loading from S3 if local file doesn't exist
+    # Load global drug-to-CPIC mapping (local first, then S3 fallback via shared helper)
     cpic_drug_set = set()
-    if global_drug_mapping_path.exists():
-        try:
-            drug_mapping_df = pd.read_csv(global_drug_mapping_path)
-            if 'drug_name' in drug_mapping_df.columns:
-                cpic_drug_set = set(drug_mapping_df['drug_name'].str.upper().str.strip())
-                logger.info(f"Loaded {len(cpic_drug_set)} CPIC drugs from global mapping")
-        except Exception as e:
-            logger.warning(f"Could not load global drug mapping: {e}")
-    else:
-        # Try downloading from S3
-        try:
-            import boto3
-            from py_helpers.constants import S3_BUCKET
-            
-            s3_client = boto3.client('s3')
-            s3_key = "gold/pgx_features/global/drug_cpic_mapping_global.csv"
-            
-            global_drug_mapping_path.parent.mkdir(parents=True, exist_ok=True)
-            s3_client.download_file(S3_BUCKET, s3_key, str(global_drug_mapping_path))
-            logger.info(f"Downloaded global drug mapping from S3")
-            
-            drug_mapping_df = pd.read_csv(global_drug_mapping_path)
-            if 'drug_name' in drug_mapping_df.columns:
-                cpic_drug_set = set(drug_mapping_df['drug_name'].str.upper().str.strip())
-                logger.info(f"Loaded {len(cpic_drug_set)} CPIC drugs from S3")
-        except Exception as e:
-            logger.warning(f"Could not download global drug mapping from S3: {e}")
-    
+    try:
+        import sys as _sys
+        _pgx_dir = str(project_root / "5_pgx_analysis")
+        if _pgx_dir not in _sys.path:
+            _sys.path.insert(0, _pgx_dir)
+        from map_drugs_to_genes import load_global_drug_mapping
+        drug_mapping_df = load_global_drug_mapping()
+        if drug_mapping_df is not None and 'drug_name' in drug_mapping_df.columns:
+            cpic_drug_set = set(drug_mapping_df['drug_name'].str.upper().str.strip())
+            logger.info(f"Loaded {len(cpic_drug_set)} CPIC drugs from global mapping")
+    except Exception as e:
+        logger.warning(f"Could not load global drug mapping: {e}")
+
     if not cpic_drug_set:
         logger.warning("No CPIC drug mapping found. Will count all drugs as non-CPIC.")
     
