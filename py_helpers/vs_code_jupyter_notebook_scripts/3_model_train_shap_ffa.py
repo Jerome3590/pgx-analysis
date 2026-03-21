@@ -416,18 +416,20 @@ else:
 # Generate SHAP values for each cohort/age_band using **7_shap_analysis/run_shap_analysis.py**. Outputs go to `7_shap_analysis/outputs/{cohort}/{age_band_fname}/` (global importance CSV, sample parquet). Run this **before** Step 8 (FFA) and Combine.
 
 # %%
-# Step 7: Generate SHAP values per cohort/age_band (7_shap_analysis/outputs).
+# Step 7: Generate SHAP values per cohort/age_band/bin.
 SHAP_SCRIPT = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
+_DENSITY_BINS = ("low", "medium", "high", "extreme")
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        print(f"→ Step 7 (SHAP): {cohort} / {age_band}")
-        r = subprocess.run(
-            [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band],
-            cwd=PROJECT_ROOT,
-            capture_output=False,
-        )
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+        for bin_name in _DENSITY_BINS:
+            print(f"→ Step 7 (SHAP bin={bin_name}): {cohort} / {age_band}")
+            r = subprocess.run(
+                [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band, "--bin", bin_name],
+                cwd=PROJECT_ROOT,
+                capture_output=False,
+            )
+            if r.returncode != 0:
+                raise SystemExit(r.returncode)
 print("Step 7 (SHAP) complete.")
 
 # %% [markdown]
@@ -436,21 +438,23 @@ print("Step 7 (SHAP) complete.")
 # Run FFA (Formal Feature Attribution) per cohort/age_band using **run_shap_ffa_workflow.py** with **--skip-shap --skip-combine**: uses existing Step 7 SHAP and XGBoost JSON, writes to `8_ffa_analysis/outputs`. Run this **after** Step 7 and **before** Combine.
 
 # %%
-# Step 8: Generate FFA rules per cohort/age_band (8_ffa_analysis/outputs). Uses existing SHAP; no combine yet.
+# Step 8: Generate FFA rules per cohort/age_band/bin. Uses existing SHAP; no combine yet.
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        print(f"→ Step 8 (FFA): {cohort} / {age_band}")
-        r = subprocess.run(
-            [
-                sys.executable, "run_shap_ffa_workflow.py",
-                "--cohort", cohort, "--age-band", age_band,
-                "--skip-shap", "--skip-combine",
-            ],
-            cwd=DATA_PREP_DIR,
-            capture_output=False,
-        )
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+        for bin_name in _DENSITY_BINS:
+            print(f"→ Step 8 (FFA bin={bin_name}): {cohort} / {age_band}")
+            r = subprocess.run(
+                [
+                    sys.executable, "run_shap_ffa_workflow.py",
+                    "--cohort", cohort, "--age-band", age_band,
+                    "--bin", bin_name,
+                    "--skip-shap", "--skip-combine",
+                ],
+                cwd=DATA_PREP_DIR,
+                capture_output=False,
+            )
+            if r.returncode != 0:
+                raise SystemExit(r.returncode)
 print("Step 8 (FFA) complete.")
 
 # %% [markdown]
@@ -459,24 +463,26 @@ print("Step 8 (FFA) complete.")
 # Run **combine_shap_ffa_results.py** per cohort/age_band to produce `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/` (dashboard_data.json, combined_importance.csv, top_causal_factors, etc.) for the Causal Analysis tab and upload_causal_outputs_to_s3. Requires Step 7 and Step 8 outputs. Use `--workers 0` for auto worker count or `--workers 1` for sequential.
 
 # %%
-# Combine: Merge SHAP + FFA per cohort/age_band into 10_risk_dashboard/visualizations/causal
+# Combine: Merge SHAP + FFA per cohort/age_band/bin into 10_risk_dashboard/visualizations/causal
 # (dashboard_data.json and combined_importance.csv for Causal tab and upload_causal_outputs_to_s3)
 CAUSAL_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 COMBINE_SCRIPT = DATA_PREP_DIR / "combine_shap_ffa_results.py"
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        print(f"→ Combine: {cohort} / {age_band}")
-        r = subprocess.run(
-            [
-                sys.executable, str(COMBINE_SCRIPT),
-                "--cohort", cohort, "--age-band", age_band,
-                "--output-dir", str(CAUSAL_VISUALS), "--workers", "0",
-            ],
-            cwd=DATA_PREP_DIR,
-            capture_output=False,
-        )
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+        for bin_name in _DENSITY_BINS:
+            print(f"→ Combine (bin={bin_name}): {cohort} / {age_band}")
+            r = subprocess.run(
+                [
+                    sys.executable, str(COMBINE_SCRIPT),
+                    "--cohort", cohort, "--age-band", age_band,
+                    "--bin", bin_name,
+                    "--output-dir", str(CAUSAL_VISUALS), "--workers", "0",
+                ],
+                cwd=DATA_PREP_DIR,
+                capture_output=False,
+            )
+            if r.returncode != 0:
+                raise SystemExit(r.returncode)
 print("Combine complete.")
 
 # %% [markdown]
@@ -562,49 +568,48 @@ for cohort, bands in REQUIRED_COHORTS.items():
         n_icds  = len(codes.get("icds", []) or [])
         n_cpts  = len(codes.get("cpts", []) or [])
 
-        combined_path = CAUSAL_VISUALS / cohort / ab / "combined_importance.csv"
-        if not combined_path.exists():
-            combined_path = DASHBOARD_OUT / cohort / ab / "combined_importance.csv"
-        combined_exists = combined_path.exists()
+        for bin_name in _DENSITY_BINS:
+            combined_path = CAUSAL_VISUALS / cohort / ab / bin_name / "combined_importance.csv"
+            combined_exists = combined_path.exists()
 
-        n_features = 0
-        cols = []
-        n_drug_f = n_icd_f = n_cpt_f = 0
+            n_features = 0
+            cols = []
+            n_drug_f = n_icd_f = n_cpt_f = 0
 
-        if combined_exists:
-            df = pd.read_csv(combined_path)
-            cols = list(df.columns)
-            n_features = len(df)
+            if combined_exists:
+                df = pd.read_csv(combined_path)
+                cols = list(df.columns)
+                n_features = len(df)
 
-            if "feature" in df.columns:
-                feats = df["feature"].astype(str)
-                n_drug_f = int(feats.str.startswith(DRUG_PREFIX, na=False).sum())
-                n_icd_f  = int(feats.str.startswith(ICD_PREFIX,  na=False).sum())
-                n_cpt_f  = int(feats.str.startswith(CPT_PREFIX,  na=False).sum())
-            else:
-                n_drug_f = n_icd_f = n_cpt_f = 0
+                if "feature" in df.columns:
+                    feats = df["feature"].astype(str)
+                    n_drug_f = int(feats.str.startswith(DRUG_PREFIX, na=False).sum())
+                    n_icd_f  = int(feats.str.startswith(ICD_PREFIX,  na=False).sum())
+                    n_cpt_f  = int(feats.str.startswith(CPT_PREFIX,  na=False).sum())
+                else:
+                    n_drug_f = n_icd_f = n_cpt_f = 0
 
-        ok, reason = check_cohort_expectations(
-            cohort=cohort,
-            n_drugs=n_drugs, n_icds=n_icds, n_cpts=n_cpts,
-            n_drug_f=n_drug_f, n_icd_f=n_icd_f, n_cpt_f=n_cpt_f
-        )
+            ok, reason = check_cohort_expectations(
+                cohort=cohort,
+                n_drugs=n_drugs, n_icds=n_icds, n_cpts=n_cpts,
+                n_drug_f=n_drug_f, n_icd_f=n_icd_f, n_cpt_f=n_cpt_f
+            )
 
-        all_ok = all_ok and ok
-        status = "OK" if ok else "FAIL"
+            all_ok = all_ok and ok
+            status = "OK" if ok else "FAIL"
 
-        print(
-            f"{cohort:14s}  age_band={age_band:7s}  "
-            f"meta(drug/icd/cpt)={n_drugs:4d}/{n_icds:4d}/{n_cpts:4d}  "
-            f"combined_exists={str(combined_exists):5s}  "
-            f"combined(drug/icd/cpt)={n_drug_f:4d}/{n_icd_f:4d}/{n_cpt_f:4d}  "
-            f"status={status:4s}  {reason}"
-        )
+            print(
+                f"{cohort:14s}  age_band={age_band:7s}  bin={bin_name:7s}  "
+                f"meta(drug/icd/cpt)={n_drugs:4d}/{n_icds:4d}/{n_cpts:4d}  "
+                f"combined_exists={str(combined_exists):5s}  "
+                f"combined(drug/icd/cpt)={n_drug_f:4d}/{n_icd_f:4d}/{n_cpt_f:4d}  "
+                f"status={status:4s}  {reason}"
+            )
 
-        if not meta_exists:
-            print(f"  NOTE: metadata file missing: {meta_path}")
-        if not combined_exists:
-            print(f"  NOTE: combined_importance missing: {combined_path}")
+            if not meta_exists:
+                print(f"  NOTE: metadata file missing: {meta_path}")
+            if not combined_exists:
+                print(f"  NOTE: combined_importance missing: {combined_path}")
 
 print("=" * 90)
 print("Overall:", "OK" if all_ok else "FAIL")

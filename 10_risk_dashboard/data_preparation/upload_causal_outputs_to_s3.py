@@ -37,6 +37,7 @@ def main() -> int:
         print(f"No outputs dir: {CAUSAL_VISUALS_DIR}; nothing to upload.")
         return 0
 
+    _BINS = ("low", "medium", "high", "extreme")
     uploaded = 0
     s3 = boto3.client("s3")
     for cohort_dir in CAUSAL_VISUALS_DIR.iterdir():
@@ -48,21 +49,34 @@ def main() -> int:
                 continue
             age_band_fname = age_dir.name  # EC2 dir: 25_44
             age_band_s3 = age_band_fname.replace("_", "-")  # S3 path: 25-44
+            # Full-cohort causal data
             json_path = age_dir / "dashboard_data.json"
-            if not json_path.exists():
-                continue
-            key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/causal_data.json"
-            try:
-                s3.upload_file(
-                    str(json_path),
-                    bucket,
-                    key,
-                    ExtraArgs={"ContentType": "application/json"},
-                )
-                print(f"  ✓ Causal data: {cohort}/{age_band_s3} -> s3://{bucket}/{key}")
-                uploaded += 1
-            except Exception as e:
-                print(f"  ⚠ Upload failed {cohort}/{age_band_s3}: {e}", file=sys.stderr)
+            if json_path.exists():
+                key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/causal_data.json"
+                try:
+                    s3.upload_file(
+                        str(json_path), bucket, key,
+                        ExtraArgs={"ContentType": "application/json"},
+                    )
+                    print(f"  ✓ Causal data: {cohort}/{age_band_s3} -> s3://{bucket}/{key}")
+                    uploaded += 1
+                except Exception as e:
+                    print(f"  ⚠ Upload failed {cohort}/{age_band_s3}: {e}", file=sys.stderr)
+            # Per-bin causal data
+            for bin_name in _BINS:
+                bin_json = age_dir / bin_name / "dashboard_data.json"
+                if not bin_json.exists():
+                    continue
+                bin_key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/{bin_name}/causal_data.json"
+                try:
+                    s3.upload_file(
+                        str(bin_json), bucket, bin_key,
+                        ExtraArgs={"ContentType": "application/json"},
+                    )
+                    print(f"  ✓ Causal data (bin={bin_name}): {cohort}/{age_band_s3}/{bin_name} -> s3://{bucket}/{bin_key}")
+                    uploaded += 1
+                except Exception as e:
+                    print(f"  ⚠ Upload failed {cohort}/{age_band_s3}/{bin_name}: {e}", file=sys.stderr)
 
     if uploaded:
         print(f"Causal dashboard JSON: {uploaded} file(s) uploaded to S3.")
