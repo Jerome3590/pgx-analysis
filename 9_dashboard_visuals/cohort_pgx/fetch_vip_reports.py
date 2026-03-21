@@ -483,6 +483,7 @@ def load_cohort_genes(
     project_root: Path,
     top_n: int = 50,
     pipeline_logger: Optional[Any] = None,
+    bin_name: Optional[str] = None,
 ) -> List[str]:
     """
     Load top N important genes for a cohort from SHAP/FFA analysis.
@@ -491,6 +492,8 @@ def load_cohort_genes(
     importance are considered (via get_shap_ffa_important_codes(..., "drug_name")). Those tokens
     are drug names and are resolved to gene symbols via CPIC; only gene symbols are sent to
     PharmGKB. ICD/CPT codes are never passed to CPIC name match.
+
+    When bin_name is supplied, per-bin combined_importance.csv is tried first.
     """
     log = pipeline_logger.logger if pipeline_logger is not None and hasattr(pipeline_logger, "logger") else logger
 
@@ -500,15 +503,42 @@ def load_cohort_genes(
         log.warning("py_helpers.shap_ffa_fpgrowth_utils not available; cannot load drug_name codes for cohort genes.")
         return []
 
-    # Same as BupaR: only drug_name codes from final (cohort) feature importance
-    drug_names = get_shap_ffa_important_codes(
-        cohort_name,
-        age_band,
-        "drug_name",
-        top_n=top_n,
-        project_root=project_root,
-        data_root=None,
-    )
+    drug_names: set = set()
+
+    # Per-bin: try combined_importance.csv from the per-bin causal outputs first
+    if bin_name:
+        age_band_fname = age_band.replace("-", "_")
+        bin_combined = (
+            project_root
+            / "10_risk_dashboard" / "visualizations" / "causal"
+            / cohort_name / age_band_fname / bin_name / "combined_importance.csv"
+        )
+        if bin_combined.exists():
+            try:
+                import pandas as _pd
+                df = _pd.read_csv(bin_combined)
+                if "feature" in df.columns:
+                    PREFIX = "item_"
+                    for feat in df["feature"].dropna().astype(str):
+                        if feat.upper().startswith("ITEM_"):
+                            drug_names.add(feat[len(PREFIX):].strip())
+                    log.info(
+                        "Per-bin combined_importance loaded for %s/%s bin=%s: %d drug_name codes",
+                        cohort_name, age_band, bin_name, len(drug_names),
+                    )
+            except Exception as exc:
+                log.warning("Could not load per-bin combined_importance for bin=%s: %s", bin_name, exc)
+
+    # Fall back to full-cohort feature importance when per-bin not available
+    if not drug_names:
+        drug_names = get_shap_ffa_important_codes(
+            cohort_name,
+            age_band,
+            "drug_name",
+            top_n=top_n,
+            project_root=project_root,
+            data_root=None,
+        )
     if not drug_names:
         log.warning(
             "No drug_name codes from feature importance for cohort=%s age_band=%s",
@@ -556,6 +586,7 @@ def fetch_cohort_reports(
     include_vip_pages: bool = True,
     pipeline_logger: Optional[Any] = None,
     force: bool = False,
+    bin_name: Optional[str] = None,
 ) -> Dict:
     """
     Fetch PharmGKB VIP reports for all important genes in a cohort.
@@ -571,6 +602,8 @@ def fetch_cohort_reports(
         include_vip_pages: Whether to fetch ClinPGx VIP page content
         pipeline_logger: Optional PipelineLogger for consistent logging
         force: If True, re-fetch even when reports file exists
+        bin_name: Optional event density bin (low/medium/high/extreme); when set,
+            uses per-bin combined_importance.csv and writes per-bin output files.
 
     Returns:
         Dict with reports metadata
@@ -579,8 +612,9 @@ def fetch_cohort_reports(
     log = pl.logger if pl is not None and hasattr(pl, "logger") else logger
     output_dir.mkdir(parents=True, exist_ok=True)
     age_band_fname = age_band.replace("-", "_")
-    reports_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports.json"
-    summary_file = output_dir / f"{cohort_name}_{age_band_fname}_vip_reports_summary.json"
+    bin_suffix = f"_{bin_name}" if bin_name else ""
+    reports_file = output_dir / f"{cohort_name}_{age_band_fname}{bin_suffix}_vip_reports.json"
+    summary_file = output_dir / f"{cohort_name}_{age_band_fname}{bin_suffix}_vip_reports_summary.json"
 
     if not force and reports_file.exists():
         if summary_file.exists():
@@ -632,6 +666,7 @@ def fetch_cohort_reports(
         project_root,
         top_n=top_n,
         pipeline_logger=pl,
+        bin_name=bin_name,
     )
 
     if not genes:
@@ -704,6 +739,7 @@ def main():
     )
     parser.add_argument("--cohort", required=True, help="Cohort name (opioid_ed, non_opioid_ed)")
     parser.add_argument("--age-band", required=True, help="Age band (0-12, 13-24, etc.)")
+    parser.add_argument("--bin", dest="bin_name", default=None, help="Event density bin (low/medium/high/extreme); uses per-bin combined_importance and per-bin output file")
     parser.add_argument("--top-n", type=int, default=50, help="Number of top features to analyze")
     parser.add_argument("--no-vip-pages", action="store_true", help="Skip fetching ClinPGx VIP pages")
     parser.add_argument("--force", action="store_true", help="Re-fetch even when reports file already exists (default: skip if exists)")
@@ -744,6 +780,7 @@ def main():
             include_vip_pages=not args.no_vip_pages,
             pipeline_logger=pl,
             force=args.force,
+            bin_name=args.bin_name,
         )
         pl.info("=" * 80)
         pl.info("PIPELINE STEP SUMMARY (fetch_vip_reports)")

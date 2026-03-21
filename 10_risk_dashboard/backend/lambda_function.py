@@ -2643,28 +2643,59 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GET /visualizations/cohort_pgx?cohort=...&age_band=...
+    GET /visualizations/cohort_pgx?cohort=...&age_band=...[&n_event_bin=low|medium|high|extreme]
 
     Returns network_topology_url only when the S3 object exists (HEAD check). Built by
     Cohort PGx pipeline (fetch_vip_reports + build_network_topology); expected key:
     {S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html (age_band with hyphen).
+    When n_event_bin supplied, tries density/{bin}/network_topology.html first; falls back to
+    full-cohort with data_scope label when absent.
     Sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3 after building (use hyphen in S3 path).
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None
 
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
         # S3 paths use hyphen (25-44); EC2 dirs use underscore (25_44)
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/cohort_pgx"
-        base_key = f"{prefix}/networks/{cohort}/{age_band}"
-        html_key = f"{base_key}/network_topology.html"
-        payload = {}
-        if _s3_object_exists(S3_DASHBOARD_BUCKET, html_key):
-            payload["network_topology_url"] = _dashboard_s3_url(html_key)
+        prefix   = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/cohort_pgx"
+        net_base = f"{prefix}/networks/{cohort}/{age_band}"
+        full_html_key = f"{net_base}/network_topology.html"
+        payload: Dict[str, Any] = {"n_event_bin": n_event_bin}
+
+        # --- Resolve network topology URL + track which dir was actually used ---
+        resolved_dir = net_base  # default: full-cohort dir
+
+        if n_event_bin:
+            bin_dir      = f"{net_base}/density/{n_event_bin}"
+            bin_html_key = f"{bin_dir}/network_topology.html"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_html_key):
+                payload["network_topology_url"] = _dashboard_s3_url(bin_html_key)
+                payload["data_scope"] = "per_bin"
+                resolved_dir = bin_dir
+            else:
+                # Per-bin not found — fall back to full-cohort with label
+                if _s3_object_exists(S3_DASHBOARD_BUCKET, full_html_key):
+                    payload["network_topology_url"] = _dashboard_s3_url(full_html_key)
+                payload["data_scope"] = "full_cohort_fallback"
+                payload["message"] = (
+                    f"No per-bin PGx network for density='{n_event_bin}'. "
+                    "Showing full-cohort network. Run fetch_vip_reports + build_network_topology with --bin."
+                )
+        else:
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, full_html_key):
+                payload["network_topology_url"] = _dashboard_s3_url(full_html_key)
+            payload["data_scope"] = "full_cohort"
+
+        # --- Citations JSON lives in the same directory as network_topology.html ---
+        cit_key = f"{resolved_dir}/pubmed_citations.json"
+        if _s3_object_exists(S3_DASHBOARD_BUCKET, cit_key):
+            payload["citations_url"] = _dashboard_s3_url(cit_key)
+
         return _response(200, payload)
     except Exception as e:
         return _response(500, {"error": str(e)})

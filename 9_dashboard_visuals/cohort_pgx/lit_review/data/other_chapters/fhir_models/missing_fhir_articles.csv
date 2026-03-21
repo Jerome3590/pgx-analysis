@@ -1,0 +1,69 @@
+title,pubdate,pmc_id,authors,Selected,Category
+A Methodology for an Auto-Generated and Auto-Maintained HL7 FHIR OWL Ontology for Health Data Management.,2021,HSH10daaa75,"Kilintzis, Alexandropoulos, Beredimas, Maglaveras",,FHIR
+A Prototype of the National EHR system for Cyprus.,2021,HSH9fdd8ea8,"Papaioannou, Neocleous, Savva, Miguel, Panayides, Antoniou, Neofytou, Schiza, Neokleous, Constantinou, Panos, Pattichis, Schizas",,FHIR
+A landscape survey of planned SMART/HL7 bulk FHIR data access API implementations and tools.,2021,PMC8661398,"Jones, Gottlieb, Mandel, Ignatov, Ellis, Kubick, Mandl",,FHIR
+A novel application of SMART on FHIR architecture for interoperable and scalable integration of patient-reported outcome data with electronic health records.,2021,PMC8449622,"Wesley, Blumenthal, Shah, Littlejohn, Pruitt, Dixit, Hsiao, Dymek, Ratwani",,FHIR
+A sustainable HL7 FHIR based ontology for PHR data.,2019,HSHfd9f3677,"Kilintzis, Kosvyra, Beredimas, Natsiavas, Maglaveras, Chouvarda",,FHIR
+A systematic review of data elements of computerized physician order entry (CPOE): mapping the data to FHIR.,2023,HSH8fd4c642,"Montazeri, Khajouei, Afraz, Ahmadian",,FHIR
+AHD2FHIR: A Tool for Mapping of Natural Language Annotations to Fast Healthcare Interoperability Resources - A Technical Case Report.,2022,HSH1d975f8f,"Scheible, Caliskan, Fischer, Thomczyk, Zabka, Schneider, Boeker, Schulz, Prokosch, Gulden",,FHIR
+Assessing Data Adequacy for High Blood Pressure Clinical Decision Support: A Quantitative Analysis.,2021,PMC8354347,"Dorr, D'Autremont, Pizzimenti, Weiskopf, Rope, Kassakian, Richardson, McClure, Eisenberg",,FHIR
+Automated Clinical Trial Cohort Definition and Evaluation with CQL and CDS-Hooks.,2024,HSH2afaf5f2,"Schwab, Lin, Winkler",,FHIR
+Automated Production of Research Data Marts from a Canonical Fast Healthcare Interoperability Resource (FHIR) Data Repository: Applications to COVID-19 Research.,2021,PMC7987036,"Lenert, Ilatovskiy, Agnew, Rudsill, Jacobs, Weatherston, Deans",,FHIR
+Blueprint for aligned data exchange for research and public health.,2021,PMC8633601,"Michaels, Syed, Lober",,FHIR
+Breaking Barriers for Interoperability: A Reference Implementation of CSV-FHIR Transformation Using Open-Source Tools.,2023,HSH028333f2,"Alkarkoukly, Kamal, Beyan",,FHIR
+CQL4NLP: Development and Integration of FHIR NLP Extensions in Clinical Quality Language for EHR-driven Phenotyping.,2021,PMC8378647,"Wen, Rasmussen, Stone, Liu, Kiefer, Adekkanattu, Brandt, Pacheco, Luo, Wang, Pathak, Liu, Jiang",,FHIR
+Characterizing variability of electronic health record-driven phenotype definitions.,2023,PMC9933077,"Brandt, Kho, Luo, Pacheco, Walunas, Hakonarson, Hripcsak, Liu, Shang, Weng, Walton, Carrell, Crane, Larson, Chute, Kullo, Carroll, Denny, Ramirez, Wei, Pathak, Wiley, Richesson, Starren, Rasmussen",,FHIR
+Comparison of WebSocket and Hypertext Transfer Protocol for Transfer of Electronic Health Records.,2024,HSHc8f3bf36,Kirilov,,FHIR
+Comparison of the Performance of the Fast Healthcare Interoperability Resources (FHIR) Subscription Channels.,2024,HSHc8f3bf36,Kirilov,,FHIR
+Contemporary clinical decision support standards using Health Level Seven International Fast Healthcare Interoperability Resources.,2021,PMC8324242,"Strasberg, Rhodes, Del Fiol, Jenders, Haug, Kawamoto",,FHIR
+Decentralised provenance for healthcare data.,2020,HSHb4576974,"Margheri, Masi, Miladi, Sassone, Rosenzweig",,FHIR
+Design and Adoption of a FHIR IG to Support a Telemonitoring Environment in Gatekeeper Project.,2023,HSH8d69ab9d,"Gazzarata, Chronaki, Ricciardi, Giuliani, Zampognaro, Mercalli, Allocca, Gaeta, Fico, Cangioli",,FHIR
+Design and validation of a FHIR-based EHR-driven phenotyping toolbox.,2022,PMC9382394,"Brandt, Pacheco, Adekkanattu, Sholle, Abedian, Stone, Knaack, Xu, Xu, Peng, Benda, Wang, Luo, Jiang, Pathak, Rasmussen",,FHIR
+Design of HL7 FHIR Profiles for Pathology Reports Integrated with Pathology Images.,2024,HSHfe5cf59e,"Lien, Ting, Kuo, Chung, Chu, Kuo",,FHIR
+Developing a minimum data set for cardiovascular Computerized Physician Order Entry (CPOE) and mapping the data set to FHIR: A multi-method approach.,2023,PMC2744711,"Montazeri, Khajouei, Mahdavi, Ahmadian",,FHIR
+Development of an application concerning fast healthcare interoperability resources based on standardized structured medical information exchange version 2 data.,2021,HSHaa6ef939,"Xiao, Song, Nakamura, Nakayama",,FHIR
+Development of eClaim system for private indemnity health insurance in South Korea: Compatibility and interoperability.,2022,HSH6c9a0153,"Bae, Yi",,FHIR
+Digital Home-Monitoring of Patients after Kidney Transplantation: The MACCS Platform.,2021,HSHea647b2f,"Duettmann, Naik, Schmidt, Pfefferkorn, Kurz, Graf, Kreichgauer, Hoegl, Haenska, Gielsdorf, Breitenstein, Osmanodja, Glander, Bakker, Mayrdorfer, Gethmann, Bachmann, Choi, Schrezenmeier, Zukunft, Halleck, Budde",,FHIR
+Dual Implementation Guides in FHIR and CDA.,2024,HSH3076b147,"Tanjga, Krauss",,FHIR
+Embedding a State-Wide Prescription Drug Monitoring Program into the Electronic Health Record.,2022,PMC10148357,"Hodge, Hellewell, Ford, Nielsen, Brewster, Henrie",,FHIR
+Evaluating the Coverage of the HL7 ® FHIR ® Standard to Support eSource Data Exchange Implementations for use in Multi-Site Clinical Research Studies.,2020,PMC8075534,"Garza, Rutherford, Myneni, Fenton, Walden, Topaloglu, Eisenstein, Kumar, Zimmerman, Rocca, Gordon, Hume, Wang, Zozus",,FHIR
+Exploring JSON-LD as an Executable Definition of FHIR RDF to Enable.,2020,PMC8075421,"Solbrig, Solbrig, Prud'hommeaux, Booth, Endle, Stone, Jiang",,FHIR
+Extracting Electronic Health Record Neuroblastoma Treatment Data With High Fidelity Using the REDCap Clinical Data Interoperability Services Module.,2024,HSHe6b15dce,"Furner, Cheng, Desai, Benedetti, Friedman, Wyatt, Watkins, Volchenboum, Cohn",,FHIR
+Extraction of Electronic Health Record Data using Fast Healthcare Interoperability Resources for Automated Breast Cancer Risk Assessment.,2021,PMC8861753,"McGuinness, Zhang, Cooper, Kelkar, Dimond, Lorenzi, Crew, Kukafka",,FHIR
+FHIR-up! Advancing knowledge from clinical data through application of standardized nursing terminologies within HL7® FHIR®.,2023,PMC10586043,"Monsen, Heermann, Dunn-Lopez",,FHIR
+Fast Healthcare Interoperability Resources (FHIR) in a FAIR Metadata Registry for COVID-19 Research.,2021,HSH7b00e10a,"Klopfenstein, Vorisek, Shutsko, Lehne, Sass, Löbe, Schmidt, Thun",,FHIR
+Fast Healthcare Interoperability Resources (FHIR®) Representation of Medication Data Derived from German Procedure Classification Codes (OPS) Using Identification of Medicinal Products (IDMP) Compliant Terminology.,2021,HSH256cacf7,"Sass, Zabka, Essenwanger, Schepers, Boeker, Thun",,FHIR
+Fit for Purpose: Analyzing the German Archiving and Exchange Interface for Medical Practice Management Systems.,2021,HSHe951801f,"Barkow, Meincke, Ulrich, Ingenerf",,FHIR
+From OpenEHR to FHIR and OMOP Data Model for Microbiology Findings.,2021,HSH771f1c32,"Rinaldi, Thun",,FHIR
+HL7 FHIR-based tools and initiatives to support clinical research: a scoping review.,2022,PMC9382376,"Duda, Kennedy, Conway, Cheng, Nguyen, Zayas-Cabán, Harris",,FHIR
+Health Care in the Age of Interoperability Part 5: The Personal Health Record.,2019,HSH63f0f3c0,Braunstein,,FHIR
+Health Care in the Age of Interoperability Part 6: The Future of FHIR.,2019,HSH63f0f3c0,Braunstein,,FHIR
+Health Care in the Age of Interoperability: Part 4.,2019,HSH63f0f3c0,Braunstein,,FHIR
+Healthcare in the Age of Interoperability: Part 3.,2019,HSH63f0f3c0,Braunstein,,FHIR
+"Human-centered development of an electronic health record-embedded, interactive information visualization in the emergency department using fast healthcare interoperability resources.",2021,PMC8279791,"Thayer, Ferro, Miller, Karavite, Grundmeier, Utidjian, Zorc",,FHIR
+Implementation of Interoperable Healthcare Standards for Community Healthcare.,2023,HSH4d190959,"Bae, Park, Lee, You, Park, Lee, Yoon",,FHIR
+Implementation of a Clinical Trial Recruitment Support System Based on Fast Healthcare Interoperability Resources (FHIR) in a Cardiology Department.,2022,HSHece80eb5,"Scherer, Endres, Orban, Kääb, Massberg, Winter, Löbe",,FHIR
+Improving Cancer Data Interoperability: The Promise of the Minimal Common Oncology Data Elements (mCODE) Initiative.,2020,PMC7713551,"Osterman, Terry, Miller",,FHIR
+Integrated displays to improve chronic disease management in ambulatory care: A SMART on FHIR application informed by mixed-methods user testing.,2020,PMC7481023,"Curran, Kukhareva, Taft, Weir, Reese, Nanjo, Rodriguez-Loya, Martin, Warner, Shields, Flynn, Boltax, Kawamoto",,FHIR
+Integration of NLP2FHIR Representation with Deep Learning Models for EHR Phenotyping: A Pilot Study on Obesity Datasets.,2021,PMC8378603,"Liu, Luo, Stone, Zong, Wen, Yu, Rasmussen, Wang, Pathak, Liu, Jiang",,FHIR
+Interoperability Improvement of Mobile Patient Survey (MoPat) Implementing Fast Health Interoperability Resources (FHIR).,2019,HSHf7aa569d,"Storck, Hollenberg, Dugas, Soto-Rey",,FHIR
+Interoperable genetic lab test reports: mapping key data elements to HL7 FHIR specifications and professional reporting guidelines.,2021,PMC8633597,"Khalifa, Mason, Garvin, Williams, Del Fiol, Jackson, Bleyl, Alterovitz, Huff",,FHIR
+Mapping Injection Order Messages to Health Level 7 Fast Healthcare Interoperability Resources to Collate Infusion Pump Data.,2024,PMC10764120,"Doi, Yokota, Nagae, Takahashi, Aoki, Ohe",,FHIR
+Mapping of OpenEHR Archetypes to FHIR Resources in Use Case Oncology.,2021,HSH0fa9d196,"Rajput, Brakollari",,FHIR
+Mapping the SPHN Dataset to FHIR.,2023,HSH721f61b9,"Klopfenstein, Thun, Crameri, Stellmach",,FHIR
+Microservice chatbot architecture for chronic patient support.,2020,HSH58a7b92d,"Roca, Sancho, García, Alesanco",,FHIR
+Modeling Medical Guidelines by Prova and SHACL Accessing FHIR/RDF. Use Case: The Medical ABCDE Approach.,2022,HSH541672ca,"Kober, Robaldo, Paschke",,FHIR
+OpenMRS Analytics Engine: A FHIR Based Approach.,2022,HSHbee51dfe,"Kimaina, Dick, Sadjad",,FHIR
+"ResultsMyWay: combining Fast Healthcare Interoperability Resources (FHIR), Clinical Quality Language (CQL), and informational resources to create a newborn screening application.",2021,PMC8378617,"Watkins, Au, Vuong, Wallis, Hart, Rohrwasser, Eilbeck",,FHIR
+Semantics Management for a Regional Health Information System in Italy by CTS2 and FHIR.,2021,HSH42151503,"Gazzarata, Maggi, Magnoni, Monteverde, Ruggiero, Giacomini",,FHIR
+Semi-Automated Approach to Populate any FHIR Server via POST Method.,2021,HSH82c4e2b4,Rajput,,FHIR
+Shape Expressions (ShEx) schemas for the FHIR R5 specification.,2023,PMC10841909,"Sharma, Prud'hommeaux, Booth, Nanjo, Jiang",,FHIR
+Structurally Mapping Healthcare Data to HL7 FHIR through Ontology Alignment.,2019,HSHefc31ded,"Kiourtis, Mavrogiorgou, Menychtas, Maglogiannis, Kyriazis",,FHIR
+The SMART Text2FHIR Pipeline.,2023,PMC10785871,"Miller, McMurry, Jones, Gottlieb, Mandl",,FHIR
+The Use of FHIR in Digital Health - A Review of the Scientific Literature.,2019,HSH21366ab9,"Lehne, Luijten, Vom Felde Genannt Imbusch, Thun",,FHIR
+Towards the Representation of Genomic Data in HL7 FHIR and OMOP CDM.,2021,HSH9eceecdb,"Peng, Nassirian, Ahmadi, Sedlmayr, Bathelt",,FHIR
+Use of Semantic Interoperability to Improve the Urgent Continuity of Care in Danish ERs.,2021,HSHe139f734,"Andersen, Brandsborg, Pape-Haugaard",,FHIR
+Using FHIR to Construct a Corpus of Clinical Questions Annotated with Logical Forms and Answers.,2019,PMC7153115,"Soni, Gudala, Wang, Roberts",,FHIR
+[Consent management and workflows for cross-sectoral patient records and teleconsultations].,2020,HSH79a7327a,"Bauer, Rohner-Rojas, Holderried",,FHIR
+[Cross-enterprise interoperability : Challenges and principles for technical implementation].,2020,HSH79a7327a,"Bauer, Rohner-Rojas, Holderried",,FHIR
+openEHR-to-FHIR: Converting openEHR Compositions to Fast Healthcare Interoperability Resources (FHIR) for the German Corona Consensus Dataset (GECCO).,2022,HSH1acfa97b,"Ladas, Franz, Haarbrandt, Sommer, Kohler, Ballout, Fiebeck, Marschollek, Gietzelt",,FHIR

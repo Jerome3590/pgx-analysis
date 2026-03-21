@@ -1,0 +1,11 @@
+.Rproj.user
+.vscode
+.Rhistory
+*.Rproj
+json_files/*
+pdf_files/*
+pubmed_json_files/*
+zotero_json_files/*
+zotero_pdf/*
+
+*.docx

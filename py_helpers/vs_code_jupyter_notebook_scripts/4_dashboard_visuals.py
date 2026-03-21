@@ -1085,8 +1085,8 @@ print(f"  AWS Comprehend: {'Enabled' if USE_COMPREHEND else 'Disabled (pytextran
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def run_fetch_vip_reports(cohort_name, age_band):
-    """Fetch PharmGKB VIP reports for one cohort/age band."""
+def run_fetch_vip_reports(cohort_name, age_band, bin_name=None):
+    """Fetch PharmGKB VIP reports for one cohort/age band (optionally per density bin)."""
     args = [
         str(PYTHON_BIN), str(FETCH_VIP_REPORTS_SCRIPT),
         "--cohort", cohort_name,
@@ -1095,34 +1095,41 @@ def run_fetch_vip_reports(cohort_name, age_band):
         "--project-root", str(REPO_ROOT),
         "--output-dir", str(COHORT_PGX_REPORTS_DIR)
     ]
-    
+    if bin_name:
+        args += ["--bin", bin_name]
     # Skip VIP page fetching if needed (faster but less text data)
     # args.append("--no-vip-pages")
-    
     result = subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
-    return (cohort_name, age_band, result.returncode, result.stdout, result.stderr)
+    return (cohort_name, age_band, bin_name, result.returncode, result.stdout, result.stderr)
 
-print(f"Fetching VIP reports for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations...")
-print(f"  Top {COHORT_PGX_TOP_N} genes per cohort")
+# Build task list: full-cohort + per-bin for each combination
+_pgx_tasks = [
+    (c, ab, None) for c, ab in COHORT_PGX_COHORTS
+] + [
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+]
+print(f"Fetching VIP reports for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"  Top {COHORT_PGX_TOP_N} genes per cohort; total tasks: {len(_pgx_tasks)}")
 print()
 
 # Run in parallel (max 2 at a time to respect API rate limits)
 MAX_WORKERS_PGX = 2  # Conservative to avoid API throttling
 
 with ThreadPoolExecutor(max_workers=MAX_WORKERS_PGX) as ex:
-    futures = {ex.submit(run_fetch_vip_reports, c, ab): (c, ab) for c, ab in COHORT_PGX_COHORTS}
+    futures = {ex.submit(run_fetch_vip_reports, c, ab, b): (c, ab, b) for c, ab, b in _pgx_tasks}
     for fut in as_completed(futures):
-        cohort_name, age_band, code, stdout, stderr = fut.result()
+        cohort_name, age_band, bin_name, code, stdout, stderr = fut.result()
+        label = f"{cohort_name} / {age_band}" + (f" [{bin_name}]" if bin_name else "")
         if code == 0:
-            print(f"  [VIP Reports] {cohort_name} / {age_band} -> SUCCESS")
+            print(f"  [VIP Reports] {label} -> SUCCESS")
         else:
-            print(f"  [VIP Reports] {cohort_name} / {age_band} -> FAILED (exit {code})")
+            print(f"  [VIP Reports] {label} -> FAILED (exit {code})")
             if stderr:
                 print(f"    stderr: {stderr[:800]}{'...' if len(stderr) > 800 else ''}")
             if FAIL_FAST:
-                raise RuntimeError(f"Fetch VIP reports failed: {cohort_name} / {age_band}")
+                raise RuntimeError(f"Fetch VIP reports failed: {label}")
 
-print("\n✓ VIP reports fetched for all cohorts")
+print("\n✓ VIP reports fetched for all cohorts (full-cohort + per-bin)")
 print(f"  Output: {COHORT_PGX_REPORTS_DIR}")
 
 # %% [markdown]
@@ -1149,15 +1156,20 @@ print(f"  Output: {COHORT_PGX_REPORTS_DIR}")
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def run_build_network(cohort_name, age_band):
-    """Build network topology for one cohort/age band."""
+def run_build_network(cohort_name, age_band, bin_name=None):
+    """Build network topology for one cohort/age band (optionally per density bin)."""
     age_band_fname = age_band.replace("-", "_")
-    reports_file = COHORT_PGX_REPORTS_DIR / f"{cohort_name}_{age_band_fname}_vip_reports.json"
-    output_dir = COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname
-    
+    bin_suffix = f"_{bin_name}" if bin_name else ""
+    reports_file = COHORT_PGX_REPORTS_DIR / f"{cohort_name}_{age_band_fname}{bin_suffix}_vip_reports.json"
+    output_dir = (
+        COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname / "density" / bin_name
+        if bin_name
+        else COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname
+    )
+
     if not reports_file.exists():
-        return (cohort_name, age_band, -1, f"Reports file not found: {reports_file}", "")
-    
+        return (cohort_name, age_band, bin_name, -1, f"Reports file not found: {reports_file}", "")
+
     args = [
         str(PYTHON_BIN), str(BUILD_NETWORK_TOPOLOGY_SCRIPT),
         "--reports", str(reports_file),
@@ -1168,33 +1180,40 @@ def run_build_network(cohort_name, age_band):
 
     if not USE_COMPREHEND:
         args.append("--no-comprehend")
-    
-    result = subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
-    return (cohort_name, age_band, result.returncode, result.stdout, result.stderr)
 
-print(f"Building network topology for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations...")
-print(f"  AWS Comprehend: {'Enabled' if USE_COMPREHEND else 'Disabled'}")
+    result = subprocess.run(args, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    return (cohort_name, age_band, bin_name, result.returncode, result.stdout, result.stderr)
+
+# Build task list: full-cohort + per-bin for each combination
+_network_tasks = [
+    (c, ab, None) for c, ab in COHORT_PGX_COHORTS
+] + [
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+]
+print(f"Building network topology for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"  AWS Comprehend: {'Enabled' if USE_COMPREHEND else 'Disabled'}; total tasks: {len(_network_tasks)}")
 print()
 
 # Run in parallel (max 4 at a time)
 MAX_WORKERS_NETWORK = 4
 
 with ThreadPoolExecutor(max_workers=MAX_WORKERS_NETWORK) as ex:
-    futures = {ex.submit(run_build_network, c, ab): (c, ab) for c, ab in COHORT_PGX_COHORTS}
+    futures = {ex.submit(run_build_network, c, ab, b): (c, ab, b) for c, ab, b in _network_tasks}
     for fut in as_completed(futures):
-        cohort_name, age_band, code, stdout, stderr = fut.result()
+        cohort_name, age_band, bin_name, code, stdout, stderr = fut.result()
+        label = f"{cohort_name} / {age_band}" + (f" [{bin_name}]" if bin_name else "")
         if code == 0:
-            print(f"  [Network Topology] {cohort_name} / {age_band} -> SUCCESS")
+            print(f"  [Network Topology] {label} -> SUCCESS")
         else:
-            print(f"  [Network Topology] {cohort_name} / {age_band} -> FAILED (exit {code})")
+            print(f"  [Network Topology] {label} -> FAILED (exit {code})")
             if stderr:
                 print(f"    stderr: {stderr[:800]}{'...' if len(stderr) > 800 else ''}")
             if stdout and "not found" in stdout.lower():
                 print(f"    {stdout[:400]}{'...' if len(stdout) > 400 else ''}")
             if FAIL_FAST:
-                raise RuntimeError(f"Build network topology failed: {cohort_name} / {age_band}")
+                raise RuntimeError(f"Build network topology failed: {label}")
 
-print("\n✓ Network topology built for all cohorts")
+print("\n✓ Network topology built for all cohorts (full-cohort + per-bin)")
 print(f"  Output: {COHORT_PGX_NETWORKS_DIR}")
 
 # %% [markdown]
