@@ -142,6 +142,7 @@ PARALLEL_WORKERS = min(_ncpu, len(combinations))
 FPGROWTH_WORKERS = min(_ncpu, len(combinations))
 
 # Feature importance: use Step 3b, 3a, or combined_importance. If none exist, generate combined_importance from Steps 7+8 (no need to re-run an earlier notebook).
+from py_helpers.event_density_utils import DENSITY_BINS as _CAUSAL_DENSITY_BINS
 from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
 BUPAR_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
 BUPAR_OUTPUTS.mkdir(parents=True, exist_ok=True)
@@ -154,9 +155,19 @@ def _has_fi_source(cohort_name, age_band):
     step3b_dir = REPO_ROOT / "3b_feature_importance_eda" / "outputs" / cohort_name / age_band_fname
     step3b_any = any(step3b_dir.glob("*cohort_feature_importance*.csv")) if step3b_dir.exists() else False
     step3a_path = REPO_ROOT / "3a_feature_importance" / "outputs" / cohort_name / age_band_fname / "cohort_feature_importance.csv"
-    combined_causal = CAUSAL_VISUALS / cohort_name / age_band_fname / "combined_importance.csv"
+    causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
+    combined_causal = causal_base / "combined_importance.csv"
+    combined_per_bin = any(
+        (causal_base / b / "combined_importance.csv").exists() for b in _CAUSAL_DENSITY_BINS
+    )
     combined_out = DASHBOARD_OUTPUTS / cohort_name / age_band_fname / "combined_importance.csv"
-    return step3b_any or step3a_path.exists() or combined_causal.exists() or combined_out.exists()
+    return (
+        step3b_any
+        or step3a_path.exists()
+        or combined_causal.exists()
+        or combined_out.exists()
+        or combined_per_bin
+    )
 
 # Ensure combined_importance.csv exists when no other FI source: run combine SHAP+FFA from Steps 7/8
 import subprocess
@@ -166,17 +177,25 @@ if COMBINE_SCRIPT.exists():
         if _has_fi_source(cohort_name, age_band):
             continue
         age_band_fname = age_band.replace("-", "_")
-        out_path = CAUSAL_VISUALS / cohort_name / age_band_fname / "combined_importance.csv"
-        if out_path.exists():
+        causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
+        if (causal_base / "combined_importance.csv").exists():
             continue
+        if any((causal_base / b / "combined_importance.csv").exists() for b in _CAUSAL_DENSITY_BINS):
+            continue
+        # Default causal path is per-bin; combine requires --bin (use medium for this fallback).
         r = subprocess.run(
-            [str(PYTHON_BIN), str(COMBINE_SCRIPT), "--cohort", cohort_name, "--age-band", age_band,
-             "--output-dir", str(CAUSAL_VISUALS), "--workers", "1"],
-            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=600,
+            [
+                str(PYTHON_BIN), str(COMBINE_SCRIPT),
+                "--cohort", cohort_name, "--age-band", age_band,
+                "--bin", "medium",
+                "--output-dir", str(CAUSAL_VISUALS), "--workers", "1",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True, text=True, timeout=600,
         )
         if r.returncode == 0:
             combined_generated += 1
-            print(f"  [Combine SHAP+FFA] {cohort_name}/{age_band} -> generated combined_importance.csv")
+            print(f"  [Combine SHAP+FFA] {cohort_name}/{age_band} -> generated combined_importance (bin=medium)")
         else:
             print(f"  [Combine SHAP+FFA] {cohort_name}/{age_band} -> skipped (missing 7/8 outputs or error)")
     if combined_generated:
@@ -205,9 +224,22 @@ for cohort_name, age_band in combinations:
     
     step3b_dir = REPO_ROOT / "3b_feature_importance_eda" / "outputs" / cohort_name / age_band_fname
     step3b_any = any(step3b_dir.glob("*cohort_feature_importance*.csv")) if step3b_dir.exists() else False
-    combined_causal = CAUSAL_VISUALS / cohort_name / age_band_fname / "combined_importance.csv"
+    causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
+    combined_causal = causal_base / "combined_importance.csv"
     combined_out = DASHBOARD_OUTPUTS / cohort_name / age_band_fname / "combined_importance.csv"
-    combined_path = combined_causal if combined_causal.exists() else combined_out
+    combined_path = None
+    if combined_causal.exists():
+        combined_path = combined_causal
+    elif combined_out.exists():
+        combined_path = combined_out
+    else:
+        for b in _CAUSAL_DENSITY_BINS:
+            p = causal_base / b / "combined_importance.csv"
+            if p.exists():
+                combined_path = p
+                break
+    if combined_path is None:
+        combined_path = combined_out
     step3a_path = REPO_ROOT / "3a_feature_importance" / "outputs" / cohort_name / age_band_fname / "cohort_feature_importance.csv"
     
     print(f"{cohort_name}/{age_band}:")

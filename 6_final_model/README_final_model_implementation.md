@@ -9,6 +9,7 @@ feature engineering (PGx; BupaR/DTW/FP-Growth are dashboard-only).
 The core implementation resides in this step:
 
 - `6_final_model/run_final_model.py`
+  - **Training mode (CLI):** `--train-mode per_bin` (**default**), `aggregate`, or `both`. Per-bin trains one model per event-density bin (`low` / `medium` / `high` / `extreme`) under `outputs/.../bin_models/{bin}/`, then **mirrors** the first available bin in preference order (`medium`, then the rest) to the cohort-level `outputs/.../{age_band_fname}/` tree so `prepare_models.py` and deploy paths keep working. `aggregate` trains only the cohort-wide model (legacy). `both` runs cohort-wide then per-bin (no mirror; aggregate outputs stay from the unified run).
   - Loads event-level model data from `4_model_data/.../model_events.parquet`.
   - Uses aggregated feature importances (Step 3a) and PGx patient-level features (Step 5).
   - Applies target-leakage removal (post-event, time-to-target, etc.).
