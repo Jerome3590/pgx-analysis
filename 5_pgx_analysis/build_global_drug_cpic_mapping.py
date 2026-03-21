@@ -355,20 +355,28 @@ def main():
     global_out_dir = PROJECT_ROOT / "5_pgx_analysis" / "outputs" / "global"
     output_path = Path(args.output) if args.output else global_out_dir / "drug_cpic_mapping_global.csv"
 
-    # Idempotent: skip if output exists and is newer than all source FI files
+    # Idempotent: skip only if output exists, is non-empty, and is newer than all source FI files
     if not args.force and output_path.exists():
-        fi_files = find_all_cohort_fi_files(cohort=args.cohort, age_band=args.age_band)
-        if not fi_files:
-            fi_files = find_all_aggregated_fi_files(cohort=args.cohort, age_band=args.age_band)
-        if fi_files:
-            out_mtime = output_path.stat().st_mtime
-            if all(p.stat().st_mtime <= out_mtime for p in fi_files):
-                logger.info(
-                    "Output %s is up-to-date (newer than all %d source FI files); skipping. Use --force to rebuild.",
-                    output_path,
-                    len(fi_files),
-                )
-                sys.exit(0)
+        try:
+            existing = pd.read_csv(output_path)
+        except Exception as e:
+            logger.info("Could not read existing mapping %s (%s); rebuilding.", output_path, e)
+            existing = pd.DataFrame()
+        if len(existing) == 0:
+            logger.info("Existing global mapping is empty or unreadable; rebuilding.")
+        else:
+            fi_files = find_all_cohort_fi_files(cohort=args.cohort, age_band=args.age_band)
+            if not fi_files:
+                fi_files = find_all_aggregated_fi_files(cohort=args.cohort, age_band=args.age_band)
+            if fi_files:
+                out_mtime = output_path.stat().st_mtime
+                if all(p.stat().st_mtime <= out_mtime for p in fi_files):
+                    logger.info(
+                        "Output %s is up-to-date (newer than all %d source FI files); skipping. Use --force to rebuild.",
+                        output_path,
+                        len(fi_files),
+                    )
+                    sys.exit(0)
 
     # Load CPIC drug list
     logger.info("Loading CPIC drug list...")

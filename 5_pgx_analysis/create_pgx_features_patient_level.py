@@ -52,17 +52,18 @@ def create_patient_pgx_features(
     pd.DataFrame
         Patient-level PGx features with mi_person_key, pgx_num_drugs, pgx_num_cpic_drugs
     """
-    age_band_fname = age_band.replace("-", "_")
-    
-    # Load global drug-to-CPIC mapping (local first, then S3 fallback via shared helper)
+    # Load global drug-to-CPIC mapping (local → S3 → auto-build via build_global_drug_cpic_mapping.py)
     cpic_drug_set = set()
     try:
         import sys as _sys
         _pgx_dir = str(project_root / "5_pgx_analysis")
         if _pgx_dir not in _sys.path:
             _sys.path.insert(0, _pgx_dir)
-        from map_drugs_to_genes import load_global_drug_mapping
-        drug_mapping_df = load_global_drug_mapping()
+        from map_drugs_to_genes import ensure_global_drug_mapping
+        drug_mapping_df = ensure_global_drug_mapping(
+            cohort=cohort_name,
+            age_band=age_band,
+        )
         if drug_mapping_df is not None and 'drug_name' in drug_mapping_df.columns:
             cpic_drug_set = set(drug_mapping_df['drug_name'].str.upper().str.strip())
             logger.info(f"Loaded {len(cpic_drug_set)} CPIC drugs from global mapping")
