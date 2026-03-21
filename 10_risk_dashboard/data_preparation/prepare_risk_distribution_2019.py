@@ -88,6 +88,17 @@ def load_model_from_dashboard(cohort: str, age_band: str, model_type: str) -> Op
     return None
 
 
+def load_calibration_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
+    """Load Platt calibration model (LogisticRegression) if present; returns None otherwise."""
+    if not LIBS_AVAILABLE:
+        return None
+    age_band_fname = age_band.replace("-", "_")
+    p = MODELS_OUTPUT_DIR / cohort / age_band_fname / f"calibration_{model_type}.joblib"
+    if p.exists():
+        return joblib.load(p)
+    return None
+
+
 def build_2019_feature_matrix(
     test_df: pd.DataFrame,
     feature_schema: Dict[str, Any],
@@ -122,6 +133,8 @@ def predict_ensemble_batch(
 ) -> np.ndarray:
     """
     Run ensemble prediction on rows X; same logic as Lambda predict_risk.
+    Applies Platt calibration when calibration_*.joblib is present so the
+    histogram distribution matches the calibrated scores returned by the Lambda.
     Returns 1D array of ensemble probabilities in [0, 1].
     """
     if not LIBS_AVAILABLE or X.size == 0:
@@ -129,6 +142,7 @@ def predict_ensemble_batch(
 
     model_types = ["catboost", "xgboost", "xgboost_rf"]
     predictions: Dict[str, np.ndarray] = {}
+    n_calibrated = 0
     for model_type in model_types:
         model = load_model_from_dashboard(cohort, age_band, model_type)
         if model is None:
@@ -145,13 +159,25 @@ def predict_ensemble_batch(
                     proba = model.predict_proba(X)[:, 1]
             else:
                 continue
-            predictions[model_type] = np.asarray(proba, dtype=np.float64)
+            proba = np.asarray(proba, dtype=np.float64)
+            calibrator = load_calibration_model(cohort, age_band, model_type)
+            if calibrator is not None:
+                proba = np.clip(
+                    calibrator.predict_proba(proba.reshape(-1, 1))[:, 1], 0.0, 1.0
+                )
+                n_calibrated += 1
+            predictions[model_type] = proba
         except Exception as e:
             print(f"    Warning: {model_type} prediction failed: {e}")
             continue
 
     if not predictions:
         return np.zeros(len(X))
+
+    if n_calibrated > 0:
+        print(f"    Platt calibration applied to {n_calibrated}/{len(predictions)} models")
+    else:
+        print(f"    No calibration models found — using raw probabilities (re-run training to generate calibration files)")
 
     # Weighted average (same as Lambda)
     total_weight = sum(model_weights.get(m, 0.0) for m in predictions)
