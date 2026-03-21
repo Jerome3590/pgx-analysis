@@ -299,17 +299,18 @@ def handle_metrics(_event: Dict[str, Any]) -> Dict[str, Any]:
     return _response(200, {"by_cohort": {}, "source": "none"})
 
 
-def load_model(cohort: str, age_band: str, model_type: str) -> Any:
+def load_model(cohort: str, age_band: str, model_type: str, bin_name: Optional[str] = None) -> Any:
     """
     Load model from container filesystem (ECR) or S3 with caching.
-    
-    Priority:
-    1. Container filesystem (/var/task/models/) - fastest, bundled in image
-    2. S3 fallback - for development or if container models not available
-    
+
+    When bin_name is supplied the per-bin model is loaded exclusively — no
+    full-cohort fallback.  Raises FileNotFoundError if the bin model is absent.
+    When bin_name is None the full-cohort model is loaded (legacy/baseline path).
+
     model_type: 'catboost', 'xgboost', or 'xgboost_rf'
+    bin_name:   one of 'low', 'medium', 'high', 'extreme'
     """
-    cache_key = f"{cohort}/{age_band}/{model_type}"
+    cache_key = f"{cohort}/{age_band}/{model_type}" if not bin_name else f"{cohort}/{age_band}/bin/{bin_name}/{model_type}"
     
     # Check cache
     if cache_key in _model_cache:
@@ -318,89 +319,86 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Any:
             return _model_cache[cache_key]['model']
     
     age_band_fname = age_band.replace("-", "_")
-    
-    # Try loading from container filesystem first (ECR deployment)
-    if USE_CONTAINER_MODELS:
-        container_model_path = os.path.join(
-            MODEL_BASE_PATH,
-            cohort,
-            age_band_fname,
-            f"{model_type}.joblib"
-        )
-        
-        # Also try JSON format for CatBoost
-        if model_type == 'catboost':
-            container_model_json = os.path.join(
-                MODEL_BASE_PATH,
-                cohort,
-                age_band_fname,
-                f"{model_type}.json"
-            )
-            if os.path.exists(container_model_json):
-                try:
-                    model = CatBoostClassifier()
-                    model.load_model(container_model_json)
+
+    def _try_load_from_path(path: str) -> Optional[Any]:
+        """Load a single model file (joblib or CatBoost json/cbm). Returns None on any failure."""
+        if not os.path.exists(path):
+            return None
+        try:
+            if model_type == 'catboost':
+                m = CatBoostClassifier()
+                m.load_model(path)
+            else:
+                m = joblib.load(path)
+            print(f"Loaded {model_type} from {path}")
+            return m
+        except Exception as e:
+            print(f"Warning: Failed to load {path}: {e}")
+            return None
+
+    if model_type not in ('catboost', 'xgboost', 'xgboost_rf'):
+        raise ValueError(f"Unknown model type: {model_type}")
+
+    if bin_name:
+        # ── Per-bin path ONLY — no full-cohort fallback ──────────────────────
+        if USE_CONTAINER_MODELS:
+            bin_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "bin_models", bin_name)
+            for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                model = _try_load_from_path(os.path.join(bin_dir, fname))
+                if model is not None:
                     _model_cache[cache_key] = {'model': model}
                     _cache_timestamps[cache_key] = time.time()
                     return model
-                except Exception as e:
-                    print(f"Warning: Failed to load {container_model_json}: {e}")
-        
-        if os.path.exists(container_model_path):
-            try:
-                if model_type == 'catboost':
-                    model = CatBoostClassifier()
-                    model.load_model(container_model_path)
-                else:
-                    model = joblib.load(container_model_path)
-                
-                # Cache model
-                _model_cache[cache_key] = {'model': model}
-                _cache_timestamps[cache_key] = time.time()
-                print(f"Loaded {model_type} from container: {container_model_path}")
-                return model
-            except Exception as e:
-                print(f"Warning: Failed to load from container: {e}, falling back to S3")
-    
-    # Fallback to S3
-    if model_type == 'catboost':
-        key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/catboost.joblib"
-    elif model_type == 'xgboost':
-        key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/xgboost.joblib"
-    elif model_type == 'xgboost_rf':
-        key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/xgboost_rf.joblib"
+        s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/bin_models/{bin_name}/{model_type}.joblib"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            model_bytes = obj["Body"].read()
+            if model_type == 'catboost':
+                model = CatBoostClassifier()
+                model.load_model(BytesIO(model_bytes))
+            else:
+                model = joblib.load(BytesIO(model_bytes))
+            _model_cache[cache_key] = {'model': model}
+            _cache_timestamps[cache_key] = time.time()
+            print(f"Loaded per-bin {model_type} ({bin_name}) from S3: s3://{S3_BUCKET}/{s3_key}")
+            return model
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "NotFound"):
+                raise FileNotFoundError(
+                    f"Per-bin model not found for bin='{bin_name}', model='{model_type}'. "
+                    f"Run train_per_bin() (notebook 3) then prepare_models.py to generate it."
+                )
+            raise
     else:
-        raise ValueError(f"Unknown model type: {model_type}")
-    
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        model_bytes = obj["Body"].read()
-        
-        # Load model
-        if model_type == 'catboost':
-            model = CatBoostClassifier()
-            model.load_model(BytesIO(model_bytes))
-        else:
-            model = joblib.load(BytesIO(model_bytes))
-        
-        # Cache model
-        _model_cache[cache_key] = {'model': model}
-        _cache_timestamps[cache_key] = time.time()
-        print(f"Loaded {model_type} from S3: s3://{S3_BUCKET}/{key}")
-        return model
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
-            paths_checked = []
-            if USE_CONTAINER_MODELS:
-                paths_checked.append(container_model_path)
-                if model_type == 'catboost':
-                    paths_checked.append(os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "catboost.json"))
-            paths_checked.append(f"s3://{S3_BUCKET}/{key}")
-            raise FileNotFoundError(
-                f"Model not found. Checked: {'; '.join(paths_checked)}"
-            )
-        raise
+        # ── Full-cohort path (no bin) ─────────────────────────────────────────
+        if USE_CONTAINER_MODELS:
+            full_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname)
+            for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                model = _try_load_from_path(os.path.join(full_dir, fname))
+                if model is not None:
+                    _model_cache[cache_key] = {'model': model}
+                    _cache_timestamps[cache_key] = time.time()
+                    return model
+        s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/{model_type}.joblib"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            model_bytes = obj["Body"].read()
+            if model_type == 'catboost':
+                model = CatBoostClassifier()
+                model.load_model(BytesIO(model_bytes))
+            else:
+                model = joblib.load(BytesIO(model_bytes))
+            _model_cache[cache_key] = {'model': model}
+            _cache_timestamps[cache_key] = time.time()
+            print(f"Loaded {model_type} from S3: s3://{S3_BUCKET}/{s3_key}")
+            return model
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "NotFound"):
+                raise FileNotFoundError(f"Full-cohort model not found: s3://{S3_BUCKET}/{s3_key}")
+            raise
+    raise FileNotFoundError(f"Model not found for {cohort}/{age_band}/{model_type}" + (f" (bin={bin_name})" if bin_name else ""))
 
 
 def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str, Any]]:
@@ -530,36 +528,64 @@ def n_event_bin_from_n_events(n_events: int, thresholds: Dict[str, float]) -> st
 _calibration_cache: Dict[str, Any] = {}
 
 
-def load_calibration_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
-    """Load Platt calibrator (LogisticRegression) from container or S3. Returns None if unavailable."""
-    cache_key = f"{cohort}/{age_band}/{model_type}"
+def load_calibration_model(cohort: str, age_band: str, model_type: str, bin_name: Optional[str] = None) -> Optional[Any]:
+    """Load Platt calibrator (LogisticRegression) from container or S3.
+
+    When bin_name is supplied, loads exclusively from bin_models/{bin_name}/ —
+    no full-cohort fallback.  Returns None if the per-bin calibrator is absent
+    (calibration is optional; raw probability is used in that case).
+    When bin_name is None, loads the full-cohort calibrator.
+    """
+    cache_key = f"{cohort}/{age_band}/{model_type}" if not bin_name else f"{cohort}/{age_band}/bin/{bin_name}/{model_type}"
     if cache_key in _calibration_cache:
         return _calibration_cache[cache_key]
     age_band_fname = age_band.replace("-", "_")
     filename = f"calibration_{model_type}.joblib"
-    # 1) Container filesystem
-    if USE_CONTAINER_MODELS:
-        container_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, filename)
-        if os.path.exists(container_path):
-            try:
-                cal = joblib.load(container_path)
-                _calibration_cache[cache_key] = cal
-                print(f"Loaded calibrator ({model_type}) from container: {container_path}")
-                return cal
-            except Exception as e:
-                print(f"Warning: could not load calibrator from container: {e}")
-    # 2) S3
-    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/{filename}"
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        import io
-        cal = joblib.load(io.BytesIO(obj["Body"].read()))
-        _calibration_cache[cache_key] = cal
-        print(f"Loaded calibrator ({model_type}) from S3: {key}")
-        return cal
-    except Exception:
-        pass
-    return None
+    import io
+
+    if bin_name:
+        # ── Per-bin calibrator ONLY — no full-cohort fallback ─────────────────
+        if USE_CONTAINER_MODELS:
+            path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "bin_models", bin_name, filename)
+            if os.path.exists(path):
+                try:
+                    cal = joblib.load(path)
+                    _calibration_cache[cache_key] = cal
+                    print(f"Loaded per-bin calibrator ({model_type}, {bin_name}) from container: {path}")
+                    return cal
+                except Exception as e:
+                    print(f"Warning: could not load per-bin calibrator from {path}: {e}")
+        s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/bin_models/{bin_name}/{filename}"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            cal = joblib.load(io.BytesIO(obj["Body"].read()))
+            _calibration_cache[cache_key] = cal
+            print(f"Loaded per-bin calibrator ({model_type}, {bin_name}) from S3: {s3_key}")
+            return cal
+        except Exception:
+            print(f"Per-bin calibrator not found for bin='{bin_name}', model='{model_type}'; using raw probability.")
+            return None
+    else:
+        # ── Full-cohort calibrator ─────────────────────────────────────────────
+        if USE_CONTAINER_MODELS:
+            path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, filename)
+            if os.path.exists(path):
+                try:
+                    cal = joblib.load(path)
+                    _calibration_cache[cache_key] = cal
+                    print(f"Loaded calibrator ({model_type}) from container: {path}")
+                    return cal
+                except Exception as e:
+                    print(f"Warning: could not load calibrator from {path}: {e}")
+        s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/{filename}"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            cal = joblib.load(io.BytesIO(obj["Body"].read()))
+            _calibration_cache[cache_key] = cal
+            print(f"Loaded calibrator ({model_type}) from S3: {s3_key}")
+            return cal
+        except Exception:
+            return None
 
 
 def apply_calibration(raw_prob: float, calibrator: Any) -> float:
@@ -782,18 +808,25 @@ def predict_risk(
     age_band: str,
     feature_vector: np.ndarray,
     model_types: List[str] = ['catboost', 'xgboost', 'xgboost_rf'],
-    require_all_models: bool = True
+    require_all_models: bool = True,
+    n_event_bin: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Run ensemble prediction using all three models (CatBoost, XGBoost, XGBoost RF).
-    
+    Run prediction using the best model for this cohort/age band.
+
+    When n_event_bin is supplied ('low'/'medium'/'high'/'extreme'), per-bin
+    models are loaded first; if absent they fall back to full-cohort models.
+    This ensures the model specialised on the patient's utilization density is
+    used when available.
+
     Returns:
         {
             'predictions': {model_type: probability, ...},
             'ensemble_score': float,  # Weighted average
-            'ensemble_method': str,   # 'weighted_average' or 'simple_average'
-            'models_used': int,       # Number of models that succeeded
-            'models_failed': List[str] # List of failed model types
+            'ensemble_method': str,
+            'models_used': int,
+            'models_failed': List[str],
+            'bin_model_used': bool,   # True when a per-bin model was loaded
         }
     """
     if not MODEL_LIBS_AVAILABLE:
@@ -830,27 +863,31 @@ def predict_risk(
         models_to_run = model_types
     print(f"Using model weights: {model_weights} (running: {models_to_run})")
     
+    bin_model_used = False  # becomes True if at least one per-bin model is loaded
     for model_type in models_to_run:
         try:
-            model = load_model(cohort, age_band, model_type)
-            
+            model = load_model(cohort, age_band, model_type, bin_name=n_event_bin)
+            # Detect whether a per-bin model was actually served
+            _bin_cache_key = f"{cohort}/{age_band}/bin/{n_event_bin}/{model_type}" if n_event_bin else None
+            if _bin_cache_key and _bin_cache_key in _model_cache:
+                bin_model_used = True
+
             if model_type == 'catboost':
                 prob = model.predict_proba(feature_vector)[0][1]
             elif model_type in ['xgboost', 'xgboost_rf']:
                 if isinstance(model, xgb.Booster):
                     dmatrix = xgb.DMatrix(feature_vector)
                     prob = model.predict(dmatrix)[0]
-                    # Ensure probability is in [0, 1] range
                     prob = max(0.0, min(1.0, prob))
                 else:
                     prob = model.predict_proba(feature_vector)[0][1]
             else:
                 raise ValueError(f"Unknown model type: {model_type}")
-            
+
             raw_prob = float(prob)
             raw_predictions[model_type] = raw_prob
-            # Apply Platt calibration if available
-            calibrator = load_calibration_model(cohort, age_band, model_type)
+            # Apply Platt calibration (per-bin calibrator preferred, falls back to full-cohort)
+            calibrator = load_calibration_model(cohort, age_band, model_type, bin_name=n_event_bin)
             if calibrator is not None:
                 calibrated = apply_calibration(raw_prob, calibrator)
                 predictions[model_type] = calibrated
@@ -859,7 +896,7 @@ def predict_risk(
             else:
                 predictions[model_type] = raw_prob
                 calibration_applied[model_type] = False
-            
+
         except Exception as e:
             error_msg = str(e)
             errors[model_type] = error_msg
@@ -919,6 +956,8 @@ def predict_risk(
         'weights_used': available_weights,
         'weights_source': weights_source,
         'model_used': model_used,
+        'bin_model_used': bin_model_used,
+        'n_event_bin': n_event_bin,
     }
 
 
@@ -1158,7 +1197,16 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             pgx_num_drugs=pgx_num_drugs,
             pgx_num_cpic_drugs=pgx_num_cpic_drugs,
         )
-        ensemble_result = predict_risk(cohort, age_band, feature_vector, require_all_models=True)
+        # Compute n_event_bin before inference so the per-bin model can be loaded
+        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
+        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
+        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
+
+        ensemble_result = predict_risk(
+            cohort, age_band, feature_vector,
+            require_all_models=True,
+            n_event_bin=n_event_bin_value,
+        )
 
         risk_score = ensemble_result['ensemble_score']
         model_predictions = ensemble_result['predictions']
@@ -1168,15 +1216,13 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         age_mapping_note = f"Age {age} in age band 85-114" if age_mapped else None
 
         model_used = ensemble_result.get("model_used")
+        bin_model_used = ensemble_result.get("bin_model_used", False)
         interpretation = "Estimated probability of target outcome (2019 holdout context) for the selected codes in this cohort and age band."
         if model_used:
-            interpretation = f"Risk from {model_used} (best model for this cohort/age). " + interpretation
+            bin_note = f" [per-bin model: {n_event_bin_value}]" if bin_model_used else ""
+            interpretation = f"Risk from {model_used}{bin_note} (best model for this cohort/age). " + interpretation
 
         bucket_info = patient_bucket_from_inputs(n_drugs, feature_schema)
-        # n_event_bin: total codes submitted → utilization density bin
-        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
-        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
-        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
         calibration_applied = ensemble_result.get('calibration_applied', {})
         is_calibrated = any(calibration_applied.values()) if calibration_applied else False
         _raw_preds = ensemble_result.get('raw_predictions', {})
@@ -1202,6 +1248,7 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "n_pgx_drugs": pgx_num_drugs,
             "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
             "model_used": model_used,
+            "bin_model_used": bin_model_used,
             "model_breakdown": model_predictions,
             "ensemble_info": {
                 "method": ensemble_result['ensemble_method'],
@@ -1711,47 +1758,74 @@ def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
         })
 
 
-def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboost") -> pd.DataFrame:
+def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboost", bin_name: Optional[str] = None) -> pd.DataFrame:
     """
-    Load causal importance results from S3.
-    
-    Args:
-        cohort: Cohort name
-        age_band: Age band
-        model_type: Model type ('xgboost', 'catboost', 'xgboost_rf')
-    
-    Returns:
-        DataFrame with causal importance results, or empty DataFrame if not found
+    Load feature importance results.
+
+    When bin_name is supplied the per-bin XGBoost/CatBoost feature importance
+    CSV is loaded exclusively from bin_models/{bin_name}/ (container or S3).
+    Returns an empty DataFrame if the per-bin file is absent — no full-cohort
+    fallback, so the caller can surface a meaningful "not available" message.
+
+    When bin_name is None the full-cohort FFA causal_importance.parquet is
+    loaded (legacy/baseline path).
+
+    The per-bin CSV has columns 'feature' and 'importance'; the latter is
+    renamed to 'causal_importance' to match the existing response schema.
     """
     if not MODEL_LIBS_AVAILABLE:
         print("ERROR: pandas not available. Cannot load causal importance.")
         return pd.DataFrame()
-    
+
     age_band_fname = age_band.replace("-", "_")
-    
-    # Try container filesystem first
-    if USE_CONTAINER_MODELS:
-        container_causal_path = Path(MODEL_BASE_PATH).parent.parent / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / model_type / "causal_importance.parquet"
-        if container_causal_path.exists():
-            try:
-                return pd.read_parquet(container_causal_path)
-            except Exception as e:
-                print(f"Warning: Failed to load causal importance from container: {e}")
-    
-    # Fallback to S3
-    s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/causal_importance.parquet"
-    
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-        df = pd.read_parquet(BytesIO(obj["Body"].read()))
-        print(f"Loaded causal importance from S3: s3://{S3_BUCKET}/{s3_key}")
-        return df
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
-            print(f"Causal importance not found: s3://{S3_BUCKET}/{s3_key}")
+
+    if bin_name:
+        # ── Per-bin feature importance CSV only ───────────────────────────────
+        fi_fname = f"{cohort}_{age_band_fname}_{model_type}_feature_importance.csv"
+        if USE_CONTAINER_MODELS:
+            p = Path(MODEL_BASE_PATH) / cohort / age_band_fname / "bin_models" / bin_name / fi_fname
+            if p.exists():
+                try:
+                    df = pd.read_csv(p)
+                    if "importance" in df.columns and "causal_importance" not in df.columns:
+                        df = df.rename(columns={"importance": "causal_importance"})
+                    print(f"Loaded per-bin FI ({bin_name}/{model_type}) from container")
+                    return df
+                except Exception as e:
+                    print(f"Warning: could not load per-bin FI from container: {e}")
+        s3_key = f"gold/final_model/{cohort}/{age_band}/bin_models/{bin_name}/{fi_fname}"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            import io
+            df = pd.read_csv(io.BytesIO(obj["Body"].read()))
+            if "importance" in df.columns and "causal_importance" not in df.columns:
+                df = df.rename(columns={"importance": "causal_importance"})
+            print(f"Loaded per-bin FI ({bin_name}/{model_type}) from S3: {s3_key}")
+            return df
+        except Exception:
+            print(f"Per-bin feature importance not found for bin='{bin_name}', model='{model_type}'. Run notebook 3 first.")
             return pd.DataFrame()
-        raise
+    else:
+        # ── Full-cohort FFA causal importance (parquet) ───────────────────────
+        if USE_CONTAINER_MODELS:
+            container_causal_path = Path(MODEL_BASE_PATH).parent.parent / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / model_type / "causal_importance.parquet"
+            if container_causal_path.exists():
+                try:
+                    return pd.read_parquet(container_causal_path)
+                except Exception as e:
+                    print(f"Warning: Failed to load causal importance from container: {e}")
+        s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/causal_importance.parquet"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            df = pd.read_parquet(BytesIO(obj["Body"].read()))
+            print(f"Loaded causal importance from S3: s3://{S3_BUCKET}/{s3_key}")
+            return df
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "NotFound"):
+                print(f"Causal importance not found: s3://{S3_BUCKET}/{s3_key}")
+                return pd.DataFrame()
+            raise
 
 
 def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -1793,21 +1867,28 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
         selected_drugs = body.get("selected_drugs", [])
         top_n = body.get("top_n", 10)
         model_type = body.get("model_type", "xgboost")
-        
+        n_event_bin = body.get("n_event_bin") or None  # 'low'/'medium'/'high'/'extreme' or None
+
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band are required"})
-        
-        # Load causal importance results from S3 (pre-computed)
-        causal_df = load_causal_importance(cohort, age_band, model_type)
+
+        # Load per-bin or full-cohort feature importance
+        causal_df = load_causal_importance(cohort, age_band, model_type, bin_name=n_event_bin)
         
         if causal_df.empty:
+            msg = (
+                f"No feature importance found for bin='{n_event_bin}'. Run train_per_bin() (notebook 3) first."
+                if n_event_bin else
+                "No causal importance results found. Run Step 8 (FFA Analysis) first."
+            )
             return _response(200, {
                 "causal_importance": [],
                 "summary": {
                     "total_features": 0,
                     "filtered_features": 0,
                     "selected_drugs": selected_drugs,
-                    "message": "No causal importance results found. Run Step 8 (FFA Analysis) first."
+                    "n_event_bin": n_event_bin,
+                    "message": msg,
                 }
             })
         
@@ -1831,9 +1912,11 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
             "total_features": len(causal_df),
             "filtered_features": len(filtered_df),
             "selected_drugs": selected_drugs,
-            "top_n_returned": len(causal_importance)
+            "top_n_returned": len(causal_importance),
+            "n_event_bin": n_event_bin,
+            "importance_source": "per_bin" if n_event_bin else "full_cohort_ffa",
         }
-        
+
         return _response(200, {
             "causal_importance": causal_importance,
             "summary": summary
@@ -1882,15 +1965,61 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None  # 'low'/'medium'/'high'/'extreme' or None
+        model_type = params.get("model_type", "xgboost")
 
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
 
+        drugs = [x.strip() for x in (params.get("drugs") or "").split(",") if x.strip()]
+        icds = [x.strip() for x in (params.get("icds") or "").split(",") if x.strip()]
+        cpts = [x.strip() for x in (params.get("cpts") or "").split(",") if x.strip()]
+        whatif_codes = [x.strip() for x in (params.get("whatif") or "").split(",") if x.strip()]
+        selected_set = _causal_feature_set_from_codes(drugs, icds, cpts)
+        whatif_set = _causal_feature_set_from_codes(whatif_codes, whatif_codes, whatif_codes) if whatif_codes else set()
+
         # S3 paths use hyphen (25-44); EC2/file paths use underscore (25_44)
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/causal/{cohort}/{age_band}"
         causal_key = f"{prefix}/causal_data.json"
-        payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key)}
+        payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key), "n_event_bin": n_event_bin}
 
+        # When n_event_bin is supplied, load per-bin FI CSV exclusively (no causal_data.json fallback)
+        if n_event_bin:
+            bin_df = load_causal_importance(cohort, age_band, model_type, bin_name=n_event_bin)
+            if not bin_df.empty:
+                fi_col = "causal_importance" if "causal_importance" in bin_df.columns else "importance"
+                top_rows = bin_df.sort_values(fi_col, ascending=False)
+                if selected_set:
+                    top_rows = top_rows[top_rows["feature"].isin(selected_set)]
+                    filtered_by_codes = True
+                else:
+                    filtered_by_codes = False
+                causal_factors = [
+                    {"feature": r["feature"], "importance": float(r[fi_col])}
+                    for _, r in top_rows.iterrows()
+                ]
+                chart_data: Dict[str, Any] = {
+                    "causal_factors": causal_factors,
+                    "shap_importance": causal_factors,  # same source; SHAP not available per-bin
+                    "filtered_by_codes": filtered_by_codes,
+                    "importance_source": "per_bin",
+                }
+                if whatif_set:
+                    wif_rows = bin_df[bin_df["feature"].isin(whatif_set)].sort_values(fi_col, ascending=False)
+                    chart_data["causal_factors_whatif"] = [
+                        {"feature": r["feature"], "importance": float(r[fi_col])}
+                        for _, r in wif_rows.iterrows()
+                    ]
+                    chart_data["shap_importance_whatif"] = chart_data["causal_factors_whatif"]
+                payload["chart_data"] = chart_data
+            else:
+                payload["message"] = (
+                    f"Per-bin feature importance not available for bin='{n_event_bin}'. "
+                    "Run train_per_bin() (notebook 3) and prepare_models.py first."
+                )
+            return _response(200, payload)
+
+        # Full-cohort path: load causal_data.json from S3
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=causal_key)
             data = json.loads(obj["Body"].read().decode("utf-8"))
@@ -1901,33 +2030,18 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # Build chart_data (ready-to-render) with optional filter and whatif, same pattern as FI
+        # Build chart_data from full-cohort causal_data.json
         if payload.get("causal_data"):
             raw = payload["causal_data"]
             top = raw.get("top_causal_factors") or []
-            drugs = [x.strip() for x in (params.get("drugs") or "").split(",") if x.strip()]
-            icds = [x.strip() for x in (params.get("icds") or "").split(",") if x.strip()]
-            cpts = [x.strip() for x in (params.get("cpts") or "").split(",") if x.strip()]
-            whatif_codes = [x.strip() for x in (params.get("whatif") or "").split(",") if x.strip()]
-
-            selected_set = _causal_feature_set_from_codes(drugs, icds, cpts)
-            whatif_set = _causal_feature_set_from_codes(
-                whatif_codes, whatif_codes, whatif_codes
-            ) if whatif_codes else set()
 
             def row_to_factor(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
-                return {
-                    "feature": feat,
-                    "importance": float(r.get("causal_responsibility") or r.get("importance") or 0),
-                }
+                return {"feature": feat, "importance": float(r.get("causal_responsibility") or r.get("importance") or 0)}
 
             def row_to_shap(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
-                return {
-                    "feature": feat,
-                    "importance": float(r.get("shap_importance") or r.get("importance") or 0),
-                }
+                return {"feature": feat, "importance": float(r.get("shap_importance") or r.get("importance") or 0)}
 
             if selected_set:
                 causal_factors = [row_to_factor(r) for r in top if (r.get("feature") or "") in selected_set]
@@ -1941,10 +2055,11 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
             causal_factors_whatif = [row_to_factor(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
             shap_importance_whatif = [row_to_shap(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
 
-            chart_data: Dict[str, Any] = {
+            chart_data = {
                 "causal_factors": causal_factors,
                 "shap_importance": shap_importance,
                 "filtered_by_codes": filtered_by_codes,
+                "importance_source": "full_cohort_ffa",
             }
             if causal_factors_whatif:
                 chart_data["causal_factors_whatif"] = causal_factors_whatif
@@ -1965,18 +2080,17 @@ DTW_TRAJECTORY_PLOT_MAX_INLINE_BYTES = 2 * 1024 * 1024  # 2 MB
 
 def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GET /visualizations/dtw?cohort=...&age_band=...
+    GET /visualizations/dtw?cohort=...&age_band=...[&n_event_bin=low|medium|high|extreme]
 
-    Prefer JSON: fetches chart_data.json and sequence_heatmap.json from S3 when present and returns
-    them inline (chart_data, sequence_heatmap) so the frontend can render without a second request
-    and works even when bucket is not public. Also returns chart_data_url and sequence_heatmap_url
-    for fallback. Overview/sample images: only included if objects exist (HEAD check).
-    Uses dashboard_visual_objects.json (manifest) when available so API and frontend share the same paths.
+    When n_event_bin is supplied, chart fields with *_by_density variants are replaced
+    with the per-bin slice.  Falls back to full-cohort data (labelled accordingly) when
+    the bin-specific slice is absent.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None
 
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
@@ -2016,6 +2130,7 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             "chart_data_url": _dashboard_s3_url(chart_data_key),
             "sequence_heatmap_url": _dashboard_s3_url(sequence_heatmap_key),
             "metrics": {},
+            "n_event_bin": n_event_bin,
         }
 
         # Prefer JSON: load chart_data and sequence_heatmap from S3 (full path from manifest when available)
@@ -2055,6 +2170,42 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             if not (payload["sequence_heatmap"].get("drug", {}).get("codes") or payload["sequence_heatmap"].get("empty")):
                 payload["sequence_heatmap"].setdefault("message", "Sequence heatmap is empty for this cohort/age band.")
                 payload["sequence_heatmap"].setdefault("empty", True)
+
+        # When n_event_bin requested: overlay per-bin slices from *_by_density fields
+        if n_event_bin and payload.get("chart_data") and isinstance(payload["chart_data"], dict):
+            cd = payload["chart_data"]
+            _BY_DENSITY_FIELDS = (
+                "routine_comparison",
+                "routine_comparison_counts",
+                "high_risk_trajectories",
+            )
+            bin_found = any(
+                cd.get(f"{field}_by_density", {}).get(n_event_bin)
+                for field in _BY_DENSITY_FIELDS
+            )
+            bin_cd: Dict[str, Any] = {}
+            for field in _BY_DENSITY_FIELDS:
+                by_density = cd.get(f"{field}_by_density") or {}
+                if n_event_bin in by_density:
+                    bin_cd[field] = by_density[n_event_bin]
+                    bin_cd[f"{field}_data_scope"] = "per_bin"
+                elif cd.get(field):
+                    bin_cd[field] = cd[field]
+                    bin_cd[f"{field}_data_scope"] = "full_cohort_fallback"
+            # Fields without per-bin variants — carry over from full cohort
+            for passthru in ("times_between_sequences", "target_pathway_patterns",
+                             "time_to_target_sequences", "event_density_bins"):
+                if cd.get(passthru):
+                    bin_cd[passthru] = cd[passthru]
+                    bin_cd[f"{passthru}_data_scope"] = "full_cohort"
+            bin_cd["data_scope"] = "per_bin" if bin_found else "full_cohort_fallback"
+            bin_cd["requested_bin"] = n_event_bin
+            if not bin_found:
+                bin_cd["message"] = (
+                    f"No per-bin DTW data for density='{n_event_bin}'. "
+                    "Showing full-cohort data. Run create_dtw_visuals (notebook 4) to generate per-bin visuals."
+                )
+            payload["chart_data"] = bin_cd
 
         # Optional: simple metrics from chart_data for Trajectory Metrics panel
         if payload.get("chart_data"):
@@ -2142,69 +2293,85 @@ def handle_fpgrowth_network_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/fpgrowth?cohort=...&age_band=...&item_type=...
-    Returns HTTPS URLs for dashboard: itemsets PNG, network Plotly HTML (iframe by cohort).
-    Prefer network_html_proxy_url for the iframe so HTML is served with Content-Type: text/html.
-    When itemsets JSON is present in S3, returns itemsets_data for client-side Plotly rendering.
-    If itemsets/rules were empty, returns JSON with empty=True and message for dashboard to show.
-    Files are built by 4_dashboard_visuals / create_plots and uploaded to the dashboard bucket
-    (S3_DASHBOARD_BUCKET) under {S3_DASHBOARD_PREFIX}/visualizations/fpgrowth/{cohort}/{age_band}/plots/.
+    """GET /visualizations/fpgrowth?cohort=...&age_band=...[&n_event_bin=low|medium|high|extreme]
+
+    When n_event_bin is supplied, per-bin output files under
+    visualizations/fpgrowth/{cohort}/{age_band}/density/{bin_name}/plots/ are tried first.
+    Falls back to full-cohort combined outputs with data_scope label when absent.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
-        # Research focus: drugs only; ignore other item_type for cleaner drug-sequence visuals.
+        n_event_bin = params.get("n_event_bin") or None
         item_type = "drug_name"
-        
+
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
-        
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/fpgrowth"
-        base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        empty_state_key = f"{base_key}/empty_state.json"
 
-        # When itemsets/rules were empty, pipeline uploads empty_state.json; return it for dashboard
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/fpgrowth"
+        age_band_fname = age_band.replace("-", "_")
+
+        def _build_fpgrowth_payload(base_key: str, data_scope: str) -> Dict[str, Any]:
+            network_combined_key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
+            itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
+            network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"
+            network_png_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.png"
+            itemsets_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_itemsets_interactive.html"
+            network_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_network_interactive.html"
+            p: Dict[str, Any] = {
+                "network_combined_html": _dashboard_s3_url(network_combined_key),
+                "itemsets_image": _dashboard_s3_url(itemsets_key),
+                "support_image": _dashboard_s3_url(itemsets_key),
+                "network_html": _dashboard_s3_url(network_html_key),
+                "network_png": _dashboard_s3_url(network_png_key),
+                "itemsets_interactive": _dashboard_s3_url(itemsets_interactive_key),
+                "network_interactive": _dashboard_s3_url(network_interactive_key),
+                "data_scope": data_scope,
+                "n_event_bin": n_event_bin,
+            }
+            if data_scope == "full_cohort_fallback":
+                p["message"] = (
+                    f"No per-bin FP-Growth data for density='{n_event_bin}'. "
+                    "Showing full-cohort combined output. Run cohort_fpgrowth.py with per-bin output enabled."
+                )
+            data_key = f"{prefix}/{cohort}/{age_band}/data/{item_type}_itemsets.json"
+            try:
+                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=data_key)
+                p["itemsets_data"] = json.loads(obj["Body"].read().decode("utf-8"))
+            except (ClientError, json.JSONDecodeError, TypeError):
+                pass
+            return p
+
+        # When n_event_bin specified: try per-bin path first
+        if n_event_bin:
+            bin_base_key = f"{prefix}/{cohort}/{age_band}/density/{n_event_bin}/plots"
+            bin_empty_key = f"{bin_base_key}/empty_state.json"
+            # Check if per-bin data exists (probe empty_state or network html)
+            bin_network_key = f"{bin_base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_network_key) or _s3_object_exists(S3_DASHBOARD_BUCKET, bin_empty_key):
+                try:
+                    obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=bin_empty_key)
+                    return _response(200, json.loads(obj["Body"].read().decode("utf-8")))
+                except (ClientError, json.JSONDecodeError):
+                    pass
+                return _response(200, _build_fpgrowth_payload(bin_base_key, "per_bin"))
+            # Per-bin not found — fall back to full-cohort with label
+            full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
+            return _response(200, _build_fpgrowth_payload(full_base_key, "full_cohort_fallback"))
+
+        # No bin requested: serve combined full-cohort output
+        full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
+        empty_state_key = f"{full_base_key}/empty_state.json"
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=empty_state_key)
-            body = obj["Body"].read().decode("utf-8")
-            payload = json.loads(body)
-            return _response(200, payload)
+            return _response(200, json.loads(obj["Body"].read().decode("utf-8")))
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
                 raise
         except (json.JSONDecodeError, KeyError):
             pass
-
-        age_band_fname = age_band.replace("-", "_")
-        # Combined network: drug association rules only (no type filter)
-        network_combined_key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
-        # Legacy per-item-type filenames (itemsets + optional legacy network)
-        itemsets_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_combined_top_itemsets.png"
-        network_html_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.html"
-        network_png_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_target_rules_network.png"
-        itemsets_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_itemsets_interactive.html"
-        network_interactive_key = f"{base_key}/{cohort}_{age_band_fname}_{item_type}_network_interactive.html"
-
-        payload = {
-            "network_combined_html": _dashboard_s3_url(network_combined_key),
-            "itemsets_image": _dashboard_s3_url(itemsets_key),
-            "support_image": _dashboard_s3_url(itemsets_key),
-            "network_html": _dashboard_s3_url(network_html_key),
-            "network_png": _dashboard_s3_url(network_png_key),
-            "itemsets_interactive": _dashboard_s3_url(itemsets_interactive_key),
-            "network_interactive": _dashboard_s3_url(network_interactive_key),
-        }
-        # Itemsets JSON for client-side Plotly rendering (when uploaded by pipeline)
-        data_prefix = f"{prefix}/{cohort}/{age_band}/data"
-        itemsets_json_key = f"{data_prefix}/{item_type}_itemsets.json"
-        try:
-            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=itemsets_json_key)
-            raw = obj["Body"].read().decode("utf-8")
-            payload["itemsets_data"] = json.loads(raw)
-        except (ClientError, json.JSONDecodeError, TypeError):
-            pass
-        return _response(200, payload)
+        return _response(200, _build_fpgrowth_payload(full_base_key, "full_cohort"))
     except Exception as e:
         return _response(500, {"error": str(e)})
 
@@ -2258,51 +2425,72 @@ def handle_visualizations_feature_importance(event: Dict[str, Any]) -> Dict[str,
 
 # Allowed BupaR HTML visual names for proxy (must match S3 object suffix: base_<visual>.html)
 def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/bupar/activity_frequency?cohort=...&age_band=...
-    Returns JSON: { overall, pre_target, post_target } each { year_labels, data } for dashboard bar charts.
-    Pipeline writes activity_frequency.json, pre_target_activity_frequency.json, post_target_activity_frequency.json to S3.
-    Prefer JSON over PNG for these visuals: frontend renders Chart.js from this endpoint instead of static images.
+    """GET /visualizations/bupar/activity_frequency?cohort=...&age_band=...[&n_event_bin=...]
+
+    When n_event_bin is supplied, per-bin JSON under
+    visualizations/bupar/{cohort}/{age_band}/density/{bin_name}/plots/ is tried first.
+    Falls back to full-cohort data with data_scope label when absent.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         age_band_fname = age_band.replace("-", "_")
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar/{cohort}/{age_band}/plots"
         base = f"{cohort}_{age_band_fname}"
-        keys = {
-            "overall": f"{prefix}/{base}_activity_frequency.json",
-            "pre_target": f"{prefix}/{base}_pre_target_activity_frequency.json",
-            "post_target": f"{prefix}/{base}_post_target_activity_frequency.json",
-        }
-        payload = {}
-        for name, key in keys.items():
-            try:
-                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
-                data = json.loads(obj["Body"].read().decode("utf-8"))
-                payload[name] = data
-            except ClientError as e:
-                if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "403", "AccessDenied"):
-                    payload[name] = None
-                else:
-                    raise
-        return _response(200, payload)
+        bucket = S3_DASHBOARD_BUCKET
+        vis_prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
+
+        def _load_activity_freq_from_prefix(plots_prefix: str, scope: str) -> Dict[str, Any]:
+            keys = {
+                "overall": f"{plots_prefix}/{base}_activity_frequency.json",
+                "pre_target": f"{plots_prefix}/{base}_pre_target_activity_frequency.json",
+                "post_target": f"{plots_prefix}/{base}_post_target_activity_frequency.json",
+            }
+            result: Dict[str, Any] = {"data_scope": scope, "n_event_bin": n_event_bin}
+            for name, key in keys.items():
+                try:
+                    obj = s3_client.get_object(Bucket=bucket, Key=key)
+                    result[name] = json.loads(obj["Body"].read().decode("utf-8"))
+                except ClientError as e:
+                    code = e.response.get("Error", {}).get("Code")
+                    result[name] = None if code in ("NoSuchKey", "404", "403", "AccessDenied") else (_ for _ in ()).throw(e)
+            return result
+
+        full_prefix = f"{vis_prefix}/{cohort}/{age_band}/plots"
+        if n_event_bin:
+            bin_prefix = f"{vis_prefix}/{cohort}/{age_band}/density/{n_event_bin}/plots"
+            # Probe for per-bin overall activity frequency
+            probe_key = f"{bin_prefix}/{base}_activity_frequency.json"
+            if _s3_object_exists(bucket, probe_key):
+                return _response(200, _load_activity_freq_from_prefix(bin_prefix, "per_bin"))
+            # Not found — full-cohort fallback with label
+            result = _load_activity_freq_from_prefix(full_prefix, "full_cohort_fallback")
+            result["message"] = (
+                f"No per-bin BupaR activity data for density='{n_event_bin}'. "
+                "Showing full-cohort data. Run create_bupar_visuals.py with per-bin output enabled."
+            )
+            return _response(200, result)
+
+        return _response(200, _load_activity_freq_from_prefix(full_prefix, "full_cohort"))
     except Exception as e:
         return _response(500, {"error": str(e)})
 
 
 def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/bupar?cohort=...&age_band=...
-    Returns HTTPS URLs only for BupaR plot objects that exist in S3 (HEAD check).
-    Uses dashboard_visual_objects.json (manifest) when available so API and frontend share the same paths.
-    Fallback: S3 key pattern {S3_DASHBOARD_PREFIX}/visualizations/bupar/{cohort}/{age_band}/plots/
+    """GET /visualizations/bupar?cohort=...&age_band=...[&n_event_bin=low|medium|high|extreme]
+
+    When n_event_bin is supplied, per-bin plot objects under
+    visualizations/bupar/{cohort}/{age_band}/density/{bin_name}/plots/ are tried first.
+    Falls back to full-cohort objects with data_scope label when absent.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None
 
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
@@ -2355,10 +2543,11 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
                         except (json.JSONDecodeError, TypeError):
                             pass
 
+        vis_prefix_bupar = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
+
         # Fallback when manifest missing or no BupaR entry: hardcoded paths (must match manifest layout)
         if base_key is None:
-            prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/bupar"
-            base_key = f"{prefix}/{cohort}/{age_band}/plots"
+            base_key = f"{vis_prefix_bupar}/{cohort}/{age_band}/plots"
             candidates: List[Tuple[str, str]] = [
                 ("activity_frequency_image", f"{base_key}/{base}_overall_activity_frequency.png"),
                 ("pre_target_frequency_image", f"{base_key}/{base}_{pre_suffix}_activity_frequency.png"),
@@ -2383,6 +2572,44 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
                         raise
                 except (json.JSONDecodeError, TypeError):
                     pass
+
+        # Per-bin override: when n_event_bin supplied, try density/{bin}/plots/ first
+        payload["n_event_bin"] = n_event_bin
+        if n_event_bin:
+            bin_base_key = f"{vis_prefix_bupar}/{cohort}/{age_band}/density/{n_event_bin}/plots"
+            bin_probe = f"{bin_base_key}/{base}_overall_activity_frequency.png"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_probe):
+                # Reload payload from per-bin prefix
+                bin_payload: Dict[str, Any] = {"n_event_bin": n_event_bin, "data_scope": "per_bin"}
+                bin_candidates: List[Tuple[str, str]] = [
+                    ("activity_frequency_image", f"{bin_base_key}/{base}_overall_activity_frequency.png"),
+                    ("pre_target_frequency_image", f"{bin_base_key}/{base}_{pre_suffix}_activity_frequency.png"),
+                    ("sequence_image", f"{bin_base_key}/{base}_activity_sequence_top.png"),
+                    ("trace_explorer_pre_image", f"{bin_base_key}/{base}_trace_explorer_{pre_suffix}.png"),
+                    ("process_matrix_drug_drug", f"{bin_base_key}/{base}_process_matrix_drug_drug.png"),
+                ]
+                for pk, sk in bin_candidates:
+                    if _s3_object_exists(S3_DASHBOARD_BUCKET, sk):
+                        bin_payload[pk] = _dashboard_s3_url(sk)
+                for key, json_file in [
+                    ("trace_explorer_plot", f"{base}_trace_explorer_plot.json"),
+                    ("process_matrix_drug_drug", f"{base}_process_matrix_drug_drug.json"),
+                    ("activity_sequence_top", f"{base}_activity_sequence_top.json"),
+                ]:
+                    try:
+                        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=f"{bin_base_key}/{json_file}")
+                        bin_payload[key] = json.loads(obj["Body"].read().decode("utf-8"))
+                    except (ClientError, json.JSONDecodeError, TypeError):
+                        pass
+                return _response(200, bin_payload)
+            # Per-bin not found — keep full-cohort payload with fallback label
+            payload["data_scope"] = "full_cohort_fallback"
+            payload["message"] = (
+                f"No per-bin BupaR visuals for density='{n_event_bin}'. "
+                "Showing full-cohort data. Run create_bupar_visuals.py with per-bin output enabled."
+            )
+        else:
+            payload["data_scope"] = "full_cohort"
 
         return _response(200, payload)
     except Exception as e:

@@ -400,6 +400,40 @@ def _prepare_one_age_band(cohort: str, age_band: str) -> Tuple[str, str, bool]:
             print(f"  Copied {_cal_fname} -> {output_dir}")
         else:
             print(f"  [WARN] {_cal_fname} not found at {_cal_src}; skipping (run run_final_model.py first)")
+
+    # Copy per-bin models: bin_models/{bin_name}/models/ → output_dir/bin_models/{bin_name}/
+    # Lambda routes inference to these when the patient's n_event_bin is known (falls back to full-cohort if absent).
+    import shutil as _shutil3
+    _DENSITY_BINS = ("low", "medium", "high", "extreme")
+    for _bin in _DENSITY_BINS:
+        _bin_src_models = FINAL_MODEL_DIR / cohort / age_band_fname / "bin_models" / _bin / "models"
+        if not _bin_src_models.exists():
+            continue
+        _bin_dst = output_dir / "bin_models" / _bin
+        _bin_dst.mkdir(parents=True, exist_ok=True)
+        # Main model files
+        for _mtype in ("catboost", "xgboost", "xgboost_rf"):
+            for _fname in (f"{_mtype}.joblib", f"{_mtype}.json"):
+                _src = _bin_src_models / _fname
+                if _src.exists():
+                    _shutil3.copy2(_src, _bin_dst / _fname)
+                    print(f"  Copied bin_models/{_bin}/{_fname} -> {_bin_dst}")
+                    break  # prefer joblib; skip json if joblib present
+        # Per-bin calibration files
+        for _cal_fname in ("calibration_xgboost.joblib", "calibration_xgboost_rf.joblib", "calibration_catboost.joblib"):
+            _src = _bin_src_models / _cal_fname
+            if _src.exists():
+                _shutil3.copy2(_src, _bin_dst / _cal_fname)
+                print(f"  Copied bin_models/{_bin}/{_cal_fname} -> {_bin_dst}")
+        # Per-bin feature importance CSVs (one level up from models/ subdir)
+        _bin_root = FINAL_MODEL_DIR / cohort / age_band_fname / "bin_models" / _bin
+        for _fi_fname in (f"{cohort}_{age_band_fname}_xgboost_feature_importance.csv",
+                          f"{cohort}_{age_band_fname}_catboost_feature_importance.csv"):
+            _src = _bin_root / _fi_fname
+            if _src.exists():
+                _shutil3.copy2(_src, _bin_dst / _fi_fname)
+                print(f"  Copied bin_models/{_bin}/{_fi_fname} -> {_bin_dst}")
+
     return (cohort, age_band, True)
 
 

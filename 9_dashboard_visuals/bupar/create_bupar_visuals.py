@@ -494,6 +494,153 @@ def upload_bupar_plots_to_dashboard_s3(
     return True
 
 
+_DENSITY_BINS = ("low", "medium", "high", "extreme")
+
+
+def generate_per_bin_activity_frequency(
+    cohort_name: str,
+    age_band: str,
+    logger: logging.Logger,
+    top_n: int = 20,
+) -> bool:
+    """Generate per-bin activity frequency JSON from model events parquet.
+
+    For each density bin (low/medium/high/extreme), reads model events,
+    assigns n_event_bin via thresholds, computes top-N activity counts per year,
+    and writes to:
+      DASHBOARD_BUPAR_OUT/{cohort}/{age_band_fname}/density/{bin}/plots/{base}_activity_frequency.json
+
+    Uploads to S3 under:
+      visualizations/bupar/{cohort}/{age_band}/density/{bin}/plots/
+
+    Falls back silently with a warning if thresholds or model data are unavailable.
+    """
+    import os as _os
+    age_band_fname = age_band.replace("-", "_")
+    base = f"{cohort_name}_{age_band_fname}"
+
+    # Load n_event_bin thresholds (canonical path from model training)
+    thresholds = None
+    try:
+        from py_helpers.event_density_utils import load_thresholds, assign_n_event_bins
+        thresholds_path = (
+            REPO_ROOT / "6_final_model" / "outputs" / cohort_name / age_band_fname
+            / "n_event_bin_thresholds.json"
+        )
+        if thresholds_path.exists():
+            thresholds = load_thresholds(thresholds_path)
+        else:
+            logger.warning("n_event_bin_thresholds.json not found at %s; skipping per-bin BupaR", thresholds_path)
+            return False
+    except Exception as e:
+        logger.warning("Could not load event density utils: %s; skipping per-bin BupaR", e)
+        return False
+
+    # Find model events parquet
+    from py_helpers.model_data_paths import resolve_model_events_paths
+    try:
+        paths = resolve_model_events_paths(REPO_ROOT, cohort_name, age_band)
+        model_events_path = next((p for p in paths if Path(p).exists()), None)
+        if model_events_path is None:
+            logger.warning("model_events parquet not found for %s/%s; skipping per-bin BupaR", cohort_name, age_band)
+            return False
+    except Exception as e:
+        logger.warning("Could not resolve model events path: %s", e)
+        return False
+
+    try:
+        import pandas as pd
+        df = pd.read_parquet(model_events_path)
+    except Exception as e:
+        logger.warning("Could not read model events: %s", e)
+        return False
+
+    # Compute n_events per patient and assign density bin
+    try:
+        patient_col = next((c for c in ("patient_id", "member_id", "id") if c in df.columns), None)
+        if patient_col is None:
+            logger.warning("No patient ID column found; skipping per-bin BupaR")
+            return False
+        n_events_per_patient = df.groupby(patient_col).size()
+        patient_bin = assign_n_event_bins(n_events_per_patient, thresholds).reset_index()
+        patient_bin.columns = [patient_col, "n_event_bin"]
+        df = df.merge(patient_bin, on=patient_col, how="left")
+        df["n_event_bin"] = df["n_event_bin"].fillna("low")
+    except Exception as e:
+        logger.warning("Could not assign n_event_bin to model events: %s", e)
+        return False
+
+    # Determine code and year columns
+    code_col = next((c for c in ("drug_name", "item_code", "code", "item") if c in df.columns), None)
+    year_col = next((c for c in ("event_year", "year", "claim_year") if c in df.columns), None)
+    target_col = "target" if "target" in df.columns else None
+
+    if code_col is None:
+        logger.warning("No code column found in model events; skipping per-bin BupaR")
+        return False
+
+    written = 0
+    for bin_name in _DENSITY_BINS:
+        bin_df = df[df["n_event_bin"] == bin_name]
+        if len(bin_df) < 10:
+            logger.info("Skipping per-bin BupaR activity freq for %s (n=%d < 10)", bin_name, len(bin_df))
+            continue
+
+        try:
+            # Build activity frequency: top-N codes by count, split by year if available
+            if year_col and year_col in bin_df.columns:
+                years = sorted(bin_df[year_col].dropna().unique().astype(int).tolist())
+                top_codes = (
+                    bin_df[code_col].value_counts().head(top_n).index.tolist()
+                )
+                data: dict = {}
+                for code in top_codes:
+                    data[str(code)] = [
+                        int((bin_df[bin_df[year_col] == yr][code_col] == code).sum())
+                        for yr in years
+                    ]
+                freq_json = {"year_labels": [str(y) for y in years], "data": data,
+                             "density_bin": bin_name, "n_patients": int(bin_df[patient_col].nunique())}
+            else:
+                top_codes = bin_df[code_col].value_counts().head(top_n)
+                freq_json = {
+                    "year_labels": ["all"],
+                    "data": {str(k): [int(v)] for k, v in top_codes.items()},
+                    "density_bin": bin_name,
+                    "n_patients": int(bin_df[patient_col].nunique()),
+                }
+
+            bin_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / bin_name / "plots"
+            bin_plots_dir.mkdir(parents=True, exist_ok=True)
+            out_path = bin_plots_dir / f"{base}_activity_frequency.json"
+            out_path.write_text(json.dumps(freq_json, indent=2), encoding="utf-8")
+            logger.info("Per-bin BupaR activity_frequency written: %s", out_path)
+            written += 1
+
+            # Upload to S3
+            if (_os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() not in ("1", "true", "yes"):
+                try:
+                    import boto3 as _boto3
+                    s3_bucket = _os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+                    dashboard_prefix = _os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+                    s3_key = (
+                        f"{dashboard_prefix.rstrip('/')}/visualizations/bupar"
+                        f"/{cohort_name}/{age_band}/density/{bin_name}/plots/{base}_activity_frequency.json"
+                    )
+                    _boto3.client("s3").put_object(
+                        Bucket=s3_bucket, Key=s3_key,
+                        Body=out_path.read_bytes(), ContentType="application/json",
+                    )
+                    logger.info("Uploaded per-bin BupaR to s3://%s/%s", s3_bucket, s3_key)
+                except Exception as e:
+                    logger.warning("Per-bin BupaR S3 upload failed (%s): %s", bin_name, e)
+        except Exception as e:
+            logger.warning("Per-bin BupaR activity_frequency failed (%s): %s", bin_name, e)
+
+    logger.info("Per-bin BupaR activity frequency: %d bins written for %s/%s", written, cohort_name, age_band)
+    return written > 0
+
+
 def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
@@ -552,8 +699,12 @@ def create_bupar_visuals(
                 if n:
                     logger.logger.info("Exported %s BupaR feature CSV(s) to JSON in plots/", n)
             upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger.logger)
-        else:
-            logger.info("Local test: skipping S3 upload")
+
+        # Generate per-bin activity frequency JSON (uses model events + thresholds; uploads to density/{bin}/plots/)
+        generate_per_bin_activity_frequency(cohort_name, age_band, logger=logger.logger)
+
+        if local_test:
+            logger.info("Local test: skipping S3 upload for full-cohort plots (per-bin still attempted above)")
 
         logger.info("BupaR visuals completed for %s / %s", cohort_name, age_band)
 

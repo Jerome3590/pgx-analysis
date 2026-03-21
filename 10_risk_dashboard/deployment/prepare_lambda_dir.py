@@ -89,6 +89,7 @@ def _prepare_models_one_cohort_age(
     source_dir = MODELS_SOURCE / cohort / age_band_fname
     dest_dir = LAMBDA_DIR / "models" / cohort / age_band_fname
     dest_dir.mkdir(parents=True, exist_ok=True)
+    _DENSITY_BINS = ("low", "medium", "high", "extreme")
     if download_s3:
         s3_prefix = f"{S3_MODELS_PREFIX}/{cohort}/{age_band_fname}"
         model_files = [
@@ -102,13 +103,37 @@ def _prepare_models_one_cohort_age(
             local_path = dest_dir / model_file
             if not download_from_s3(s3_key, local_path) and source_dir.joinpath(model_file).exists():
                 copy_file(source_dir / model_file, local_path)
+        # Per-bin models from S3
+        bin_model_files = [
+            "catboost.joblib", "xgboost.joblib", "xgboost_rf.joblib",
+            "calibration_xgboost.joblib", "calibration_xgboost_rf.joblib", "calibration_catboost.joblib",
+        ]
+        for _bin in _DENSITY_BINS:
+            for _fname in bin_model_files:
+                s3_key = f"{s3_prefix}/bin_models/{_bin}/{_fname}"
+                local_path = dest_dir / "bin_models" / _bin / _fname
+                if not download_from_s3(s3_key, local_path):
+                    fallback = source_dir / "bin_models" / _bin / _fname
+                    if fallback.exists():
+                        copy_file(fallback, local_path)
     else:
         if not source_dir.exists():
             return (cohort, age_band, False)
+        # Copy all flat files
         for file_path in source_dir.glob("*"):
             if file_path.is_file():
                 if not copy_file(file_path, dest_dir / file_path.name):
                     return (cohort, age_band, False)
+        # Copy bin_models/ subdirectory tree
+        bin_src = source_dir / "bin_models"
+        if bin_src.exists():
+            for _bin in _DENSITY_BINS:
+                bin_dir = bin_src / _bin
+                if not bin_dir.exists():
+                    continue
+                for file_path in bin_dir.glob("*"):
+                    if file_path.is_file():
+                        copy_file(file_path, dest_dir / "bin_models" / _bin / file_path.name)
     return (cohort, age_band, True)
 
 
