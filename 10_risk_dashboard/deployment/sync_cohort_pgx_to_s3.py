@@ -59,7 +59,8 @@ def main() -> int:
                 rel = f.relative_to(age_dir)
                 key = f"{s3_prefix}/{cohort}/{age_band_s3}/{rel.as_posix()}"
                 try:
-                    extra = {"ContentType": "text/html"} if f.suffix.lower() == ".html" else {}
+                    _ct = {"html": "text/html", "json": "application/json", "csv": "text/csv"}.get(f.suffix.lower().lstrip("."), "")
+                    extra = {"ContentType": _ct} if _ct else {}
                     s3.upload_file(str(f), bucket, key, ExtraArgs=extra)
                     print(f"  ✓ {cohort}/{age_band_s3}/{rel} -> s3://{bucket}/{key}")
                     uploaded += 1

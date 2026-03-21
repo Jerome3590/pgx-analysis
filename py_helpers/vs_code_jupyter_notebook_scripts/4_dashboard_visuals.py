@@ -26,7 +26,7 @@
 # Idempotent. Run from repo root. Prerequisites: `4_model_data`, `7_shap_analysis`, `8_ffa_analysis`; R and bupaR for BupaR. Then run notebook 5 to deploy (syncs all visuals including Causal, Cohort PGx, and others to S3).
 #
 #
-# 6. **Cohort PGx (PGx Cohort tab)** – Fetch PharmGKB VIP reports and build interactive network topology per cohort/age_band; **saved locally** to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/`. Notebook 5 Step 6 syncs to S3 `visualizations/cohort_pgx/networks/{cohort}/{age_band}/`. The **PGx Cohort** dashboard tab calls GET /visualizations/cohort-pgx and displays the network iframe.
+# 6. **Cohort PGx (PGx Cohort tab)** – Fetch PharmGKB VIP reports (Step 1), query NCBI PubMed for supporting literature (Step 1.5 – `lit_review` search_pubmed_all pattern, last 5 years, pharmacogenomics + cohort-context queries), and build interactive network topology per cohort/age_band (Step 2); **saved locally** to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/`. Notebook 5 Step 6 syncs to S3 `visualizations/cohort_pgx/networks/{cohort}/{age_band}/`. The **PGx Cohort** dashboard tab calls GET /visualizations/cohort-pgx and displays the network iframe.
 #
 # 7. **PGx Card (optional)** – Prepares CPIC gene–drug data, PharmGKB VIP JSON, and QR codes for the **PGx Card** dashboard tab. Lambda `POST /pgx/card` uses `pgx-patient-card/data/` (e.g. `cpic_gene-drug_pairs.xlsx`, `pharmgkb_vip_genes.json`, `pgx_database`); notebook 5 packages these into the Lambda image.
 #
@@ -1158,6 +1158,11 @@ print(f"  Output: {COHORT_PGX_REPORTS_DIR}")
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+try:
+    FAIL_FAST
+except NameError:
+    FAIL_FAST = True  # default; set in Config/BupaR cell when running full pipeline
+
 # Optional NCBI API key (set env var NCBI_API_KEY to use; raises rate limit to 10 req/s)
 import os as _os
 _NCBI_API_KEY = _os.environ.get("NCBI_API_KEY") or None
@@ -1266,6 +1271,8 @@ def run_build_network(cohort_name, age_band, bin_name=None):
         "--cohort", cohort_name,
         "--age-band", age_band,
     ]
+    if bin_name:
+        args += ["--bin", bin_name]
 
     if not USE_COMPREHEND:
         args.append("--no-comprehend")
