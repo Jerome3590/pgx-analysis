@@ -1340,6 +1340,16 @@
           <label for="cohort-pgx-age-band">Age Band:</label>
           <select id="cohort-pgx-age-band"></select>
         </div>
+        <div class="control-group">
+          <label for="cohort-pgx-n-event-bin">Event density:</label>
+          <select id="cohort-pgx-n-event-bin" aria-label="Cohort PGx event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadCohortPgx">Load PGx Cohort Network</button>
         </div>
@@ -2676,13 +2686,15 @@
     try {
       let chartData = null;
       const manifest = await getDashboardManifest().catch(function() { return null; });
-      const causalStaticUrl = manifest
-        ? (function() {
-            const entry = getManifestEntryByTab(manifest, "Causal Analysis");
-            const built = entry ? buildStaticUrls(entry, cohort, ageBand, staticJsonPath) : { urls: [] };
-            return built.urls[0] || staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json");
-          }())
-        : staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json");
+      const causalStaticUrl = (nEventBinCausal && nEventBinCausal !== "all")
+        ? staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/" + nEventBinCausal + "/causal_data.json")
+        : (manifest
+            ? (function() {
+                const entry = getManifestEntryByTab(manifest, "Causal Analysis");
+                const built = entry ? buildStaticUrls(entry, cohort, ageBand, staticJsonPath) : { urls: [] };
+                return built.urls[0] || staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json");
+              }())
+            : staticJsonPath("visualizations/causal/" + cohort + "/" + ageBand + "/causal_data.json"));
       const staticCausalResp = await fetch(causalStaticUrl);
       if (staticCausalResp.ok) {
         const prebuilt = await staticCausalResp.json();
@@ -2988,11 +3000,11 @@
       const prefix = cohort + "_" + ageBandFname;
       const manifest = await getDashboardManifest().catch(function() { return null; });
       let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
-      const fpgBinSuffix = nEventBinFPG && nEventBinFPG !== "all" ? "_" + nEventBinFPG : "";
-      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets" + fpgBinSuffix + ".json");
+      const fpgBinSubdir = nEventBinFPG && nEventBinFPG !== "all" ? "/density/" + nEventBinFPG : "";
+      let itemsetsJsonUrl = staticJsonPath(fgBasePath + fpgBinSubdir + "/data/drug_name_itemsets.json");
       let binSpecificConfirmed = false;
-      if (fpgBinSuffix) {
-        try { const r = await fetch(itemsetsJsonUrl, { method: "HEAD" }); if (r.ok) { binSpecificConfirmed = true; } else { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json"); } } catch (_) { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json"); }
+      if (fpgBinSubdir) {
+        try { const r = await fetch(itemsetsJsonUrl, { method: "HEAD" }); if (r.ok) { binSpecificConfirmed = true; fgBasePath = fgBasePath + fpgBinSubdir; } else { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json"); } } catch (_) { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json"); }
       }
       const emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json"); // not in manifest; fallback only
       let manifestNetworkHtml = null;
@@ -3001,7 +3013,7 @@
         const entry = getManifestEntryByTab(manifest, "FP-Growth Patterns");
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
-          if (built.basePath) fgBasePath = built.basePath;
+          if (built.basePath && !binSpecificConfirmed) fgBasePath = built.basePath;
           if (built.urls[0] && !binSpecificConfirmed) itemsetsJsonUrl = built.urls[0];
           if (built.urls.length >= 2) manifestNetworkHtml = built.urls[1];
           if (built.urls.length >= 3) manifestItemsetsPng = built.urls[2];
@@ -3033,12 +3045,15 @@
       if (!data.itemsets_data && !data.empty) {
         data = null;
       }
+      if (data && fpgBinSubdir && !binSpecificConfirmed) {
+        data = null;
+      }
       if (!data) {
-        const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=drug_name`);
+        const resp = await fetch(`${API_BASE}/visualizations/fpgrowth?cohort=${cohort}&age_band=${ageBand}&item_type=drug_name${nEventBinFPG && nEventBinFPG !== "all" ? "&n_event_bin=" + nEventBinFPG : ""}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         data = await resp.json();
       }
-      renderFPGrowthVisualizations(data, { cohort, ageBand });
+      renderFPGrowthVisualizations(data, { cohort, ageBand, nEventBin: nEventBinFPG });
       document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
       document.getElementById("fpgrowth-status").className = "status-message success";
     } catch (err) {
@@ -3056,33 +3071,42 @@
       document.getElementById("cohort-pgx-status").className = "status-message error";
       return;
     }
-    document.getElementById("cohort-pgx-status").textContent = "Loading PGx Cohort network...";
+    const nEventBinPgx = document.getElementById("cohort-pgx-n-event-bin")?.value || "all";
+    const binLabelPgx = nEventBinPgx && nEventBinPgx !== "all" ? ` [${nEventBinPgx} density]` : "";
+    document.getElementById("cohort-pgx-status").textContent = `Loading PGx Cohort network${binLabelPgx}...`;
     document.getElementById("cohort-pgx-status").className = "status-message info";
     try {
       const iframe = document.getElementById("cohort-pgx-iframe");
       const manifest = await getDashboardManifest().catch(function() { return null; });
-      let staticPgxUrl = staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/network_topology.html");
-      if (manifest) {
-        const entry = getManifestEntryByTab(manifest, "PGx Cohort");
-        if (entry) {
-          const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
-          if (built.urls[0]) staticPgxUrl = built.urls[0];
-        }
-      }
+      // Per-bin: try density/{bin}/network_topology.html first; full-cohort otherwise
+      let staticPgxUrl = (nEventBinPgx && nEventBinPgx !== "all")
+        ? staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/density/" + nEventBinPgx + "/network_topology.html")
+        : (function() {
+            if (manifest) {
+              const entry = getManifestEntryByTab(manifest, "PGx Cohort");
+              if (entry) {
+                const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
+                if (built.urls[0]) return built.urls[0];
+              }
+            }
+            return staticJsonPath("visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + "/network_topology.html");
+          }());
       const staticResp = await fetch(staticPgxUrl, { method: "HEAD" });
       if (iframe) {
         if (staticResp.ok) {
           iframe.src = staticPgxUrl;
-          document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
+          document.getElementById("cohort-pgx-status").textContent = `PGx Cohort network loaded${binLabelPgx}. View in iframe above.`;
           document.getElementById("cohort-pgx-status").className = "status-message success";
         } else {
-          const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}`);
+          const binParam = nEventBinPgx && nEventBinPgx !== "all" ? `&n_event_bin=${encodeURIComponent(nEventBinPgx)}` : "";
+          const resp = await fetch(`${API_BASE}/visualizations/cohort_pgx?cohort=${encodeURIComponent(cohort)}&age_band=${encodeURIComponent(ageBand)}${binParam}`);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const data = await resp.json();
           if (data.network_topology_url) {
             iframe.src = data.network_topology_url;
-            document.getElementById("cohort-pgx-status").textContent = "PGx Cohort network loaded. View in iframe above.";
-            document.getElementById("cohort-pgx-status").className = "status-message success";
+            const fallbackNote = data.data_scope === "full_cohort_fallback" && data.message ? ` (${data.message})` : "";
+            document.getElementById("cohort-pgx-status").textContent = `PGx Cohort network loaded${binLabelPgx}. View in iframe above.${fallbackNote}`;
+            document.getElementById("cohort-pgx-status").className = data.data_scope === "full_cohort_fallback" ? "status-message info" : "status-message success";
           } else {
             iframe.src = "about:blank";
             document.getElementById("cohort-pgx-status").textContent = "Network topology not available. Run Cohort PGx pipeline (build_network_topology) and sync 10_risk_dashboard/visualizations/cohort_pgx/ to dashboard S3.";
@@ -3176,11 +3200,11 @@
       if (seqResp.ok) {
         try { data.activity_sequence_top = await seqResp.json(); } catch (_) {}
       }
-      const hasStaticData = hasStaticFreq || data.trace_explorer_plot || data.process_matrix_drug_drug || data.activity_sequence_top;
+      const hasStaticData = !(nEventBinBupaR && nEventBinBupaR !== "all") && (hasStaticFreq || data.trace_explorer_plot || data.process_matrix_drug_drug || data.activity_sequence_top);
       if (!hasStaticData) {
         const [urlResp, freqResp] = await Promise.all([
-          fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}`),
-          fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}`)
+          fetch(`${API_BASE}/visualizations/bupar?cohort=${cohort}&age_band=${ageBand}${nEventBinBupaR && nEventBinBupaR !== "all" ? "&n_event_bin=" + nEventBinBupaR : ""}`),
+          fetch(`${API_BASE}/visualizations/bupar/activity_frequency?cohort=${cohort}&age_band=${ageBand}${nEventBinBupaR && nEventBinBupaR !== "all" ? "&n_event_bin=" + nEventBinBupaR : ""}`)
         ]);
         if (!urlResp.ok) {
           const body = await logApiErrorResponseAndParse(urlResp, "BupaR");
@@ -4012,7 +4036,7 @@
     const networkEl = document.getElementById("fpgrowth-network-container");
     let networkUrl = data.network_combined_html || data.network_html;
     if (networkEl && (opts && opts.cohort && opts.ageBand)) {
-      networkUrl = API_BASE + "/visualizations/fpgrowth/network_html?cohort=" + encodeURIComponent(opts.cohort) + "&age_band=" + encodeURIComponent(opts.ageBand);
+      networkUrl = API_BASE + "/visualizations/fpgrowth/network_html?cohort=" + encodeURIComponent(opts.cohort) + "&age_band=" + encodeURIComponent(opts.ageBand) + (opts.nEventBin && opts.nEventBin !== "all" ? "&n_event_bin=" + encodeURIComponent(opts.nEventBin) : "");
     }
     if (networkEl && networkUrl) {
       if (networkUrl.startsWith("http://") || networkUrl.startsWith("https://")) {
