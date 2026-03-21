@@ -305,11 +305,11 @@ print("Step 5 complete.")
 # %% [markdown]
 # # Pipeline Phase 6: Final model deployment outputs
 #
-# Train final models per cohort/age_band. Reads Step 4 model data and Step 5 PGx features; writes trained models and `feature_schema.json` to `6_final_model/outputs` (or DATA_ROOT). When Optuna is available, Step 6 runs multi-objective HPO (Recall + AUC-PR) then 25-split MCCV with the best config; otherwise it uses fixed hyperparameters. Training uses `n_jobs` = number of CPU cores. Saves XGBoost and CatBoost feature importances from the final (full-data) models. These outputs are used by "Prepare models" and deployment below.
+# Train final models per cohort/age_band. **Default** is **per-bin** training (`--train-mode per_bin`): separate models under `outputs/.../bin_models/{low|medium|high|extreme}/`, then mirror one bin (prefer `medium`) to the cohort-level `outputs/.../{age_band}/` tree for prepare_models / Lambda. Use `--train-mode aggregate` for a single cohort-wide model only, or `both` for cohort-wide plus per-bin. Reads Step 4 model data and Step 5 PGx features; writes models and feature CSVs to `6_final_model/outputs` (or DATA_ROOT).
 
 # %%
 # Pipeline Step 6: run_final_model.py for each REQUIRED_COHORTS (cohort, age_band)
-# Note: script uses --age_band (underscore)
+# Note: script uses --age_band (underscore). Default --train-mode is per_bin (omit flag).
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         print(f"→ Step 6: {cohort} / {age_band}")
@@ -322,15 +322,17 @@ for cohort, bands in REQUIRED_COHORTS.items():
 print("Step 6 complete.")
 
 # %% [markdown]
-# ### Model performance summary and Top 20 feature importance (per cohort)
+# ### Model performance per density bin and Top 20 XGBoost importance (cohort-level snapshot)
 #
-# Before shutting down EC2: print final model performance metrics for all cohorts and Top 20 XGBoost feature importance bar charts per cohort.
+# Metrics are read from `bin_models/{bin}/` (default Step 6). The cohort-level `.../{age_band}/` XGBoost FI CSV is the **mirrored deploy snapshot** (preferred bin, usually `medium`) when using `--train-mode per_bin`.
 
 # %%
-# Model performance metrics (all cohorts) and Top 20 feature importance bar charts per cohort
+# Per-bin model metrics + cohort-level FI plot (mirrored bin for deploy)
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
+
+from py_helpers.event_density_utils import DENSITY_BINS as _DENSITY_BINS
 
 # Resolve outputs base (project or NVMe)
 def _outputs_base():
@@ -340,44 +342,48 @@ def _outputs_base():
     return FINAL_MODEL_OUTPUTS
 
 base = _outputs_base()
-print("Final model performance by cohort (selected model)")
+print("Final model performance — per density bin (selected model per bin)")
 print("=" * 80)
 all_metrics = []
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         ab_f = age_band.replace("-", "_")
-        path = base / cohort / ab_f / f"{cohort}_{ab_f}_model_metrics_summary.csv"
-        if not path.exists():
-            print(f"  [skip] {cohort} / {age_band}: no metrics CSV")
-            continue
-        df = pd.read_csv(path)
-        selected = df.loc[df["selected"] == True]
-        if selected.empty:
-            selected = df.head(1)
-        for _, row in selected.iterrows():
-            all_metrics.append({
-                "cohort": cohort,
-                "age_band": age_band,
-                "model": row["model"],
-                "recall_mean": row["recall_mean"],
-                "pr_auc_mean": row["pr_auc_mean"],
-                "auc_mean": row.get("auc_mean", None),
-                "logloss_mean": row.get("logloss_mean", None),
-            })
+        for bin_name in _DENSITY_BINS:
+            path = (
+                base / cohort / ab_f / "bin_models" / bin_name
+                / f"{cohort}_{ab_f}_model_metrics_summary.csv"
+            )
+            if not path.exists():
+                continue
+            df = pd.read_csv(path)
+            selected = df.loc[df["selected"] == True]
+            if selected.empty:
+                selected = df.head(1)
+            for _, row in selected.iterrows():
+                all_metrics.append({
+                    "cohort": cohort,
+                    "age_band": age_band,
+                    "bin": bin_name,
+                    "model": row["model"],
+                    "recall_mean": row["recall_mean"],
+                    "pr_auc_mean": row["pr_auc_mean"],
+                    "auc_mean": row.get("auc_mean", None),
+                    "logloss_mean": row.get("logloss_mean", None),
+                })
 if all_metrics:
     summary = pd.DataFrame(all_metrics)
     print(summary.to_string(index=False))
 else:
-    print("  No metrics CSVs found under", base)
+    print("  No per-bin metrics CSVs under", base / "<cohort>" / "<age_band>" / "bin_models")
 print()
-print("Top 20 feature importance (XGBoost) per cohort")
+print("Top 20 feature importance (XGBoost) — cohort-level CSV (deploy mirror when per-bin mode)")
 print("=" * 80)
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         ab_f = age_band.replace("-", "_")
         fi_path = base / cohort / ab_f / f"{cohort}_{ab_f}_xgboost_feature_importance.csv"
         if not fi_path.exists():
-            print(f"  [skip] {cohort} / {age_band}: no feature importance CSV")
+            print(f"  [skip] {cohort} / {age_band}: no cohort-level feature importance CSV")
             continue
         fi = pd.read_csv(fi_path).sort_values("importance", ascending=False).head(20)
         if fi.empty:
@@ -388,7 +394,7 @@ for cohort, bands in REQUIRED_COHORTS.items():
         ax.set_yticklabels(fi["feature"].values, fontsize=8)
         ax.invert_yaxis()
         ax.set_xlabel("Importance (gain)")
-        ax.set_title(f"Top 20 features — {cohort} / {age_band}")
+        ax.set_title(f"Top 20 features — {cohort} / {age_band} (cohort-level / deploy snapshot)")
         plt.tight_layout()
         plt.show()
 

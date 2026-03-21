@@ -3040,6 +3040,69 @@ def train_and_evaluate(
         traceback.print_exc()
 
 
+def mirror_bin_artifacts_to_aggregate_root(
+    cohort: str,
+    age_band: str,
+    preferred_bin: str = "medium",
+) -> None:
+    """
+    After per-bin training only, copy one bin's artifact tree to the cohort-level
+    aggregate directory so prepare_models.py, Lambda, and S3 paths that expect
+    outputs/{cohort}/{age_band}/ (not bin_models/) keep working.
+
+    Preference order: *preferred_bin* first, then remaining _DENSITY_BINS order.
+    """
+    import shutil
+
+    age_band_fname = age_band_to_fname(age_band)
+    agg = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    bin_root = agg / "bin_models"
+    order = [preferred_bin] + [b for b in _DENSITY_BINS if b != preferred_bin]
+    src_bin = None
+    for b in order:
+        meta = bin_root / b / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+        if meta.exists():
+            src_bin = b
+            break
+    if src_bin is None:
+        print(
+            "[WARN] mirror_bin_artifacts_to_aggregate_root: no per-bin model metadata "
+            f"found under {bin_root}; aggregate root not filled."
+        )
+        return
+
+    src = bin_root / src_bin
+    for item in src.iterdir():
+        dest = agg / item.name
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        if item.is_dir():
+            shutil.copytree(item, dest)
+        else:
+            shutil.copy2(item, dest)
+
+    mo = PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname
+    mo.mkdir(parents=True, exist_ok=True)
+    fj = agg / "final_model_json"
+    if fj.exists():
+        for name in (
+            f"{cohort}_{age_band_fname}_best_xgboost_model.json",
+            f"{cohort}_{age_band_fname}_best_catboost_model.cbm",
+            f"{cohort}_{age_band_fname}_best_catboost_model.json",
+        ):
+            p = fj / name
+            if p.exists():
+                shutil.copy2(p, mo / name)
+
+    print(
+        f"[INFO] Mirrored bin '{src_bin}' artifacts to aggregate root for "
+        f"{cohort}/{age_band} (deploy / prepare_models)."
+    )
+
+
 def train_per_bin(
     df: pd.DataFrame,
     cohort: str,
@@ -3109,6 +3172,13 @@ def main() -> None:
         type=int,
         default=None,
         help="Number of Monte-Carlo CV runs (default: auto-detect from environment, 3 on EC2, 1 on Windows)",
+    )
+    parser.add_argument(
+        "--train-mode",
+        choices=["per_bin", "aggregate", "both"],
+        default="per_bin",
+        help="per_bin (default): train density-bin models only; mirror one bin to aggregate outputs for deploy. "
+        "aggregate: single cohort-wide model only (legacy). both: cohort-wide then per-bin subdirs.",
     )
     args = parser.parse_args()
 
@@ -3372,17 +3442,27 @@ def main() -> None:
         df.to_csv(features_path, index=False)
         logger.info("Saved final features (no leakage) to %s", features_path)
 
-        with step_block("final_model", "train_and_evaluate", logger=logger):
-            if args.n_runs is not None:
-                n_runs = args.n_runs
-                logger.info(f"Using explicit n_runs={n_runs} from command-line argument")
-            else:
-                n_runs = get_mc_cv_n_runs()
-                logger.info(f"Auto-selected n_runs={n_runs} based on environment (CPU cores, memory)")
-            train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs)
+        if args.n_runs is not None:
+            n_runs = args.n_runs
+            logger.info("Using explicit n_runs=%s from command-line argument", n_runs)
+        else:
+            n_runs = get_mc_cv_n_runs()
+            logger.info(
+                "Auto-selected n_runs=%s based on environment (CPU cores, memory)",
+                n_runs,
+            )
+        logger.info("train-mode=%s", args.train_mode)
 
-        with step_block("final_model", "train_per_bin", logger=logger):
-            train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs)
+        if args.train_mode in ("aggregate", "both"):
+            with step_block("final_model", "train_and_evaluate", logger=logger):
+                train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs)
+
+        if args.train_mode in ("per_bin", "both"):
+            with step_block("final_model", "train_per_bin", logger=logger):
+                train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs)
+
+        if args.train_mode == "per_bin":
+            mirror_bin_artifacts_to_aggregate_root(args.cohort, args.age_band)
 
         # Upload train/test to S3 (required for SHAP and FFA analysis; not optional)
         prepare_script = PROJECT_ROOT / "6_final_model" / "prepare_train_test_s3.py"
