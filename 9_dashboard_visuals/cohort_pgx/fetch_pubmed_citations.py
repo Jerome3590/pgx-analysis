@@ -382,16 +382,24 @@ def _build_radar_data(gene_scores: Dict[str, Any], top_n: int = 12) -> Optional[
         logger.warning("plotly not installed; pgx_radar_data.json will be skipped")
         return None
 
-    categories = ["CPIC Gene", "Dosing Guideline", "VIP Evidence", "Literature", "Causal Rank"]
+    # Axes ordered clockwise around the OODA loop:
+    #   Observe (claims signal) → Orient x2 (evidence) → Decide (clinical validity) → Act (guidance)
+    categories = [
+        "Observe: Causal Signal",
+        "Orient: Literature",
+        "Orient: VIP Evidence",
+        "Decide: CPIC Gene",
+        "Act: Dosing Guidance",
+    ]
     top_genes = list(gene_scores.items())[:top_n]
     traces = []
     for i, (gene, s) in enumerate(top_genes):
         r = [
-            float(s["cpic_gene"]),
-            float(s["has_dosing_guideline"]),
-            float(s["vip_tier_score"]),
-            float(s["citation_score"]),
-            float(s["causal_rank_score"]),
+            float(s["causal_rank_score"]),   # Observe
+            float(s["citation_score"]),        # Orient
+            float(s["vip_tier_score"]),        # Orient
+            float(s["cpic_gene"]),             # Decide
+            float(s["has_dosing_guideline"]),  # Act
         ]
         color = _RADAR_COLORS[i % len(_RADAR_COLORS)]
         traces.append(
@@ -412,7 +420,7 @@ def _build_radar_data(gene_scores: Dict[str, Any], top_n: int = 12) -> Optional[
         ),
         showlegend=True,
         legend=dict(font=dict(size=11)),
-        title=dict(text="Gene Actionability Profile", font=dict(size=14)),
+        title=dict(text="Gene Actionability (OODA)", font=dict(size=14)),
         height=480,
         margin=dict(l=60, r=60, t=60, b=40),
     ).to_plotly_json()

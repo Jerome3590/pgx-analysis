@@ -1292,6 +1292,16 @@
         window._patientNEventBin = bin;
         const pgxCardBin = document.getElementById("pgx-card-bin");
         if (pgxCardBin) pgxCardBin.value = bin;
+        // Mirror cohort + age band to PGx Card and background-load the profile
+        const _pcCohort = document.getElementById("pgx-card-cohort");
+        const _pcAge    = document.getElementById("pgx-card-age-band");
+        if (_pcCohort && currentCohort) _pcCohort.value = currentCohort;
+        if (_pcAge && currentAgeBand)   _pcAge.value = currentAgeBand;
+        // Fire-and-forget: radar ready when user navigates to PGx Card tab
+        loadCohortPgxProfile().then(function() {
+          const lnk = document.getElementById("pgx-action-link");
+          if (lnk) lnk.style.display = "";
+        }).catch(function() {});
       } else {
         nEventBinBadge.style.display = "none";
       }
@@ -1690,6 +1700,14 @@
       } else if (currentMetadata) {
         console.log("Metadata already loaded, updating displays");
         updateSelectionDisplays();
+      }
+    } else if (tabName === "pgx-card") {
+      // Auto-load cohort PGx profile if patient bin is known but profile not yet loaded
+      if (window._patientNEventBin && !window._pgxCohortGeneScores) {
+        loadCohortPgxProfile().then(function() {
+          const lnk = document.getElementById("pgx-action-link");
+          if (lnk) lnk.style.display = "";
+        }).catch(function() {});
       }
     }
   };
