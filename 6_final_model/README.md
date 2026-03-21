@@ -131,7 +131,7 @@ Final model development uses the **same three-model ensemble** as feature import
 - Empirically, this only causes a **minor change in MC‑CV metrics** while greatly improving the stability and interpretability of downstream FFA and causal analysis.
 
 These models are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018),
-then the best-performing base model is further tuned and calibrated before being evaluated on a strict 2019 holdout.
+then the best-performing base model is further tuned before being evaluated on a strict 2019 holdout. **Platt calibration** is applied post-MC-CV using concatenated OOF predictions (see `README_final_model_implementation.md` § Platt calibration).
 
 ### MC-CV Split Strategy (Feature Importance vs Final Model)
 
@@ -147,12 +147,12 @@ See `final_model.ipynb` for the full Python workflow:
 
 - MC-CV performance comparison and model selection by mean Recall
 - Optuna hyperparameter tuning on 2016–2018
-- Temporal probability calibration (train on 2016–2017, calibrate on 2018)
+- Platt calibration on MC-CV OOF predictions (supersedes earlier temporal hold-out approach)
 - Final model export (joblib + native formats) locally and to S3 `gold/final_model/.../event_year=train/models/`
 
 ## Notebooks and Scripts
 
-- `final_model.ipynb`: MC-CV comparison, Optuna tuning, temporal calibration, and final model export.
+- `final_model.ipynb`: MC-CV comparison, Optuna tuning, OOF Platt calibration, and final model export.
 - `build_final_cohort_model_features.py`: Builds the final feature table (n_events, item_*, PGx, etc.). Feature engineering never generates trajectory/sequence/itemset.
   - For `non_opioid_ed` cohort: Filters to drug-only item features (excludes ICD/CPT codes for polypharmacy analysis)
 - `remove_target_leakage.py`: Removes target leakage features; DTW and any trajectory/sequence/itemset removed defensively (we do not produce those columns).

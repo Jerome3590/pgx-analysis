@@ -15,10 +15,13 @@ The core implementation resides in this step:
   - Restricts to numeric features and runs Monte-Carlo CV for:
     - XGBoost and XGBoost RF (selects best by recall/AUC-PR).
     - CatBoost with `grow_policy="SymmetricTree"` (oblivious trees).
+  - **Platt calibration (OOF):** accumulates out-of-fold predictions across all MC-CV splits, then fits a `LogisticRegression(C=1)` calibrator per model type on the concatenated OOF probabilities vs actual outcomes. This corrects systematic over/under-prediction so dashboard risk scores match observed event rates. Saved as `models/calibration_{model_type}.joblib`. **Re-running model training regenerates calibration files.**
   - Exports:
     - Leakage-filtered final feature table for FFA.
     - Best CatBoost binary (.cbm) for SHAP; best XGBoost JSON for FFA.
     - Model selection metadata.
+    - `models/calibration_{xgboost,xgboost_rf,catboost}.joblib` — Platt calibrators.
+    - `models/calibration_diagnostics.json` — per-model: n_OOF samples, raw mean, calibrated mean, observed rate, residual.
 
 Outputs are written under:
 
@@ -27,6 +30,18 @@ Outputs are written under:
   - `final_model_json/{cohort}_{age_band_fname}_best_catboost_model.cbm`
   - `final_model_json/{cohort}_{age_band_fname}_best_xgboost_model.json`
   - `{cohort}_{age_band_fname}_xgboost_feature_importance.csv`
+  - `models/calibration_xgboost.joblib` — Platt calibrator for XGBoost
+  - `models/calibration_xgboost_rf.joblib` — Platt calibrator for XGBoost RF
+  - `models/calibration_catboost.joblib` — Platt calibrator for CatBoost
+  - `models/calibration_diagnostics.json` — calibration diagnostics (raw→calibrated→observed rate per model)
+  - `n_event_bin_thresholds.json` — P25/P50/P95 cut-points for event density binning
+
+> **⚠️ Calibration files require a training run.** If `models/calibration_*.joblib` is missing for a cohort/age_band (e.g. the model was trained before this feature was added), run `run_final_model.py` for that cohort/age_band. The Lambda falls back to raw probabilities when calibration files are absent — functional but uncalibrated.
+
+### No redundant calibration elsewhere
+
+- `8_ffa_analysis/ffa_analysis.py` has a `calibrate_model()` method — this is **threshold calibration** (finding an optimal decision boundary via Youden's J), not probability calibration. No conflict.
+- The old `README.md` references "temporal probability calibration (train on 2016–2017, calibrate on 2018)" — that approach was superseded by **MC-CV OOF Platt scaling** which uses all `n_runs × 30%` test folds as out-of-fold data. This is preferable because it uses more calibration data and is consistent with the same training data distribution.
 
 ### Relationship to feature encoding
 

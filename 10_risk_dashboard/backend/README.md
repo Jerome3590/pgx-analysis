@@ -120,8 +120,36 @@ A **502** from API Gateway usually means the Lambda **timed out** or **ran out o
 - **Large trajectory_overview_plot.json:** The handler skips loading `trajectory_overview_plot.json` when it is larger than 2 MB (frontend falls back to overview/sample image URLs). If you still see 502, ensure DTW chart_data and sequence_heatmap in S3 are not unusually large.
 - **CORS:** If the browser reports "blocked by CORS" instead of 502, enable CORS on the API Gateway API (OPTIONS method returning `Access-Control-Allow-Origin`) so requests from `https://jerome-dixon.io` are allowed. See `../deployment/README.md` (test OPTIONS with curl).
 
+## Probability Calibration
+
+Tree-based models (XGBoost, CatBoost) often over-predict — they rank patients correctly but the raw probability is higher than the actual observed event rate. A **Platt scaling** second-stage calibrator is applied at inference time to correct this.
+
+### How it works
+
+1. **Training (`run_final_model.py`, notebook 3):** During Monte-Carlo CV, each split's test-fold predictions are **out-of-fold** (never used for training that split). After all `n_runs` splits, a `LogisticRegression(C=1)` is fitted on the concatenated OOF probabilities vs actual outcomes — one calibrator per model type (`xgboost`, `xgboost_rf`, `catboost`). Saved to `6_final_model/outputs/{cohort}/{age_band_fname}/models/calibration_{model_type}.joblib`.
+
+2. **Deploy (`prepare_models.py` → `prepare_lambda_dir.py`):** Calibration joblib files are copied alongside regular model files into the Lambda container image.
+
+3. **Inference (`lambda_function.py`):**
+   - `load_calibration_model(cohort, age_band, model_type)` — loads from container → S3, in-memory cached.
+   - After each raw model probability, `apply_calibration(raw_prob, calibrator)` maps it to a calibrated probability.
+   - Ensemble is computed from **calibrated** probabilities.
+   - **Graceful degradation:** if a calibration file is absent (model trained before this feature was added), raw probability is used unchanged — functional but uncalibrated.
+
+### New `/risk` response fields
+
+| Field | Description |
+|-------|-------------|
+| `calibrated` | `true` when at least one model had a calibrator applied |
+| `raw_risk_score` | Weighted ensemble of raw (uncalibrated) probabilities; only present when `calibrated=true` |
+| `risk_score` | Calibrated ensemble probability (or raw when no calibrator is available) |
+
+### ⚠️ Calibration files require a model training run
+
+If `models/calibration_*.joblib` does not exist for a cohort/age_band, **re-run notebook 3 (`run_final_model.py`)** for that cohort/age_band. The Lambda logs a warning and falls back to raw probabilities.
+
 ## Risk score: recommendations
 
 - **Best model only:** We run only the model(s) with non-zero weight (best per cohort/age_band), so cold start and failure surface are reduced.
 - **Baseline when no codes:** No Drug/ICD/CPT → return 2019 outcome rate; with codes → model probability. Keeps risk calibrated to the 2019 population.
-- **Implemented:** Risk band uses **absolute cutoffs** (low &lt;20%, medium 20–50%, high ≥50%); comparison uses baseline when base or scenario has no codes; `codes_used`/`codes_unknown` and `model_used` in response; `interpretation` in API and frontend.
+- **Implemented:** Risk band uses **absolute cutoffs** (low <20%, medium 20–50%, high ≥50%); comparison uses baseline when base or scenario has no codes; `codes_used`/`codes_unknown` and `model_used` in response; `interpretation` in API and frontend; Platt calibration applied when calibration files are present.

@@ -473,6 +473,105 @@ def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
         raise
 
 
+# ---- n_event_bin: utilization density bin (low/medium/high/extreme) ----
+# Thresholds are written by run_final_model.py (Step 6); shared with DTW and FP-Growth.
+_DEFAULT_NEVENT_THRESHOLDS: Dict[str, float] = {"p25": 5.0, "p50": 15.0, "p95": 50.0}
+_nevent_threshold_cache: Dict[str, Dict] = {}
+
+
+def load_n_event_bin_thresholds(cohort: str, age_band: str) -> Dict[str, float]:
+    """Load n_event_bin P25/P50/P95 thresholds from container or S3; fall back to defaults."""
+    cache_key = f"{cohort}/{age_band}"
+    if cache_key in _nevent_threshold_cache:
+        return _nevent_threshold_cache[cache_key]
+    age_band_fname = age_band.replace("-", "_")
+    # 1) Container filesystem
+    if USE_CONTAINER_MODELS:
+        container_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "n_event_bin_thresholds.json")
+        if os.path.exists(container_path):
+            try:
+                with open(container_path, "r") as fh:
+                    data = json.load(fh)
+                if "p25" in data and "p50" in data and "p95" in data:
+                    _nevent_threshold_cache[cache_key] = data
+                    return data
+            except Exception as e:
+                print(f"Warning: could not load n_event_bin thresholds from container: {e}")
+    # 2) S3
+    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/n_event_bin_thresholds.json"
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        data = json.loads(obj["Body"].read().decode("utf-8"))
+        if "p25" in data and "p50" in data and "p95" in data:
+            _nevent_threshold_cache[cache_key] = data
+            return data
+    except Exception:
+        pass
+    return dict(_DEFAULT_NEVENT_THRESHOLDS)
+
+
+def n_event_bin_from_n_events(n_events: int, thresholds: Dict[str, float]) -> str:
+    """Assign low/medium/high/extreme based on P25/P50/P95 cut-points."""
+    p25 = thresholds.get("p25", _DEFAULT_NEVENT_THRESHOLDS["p25"])
+    p50 = thresholds.get("p50", _DEFAULT_NEVENT_THRESHOLDS["p50"])
+    p95 = thresholds.get("p95", _DEFAULT_NEVENT_THRESHOLDS["p95"])
+    if n_events <= p25:
+        return "low"
+    if n_events <= p50:
+        return "medium"
+    if n_events <= p95:
+        return "high"
+    return "extreme"
+
+
+# ---- Platt calibration models ----
+# Each calibrator is a LogisticRegression fitted on OOF predictions during MC-CV.
+# It maps raw model probability → calibrated probability that matches observed event rates.
+_calibration_cache: Dict[str, Any] = {}
+
+
+def load_calibration_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
+    """Load Platt calibrator (LogisticRegression) from container or S3. Returns None if unavailable."""
+    cache_key = f"{cohort}/{age_band}/{model_type}"
+    if cache_key in _calibration_cache:
+        return _calibration_cache[cache_key]
+    age_band_fname = age_band.replace("-", "_")
+    filename = f"calibration_{model_type}.joblib"
+    # 1) Container filesystem
+    if USE_CONTAINER_MODELS:
+        container_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, filename)
+        if os.path.exists(container_path):
+            try:
+                cal = joblib.load(container_path)
+                _calibration_cache[cache_key] = cal
+                print(f"Loaded calibrator ({model_type}) from container: {container_path}")
+                return cal
+            except Exception as e:
+                print(f"Warning: could not load calibrator from container: {e}")
+    # 2) S3
+    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/{filename}"
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        import io
+        cal = joblib.load(io.BytesIO(obj["Body"].read()))
+        _calibration_cache[cache_key] = cal
+        print(f"Loaded calibrator ({model_type}) from S3: {key}")
+        return cal
+    except Exception:
+        pass
+    return None
+
+
+def apply_calibration(raw_prob: float, calibrator: Any) -> float:
+    """Apply Platt calibrator to a raw probability. Returns calibrated probability in [0, 1]."""
+    try:
+        import numpy as _np
+        cal_prob = float(calibrator.predict_proba(_np.array([[raw_prob]]))[0][1])
+        return max(0.0, min(1.0, cal_prob))
+    except Exception:
+        return raw_prob  # Fall back to raw if calibration fails
+
+
 # Risk band uses absolute thresholds (not cohort-relative percentiles) so labels match intuition (e.g. 7.7% = Low).
 # low: < 20%, medium: 20–50%, high: >= 50%
 DEFAULT_RISK_BAND_THRESHOLDS = {"low_medium": 0.2, "medium_high": 0.5}
@@ -701,6 +800,8 @@ def predict_risk(
         raise RuntimeError("Model libraries not available")
     
     predictions = {}
+    raw_predictions = {}  # Store raw (uncalibrated) probabilities for diagnostics
+    calibration_applied = {}
     errors = {}
     
     # Load model weights from feature schema (performance-based from MC-CV)
@@ -746,7 +847,18 @@ def predict_risk(
             else:
                 raise ValueError(f"Unknown model type: {model_type}")
             
-            predictions[model_type] = float(prob)
+            raw_prob = float(prob)
+            raw_predictions[model_type] = raw_prob
+            # Apply Platt calibration if available
+            calibrator = load_calibration_model(cohort, age_band, model_type)
+            if calibrator is not None:
+                calibrated = apply_calibration(raw_prob, calibrator)
+                predictions[model_type] = calibrated
+                calibration_applied[model_type] = True
+                print(f"Calibrated {model_type}: {raw_prob:.4f} → {calibrated:.4f}")
+            else:
+                predictions[model_type] = raw_prob
+                calibration_applied[model_type] = False
             
         except Exception as e:
             error_msg = str(e)
@@ -798,6 +910,8 @@ def predict_risk(
 
     return {
         'predictions': predictions,
+        'raw_predictions': raw_predictions,
+        'calibration_applied': calibration_applied,
         'ensemble_score': float(ensemble_score),
         'ensemble_method': ensemble_method,
         'models_used': models_used,
@@ -1059,14 +1173,29 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             interpretation = f"Risk from {model_used} (best model for this cohort/age). " + interpretation
 
         bucket_info = patient_bucket_from_inputs(n_drugs, feature_schema)
+        # n_event_bin: total codes submitted → utilization density bin
+        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
+        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
+        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
+        calibration_applied = ensemble_result.get('calibration_applied', {})
+        is_calibrated = any(calibration_applied.values()) if calibration_applied else False
+        _raw_preds = ensemble_result.get('raw_predictions', {})
+        _weights = ensemble_result.get('weights_used', {})
+        _w_sum = sum(_weights.get(m, 0.0) for m in _raw_preds) or 1.0
+        raw_risk_score = float(sum(_raw_preds[m] * _weights.get(m, 0.0) for m in _raw_preds) / _w_sum) if _raw_preds else float(risk_score)
         body = {
             "risk_score": float(risk_score),
             "risk_band": risk_band,
+            "n_event_bin": n_event_bin_value,
+            "n_events": n_events_submitted,
             "is_baseline": False,
+            "calibrated": is_calibrated,
+            "raw_risk_score": raw_risk_score if is_calibrated else None,
             "model_inputs": {
                 "n_drugs": n_drugs,
                 "pgx_num_drugs": pgx_num_drugs,
                 "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
+                "n_events": n_events_submitted,
             },
             "patient_bucket": bucket_info.get("patient_bucket"),
             "patient_bucket_detail": {k: v for k, v in bucket_info.items() if k != "patient_bucket" and v is not None},
