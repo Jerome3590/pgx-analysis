@@ -2691,10 +2691,13 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
                 payload["network_topology_url"] = _dashboard_s3_url(full_html_key)
             payload["data_scope"] = "full_cohort"
 
-        # --- Citations JSON lives in the same directory as network_topology.html ---
-        cit_key = f"{resolved_dir}/pubmed_citations.json"
+        # --- Citations + radar chart live in the same directory as network_topology.html ---
+        cit_key   = f"{resolved_dir}/pubmed_citations.json"
+        radar_key = f"{resolved_dir}/pgx_radar_data.json"
         if _s3_object_exists(S3_DASHBOARD_BUCKET, cit_key):
             payload["citations_url"] = _dashboard_s3_url(cit_key)
+        if _s3_object_exists(S3_DASHBOARD_BUCKET, radar_key):
+            payload["radar_chart_url"] = _dashboard_s3_url(radar_key)
 
         return _response(200, payload)
     except Exception as e:

@@ -1,0 +1,62 @@
+
+      <p class="subtitle">
+        <strong>Research focus:</strong> Gene–drug–phenotype network topology from top PGx genes (SHAP/FFA) and PharmGKB VIP reports.
+        <br>
+        <small style="color: #64748b;">Select cohort and age band, then load to view the interactive network (genes, drugs, phenotypes). Built by 4_dashboard_visuals (Cohort PGx).</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="cohort-pgx-cohort">Cohort:</label>
+          <select id="cohort-pgx-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="cohort-pgx-age-band">Age Band:</label>
+          <select id="cohort-pgx-age-band"></select>
+        </div>
+        <div class="control-group">
+          <label for="cohort-pgx-n-event-bin">Event density:</label>
+          <select id="cohort-pgx-n-event-bin" aria-label="Cohort PGx event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadCohortPgx">Load PGx Cohort Network</button>
+        </div>
+      </div>
+      <div id="cohort-pgx-status" class="status-message">Select cohort and age band, then click 'Load PGx Cohort Network'</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>Gene–Drug–Phenotype Network Topology</h2>
+          <div id="cohort-pgx-iframe-container" style="min-height: 600px;">
+            <iframe id="cohort-pgx-iframe" style="width: 100%; height: 700px; border: 1px solid #e2e8f0; border-radius: 0.5rem;" title="Cohort PGx network topology"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gene Actionability Radar – populated after citations load -->
+      <div id="cohort-pgx-radar-section" style="display:none;">
+        <div class="panel full-width">
+          <h2>Gene Actionability Profile</h2>
+          <p class="subtitle"><small style="color:#64748b;">Multi-dimensional actionability score per PGx gene identified from claims analysis: CPIC classification, dosing guideline availability, PharmGKB VIP evidence tier, literature support, and causal importance rank. Generated from <code>pgx_radar_data.json</code> alongside the network topology.</small></p>
+          <div id="cohort-pgx-radar-chart" style="min-height:480px;"></div>
+        </div>
+      </div>
+
+      <!-- Supporting Literature (PubMed) – populated by JS after network loads -->
+      <div id="cohort-pgx-citations-section" class="pgx-citations-section" style="display:none;">
+        <div class="panel full-width">
+          <h2>Supporting Literature (PubMed)</h2>
+          <p class="subtitle"><small style="color:#64748b;">Top publications (last 5 years) supporting each PGx gene identified in this cohort. Sourced via NCBI PubMed E-utilities using the same <em>search_pubmed_all</em> search methodology as the project literature review. Click a gene to expand citations.</small></p>
+          <div id="cohort-pgx-citations-meta" class="pgx-citations-meta-bar"></div>
+          <div id="cohort-pgx-citations-loading" style="display:none;color:#64748b;font-size:0.875rem;">Loading citations…</div>
+          <div id="cohort-pgx-citations-content"></div>
+        </div>
+      </div>
+    

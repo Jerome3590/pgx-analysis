@@ -1187,6 +1187,7 @@ def run_fetch_pubmed_citations(cohort_name, age_band, bin_name=None):
         "--age-band", age_band,
         "--reports", str(reports_file),
         "--output-dir", str(output_dir),
+        "--project-root", str(REPO_ROOT),
     ]
     if bin_name:
         args += ["--bin", bin_name]

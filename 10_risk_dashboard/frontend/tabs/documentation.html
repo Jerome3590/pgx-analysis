@@ -1,0 +1,96 @@
+
+      <p class="subtitle">
+        How to use the PGx Risk Assessment Dashboard. All content stays on this page.
+      </p>
+      <div class="doc-content tab-content-inner">
+        <h2>Overview</h2>
+        <p>
+          This dashboard supports <strong>F1120 Opioid ED Visit</strong> risk and <strong>Polypharmacy</strong> risk.
+          Each cohort supports <strong>age bands 13–114</strong> (13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114). Use the Opioid ED or Polypharmacy tab to switch cohort; age selects the age band within that cohort.
+        </p>
+
+        <h2>Tabs</h2>
+        <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata). Both cohorts support age bands 13–114.</p>
+        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Cohort | Feature Importance | PGx Patient Card | Documentation</p>
+        <ul>
+          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
+          <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
+          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
+          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
+          <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort and age band.</li>
+          <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations.</li>
+          <li><strong>FP-Growth Patterns</strong> — Frequent itemset and network visualizations.</li>
+          <li><strong>BupaR Process Mining</strong> — Process mining and activity frequency charts.</li>
+          <li><strong>Feature Importance</strong> — Aggregated feature importance heatmaps by cohort (from Step 3a / 2_feature_importance).</li>
+          <li><strong>PGx Patient Card</strong> — Generate a PGx card from SNP/phenotype input.</li>
+        </ul>
+
+        <h2>Research questions and visualizations</h2>
+        <p>Each research question is answered by one or more dashboard tabs and their visuals.</p>
+        <p><strong>Original research questions</strong></p>
+        <ul>
+          <li><strong>RQ1 (Polypharmacy)</strong> — Does drug window influence target outcome? Which drugs are involved? Is there a temporal/ordering aspect? → <strong>Risk Assessment</strong>, <strong>Causal Analysis</strong> (risk score, FFA + SHAP), <strong>FP-Growth</strong> (drug itemsets, network), <strong>BupaR</strong> (sequences to target, Gantt).</li>
+          <li><strong>RQ2 (Opioid ED)</strong> — What CPT/ICD codes and drugs predict OPIOID_ED? Predictive sequences? Feature importance? High-risk trajectories? Formal causality? → <strong>FP-Growth</strong> + <strong>Causal Analysis</strong> (itemsets, network, FFA, SHAP), <strong>BupaR</strong> (top sequences, pre-target frequency), <strong>DTW Trajectories</strong> (trajectory overview, high-risk vs low-risk), <strong>Causal Analysis</strong> (FFA, interactions).</li>
+        </ul>
+        <p><strong>Additional research questions (N1–N6)</strong></p>
+        <table class="doc-metrics">
+          <thead>
+            <tr><th>Question</th><th>Tab(s)</th><th>Visuals</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>N1: Routine vs utilization appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs Utilization (Outcomes), trajectory overview, metrics</td></tr>
+            <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
+            <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
+            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Drug association network, top itemsets (drug names only)</td></tr>
+            <tr><td>N5: What features drive outcome and how do they relate?</td><td>Causal Analysis</td><td>Top Causal Factors (FFA), SHAP Feature Importance, Feature Interactions</td></tr>
+            <tr><td>N6: What drug combinations drive polypharmacy ED visit?</td><td>Causal Analysis, BupaR</td><td>Causal factors (drugs), BupaR sequences / pre-target activity</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Workflow</h2>
+        <ol>
+          <li>Set <strong>Age</strong> on Risk Assessment (this loads metadata and determines age band; age 13–114 supported for both cohorts).</li>
+          <li>Open <strong>Drugs</strong> tab, search and add the drugs you need. View selected drugs in the display area.</li>
+          <li>For the <strong>Opioid ED</strong> cohort, also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
+          <li>Return to <strong>Risk Assessment</strong> and click <em>Calculate Risk Score</em>.</li>
+          <li>Use <em>Compare Scenarios</em> to compare different code sets.</li>
+          <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
+        </ol>
+
+        <h2>Model performance and at-risk identification</h2>
+        <p>
+          Below are model performance metrics by <strong>cohort</strong> and <strong>age band</strong>. Metrics are from Monte Carlo cross-validation (2016–2018 train / 2019 holdout). 
+          <strong>Recall (sensitivity)</strong> indicates how well the model identifies at-risk patients who had the outcome; <strong>PR-AUC</strong> (average precision) is suited to imbalanced outcomes.
+        </p>
+        <div id="doc-metrics-container" class="doc-metrics">
+          <p class="doc-metrics-loading">Loading metrics…</p>
+        </div>
+
+        <h2>Dashboard visual artifacts (from manifest)</h2>
+        <p>Artifacts produced by notebook 4 and synced to S3. Source: <code>visualizations/dashboard_visual_objects.json</code>.</p>
+        <div id="doc-manifest-container" class="doc-metrics">
+          <p class="doc-metrics-loading">Loading manifest…</p>
+        </div>
+
+        <h2>Feature importance sources for visuals</h2>
+        <p>
+          BupaR, DTW, and FP-Growth use <strong>different</strong> feature-importance inputs:
+        </p>
+        <ul>
+          <li><strong>BupaR Process Mining</strong> and <strong>DTW Trajectories</strong> use <strong>SHAP/FFA combined</strong> — allowed codes (drug, ICD, CPT) come from merged SHAP and FFA causal importance (Steps 7 and 8). The pipeline writes these to a single allowed-codes file per cohort/age band; R (BupaR) and Python (DTW) use that list only.</li>
+          <li><strong>FP-Growth Patterns</strong> use <strong>final feature importances</strong> — allowed items come from the cohort feature importance list (Step 3b, refined/leakage-filtered). FP-Growth does not use the SHAP/FFA combined list.</li>
+        </ul>
+        <p>
+          So: BupaR and DTW visuals are driven by SHAP/FFA combined; FP-Growth visuals are driven by the final (cohort) feature importance list.
+        </p>
+
+        <h2>Technical notes</h2>
+        <p>
+          The backend uses an ensemble of CatBoost, XGBoost, and XGBoost RF models. Metadata (drugs, ICD, CPT) is filtered by cohort and age band. 
+          All tabs use the same page; nothing here navigates you away to a separate doc page.
+        </p>
+        <p>
+          <strong>Note for Polypharmacy cohort:</strong> Only drugs are used for risk calculation. ICD and CPT code tabs are hidden for this cohort. Both cohorts support age bands 13–114.
+        </p>
+      </div>
+    

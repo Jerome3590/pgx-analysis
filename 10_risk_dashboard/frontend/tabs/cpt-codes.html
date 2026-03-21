@@ -1,0 +1,18 @@
+
+      <p class="subtitle">
+        Select <strong>CPT codes</strong> for your patient. Selections are used on the <strong>Risk Assessment</strong> tab when you click Calculate Risk Score. CPT codes are filtered by the age band set on Risk Assessment. Use the search box to filter; select one or more from the list (Ctrl+click / Cmd+click for multiple).
+      </p>
+      <div class="tab-content-inner">
+        <div class="control-group">
+          <label for="cpts">CPT Codes (search below, then select from list)</label>
+          <div class="code-search">
+            <input type="text" id="cpt-search" placeholder="Search CPT codes..." aria-label="Filter CPT list" />
+          </div>
+          <select id="cpts" multiple aria-label="Selected CPT codes for model"></select>
+          <div style="margin-top: 1rem;">
+            <strong>Selected CPT Codes:</strong>
+            <div id="selected-cpts-display" style="margin-top: 0.5rem; min-height: 2rem;"></div>
+          </div>
+        </div>
+      </div>
+    

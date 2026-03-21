@@ -1,0 +1,93 @@
+
+      <p class="subtitle">
+        <strong>Drug-specific visuals</strong> (below): cohort and age band select which pipeline output to load; show/hide applies to drug-only panels only (sequences, activity frequency, trace explorer, Drug × Drug process matrix).
+        <strong>Event-to-target</strong> BupaR visuals use <strong>all activity types</strong> (Drug, ICD, CPT) and are kept separate from the drug-only set.
+        <br>
+        <small style="color: #64748b;">Dropdowns and checkboxes below control only drug-specific visuals. Event-to-target visuals are not filtered by these controls.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="bupar-cohort">Cohort (drug-specific visuals only):</label>
+          <select id="bupar-cohort" aria-label="BupaR cohort for drug-specific visuals">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="bupar-age-band">Age band (drug-specific visuals only):</label>
+          <select id="bupar-age-band" aria-label="BupaR age band for drug-specific visuals"></select>
+        </div>
+        <div class="control-group">
+          <label for="bupar-n-event-bin">Event density:</label>
+          <select id="bupar-n-event-bin" aria-label="BupaR event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadBupaR">Load BupaR Visualizations</button>
+        </div>
+        <div class="control-group full-width" style="margin-top: 12px;">
+          <fieldset style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
+            <legend style="font-weight: 600;">Show visuals (drug-specific only)</legend>
+            <p style="font-size: 0.85em; color: #64748b; margin: 0 0 8px 0;">Select which drug-specific panels to display. These use drug-only data; process matrix is Drug × Drug. Event-to-target visuals use all activity types and are not controlled here.</p>
+            <div id="bupar-visual-checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px 20px;"></div>
+          </fieldset>
+        </div>
+      </div>
+      <div id="bupar-status" class="status-message">Select cohort and age band (for drug-specific visuals), then click 'Load BupaR Visualizations'</div>
+      <h3 class="panel-section-label" style="margin-top: 1rem; margin-bottom: 0.5rem; font-weight: 600;">Drug-specific visuals</h3>
+      <p class="subtitle" style="margin-bottom: 0.75rem;"><small style="color: #64748b;">These panels are driven by the cohort and age band dropdowns above. Event-to-target BupaR visuals (all activity types) are kept separate.</small></p>
+      <div class="panels">
+        <div class="panel bupar-panel" data-visual-key="sequence">
+          <h2>Sequences to Target Outcomes (drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drug sequences (ordered activity traces) most frequently precede the adverse outcome? Uses process mining to extract and rank the top ordered drug-activity sequences observed in patients who reached the target event, revealing common medication pathways that culminate in an ED visit or polypharmacy event.</small></p>
+          <div id="bupar-sequence-image"></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="activity_frequency">
+          <h2>Overall Activity Frequency (drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs are most commonly prescribed in this cohort across the full training window (2016–2018)? Counts all pharmacy/dispensing events per drug name to establish the baseline utilization profile. Use the year filter to detect year-over-year shifts in prescribing patterns that may indicate clinical practice changes or formulary updates.</small></p>
+          <div class="control-group">
+            <label for="bupar-year-overall">Year:</label>
+            <select id="bupar-year-overall"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-overall"></canvas></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="pre_target_frequency">
+          <h2>Pre-Target Activity Frequency (drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs are most heavily prescribed in the period <em>before</em> the target outcome event? Isolates only events that occurred prior to the first adverse outcome, revealing the pre-event medication profile. Comparing this to Overall Activity Frequency highlights which drugs are disproportionately concentrated in the pre-event window.</small></p>
+          <div class="control-group">
+            <label for="bupar-year-pre">Year:</label>
+            <select id="bupar-year-pre"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-pre"></canvas></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="post_target_activity">
+          <h2>Post-Target Activity Frequency (drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> How does the prescribing profile change <em>after</em> the adverse outcome? Counts drug events occurring after the target event to capture treatment responses, escalations, or new medication introductions following an ED visit or adverse event. Drugs that spike post-target may reflect reactive clinical interventions.</small></p>
+          <div class="control-group">
+            <label for="bupar-year-post">Year:</label>
+            <select id="bupar-year-post"><option value="0">All Years (2016-2018)</option></select>
+          </div>
+          <div style="position: relative; height: 400px;"><canvas id="bupar-chart-post"></canvas></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="trace_explorer">
+          <h2>Trace Explorer (top 20 traces, drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> What are the most common ordered drug sequences across all patients in this cohort? Each trace is a unique ordered sequence of drug activities for a patient; the top 20 most frequent are shown ranked by prevalence. Use the year filter to see whether dominant medication sequences shift across 2016–2018, indicating evolving prescribing norms.</small></p>
+          <div id="bupar-trace-explorer-image"></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="trace_explorer_pre">
+          <h2>Trace Explorer Pre-Target (drugs)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which ordered drug sequences most often immediately precede the adverse outcome? Restricts trace analysis to the pre-event window only, revealing the top 20 medication orderings that most frequently lead into a target event. Cross-reference with Target Pathway Patterns (DTW) to validate findings across both analytical frameworks.</small></p>
+          <div id="bupar-trace-explorer-pre-image"></div>
+        </div>
+        <div class="panel bupar-panel" data-visual-key="process_matrix_typepair">
+          <h2>Process Matrix (Drug × Drug)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs tend to follow other drugs in patient treatment journeys? Each cell shows the number of times Drug B was observed directly after Drug A across the cohort. High-frequency transitions (darker cells) indicate common medication handoffs — e.g., from an opioid to a benzodiazepine — that may signal escalation, co-prescribing patterns, or treatment substitutions relevant to the target outcome.</small></p>
+          <div id="bupar-process-matrix-typepair-image"></div>
+        </div>
+      </div>
+    

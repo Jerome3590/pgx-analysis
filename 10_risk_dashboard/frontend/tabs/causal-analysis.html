@@ -1,0 +1,54 @@
+
+      <p class="subtitle">
+        <strong>Research focus:</strong> What features drive the target outcome and how do they relate? What drug combinations drive polypharmacy ED visit?
+        <br>
+        <small style="color: #64748b;">Uses the <strong>same cohort, age, and feature selections</strong> as Risk Assessment: Opioid ED / Polypharmacy tab, Age (for age band), and your selected Drugs, ICD, and CPT codes. Charts show causal/SHAP for those selected features.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group full-width">
+          <label for="causal-whatif-codes">What-if scenario (optional): comma-separated codes to compare</label>
+          <input type="text" id="causal-whatif-codes" placeholder="e.g. F1120, 99213, OXYCODONE" style="width: 100%; max-width: 24rem; padding: 0.35rem 0.5rem;" aria-label="What-if codes" />
+          <small style="color: #64748b;">Same format as your selections (ICD, CPT, or drug codes). Charts will show a second trace for this scenario.</small>
+        </div>
+        <div class="control-group full-width">
+          <label for="causal-top-n">Show features:</label>
+          <select id="causal-top-n" aria-label="Number of features to show">
+            <option value="10">Top 10</option>
+            <option value="20" selected>Top 20</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="causal-n-event-bin">Event density:</label>
+          <select id="causal-n-event-bin" aria-label="Causal event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadCausal">Load Causal Analysis</button>
+          <button id="btnClearCausalFilters" type="button" class="secondary">Clear filters</button>
+        </div>
+      </div>
+      <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort = active tab above (Opioid ED / Polypharmacy). Age band = from Age on Risk Assessment. Select features on <strong>Drugs</strong>, <strong>ICD Codes</strong>, and <strong>CPT Codes</strong> tabs. Add what-if codes above to compare. Clear filters reloads with no selection.</small></p>
+      <div id="causal-status" class="status-message">Set cohort and age on Risk Assessment, optionally select codes on Drugs/ICD/CPT, then click 'Load Causal Analysis'</div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Top Causal Factors (FFA)</h2>
+          <div id="causal-factors-chart"></div>
+        </div>
+        <div class="panel">
+          <h2>SHAP Feature Importance</h2>
+          <div id="shap-importance-chart"></div>
+        </div>
+        <!-- Feature Interactions panel removed as per dashboard validation checklist -->
+        <div class="panel">
+          <h2>Effect on outcome (by feature)</h2>
+          <p class="subtitle" style="margin: 0 0 0.5rem 0;"><small style="color: #64748b;">How strongly each feature affects the predicted target when adjusted. Larger values = stronger effect on outcome. Same idea as feature interactions but shown per feature (single-feature effect).</small></p>
+          <div id="causal-radar-chart"></div>
+        </div>
+      </div>
+    
