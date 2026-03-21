@@ -113,9 +113,8 @@ flowchart LR
 ```text
 10_risk_dashboard/
 ├── frontend/                          # Frontend dashboard (user-facing)
-│   ├── index.html                     # Main dashboard HTML with all tabs
-│   ├── assets/                        # Static assets (CSS, JS, images)
-│   ├── dashboard_index_template.html  # Template for dashboard index
+│   ├── index.html                     # Shell: head, global CSS/JS, tab bar, empty tab wrappers
+│   ├── tabs/                          # Per-tab HTML (loaded on demand; one file per tab)
 │   └── README.md                      # Frontend documentation
 │
 ├── backend/                           # Backend API (Lambda function)
