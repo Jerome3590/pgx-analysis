@@ -2775,7 +2775,8 @@ def train_and_evaluate(
         fi_df = fi_df.sort_values("importance", ascending=False)
 
         fi_path = out_base / f"{cohort}_{age_band_fname}_xgboost_feature_importance.csv"
-        s3_fi_path = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_xgboost_feature_importance.csv"
+        _bin_s3_infix = f"bin_models/{bin_name}/" if bin_name else ""
+        s3_fi_path = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_bin_s3_infix}{cohort}_{age_band_fname}_xgboost_feature_importance.csv"
         
         def save_fi():
             fi_df.to_csv(fi_path, index=False)
@@ -2842,7 +2843,8 @@ def train_and_evaluate(
                 )
                 cb_fi_df = cb_fi_df.sort_values("importance", ascending=False)
                 cb_fi_path = out_base / f"{cohort}_{age_band_fname}_catboost_feature_importance.csv"
-                s3_cb_fi_path = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_catboost_feature_importance.csv"
+                _bin_s3_infix_cb = f"bin_models/{bin_name}/" if bin_name else ""
+                s3_cb_fi_path = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_bin_s3_infix_cb}{cohort}_{age_band_fname}_catboost_feature_importance.csv"
                 def save_cb_fi():
                     cb_fi_df.to_csv(cb_fi_path, index=False)
                 save_model_idempotent(cb_fi_path, s3_cb_fi_path, save_cb_fi)

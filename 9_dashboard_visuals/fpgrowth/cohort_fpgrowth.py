@@ -153,6 +153,72 @@ USE_MODEL_DATA_IF_AVAILABLE = True
 LOCAL_OUTPUT_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth"
 
 
+def _save_per_density_fpgrowth_outputs(
+    cohort_name: str,
+    age_band: str,
+    density: str,
+    item_type: str,
+    itemsets_df,
+    rules_df,
+    logger,
+) -> None:
+    """Write per-density FP-Growth itemsets + rules JSON locally and upload to dashboard S3.
+
+    Local:  LOCAL_OUTPUT_ROOT/{cohort}/{age_band_fname}/density/{density}/
+    S3:     visualizations/fpgrowth/{cohort}/{age_band}/density/{density}/plots/
+
+    Silently skips upload when SKIP_DASHBOARD_S3_UPLOAD=1 (notebook 5 Step 6 handles sync).
+    """
+    import os as _os
+    age_band_fname = age_band.replace("-", "_")
+    density_dir = LOCAL_OUTPUT_ROOT / cohort_name / age_band_fname / "density" / density
+    density_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        is_df = itemsets_df.copy()
+        if "itemsets" in is_df.columns:
+            is_df["itemsets"] = is_df["itemsets"].apply(lambda x: list(x))
+        is_path = density_dir / f"{item_type}_itemsets.json"
+        is_df.to_json(is_path, orient="records", indent=2)
+
+        rs_df = rules_df.copy()
+        for col in ("antecedents", "consequents"):
+            if col in rs_df.columns:
+                rs_df[col] = rs_df[col].apply(lambda x: list(x))
+        rs_path = density_dir / f"{item_type}_rules.json"
+        rs_df.to_json(rs_path, orient="records", indent=2)
+
+        logger.info(
+            "Per-density FP-Growth: saved %d itemsets + %d rules to %s",
+            len(is_df), len(rs_df), density_dir,
+        )
+    except Exception as e:
+        logger.warning("Per-density FP-Growth local save failed (%s/%s): %s", density, item_type, e)
+        return
+
+    if (_os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
+        return
+    try:
+        import boto3 as _boto3
+        s3_bucket = _os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+        dashboard_prefix = _os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+        s3_plots_prefix = (
+            f"{dashboard_prefix.rstrip('/')}/visualizations/fpgrowth"
+            f"/{cohort_name}/{age_band}/density/{density}/plots"
+        )
+        _s3 = _boto3.client("s3")
+        for path, key_name in [(is_path, f"{item_type}_itemsets.json"), (rs_path, f"{item_type}_rules.json")]:
+            _s3.put_object(
+                Bucket=s3_bucket,
+                Key=f"{s3_plots_prefix}/{key_name}",
+                Body=path.read_bytes(),
+                ContentType="application/json",
+            )
+        logger.info("Per-density FP-Growth: uploaded to s3://%s/%s", s3_bucket, s3_plots_prefix)
+    except Exception as e:
+        logger.warning("Per-density FP-Growth S3 upload failed (%s/%s): %s", density, item_type, e)
+
+
 def _normalize_code(s: str) -> str:
     """Normalize code for set membership (e.g. F11.20 and F1120 match)."""
     if not s or (isinstance(s, float) and pd.isna(s)):
@@ -1206,6 +1272,14 @@ def process_single_cohort(
                         )
                         log_memory(logger, f"After rule generation ({density})")
                         logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s itemsets=%d rules=%d", density, item_type, len(itemsets_density), len(rules_density))
+                        # Write per-density output files (Lambda serves these via density/{bin}/plots/)
+                        try:
+                            _save_per_density_fpgrowth_outputs(
+                                cohort_name, age_band, density, item_type,
+                                itemsets_density, rules_density, logger,
+                            )
+                        except Exception as _e:
+                            logger.warning("Per-density save failed (%s): %s", density, _e)
                     else:
                         logger.warning(f"No itemsets remaining after lift filtering for {density} density")
                         logger.info("[ACTIVITY_COMPLETE] density=%s item_type=%s itemsets=0 rules=0 skipped=no_itemsets", density, item_type)
