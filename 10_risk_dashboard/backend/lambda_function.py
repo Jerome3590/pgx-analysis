@@ -2083,14 +2083,8 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # When no trajectory overview on S3, still return a JSON message so the dashboard can show it (no 404)
-        if not payload.get("trajectory_overview_plot"):
-            payload["trajectory_overview_plot"] = {
-                "message": "No trajectory overview for this cohort/age band. Run create_dtw_visuals (notebook 4) and sync to S3 (notebook 5 Step 6).",
-                "empty": True,
-            }
-
-        # Fallback: image URLs when Plotly JSON not present (avoid broken image when pipeline not run)
+        # Fallback: image/HTML URLs when Plotly JSON not present — must check BEFORE setting empty-message
+        # sentinel, otherwise the guard condition below can never be True.
         overview_key = f"{plots_key}/dtw_trajectory_analysis_{cohort}_{age_band_fname}.png"
         sample_key = f"{plots_key}/dtw_sample_trajectories_{cohort}_{age_band_fname}.png"
         # Interactive HTML: pipeline writes 1d/3d; try interactive, then 1d, then 3d
@@ -2100,12 +2094,20 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
             if _s3_object_exists(bucket, candidate):
                 overview_html_key = candidate
                 break
-        if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, overview_key):
-            payload["overview_image"] = _dashboard_s3_url(overview_key)
-        if not payload.get("trajectory_overview_plot") and _s3_object_exists(bucket, sample_key):
-            payload["sample_trajectories_image"] = _dashboard_s3_url(sample_key)
+        if not payload.get("trajectory_overview_plot"):
+            if _s3_object_exists(bucket, overview_key):
+                payload["overview_image"] = _dashboard_s3_url(overview_key)
+            if _s3_object_exists(bucket, sample_key):
+                payload["sample_trajectories_image"] = _dashboard_s3_url(sample_key)
         if overview_html_key:
             payload["overview_interactive"] = _dashboard_s3_url(overview_html_key)
+
+        # Always return a consumable trajectory_overview_plot value so the frontend never gets undefined
+        if not payload.get("trajectory_overview_plot"):
+            payload["trajectory_overview_plot"] = {
+                "message": "No trajectory overview for this cohort/age band. Run create_dtw_visuals (notebook 4) and sync to S3 (notebook 5 Step 6).",
+                "empty": True,
+            }
 
         return _response(200, payload)
     except Exception as e:
