@@ -2266,26 +2266,51 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handle_fpgrowth_network_html_proxy(event: Dict[str, Any]) -> Dict[str, Any]:
-    """GET /visualizations/fpgrowth/network_html?cohort=...&age_band=...
+    """GET /visualizations/fpgrowth/network_html?cohort=...&age_band=...[&n_event_bin=low|medium|high|extreme]
     Fetches combined_rules_network.html from S3 and returns it with Content-Type: text/html
     so the dashboard iframe renders it instead of triggering a download.
+    When n_event_bin is supplied, the per-bin density/{bin}/plots/ path is tried first.
     """
     try:
         params = event.get("queryStringParameters") or {}
         cohort = params.get("cohort")
         age_band = params.get("age_band")
+        n_event_bin = params.get("n_event_bin") or None
         if not cohort or not age_band:
             return _response(400, {"error": "cohort and age_band parameters required"})
         age_band_fname = age_band.replace("-", "_")
         prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/fpgrowth"
-        base_key = f"{prefix}/{cohort}/{age_band}/plots"
-        key = f"{base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
-        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=key)
-        html_body = obj["Body"].read().decode("utf-8")
-        return _response_html(200, html_body)
+        fname = f"{cohort}_{age_band_fname}_combined_rules_network.html"
+
+        # Per-bin path first when n_event_bin supplied
+        if n_event_bin:
+            bin_key = f"{prefix}/{cohort}/{age_band}/density/{n_event_bin}/plots/{fname}"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_key):
+                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=bin_key)
+                return _response_html(200, obj["Body"].read().decode("utf-8"))
+            # Fall through to full-cohort with a visible notice in the HTML
+            full_key = f"{prefix}/{cohort}/{age_band}/plots/{fname}"
+            try:
+                obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=full_key)
+                html = obj["Body"].read().decode("utf-8")
+                notice = (
+                    f'<div style="background:#fff3cd;padding:8px;font-family:sans-serif;font-size:13px">'
+                    f'Showing full-cohort network (no per-bin data for density=\'{n_event_bin}\'). '
+                    f'Run cohort_fpgrowth.py with per-bin output enabled.</div>'
+                )
+                html = html.replace("<body>", f"<body>{notice}", 1)
+                return _response_html(200, html)
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
+                    return _response_html(404, f"<!DOCTYPE html><html><body><p>Network visualization not found for bin='{n_event_bin}' or full-cohort. Run the FP-Growth pipeline.</p></body></html>")
+                raise
+
+        full_key = f"{prefix}/{cohort}/{age_band}/plots/{fname}"
+        obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=full_key)
+        return _response_html(200, obj["Body"].read().decode("utf-8"))
     except ClientError as e:
         if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "AccessDenied"):
-            checked = f"s3://{S3_DASHBOARD_BUCKET}/{key}"
+            checked = f"s3://{S3_DASHBOARD_BUCKET}/{full_key}"
             return _response_html(404, f"<!DOCTYPE html><html><body><p>Network visualization not found. Run the FP-Growth pipeline to build it.</p><p>Checked: {checked}</p></body></html>")
         raise
     except Exception as e:

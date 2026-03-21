@@ -39,12 +39,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optional[Path]:
+def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
     """Find SHAP results from Step 7 (7_shap_analysis). Prefer global importance CSV for combine."""
     age_band_fname = age_band.replace("-", "_")
     base = f"{cohort}_{age_band_fname}"
-    # PGx Step 7 writes to 7_shap_analysis/outputs/{cohort}/{age_band_fname}/
-    shap_dir = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    shap_base = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    if bin_name:
+        shap_dir = shap_base / "bin_models" / bin_name
+    else:
+        shap_dir = shap_base
     possible_paths = [
         shap_dir / f"{base}_shap_global_importance_xgboost.csv",
         shap_dir / f"{base}_shap_global_importance_catboost.csv",
@@ -60,11 +63,12 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path) -> Optiona
     return None
 
 
-def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path) -> Optional[Path]:
+def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
     """Find SHAP sample values parquet from Step 7 (same layout as global importance). Used for row-level SHAP in patient explanations."""
     age_band_fname = age_band.replace("-", "_")
     base = f"{cohort}_{age_band_fname}"
-    shap_dir = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    shap_base = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    shap_dir = shap_base / "bin_models" / bin_name if bin_name else shap_base
     for name in (f"{base}_shap_sample_values_xgboost.parquet", f"{base}_shap_sample_values_catboost.parquet"):
         p = shap_dir / name
         if p.exists():
@@ -72,7 +76,7 @@ def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path) -> 
     return None
 
 
-def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Optional[Path], Optional[Path]]:
+def find_ffa_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Tuple[Optional[Path], Optional[Path]]:
     """Find FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/ or catboost/.
     Tries both age_band dir names: underscore (65_74) and hyphen (65-74) for cohort naming consistency."""
     age_band_fname = age_band.replace("-", "_")
@@ -83,7 +87,8 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Op
     explanations_path = None
     importance_path = None
     for age_dir in candidates:
-        ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+        _age_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+        ffa_base = _age_base / "bin_models" / bin_name if bin_name else _age_base
         for model in ("xgboost", "catboost"):
             model_dir = ffa_base / model
             exp_p = model_dir / "axp_explanations.parquet"
@@ -108,7 +113,8 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path) -> Tuple[Op
         )
     if importance_path is None:
         for age_dir in candidates:
-            ffa_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+            _age_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
+            ffa_base = _age_base / "bin_models" / bin_name if bin_name else _age_base
             for model in ("xgboost", "catboost"):
                 imp_p = ffa_base / model / "feature_importance_axp.parquet"
                 if not imp_p.exists():
@@ -571,7 +577,7 @@ def generate_dashboard_outputs_phts_style(
     return dashboard_data
 
 
-def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str) -> bool:
+def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str, bin_name: str | None = None) -> bool:
     """Upload dashboard_data.json to S3 dashboard bucket as causal_data.json for GET /visualizations/causal.
     S3 paths use age_band with hyphen (e.g. 25-44); EC2 paths use underscore (25_44)."""
     try:
@@ -581,7 +587,8 @@ def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str)
         return False
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
-    key = f"{prefix}/visualizations/causal/{cohort}/{age_band}/causal_data.json"
+    _bin_seg = f"/{bin_name}" if bin_name else ""
+    key = f"{prefix}/visualizations/causal/{cohort}/{age_band}{_bin_seg}/causal_data.json"
     try:
         s3 = boto3.client("s3")
         s3.upload_file(
@@ -601,6 +608,12 @@ def main():
     parser = argparse.ArgumentParser(description="Combine SHAP and FFA results for final reporting")
     parser.add_argument("--cohort", required=True, help="Cohort name")
     parser.add_argument("--age-band", required=True, help="Age band")
+    parser.add_argument(
+        "--bin",
+        required=True,
+        choices=["low", "medium", "high", "extreme"],
+        help="Density bin. Reads SHAP/FFA from per-bin subdirs and writes output to {output_dir}/{cohort}/{age_band}/{bin}/.",
+    )
     parser.add_argument("--output-dir", default="10_risk_dashboard/visualizations/causal", help="Output directory (EC2: .../visualizations/causal/{cohort}/{age_band_fname}/)")
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
     parser.add_argument("--weight-shap", type=float, default=0.5, help="Weight for SHAP (0-1)")
@@ -629,16 +642,18 @@ def main():
         # TODO: Implement batch processing
         return
     
-    # EC2 path: 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/ (README_dashboard_validation.md)
-    output_dir = Path(args.output_dir) / args.cohort / args.age_band.replace("-", "_")
+    _bin_name: str | None = getattr(args, "bin", None)
+    # EC2 path: 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}[/{bin}]/ (README_dashboard_validation.md)
+    _out_base = Path(args.output_dir) / args.cohort / args.age_band.replace("-", "_")
+    output_dir = _out_base / _bin_name if _bin_name else _out_base
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info(f"Combining SHAP and FFA results for {args.cohort} / {args.age_band}")
+    logger.info(f"Combining SHAP and FFA results for {args.cohort} / {args.age_band}{f' (bin={_bin_name})' if _bin_name else ''}")
     
     # Find results (same path layout for opioid_ed and non_opioid_ed: 7_shap_analysis/outputs/{cohort}/{age_band_fname}/)
-    shap_path = find_shap_results(args.cohort, args.age_band, project_root)
-    shap_sample_path = find_shap_sample_parquet(args.cohort, args.age_band, project_root)
-    ffa_explanations_path, ffa_importance_path = find_ffa_results(args.cohort, args.age_band, project_root)
+    shap_path = find_shap_results(args.cohort, args.age_band, project_root, bin_name=_bin_name)
+    shap_sample_path = find_shap_sample_parquet(args.cohort, args.age_band, project_root, bin_name=_bin_name)
+    ffa_explanations_path, ffa_importance_path = find_ffa_results(args.cohort, args.age_band, project_root, bin_name=_bin_name)
     
     # All inputs are required; log errors and exit if any missing
     age_band_fname = args.age_band.replace("-", "_")
@@ -781,7 +796,8 @@ def main():
         )
         if getattr(args, "upload_to_dashboard", False):
             upload_causal_data_to_dashboard(
-                output_dir / "dashboard_data.json", args.cohort, args.age_band
+                output_dir / "dashboard_data.json", args.cohort, args.age_band,
+                bin_name=getattr(args, "bin", None),
             )
     
     if patient_explanations is not None:

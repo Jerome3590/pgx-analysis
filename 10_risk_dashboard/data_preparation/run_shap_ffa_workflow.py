@@ -45,31 +45,37 @@ def _age_band_fname(age_band: str) -> str:
     return age_band.replace("-", "_")
 
 
-def _ensure_shap_artifacts(cohort: str, age_band: str) -> None:
+def _ensure_shap_artifacts(cohort: str, age_band: str, bin_name: str | None = None) -> None:
     """Run Step 7 (SHAP) if outputs are missing."""
     age_band_fname = _age_band_fname(age_band)
-    out_dir = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    if bin_name:
+        out_dir = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname / "bin_models" / bin_name
+    else:
+        out_dir = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     required = out_dir / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
     if required.exists():
-        logger.info(f"SHAP artifacts already exist for {cohort}/{age_band}; skipping Step 7.")
+        logger.info(f"SHAP artifacts already exist for {cohort}/{age_band}{f' bin={bin_name}' if bin_name else ''}; skipping Step 7.")
         return
-    logger.info(f"Running Step 7 (SHAP) for {cohort}/{age_band}...")
+    logger.info(f"Running Step 7 (SHAP) for {cohort}/{age_band}{f' bin={bin_name}' if bin_name else ''}...")
     script = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
-    r = subprocess.run(
-        [str(get_workflow_python_bin()), str(script), "--cohort", cohort, "--age_band", age_band],
-        cwd=PROJECT_ROOT,
-    )
+    cmd = [str(get_workflow_python_bin()), str(script), "--cohort", cohort, "--age_band", age_band]
+    if bin_name:
+        cmd.extend(["--bin", bin_name])
+    r = subprocess.run(cmd, cwd=PROJECT_ROOT)
     if r.returncode != 0:
         raise SystemExit(r.returncode)
 
 
 def _load_shap_for_ffa(
-    cohort: str, age_band: str, max_shap_rows: int = 5000
+    cohort: str, age_band: str, max_shap_rows: int = 5000, bin_name: str | None = None
 ) -> Tuple[dict, Optional[pd.DataFrame]]:
     """Load SHAP global importance (map) and sample values from Step 7. Uses DuckDB to limit parquet rows on EC2."""
     import duckdb
     age_band_fname = _age_band_fname(age_band)
-    base = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    if bin_name:
+        base = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname / "bin_models" / bin_name
+    else:
+        base = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     csv_path = base / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
     parquet_path = base / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
     if not csv_path.exists():
@@ -104,12 +110,15 @@ def _load_shap_for_ffa(
     return shap_map, shap_values_df
 
 
-def _find_xgboost_json(cohort: str, age_band: str) -> Path:
+def _find_xgboost_json(cohort: str, age_band: str, bin_name: str | None = None) -> Path:
     age_band_fname = _age_band_fname(age_band)
+    _base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _bin_base = _base / "bin_models" / bin_name if bin_name else _base
     candidates = [
-        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "final_model_json"
-        / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
-        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "models" / "xgboost_model.json",
+        _bin_base / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
+        _bin_base / "models" / "xgboost_model.json",
+        _base / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
+        _base / "models" / "xgboost_model.json",
     ]
     for p in candidates:
         if p.exists():
@@ -117,12 +126,15 @@ def _find_xgboost_json(cohort: str, age_band: str) -> Path:
     raise FileNotFoundError(f"XGBoost JSON not found; tried: {candidates}")
 
 
-def _find_xgboost_binary(cohort: str, age_band: str) -> Optional[Path]:
+def _find_xgboost_binary(cohort: str, age_band: str, bin_name: str | None = None) -> Optional[Path]:
     """Path to native binary (e.g. .ubj) for Booster.load_model; avoids JSON parse errors."""
     age_band_fname = _age_band_fname(age_band)
+    _base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _bin_base = _base / "bin_models" / bin_name if bin_name else _base
     candidates = [
-        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "models" / "xgboost_model.ubj",
-        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "models" / "xgboost_model.model",
+        _bin_base / "models" / "xgboost_model.ubj",
+        _bin_base / "models" / "xgboost_model.model",
+        _base / "models" / "xgboost_model.ubj",
         PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname / "models" / "xgboost_model.ubj",
     ]
     for p in candidates:
@@ -131,7 +143,7 @@ def _find_xgboost_binary(cohort: str, age_band: str) -> Optional[Path]:
     return None
 
 
-def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000) -> Optional[pd.DataFrame]:
+def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000, bin_name: str | None = None) -> Optional[pd.DataFrame]:
     """Load a sample of training features via DuckDB (avoids loading full CSV on EC2)."""
     import duckdb
     age_band_fname = _age_band_fname(age_band)
@@ -143,9 +155,9 @@ def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000) -> Optiona
         return None
     con = duckdb.connect()
     try:
-        # Exclude mi_person_key, target and non-numeric in SQL to reduce memory
+        _bin_filter = f" WHERE n_event_bin = '{bin_name}'" if bin_name else ""
         df = con.execute(
-            f"SELECT * FROM read_csv_auto('{str(csv_path)}') LIMIT {int(max_rows)}"
+            f"SELECT * FROM read_csv_auto('{str(csv_path)}'){_bin_filter} LIMIT {int(max_rows)}"
         ).df()
     finally:
         con.close()
@@ -163,6 +175,7 @@ def _run_ffa_with_shap(
     shap_values_df: Optional[pd.DataFrame],
     X_test: Optional[pd.DataFrame],
     output_dir: Path,
+    bin_name: str | None = None,
 ) -> pd.DataFrame:
     """Run FFA: load JSON, fit explainer, extract rule-feature counts, build causal_df."""
     from ffa_utils import load_model_json, extract_feature_mappings
@@ -237,7 +250,7 @@ def _run_ffa_with_shap(
             X_mat = np.asarray(X_aligned, dtype=np.float32)
             # Prefer native binary (.ubj) for Booster; JSON can fail with "Invalid cast, from Null to Object"
             booster = xgb.Booster()
-            xgb_binary = _find_xgboost_binary(cohort, age_band)
+            xgb_binary = _find_xgboost_binary(cohort, age_band, bin_name=bin_name)
             if xgb_binary is not None:
                 booster.load_model(str(xgb_binary))
                 logger.debug("Loaded XGBoost from binary: %s", xgb_binary)
@@ -265,6 +278,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run SHAP + FFA workflow (PHTS-style) for one cohort/age_band.")
     parser.add_argument("--cohort", required=True, help="Cohort name (e.g. opioid_ed)")
     parser.add_argument("--age-band", required=True, help="Age band (e.g. 13-24)")
+    parser.add_argument(
+        "--bin",
+        required=True,
+        choices=["low", "medium", "high", "extreme"],
+        help="Density bin. Loads per-bin XGBoost model and SHAP outputs, filters data to that bin.",
+    )
     parser.add_argument("--skip-shap", action="store_true", help="Do not run Step 7 if SHAP missing (fail instead)")
     parser.add_argument("--skip-combine", action="store_true", help="Do not run combine step after FFA")
     parser.add_argument(
@@ -292,24 +311,29 @@ def main() -> None:
     )
     args = parser.parse_args()
     age_band_fname = _age_band_fname(args.age_band)
+    bin_name: str | None = getattr(args, "bin", None)
 
     if not args.skip_shap:
-        _ensure_shap_artifacts(args.cohort, args.age_band)
+        _ensure_shap_artifacts(args.cohort, args.age_band, bin_name=bin_name)
 
     shap_map, shap_values_df = _load_shap_for_ffa(
-        args.cohort, args.age_band, max_shap_rows=args.max_shap_rows
+        args.cohort, args.age_band, max_shap_rows=args.max_shap_rows, bin_name=bin_name
     )
-    xgboost_json = _find_xgboost_json(args.cohort, args.age_band)
-    X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows)
+    xgboost_json = _find_xgboost_json(args.cohort, args.age_band, bin_name=bin_name)
+    X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows, bin_name=bin_name)
     if X_test is None or len(X_test) == 0:
         logger.error(
             "Required test data missing: cannot generate axp_explanations.parquet. "
-            "Expected 6_final_model/outputs/%s/%s/%s_%s_train_final_features_no_leakage.csv",
+            "Expected 6_final_model/outputs/%s/%s/%s_%s_train_final_features_no_leakage.csv%s",
             args.cohort, age_band_fname, args.cohort, age_band_fname,
+            f" (bin={bin_name})" if bin_name else "",
         )
         sys.exit(1)
 
-    ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "xgboost"
+    if bin_name:
+        ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "bin_models" / bin_name / "xgboost"
+    else:
+        ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "xgboost"
     ffa_out_base.mkdir(parents=True, exist_ok=True)
 
     causal_df = _run_ffa_with_shap(
@@ -320,6 +344,7 @@ def main() -> None:
         shap_values_df,
         X_test,
         ffa_out_base,
+        bin_name=bin_name,
     )
 
     # Write FFA outputs so combine_shap_ffa_results finds them
@@ -347,6 +372,8 @@ def main() -> None:
             "--workers",
             str(args.workers),
         ]
+        if bin_name:
+            combine_cmd.extend(["--bin", bin_name])
         if getattr(args, "upload_to_dashboard", False):
             combine_cmd.append("--upload-to-dashboard")
         r = subprocess.run(combine_cmd, cwd=Path(__file__).parent)

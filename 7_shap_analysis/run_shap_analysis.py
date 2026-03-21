@@ -447,7 +447,7 @@ def write_row_shap_for_selected_features_catboost(
     print(f"Saved row-level SHAP values to {out_path}")
 
 
-def _load_best_models(cohort: str, age_band: str):
+def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
     """
     Load the best models selected by the final model training step.
     
@@ -456,9 +456,14 @@ def _load_best_models(cohort: str, age_band: str):
         - model_selection_metadata: Dict with selection information
     """
     age_band_fname = age_band_to_fname(age_band)
-    
+    _bin_infix = ("bin_models", bin_name) if bin_name else ()
+    _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
+
     # Load model selection metadata
-    metadata_path = (
+    metadata_path = _bin_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+    if not metadata_path.exists():
+        metadata_path = (
         PROJECT_ROOT
         / "6_final_model"
         / "outputs"
@@ -475,17 +480,9 @@ def _load_best_models(cohort: str, age_band: str):
         print(f"Warning: Model selection metadata not found at {metadata_path}")
         model_selection_metadata = {}
     
-    # Try loading CatBoost binary model from models directory first (preferred, consistent with XGBoost)
-    cb_binary_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / "models"
-        / "catboost_model.cbm"
-    )
-    
+    # Try loading CatBoost binary model — per-bin path first, then full-cohort fallbacks
+    cb_binary_path = _bin_base / "models" / "catboost_model.cbm"
+
     # Fallback to model_outputs location
     if not cb_binary_path.exists():
         cb_binary_path = (
@@ -559,7 +556,7 @@ def _load_best_models(cohort: str, age_band: str):
     return cb_model, model_selection_metadata
 
 
-def _load_best_xgboost_model(cohort: str, age_band: str):
+def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = None):
     """
     Load the best XGBoost model saved by the final model training step.
 
@@ -572,17 +569,12 @@ def _load_best_xgboost_model(cohort: str, age_band: str):
     import xgboost as xgb  # type: ignore
     
     age_band_fname = age_band_to_fname(age_band)
+    _bin_infix = ("bin_models", bin_name) if bin_name else ()
+    _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
 
-    # Try loading native XGBoost booster binary model first (preferred for SHAP)
-    xgb_binary_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / "models"
-        / "xgboost_model.ubj"
-    )
+    # Try loading native XGBoost booster binary model first (preferred for SHAP) — per-bin path first
+    xgb_binary_path = _bin_base / "models" / "xgboost_model.ubj"
 
     # Fallback to model_outputs location
     if not xgb_binary_path.exists():
@@ -603,16 +595,8 @@ def _load_best_xgboost_model(cohort: str, age_band: str):
         print(f"Loaded best XGBoost model from native binary: {xgb_binary_path}")
         return xgb_model
 
-    # Fallback to joblib if JSON not available
-    xgb_joblib_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / "models"
-        / "xgboost.joblib"
-    )
+    # Fallback to joblib if binary not available
+    xgb_joblib_path = _bin_base / "models" / "xgboost.joblib"
 
     if not xgb_joblib_path.exists():
         xgb_joblib_path = (
@@ -699,18 +683,18 @@ def _load_best_xgboost_model(cohort: str, age_band: str):
     return xgb_model
 
 
-def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, cohort: str, age_band: str, random_seed: int = 42):
+def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, cohort: str, age_band: str, random_seed: int = 42, bin_name: str | None = None):
     """
     Load best CatBoost and XGBoost models for SHAP analysis.
 
     Uses the best models selected by the final model training step.
     """
     # Load best CatBoost model
-    cb_model, model_selection_metadata = _load_best_models(cohort, age_band)
+    cb_model, model_selection_metadata = _load_best_models(cohort, age_band, bin_name=bin_name)
 
     # Load best XGBoost model (instead of retraining)
     try:
-        xgb_model = _load_best_xgboost_model(cohort, age_band)
+        xgb_model = _load_best_xgboost_model(cohort, age_band, bin_name=bin_name)
     except FileNotFoundError:
         # Fallback: if model not found, retrain (shouldn't happen in normal workflow)
         print("Warning: Best XGBoost model not found. Retraining from scratch...")
@@ -748,6 +732,7 @@ def run_shap_analysis(
     n_background: int = 1000,
     n_eval: int = 2000,
     max_rows: int | None = None,
+    bin_name: str | None = None,
 ) -> bool:
     """
     Run SHAP analysis for XGBoost and CatBoost models.
@@ -766,12 +751,17 @@ def run_shap_analysis(
         ) from e
 
     age_band_fname = age_band_to_fname(age_band)
-    out_dir = (
-        PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
-    )
+    if bin_name:
+        out_dir = (
+            PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname / "bin_models" / bin_name
+        )
+    else:
+        out_dir = (
+            PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading final features for {cohort}, {age_band}...")
+    print(f"Loading final features for {cohort}, {age_band}{f' (bin={bin_name})' if bin_name else ''}...")
     # Load full data including mi_person_key for row IDs
     import duckdb
     age_band_fname = age_band_to_fname(age_band)
@@ -789,13 +779,14 @@ def run_shap_analysis(
     con = duckdb.connect()
     try:
         # Use DuckDB to limit rows when max_rows set (EC2 memory); otherwise full read
+        _bin_filter = f" WHERE n_event_bin = '{bin_name}'" if bin_name else ""
         if max_rows and max_rows > 0:
             df_full = con.execute(
-                f"SELECT * FROM read_csv_auto('{str(features_path)}') LIMIT {int(max_rows)}"
+                f"SELECT * FROM read_csv_auto('{str(features_path)}'){_bin_filter} LIMIT {int(max_rows)}"
             ).df()
-            print(f"Loaded sample of {len(df_full)} rows (max_rows={max_rows}) for SHAP.")
+            print(f"Loaded sample of {len(df_full)} rows (max_rows={max_rows}{f', bin={bin_name}' if bin_name else ''}) for SHAP.")
         else:
-            df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}')").df()
+            df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}'){_bin_filter}").df()
         if "target" not in df_full.columns:
             raise ValueError(f"'target' column not found in {features_path}")
         
@@ -812,7 +803,7 @@ def run_shap_analysis(
     print(f"Final feature matrix: {X_full.shape[0]} rows, {X_full.shape[1]} features.")
 
     print("Loading best models for SHAP...")
-    xgb_clf, cb_clf = _fit_models_for_shap(X_full, y, cohort, age_band)
+    xgb_clf, cb_clf = _fit_models_for_shap(X_full, y, cohort, age_band, bin_name=bin_name)
 
     s3_outputs = []  # Track S3 uploads for checkpointing
     
@@ -1118,6 +1109,12 @@ def main() -> None:
     parser.add_argument("--cohort", required=True, help="Cohort name, e.g. opioid_ed")
     parser.add_argument("--age_band", required=True, help="Age band, e.g. 13-24")
     parser.add_argument(
+        "--bin",
+        required=True,
+        choices=["low", "medium", "high", "extreme"],
+        help="Density bin (low/medium/high/extreme). Loads per-bin model and filters data to that bin.",
+    )
+    parser.add_argument(
         "--n_background",
         type=int,
         default=1000,
@@ -1138,25 +1135,31 @@ def main() -> None:
     args = parser.parse_args()
 
     age_band_fname = args.age_band.replace("-", "_")
-    out_dir = (
-        PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname
-    )
+    if args.bin:
+        out_dir = (
+            PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname / "bin_models" / args.bin
+        )
+    else:
+        out_dir = (
+            PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname
+        )
 
     # Check for existing local outputs (idempotency - check local first)
     # SHAP generates outputs for both XGBoost and CatBoost (if available)
+    _pfx = f"{args.cohort}_{age_band_fname}"
     expected_outputs = [
-        f"{args.cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
-        f"{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
-        f"{args.cohort}_{age_band_fname}_shap_summary_bar_xgboost.png",
-        f"{args.cohort}_{age_band_fname}_shap_summary_beeswarm_xgboost.png",
+        f"{_pfx}_shap_global_importance_xgboost.csv",
+        f"{_pfx}_shap_sample_values_xgboost.parquet",
+        f"{_pfx}_shap_summary_bar_xgboost.png",
+        f"{_pfx}_shap_summary_beeswarm_xgboost.png",
     ]
     
     # CatBoost outputs are optional (model might not be available)
     optional_outputs = [
-        f"{args.cohort}_{age_band_fname}_shap_global_importance_catboost.csv",
-        f"{args.cohort}_{age_band_fname}_shap_sample_values_catboost.parquet",
-        f"{args.cohort}_{age_band_fname}_shap_summary_bar_catboost.png",
-        f"{args.cohort}_{age_band_fname}_shap_summary_beeswarm_catboost.png",
+        f"{_pfx}_shap_global_importance_catboost.csv",
+        f"{_pfx}_shap_sample_values_catboost.parquet",
+        f"{_pfx}_shap_summary_bar_catboost.png",
+        f"{_pfx}_shap_summary_beeswarm_catboost.png",
     ]
 
     all_required_exist = all((out_dir / fname).exists() for fname in expected_outputs)
@@ -1264,8 +1267,8 @@ def main() -> None:
         n_background=args.n_background,
         n_eval=args.n_eval,
         max_rows=args.max_rows,
-    )
-    
+        bin_name=args.bin,
+    )  
     if not success:
         print("\n[ERROR] No models were successfully analyzed.")
         print("This step cannot complete without at least one model being analyzed.")
