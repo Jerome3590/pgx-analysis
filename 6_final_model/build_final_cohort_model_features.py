@@ -23,6 +23,13 @@ import pandas as pd
 
 from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
 from py_helpers.feature_importance_eda_utils import load_cohort_feature_importance
+from py_helpers.event_density_utils import (
+    DENSITY_BINS as _DENSITY_BINS,
+    compute_bin_thresholds as _compute_bin_thresholds,
+    assign_n_event_bins as _assign_n_event_bins,
+    save_thresholds as _save_thresholds,
+    default_threshold_cache_path as _threshold_cache_path,
+)
 
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
@@ -60,16 +67,32 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     model_data_path_str = str(model_data_path).replace('\\', '/')
     base_df = con.execute(
         f"""
-        SELECT DISTINCT mi_person_key, target
+        SELECT
+            CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+            CAST(MAX(target) AS INTEGER)   AS target,
+            COUNT(*)                       AS n_events
         FROM read_parquet('{model_data_path_str}')
         WHERE target IN (0, 1)
+        GROUP BY mi_person_key
         """
     ).df()
     con.close()
 
     # Ensure mi_person_key is string type
     base_df['mi_person_key'] = base_df['mi_person_key'].astype(str)
-    
+    base_df['target'] = base_df['target'].astype(int).clip(lower=0, upper=1)
+
+    # n_event_bin: P25/P50/P95 of n_events → low/medium/high/extreme (same logic as run_final_model.py)
+    _thresholds = _compute_bin_thresholds(base_df['n_events'])
+    base_df['n_event_bin'] = _assign_n_event_bins(base_df['n_events'], _thresholds)
+    _bin_ord = {b: i for i, b in enumerate(_DENSITY_BINS)}
+    base_df['n_event_bin_ordinal'] = base_df['n_event_bin'].map(_bin_ord).fillna(0).astype(int)
+    _tcache = _threshold_cache_path(project_root, cohort_name, age_band)
+    _tcache.parent.mkdir(parents=True, exist_ok=True)
+    _save_thresholds({**_thresholds, 'cohort': cohort_name, 'age_band': age_band}, _tcache)
+    print(f"[INFO] n_event_bin thresholds saved: {_tcache}")
+    print(f"[INFO] n_event_bin distribution: {base_df['n_event_bin'].value_counts().to_dict()}")
+
     n_target = len(base_df[base_df['target'] == 1])
     n_control = len(base_df[base_df['target'] == 0])
     print(f"[INFO] Loaded {n_target} target patients and {n_control} control patients from {model_data_path}")

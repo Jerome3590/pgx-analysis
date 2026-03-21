@@ -196,6 +196,25 @@
       background: #fee2e2;
       color: #b91c1c;
     }
+    .n-event-bin-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: 0.4rem;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+    }
+    .n-event-bin-badge.low    { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+    .n-event-bin-badge.medium { background: #fefce8; color: #a16207; border-color: #fde047; }
+    .n-event-bin-badge.high   { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .n-event-bin-badge.extreme { background: #fdf2f8; color: #9d174d; border-color: #f9a8d4; }
     .panels {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -776,6 +795,8 @@
     <div class="risk-display" id="risk-display" style="display: none;">
       <div class="risk-score" id="risk-score">--</div>
       <div class="risk-band" id="risk-band"></div>
+      <div id="n-event-bin-badge" class="n-event-bin-badge" style="display:none;"></div>
+      <div id="risk-calibration-note" style="display:none; margin-top: 0.4rem; font-size: 0.78rem; color: #64748b;"></div>
       <div style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">
         Using: <strong id="model-info"></strong>
       </div>
@@ -960,6 +981,16 @@
             <option value="all">All</option>
           </select>
         </div>
+        <div class="control-group">
+          <label for="causal-n-event-bin">Event density:</label>
+          <select id="causal-n-event-bin" aria-label="Causal event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
         <div class="control-group full-width">
           <button id="btnLoadCausal">Load Causal Analysis</button>
           <button id="btnClearCausalFilters" type="button" class="secondary">Clear filters</button>
@@ -1040,6 +1071,16 @@
         <div class="control-group">
           <label for="bupar-age-band">Age band (drug-specific visuals only):</label>
           <select id="bupar-age-band" aria-label="BupaR age band for drug-specific visuals"></select>
+        </div>
+        <div class="control-group">
+          <label for="bupar-n-event-bin">Event density:</label>
+          <select id="bupar-n-event-bin" aria-label="BupaR event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadBupaR">Load BupaR Visualizations</button>
@@ -1140,7 +1181,7 @@
           </fieldset>
         </div>
       </div>
-      <p class="subtitle" style="margin-top: 0.25rem;"><small style="color: #64748b;">Event density filters trajectories by events-per-month (low/medium/high/extreme). Use after loading.</small></p>
+      <p class="subtitle" style="margin-top: 0.25rem;"><small style="color: #64748b;">Event density filters trajectories by utilization level (low/medium/high/extreme), aligned with model training cut-points. Use after loading.</small></p>
       <div id="dtw-status" class="status-message">Select cohort and age band, then click 'Load DTW Visualizations'</div>
       <div class="dtw-subtabs-wrapper">
         <div class="dtw-subtabs-label">Sub-tab:</div>
@@ -1243,6 +1284,16 @@
         <div class="control-group">
           <label for="fpgrowth-age-band">Age Band:</label>
           <select id="fpgrowth-age-band"></select>
+        </div>
+        <div class="control-group">
+          <label for="fpgrowth-n-event-bin">Event density:</label>
+          <select id="fpgrowth-n-event-bin" aria-label="FP-Growth event density filter">
+            <option value="all">All</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="extreme">Extreme</option>
+          </select>
         </div>
         <div class="control-group full-width">
           <button id="btnLoadFPGrowth">Load FP-Growth Visualizations</button>
@@ -1832,7 +1883,33 @@
     
     riskBandEl.textContent = riskBand.toUpperCase();
     riskBandEl.className = `risk-band ${riskBand}`;
-    
+
+    const nEventBinBadge = document.getElementById("n-event-bin-badge");
+    if (nEventBinBadge) {
+      const bin = data.n_event_bin || null;
+      if (bin && ["low", "medium", "high", "extreme"].includes(bin)) {
+        nEventBinBadge.textContent = `Event density: ${bin}`;
+        nEventBinBadge.className = `n-event-bin-badge ${bin}`;
+        nEventBinBadge.style.display = "";
+      } else {
+        nEventBinBadge.style.display = "none";
+      }
+    }
+
+    const calibNoteEl = document.getElementById("risk-calibration-note");
+    if (calibNoteEl) {
+      if (data.calibrated && data.raw_risk_score != null) {
+        const rawPct = (data.raw_risk_score * 100).toFixed(1);
+        calibNoteEl.textContent = `\u2713 Probability calibrated (Platt scaling) \u2014 raw score: ${rawPct}%`;
+        calibNoteEl.style.display = "";
+      } else if (data.calibrated) {
+        calibNoteEl.textContent = "\u2713 Probability calibrated (Platt scaling)";
+        calibNoteEl.style.display = "";
+      } else {
+        calibNoteEl.style.display = "none";
+      }
+    }
+
     let modelInfoText = `${cohort} / ${ageBand}`;
     if (data.model_used) {
       modelInfoText += ` (Risk from ${data.model_used})`;
@@ -2577,12 +2654,15 @@
     const selectedCpts = getMultiSelectValues(cptsEl);
     const whatIfInput = (document.getElementById("causal-whatif-codes")?.value || "").trim();
     const whatIfCodes = whatIfInput ? whatIfInput.split(",").map(s => s.trim()).filter(Boolean) : [];
+    const nEventBinCausal = document.getElementById("causal-n-event-bin")?.value || "all";
     const params = new URLSearchParams({ cohort, age_band: ageBand });
     if (selectedDrugs.length) params.set("drugs", selectedDrugs.join(","));
     if (selectedIcds.length) params.set("icds", selectedIcds.join(","));
     if (selectedCpts.length) params.set("cpts", selectedCpts.join(","));
     if (whatIfCodes.length) params.set("whatif", whatIfCodes.join(","));
-    document.getElementById("causal-status").textContent = "Loading causal analysis...";
+    if (nEventBinCausal && nEventBinCausal !== "all") params.set("n_event_bin", nEventBinCausal);
+    const binLabelCausal = nEventBinCausal && nEventBinCausal !== "all" ? ` [${nEventBinCausal} density]` : "";
+    document.getElementById("causal-status").textContent = `Loading causal analysis${binLabelCausal}...`;
     document.getElementById("causal-status").className = "status-message info";
     try {
       let chartData = null;
@@ -2890,14 +2970,21 @@
       document.getElementById("fpgrowth-status").className = "status-message error";
       return;
     }
-    document.getElementById("fpgrowth-status").textContent = "Loading FP-Growth visualizations (drug names)...";
+    const nEventBinFPG = document.getElementById("fpgrowth-n-event-bin")?.value || "all";
+    const binLabelFPG = nEventBinFPG && nEventBinFPG !== "all" ? ` [${nEventBinFPG} density]` : "";
+    document.getElementById("fpgrowth-status").textContent = `Loading FP-Growth visualizations (drug names)${binLabelFPG}...`;
     document.getElementById("fpgrowth-status").className = "status-message info";
     try {
       const ageBandFname = ageBand.replace(/-/g, "_");
       const prefix = cohort + "_" + ageBandFname;
       const manifest = await getDashboardManifest().catch(function() { return null; });
       let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
-      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json");
+      const fpgBinSuffix = nEventBinFPG && nEventBinFPG !== "all" ? "_" + nEventBinFPG : "";
+      let itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets" + fpgBinSuffix + ".json");
+      let binSpecificConfirmed = false;
+      if (fpgBinSuffix) {
+        try { const r = await fetch(itemsetsJsonUrl, { method: "HEAD" }); if (r.ok) { binSpecificConfirmed = true; } else { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json"); } } catch (_) { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/drug_name_itemsets.json"); }
+      }
       const emptyStateUrl = staticJsonPath(fgBasePath + "/plots/empty_state.json"); // not in manifest; fallback only
       let manifestNetworkHtml = null;
       let manifestItemsetsPng = null;
@@ -2906,7 +2993,7 @@
         if (entry) {
           const built = buildStaticUrls(entry, cohort, ageBand, staticJsonPath);
           if (built.basePath) fgBasePath = built.basePath;
-          if (built.urls[0]) itemsetsJsonUrl = built.urls[0];
+          if (built.urls[0] && !binSpecificConfirmed) itemsetsJsonUrl = built.urls[0];
           if (built.urls.length >= 2) manifestNetworkHtml = built.urls[1];
           if (built.urls.length >= 3) manifestItemsetsPng = built.urls[2];
         }
@@ -3009,7 +3096,9 @@
       document.getElementById("bupar-status").className = "status-message error";
       return;
     }
-    document.getElementById("bupar-status").textContent = "Loading BupaR visualizations...";
+    const nEventBinBupaR = document.getElementById("bupar-n-event-bin")?.value || "all";
+    const binLabelBupaR = nEventBinBupaR && nEventBinBupaR !== "all" ? ` [${nEventBinBupaR} density]` : "";
+    document.getElementById("bupar-status").textContent = `Loading BupaR visualizations${binLabelBupaR}...`;
     document.getElementById("bupar-status").className = "status-message info";
     try {
       const ageBandFname = ageBand.replace(/-/g, "_");

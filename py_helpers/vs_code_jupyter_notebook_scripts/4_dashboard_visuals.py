@@ -274,7 +274,29 @@ print(f"Prerequisite check passed: all {len(combinations)} SHAP/FFA combined all
 print("  Sources: Step 3b/3a feature importance or combined_importance.csv (generated from Steps 7+8 in this notebook when missing)")
 
 # %%
-# (Prerequisite check runs in the Config cell above.)
+# Prerequisite: n_event_bin_thresholds.json (written by Step 6 run_final_model.py in notebook 3).
+# DTW and FP-Growth load these thresholds to apply the same low/medium/high/extreme bin cuts as
+# the trained model.  Model training (notebook 3) MUST run before this notebook.
+FINAL_MODEL_OUTPUTS = REPO_ROOT / "6_final_model" / "outputs"
+_thresh_missing = []
+for cohort_name, age_band in combinations:
+    age_band_fname = age_band.replace("-", "_")
+    thresh_path = FINAL_MODEL_OUTPUTS / cohort_name / age_band_fname / "n_event_bin_thresholds.json"
+    if not thresh_path.exists():
+        _thresh_missing.append(f"{cohort_name}/{age_band} ({thresh_path})")
+
+if _thresh_missing:
+    msg = (
+        "n_event_bin_thresholds.json not found for some cohorts/age-bands.\n"
+        "These files are written by Step 6 (run_final_model.py) in notebook 3.\n"
+        "Run notebook 3 (3_model_train_shap_ffa.ipynb) first, then re-run this notebook.\n"
+        "Missing:\n" + "\n".join(f"  {m}" for m in _thresh_missing)
+    )
+    raise RuntimeError(msg)
+print(f"Prerequisite check passed: n_event_bin_thresholds.json present for all {len(combinations)} cohort/age-band combinations.")
+
+# %%
+# (Prerequisite checks run in the Config cell above.)
 
 # %% [markdown]
 # ## Feature importance heatmaps (dashboard Feature Importance tab)

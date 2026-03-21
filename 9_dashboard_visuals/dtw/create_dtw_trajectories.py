@@ -64,6 +64,13 @@ from py_helpers.pipeline_logger import (  # noqa: E402
 )
 
 from py_helpers.duckdb_utils import duckdb_query_df_with_diagnostics  # noqa: E402
+from py_helpers.event_density_utils import (  # noqa: E402
+    DENSITY_BINS as _EVENT_DENSITY_BINS,
+    assign_n_event_bins as _assign_n_event_bins,
+    compute_bin_thresholds as _compute_bin_thresholds,
+    load_thresholds as _load_thresholds,
+    default_threshold_cache_path as _threshold_cache_path,
+)
 
 
 def _dtw_output_root(project_root: Path) -> Path:
@@ -93,8 +100,8 @@ DTW_TRAJECTORY_CSV_COLUMNS = [
 # DTW is drug-only for both cohorts (opioid_ed and non_opioid_ed).
 POLYPHARMACY_COHORT = "non_opioid_ed"
 
-# Density bins for trajectories (same order as FP-Growth: low -> medium -> high -> extreme)
-DENSITY_BINS = ("low", "medium", "high", "extreme")
+# Density bins for trajectories — canonical order from event_density_utils
+DENSITY_BINS = _EVENT_DENSITY_BINS
 
 
 def _normalize_code_for_match(code: str) -> str:
@@ -1029,21 +1036,10 @@ def extract_patient_trajectories(
     # Bin by full unfiltered medical events to support routine × utilization charts
     try:
         med_count = df["medical_event_count_full"].fillna(0).astype(float)
-        p25_m = float(med_count.quantile(0.25))
-        p50_m = float(med_count.quantile(0.50))
-        p95_m = float(med_count.quantile(0.95))
-
-        def _assign_medical_bin(val: float) -> str:
-            if val <= p25_m:
-                return "low"
-            if val <= p50_m:
-                return "medium"
-            if val <= p95_m:
-                return "high"
-            return "extreme"
-
-        df["medical_utilization_bin"] = med_count.apply(_assign_medical_bin)
-        _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f", p25_m, p50_m, p95_m)
+        _med_thresholds = _compute_bin_thresholds(med_count)
+        df["medical_utilization_bin"] = _assign_n_event_bins(med_count, _med_thresholds)
+        _log("info", "Medical utilization bins (full unfiltered): P25=%.0f, P50=%.0f, P95=%.0f",
+             _med_thresholds["p25"], _med_thresholds["p50"], _med_thresholds["p95"])
         for bin_name in DENSITY_BINS:
             n = (df["medical_utilization_bin"] == bin_name).sum()
             pct = 100.0 * n / len(df) if len(df) > 0 else 0
@@ -1079,23 +1075,27 @@ def extract_patient_trajectories(
         length.loc[valid_span] / (span_days.loc[valid_span] / 30.0)
     )
 
-    # Bin trajectories by event density (low/medium/high/extreme), aligned with FP-Growth percentiles
+    # Bin trajectories by event density (low/medium/high/extreme).
+    # Try to load canonical model-training thresholds (n_events-based) first for cross-layer
+    # consistency; fall back to dynamic P25/P50/P95 of events_per_month when not yet available.
     density_value = df["events_per_month"].fillna(0)  # single-event / zero-span -> 0 (low)
-    p25 = float(density_value.quantile(0.25))
-    p50 = float(density_value.quantile(0.50))
-    p95 = float(density_value.quantile(0.95))
-
-    def _assign_density_bin(val):
-        if val <= p25:
-            return "low"
-        if val <= p50:
-            return "medium"
-        if val <= p95:
-            return "high"
-        return "extreme"
-
-    df["event_density_bin"] = density_value.apply(_assign_density_bin)
-    _log("info", "Event density bins (events_per_month): P25=%.2f, P50=%.2f, P95=%.2f", p25, p50, p95)
+    _tcache = _threshold_cache_path(project_root, cohort_name, age_band)
+    _density_thresholds = _load_thresholds(_tcache)
+    if _density_thresholds is None:
+        _log(
+            "warning",
+            "n_event_bin_thresholds.json not found at %s. "
+            "Model training (notebook 3 / run_final_model.py) must run BEFORE dashboard visuals (notebook 4). "
+            "Falling back to dynamic P25/P50/P95 of events_per_month — bins may not match the trained model.",
+            _tcache,
+        )
+        _density_thresholds = _compute_bin_thresholds(density_value)
+        _log("info", "Event density bins (events_per_month, dynamic fallback): P25=%.2f, P50=%.2f, P95=%.2f",
+             _density_thresholds["p25"], _density_thresholds["p50"], _density_thresholds["p95"])
+    else:
+        _log("info", "Event density bins (loaded from model-training thresholds): P25=%.2f, P50=%.2f, P95=%.2f",
+             _density_thresholds["p25"], _density_thresholds["p50"], _density_thresholds["p95"])
+    df["event_density_bin"] = _assign_n_event_bins(density_value, _density_thresholds)
     for bin_name in DENSITY_BINS:
         n = (df["event_density_bin"] == bin_name).sum()
         pct = 100.0 * n / len(df) if len(df) > 0 else 0

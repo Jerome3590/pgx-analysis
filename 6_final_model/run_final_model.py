@@ -58,6 +58,13 @@ from py_helpers.fe_monitor import (  # noqa: E402
 )
 from py_helpers.constants import age_band_to_fname, DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
 from py_helpers.env_utils import get_mc_cv_n_runs, get_data_root, get_model_data_root, get_workflow_python_bin, is_linux
+from py_helpers.event_density_utils import (
+    DENSITY_BINS as _DENSITY_BINS,
+    compute_bin_thresholds as _compute_bin_thresholds,
+    assign_n_event_bins as _assign_n_event_bins,
+    save_thresholds as _save_thresholds,
+    default_threshold_cache_path as _threshold_cache_path,
+)
 
 try:
     from py_helpers.common_imports import s3_client, S3_BUCKET  # noqa: E402
@@ -1060,7 +1067,19 @@ def build_final_features(cohort: str, age_band: str) -> pd.DataFrame:
 
         # Ensure binary labels
         grouped["target"] = grouped["target"].astype(int).clip(lower=0, upper=1)
-        
+
+        # n_event_bin: compute from n_events (P25/P50/P95 → low/medium/high/extreme).
+        # Saved as JSON so DTW, FP-Growth, BupaR, and inference use the identical cut-points.
+        _thresholds = _compute_bin_thresholds(grouped["n_events"])
+        grouped["n_event_bin"] = _assign_n_event_bins(grouped["n_events"], _thresholds)
+        _bin_ord = {b: i for i, b in enumerate(_DENSITY_BINS)}
+        grouped["n_event_bin_ordinal"] = grouped["n_event_bin"].map(_bin_ord).fillna(0).astype(int)
+        _tcache = _threshold_cache_path(PROJECT_ROOT, cohort, age_band)
+        _tcache.parent.mkdir(parents=True, exist_ok=True)
+        _save_thresholds({**_thresholds, "cohort": cohort, "age_band": age_band}, _tcache)
+        print(f"[INFO] n_event_bin thresholds saved: {_tcache}")
+        print(f"[INFO] n_event_bin distribution: {grouped['n_event_bin'].value_counts().to_dict()}")
+
         # Debug: Print class distribution
         target_counts = grouped["target"].value_counts()
         print(f"Class distribution after aggregation:")
@@ -1657,7 +1676,11 @@ def _recompute_selection_from_summary_df(summary_df: pd.DataFrame) -> tuple:
 
 
 def train_and_evaluate(
-    df: pd.DataFrame, cohort: str, age_band: str, n_runs: int | None = None
+    df: pd.DataFrame,
+    cohort: str,
+    age_band: str,
+    n_runs: int | None = None,
+    bin_name: str | None = None,
 ) -> None:
     """
     Train XGBoost (CPU on Linux, GPU on Windows if available) and CatBoost on the assembled feature table,
@@ -1672,13 +1695,23 @@ def train_and_evaluate(
     Idempotent: if model_metrics_summary.csv and final model artifacts already exist,
     only selection is recomputed from the summary (AUC-PR then Recall) and metadata/CSV
     are updated; no retraining.
+
+    bin_name : when provided (e.g. 'low', 'medium', 'high', 'extreme'), outputs are
+               written to a per-bin subdirectory:
+               outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}/
     """
     # Pre-compute age_band_fname and out_base once so they are available throughout.
     age_band_fname = age_band_to_fname(age_band)
-    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
-    # Separate features and label
+    if bin_name is not None:
+        out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "bin_models" / bin_name
+    else:
+        out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    # Separate features and label.
+    # n_event_bin is a string label used for per-bin filtering; n_event_bin_ordinal is the
+    # numeric model feature (0=low, 1=medium, 2=high, 3=extreme).
+    _EXCLUDE_FROM_FEATURES = {"mi_person_key", "target", "n_event_bin"}
     feature_cols: List[str] = [
-        c for c in df.columns if c not in ("mi_person_key", "target")
+        c for c in df.columns if c not in _EXCLUDE_FROM_FEATURES
     ]
     
     # Validate: Ensure feature column names are unique
@@ -1884,6 +1917,15 @@ def train_and_evaluate(
     optuna_used = False
     optuna_best_params = None
     optuna_selected_model = None  # model type Optuna chose (used for which full-data refit gets Optuna params)
+
+    # OOF probability accumulators for Platt scaling (logistic regression on OOF probas vs actuals).
+    # Each MC test fold is out-of-fold: the model predicting it was never trained on those rows.
+    # Concatenated OOF predictions = the ideal data for fitting a second-stage calibrator.
+    oof_preds: dict = {
+        "xgb":      {"y_proba": [], "y_true": []},
+        "xgb_rf":   {"y_proba": [], "y_true": []},
+        "catboost": {"y_proba": [], "y_true": []},
+    }
     selected_model = None
     best_xgb_variant = None
     selection_reason = ""
@@ -2012,6 +2054,14 @@ def train_and_evaluate(
                         metrics["ensemble"]["pr_auc"].append(metrics["xgb_rf"]["pr_auc"][-1])
                         metrics["ensemble"]["logloss"].append(metrics["xgb_rf"]["logloss"][-1])
                         metrics["ensemble"]["recall"].append(metrics["xgb_rf"]["recall"][-1])
+                # Accumulate OOF predictions for Platt calibration
+                oof_preds["xgb"]["y_proba"].append(y_proba_xgb)
+                oof_preds["xgb"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
+                oof_preds["xgb_rf"]["y_proba"].append(y_proba_xgb_rf)
+                oof_preds["xgb_rf"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
+                if y_proba_cb is not None:
+                    oof_preds["catboost"]["y_proba"].append(y_proba_cb)
+                    oof_preds["catboost"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
                 if (run_idx + 1) % 5 == 0 or run_idx == 0:
                     print(f"[MC {run_idx + 1}/{n_runs}] Optuna 25-split MCCV in progress...")
             # Selection will be overwritten below from 25-run MCCV means so CSV and selected agree
@@ -2205,6 +2255,15 @@ def train_and_evaluate(
                 )
             else:
                 print()  # Newline if CatBoost not available
+
+            # Accumulate OOF predictions for Platt calibration
+            oof_preds["xgb"]["y_proba"].append(y_proba_xgb)
+            oof_preds["xgb"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
+            oof_preds["xgb_rf"]["y_proba"].append(y_proba_xgb_rf)
+            oof_preds["xgb_rf"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
+            if y_proba_cb is not None:
+                oof_preds["catboost"]["y_proba"].append(y_proba_cb)
+                oof_preds["catboost"]["y_true"].append(y_test.values if hasattr(y_test, "values") else y_test)
 
             # Save artifacts from last run for detailed reporting and importances
             if run_idx == n_runs - 1:
@@ -2574,6 +2633,59 @@ def train_and_evaluate(
     print(summary_df.to_string(index=False))
 
     # ------------------------------------------------------------------
+    # Fit Platt calibration from OOF predictions (sigmoid: LogReg on OOF probas vs actuals)
+    # ------------------------------------------------------------------
+    # The MC test-fold predictions are out-of-fold (OOF) for the base models.
+    # Fitting a logistic regression on the concatenated OOF probabilities → actual labels
+    # gives a second-stage calibrator (Platt scaling) that corrects systematic over/under-
+    # prediction so dashboard risk scores reflect observed event rates.
+    # Saved as calibration_{model_type}.joblib; Lambda loads these at inference time.
+    # ------------------------------------------------------------------
+    from sklearn.linear_model import LogisticRegression as _LR
+    import numpy as _np
+
+    _cal_models_dir = out_base / "models"
+    _cal_models_dir.mkdir(parents=True, exist_ok=True)
+    _cal_diag: dict = {}
+
+    for _mkey, _mname in [("xgb", "xgboost"), ("xgb_rf", "xgboost_rf"), ("catboost", "catboost")]:
+        _probas = oof_preds[_mkey]["y_proba"]
+        _trues  = oof_preds[_mkey]["y_true"]
+        if not _probas:
+            continue
+        _p_all = _np.concatenate(_probas).reshape(-1, 1)
+        _t_all = _np.concatenate(_trues)
+        if len(_np.unique(_t_all)) < 2:
+            print(f"[CALIB] Skipping {_mkey}: only one class in OOF labels.")
+            continue
+        _cal = _LR(C=1.0, solver="lbfgs", max_iter=1000)
+        _cal.fit(_p_all, _t_all)
+        _cal_path = _cal_models_dir / f"calibration_{_mname}.joblib"
+        joblib.dump(_cal, _cal_path)
+        print(f"[CALIB] {_mname}: fitted Platt calibrator on {len(_t_all)} OOF samples → {_cal_path}")
+        # Calibration diagnostics: mean raw vs mean calibrated probability
+        _cal_proba = _cal.predict_proba(_p_all)[:, 1]
+        _cal_diag[_mname] = {
+            "n_oof_samples": int(len(_t_all)),
+            "mean_raw_proba": float(_np.mean(_p_all)),
+            "mean_calibrated_proba": float(_np.mean(_cal_proba)),
+            "observed_rate": float(_np.mean(_t_all)),
+            "calibrator_coef": float(_cal.coef_[0][0]),
+            "calibrator_intercept": float(_cal.intercept_[0]),
+        }
+        _diff = abs(_np.mean(_cal_proba) - float(_np.mean(_t_all)))
+        print(
+            f"[CALIB] {_mname}: raw mean={_np.mean(_p_all):.4f} → "
+            f"calibrated mean={_np.mean(_cal_proba):.4f} (observed rate={_np.mean(_t_all):.4f}, "
+            f"residual={_diff:.4f})"
+        )
+
+    _cal_diag_path = _cal_models_dir / "calibration_diagnostics.json"
+    with open(_cal_diag_path, "w") as _fh:
+        json.dump(_cal_diag, _fh, indent=2)
+    print(f"[CALIB] Diagnostics saved → {_cal_diag_path}")
+
+    # ------------------------------------------------------------------
     # Train final models on full data and export best models
     # ------------------------------------------------------------------
     import xgboost as xgb  # type: ignore
@@ -2926,6 +3038,62 @@ def train_and_evaluate(
         traceback.print_exc()
 
 
+def train_per_bin(
+    df: pd.DataFrame,
+    cohort: str,
+    age_band: str,
+    n_runs: int | None = None,
+    min_total: int = 50,
+    min_per_class: int = 10,
+) -> None:
+    """
+    Train a separate model for each n_event_bin (low / medium / high / extreme).
+
+    For each bin, the subset of *df* where n_event_bin == bin is extracted and
+    passed to train_and_evaluate() with outputs going to:
+      outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}/
+
+    Bins with fewer than *min_total* patients or fewer than *min_per_class* in
+    either class are skipped with a warning.
+
+    Requires that build_final_features() has already been called (so df contains
+    the 'n_event_bin' string column and 'n_event_bin_ordinal' numeric feature).
+    """
+    if "n_event_bin" not in df.columns:
+        print(
+            "[WARN] train_per_bin: 'n_event_bin' column not found in feature matrix. "
+            "Re-run build_final_features() first (Step 6)."
+        )
+        return
+
+    print(f"\n{'='*60}")
+    print(f"Per-bin model training: {cohort} / {age_band}")
+    print(f"  Full dataset: {len(df)} patients")
+    print(f"  Bin distribution: {df['n_event_bin'].value_counts().to_dict()}")
+    print(f"{'='*60}")
+
+    for bin_name in _DENSITY_BINS:
+        bin_df = df[df["n_event_bin"] == bin_name].copy()
+        n_total = len(bin_df)
+        n_cases = int((bin_df["target"] == 1).sum())
+        n_controls = int((bin_df["target"] == 0).sum())
+
+        print(f"\n--- Bin: {bin_name} | {n_total} patients ({n_cases} cases, {n_controls} controls) ---")
+
+        if n_total < min_total or n_cases < min_per_class or n_controls < min_per_class:
+            print(
+                f"  [SKIP] Insufficient data for per-bin model "
+                f"(need >={min_total} total, >={min_per_class} per class)."
+            )
+            continue
+
+        train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name)
+
+    print(f"\n{'='*60}")
+    print(f"Per-bin training complete: {cohort} / {age_band}")
+    print(f"{'='*60}\n")
+
+
 def main() -> None:
     import logging
 
@@ -3210,6 +3378,9 @@ def main() -> None:
                 n_runs = get_mc_cv_n_runs()
                 logger.info(f"Auto-selected n_runs={n_runs} based on environment (CPU cores, memory)")
             train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs)
+
+        with step_block("final_model", "train_per_bin", logger=logger):
+            train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs)
 
         # Upload train/test to S3 (required for SHAP and FFA analysis; not optional)
         prepare_script = PROJECT_ROOT / "6_final_model" / "prepare_train_test_s3.py"

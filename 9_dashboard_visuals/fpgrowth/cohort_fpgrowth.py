@@ -47,6 +47,17 @@ except ImportError:
     AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
     EVENT_YEARS = ["2016", "2017", "2018", "2019", "2020"]
 
+try:
+    from py_helpers.event_density_utils import (
+        DENSITY_BINS as _SHARED_DENSITY_BINS,
+        compute_bin_thresholds as _compute_bin_thresholds,
+        assign_n_event_bins as _assign_n_event_bins,
+    )
+except ImportError:
+    _SHARED_DENSITY_BINS = ("low", "medium", "high", "extreme")
+    _compute_bin_thresholds = None
+    _assign_n_event_bins = None
+
 
 # Script lives in 9_dashboard_visuals/fpgrowth; outputs go to 10_risk_dashboard/visualizations/fpgrowth
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -96,8 +107,8 @@ TRAIN_YEARS = [2016, 2017, 2018, 2019]  # All years in model_events (consolidati
 # Business rule: rules must reflect patterns that persist across years (not rare/single-year flukes)
 MIN_YEARS_FOR_RULE = 2  # Pattern must appear in at least 2 of the 4 TRAIN years (see README)
 
-# Transaction density bins (based on histogram/percentiles)
-DENSITY_BINS = ['low', 'medium', 'high', 'extreme']  # Process in this order
+# Transaction density bins — aligned with event_density_utils shared constant
+DENSITY_BINS = list(_SHARED_DENSITY_BINS)  # ['low', 'medium', 'high', 'extreme']
 # opioid_ed: use only low and medium (exclude high/extreme) to focus on lower-utilization patterns and reduce rule volume
 DENSITY_BINS_OPIOID_ED = ['low', 'medium']
 # No minimum transaction count per bin: data is already filtered by SHAP/FFA feature importance; process every non-empty bin to maximize rules
@@ -328,32 +339,36 @@ def assign_transaction_density(df: pd.DataFrame, logger: logging.Logger) -> pd.D
         df["Transaction_Density"] = pd.Series(dtype=object)
         return df
 
-    # Calculate percentiles for binning
-    sizes = transaction_sizes['transaction_size'].values
-    p25 = np.percentile(sizes, 25)
-    p50 = np.percentile(sizes, 50)
-    p75 = np.percentile(sizes, 75)
-    p95 = np.percentile(sizes, 95)
-    
-    logger.info(f"Transaction size percentiles:")
-    logger.info(f"  P25: {p25:.1f} items")
-    logger.info(f"  P50 (median): {p50:.1f} items")
-    logger.info(f"  P75: {p75:.1f} items")
-    logger.info(f"  P95: {p95:.1f} items")
-    logger.info(f"  Max: {max(sizes):,} items")
-    
-    # Assign density bins based on percentiles
-    def assign_density(size):
-        if size <= p25:
-            return 'low'
-        elif size <= p50:
-            return 'medium'
-        elif size <= p95:
-            return 'high'
-        else:
+    # Compute P25/P50/P95 thresholds using shared event_density_utils for cross-layer consistency
+    sizes_series = transaction_sizes['transaction_size']
+    if _compute_bin_thresholds is not None and _assign_n_event_bins is not None:
+        thresholds = _compute_bin_thresholds(sizes_series)
+    else:
+        import numpy as _np
+        thresholds = {
+            "p25": float(_np.percentile(sizes_series, 25)),
+            "p50": float(_np.percentile(sizes_series, 50)),
+            "p95": float(_np.percentile(sizes_series, 95)),
+        }
+
+    logger.info(f"Transaction size percentiles (P25/P50/P95):")
+    logger.info(f"  P25: {thresholds['p25']:.1f} items")
+    logger.info(f"  P50 (median): {thresholds['p50']:.1f} items")
+    logger.info(f"  P95: {thresholds['p95']:.1f} items")
+    logger.info(f"  Max: {sizes_series.max():,} items")
+
+    if _assign_n_event_bins is not None:
+        transaction_sizes['Transaction_Density'] = _assign_n_event_bins(sizes_series, thresholds)
+    else:
+        def _fallback_assign(size):
+            if size <= thresholds['p25']:
+                return 'low'
+            elif size <= thresholds['p50']:
+                return 'medium'
+            elif size <= thresholds['p95']:
+                return 'high'
             return 'extreme'
-    
-    transaction_sizes['Transaction_Density'] = transaction_sizes['transaction_size'].apply(assign_density)
+        transaction_sizes['Transaction_Density'] = sizes_series.apply(_fallback_assign)
     
     # Log distribution
     density_counts = transaction_sizes['Transaction_Density'].value_counts()

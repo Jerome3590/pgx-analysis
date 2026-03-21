@@ -93,7 +93,9 @@ def _prepare_models_one_cohort_age(
         s3_prefix = f"{S3_MODELS_PREFIX}/{cohort}/{age_band_fname}"
         model_files = [
             "catboost.joblib", "xgboost.joblib", "xgboost.json", "feature_schema.json",
-            "risk_distribution_2019.json",
+            "risk_distribution_2019.json", "n_event_bin_thresholds.json",
+            "calibration_xgboost.joblib", "calibration_xgboost_rf.joblib",
+            "calibration_catboost.joblib", "calibration_diagnostics.json",
         ]
         for model_file in model_files:
             s3_key = f"{s3_prefix}/{model_file}"

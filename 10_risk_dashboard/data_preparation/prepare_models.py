@@ -381,6 +381,25 @@ def _prepare_one_age_band(cohort: str, age_band: str) -> Tuple[str, str, bool]:
             shutil.copy(model, model_path)
         else:
             save_model(model, model_path, model_type)
+    # Copy n_event_bin_thresholds.json (written by run_final_model.py; Lambda uses it to assign bin labels)
+    thresholds_src = FINAL_MODEL_DIR / cohort / age_band_fname / "n_event_bin_thresholds.json"
+    if thresholds_src.exists():
+        import shutil as _shutil
+        _shutil.copy2(thresholds_src, output_dir / "n_event_bin_thresholds.json")
+        print(f"  Copied n_event_bin_thresholds.json -> {output_dir}")
+    else:
+        print(f"  [WARN] n_event_bin_thresholds.json not found at {thresholds_src}; skipping (run run_final_model.py first)")
+    # Copy Platt calibration models (calibration_{model_type}.joblib + diagnostics JSON)
+    # These are written to models/ subdir by run_final_model.py Platt calibration block.
+    import shutil as _shutil2
+    cal_src_dir = FINAL_MODEL_DIR / cohort / age_band_fname / "models"
+    for _cal_fname in ("calibration_xgboost.joblib", "calibration_xgboost_rf.joblib", "calibration_catboost.joblib", "calibration_diagnostics.json"):
+        _cal_src = cal_src_dir / _cal_fname
+        if _cal_src.exists():
+            _shutil2.copy2(_cal_src, output_dir / _cal_fname)
+            print(f"  Copied {_cal_fname} -> {output_dir}")
+        else:
+            print(f"  [WARN] {_cal_fname} not found at {_cal_src}; skipping (run run_final_model.py first)")
     return (cohort, age_band, True)
 
 
