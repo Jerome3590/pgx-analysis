@@ -1795,7 +1795,8 @@ def train_and_evaluate(
     # Idempotent selection-only path: if summary CSV and final models exist, just correct selection and exit
     # ------------------------------------------------------------------
     summary_csv_path = out_base / f"{cohort}_{age_band_fname}_model_metrics_summary.csv"
-    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    _s3_bin_infix = f"bin_models/{bin_name}/" if bin_name else ""
+    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_metrics_summary.csv"
     model_json_dir = out_base / "final_model_json"
     xgb_json_path = model_json_dir / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
     cb_cbm_path = model_json_dir / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
@@ -1837,7 +1838,7 @@ def train_and_evaluate(
         except Exception:
             pass
         metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-        s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
+        s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_selection_metadata.json"
         selection_metadata = {
             "selected_model": selected_model,
             "best_xgb_variant": best_xgb_variant,
@@ -2455,7 +2456,7 @@ def train_and_evaluate(
         selection_metadata["optuna_used"] = False
 
     metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-    s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_selection_metadata.json"
+    s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_selection_metadata.json"
     
     # Helper function for idempotent model saving with S3 upload
     def save_model_idempotent(local_path: Path, s3_path: str, save_func, *save_args, **save_kwargs):
@@ -2556,7 +2557,7 @@ def train_and_evaluate(
     
     # Save MC CV results CSV
     mc_cv_csv_path = out_base / f"{cohort}_{age_band_fname}_mc_cv_results.csv"
-    s3_mc_cv_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_mc_cv_results.csv"
+    s3_mc_cv_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_mc_cv_results.csv"
     
     def save_mc_cv_csv():
         mc_cv_df = pd.DataFrame(mc_cv_results)
@@ -2623,7 +2624,7 @@ def train_and_evaluate(
     # Create DataFrame and save to CSV
     summary_df = pd.DataFrame(summary_data)
     summary_csv_path = out_base / f"{cohort}_{age_band_fname}_model_metrics_summary.csv"
-    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_model_metrics_summary.csv"
+    s3_summary_csv = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_metrics_summary.csv"
     
     def save_summary_csv():
         summary_df.to_csv(summary_csv_path, index=False)
@@ -2740,7 +2741,7 @@ def train_and_evaluate(
         model_json_dir
         / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
     )
-    s3_xgb_json = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_best_xgboost_model.json"
+    s3_xgb_json = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_best_xgboost_model.json"
     
     booster = xgb_final.get_booster()
     # Use text dump format so the existing XGBoostSymbolicExplainer parser
@@ -2810,7 +2811,7 @@ def train_and_evaluate(
             model_json_dir
             / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
         )
-        s3_cb_cbm = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_best_catboost_model.cbm"
+        s3_cb_cbm = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_best_catboost_model.cbm"
         
         def save_cb_cbm():
             cb_final.save_model(str(cb_binary_path), format="cbm")
@@ -2823,7 +2824,7 @@ def train_and_evaluate(
             model_json_dir
             / f"{cohort}_{age_band_fname}_best_catboost_model.json"
         )
-        s3_cb_json = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_best_catboost_model.json"
+        s3_cb_json = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_best_catboost_model.json"
         
         def save_cb_json():
             cb_final.save_model(str(cb_json_path), format="json")
@@ -2859,8 +2860,8 @@ def train_and_evaluate(
         xgb_joblib_path = models_dir / "xgboost.joblib"
         cb_joblib_path = models_dir / "catboost.joblib"
         
-        s3_xgb_joblib = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/xgboost.joblib"
-        s3_cb_joblib = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/catboost.joblib"
+        s3_xgb_joblib = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}xgboost.joblib"
+        s3_cb_joblib = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}catboost.joblib"
         
         def save_xgb_joblib():
             # Fix base_score before saving to ensure SHAP compatibility
@@ -2923,7 +2924,7 @@ def train_and_evaluate(
         
         # Also save native XGBoost booster binary model for SHAP (more reliable than joblib)
         xgb_binary_model_path = models_dir / "xgboost_model.ubj"
-        s3_xgb_binary_model = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/xgboost_model.ubj"
+        s3_xgb_binary_model = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}xgboost_model.ubj"
         
         def save_xgb_binary_model():
             # Use XGBoost final model's booster to save native binary format (UBJ)
@@ -2943,7 +2944,7 @@ def train_and_evaluate(
         
         # Also save native CatBoost binary model for SHAP (consistent with XGBoost)
         cb_binary_model_path = models_dir / "catboost_model.cbm"
-        s3_cb_binary_model = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/catboost_model.cbm"
+        s3_cb_binary_model = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}catboost_model.cbm"
         
         def save_cb_binary_model():
             # Save CatBoost in native binary format (.cbm) for SHAP
