@@ -3230,8 +3230,19 @@ def main() -> None:
     }
     
     # Check if all local outputs exist
-    all_local_exist = all(path.exists() for path in local_outputs.values())
-    
+    # In per_bin mode, cohort-level files are only a mirrored snapshot — check per-bin files instead.
+    if args.train_mode == "per_bin":
+        from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
+        all_local_exist = (
+            local_outputs["features_csv"].exists()
+            and all(
+                (out_base_check / "bin_models" / b / "models" / "xgboost.joblib").exists()
+                for b in _CHECK_DENSITY_BINS
+            )
+        )
+    else:
+        all_local_exist = all(path.exists() for path in local_outputs.values())
+
     if all_local_exist:
         logger.info(f"Step 6 outputs already exist locally for {args.cohort}/{args.age_band}; skipping regeneration.")
         logger.info(f"  Found {len(local_outputs)} output files")
@@ -3315,12 +3326,19 @@ def main() -> None:
     try:
         from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
         
-        s3_output_paths = [
-            f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_best_xgboost_model.json",
-            f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_best_catboost_model.cbm",
-            f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_model_selection_metadata.json",
-        ]
-        
+        if args.train_mode == "per_bin":
+            from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
+            s3_output_paths = [
+                f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/xgboost.joblib"
+                for b in _CHECK_DENSITY_BINS
+            ]
+        else:
+            s3_output_paths = [
+                f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_best_xgboost_model.json",
+                f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_best_catboost_model.cbm",
+                f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_model_selection_metadata.json",
+            ]
+
         if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("6_final_model", args.cohort, args.age_band, logger):
             logger.info(f"Step 6 outputs exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
             
