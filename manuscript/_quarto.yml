@@ -1,0 +1,27 @@
+project:
+  type: default
+  output-dir: output
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    documentclass: article
+    number-sections: true
+    toc: false
+    keep-tex: false
+    geometry: margin=1in
+    fontsize: 11pt
+  docx:
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    highlight-style: github
+
+# Default bibliography – individual chapters add their own journal-specific .bib
+bibliography: refs/discipline.bib
+# csl: templates/ama.csl  # not used; chapters override with cite-method: natbib
+
+execute:
+  echo: false
+  warning: false
+  message: false

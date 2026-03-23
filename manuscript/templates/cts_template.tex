@@ -1,0 +1,113 @@
+%% Pandoc/Quarto LaTeX template for Wiley – Clinical and Translational Science (CTS)
+%%
+%% Used via:  format: wiley-njd-pdf:  (extension bundles WileyNJDv5.cls + .bst files automatically)
+%%   template: ../templates/cts_template.tex   <- add this line to the wiley-njd-pdf block
+%%
+%% Citation style : AMA  (American Medical Association – numeric superscript)
+%% Font / layout  : STIX 1-column  (CTS single-column submission format)
+%% ============================================================
+
+\documentclass[$for(classoption)$$classoption$$sep$,$endfor$]{WileyNJDv5}
+
+%% ---- Packages required by Pandoc-generated LaTeX ----
+\usepackage{calc}       % provides \real{} for longtable column width arithmetic
+\usepackage{longtable}  % Pandoc renders markdown tables as longtables
+\usepackage{booktabs}   % \toprule, \midrule, \bottomrule
+\usepackage{array}      % extended column types in tabular
+
+%% ---- Pandoc/Quarto compatibility shims (BEFORE header-includes) ----
+%% \tightlist required by Pandoc compact lists
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+%% WileyNJDv5 may pre-define \listoflistings via newfloat; undefine so Quarto can redefine it
+\let\listoflistings\relax
+
+$if(header-includes)$
+$header-includes$
+$endif$
+
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+
+%% ---- Article metadata ----
+%% CTS types: Original Article | Brief Report | Methods | Review | Commentary | Letter
+\articletype{$if(article-type)$$article-type$$else$Original Article$endif$}
+\received{$if(received)$$received$$else$$endif$}
+\revised{$if(revised)$$revised$$else$$endif$}
+\accepted{$if(accepted)$$accepted$$else$$endif$}
+\journal{$if(journal)$$journal$$else$Clinical and Translational Science$endif$}
+\volume{$if(volume)$$volume$$else$00$endif$}
+\copyyear{$if(copy-year)$$copy-year$$else$$if(year)$$year$$else$2026$endif$$endif$}
+\startpage{1}
+\raggedbottom
+
+%% ---- Title ----
+$if(title)$
+\title{$title$}
+$endif$
+
+%% ---- Authors (Quarto native format: $by-author$ / $by-affiliation$) ----
+$for(by-author)$
+\author[$for(by-author.affiliations)$$it.number$$sep$,$endfor$]{$by-author.name.literal$}
+$endfor$
+
+\authormark{$if(author-mark)$$author-mark$$else$$for(by-author)$$by-author.name.literal$$sep$, $endfor$$endif$}
+$if(title)$
+\titlemark{$if(title-mark)$$title-mark$$else$$title$$endif$}
+$endif$
+
+$for(by-affiliation)$
+\address[$it.number$]{%
+  \orgdiv{%
+    $if(it.department)$$it.department$, $endif$%
+    \orgname{$if(it.name)$$it.name$, $endif$}%
+    \orgaddress{%
+      \state{$if(it.city)$$it.city$$endif$}%
+      $if(it.city)$, $endif$%
+      \country{$if(it.country)$$it.country$$endif$}%
+    }%
+  }%
+}
+$endfor$
+
+%% ---- Correspondence ----
+$for(by-author)$
+$if(by-author.attributes.corresponding)$
+\corres{$by-author.name.literal$\email{$by-author.email$}}
+$endif$
+$endfor$
+
+%% ---- Abstract (structured: Background / Methods / Results / Conclusions) ----
+\abstract[Abstract]{$abstract$}
+
+%% ---- Keywords (3–6 terms per CTS guidelines) ----
+$if(keywords)$
+\keywords{$for(keywords)$$it$$sep$, $endfor$}
+$endif$
+
+%% ---- Journal citation line ----
+\jnlcitation{\cname{%
+$for(by-author)$\author{$by-author.name.literal$}$sep$, $endfor$}.
+\ctitle{$title$.}
+\cjournal{\it $if(journal)$$journal$$else$Clinical and Translational Science$endif$}
+\cvol{$if(year)$$year$$else$2026$endif$;$if(volume)$$volume$$else$00$endif$($if(issue)$$issue$$else$00$endif$):$if(pages)$$pages$$else$1--20$endif$}.}
+
+%% ---- Abbreviations (as footnote, per Wiley NJD style) ----
+$if(abbreviations-note)$
+\renewcommand\thefootnote{}
+\footnotetext{\textbf{Abbreviations:} $abbreviations-note$}
+\renewcommand\thefootnote{\fnsymbol{footnote}}
+\setcounter{footnote}{1}
+$endif$
+
+%% ============================================================
+\begin{document}
+
+\maketitle
+
+$body$
+
+%% References are emitted by Quarto inside $body$ when cite-method: natbib is set.
+%% Do NOT add \bibliographystyle or \bibliography here — causes duplicate \bibstyle error.
+
+\end{document}

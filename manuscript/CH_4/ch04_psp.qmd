@@ -1,0 +1,429 @@
+---
+title: >-
+  Formal Feature Attribution as a Causal Calculator for Drug-Drug
+  Interaction Risk in Polypharmacy: A Systems Pharmacology Approach
+  Using All-Payer Claims Data
+
+author:
+  - name: "R. Jerome Dixon"
+    email: dixonrj@vcu.edu
+    orcid: "0000-0001-8622-0597"
+    corresponding: true
+    affiliations:
+      - id: vcu
+        name: Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+
+abstract: >
+  **Background:** Polypharmacy (≥5 concurrent medications) in older adults
+  (≥65 years) drives adverse drug events (ADEs) and emergency department (ED)
+  utilization, yet existing DDI databases characterize pairwise interactions
+  in isolation, failing to capture synergistic multi-drug effects.
+  **Methods:** Using a state-level All-Payer Claims Database (2016–2019),
+  we constructed a non-opioid ED cohort of adults aged 65–94 years
+  ($n$ = [XX,XXX] cases, 5:1 matched controls).
+  A 30-day causality window isolated proximal drug exposures preceding each
+  ED visit.
+  An ensemble of CatBoost, XGBoost, and XGBoost-RF was trained on 2016–2018
+  data (holdout: 2019).
+  Formal Feature Attribution (FFA) was extended to multi-feature interaction
+  testing (pairs and triplets), evaluating synergy
+  (combined effect > additive) and antagonism (combined effect < additive)
+  via counterfactual probability shifts.
+  Intervention Rate (IR) scores quantified the causal impact of removing
+  each high-risk drug or combination.
+  **Results:** The ensemble achieved mean PR-AUC = [0.XX ± 0.XX] on the 2019
+  holdout.
+  FFA identified [XX] synergistic drug pairs and [XX] high-risk triplets
+  exceeding the additive interaction threshold.
+  Top synergistic pairs included [Drug A + Drug B] (IR = [0.XX]) and
+  [Drug C + Drug D] (IR = [0.XX]).
+  Z-code analysis revealed that extreme-density patients with high routine
+  care (Z-codes ≥ 40% of claims) had significantly lower ADE risk despite
+  high drug counts (OR = [0.XX]; 95% CI [0.XX–0.XX]).
+  **Conclusions:** FFA multi-feature interaction analysis constitutes a
+  "causal calculator" for polypharmacy risk: it moves beyond pairwise DDI
+  databases to identify synergistic combinations and quantify
+  deprescribing priorities as actionable IR scores.
+
+keywords:
+  - "polypharmacy"
+  - "drug-drug interactions"
+  - "Formal Feature Attribution"
+  - "causal inference"
+  - "systems pharmacology"
+  - "geriatrics"
+
+abbreviations-note: >-
+  ADE, adverse drug event; APCD, All-Payer Claims Database;
+  AUC-PR, area under the precision-recall curve;
+  AUROC, area under the receiver operating characteristic curve;
+  DDI, drug-drug interaction; ED, emergency department;
+  FFA, Formal Feature Attribution; HCG, Healthcare Cost Group;
+  ICD, International Classification of Diseases; IR, Intervention Rate;
+  MCCV, Monte Carlo cross-validation; OR, odds ratio;
+  PGx, pharmacogenomics; SHAP, SHapley Additive exPlanations
+
+format:
+  wiley-njd-pdf:
+    template: ../templates/cpt_psp_template.tex
+    classoption: [AMA, STIX2COL]
+    article-type: "Research Article"
+    journal: "CPT: Pharmacometrics & Systems Pharmacology"
+    year: 2026
+    copy-year: 2026
+    volume: "00"
+    issue: "00"
+    pages: "1--20"
+    author-mark: "DIXON"
+    title-mark: "FFA AS A CAUSAL CALCULATOR FOR POLYPHARMACY RISK"
+    number-sections: true
+    toc: false
+    keep-tex: true
+
+csl: ../templates/csl/ama.csl
+bibliography:
+  - ../refs/discipline.bib
+  - ../refs/cpt-psp.bib
+---
+
+<!-- ============================================================
+     WORD COUNT TARGET: 4,500–5,500 words (CPT:PSP Research Article)
+     FIGURES TARGET: ≤ 5
+     TABLES TARGET: ≤ 4
+     REFERENCES TARGET: 40–55
+     ============================================================ -->
+
+# Introduction {#sec-intro}
+
+Polypharmacy—typically defined as the concurrent use of ≥5 medications
+[@Masnoon2017]—affects more than 40% of adults aged ≥65 years in the
+United States [@Qato2016].
+In older adults, polypharmacy is the primary driver of adverse drug events
+(ADEs), accounting for an estimated 100,000 hospitalizations and 28,000
+deaths annually [@Duerden2013].
+Emergency department utilization attributable to polypharmacy-related ADEs
+represents a substantial and partially preventable burden.
+
+Current approaches to polypharmacy management rely on pairwise DDI databases
+(e.g., Drugs.com, Micromedex) that flag co-prescribed drug pairs based on
+known pharmacokinetic or pharmacodynamic mechanisms.
+These databases are useful but fundamentally limited:
+
+1. They characterize *pairwise* interactions, ignoring synergistic
+   multi-drug effects (e.g., triple combinations where each pairwise
+   interaction appears benign).
+2. They do not prioritize interventions by expected clinical impact.
+3. They cannot account for patient-level comorbidity context.
+
+A systems pharmacology perspective demands a "causal calculator" that
+simultaneously: (a) identifies multi-drug combinations with *synergistic*
+ADE risk exceeding additive pairwise predictions; (b) quantifies the causal
+contribution of each drug to population-level risk; and (c) provides
+actionable deprescribing priorities ranked by expected risk reduction.
+
+This study extends Formal Feature Attribution (FFA) from the Chapter 2
+Consensus Filter to multi-feature interaction testing—evaluating feature
+pairs and triplets for synergistic and antagonistic effects—applied to a
+geriatric non-opioid ED cohort derived from APCD.
+
+## Study Objectives
+
+1. Apply FFA multi-feature interaction testing to identify synergistic DDI
+   combinations in the 65–94 year polypharmacy cohort.
+2. Quantify Intervention Rate (IR) scores as deprescribing priorities for
+   the highest-risk drug-drug combinations.
+3. Characterize the "hairball" of drug co-occurrence networks via FP-Growth
+   visualization to contextualize FFA causal findings.
+4. Investigate the relationship between high transaction density (Z-codes)
+   and ADE risk to distinguish managed from unmanaged polypharmacy.
+
+# Methods {#sec-methods}
+
+## Study Design and Data Source
+
+Retrospective cohort study using Virginia's All-Payer Claims Database
+(APCD; 2016–2019) under a data use agreement with the Virginia Center
+for Health Innovation (VCHI) and Virginia Health Information (VHI).
+IRB waiver: [IRB-XXXX].
+
+## Cohort Construction {#sec-cohort}
+
+**Target (case) definition:** Adults aged 65–94 years with ≥1 ED visit
+identified by Milliman Healthcare Cost Group (HCG) codes O11 or P51,
+with *strict exclusion* of any opioid-related ICD-10 code (F11.xx, T40.xx).
+This exclusion ensures the study measures *non-addiction* adverse events
+attributable to drug-drug interactions, not opioid misuse overlap.
+
+**Control definition:** Adults aged 65–94 years with no ED visits (HCG O11/P51)
+and no opioid codes, matched 5:1 to cases without replacement, within age
+band (±2 years) and sex.
+
+**30-day causality window:** All predictive features were derived from
+claims occurring within the 30-day window *prior* to each case's index ED
+date (or matched date for controls).
+This window focuses on proximal drug exposures responsible for acute ADEs,
+as most pharmacokinetic-mediated DDIs manifest within days to weeks of
+co-prescription [@Becker2007].
+
+**Age bands:** 65–74, 75–84, 85–94 years.
+
+## Feature Engineering {#sec-features}
+
+**Primary feature domain: Drug exposure**
+
+The 30-day window feature set was deliberately restricted to drug-exposure
+features to maximize the signal-to-noise ratio for DDI detection:
+
+- Binary presence of each drug class (NDC → generic category; 487 classes)
+- Drug count per class (continuous)
+- Polypharmacy count (total unique drugs in 30-day window; continuous)
+- CPIC gene-drug interaction scores for CYP enzymes [@Crews2021]
+
+ICD-10 and CPT features were included as secondary features but drug features
+received priority weighting in MCCV screening.
+
+**FP-Growth (visualization only):**
+As in Chapter 2, FP-Growth [@Han2000] association rules were applied to the
+training cohort to visualize drug co-occurrence networks.
+These rules were **not** used as predictive features.
+Network graphs (nodes = drug classes, edges = lift-weighted co-occurrence)
+were rendered in Cytoscape 3.10 for clinical interpretation.
+
+**Z-code analysis:**
+Claims with ICD-10 Z-codes (Z00–Z99: routine examinations, health status
+contacts) were quantified per patient.
+The Z-code proportion (Z-code claims ÷ total claims in 30-day window) served
+as a proxy for managed polypharmacy with regular clinical oversight.
+
+## Ensemble Model {#sec-model}
+
+The three-model ensemble (CatBoost, XGBoost, XGBoost-RF) with MCCV
+performance-based weighting is identical to Chapter 2.
+Hyperparameter tuning used Optuna [@AWSLambda2023] with 100 trials per model
+per age band on the 2016–2018 training set.
+The 2019 holdout was strictly withheld.
+
+## Formal Feature Attribution: Multi-Feature Interaction Testing {#sec-ffa}
+
+### Pairwise Interaction Score
+
+For each pair of drug features $(f_i, f_j)$, the interaction effect was
+computed as:
+
+$$\text{IE}(f_i, f_j) = \mathbb{E}[\hat{p}(f_i=1, f_j=1)]
+  - \mathbb{E}[\hat{p}(f_i=1, f_j=0)]
+  - \mathbb{E}[\hat{p}(f_i=0, f_j=1)]
+  + \mathbb{E}[\hat{p}(f_i=0, f_j=0)]$$
+
+where $\hat{p}$ is the ensemble risk score.
+$\text{IE}(f_i, f_j) > 0$ indicates synergy (combined risk exceeds additive
+sum); $\text{IE} < 0$ indicates antagonism.
+
+### Computational Pre-filtering
+
+Exhaustive pairwise testing over 487 drug features requires evaluation of
+$\binom{487}{2} = 118{,}141$ pairs—computationally intensive.
+Pre-filtering restricted pairwise testing to the [XX] features with non-zero
+SHAP importance in any partition, reducing the search space to
+$\binom{XX}{2}$ pairs.
+Triplet testing was further restricted to the top [XX] SHAP features,
+yielding $\binom{XX}{3}$ triplet evaluations.
+
+### Intervention Rate (IR) Score
+
+The Intervention Rate for drug $f_i$ quantifies the expected risk reduction
+if $f_i$ were removed (counterfactual substitution with training median):
+
+$$\text{IR}(f_i) = \frac{1}{n} \sum_{k=1}^{n}
+  \left[\hat{p}^{(k)} - \hat{p}^{(k)}_{f_i \to \text{med}}\right]$$
+
+IR scores range from 0 (no causal contribution) to 1 (complete risk
+attribution); values are normalized by the population-level case prevalence.
+
+## Statistical Analysis
+
+Performance metrics: AUROC, PR-AUC, Brier score, LogLoss on 2019 holdout.
+Synergistic pairs: IE > 0 with bootstrap 95% CI excluding zero (1,000
+bootstrap resamples of the 2019 holdout).
+Z-code protective effect: logistic regression (outcome = ADE ED visit;
+predictor = Z-code proportion quartile; covariates = age, sex, drug count),
+reported as OR with 95% CI.
+Software: Python 3.11, R 4.3.
+
+# Results {#sec-results}
+
+## Cohort Characteristics
+
+The non-opioid ED cohort comprised [XX,XXX] cases and [XX,XXX] matched
+controls across the three geriatric age bands (**@tbl-cohort-chars**).
+Median polypharmacy count in the 30-day window was [X] drugs (IQR [X–X])
+among cases vs. [X] drugs (IQR [X–X]) among controls.
+The 85–94 age band had the highest median drug count ([X]; IQR [X–X]).
+
+| Characteristic | Cases | Controls |
+|:---|:---|:---|
+| $n$ | [XX,XXX] | [XX,XXX] |
+| Age, median (IQR) | [XX] ([XX–XX]) | [XX] ([XX–XX]) |
+| Female, $n$ (%) | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+| Drug count (30-day), median (IQR) | [X] ([X–X]) | [X] ([X–X]) |
+| Z-code proportion, median (IQR) | [0.XX] ([0.XX–0.XX]) | [0.XX] ([0.XX–0.XX]) |
+| **Age band** | | |
+| \quad 65–74 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+| \quad 75–84 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+| \quad 85–94 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+
+: Baseline characteristics of non-opioid ED cases and matched controls.
+Drug count and Z-code proportion reflect the 30-day pre-index window. {#tbl-cohort-chars}
+
+## Ensemble Performance
+
+Mean PR-AUC on the 2019 holdout was [0.XX ± 0.XX] across geriatric age bands.
+AUROC ranged from [0.XX] (65–74 band) to [0.XX] (85–94 band).
+Calibration was good across all three bands (Brier score [0.XX–0.XX];
+ICI [0.XX–0.XX]).
+The 85–94 band showed the highest PR-AUC, consistent with the higher
+ADE signal from extreme polypharmacy in this stratum.
+
+## Synergistic Drug-Drug Interactions {#sec-ddi}
+
+FFA multi-feature interaction testing identified [XX] synergistic drug pairs
+and [XX] high-risk triplets with bootstrap 95% CI for IE > 0.
+The top 10 synergistic pairs are shown in **@tbl-ddi** and **@fig-network**.
+
+| Drug A | Drug B | IE Score | IR_A | IR_B | 95% CI |
+|:---|:---|---:|---:|---:|:---|
+| [Anticoagulant] | [NSAID] | [0.XX] | [0.XX] | [0.XX] | [[0.XX–0.XX]] |
+| [Benzodiazepine] | [Anticholinergic] | [0.XX] | [0.XX] | [0.XX] | [[0.XX–0.XX]] |
+| [Diuretic] | [ACE inhibitor] | [0.XX] | [0.XX] | [0.XX] | [[0.XX–0.XX]] |
+| [Statin] | [CYP3A4 inhibitor] | [0.XX] | [0.XX] | [0.XX] | [[0.XX–0.XX]] |
+| [Digoxin] | [Amiodarone] | [0.XX] | [0.XX] | [0.XX] | [[0.XX–0.XX]] |
+
+: Top synergistic drug-drug interaction pairs from FFA multi-feature testing.
+IE, Interaction Effect score; IR_A and IR_B, Intervention Rate for each drug;
+95% CI from 1,000 bootstrap resamples of the 2019 holdout. Full table of
+[XX] pairs in Supplementary Table S1. {#tbl-ddi}
+
+![Drug co-occurrence network and FFA interaction overlay.
+(A) FP-Growth network (training cohort): nodes = drug classes; edge weight =
+lift; edge color = risk gradient (blue = low risk, red = high risk).
+Hub nodes (betweenness centrality ≥ 90th pct) marked with larger circles.
+(B) FFA synergistic pair network: only drug pairs with IE > 0 (95% CI > 0)
+shown; edge weight proportional to IE score. Overlapping nodes between (A)
+and (B) indicate high co-occurrence AND causal synergy.](../figures/ch04/fig_network.pdf){#fig-network
+width=100%}
+
+## Triplet Interactions
+
+[XX] triplet combinations exceeded the pairwise additive prediction,
+indicating true three-way synergy.
+The highest-risk triplet was [Drug A + Drug B + Drug C]
+(triplet IE = [0.XX]; pairwise additive prediction = [0.XX];
+excess synergy = [0.XX]).
+Clinically, this triplet represents [pharmacological explanation
+of mechanism, e.g., triple anticholinergic burden causing
+confusion and fall-related ED visit].
+
+## Intervention Rate Rankings
+
+IR scores for the top 15 drugs eligible for deprescribing consideration
+are shown in **@fig-ir**.
+[Benzodiazepine class] had the highest mean IR ([0.XX]), followed by
+[anticholinergic class] (IR = [0.XX]) and [anticoagulant class]
+(IR = [0.XX]).
+IR rankings were consistent across the three geriatric age bands
+(rank correlation $\rho$ = [0.XX–0.XX]), supporting the robustness of
+causal attribution.
+
+![Intervention Rate (IR) scores for the top 15 drugs by causal contribution
+to non-opioid ED risk. IR = expected risk reduction (Δ$\hat{p}$) if drug is
+removed, averaged over the 2019 holdout cohort and normalized by case
+prevalence. Error bars = bootstrap 95% CI. Drugs are ranked within each of
+the three geriatric age bands; rankings are highly consistent
+across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90%}
+
+## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#sec-zcode}
+
+Patients in the highest Z-code proportion quartile (routine care ≥ [XX%]
+of claims) had significantly lower ADE risk compared to the lowest quartile,
+even after adjusting for total drug count:
+OR = [0.XX] (95% CI [0.XX–0.XX]; $P$ < 0.001).
+This finding supports the hypothesis that high transaction density does not
+equal high risk when routine monitoring accompanies polypharmacy management
+(**@fig-zcode**).
+
+Patients in the extreme-density stratum (top 5% claim count) showed a
+bimodal risk distribution: a high-risk subgroup with low Z-code proportion
+(OR = [0.XX]) and a low-risk subgroup with high Z-code proportion
+(OR = [0.XX]).
+
+![Z-code proportion and ADE risk. (A) Violin plots of Z-code proportion
+by ADE case status; cases have significantly lower Z-code proportions
+($P$ < 0.001 by Mann–Whitney U). (B) Adjusted OR for ADE ED visit by Z-code
+proportion quartile (Q1 = lowest, Q4 = highest), adjusted for age band, sex,
+and 30-day drug count. Error bars = 95% CI.](../figures/ch04/fig_zcode.pdf){#fig-zcode
+width=90%}
+
+# Discussion {#sec-discussion}
+
+## The FFA Causal Calculator
+
+FFA multi-feature interaction testing provides a clinically actionable
+"causal calculator" that extends beyond existing pairwise DDI databases
+in three ways:
+
+1. **Multi-drug synergy detection**: [XX] synergistic triplets were
+   identified that would appear benign under pairwise-only analysis.
+   Anticholinergic burden—a known geriatric risk factor—emerged as a
+   consistent driver of synergistic interactions, consistent with
+   Beers Criteria recommendations.
+2. **Causal prioritization via IR**: IR scores translate model output into
+   deprescribing priorities ranked by expected risk reduction,
+   enabling pharmacists to target the highest-yield modifications.
+3. **Patient-level context**: The ensemble's partial dependence plots
+   reveal threshold effects (e.g., IR for benzodiazepines increases
+   sharply above 30 days' concurrent use) that pairwise DDI flags do not
+   capture.
+
+## Managed vs. Unmanaged Polypharmacy
+
+The Z-code analysis resolves a clinical paradox: high-utilization patients
+with many drugs are not uniformly high-risk.
+Regular monitoring (Z-codes) is a protective factor, suggesting that
+proactive care management programs—not drug reduction alone—are the
+appropriate intervention for this population.
+This finding aligns with recent deprescribing evidence showing that structured
+medication reviews with pharmacist involvement reduce ADE rates by
+15–25% [@Duerden2013].
+
+## Limitations
+
+Limitations include: (1) the 30-day window may miss longer-latency
+drug interactions (e.g., cumulative anticholinergic burden over months);
+(2) laboratory values (kidney/liver function) that modulate drug toxicity
+are absent from claims data; (3) PGx features are imputed from drug-gene
+interaction databases, not measured genotypes; (4) single-state APCD
+limits external validity.
+
+# Conclusions {#sec-conclusions}
+
+FFA multi-feature interaction testing, applied to a 30-day causality window
+in the geriatric non-opioid ED cohort, constitutes a data-driven causal
+calculator for polypharmacy ADE risk.
+It identifies synergistic drug combinations that exceed pairwise DDI
+predictions, quantifies deprescribing priorities via IR scores, and
+distinguishes managed from unmanaged polypharmacy through Z-code analysis.
+These findings provide a pharmacologically grounded, computationally feasible
+framework for clinical decision support in the aging population.
+
+**Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
+formal analysis, R.J.D.; writing, R.J.D.
+
+**Funding:** [Funding statement].
+
+**Ethics Statement:** Data use agreement with VCHI and VHI;
+IRB waiver [IRB-XXXX] (non-human-subjects research designation).
+
+**Conflicts of Interest:** The author declares no conflict of interest.

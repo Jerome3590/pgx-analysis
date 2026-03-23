@@ -1,0 +1,337 @@
+---
+title: "Research Paper: Temporal Risk Modeling for Adverse Drug Events (ADEs) - A Machine Learning Process Mining Pipeline"
+author:
+  - name: "R. Jerome Dixon, MDA"
+    orcid: 0000-0001-8622-0597
+format:
+  pdf:
+    documentclass: llncs
+    pdf-engine: xelatex
+    keep-tex: true
+    include-in-header: header.tex
+    number-sections: true
+bibliography: references.bib
+header-includes:
+  - \usepackage{pdfpages}
+  - \usepackage[edges]{forest}
+  - \usepackage{placeins}
+  - \addtolength{\oddsidemargin}{-1cm}
+  - \addtolength{\evensidemargin}{-1cm}
+  - \addtolength{\textwidth}{2cm}
+  - \addtolength{\topmargin}{-1cm}
+  - \addtolength{\textheight}{2cm}
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+::: {#abstract}
+Abstract.
+This study presents a comprehensive and modular big data analytics pipeline for large-scale healthcare data processing and time-to-event risk analysis.
+Leveraging Virginia's All Payer Claims Database (APCD) and the FDA’s Adverse Drug Event Reporting System (FAERS), the pipeline utilizes DuckDB on Amazon EC2 spot instances for scalable, efficient data transformations and analysis.
+Automated scripts standardize pharmacy and medical datasets—harmonizing drug names, diagnosis, and procedure codes, and event dates—to create both network and sequential features associated with hospitalizations.
+
+Patient-level cohorts are constructed with strict control-to-case ratios and chronological event timelines.
+Adverse events are identified through both claims data and FAERS-based criteria.
+Feature engineering applies market basket analysis (FP-Growth) to uncover frequent itemsets and clinical network patterns among diagnoses, procedures, and medications.
+These features fuel process mining with BupaR and predictive modeling with CatBoost to identify patients at elevated risk for emergency department visits and hospitalizations.
+Formal feature attribution (FFA) ensures clinical interpretability and causal inference for features identified by both BupaR and CatBoost.
+
+The workflow delivers reproducible, scalable analytics with multidimensional feature engineering and interpretable risk stratification, supporting medication safety and clinical decision support.
+Designed to advance population health analytics to personalized medicine, the framework currently emphasizes temporal risk modeling, process mining, and near real-time pharmacovigilance.
+Future directions include integrating patient digital health data to further enhance predictive performance and risk assessment.
+:::
+
+Keywords: FP-Growth, Market Basket Analysis, Adverse Drug Events, BupaR, Machine Learning, Healthcare Claims, Process Mining, Pattern Mining, Time to Event, Population Health, Personalized Medicine, Association Rules
+
+# Introduction
+
+Virginia’s APCD, maintained by Virginia Health Information (VHI) in collaboration with the Virginia Department of Health, was formally established in 2012 and has since become one of the most complete and actively maintained state-level claims datasets in the United States.
+It contains data on over five million individuals, representing a broad cross-section of the state’s insured population.
+
+One underutilized research area is the investigation of drug combinations preceding hospitalization.
+There is research on drugs and ADEs [@bourgeois2010adverse], and on polypharmacy—the sheer number of prescribed drugs [@molokhia2017polypharmacy]—however, the actual combinations and their potential interactions remain less explored.
+By emphasizing drug combinations rather than isolated prescriptions, and analyzing their temporal progression, we aim to identify higher-order prescribing patterns that may contribute to preventable hospitalization risk—particularly among older adults in the 65–74 age group.
+
+The analytics platform described here advances the field of healthcare process mining [@van2016process] by integrating pattern mining, temporal modeling, and robust data engineering features within a unified, production-ready pipeline.
+It provides the following innovations:
+
+-   Integrated Multimodal Analysis: The platform unifies FP-Growth pattern mining [@agrawal1994fast] and CatBoost predictive modeling [@prokhorenkova2018catboost] within a process mining pipeline.
+    Frequent pattern mining uncovers statistically significant event combinations, which inform the construction of event logs for BupaR-based process mining [@van2018bupar], enabling temporal analysis rooted in robust pattern discovery.
+
+-   Temporal Risk Modeling: The solution is explicitly designed for time-to-event risk analysis related to Adverse Drug Events (ADEs) and hospitalization risk.
+    The BupaR Process Mining Engine performs temporal pathway analysis, identifies hospitalization precursor patterns, and calculates throughput times between drug administrations—illuminating pathways and deviations from expected care flows.
+
+-   Enhanced Feature Engineering: The pipeline’s feature engineering layer uses FP-Growth to dynamically discover drug, diagnosis, and procedure patterns, which are filtered and converted into process-mining event logs, thus tightly coupling pattern significance with temporal sequence analysis.
+
+-   Clinical Interpretability: By integrating Formal Feature Attribution (FFA) with interpretable CatBoost models, the pipeline ensures that discovered risk factors and event patterns are not only predictive but also actionable and clinically transparent, closing the loop between mining, prediction, and practical decision-making in pharmacovigilance and clinical support.
+
+-   Comprehensive Process Analysis: The analytics platform enables advanced process mining analyses, including:
+
+    -   Trace and performance analysis (frequency, length, throughput)
+    -   Bottleneck and resource utilization tracking
+    -   Conformance and alignment-based metrics
+    -   Comparative analysis between target/control and age bands
+
+# Methods
+
+## Data Processing Architecture
+
+Our pipeline processes healthcare claims data from the Virginia All Payer Claims Database (APCD), encompassing both pharmacy and medical records. Data is stored on AWS S3 where data transformations are conducted using DuckDB [@duckdb2019] on an AWS persistent spot EC2 instance. All intermediate and final outputs are stored in partitioned Parquet format on AWS S3 to support reproducibility and highly parallel analytics [@raghupathi2014big]. 
+
+## Cohort Creation
+
+The cohort creation pipeline is a comprehensive and modular system for large-scale healthcare data processing and time-to-event risk analysis. It leverages DuckDB on an Amazon EC2 x2iedn.8xlarge persistent spot instance for scalable and efficient data transformations. The pipeline processes medical and pharmacy data to create distinct cohorts (OPIOID_ED, ED_NON_OPIOID, and Control) for drug safety analysis, with a 5:1 control-to-case ratio. F11 ICD code and other opioid associated ICD codes are used to determine OPIOID_ED cohort. The Adverse Drug Event (ADE) cohort uses a code specific to the All Payers Claim Database developed by Milliman. The Milliman specific code is HCG (Healthcare Cost Group) [@vhi2023hcg] and this code tells us the type of service received and the setting of subject service. (e.g., "O11" for Emergency Room). We use this code with prescription drug event dates to identify potential ADE candidates. Based on our analysis of FDA's Adverse Drug Event Reporting System (FAERS) data [@fda2023faers], most ADEs occur within 21 days of a new prescription, which we use as our temporal window for analysis.
+
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/process_mining_analytics_platform1.png}
+    \caption{Process Mining Analytics Platform - Preprocessing}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+The entire pipeline is built with enterprise-grade features, including a comprehensive checkpoint system (Steps 1-14) for fault tolerance and idempotent processing, full-state data persistence to AWS S3, smart dependency management, and robust error handling. Key optimizations like column and row pruning, optimized file sizing (60-70MB row groups, SNAPPY/ZSTD compression), partition-overwrite pattern, materialized cohort hash keys for deduplication, memory optimization, early null key audits, and DuckDB query observability significantly enhance performance and data integrity. A comprehensive validation run-book and two-layer QA architecture (including pre-commit ratio and overlap checks after Step 12) ensure data quality and statistical validity.
+
+Here is a summary of the fourteen data preproceesing steps:
+
+**Step 1: Environment Validation and Locking.** This step validates the execution environment and establishes process locking to prevent concurrent pipeline executions. This step also checks for the required AWS environment variables, validates any input parameters (`age_band`, `event_year`), sets up logging, and initializes an in-memory DuckDB connection. A lock file is created in `/tmp/` to ensure only one instance processes a specific age band/event year combination, with built-in cleanup. This supports the lock-aware restart feature of the checkpoint system, preventing pipeline stalls if checkpoints exist.
+
+**Step 2: DuckDB AWS S3 Support Setup**.
+This step configures DuckDB with S3 support and establish connections to data sources for cohort analysis. It also tests the accessibility of medical and pharmacy data paths in S3.
+
+**Step 3: Load and Normalize Medical Data**.
+Here we load the medical claims data from S3 and perform initial normalization and filtering.
+
+**Step 4: Load and Normalize Pharmacy Data**.
+Here we load the pharmacy claims data and perform initial normalization and filtering
+
+**Step 5: Create Pharmacy View for Age Imputation**.
+We noticed some missing age data in the medical claims dataset. These patients are also in the pharmacy claim dataset. We can check for patient keys that are missing age in the medical claims dataset and see if there is a matching key in the pharmacy claims dataset with patient age information.
+
+**Step 6: Age Imputation**.
+Perform age imputation on missing age data in medical claims dataset.
+
+**Step 7: Create Unified Cohort Event Features View**.
+During this step we combine medical and pharmacy events into a single, unified view of all events.We union medical events and pharmacy events. Medical events are classified as `OPIOID_ED`, `ED_NON_OPIOID`, or `MEDICAL` based on specific filtering criteria: (1) OPIOID_ED cohort uses F11 ICD code (opioid-related disorders) and other opioid-associated ICD codes including F11.1 (opioid abuse), F11.2 (opioid dependence), and T40.0-T40.6 (poisoning by opioids); (2) ED_NON_OPIOID cohort uses emergency/urgent care settings (HCG code "O11" for Emergency Room) with a drug prescription within 30 days prior; (3) Geographic filtering applies Richmond, VA zip codes (23220-23241, 23249, 23250, 23260, 23269, 23273, 23279, 23284, 23285, 23286, 23289, 23290, 23292, 23294, 23295, 23297, 23298). All pharmacy events are tagged as `PHARMACY`.
+
+**Step 8: Create First Event Views for Target Events Only**.
+During this step we identify this first occurrence of our 'target' event (`OPIOID_ED`, `ED_NON_OPIOID`) for each patient. We only keep all events up to the first target event.
+
+**Step 9: Create Tagged Cohort Events with First Event Assignment**.
+During this step we tag all events with a patient's primary cohort assignment based on the identified first events.
+
+**Step 10: Create Drug Exposure Views for Sequence Modeling**.
+During this step we prepare drug exposure data for sequence modeling for both `OPIOID_ED` and `ED_NON_OPIOID` target cohorts. We do this by exploding drug events into individual rows and applying specific time-based hospitalization rules based on cohort type and target outcome of interest. For ADE cohort identification, we specifically use HCG (Healthcare Cost Group) codes developed by Milliman: "O11" for Emergency Room visits, "I21" for inpatient admissions, and "O41" for observation stays. These HCG codes are cross-referenced with prescription drug event dates within the established 21-day temporal window to identify potential ADE candidates.
+
+**Step 11: Create Control Cohort for Patients with No Target Events**.
+Create a base control cohort for 5:1 population sampling to build final cohort for analysis. Control cohort selection applies the same geographic filtering criteria (Richmond, VA zip codes: 23220-23241, 23249, 23250, 23260, 23269, 23273, 23279, 23284, 23285, 23286, 23289, 23290, 23292, 23294, 23295, 23297, 23298) and excludes patients with any opioid-related ICD codes (F11.x series, T40.0-T40.6) or emergency department visits with HCG code "O11" to ensure clean control population.
+
+**Step 12: Cohort Exclusivity Validation (OPTIMIZED + ENFORCED)**.
+Here we perform logic checks to make sure we do not have the same patient in two cohorts.
+
+**Step 13: Create Sampled OPIOID_ED Cohort**.
+Select target population and Sample from control at 5:1 ratio for final training and analysis dataset.
+
+**Step 14: Create Sampled ED_NON_OPIOID Cohort**.
+Select target population and sample from control at 5:1 ratio for final training and analysis dataset.
+
+## Cost Estimate for the x2iedn.8xlarge Spot Instance
+
+The pipeline utilizes an x2iedn.8xlarge persistent spot EC2 instance for scalable and efficient data transformations and analysis, leveraging its 1TB RAM, 7.6TB local NVMe SSD, and 32 vCPUs. The cost for this instance type on a spot basis ranges from \~\$1.50 to \$2.50 per hour.
+
+Given a complete run for all nine (9) age cohorts takes approximately 4 hours:
+
+-   Cost per full run: \$1.50/hour \* 4 hours = \$6.00 (at the lower end of spot pricing) to \$2.50/hour \* 4 hours = \$10.00 (at the higher end of spot pricing).
+
+If these full runs are performed twice a month, the estimated monthly cost would be:
+
+-   Estimated Monthly Cost: (\$6.00 to \$10.00 per run) \* 2 days/month = \$20 per month.
+
+## Optimizations Enabling the 4-Hour Runtime
+
+The pipeline has undergone a comprehensive transformation to achieve this level of performance and efficiency, integrating six major optimization patterns. These improvements ensure 6-8 cohorts can be processed simultaneously, leading to a processing time of \~30-45 minutes per cohort compared to 2-3 hours on smaller instances.
+
+The following key optimizations contribute to the rapid 4-hour full run:
+
+DuckDB Optimization for x2iedn.8xlarge. The DuckDB instance is finely tuned for large-memory EC2 nodes like the x2iedn.8xlarge, allocating upwards of 900GB RAM and leveraging NVMe storage with multi-threading. This configuration supports entire dataset ingestion and multi-cohort concurrency, allowing the processing of millions of rows and large base tables (e.g., medical_clean, pharmacy_clean, 8-15GB each) to reside in memory.
+
+Column and Row Pruning. This optimization uses SQL projections to select only required columns and `WHERE` clauses for row filtering. It achieves 60-70% I/O reduction during data loading, significantly accelerating ingestion and analytics, particularly for high-frequency event data.
+
+Optimized File Sizing and Partition Management. Parquet files are split to optimal 60-70MB row groups with SNAPPY compression for operational data and ZSTD for archival cohorts. This yields 20-30% storage savings and enables up to 60% faster downstream queries. A partition-overwrite routine cleans S3 partitions before writes, preventing duplicate or overlapping outputs and ensuring data consistency.
+
+Memory Optimization. Complex computations are modularized and broken down into smaller, manageable steps. Temporary tables are promptly dropped after use to free memory, preventing memory exhaustion crashes (return code -9) during intensive operations like deduplication, event creation, or tagging steps. Efficient data extraction uses `fetchall()` instead of `.df()` for large datasets to reduce memory intensity.
+
+Materialized Cohort Hash Keys. MD5 hash-based primary keys are added to each cohort row, enabling efficient deduplication via upsert/merge operations instead of expensive `DISTINCT` queries. The deduplication logic is memory-optimized, breaking large jobs into smaller atomic operations.
+
+Checkpoint System. Each of the 14 pipeline stages implements a checkpointing framework, supporting stateful recovery and execution idempotency. Both metrics (JSON) and filtered Parquet datasets are persisted at each step in S3. An intelligent view recreation mechanism auto-detects and recreates missing database views based on dependency order, which is crucial for complex downstream steps. This system yields \~40-60% faster resume times for key stages, improving time-to-completion.
+
+Early Null Key Audits. This framework performs comprehensive null key validation early in the pipeline. By preventing expensive operations on invalid data, it significantly reduces processing time and memory usage for downstream steps.
+
+DuckDB Query Observability. All long-running SQL queries automatically export `EXPLAIN ANALYZE` output to AWS S3. This provides performance insights for trend analysis and bottleneck identification, allowing for continuous optimization of the pipeline's runtime.
+
+These combined optimizations transform the pipeline into an enterprise-grade, production-ready system capable of rapid, cost-efficient processing of large-scale healthcare datasets.
+
+## Analytical Framework and Pipeline
+
+The pipeline incorporates an Enhanced Analysis Workflow Architecture that integrates various advanced analytical techniques to process healthcare data and identify insights related to Adverse Drug Events (ADEs) and hospitalization risk.
+This workflow is designed as a multimodal data architecture and a unified analysis framework, combining pattern mining, process mining, and formal model explanation.
+
+Here's a breakdown of the key components within this analytical framework and their roles in the pipeline:
+
+- **FP-Growth Pattern Mining Layer**. This layer implements market basket analysis [@han2007frequent] on medication sequences to identify initial feature importances and discover frequent itemsets and clinical network patterns among diagnoses, procedures, and medications. It identifies co-occurring prescriptions using minimum support thresholds (default: 0.05 for initial pattern discovery). The system dynamically adjusts minimum support and lift thresholds to ensure sufficient itemset discovery across both high-density and sparse cohorts, reducing the risk of empty or biased feature sets.
+- **BupaR Process Mining Engine**. The BupaR Process Mining Engine [@van2018bupar] performs temporal pathway analysis, identifies hospitalization precursor patterns, and calculates throughput times between drug administrations. It assesses the temporal behavior of discovered drug patterns. We pass in the FP-Growth identified patterns to construct event logs using `mi_person_key` as the case identifier. Each log entry contains a case identifier (`mi_person_key`), activity label (e.g., drug or hospitalization), timestamp, and lifecycle phase. BupaR enables the identification of common temporal pathways, drug usage sequences preceding adverse events, and deviations from normative care flows [@mans2015application], supporting both exploratory and confirmatory analysis. It supports process conformance checking, trace alignment analysis, and performance metrics evaluation.
+- **CatBoost Predictive Modeling**. CatBoost models [@prokhorenkova2018catboost] are used for predictive modeling of opioid ED events and hospitalization risk. We feature engineer the dataset by incorporating the FP-Growth discovered patterns as network features. It implements temporal cross-validation for cohort-based forecasting and uses Formal Feature Attribution (FFA) for feature importance analysis. The models are trained with optimized parameters, including early stopping and class balancing.
+- **Formal Feature Attribution (FFA)**. FFA is a critical component for ensuring clinical interpretability and causal inference for the features identified by both BupaR and CatBoost models. It closes the loop between mining, prediction, and practical decision-making in pharmacovigilance and clinical support. FFA can be used to rank features by their importance in predicting hospitalization risk. It identifies top-K important features based on support, coverage thresholds, statistical significance testing, class-specific importance rankings, and cross-validation stability. FFA uses symbolic methods like AXPs (Abductive Explanations), Contrastive reasons, and Z3/SAT-based analysis for attribution. FFA provides clinically interpretable risk factors and insights into which prescription drug itemsets drive model predictions.
+
+**Pipeline Workflow**: This integrated analysis approach follows a step-by-step flow:
+
+1. FpGrowth Pattern Mining: Extracts frequent co-occurrence patterns [@agrawal1994fast] (e.g., itemsets of drugs, diagnoses, procedures) from transactional data, identifying significant patterns.
+2. BupaR Process Mining: Converts these itemsets into event logs with timestamps and patient IDs, then analyzes them for process flows, sequences, frequency, and precedence [@van2018bupar].
+3. CatBoost Risk Modeling: Transforms the itemsets into binary features, then trains a CatBoost model [@prokhorenkova2018catboost] to predict risk (e.g., hospitalization, adverse events).
+4. Formal Feature Attribution (FFA): Attributes predictions to individual itemsets, generating interpretable explanations and identifying minimal feature subsets responsible for predictions.
+5. Comparative Analysis: Compares process patterns from BupaR with risk patterns from FFA to identify alignment between frequently used process traces, risk-influential patterns, and clinical pathways.  
+
+The architecture leverages DuckDB [@duckdb2019] on AWS EC2 for scalable and efficient data transformations and analysis. Specifically, the pipeline utilizes an x2iedn.8xlarge persistent spot EC2 instance to control costs while providing high performance with an interactive Jupyter notebook on the front end. This EC2 instance type offers massive memory (1TB RAM), high-speed local NVMe SSD storage (7.6TB total), and 32 vCPUs for parallel processing, making it ideal for processing entire cohort datasets in memory simultaneously at very low cost. We operate the Jupyter notebook with both python (CatBoost and FFA) and R (BupaR) kernels.  
+
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/process_mining_analytics_platform2.png}
+    \caption{Process Mining Analytics Platform - Interactive Insights}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+
+Again, the workhorse of our architecture is a persistent EC2 spot instance on top of an AWS S3 data lake. We use AWS QuickSight with its url embedding feature to embed notebooks (Jupyter or Quarto hosted on S3) alongside any native QuickSight dashboards. This integration allows collaboration, data sharing, transparency, and reproducability for our full, end-end analytical pipeline.
+
+
+\newpage
+
+# Analysis Results
+
+## Drug Combinations Driving ADEs
+
+To visualize the complexity of drug exposure leading up to ADE-related hospitalizations, we constructed a Sankey diagram to show high-frequency transitions between prescribed drugs in the 30-day period preceding admission. Nodes represent individual medications or classes, while directed edges indicate transitions between prescriptions based on temporal order and frequency.
+
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/drug_network_sankey.png}
+    \caption{ADE Prescription Drug Network}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+
+## Drugs/Combinations Unique to the ADE Group
+
+- Escitalopram Oxalate: Selective serotonin reuptake inhibitor (SSRI) used for depression and anxiety.
+- Zolpidem: Sedative-hypnotic prescribed for insomnia.
+- Amlodipine Besylate + Hydrochlorothiazide + Lisinopril: Combination therapy for hypertension.
+- Azithromycin: Macrolide antibiotic for bacterial infections.
+- Chlorthalidone: Thiazide-like diuretic for hypertension and edema.
+- Atenolol: Beta-blocker used in hypertension and angina.
+- Gabapentin: Anticonvulsant and neuropathic pain agent.
+- Sertraline Hydrochloride: SSRI for depression and anxiety disorders.
+- Simvastatin + Lisinopril: Combination of a statin and an ACE inhibitor, used for cholesterol management and hypertension.
+
+
+## Drug Rule Network Pattern Comparison Across Cohorts
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/network_stats_table_54_and_below.png}
+    \caption{Drug Network Patterns: Age 54 and Below}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/network_stats_table_55_and_above.png}
+    \caption{Drug Network Patterns: Age 55 and Above}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+
+The table above shows the top network rule patterns for our two cohorts, Opioid ED and ADE, broken down by ages 55 and above and ages 54 and below. Again, Opioid ED cohort is an opioid influenced emergency room visit where ADE cohort is a hospitalization within 30 days of a prescription event.
+
+
+## Drug Network Pattern Data Visualization 
+
+Within each cohort and age band, specific questions can be answered or policy interventions can be designed. We can look for viable drug alternatives or where drugs may be incorrectly used – this behavior may be happening in our younger opioid cohort, age band 13-24, for year 2017. (Figure 7)
+
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/ed_non_opioid_drug_network_0_12.png}
+    \caption{ADE Cohort for Age Group 0-12}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+
+::: {=latex}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[b]{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/opioid_ed_drug_network_13_24.png}
+    \caption{Opioid ED Cohort for Age Group 13-24}
+  \end{minipage}
+\end{figure}
+\FloatBarrier
+:::
+
+
+All prescription drug network visuals and artifacts are available for download and exploration: http://jerome-dixon.io.s3-website-us-east-1.amazonaws.com/
+
+
+# Conclusion
+
+The combination of drugs listed in the Sankey chart for the ADE cohort suggest a possible association with adverse drug events. These findings highlight the importance of further pharmacovigilance and targeted research to clarify the safety profiles of these medications in clinical practice.
+
+Our results demonstrate that while opioid-related ED visits are often linked to isolated prescribing behaviors, ADE-linked hospitalizations involve more complex drug combinations particularly involving cardiovascular, CNS, and endocrine medications. 
+
+To our knowledge, this is the first application of unsupervised frequent pattern mining and process mining to identify temporal polypharmacy risks in older adults using APCD data. The identification of high-risk drug sequences offers actionable insights for pharmacovigilance, clinical decision support, and quality improvement initiatives.
+
+**Future Work.** As a next step, we will extend this framework with CatBoost-based risk modeling to build predictive models of ADE-related hospitalizations using both structured clinical variables and features derived from itemset mining. This will allow us to quantify patient-level risk and test the predictive utility of drug combination patterns in a supervised learning context.
+
+**Acknowledgements:** The content is solely the responsibility of the author and does not necessarily represent any official views by Virginia Commonwealth University or the University of Virginia.
+
+**Disclosure of Interests:** The content is solely the responsibility of the author and does not necessarily represent any official views by Virginia Commonwealth University or the University of Virginia.
+
+# References
+
+::: {=latex}
+\tiny
+:::
+
+::: {#refs}
+:::
+
+::: {=latex}
+\normalsize
+:::
