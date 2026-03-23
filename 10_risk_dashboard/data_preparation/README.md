@@ -51,6 +51,35 @@ python prepare_risk_distribution_2019.py --all
 
 Lambda includes this in the POST /risk response as `dist` when present so the UI can show "Risk Distribution (2019 holdout)". When the user enters **no** Drug, ICD, or CPT codes, the API returns `risk_score` = `baseline_risk` (actual 2019 outcome rate); as the user adds codes, risk is the model's classification probability. **Risk band label (Low/Medium/High)** is based on **absolute cutoffs** in the API (low &lt;20%, medium 20–50%, high ≥50%), not the 33rd/67th percentiles in this file; those percentiles remain in the JSON for the histogram and reference only.
 
+### `combine_shap_ffa_results.py`
+
+Merges SHAP (Step 7) and FFA (Step 8) outputs into a single `dashboard_data.json` per `(cohort, age_band)`. This file is the **prerequisite for all Step 9 visual generation** — BupaR, DTW, and FP-Growth allowed-codes lists are derived from it.
+
+**Usage:**
+```bash
+python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \
+    --cohort opioid_ed --age-band 25-44
+# Optional: --bin {low|medium|high|extreme} for per-bin combine
+# Optional: --upload-to-dashboard  to push to S3 after writing
+```
+Run by `3_model_train_shap_ffa.ipynb` (Phase 3) after Steps 7 and 8 complete.
+
+**Inputs:**
+- `7_shap_analysis/outputs/{cohort}/{ab}/{cohort}_{ab}_shap_global_importance_xgboost.csv` (preferred) or CatBoost equivalent
+- `7_shap_analysis/outputs/{cohort}/{ab}/{cohort}_{ab}_shap_sample_values_xgboost.parquet`
+- `8_ffa_analysis/outputs/{cohort}/{ab}/xgboost/axp_explanations.parquet` (or `.csv`)
+- `8_ffa_analysis/outputs/{cohort}/{ab}/xgboost/feature_importance_axp.parquet`
+
+Per-bin: same paths under `bin_models/{bin_name}/`.
+
+**Outputs:**
+- `10_risk_dashboard/visualizations/causal/{cohort}/{ab}/dashboard_data.json` — merged SHAP + FFA importance, patient-level explanations, consensus features
+- S3 (with `--upload-to-dashboard`): `visualizations/causal/{cohort}/{age_band}/causal_data.json`
+
+Served by Lambda `GET /visualizations/causal` endpoint. Also read by `run_dashboard_visuals.py` to build the `allowed_codes_shap_ffa_{cohort}_{ab}.json` that gates BupaR, DTW, and FP-Growth event filtering.
+
+**Note:** FFA consensus is already baked into `feature_importance_axp` scores (SHAP-prioritized rules feed FFA weighting). The combine step merges the two importance lists and adds row-level patient explanations; it does not recompute consensus.
+
 ### `generate_metadata.py`
 
 Generates metadata JSON files with valid codes for dropdowns.

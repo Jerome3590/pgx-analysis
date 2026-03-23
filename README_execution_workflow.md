@@ -251,7 +251,7 @@ ls -lh 5_pgx_analysis/outputs/{cohort}/{age_band}/pgx_added_features_*.csv
 
 ### 4.4 Step 6: Final Model Training
 
-**Trains CatBoost, XGBoost, and XGBoost RF models:**
+**Trains four candidates: XGBoost, XGBoost RF, CatBoost, and Ensemble (probability average of XGB + CatBoost):**
 
 ```bash
 # For each cohort and age band:
@@ -437,4 +437,4 @@ aws s3 sync dist/ s3://{your-dashboard-bucket}/
 - **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Causal dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
 - **Idempotent**: All scripts are idempotent and will skip completed steps
 - **Checkpoints**: Pipeline uses S3 checkpoints to track progress
-- **Logs**: Check log files in each step's output directory for detailed execution logs
+- **Logs**: Check log files in `logs/{step_name}/` at repo root (e.g. `logs/6_final_model/`, `logs/7_shap_analysis/`, `logs/9_dtw/`); all steps mirror to `s3://pgx-repository/{step_name}_log/` on completion

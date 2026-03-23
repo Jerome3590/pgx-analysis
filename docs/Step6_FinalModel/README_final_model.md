@@ -74,14 +74,14 @@ y = final_features['is_target_case']
 
 ## Model Training and Selection
 
-Final model development uses the **same three-model ensemble** as feature importance:
+Final model development trains **four candidates** per `(cohort, age_band)`:
 
-- **CatBoost** (gradient boosting on categorical features)
-- **XGBoost (boosted trees)**
+- **XGBoost** (gradient boosting)
 - **XGBoost RF mode** (random forest-style XGBoost)
+- **CatBoost** (symmetric-tree gradient boosting with native categorical support)
+- **Ensemble** (probability average of XGBoost + CatBoost)
 
-These models are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018),
-then the best-performing base model is further tuned and calibrated before being evaluated on a strict 2019 holdout.
+These candidates are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018). The best candidate is selected and all component models are deployed for weighted Lambda inference.
 
 ### MC-CV and Model Selection (2016–2018 Train Window)
 
@@ -93,39 +93,50 @@ The `7_final_model/final_model.ipynb` notebook:
   - **CatBoost**
   - **XGBoost**
   - **XGBoost RF mode**
-- Aggregates per-split metrics (`roc_auc`, `logloss`, `recall`) and computes:
-  - Mean and standard deviation by model
-  - **Model selection criterion:** highest mean **Recall**
+- Aggregates per-split metrics (`pr_auc`, `recall`, `auc`, `logloss`) and computes:
+  - Mean and standard deviation per candidate
+  - **Primary selection criterion:** highest mean **PR-AUC** (robust to 5:1 class imbalance)
+  - **Secondary tiebreaker:** highest mean **Recall**
+  - Ensemble is eligible for selection
 
-The model with the highest mean Recall is chosen as the **base final model** for that cohort/age-band.
+The winning candidate is recorded in `model_metrics_summary.csv` (`selected=True`) and `model_selection_metadata.json`.
 
 ### Optuna Hyperparameter Optimization
 
-Once the best base model is identified, the notebook runs an **Optuna** study on the 2016–2018 training window:
+Optuna runs automatically inside `train_and_evaluate()` when `n_runs` is passed. All candidate models are tuned:
 
-- **Objective:** maximize mean Recall over 5-fold `StratifiedKFold` CV
+- **Objective:** maximize mean **PR-AUC** over `StratifiedKFold` CV
 - **Search space (examples):**
   - CatBoost: `iterations`, `learning_rate`, `depth`, `l2_leaf_reg`
   - XGBoost / XGBoost RF: `n_estimators`, `max_depth`, `learning_rate`, `subsample`, `colsample_bytree`
-- **Output:** best trial parameters and recall score
+- **Output:** best trial parameters → used for final model refit
 
-The tuned hyperparameters are merged with sensible defaults and used to fit a **tuned final model**.
+Per-bin models (`train_per_bin()`) also run Optuna automatically, one study per density bin.
 
-### Temporal Probability Calibration (2016–2018 Only)
+### Platt Scaling Calibration (OOF-based)
 
-To ensure well-calibrated probabilities **without leaking test data**, we use a **temporal calibration strategy**:
+After MC-CV completes, a **Platt scaler** (logistic regression) is fitted per model type using the concatenated out-of-fold (OOF) predictions accumulated during MC-CV:
 
-1. Use `model_data/cohort_name={cohort}/age_band={age_band}/model_events.parquet` to determine each patient’s
-   latest `event_year` within 2016–2018.
-2. Define:
-   - **Train-for-calibration:** patients with `max_event_year` in **2016 or 2017**
-   - **Calibration set:** patients with `max_event_year == 2018`
-3. Refit the tuned model on the 2016–2017 group.
-4. Wrap it in `CalibratedClassifierCV` (`method="isotonic"`, `cv="prefit"`) and fit on the 2018 calibration group.
-5. Report a **Brier score** on the 2018 calibration set as a calibration quality check.
+```
+OOF probabilities from all MC test folds  →  LogisticRegression(C=1.0, solver='lbfgs')
+                                           →  calibration_{model_type}.joblib
+```
 
-The **2019 holdout (true test set) is never used** in tuning or calibration. It is reserved for final performance
-and calibration diagnostics.
+**Why OOF:** Each MC test fold is out-of-fold — the model predicting those rows was never trained on them. Concatenating all OOF folds gives ideal second-stage calibration data without holdout leakage.
+
+**Diagnostics saved to** `calibration_diagnostics.json`:
+
+| Field | Description |
+|-------|-------------|
+| `n_oof_samples` | Total OOF rows used for fitting |
+| `mean_raw_proba` | Mean uncalibrated probability |
+| `mean_calibrated_proba` | Mean post-calibration probability |
+| `observed_rate` | Actual event rate (ground truth) |
+| `calibrator_coef` / `intercept` | LogReg sigmoid parameters |
+
+**Lambda inference:** `load_calibration_model(bin_name=...)` loads the scaler; if missing, raw model probability is used unchanged.
+
+**The 2019 holdout is never used** in tuning or calibration — reserved exclusively for final evaluation.
 
 ### Final Model Artifacts and S3 Layout
 
