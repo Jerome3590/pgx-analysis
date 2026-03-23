@@ -1,0 +1,1205 @@
+---
+title: "Precision Medicine Risk Models Tools and Frameworks - A Literary Review"
+author: "Jerome Dixon"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(rentrez)
+library(dplyr)
+library(readr)
+library(reticulate)
+library(xml2)
+library(purrr)
+library(here)
+library(stringr)
+library(digest)
+library(DT)
+
+```
+
+# Research Questions
+
+## Title
+
+Improving Reach and Capabilities of Safety Net Hospitals through Precision Medicine: A Case Study Utilizing Virginia’s All Payers Claim Database (APCD) and the FDA's Adverse Drug Event Reporting System (FAERS)
+
+## Project Summary
+
+The overarching goal of this project is to investigate how Safety Net Hospitals (SNHs) can improve their reach and clinical capabilities by integrating precision medicine risk models into their healthcare systems. Specifically using Virginia’s All Payers Claim Database (APCD) and the FDA's Adverse Drug Event Reporting System (FAERS) as examples to show opportunities and challenges for implementing precision medicine risk models.
+
+------------------------------------------------------------------------
+
+## Specific Aims
+
+AIMS Statement for Opioid Influenced Emergency Room Risk Model: \### **Aim 1**: To develop a predictive opioid ER risk model using the FDA's FAERS Database and Virginia All Payer's Claim Database. Intent: To analyze the available data in these databases to identify factors contributing to an emergency room visit due to opioid overuse. Measurable Success Criteria: The success of the model will be determined by its ability to predict opioid influenced emergency room visits with an accuracy above 70%.
+
+AIMS Statement for Emergency Room Visit Risk Model: \### **Aim 2**: To create a predictive risk model for an emergency room visit utilizing data from the FDA's FAERS Database and Virginia All Payer's Claim Database. Intent: To analyze the available data in these databases to identify factors contributing to an emergency room visit. Measurable Success Criteria: The success of the model will be determined by its ability to predict emergency room visits with an accuracy above 70%.
+
+AIMS Statement for Identifying Drugs Causing Adverse Events and ER Visits: \### **Aim 3**: To investigate the potential correlation between specific drugs and the occurrence of adverse drug events and emergency room visits using the FAERS Database and Virginia All Payer's Claim Database. Intent: To systematically analyze the data to pinpoint which drugs, if any, are frequently associated with adverse drug events and emergency room admissions. Measurable Success Criteria: The success will be defined by identifying clear patterns or associations between certain drugs and the increase in adverse drug events or emergency room visits.
+
+AIMS Statement Pharmacogenomic Risk Model Cloud Based Solution Architecture: \### **Aim 4**: Develop a cloud based technical architecture and analysis workflow for integrating precision medicine risk models into hospital ecosystems.
+
+## Rationale
+
+Safety Net Hospitals provide care for vulnerable populations but often face financial and resource constraints. The integration of precision medicine risk models can improve both the effectiveness and efficiency of healthcare delivery, thereby benefiting both the hospitals and the communities they serve.
+
+## Significance
+
+The project holds the potential to transform healthcare delivery in SNHs, improve patient outcomes, and offer strategic policy insights for healthcare reform and technological investment.
+
+------------------------------------------------------------------------
+
+# Chapter 1: Introduction & Literature Review
+
+## 1.1 Introduction
+
+The integration of machine learning (ML) models into clinical decision support systems represents a paradigm shift in healthcare delivery, offering unprecedented opportunities to improve patient outcomes through predictive analytics. However, the translation of high-performing ML models from research settings to clinical practice faces significant challenges, particularly regarding model interpretability and trust among healthcare providers.
+
+This chapter provides a comprehensive review of the current state of All Payer Claims Database (APCD) analysis, pharmacovigilance systems, and interpretability methods in machine learning, with a specific focus on bridging the gap between black-box ML models and actionable clinical decision support tools.
+
+## 1.2 The Gap Between Black-Box Machine Learning and Clinical Decision Support
+
+### 1.2.1 The Interpretability Challenge
+
+Modern machine learning algorithms, particularly ensemble methods like gradient boosting (e.g., CatBoost, XGBoost) and deep learning models, often achieve superior predictive performance compared to traditional statistical methods. However, these "black-box" models present a fundamental challenge in clinical settings: healthcare providers require understanding *why* a model makes a particular prediction to trust and act upon its recommendations.
+
+The tension between model performance and interpretability creates a critical barrier to clinical adoption:
+
+- **Clinical Trust**: Physicians need to understand the reasoning behind model predictions to integrate them into clinical workflows
+- **Regulatory Compliance**: Healthcare regulations often require explainability for clinical decision support tools
+- **Error Detection**: Without interpretability, it's difficult to identify when models fail or produce biased predictions
+- **Clinical Education**: Interpretable models can serve as educational tools, helping clinicians understand complex relationships in patient data
+
+### 1.2.2 Current State of Interpretability in Healthcare ML
+
+Recent advances in explainable AI (XAI) have begun to address these challenges. Two prominent approaches have emerged:
+
+1. **SHAP (SHapley Additive exPlanations)**: A unified framework for explaining model outputs based on cooperative game theory, providing both global and local interpretability
+2. **Feature Importance Analysis**: Model-specific methods (e.g., CatBoost's loss function change feature importance) that quantify the contribution of individual features to predictions
+
+These interpretability methods enable clinicians to:
+- Understand which patient factors drive specific predictions
+- Validate model logic against clinical knowledge
+- Identify potential biases or data quality issues
+- Build trust through transparency
+
+## 1.3 Current State of APCD Analysis
+
+### 1.3.1 All Payer Claims Databases: Overview and Applications
+
+All Payer Claims Databases (APCDs) represent comprehensive collections of healthcare claims data from multiple payers, providing a unique resource for population health research and predictive modeling. Virginia's APCD, like similar databases across the United States, contains detailed information on:
+
+- **Demographics**: Patient age, gender, geographic location
+- **Diagnoses**: ICD-10 codes documenting conditions and procedures
+- **Procedures**: CPT codes for medical services
+- **Pharmaceuticals**: Prescription drug claims and utilization
+- **Utilization Patterns**: Emergency department visits, hospitalizations, outpatient services
+
+### 1.3.2 APCD-Based Predictive Modeling
+
+The use of APCD data for predictive modeling has gained traction in recent years, with applications including:
+
+- **Risk Stratification**: Identifying high-risk patients for targeted interventions
+- **Resource Utilization Prediction**: Forecasting emergency department visits and hospitalizations
+- **Cost Prediction**: Estimating healthcare costs for population health management
+- **Quality Metrics**: Assessing healthcare quality and outcomes across populations
+
+However, APCD analysis faces several challenges:
+
+- **Data Quality**: Inconsistencies in coding practices across providers
+- **Missing Data**: Incomplete claims histories and missing clinical details
+- **Temporal Complexity**: Longitudinal data requires sophisticated handling of time-dependent features
+- **Privacy Concerns**: Balancing data utility with patient privacy protection
+
+### 1.3.3 APCD Integration with Machine Learning
+
+Recent literature demonstrates the potential of combining APCD data with advanced ML techniques:
+
+- **Gradient Boosting Models**: CatBoost and XGBoost have shown particular promise for handling the categorical and mixed-type data common in claims databases
+- **Feature Engineering**: Temporal features, interaction terms, and domain-specific transformations enhance model performance
+- **Validation Strategies**: Temporal validation (e.g., training on 2016-2019, testing on 2020) provides realistic performance estimates
+
+## 1.4 Pharmacovigilance: Current State and Machine Learning Applications
+
+### 1.4.1 Traditional Pharmacovigilance Systems
+
+Pharmacovigilance, the science of detecting, assessing, and preventing adverse drug reactions, has traditionally relied on:
+
+- **Spontaneous Reporting Systems**: The FDA's Adverse Event Reporting System (FAERS) collects voluntary reports of adverse drug events
+- **Clinical Trials**: Pre-market safety data from controlled studies
+- **Post-Market Surveillance**: Ongoing monitoring after drug approval
+
+### 1.4.2 Limitations of Traditional Approaches
+
+Traditional pharmacovigilance methods face significant limitations:
+
+- **Underreporting**: Spontaneous reporting systems capture only a fraction of adverse events
+- **Signal Detection Delays**: Manual analysis creates delays in identifying safety signals
+- **Data Quality**: Inconsistent reporting and missing information limit analysis
+- **Scale Challenges**: The volume of reports exceeds human analytical capacity
+
+### 1.4.3 Machine Learning in Pharmacovigilance
+
+Machine learning approaches offer opportunities to enhance pharmacovigilance:
+
+- **Signal Detection**: Automated identification of previously unrecognized adverse drug event patterns
+- **Risk Prediction**: Models predicting individual patient risk for adverse events
+- **Drug-Drug Interactions**: Identification of dangerous drug combinations
+- **Population-Level Analysis**: Large-scale analysis of FAERS and claims data
+
+### 1.4.4 Integration of FAERS and Claims Data
+
+The combination of FAERS (spontaneous reports) and APCD (claims data) provides complementary perspectives:
+
+- **FAERS**: Rich in adverse event narratives but subject to reporting biases
+- **APCD**: Comprehensive population coverage but limited clinical detail
+- **Synergistic Analysis**: Combining both sources can improve signal detection and validation
+
+## 1.5 Interpretability Methods: SHAP and Feature Importance Analysis
+
+### 1.5.1 SHAP (SHapley Additive exPlanations)
+
+SHAP values provide a unified framework for explaining model predictions by:
+
+- **Theoretical Foundation**: Based on Shapley values from cooperative game theory, ensuring fair attribution of feature contributions
+- **Model Agnostic**: Applicable to any machine learning model
+- **Additive Property**: SHAP values sum to the difference between the model output and the expected value
+- **Local and Global Interpretability**: Can explain individual predictions and overall model behavior
+
+**Applications in Healthcare**:
+- Explaining why a patient is predicted to have a high risk of opioid-related emergency department visit
+- Identifying which medications or diagnoses contribute most to hospitalization risk
+- Validating model logic against clinical knowledge
+
+### 1.5.2 Feature Importance Analysis
+
+Model-specific feature importance methods provide complementary insights:
+
+- **CatBoost Feature Importance**: Uses loss function changes to quantify feature contributions
+- **Gradient-Based Methods**: Analyze how gradients flow through the model
+- **Permutation Importance**: Measures performance degradation when features are shuffled
+
+**Advantages**:
+- Model-specific optimizations can provide more accurate importance estimates
+- Computational efficiency for large datasets
+- Integration with model training process
+
+### 1.5.3 Combining Interpretability Methods
+
+The most effective clinical decision support systems combine multiple interpretability approaches:
+
+- **SHAP for Individual Predictions**: Provides detailed explanations for specific patient cases
+- **Feature Importance for Model Understanding**: Identifies key factors driving overall model behavior
+- **Visualization Tools**: Interactive dashboards that present interpretability results to clinicians
+
+### 1.5.4 Interpretability in Clinical Decision Support
+
+For interpretability to be effective in clinical settings, it must:
+
+- **Be Actionable**: Provide insights that inform clinical decision-making
+- **Be Timely**: Deliver explanations quickly enough for real-time use
+- **Be Understandable**: Present information in formats familiar to clinicians
+- **Be Validated**: Demonstrate that explanations align with clinical knowledge and improve outcomes
+
+## 1.6 Literature Review Methodology
+
+The following sections present systematic searches and analyses of the current literature across key domains:
+
+| **Step** | **Activity** | **Tools/Techniques** | **Outcome** |
+|------------------|------------------|------------------|------------------|
+| 1\. Identification | Search databases for relevant papers. | Database search (PubMed, Scopus, etc.) | Initial collection of potentially relevant papers. |
+| 2\. Screening | Exclude irrelevant papers based on titles and abstracts. | Manual screening, possibly assisted by NLP for keyword flagging. | Refined collection of relevant papers. |
+| 3\. Eligibility | Full-text review to select studies based on inclusion criteria. | Manual review, text summarization tools. | Final set of papers included in the review. |
+| 4\. Topic Modeling | Analyze texts to identify prevalent topics and trends. | NLP (e.g., LDA in Gensim, spaCy) | Thematic groups within the literature. |
+| 5\. Keyword Extraction | Extract key terms and phrases from the literature. | NLP tools (e.g., NLTK, spaCy) | List of significant keywords and phrases. |
+| 6\. Data Visualization | Visualize data to highlight trends and comparisons. | Python (Matplotlib, Seaborn), R (ggplot2), Tableau | Charts, graphs, and diagrams to summarize findings. |
+| 7\. Analysis & Synthesis | Synthesize findings to identify gaps and patterns. | Manual analysis complemented by insights from topic modeling and visualizations. | Comprehensive understanding of the research landscape and gaps. |
+| 8\. Recommendations | Formulate conclusions and recommendations based on the analysis. | Dependent on synthesis and expert judgment. | Strategic insights and future research directions. |
+
+## Chapter 1 Literature Search Workflows
+
+### 1. Black-Box Machine Learning and Clinical Decision Support
+
+```{r blackbox-cds-search}
+
+setwd(here("data/chapter1/1.1_introduction/blackbox_cds"))
+
+base_term <- "black box machine learning clinical decision support interpretability explainable AI"
+filename <- "blackbox_cds_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+blackbox_cds_results <- read_csv(here("data/chapter1/1.1_introduction/blackbox_cds","blackbox_cds_articles.csv"))
+```
+
+```{r}
+blackbox_cds_results_pmc_id <- blackbox_cds_results %>% 
+  filter(!is.na(pmc_id))
+
+blackbox_cds_results <- blackbox_cds_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+```
+
+### 2. All Payer Claims Database (APCD) Analysis
+
+```{r apcd-analysis-search}
+
+setwd(here("data/chapter1/1.3_methodological/apcd_analysis"))
+
+base_term <- "all payers claim database"
+filename <- "apcd_analysis_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+apcd_results <- read_csv(here("data/chapter1/1.3_methodological/apcd_analysis","apcd_analysis_articles.csv"))
+```
+
+```{r}
+apcd_results_pmc_id <- apcd_results %>% 
+  filter(!is.na(pmc_id))
+
+apcd_results <- apcd_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+```
+
+### 3. Pharmacovigilance and Adverse Drug Events
+
+```{r pharmacovigilance-search}
+
+setwd(here("data/chapter1/1.2_clinical_background/pharmacovigilance"))
+
+base_term <- "pharmacovigilance pharmacogenomics"
+filename <- "pharmacovigilance_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+pharmacovigilance_results <- read_csv(here("data/chapter1/1.2_clinical_background/pharmacovigilance","pharmacovigilance_articles.csv"))
+```
+
+```{r}
+pharmacovigilance_results_pmc_id <- pharmacovigilance_results %>% 
+  filter(!is.na(pmc_id))
+
+pharmacovigilance_results <- pharmacovigilance_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+```
+
+### 4. Interpretability Methods: SHAP and Feature Importance Analysis
+
+```{r interpretability-search}
+
+setwd(here("data/chapter1/1.1_introduction/interpretability"))
+
+base_term <- "SHAP Shapley additive explanations feature importance interpretability healthcare machine learning"
+filename <- "interpretability_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+interpretability_results <- read_csv(here("data/chapter1/1.1_introduction/interpretability","interpretability_articles.csv"))
+```
+
+```{r}
+interpretability_results_pmc_id <- interpretability_results %>% 
+  filter(!is.na(pmc_id))
+
+interpretability_results <- interpretability_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+```
+
+### 5. Pattern Mining: FP-Growth and Association Rules
+
+```{r fpgrowth-search}
+
+setwd(here("data/chapter1/1.3_methodological/pattern_mining/fpgrowth"))
+
+base_term <- "association rules healthcare"
+filename <- "fpgrowth_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+fpgrowth_results <- read_csv(here("Chapter1_FPGrowth","fpgrowth_broader_articles.csv"))
+```
+
+### 6. Process Mining: BupaR and Patient Journeys
+
+```{r process-mining-search}
+
+setwd(here("data/chapter1/1.3_methodological/pattern_mining/process_mining"))
+
+base_term <- "process mining healthcare"
+filename <- "process_mining_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+process_mining_results <- read_csv(here("Chapter1_ProcessMining","process_mining_broader_articles.csv"))
+```
+
+### 7. Opioid Use Disorder (OUD) - Clinical Background
+
+```{r opioid-disorder-search}
+
+setwd(here("data/chapter1/1.2_clinical_background/opioid_disorder"))
+
+base_term <- "opioid use disorder risk factors"
+filename <- "opioid_disorder_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+opioid_disorder_results <- read_csv(here("Chapter1_OpioidDisorder","opioid_disorder_broader_articles.csv"))
+```
+
+### 8. Polypharmacy and Drug Interactions
+
+```{r polypharmacy-search}
+
+setwd(here("data/chapter1/1.2_clinical_background/polypharmacy"))
+
+base_term <- "polypharmacy elderly drug interactions adverse events"
+filename <- "polypharmacy_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+polypharmacy_results <- read_csv(here("Chapter1_Polypharmacy","polypharmacy_articles.csv"))
+```
+
+### 9. Drug-Drug Interactions (DDIs)
+
+```{r ddi-search}
+
+setwd(here("data/chapter1/1.2_clinical_background/drug_interactions"))
+
+base_term <- "drug-drug interactions DDI synergistic adverse drug events"
+filename <- "drug_interactions_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+ddi_results <- read_csv(here("Chapter1_DrugInteractions","drug_interactions_articles.csv"))
+```
+
+### 10. Ensemble Methods: CatBoost and XGBoost
+
+```{r catboost-search}
+
+setwd(here("data/chapter1/1.4_technical/catboost_xgboost"))
+
+base_term <- "CatBoost XGBoost gradient boosting healthcare claims data"
+filename <- "catboost_xgboost_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+catboost_results <- read_csv(here("Chapter1_CatBoost","catboost_xgboost_articles.csv"))
+```
+
+### 11. Dynamic Time Warping (DTW)
+
+```{r dtw-search}
+
+setwd(here("data/chapter1/1.3_methodological/pattern_mining/dtw"))
+
+base_term <- "dynamic time warping healthcare"
+filename <- "dtw_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+dtw_results <- read_csv(here("Chapter1_DTW","dtw_articles.csv"))
+```
+
+### 12. Temporal Causality and Temporal Windows
+
+```{r temporal-causality-search}
+
+setwd(here("data/chapter1/1.3_methodological/temporal_causality"))
+
+base_term <- "temporal causality healthcare claims data temporal windows"
+filename <- "temporal_causality_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+temporal_causality_results <- read_csv(here("Chapter1_TemporalCausality","temporal_causality_articles.csv"))
+```
+
+### 13. Target Leakage and Data Leakage Prevention
+
+```{r target-leakage-search}
+
+setwd(here("data/chapter1/1.3_methodological/target_leakage"))
+
+base_term <- "target leakage data leakage machine learning healthcare prevention"
+filename <- "target_leakage_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+target_leakage_results <- read_csv(here("Chapter1_TargetLeakage","target_leakage_articles.csv"))
+```
+
+### 14. Scalable Analytics: DuckDB and OLAP Engines
+
+```{r duckdb-search}
+
+setwd(here("data/chapter1/1.4_technical/duckdb_olap"))
+
+base_term <- "analytical database healthcare"
+filename <- "duckdb_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+```{r}
+duckdb_results <- read_csv(here("Chapter1_DuckDB","duckdb_broader_articles.csv"))
+```
+
+## Helper Functions
+
+#### PubMed Search
+
+```{r search-function}
+
+# Function to search PubMed, retrieve all article details for the last 5 years, and save to CSV
+search_pubmed_all <- function(query, filename) {
+  # Get the current year
+  current_year <- format(Sys.Date(), "%Y")
+  # Calculate the start year (5 years ago)
+  start_year <- as.integer(current_year) - 5
+  
+  # Modify the query to include the date range
+  query <- paste(query, "AND", paste(start_year, ":", current_year, "[PDAT]"))
+
+  initial_search <- entrez_search(db="pubmed", term=query, use_history = TRUE)
+  total_count <- initial_search$count
+  
+  if (total_count == 0) {
+    return(paste("No articles found for query:", query))
+  }
+  
+  batch_size <- 50
+  all_articles <- list()
+  
+  for (start in seq(1, total_count, by = batch_size)) {
+    fetched_articles <- entrez_fetch(db="pubmed", 
+                                     web_history = initial_search$web_history, 
+                                     retstart = start, 
+                                     retmax = batch_size, 
+                                     rettype = "xml")
+    # Parse XML to get details
+    xml_articles <- read_xml(fetched_articles)
+    
+    articles <- xml_find_all(xml_articles, "//PubmedArticle")
+    
+    article_details <- map_df(articles, ~{
+      title <- xml_text(xml_find_first(.x, ".//ArticleTitle"))
+      authors <- xml_text(xml_find_all(.x, ".//Author//LastName"))
+      pubdate <- xml_text(xml_find_first(.x, ".//PubDate/Year"))
+      pmc_id <- xml_text(xml_find_first(.x, ".//ArticleId[@IdType='pmc']"))
+      tibble(title = title, authors = authors, pubdate = pubdate, pmc_id = pmc_id)
+    })
+    
+    all_articles <- bind_rows(all_articles, article_details)
+    
+    all_articles %<>% 
+      group_by(title, pubdate, pmc_id) %>%
+      summarise(authors = paste(authors, collapse = ", "), .groups = 'drop') %>% 
+      mutate(pmc_id = if_else(str_starts(pmc_id, "PMC"), pmc_id, paste0("PMC", pmc_id)))
+
+  }
+  
+  # Save the data frame to a CSV file
+  write_csv(all_articles, filename)
+  return(paste("Data saved to", filename))
+}
+```
+
+#### PubMed Download
+
+```{python download-pubmed-article-function}
+
+import pandas as pd
+import requests
+import os
+
+def download_pmc_article(pmc_id):
+    current_dir = os.getcwd()
+
+    # Ensure the directories exist
+    pubmed_json_dir = os.path.join(current_dir, "pubmed_json_files")
+    pubmed_dir = os.path.join(current_dir, "pubmed_files")
+    os.makedirs(pubmed_json_dir, exist_ok=True)
+    os.makedirs(pubmed_dir, exist_ok=True)
+
+    # Try with the 'PMC' prefix first
+    urls = [
+        f"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/PMC{pmc_id}/unicode",
+        f"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/{pmc_id}/unicode"
+    ]
+
+    for url in urls:
+        response = requests.get(url)
+        if response.status_code == 200:
+            file_name = os.path.join(pubmed_json_dir, f"{pmc_id}.json") if 'PMC' in pmc_id else os.path.join(pubmed_dir, f"PMC{pmc_id}.json")
+            with open(file_name, 'wb') as f:
+                f.write(response.content)
+            return f"Downloaded {file_name}"
+    
+    # If neither URL worked, return the failure status
+    return f"Failed to download PMC{pmc_id} - Status Code: {response.status_code}"
+
+  
+```
+
+#### Find Missing Articles from Download
+
+```{r find-missing-article-function}
+
+# function to find missing articles based on file size in a directory
+find_missing_articles <- function(directory_path) {
+  # List all JSON files in the specified directory
+  files <- list.files(directory_path, pattern = "\\.json$", full.names = TRUE)
+
+  # Get file sizes using file.info
+  file_details <- file.info(files)
+
+  # Filter files that are 2 bytes or less in size
+  missing_files <- file_details[file_details$size <= 50, ]
+
+  # Extract PMC IDs from the filenames
+  extracted_pmc_ids <- sub("^(PMC[0-9]+)\\.json$", "\\1", basename(rownames(missing_files)))
+
+  # Convert to a character vector
+  missing_articles <- as.character(extracted_pmc_ids)
+
+  # Return the character vector of missing articles
+  return(missing_articles)
+}
+
+```
+
+#### Convert PDFs to JSON
+
+```{python}
+
+import boto3
+from time import sleep
+import json
+import os
+
+# Initialize the Boto3 clients
+s3 = boto3.client('s3')
+textract = boto3.client('textract')
+comprehend = boto3.client('comprehend')
+
+bucket_name = "pgx-repository"
+pdf_folder_key = "projects/Lit_Review/pdf_files/"
+json_folder_key = "projects/Lit_Review/json_files/"
+
+
+# Function to process text extraction job
+def process_text_extraction_job(job_id):
+    status = textract.get_document_text_detection(JobId=job_id)
+    while status['JobStatus'] in ['IN_PROGRESS', 'RUNNING']:
+        sleep(5)
+        status = textract.get_document_text_detection(JobId=job_id)
+
+    if status['JobStatus'] == 'SUCCEEDED':
+        pages = []
+        next_token = None
+        while True:
+            response_options = {'JobId': job_id}
+            if next_token:
+                response_options['NextToken'] = next_token
+
+            result = textract.get_document_text_detection(**response_options)
+            pages.extend(result.get('Blocks', []))
+
+            next_token = result.get('NextToken', None)
+            if not next_token:
+                break
+
+        text = ' '.join([block['Text'] for block in pages if block['BlockType'] == 'LINE'])
+        return text
+    else:
+        raise Exception(f"Document processing failed with status {status['JobStatus']}")
+
+
+# Function to extract text from PDF using Textract
+def extract_text_from_pdf(document_name):
+    response = textract.start_document_text_detection(
+        DocumentLocation={'S3Object': {'Bucket': bucket_name, 'Name': document_name}}
+    )
+    job_id = response['JobId']
+    return process_text_extraction_job(job_id)
+
+
+def translate_text(text):
+    # Split text into chunks of 10000 characters
+    max_chunk_size = 10000  # This size is arbitrary; adjust based on your needs and testing
+    chunks = [text[i:i+max_chunk_size] for i in range(0, len(text), max_chunk_size)]
+
+    # Initialize variables to hold the full translated text
+    full_translated_text = []
+
+    for chunk in chunks:
+        # Detecting the language of the chunk
+        lang_code = comprehend.detect_dominant_language(Text=chunk)['Languages'][0]['LanguageCode']
+
+        # Translating chunk to English if necessary
+        if lang_code != 'en':
+            translated_text = comprehend.translate_text(
+                Text=chunk, SourceLanguageCode=lang_code, TargetLanguageCode='en'
+            )['TranslatedText']
+        else:
+            translated_text = chunk
+
+        # Append the translated chunk to the full text
+        full_translated_text.append(translated_text)
+
+    # Join all translated chunks into a single text
+    return ' '.join(full_translated_text)
+
+
+
+# List all PDF files in the specified folder
+def list_pdf_files():
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=pdf_folder_key)
+    return [content['Key'] for content in response.get('Contents', []) if content['Key'].endswith('.pdf')]
+
+
+```
+
+#### Process Phrases
+
+```{python calculate-phrases}
+
+def process_phrases(doc):
+    keywords = {"algorithm", "model", "catboost", "xgboost", "neural network", "deep learning", "regression", "accuracy", "decision tree", "precision", "recall", "cloud", "amazon", "microsoft", "epic", "cerner", "fhir", "classification", "risk model", "shap", "interpretability", "explainable ai", "black box", "clinical decision support", "apcd", "all payer claims", "pharmacovigilance", "adverse drug event", "faers", "feature importance", "shapley"}
+    boost_factor = 2.5
+    phrases = []
+
+    # Extract phrases and adjust ranks based on the presence of keywords
+    for phrase in doc._.phrases:
+        if any(keyword in phrase.text for keyword in keywords):
+            adjusted_rank = phrase.rank * boost_factor
+        else:
+            adjusted_rank = phrase.rank
+        phrases.append((phrase.text, adjusted_rank, phrase.count))
+
+    # Sort phrases by the adjusted rank
+    top_phrases = sorted(phrases, key=lambda x: x[1], reverse=True)[:25]
+
+    # Convert the list to a dictionary of the top 25 phrases with their ranks and counts
+    top_25_phrases = {phrase[0]: {'Rank': phrase[1], 'Count': phrase[2]} for phrase in top_phrases}
+
+    return top_25_phrases
+
+
+```
+
+#### Process Entities
+
+```{python calculate-entities}
+
+def process_entities(doc):
+    interesting_labels = ["PRODUCT", "EVENT", "WORK_OF_ART", "ORG"]
+    unique_entities = {}
+
+    # Loop through the entities and count them if they match the interesting labels
+    for ent in doc.ents:
+        if ent.label_ in interesting_labels:
+            key = (ent.text, ent.label_)
+            unique_entities[key] = unique_entities.get(key, 0) + 1
+
+    # Separate entities by type
+    org_entities = {k: v for k, v in unique_entities.items() if k[1] == "ORG"}
+    other_entities = {k: v for k, v in unique_entities.items() if k[1] != "ORG"}
+
+    # Sort ORG entities by count and get top 20
+    top_org_entities = sorted(org_entities.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    # Combine top ORG entities with all other entities
+    final_entities = list(other_entities.items()) + top_org_entities
+
+    return final_entities
+
+
+```
+
+## PGx Article Workflow
+
+#### 1. Search PubMed API
+
+```{r pgx-search}
+
+setwd(here("data/other_chapters/pgx_models"))
+
+base_term <- "risk model classification precision medicine"
+filename <- "pgx_risk_classifcation_articles.csv"
+
+cat("Searching for:", base_term, "\n\n")
+result <- search_pubmed_all(base_term, filename)
+print(result)
+
+```
+
+#### 2. Download PubMed Search Results as JSON
+
+```{r}
+
+pgx_results <- read_csv("PGx_Classification_Models/pgx_risk_classifcation_articles.csv")
+
+```
+
+```{r}
+
+pgx_results_pmc_id <- pgx_results %>% 
+  filter(!is.na(pmc_id))
+
+pgx_results <- pgx_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+
+sum(is.na(pgx_results$pmc_id))
+  
+```
+
+```{python}
+
+os.chdir('D:/Projects/Literature_Review/PGx_Classification_Models')
+
+# Load the results
+results = r.pgx_results_pmc_id
+
+# Download articles
+import os
+if not os.path.exists('pubmed_json_files'):
+    os.makedirs('pubmed_json_files')
+    
+download_statuses = [download_pmc_article(pmc_id) for pmc_id in results['pmc_id'].dropna()]
+print(download_statuses)
+
+```
+
+#### 3. For Incomplete PGx Data - Manual Search. Save to Zotero.
+
+```{r}
+
+missing_pgx <- find_missing_articles("data/other_chapters/pgx_models/pubmed_json_files/")
+
+
+# Filter pgx_results to find rows with PMC IDs that are not in the extracted list
+missing_pgx_articles <- pgx_results %>%
+  filter(pmc_id %in% missing_pgx | str_detect(pmc_id, '^HSH')) %>% 
+  mutate(Selected = '',
+         Category = 'PGx Risk Model')
+
+missing_pgx_articles
+
+```
+
+```{r}
+
+write_csv(missing_pgx_articles, here("data/other_chapters/pgx_models", "missing_pgx_articles.csv"))
+
+```
+
+![Zotero](images/zotero.png)
+
+(Repeat the same PGx workflow with new search terms)
+
+## Risk Models with Electronic Health Records (EHR)/Clinical Decision Support Tools
+
+```{r}
+
+setwd(here("data/other_chapters/ehr_models"))
+
+base_term2 <- "risk model electronic health records clinical decision support"
+filename <- "risk_model_ehr_articles.csv"
+
+cat("Searching for:", base_term2, "\n\n")
+result2 <- search_pubmed_all(base_term2, filename)
+print(result2)
+
+```
+
+```{r}
+
+ehr_results <- read_csv(here("data/other_chapters/ehr_models","risk_model_ehr_articles.csv"))
+
+```
+
+```{r}
+
+ehr_results_pmc_id <- ehr_results %>% 
+  filter(!is.na(pmc_id))
+
+ehr_results <- ehr_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+
+sum(is.na(ehr_results$pmc_id))
+  
+```
+
+```{python}
+
+import os
+import pandas as pd 
+
+os.chdir('D:/Projects/Literature_Review/Risk_Models_EHR')
+
+results2 = r.ehr_results_pmc_id
+
+# Download articles
+download_statuses_ehr = [download_pmc_article(pmc_id) for pmc_id in results2['pmc_id'].dropna()]
+print(download_statuses_ehr)
+
+
+```
+
+```{r}
+
+ehr_results_no_pmc_id <- ehr_results %>% 
+  filter(is.na(pmc_id))
+
+missing_ehr <- find_missing_articles("data/other_chapters/ehr_models/pubmed_json_files/")
+
+print(missing_ehr)
+
+```
+
+#### Missing EHR Articles
+
+```{r}
+
+# Filter pgx_results to find rows with PMC IDs that are not in the extracted list
+missing_ehr_articles <- ehr_results %>%
+  filter(pmc_id %in% missing_ehr | str_detect(pmc_id, '^HSH')) %>% 
+  mutate(Selected = '',
+         Category = 'EHR')
+
+missing_ehr_articles
+
+```
+
+```{r}
+
+write_csv(missing_ehr_articles, here("data/other_chapters/ehr_models", "missing_ehr_articles.csv"))
+
+```
+
+### Load in Missing Files from Zotero
+
+### Convert PDF Files (missing from initial API query - manual download) to JSON
+
+## Risk Models with EHRs and FHIR Protocol
+
+```{r}
+
+setwd(here("data/other_chapters/fhir_models"))
+
+base_term3 <- "electronic health records fast healthcare interoperability resources fhir"
+filename <- "fhir_ehr_articles.csv"
+
+cat("Searching for:", base_term3, "\n\n")
+result3 <- search_pubmed_all(base_term3, filename)
+print(result3)
+
+```
+
+```{r}
+
+fhir_results <- read_csv(here("data/other_chapters/fhir_models","fhir_ehr_articles.csv"))
+
+```
+
+```{r}
+
+fhir_results_pmc_id <- fhir_results %>% 
+  filter(!is.na(pmc_id))
+
+fhir_results <- fhir_results %>%
+  rowwise() %>% 
+  mutate(pmc_id = ifelse(is.na(pmc_id),
+                         paste0("HSH", substr(digest(authors, algo = "md5"), 1, 8)),
+                         pmc_id))
+
+sum(is.na(fhir_results$pmc_id))
+  
+```
+
+```{python}
+
+os.chdir('D:/Projects/Literature_Review/Risk_Models_FHIR_EHR')
+
+# Load the results
+results3 = r.fhir_results_pmc_id
+    
+download_statuses_fhir = [download_pmc_article(pmc_id) for pmc_id in results3['pmc_id'].dropna()]
+print(download_statuses_fhir)
+
+```
+
+#### Missing FHIR EHR Articles
+
+```{r}
+
+fhir_results_no_pmc_id <- fhir_results %>% 
+  filter(is.na(pmc_id))
+
+missing_fhir <- find_missing_articles("data/other_chapters/fhir_models/pubmed_json_files/")
+print(missing_fhir)
+
+```
+
+```{r}
+
+# Filter fhir_results to find rows with PMC IDs that are not in the extracted list
+missing_fhir_articles <- fhir_results %>% 
+  filter(pmc_id %in% missing_fhir | str_detect(pmc_id, '^HSH')) %>% 
+  mutate(Selected = '',
+         Category = 'FHIR')
+
+missing_fhir_articles
+
+```
+
+```{r}
+
+write_csv(missing_fhir_articles, here("data/other_chapters/fhir_models", "missing_fhir_articles.csv"))
+
+```
+
+## Zotero Search
+
+```{r}
+
+zotero_search <- rbind(missing_pgx_articles, missing_ehr_articles, missing_fhir_articles)
+
+write_csv(zotero_search, here("zotero","zotero_search.csv"))
+
+```
+
+## Convert Zotero PDF Files (missing from initial API query - manual download) to JSON
+
+```{python}
+
+# Process PDF files
+for pdf_file in list_pdf_files():
+    try:
+        # Extract text from PDF
+        extracted_text = extract_text_from_pdf(pdf_file)
+        
+        # Extract PMC ID from filename
+        pmc_id = os.path.splitext(os.path.basename(pdf_file))[0]
+        
+        # Translate text
+        translated_text = translate_text(extracted_text)
+
+        # Prepare JSON output
+        output_json = json.dumps({pmc_id: translated_text})
+
+        # Define the name for the JSON file
+        json_file_name = os.path.basename(pdf_file).replace('.pdf', '.json')
+        
+        # Save JSON to the S3 bucket
+        s3.put_object(Bucket=bucket_name, Key=f"{json_folder_key}{json_file_name}", Body=output_json)
+
+        print(f"Processed and saved JSON for {pdf_file}")
+    except Exception as e:
+        print(f"Failed to process {pdf_file}: {str(e)}")
+
+```
+
+## Process All JSON Files with PyTextRank to Create Final DataFrame
+
+```{python}
+
+import json
+import pathlib
+import spacy
+import pytextrank
+import pandas as pd
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Define functions parse_json_text, process_phrases, process_entities here
+def parse_json_text(data):
+    try:
+        passages = data[0]["documents"][0]['passages']
+        if len(passages) >= 3:
+            title = passages[0].get('text', '')
+            abstract = passages[1].get('text', '')
+            intro = passages[2].get('text', '')
+            combined_text = f"{title} {abstract} {intro}"
+            return combined_text.strip()
+        else:
+            logging.warning("Not enough passages to extract the required texts.")
+            return "Not enough passages to extract the required texts."
+    except (IndexError, KeyError, TypeError) as e:
+        logging.error(f"Error extracting text: {str(e)}")
+        return f"Error extracting text: {str(e)}"
+
+def process_row(row, nlp, process_entities, process_phrases):
+    file_path = pathlib.Path(f"input_files/{row['pmc_id']}.json")
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            text = parse_json_text(data)
+            if text == "":
+                text = data.get('ExtractedText', '')
+            logging.info(f"Processed text for PMC ID {row['pmc_id']}: {text[:50]}...")
+    except FileNotFoundError:
+        logging.error(f"File not found: {file_path}")
+        text = ''
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from {file_path}: {e}")
+        text = ''
+    except ValueError as e:
+        logging.error(f"Data structure error: {e}")
+        text = ''
+    
+    doc = nlp(text)
+    entities = process_entities(doc)
+    top_phrases = process_phrases(doc)
+    return {'Top Phrases': top_phrases, 'Entities': entities}
+
+# Load spaCy model and add PyTextRank to the pipeline
+nlp = spacy.load("en_core_web_sm")
+nlp.add_pipe("textrank", last=True)
+
+results = r.pgx_results_pmc_id
+
+# Apply the function to each row in the DataFrame and unpack results
+results[['Top Phrases', 'Entities']] = results.apply(lambda row: pd.Series(process_row(row, nlp, process_entities, process_phrases)), axis=1)
+
+print(results.head(15))
+
+```
+
+## Questions We Need to Answer From Literature Review
+
+### Chapter 1: Introduction & Literature Review Questions
+
+#### Black-Box ML and Clinical Decision Support
+- What are the key barriers to adopting black-box ML models in clinical settings?
+- How do interpretability requirements differ across clinical specialties?
+- What evidence exists for improved outcomes when using interpretable vs. black-box models?
+- What frameworks exist for evaluating interpretability in clinical decision support?
+
+#### APCD Analysis
+- What are the current best practices for APCD-based predictive modeling?
+- How do different ML algorithms perform on APCD data?
+- What are the main data quality challenges in APCD analysis?
+- How are temporal patterns in claims data best handled?
+
+#### Pharmacovigilance
+- What ML methods are most effective for signal detection in pharmacovigilance?
+- How can FAERS and claims data be effectively combined?
+- What are the limitations of current pharmacovigilance ML approaches?
+- How do pharmacovigilance models perform in real-world clinical settings?
+
+#### Interpretability (SHAP/Feature Importance)
+- How are SHAP values being used in clinical decision support systems?
+- What is the evidence for SHAP improving clinical trust and adoption?
+- How do different feature importance methods compare in healthcare applications?
+- What visualization techniques are most effective for presenting interpretability results to clinicians?
+
+### General Literature Review Questions
+
+### Types of Risk Models Developed
+
+### Diseases Targeted
+
+### Algorithms/Statistical Methods Used
+
+### Predictive Performance/Accuracy
+
+### Implemented in a clinical setting?
+
+### Outcomes/performance if implemented in a clinical setting.
