@@ -32,7 +32,7 @@ aws configure
 | 2 | **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Feature importance screening and refinement | 3a → 3b → 3c |
 | 3 | **[3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb)** | Model training, feature attribution, analysis | 4 → 5 → 6 → 7 → 8 |
 | 4 | **[4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb)** | Dashboard visualizations (BupaR, DTW, FP-Growth) | 9 (visuals) |
-| 5 | **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy (Lambda, Docker, S3) | 9 (deploy) |
+| 5 | **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy (Lambda, Docker, S3) | 10 (deploy) |
 
 **Execution Model**: Each notebook syncs required inputs from **S3 to NVMe** via `aws s3 sync` and uses **S3 checkpoints** for idempotency, so completed steps are skipped automatically.
 
@@ -101,7 +101,7 @@ pgx-analysis/
 ├── 7_shap_analysis/              # Step 7: SHAP-based post-model analysis
 ├── 8_ffa_analysis/               # Step 8: Formal Feature Attribution (FFA) analysis
 ├── 9_dashboard_visuals/          # Step 9 (visual prep): BupaR, DTW, FP-Growth visualization generation
-├── 10_risk_dashboard/            # Step 9 (build/deploy): Risk calculator, Lambda, API Gateway
+├── 10_risk_dashboard/            # Step 10 (build/deploy): Risk calculator, Lambda, API Gateway
 ├── 11_testing/                   # Integration and smoke tests for pipeline steps and dashboard visuals
 ├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
@@ -199,9 +199,9 @@ pgx-analysis/
 - Compute feature attribution and causal importance scores
 - **Output:** `causal_importance.parquet`, `feature_importance_axp.parquet`, `interaction_analysis.parquet`
 
-### Step 9: Risk Dashboard (two sub-phases)
-- **Notebook 4 — Visual prep** (`9_dashboard_visuals/`): Generate BupaR process mining, DTW trajectory, and FP-Growth visualizations; combine SHAP + FFA results into `combined_importance.csv`
-- **Notebook 5 — Build & deploy** (`10_risk_dashboard/`): Prepare models and metadata for Lambda; build Docker container; deploy S3 frontend + Lambda + API Gateway
+### Steps 9–10: Risk Dashboard
+- **Step 9 / Notebook 4 — Visual prep** (`9_dashboard_visuals/`): Generate BupaR process mining, DTW trajectory, and FP-Growth visualizations; combine SHAP + FFA results into `combined_importance.csv`
+- **Step 10 / Notebook 5 — Build & deploy** (`10_risk_dashboard/`): Prepare models and metadata for Lambda; build Docker container; deploy S3 frontend + Lambda + API Gateway
 - **Output:** Visualization artifacts in S3, Lambda ECR container, live API endpoints
 
 ---
