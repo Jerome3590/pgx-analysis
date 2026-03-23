@@ -755,7 +755,7 @@ def main():
     from py_helpers.fe_monitor import function_block  # noqa: E402
     from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
     pl = setup_pipeline_logger(
-        step_name="cohort_pgx",
+        step_name="9_cohort_pgx",
         cohort=args.cohort,
         age_band=args.age_band,
         script_name="fetch_vip_reports",

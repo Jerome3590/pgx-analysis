@@ -335,7 +335,7 @@ def create_fpgrowth_visuals(
         return True
 
     logger = setup_pipeline_logger(
-        step_name="6_fpgrowth",
+        step_name="9_fpgrowth",
         cohort=cohort_name,
         age_band=age_band,
         script_name="create_fpgrowth_visuals"

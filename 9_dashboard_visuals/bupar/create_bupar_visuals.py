@@ -657,7 +657,7 @@ def create_bupar_visuals(
     plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
     if not force and plots_dir.exists() and list(plots_dir.glob("*.png")):
         logger_bupar = setup_pipeline_logger(
-            step_name="4_bupar",
+            step_name="9_bupar",
             cohort=cohort_name,
             age_band=age_band,
             script_name="create_bupar_visuals_skip",
@@ -667,7 +667,7 @@ def create_bupar_visuals(
         return True
 
     logger = setup_pipeline_logger(
-        step_name="4_bupar",
+        step_name="9_bupar",
         cohort=cohort_name,
         age_band=age_band,
         script_name="create_bupar_visuals"

@@ -292,6 +292,30 @@ class BaseSymbolicExplainer(ABC):
             ]
         )
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def mirror_logs_to_s3(self) -> None:
+        """Mirror the standard logs/8_ffa_analysis/ log file to S3 (best-effort). Call after analysis completes."""
+        std_log = getattr(self, '_std_log_path', None)
+        if std_log is None:
+            return
+        from pathlib import Path as _Path
+        std_log = _Path(std_log)
+        if not std_log.exists():
+            return
+        path_config = getattr(self, 'path_config', None)
+        cohort = getattr(path_config, 'cohort', None) if path_config else None
+        age_band = getattr(path_config, 'age_band', None) if path_config else None
+        if not cohort or not age_band:
+            return
+        try:
+            import sys
+            _repo_root = _Path(__file__).resolve().parents[1]
+            if str(_repo_root) not in sys.path:
+                sys.path.insert(0, str(_repo_root))
+            from py_helpers.fe_monitor import mirror_log_to_s3
+            mirror_log_to_s3("8_ffa_analysis", cohort, age_band, std_log, self.logger)
+        except Exception:
+            pass
     
     def _get_condition_literal(self, feat_idx: int, threshold: float, direction: int) -> int:
         """

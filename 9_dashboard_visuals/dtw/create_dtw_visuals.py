@@ -1290,12 +1290,12 @@ def main() -> None:
     if not (project_root / "4_model_data").exists():
         project_root = REPO_ROOT
     pl = setup_pipeline_logger(
-        step_name="5_dtw",
+        step_name="9_dtw",
         cohort=args.cohort_name,
         age_band=args.age_band,
         script_name="create_dtw_visuals",
     )
-    with function_block("5_dtw", "create_dtw_visuals", logger=pl.logger):
+    with function_block("9_dtw", "create_dtw_visuals", logger=pl.logger):
         pl.info("Starting DTW visuals for %s / %s", args.cohort_name, args.age_band)
         create_dtw_visuals(
             project_root=project_root,

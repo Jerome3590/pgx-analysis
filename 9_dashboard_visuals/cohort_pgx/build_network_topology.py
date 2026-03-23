@@ -1090,13 +1090,13 @@ def main():
     from py_helpers.pipeline_logger import setup_pipeline_logger  # noqa: E402
 
     pl = setup_pipeline_logger(
-        step_name="cohort_pgx",
+        step_name="9_cohort_pgx",
         cohort=args.cohort,
         age_band=args.age_band,
         script_name="build_network_topology",
     )
 
-    with function_block("cohort_pgx", "build_network_topology", logger=pl.logger):
+    with function_block("9_cohort_pgx", "build_network_topology", logger=pl.logger):
         pl.logger.info("Logs: %s", pl.log_file_path)
         builder = CohortPGxNetworkBuilder(
             reports_file=args.reports,

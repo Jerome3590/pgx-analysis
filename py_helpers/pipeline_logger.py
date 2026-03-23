@@ -160,6 +160,15 @@ class PipelineLogger:
         
         self.info("=" * 80)
         
+        # Always print completion summary to console for visibility
+        status = "ERROR" if self.errors else ("WARN" if self.warnings else "OK")
+        print(f"[{self.step_name}] {self.cohort}/{self.age_band} done "
+              f"({self.format_elapsed_time(elapsed)}) — {status} "
+              f"| warnings={len(self.warnings)} errors={len(self.errors)}")
+        if self.errors:
+            for err in self.errors[:3]:
+                print(f"  ERROR: {err[:120]}")
+        
         # Sync final log to S3
         self.sync_to_s3()
 
@@ -170,7 +179,7 @@ def setup_pipeline_logger(
     age_band: str,
     script_name: str,
     log_dir: Optional[Path] = None,
-    console_level: int = logging.INFO,
+    console_level: int = logging.WARNING,
     file_level: int = logging.DEBUG,
     mirror_to_s3: bool = True
 ) -> PipelineLogger:
@@ -194,9 +203,9 @@ def setup_pipeline_logger(
     current_file = Path(__file__).resolve()
     repo_root = current_file.parents[1]  # py_helpers is one level down from repo root
     
-    # Default log directory
+    # Default log directory — all steps use logs/{step_name}/ at repo root
     if log_dir is None:
-        log_dir = repo_root / "9_dashboard_visuals" / "logs" / step_name
+        log_dir = repo_root / "logs" / step_name
     
     log_dir.mkdir(parents=True, exist_ok=True)
     
@@ -246,7 +255,7 @@ def setup_pipeline_logger(
         mirror_to_s3=mirror_to_s3
     )
     
-    # Log initial header
+    # Log initial header to file; print summary line to console for visibility
     pipeline_logger.info("=" * 80)
     pipeline_logger.info("PIPELINE STEP: %s", step_name)
     pipeline_logger.info("=" * 80)
@@ -257,6 +266,7 @@ def setup_pipeline_logger(
     pipeline_logger.info("Log File: %s", log_file_path)
     pipeline_logger.info("=" * 80)
     pipeline_logger.info("")
+    print(f"[{step_name}] {cohort}/{age_band} started — log: {log_file_path}")
     
     return pipeline_logger
 

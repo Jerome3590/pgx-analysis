@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Tuple
@@ -1135,6 +1136,22 @@ def main() -> None:
     args = parser.parse_args()
 
     age_band_fname = args.age_band.replace("-", "_")
+
+    # File logger — logs/7_shap_analysis/{cohort}_{age_band}[_{bin}].log
+    _logs_dir = PROJECT_ROOT / "logs" / "7_shap_analysis"
+    _logs_dir.mkdir(parents=True, exist_ok=True)
+    _bin_suffix = f"_{args.bin}" if args.bin else ""
+    _log_path = _logs_dir / f"shap_{args.cohort}_{age_band_fname}{_bin_suffix}.log"
+    _logger = logging.getLogger(f"7_shap_analysis.{args.cohort}.{age_band_fname}")
+    _logger.setLevel(logging.INFO)
+    if not _logger.handlers:
+        _fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        _fh = logging.FileHandler(_log_path, mode="a", encoding="utf-8")
+        _fh.setFormatter(_fmt)
+        _logger.addHandler(_fh)
+    _logger.propagate = False
+    _logger.info("SHAP analysis start: cohort=%s age_band=%s bin=%s", args.cohort, args.age_band, args.bin)
+
     if args.bin:
         out_dir = (
             PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname / "bin_models" / args.bin
@@ -1270,9 +1287,17 @@ def main() -> None:
         bin_name=args.bin,
     )  
     if not success:
+        _logger.error("No models were successfully analyzed.")
         print("\n[ERROR] No models were successfully analyzed.")
         print("This step cannot complete without at least one model being analyzed.")
         sys.exit(1)
+
+    _logger.info("SHAP analysis complete: cohort=%s age_band=%s bin=%s", args.cohort, args.age_band, args.bin)
+    try:
+        from py_helpers.fe_monitor import mirror_log_to_s3
+        mirror_log_to_s3("7_shap_analysis", args.cohort, args.age_band, _log_path, _logger)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
