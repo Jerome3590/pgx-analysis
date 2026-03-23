@@ -145,19 +145,40 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
         print("Warning: No MC-CV data, using equal weights")
         return {m: 1.0 / len(default_models) for m in default_models}
 
-    best_model = max(model_scores.keys(), key=lambda m: model_scores[m]['composite_score'])
-    weights = {m: 1.0 if m == best_model else 0.0 for m in default_models}
+    # Check if Ensemble was selected in model_metrics_summary.csv
+    summary_path = FINAL_MODEL_DIR / cohort / age_band_fname / f'{cohort}_{age_band_fname}_model_metrics_summary.csv'
+    ensemble_selected = False
+    if summary_path.exists():
+        try:
+            summary_df = pd.read_csv(summary_path)
+            ens_row = summary_df[summary_df['model'] == 'Ensemble']
+            if not ens_row.empty:
+                sel_val = str(ens_row['selected'].iloc[0]).strip().lower()
+                ensemble_selected = sel_val in ('true', '1', 'yes')
+        except Exception:
+            pass
+
+    if ensemble_selected:
+        # Proportional weights from composite scores so all component models contribute
+        total_score = sum(s['composite_score'] for s in model_scores.values())
+        weights = {m: (model_scores[m]['composite_score'] / total_score if m in model_scores else 0.0)
+                   for m in default_models}
+        print(f"  Ensemble selected for {cohort}/{age_band}: using proportional weights")
+    else:
+        best_model = max(model_scores.keys(), key=lambda m: model_scores[m]['composite_score'])
+        weights = {m: 1.0 if m == best_model else 0.0 for m in default_models}
+        print(f"  Best model for {cohort}/{age_band}: {best_model} (composite_score: {model_scores[best_model]['composite_score']:.4f})")
+
     for m in model_scores:
         if m not in weights:
             weights[m] = 0.0
 
-    print(f"  Best model for {cohort}/{age_band}: {best_model} (composite_score: {model_scores[best_model]['composite_score']:.4f})")
     for model in default_models:
         w = weights.get(model, 0.0)
         if model in model_scores:
-            print(f"    {model}: {w:.0f} (composite_score: {model_scores[model]['composite_score']:.4f})")
+            print(f"    {model}: {w:.3f} (composite_score: {model_scores[model]['composite_score']:.4f})")
         else:
-            print(f"    {model}: {w:.0f} (no MC-CV data)")
+            print(f"    {model}: {w:.3f} (no MC-CV data)")
     return weights
 
 

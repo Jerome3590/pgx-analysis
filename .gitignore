@@ -47,7 +47,7 @@ from_s3/*
 # Test output files in status directory
 status/*.png
 status/*.pdf
-status/*.csv
+#status/*.csv
 status/*.json
 status/*.crdownload
 # Dashboard debug/sample payloads (e.g. activity_frequency, chart_data)
