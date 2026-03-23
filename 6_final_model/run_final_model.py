@@ -1649,8 +1649,8 @@ def _build_model_from_params(params: dict, model_type: str, device: str, nthread
 
 def _recompute_selection_from_summary_df(summary_df: pd.DataFrame) -> tuple:
     """From a model_metrics_summary DataFrame, compute selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason (same rule: AUC-PR then Recall)."""
-    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
-    name_to_internal = {"XGBoost": "xgb", "XGBoost_RF": "xgb_rf", "CatBoost": "catboost"}
+    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost", "ensemble": "Ensemble"}
+    name_to_internal = {"XGBoost": "xgb", "XGBoost_RF": "xgb_rf", "CatBoost": "catboost", "Ensemble": "ensemble"}
     rows = summary_df[summary_df["model"].isin(name_to_internal.keys())].copy()
     if rows.empty:
         return ("xgb", "xgb", 0.0, 0.0, "No candidates in summary")
@@ -1826,7 +1826,7 @@ def train_and_evaluate(
     )
     if skip_retrain:
         selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason = _recompute_selection_from_summary_df(existing_summary)
-        _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
+        _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost", "ensemble": "Ensemble"}
         # Update "selected" column in summary to match
         def _selected_for_row(row):
             return row["model"] == _names.get(selected_model, selected_model)
@@ -2401,13 +2401,17 @@ def train_and_evaluate(
         print(f"CatBoost:     Recall={cb_recall_mean:.4f}, AUC-PR={cb_pr_auc_mean:.4f}, AUC={cb_auc_mean:.4f}, LogLoss={cb_logloss_mean:.4f}")
     
     # Select best model from 25-run MCCV means (AUC-PR then Recall) so CSV "selected" column matches
-    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost"}
+    _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost", "ensemble": "Ensemble"}
     candidates = [
         ("xgb", xgb_pr_auc_mean, xgb_recall_mean),
         ("xgb_rf", xgb_rf_pr_auc_mean, xgb_rf_recall_mean),
     ]
     if cb_pr_auc_mean is not None and cb_recall_mean is not None:
         candidates.append(("catboost", cb_pr_auc_mean, cb_recall_mean))
+    if metrics.get("ensemble") and metrics["ensemble"].get("pr_auc"):
+        ens_pr_auc = float(np.mean(metrics["ensemble"]["pr_auc"]))
+        ens_recall = float(np.mean(metrics["ensemble"]["recall"]))
+        candidates.append(("ensemble", ens_pr_auc, ens_recall))
     candidates.sort(key=lambda t: (-t[1], -t[2]))
     selected_model = candidates[0][0]
     best_pr_auc = candidates[0][1]
@@ -2618,7 +2622,7 @@ def train_and_evaluate(
             "auc_mean": ensemble_auc_mean,
             "logloss_mean": ensemble_logloss_mean,
             "n_runs": len(metrics["ensemble"]["recall"]),
-            "selected": False  # Ensemble is not used for model selection
+            "selected": selected_model == "ensemble"
         })
     
     # Create DataFrame and save to CSV
