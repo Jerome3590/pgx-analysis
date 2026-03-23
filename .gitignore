@@ -105,3 +105,9 @@ tmp/
 # CatBoost training artifacts
 catboost_info/
 *.cbm
+
+dashboard_offline/
+data_offline/
+!sync_all_pipeline_logs.sh
+!sync_all_model_artifacts.sh
+!sync_dashboard_outputs.sh
