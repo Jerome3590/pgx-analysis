@@ -23,7 +23,6 @@ __all__ = [
     "logging_utils",
     "pipeline_utils",
     "s3_utils",
-    "sqs_utils",
     "env_utils",
     # Domain helpers
     "cohort_utils",

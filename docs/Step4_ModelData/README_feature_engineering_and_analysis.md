@@ -58,12 +58,12 @@ flowchart TD
         F2 --> F1[Combine SHAP/FFA]
     end
 
-    subgraph W4["4_dashboard_visuals.ipynb"]
-        F1 --> G0[BupaR, DTW, FP-Growth]
+    subgraph W4["4_dashboard_visuals.ipynb · 9_dashboard_visuals"]
+        F1 --> G0[BupaR · DTW · FP-Growth Visuals]
     end
 
-    subgraph W5["5_build_and_deploy.ipynb"]
-        G0 --> G1[9: Risk Dashboard]
+    subgraph W5["5_build_and_deploy.ipynb · 10_risk_dashboard"]
+        G0 --> G1[Prepare Models + Dashboard Data]
         G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
 
@@ -80,8 +80,8 @@ flowchart TD
 | Data Preparation | `1_cohort_workflow.ipynb` | 1a, 1b, 2 | Clean data, filter events, create cohorts |
 | Feature Discovery | `2_feature_importance.ipynb` | 3a-3c | MC-CV feature screening + refinement |
 | Model Development | `3_model_train_shap_ffa.ipynb` | 4-8 | Model data, PGx, training, interpretation |
-| Visualization | `4_dashboard_visuals.ipynb` | 9 (visual prep) | BupaR, DTW, FP-Growth visualizations |
-| Deployment | `5_build_and_deploy.ipynb` | 9 (deploy) | Risk calculator + dashboard |
+| Visualization | `4_dashboard_visuals.ipynb` | 9 (visual prep) | BupaR, DTW, FP-Growth visualizations (`9_dashboard_visuals/`) |
+| Deployment | `5_build_and_deploy.ipynb` | 9 (build/deploy) | Risk calculator + Lambda + API Gateway (`10_risk_dashboard/`) |
 
 ---
 

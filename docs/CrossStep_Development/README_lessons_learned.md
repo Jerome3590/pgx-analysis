@@ -4,11 +4,19 @@ This document captures critical lessons learned from production issues, debuggin
 
 ## Table of Contents
 
+**Production bugs & QA:**
 1. [INT32 Overflow in COUNT Queries (January 2026)](#int32-overflow-in-count-queries-january-2026)
 2. [Cartesian Product in CTEs with UNION ALL (January 2026)](#cartesian-product-in-ctes-with-union-all-january-2026)
 3. [Row Explosion from Multiple Time Windows (January 2026)](#row-explosion-from-multiple-time-windows-january-2026)
 4. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
 5. [QA Check Methodology](#qa-check-methodology)
+
+**Architecture & design decisions (final production workflow):**
+6. [Feature Engineering Simplification](#feature-engineering-simplification)
+7. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
+8. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
+9. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
+10. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
 
 ---
 
@@ -474,15 +482,16 @@ When investigating row count issues:
 
 ### Model Selection Philosophy
 
-**Approach:** Use ensemble of three models (CatBoost, XGBoost, XGBoost RF) with **Model Agreement** philosophy.
+**Approach:** Train four candidates (XGBoost, XGBoost RF, CatBoost, Ensemble) and select by **PR-AUC mean** as the primary metric.
 
 **Key Lessons:**
-- **Robustness Over Sensitivity:** Features important in multiple models receive higher scores than single-model features, preventing model-specific artifacts.
-- **CatBoost FFA Limitation as Quality Control:** CatBoost's complex transformations make symbolic rule extraction difficult. This limitation functions as quality filter in Step 8.
-- **Consensus Filter:** Requiring features to be detectable by CatBoost (SHAP) AND describable by XGBoost (symbolic rules) ensures actionability at both statistical and interpretive levels.
-- **Selection Criteria:** Primary metric is Recall (clinical sensitivity), secondary is AUC-PR (precision-recall balance).
+- **PR-AUC over Recall as primary:** Imbalanced healthcare datasets (5:1 control:case) make raw Recall misleading — a model predicting all cases as positive scores 1.0 Recall but is useless. PR-AUC captures the precision-recall tradeoff across all thresholds and is robust to class imbalance. **Recall is the secondary tiebreaker.**
+- **Ensemble as eligible winner:** The probability-average Ensemble (XGB + CatBoost) is now eligible for selection. When selected, Lambda uses proportional composite-score weights across all three component models. When a single model wins, Lambda uses winner-take-all weights (1.0 for winner).
+- **CatBoost FFA Limitation as Quality Control:** CatBoost's symmetric tree structure makes symbolic rule extraction unstable. FFA always uses the best XGBoost variant (`xgb` or `xgb_rf`) regardless of model selection, functioning as a quality filter — only features expressible as XGBoost rules reach the causal analysis tab.
+- **SHAP fixed to both binaries:** SHAP always runs on XGBoost (`.ubj`) + CatBoost (`.cbm`) regardless of which model was selected. Cross-model consensus improves FFA rule filtering and causal analysis confidence.
+- **Per-bin models:** `train_per_bin()` trains separate models for low/medium/high/extreme event density groups. Lambda inference is per-bin only — no full-cohort fallback. Missing bin models cause `FileNotFoundError` in production; always run `prepare_models.py` after any Step 6 re-run.
 
-**Result:** More robust feature selection and model interpretation with higher confidence in predictions.
+**Result:** PR-AUC–first selection avoids inflated Recall scores on imbalanced data; Ensemble eligibility captures cases where no single model dominates; fixed SHAP/FFA models ensure stable interpretability regardless of selection outcome.
 
 ### Event Filter Placement
 
@@ -532,6 +541,6 @@ When investigating row count issues:
 - [README_data_pipeline_architecture.md](README_data_pipeline_architecture.md) - Pipeline architecture
 - [README_data_pipeline_workflow.md](README_data_pipeline_workflow.md) - Workflow execution
 
-**Version:** 2.1  
-**Last Updated:** February 15, 2026  
+**Version:** 2.2  
+**Last Updated:** March 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team

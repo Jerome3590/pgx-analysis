@@ -233,7 +233,7 @@ This structure follows a **separation of concerns** approach:
 - `requirements.txt` - Python dependencies
 
 **Features**:
-- Model inference (ensemble: CatBoost + XGBoost + XGBoost RF)
+- Model inference: weights loaded from `feature_schema.json` (set by `prepare_models.py` based on Step 6 model selection — winner-take-all for single-model winner, proportional composite-score weights when Ensemble is selected)
 - Metadata retrieval
 - Visualization data serving
 - PGx card generation
@@ -358,7 +358,10 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 
 ## Key Features
 
-- **Ensemble Models**: CatBoost + XGBoost + XGBoost RF with performance-based weighting
+- **Ensemble Models**: CatBoost + XGBoost + XGBoost RF — Lambda loads `model_weights` from `feature_schema.json`:
+  - **Single model selected** (XGBoost, XGBoost RF, or CatBoost): winner-take-all weights (`1.0` / `0.0`)
+  - **Ensemble selected**: proportional weights from composite score (`0.5 × PR-AUC + 0.5 × 1/(1+logloss)`) across all three component models
+  - Re-run `prepare_models.py` after any Step 6 training run that changes the selected model
 - **Age-Based Selection**: Automatically selects appropriate model based on age
 - **Feature-Driven Inputs**: Dropdowns populated from Step 3b refined feature importances
 - **Privacy-First PGx Cards**: Anonymous, generic cards with optional patient ID

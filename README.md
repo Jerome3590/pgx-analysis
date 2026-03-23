@@ -67,13 +67,13 @@ flowchart TD
         F2 --> F1[Combine SHAP/FFA Results]
     end
 
-    subgraph W4["4_dashboard_visuals.ipynb"]
-        F1 --> G0[BupaR, DTW, FP-Growth Visuals]
+    subgraph W4["4_dashboard_visuals.ipynb · 9_dashboard_visuals"]
+        F1 --> G0[BupaR · DTW · FP-Growth Visuals]
     end
 
-    subgraph W5["5_build_and_deploy.ipynb"]
-        G0 --> G1[9: Risk Dashboard]
-        G1 --> G5[Deploy: S3 + Lambda + API]
+    subgraph W5["5_build_and_deploy.ipynb · 10_risk_dashboard"]
+        G0 --> G1[Prepare Models + Dashboard Data]
+        G1 --> G5[Deploy: S3 + Lambda + API Gateway]
     end
 
     style A1 fill:#f9f,stroke:#333
@@ -81,7 +81,7 @@ flowchart TD
     style B2 fill:#bbf,stroke:#333
     style C1 fill:#bfb,stroke:#333
     style E4 fill:#fbb,stroke:#333
-    style G1 fill:#ffb,stroke:#333
+    style G0 fill:#ffb,stroke:#333
 ```
 
 ---
@@ -100,7 +100,9 @@ pgx-analysis/
 ├── 6_final_model/                # Step 6: Final model training and evaluation
 ├── 7_shap_analysis/              # Step 7: SHAP-based post-model analysis
 ├── 8_ffa_analysis/               # Step 8: Formal Feature Attribution (FFA) analysis
-├── 10_risk_dashboard/            # Step 9: Risk calculator + dashboard, API, deployment
+├── 9_dashboard_visuals/          # Step 9 (visual prep): BupaR, DTW, FP-Growth visualization generation
+├── 10_risk_dashboard/            # Step 9 (build/deploy): Risk calculator, Lambda, API Gateway
+├── 11_testing/                   # Integration and smoke tests for pipeline steps and dashboard visuals
 ├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
 ├── r_helpers/                    # Shared R utilities
@@ -178,31 +180,29 @@ pgx-analysis/
 
 ### Step 6: Final Model Training
 - **Location:** `6_final_model/`
-- Train CatBoost, XGBoost, and XGBoost RF models on refined features
-- **Selection Criteria:** Primary: Recall (clinical sensitivity), Secondary: AUC-PR
-- Export best model and evaluation metrics
-- **Output:** `final_model.pkl`, `model_evaluation.json`
+- Train four candidates: XGBoost, XGBoost RF, CatBoost, and Ensemble (probability average of XGB + CatBoost)
+- **Selection:** Primary: PR-AUC mean (imbalanced-class safe); Secondary: Recall mean — Ensemble eligible
+- SHAP analysis always uses XGBoost + CatBoost binaries; FFA always uses best XGBoost variant (`xgb` or `xgb_rf`)
+- Per-bin models (low / medium / high / extreme event density) trained separately via `train_per_bin()`
+- **Output:** `{model}.joblib`, `model_metrics_summary.csv`, `model_selection_metadata.json`
 
 ### Step 7: SHAP Analysis
 - **Location:** `7_shap_analysis/`
-- Compute global and local SHAP values on final model
-- Identify most important features and their impacts
-- **Output:** `shap_analysis.parquet`
+- Compute global and local SHAP values using XGBoost and CatBoost native binaries (fixed regardless of selected model)
+- Identify most important features and their directional impacts
+- **Output:** `{cohort}_{ab}_shap_global_importance_{model}.csv`, `{cohort}_{ab}_shap_sample_values_{model}.parquet`
 
 ### Step 8: Formal Feature Attribution (FFA) Analysis
 - **Location:** `8_ffa_analysis/`
-- Generate rule-based explanations using final model
-- SHAP-based filtering and prioritization of rules
-- Compute feature attribution scores
-- **Output:** `ffa_results.parquet`, `final_ffa_results.parquet` (after pruning)
+- Generate symbolic rule explanations using best XGBoost variant (`xgb` or `xgb_rf`, from `model_selection_metadata.json`)
+- SHAP-based filtering and prioritization of rules; CatBoost run separately for cross-validation
+- Compute feature attribution and causal importance scores
+- **Output:** `causal_importance.parquet`, `feature_importance_axp.parquet`, `interaction_analysis.parquet`
 
-### Step 9: Risk Dashboard
-- **Location:** `10_risk_dashboard/`
-- Consolidate SHAP and FFA results
-- Generate visualizations (BupaR process mining, DTW sequence alignment, FP-Growth patterns)
-- Create risk dashboard frontend (HTML/JavaScript)
-- Deploy backend Lambda function
-- **Output:** Lambda function, S3 frontend, API Gateway endpoints
+### Step 9: Risk Dashboard (two sub-phases)
+- **Notebook 4 — Visual prep** (`9_dashboard_visuals/`): Generate BupaR process mining, DTW trajectory, and FP-Growth visualizations; combine SHAP + FFA results into `combined_importance.csv`
+- **Notebook 5 — Build & deploy** (`10_risk_dashboard/`): Prepare models and metadata for Lambda; build Docker container; deploy S3 frontend + Lambda + API Gateway
+- **Output:** Visualization artifacts in S3, Lambda ECR container, live API endpoints
 
 ---
 
@@ -264,9 +264,10 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 - Produces PGx feature additions
 
 **6_final_model: Model Development**
-- Three models: CatBoost, XGBoost, XGBoost RF
-- Model selection: Primary Recall, Secondary AUC-PR
-- **One model per cohort/age-band**
+- Four candidates: XGBoost, XGBoost RF, CatBoost, Ensemble (probability average)
+- Model selection: Primary PR-AUC mean, Secondary Recall mean — Ensemble eligible
+- Per-bin models (low / medium / high / extreme) trained separately for Lambda inference
+- **One selected model per cohort/age-band; all component models deployed for weighted Lambda ensemble**
 
 **7_shap_analysis: SHAP Post-Model**
 - Global and local SHAP values
@@ -323,12 +324,13 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 - **Visualization-Only:** BupaR, FP-Growth, DTW (valuable for exploration, not model features)
 - **Rationale:** Simplifies pipeline while maintaining predictive power; prevents feature leakage
 
-### Model Ensemble Approach
-- Three models provide **model agreement** and consensus filtering
-- CatBoost handles categorical features natively
-- XGBoost provides robustness benchmark
-- XGBoost RF mode tests ensemble effects
-- **Result:** More robust feature selection and prediction
+### Model Selection and Ensemble Approach
+- **Four candidates** trained per cohort/age-band: XGBoost, XGBoost RF, CatBoost, and a probability-average Ensemble
+- Selection: **PR-AUC mean first** (imbalanced-data safe), Recall mean as tiebreaker — Ensemble is eligible
+- When Ensemble is selected, Lambda uses **proportional weights** (composite score) across all three component models
+- When a single model wins, Lambda uses **winner-take-all** weights (1.0 for winner, 0.0 for others)
+- SHAP and FFA always use fixed models regardless of selection (XGBoost + CatBoost for SHAP; best XGBoost variant for FFA rules)
+- **Result:** Best predictive model serves inference; structurally interpretable models serve explainability
 
 ### Event Filter Placement
 - **Step 1b runs before cohort creation** (Step 2)

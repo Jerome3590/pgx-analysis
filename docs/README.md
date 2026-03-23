@@ -55,10 +55,10 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_xgboost.md](Step6_FinalModel/README_xgboost.md)** - XGBoost model details
 
 ### Step 7: SHAP Analysis
-**Code**: `7_shap_analysis/`
+**Code**: `7_shap_analysis/` | **Location**: [`Step7_SHAP/`](Step7_SHAP/)
 
-- **SHAP Analysis** – Global and local SHAP values for CatBoost and XGBoost models (see [`CrossStep_Workflow/README_analysis_workflow.md`](CrossStep_Workflow/README_analysis_workflow.md))
-- Used by Step 8 (FFA) to prioritize and filter rules
+- **[README_shap_analysis.md](Step7_SHAP/README_shap_analysis.md)** — Two-pass SHAP methodology (XGBoost `pred_contribs` + CatBoost `ShapValues`), outputs, per-bin support, S3 paths
+- Used by Step 8 (FFA) to prioritize and filter rules; both XGBoost and CatBoost run regardless of model selection
 
 ### Step 8: Formal Feature Attribution (FFA)
 **Location**: [`Step8_FFA/`](Step8_FFA/)
@@ -70,31 +70,6 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 
 ### Step 9: Risk Dashboard
 **Location**: [`Step9_RiskDashboard/`](Step9_RiskDashboard/)
-
-**Main Documentation:**
-- **[README_results_overview.md](Step9_RiskDashboard/README_results_overview.md)** - Complete documentation index and overview
-- **[README_results_dashboard.md](Step9_RiskDashboard/README_results_dashboard.md)** - Complete dashboard system overview
-- **[README_results_dashboard_tabs.md](Step9_RiskDashboard/README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
-- **[README_results_dashboard_visualizations.md](Step9_RiskDashboard/README_results_dashboard_visualizations.md)** - Advanced visualization system (BupaR, FP-Growth, DTW)
-- **[README_results_dashboard_deployment.md](Step9_RiskDashboard/README_results_dashboard_deployment.md)** - Deployment guide (incremental builds, Docker, Lambda)
-- **[README_results_value_proposition.md](Step9_RiskDashboard/README_results_value_proposition.md)** - Business value and use cases
-- **[README_results_deployment.md](Step9_RiskDashboard/README_results_deployment.md)** - Complete deployment guide
-- **[README_results_prediction.md](Step9_RiskDashboard/README_results_prediction.md)** - Prediction workflow and technical details
-- **[README_results_quickstart.md](Step9_RiskDashboard/README_results_quickstart.md)** - Quick start guide for predictions
-
-**Feature Documentation:**
-- **[README_results_pgx_card.md](Step9_RiskDashboard/README_results_pgx_card.md)** - PGx Patient Card feature
-- **[README_results_ensemble.md](Step9_RiskDashboard/README_results_ensemble.md)** - Ensemble model approach
-- **[README_results_model_weights.md](Step9_RiskDashboard/README_results_model_weights.md)** - Performance-based model weighting
-- **[README_combined_ffa_shap_causal_analysis.md](Step9_RiskDashboard/README_combined_ffa_shap_causal_analysis.md)** - Combined FFA, SHAP, and causal analysis guide
-
-**Deployment Guides:**
-- **[README_results_deployment_ecr.md](Step9_RiskDashboard/README_results_deployment_ecr.md)** - Lambda ECR container deployment
-- **[README_results_deployment_cpic.md](Step9_RiskDashboard/README_results_deployment_cpic.md)** - CPIC data deployment
-
-**Reference:**
-- **[README_results_storage.md](Step9_RiskDashboard/README_results_storage.md)** - Storage analysis and container sizing
-- **[README_results_age_bands.md](Step9_RiskDashboard/README_results_age_bands.md)** - Supported age bands and mappings
 
 **Main Documentation:**
 - **[README_results_overview.md](Step9_RiskDashboard/README_results_overview.md)** - Complete documentation index and overview
@@ -145,6 +120,9 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_local_notebook.md](CrossStep_Development/README_local_notebook.md)** - Local notebook development
 - **[README_duckdb_dev.md](CrossStep_Development/README_duckdb_dev.md)** - DuckDB development notes
 - **[README_target_leakage.md](CrossStep_Development/README_target_leakage.md)** - Target leakage prevention
+- **[README_logging.md](CrossStep_Development/README_logging.md)** - Pipeline logging architecture, EC2/S3 log locations, troubleshooting guide
+- **[README_event_density_bins.md](CrossStep_Development/README_event_density_bins.md)** - n_event_bin architecture end-to-end (training → SHAP/FFA → Lambda)
+- **[README_lessons_learned.md](CrossStep_Development/README_lessons_learned.md)** - Critical QA bugs, design decisions, final production workflow lessons
 
 ## 📊 Presentations
 **Location**: [`Presentations/`](Presentations/)
@@ -180,13 +158,16 @@ docs/
 ├── Step4_ModelData/           # Step 4: Model data (model_events.parquet)
 ├── Step5_PGxAnalysis/         # Step 5: Pharmacogenomic (PGx) feature engineering
 ├── Step6_FinalModel/          # Step 6: Final model development
+├── Step7_SHAP/                # Step 7: SHAP analysis (XGBoost + CatBoost, two-pass)
 ├── Step8_FFA/                 # Step 8: Formal Feature Attribution analysis
 ├── Step9_RiskDashboard/       # Step 9: Risk dashboard
-├── CrossStep_Workflow/        # Cross-step workflow docs (3a/3b, ICD filtering earlier)
+├── CrossStep_Workflow/        # Cross-step workflow docs
 ├── CrossStep_Visualization/   # Visualization docs
-├── CrossStep_Development/     # Development & testing docs
+├── CrossStep_Development/     # Development, logging, event density bins, lessons learned
 └── Presentations/             # Presentation materials
 ```
+
+**Shared utilities**: `py_helpers/README.md` — inventory of all shared Python utilities, active vs. stale helpers, archiving guidance
 
 ## Documentation and file naming conventions
 
