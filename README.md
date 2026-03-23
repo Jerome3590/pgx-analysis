@@ -225,10 +225,12 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 - Feature refinement (Step 3b)
 - Model-ready event extraction (Step 4)
 - PGx feature engineering (Step 5)
-- Final model training (Step 6)
-- SHAP analysis (Step 7)
-- FFA analysis (Step 8)
-- **One final model produced per cohort/age-band**
+- Final model training (Step 6) — trains **four per-bin models** (low / medium / high / extreme event density), each with Optuna tuning and Platt calibration
+- SHAP analysis (Step 7) — run per bin for both XGBoost and CatBoost
+- FFA analysis (Step 8) — run per bin for XGBoost
+- **4 models produced per cohort/age-band** (one per event density bin: low, medium, high, extreme); Lambda inference is per-bin only with no full-cohort fallback
+
+> **Why per-bin models?** Patients with very few events (low density) vs. highly active patients (extreme density) have fundamentally different clinical profiles and feature distributions. A single full-cohort model is pulled toward the dominant density group and underperforms on the tails. Stratifying by event density allows each model to tune its hyperparameters, calibration, and decision boundary to patients with similar activity levels — improving PR-AUC especially for the minority class in imbalanced bins.
 
 ---
 
