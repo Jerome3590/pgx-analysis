@@ -119,7 +119,7 @@ pgx-analysis/
 
 ---
 
-## 🎯 Workflow Steps (9 Steps Total)
+## 🎯 Workflow Steps (10 Steps Total)
 
 ### Step 1a: APCD Input Data Processing
 - **Location:** `1a_apcd_input_data/`

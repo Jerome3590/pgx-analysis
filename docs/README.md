@@ -12,20 +12,25 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **Phase 1:** `1_cohort_workflow.ipynb` (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
 - **Phase 2:** `2_feature_importance.ipynb` (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
 - **Phase 3:** `3_model_train_shap_ffa.ipynb`: Model data → PGx → final model → SHAP → FFA → combine (no deploy). Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
-- **Phase 4:** `4_dashboard_visuals.ipynb`: BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
-- **Phase 5:** `5_build_and_deploy.ipynb`: Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
+- **Phase 4:** `4_dashboard_visuals.ipynb` (Step 9): BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
+- **Phase 5:** `5_build_and_deploy.ipynb` (Step 10): Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
 
 ### Step 1-2: Data Pipeline & Cohort Creation
 **Location**: [`Step1-2_DataPipeline/`](Step1-2_DataPipeline/), **Code**: `1a_apcd_input_data/`, `1b_apcd_event_filter/`, `2_create_cohort/`
 
 - **[README_data_pipeline.md](Step1-2_DataPipeline/README_data_pipeline.md)** - Complete data pipeline architecture and optimization
+- **[README_input_data_overview.md](Step1-2_DataPipeline/README_input_data_overview.md)** - APCD input data overview (Step 1a)
 - **[README_create_cohort.md](Step1-2_DataPipeline/README_create_cohort.md)** - Cohort creation guide
+- **[README_create_cohort_pipeline.md](Step1-2_DataPipeline/README_create_cohort_pipeline.md)** - Cohort pipeline phases and execution
 - **[README_preprocessing.md](Step1-2_DataPipeline/README_preprocessing.md)** - Data preprocessing steps
+- **[README_preprocessing_pipeline.md](Step1-2_DataPipeline/README_preprocessing_pipeline.md)** - Preprocessing pipeline detail
 - **[README_s3_datalake.md](Step1-2_DataPipeline/README_s3_datalake.md)** - S3 data lake structure
+- **[README_pipeline_state_tracking.md](Step1-2_DataPipeline/README_pipeline_state_tracking.md)** - Pipeline state and checkpoint tracking
 
 ### Step 3: Feature Importance Analysis
 **Location**: [`Step3_FeatureImportance/`](Step3_FeatureImportance/)
 
+- **[README_feature_importance_overview.md](Step3_FeatureImportance/README_feature_importance_overview.md)** - Feature importance overview and context
 - **[README_feature_importance.md](Step3_FeatureImportance/README_feature_importance.md)** - Feature importance analysis methodology
 - **[README_feature_importance_visualization.md](Step3_FeatureImportance/README_feature_importance_visualization.md)** - Feature importance visualization guide
 
@@ -37,9 +42,12 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **Output**: Refined `cohort_feature_importance.csv` files; Step 3c (2_feature_importance.ipynb) is the final update before Step 4
 
 ### Step 4: Model Data
-**Code**: `4_model_data/`
+**Code**: `4_model_data/` | **Location**: [`Step4_ModelData/`](Step4_ModelData/)
 
-- **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations.
+- **[README_model_data_overview.md](Step4_ModelData/README_model_data_overview.md)** – Model-events extraction for all `(cohort, age_band)` combinations
+- **[README_feature_engineering_and_analysis.md](Step4_ModelData/README_feature_engineering_and_analysis.md)** – Feature engineering pipeline overview
+- **[README_feature_encoding.md](Step4_ModelData/README_feature_encoding.md)** – Categorical encoding strategies
+- **[README_model_data_and_extreme_split.md](Step4_ModelData/README_model_data_and_extreme_split.md)** – Extreme-density cohort split and model data schema
 - Model-ready event datasets (target vs control) using refined features from Step 3c. Step 4 removes target leakage for case events (events before target date only). Event/ICD filtering runs in **Step 1b** (`1b_apcd_event_filter`).
 
 ### Step 5: PGx Feature Engineering
@@ -68,11 +76,12 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_ffa_unified_schema.md](Step8_FFA/README_ffa_unified_schema.md)** - Unified schema for symbolic explainers
 - **Note**: FFA analysis is performed only for XGBoost models. Uses SHAP importance from Step 7 to filter and prioritize rules.
 
-### Step 9: Risk Dashboard
-**Location**: [`Step9_RiskDashboard/`](Step9_RiskDashboard/)
+### Steps 9–10: Dashboard Visuals & Risk Dashboard
+**Step 9 code**: `9_dashboard_visuals/` | **Step 10 code**: `10_risk_dashboard/` | **Docs**: [`Step9_RiskDashboard/`](Step9_RiskDashboard/)
 
 **Main Documentation:**
 - **[README_results_overview.md](Step9_RiskDashboard/README_results_overview.md)** - Complete documentation index and overview
+- **[README_dashboard.md](Step9_RiskDashboard/README_dashboard.md)** - Dashboard overview (entry point)
 - **[README_results_dashboard.md](Step9_RiskDashboard/README_results_dashboard.md)** - Complete dashboard system overview
 - **[README_results_dashboard_tabs.md](Step9_RiskDashboard/README_results_dashboard_tabs.md)** - Dashboard tab organization and API endpoints
 - **[README_results_dashboard_visualizations.md](Step9_RiskDashboard/README_results_dashboard_visualizations.md)** - Advanced visualization system (BupaR, FP-Growth, DTW)
@@ -82,7 +91,12 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_results_prediction.md](Step9_RiskDashboard/README_results_prediction.md)** - Prediction workflow and technical details
 - **[README_results_quickstart.md](Step9_RiskDashboard/README_results_quickstart.md)** - Quick start guide for predictions
 
-**Feature Documentation:**
+**Visualization Documentation (Step 9):**
+- **[README_bupar_dashboard_visualizations.md](Step9_RiskDashboard/README_bupar_dashboard_visualizations.md)** - BupaR process mining visualizations
+- **[README_dtw_dashboard_visualizations.md](Step9_RiskDashboard/README_dtw_dashboard_visualizations.md)** - DTW trajectory visualizations
+- **[README_fpgrowth_dashboard_visualizations.md](Step9_RiskDashboard/README_fpgrowth_dashboard_visualizations.md)** - FP-Growth itemset visualizations
+
+**Feature Documentation (Step 10):**
 - **[README_results_pgx_card.md](Step9_RiskDashboard/README_results_pgx_card.md)** - PGx Patient Card feature
 - **[README_results_ensemble.md](Step9_RiskDashboard/README_results_ensemble.md)** - Ensemble model approach
 - **[README_results_model_weights.md](Step9_RiskDashboard/README_results_model_weights.md)** - Performance-based model weighting
@@ -101,7 +115,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 ### Workflow & Analysis
 **Location**: [`CrossStep_Workflow/`](CrossStep_Workflow/)
 
-- **[README_analysis_workflow.md](README_analysis_workflow.md)** - Canonical analysis workflow (Steps 1–9; five notebooks 1→2→3→4→5)
+- **[README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** - Canonical analysis workflow (Steps 1–10; five notebooks 1→2→3→4→5)
 - **[README_research_questions_mapping.md](CrossStep_Workflow/README_research_questions_mapping.md)** - Research questions to analysis methods mapping
 - **[README_healthcare_outcomes.md](CrossStep_Workflow/README_healthcare_outcomes.md)** - Healthcare outcomes rationale for cohort design
 - **[docs/archived/README_cross_ageband_analysis.md](archived/README_cross_ageband_analysis.md)** - Cross-age band analysis (optional; archived)
@@ -138,7 +152,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 3. Follow **[CrossStep_Workflow/README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** for analysis steps
 
 ### Deployment
-1. **[Step9_RiskDashboard/README_results_deployment.md](Step9_RiskDashboard/README_results_deployment.md)** - Complete deployment guide (Step 9)
+1. **[Step9_RiskDashboard/README_results_deployment.md](Step9_RiskDashboard/README_results_deployment.md)** - Complete deployment guide (Step 10)
 2. **[Step9_RiskDashboard/README_results_dashboard_deployment.md](Step9_RiskDashboard/README_results_dashboard_deployment.md)** - Dashboard deployment guide (incremental builds, Docker, Lambda)
 3. **[Step9_RiskDashboard/README_results_deployment_ecr.md](Step9_RiskDashboard/README_results_deployment_ecr.md)** - ECR container deployment
 4. **[Step9_RiskDashboard/README_results_dashboard.md](Step9_RiskDashboard/README_results_dashboard.md)** - Dashboard overview
@@ -160,7 +174,7 @@ docs/
 ├── Step6_FinalModel/          # Step 6: Final model development
 ├── Step7_SHAP/                # Step 7: SHAP analysis (XGBoost + CatBoost, two-pass)
 ├── Step8_FFA/                 # Step 8: Formal Feature Attribution analysis
-├── Step9_RiskDashboard/       # Step 9: Risk dashboard
+├── Step9_RiskDashboard/       # Steps 9–10: Dashboard visuals (9_dashboard_visuals) & risk dashboard deploy (10_risk_dashboard)
 ├── CrossStep_Workflow/        # Cross-step workflow docs
 ├── CrossStep_Visualization/   # Visualization docs
 ├── CrossStep_Development/     # Development, logging, event density bins, lessons learned
