@@ -1,0 +1,31 @@
+/.quarto/
+
+# Generated build artifacts — do not commit
+output/*.pdf
+output/*.tex
+output/*.log
+edits/*.docx
+
+# LaTeX intermediates left by keep-tex: true
+CH_*/*.tex
+CH_*/*.aux
+CH_*/*.bbl
+CH_*/*.blg
+CH_*/*.log
+CH_*/*.out
+CH_*/*.toc
+
+# Quarto render cache
+*_files/
+
+# Wiley extension copies cls/bst/sty resources into each chapter dir during build
+CH_*/*.cls
+CH_*/*.sty
+CH_*/*.bst
+CH_*/Fonts/
+CH_*/CH*/
+CH_*/*.pag
+
+# Lambda local outputs and logs (large data files)
+lambda_local/outputs/
+lambda_local/cohort_logs/

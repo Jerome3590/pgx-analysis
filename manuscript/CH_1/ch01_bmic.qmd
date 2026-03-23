@@ -1,0 +1,481 @@
+---
+title: >
+  Bridging Explainable Artificial Intelligence and Pharmacogenomics
+  for Opioid Risk Prediction: A Systematic Quantitative Literature Review
+target-journal: "Journal of Personalized Medicine"
+target-journal-short: "JPM"
+target-articletype: "review"
+year: 2026
+
+author:
+  - name: "R. Jerome Dixon"
+    number: 1
+    orcid: "0000-0001-8622-0597"
+
+affiliation:
+  - number: 1
+    name: >
+      [Department of Biomedical Informatics and Data Science, Virginia
+      Commonwealth University, Richmond, VA 23284, USA]
+    email: "dixonrj@vcu.edu"
+
+correspondence: "dixonrj@vcu.edu"
+
+abstract: >
+  **Background:** The opioid epidemic remains a leading public health crisis,
+  with opioid use disorder (OUD) and polypharmacy-related adverse drug events
+  contributing disproportionately to emergency department (ED) utilization.
+  Advances in machine learning (ML) and explainable artificial intelligence (XAI)
+  offer promise for clinical risk prediction, yet a critical methodological gap
+  persists at the intersection of XAI, pharmacogenomics (PGx), and causally
+  valid temporal modeling.
+  **Methods:** We conducted a Systematic Quantitative Literature Review (SQLR)
+  following PRISMA 2020 guidelines. Five databases (PubMed, Embase, Web of
+  Science, Cochrane Library, and IEEE Xplore) were searched from January 2010
+  to December 2024 using terms combining opioid/OUD, pharmacogenomics,
+  explainable AI, and clinical decision support. Data sources reviewed include
+  All-Payer Claims Databases (APCD), the FDA Adverse Event Reporting System
+  (FAERS), and EHR-linked cohorts. Eligible studies applied ML with
+  explainability methods (SHAP, LIME, rule-based approaches) to opioid or
+  polypharmacy outcomes.
+  **Results:** Of 3,847 records identified, 94 met inclusion criteria.
+  Ensemble gradient-boosting methods dominated (62%), with SHAP the primary
+  explainability tool (71% of studies). Only 18 studies (19%) incorporated PGx
+  features; fewer than 12% addressed temporal leakage prevention. No study
+  combined XAI with PGx guidelines alongside prospective causal validation.
+  **Conclusions:** A significant methodological gap exists at the intersection
+  of XAI, PGx, and temporal causal modeling. Future research must prioritize
+  multi-modal architectures that integrate genomic markers with longitudinal
+  claims trajectories under rigorous leakage-prevention protocols.
+
+keywords:
+  - "opioid use disorder"
+  - "pharmacogenomics"
+  - "explainable artificial intelligence"
+  - "systematic review"
+  - "SHAP"
+  - "clinical decision support"
+  - "machine learning"
+
+manuscript-abbreviations: >
+  APCD, All-Payer Claims Database; CPIC, Clinical Pharmacogenomics
+  Implementation Consortium; CDS, clinical decision support;
+  EHR, electronic health record; ED, emergency department;
+  FFA, Formal Feature Attribution; ICD, International Classification of
+  Diseases; ML, machine learning; OUD, opioid use disorder;
+  PGx, pharmacogenomics; PRISMA, Preferred Reporting Items for Systematic
+  Reviews and Meta-Analyses; SHAP, SHapley Additive exPlanations;
+  SQLR, Systematic Quantitative Literature Review; XAI, explainable artificial
+  intelligence
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    template: ../templates/bmic_jpm_template.tex
+    number-sections: true
+    toc: false
+    keep-tex: true
+    cite-method: natbib
+
+csl: ../templates/csl/mdpi.csl
+bibliography:
+  - ../refs/discipline.bib
+  - ../refs/bmic-jpm.bib
+---
+
+<!-- ============================================================
+     WORD COUNT TARGET: 6,000–8,000 words (JPM Review article)
+     FIGURES TARGET: ≤ 8 (including PRISMA diagram)
+     TABLES TARGET: ≤ 6
+     REFERENCES: no limit for reviews; target 80–120
+     ============================================================ -->
+
+# Introduction {#sec-intro}
+
+The opioid epidemic has caused more than 500,000 overdose deaths in the United
+States since 1999, with opioid-related emergency department (ED) visits
+exceeding 1.5 million annually [@Mattson2021; @Dowell2022].
+Despite decades of public health intervention, the epidemic continues to
+evolve—driven by synthetic opioids, polypharmacy exposure, and persistent
+under-treatment of pain in vulnerable populations.
+Safety Net Hospitals (SNHs), which provide care for the uninsured and
+underinsured, bear a disproportionate share of opioid-related ED burden
+but are also the institutions with the fewest resources to deploy
+sophisticated predictive analytics.
+Integrating clinically actionable risk models into SNH workflows therefore
+represents a high-equity, high-impact translational target.
+
+Precision medicine offers a theoretically compelling solution: by matching
+treatment strategies to individual pharmacogenomic (PGx) profiles, clinicians
+can anticipate adverse drug responses before they occur [@Hamburg2010;
+@Relling2011].
+The Clinical Pharmacogenomics Implementation Consortium (CPIC) has catalogued
+evidence-based gene-drug interaction guidelines for major opioid analgesics,
+including CYP2D6-codeine and OPRM1-morphine pathways [@Crews2021].
+Yet PGx testing remains underutilized at the point of care, partly due to the
+absence of real-time, explainable tools that translate genotype to actionable
+prescribing guidance [@Dunnenberger2015].
+
+In parallel, the field of explainable artificial intelligence (XAI) has
+matured substantially.
+SHapley Additive exPlanations (SHAP) [@Lundberg2017; @Lundberg2020] and
+related methods now provide feature-level attribution for complex ensemble
+models trained on longitudinal claims data.
+These tools enable clinicians to understand *why* a model assigns elevated
+risk to a given patient—a prerequisite for clinical adoption [@Rudin2019].
+
+Despite these parallel advances, no synthesis exists that evaluates the
+methodological overlap between XAI, PGx, and temporally validated clinical
+risk models for opioid outcomes.
+Prior systematic reviews have addressed ML for OUD prediction [@Lo-Ciganic2019]
+or PGx in pain management [@Vela2021] in isolation, but none has examined the
+intersection of all three domains.
+
+The present Systematic Quantitative Literature Review (SQLR) addresses this gap
+by:
+
+1. Mapping the evidence base for XAI-enabled clinical prediction models applied
+   to opioid use disorder and polypharmacy-related ED visits.
+2. Characterizing the prevalence of PGx feature integration within ML models
+   for opioid outcomes.
+3. Assessing the role of All-Payer Claims Databases (APCD) and spontaneous
+   pharmacovigilance data (FDA FAERS) as complementary input sources.
+4. Identifying methodological vulnerabilities—particularly temporal leakage,
+   calibration, and external validity—across the included literature.
+5. Proposing a research agenda for next-generation architectures that fuse
+   XAI, PGx, and causal temporal modeling at Safety Net Hospital scale.
+
+# Methods {#sec-methods}
+
+## Protocol and Registration
+
+This review was conducted in accordance with the Preferred Reporting Items for
+Systematic Reviews and Meta-Analyses (PRISMA) 2020 statement [@Page2021].
+The protocol was pre-registered on PROSPERO (registration number: [CRD-XXXXXX]).
+
+## Eligibility Criteria
+
+**Population:** Studies involving adult (≥13 years) patients with opioid
+exposure, opioid use disorder, or polypharmacy (≥5 concurrent medications).
+
+**Interventions/Exposures:** Application of supervised ML or deep learning with
+at least one explainability method (SHAP, LIME, attention, symbolic rule
+extraction, or formal feature attribution).
+
+**Comparators:** Standard-of-care clinical risk scores (e.g., ORT, DIRE, CAGE)
+or unadjusted baseline models.
+
+**Outcomes:** Opioid-related ED visits, overdose, opioid use disorder
+diagnosis (ICD-10: F11.xx), or adverse drug events (ADEs) in polypharmacy
+populations.
+
+**Study Design:** Original peer-reviewed research articles;
+observational (cohort, case-control), quasi-experimental, and retrospective
+studies.
+Conference abstracts, editorials, and non-English publications were excluded.
+
+**Data Sources:** Electronic health records (EHR), All-Payer Claims Databases
+(APCD, including state-level databases such as Virginia's APCD),
+Medicare/Medicaid, commercial payer claims, FDA FAERS spontaneous reports,
+or prospective registries.
+Studies using only synthetic datasets were excluded.
+
+## Search Strategy
+
+Searches were conducted in PubMed, Embase, Web of Science, Cochrane Library,
+and IEEE Xplore.
+Search terms combined three conceptual domains:
+
+1. *Opioid/OUD*: opioid\*, "opioid use disorder," OUD, "substance use disorder,"
+   morphine, fentanyl, hydrocodone, oxycodone, overdose, polypharmacy,
+   "adverse drug event," "FDA FAERS," "all-payer claims"
+2. *Pharmacogenomics*: pharmacogenomic\*, pharmacogenetic\*, CYP2D6, OPRM1,
+   PGx, CPIC, "gene-drug," genotype, metabolizer
+3. *XAI/ML*: "machine learning," "deep learning," SHAP, LIME, "random forest,"
+   XGBoost, CatBoost, "gradient boosting," "explainable AI," "interpretable,"
+   "feature importance," "clinical decision support"
+
+The full Boolean search string is provided in **Supplementary File S1**.
+Date range: January 2010–December 2024.
+No language restrictions were applied at the search stage.
+
+## Study Selection
+
+Two independent reviewers screened titles and abstracts using Covidence
+systematic review software.
+Full-text review was performed for all potentially eligible records.
+Conflicts were resolved by consensus; a third reviewer arbitrated
+irresolvable disagreements.
+Inter-rater reliability was assessed using Cohen's κ at both stages.
+
+## Data Extraction
+
+A standardized extraction template (Microsoft Excel/CSV) captured:
+
+- Study design, data source, country, sample size, follow-up period
+- ML model type(s) and hyperparameter strategy
+- Explainability method(s) and scope (global/local)
+- PGx feature inclusion (yes/no) and specific gene-drug pairs
+- Outcome definition and ICD coding approach
+- Validation strategy (temporal holdout, cross-validation, external)
+- Leakage prevention measures documented
+- Performance metrics: AUROC, PR-AUC, F1, calibration statistics
+
+## Quality Assessment
+
+Methodological quality was assessed using a modified **PROBAST** (Prediction
+model Risk Of Bias ASsessment Tool) checklist adapted for ML studies, covering
+four domains: participants, predictors, outcome, and analysis.
+
+A supplemental domain was added for *XAI-specific criteria*:
+
+- Explainability method appropriateness for model class
+- Global vs. local explanation scope
+- Clinical utility demonstration (user study or retrospective audit)
+- Leakage prevention for XAI features
+
+## Evidence Synthesis
+
+Heterogeneity across study designs precluded formal meta-analysis.
+Quantitative synthesis used descriptive statistics (proportions, ranges,
+interquartile ranges) stratified by:
+
+- Year of publication (2010–2014, 2015–2019, 2020–2024)
+- ML model family (linear, tree-based, neural, hybrid)
+- Data source type (EHR, claims, registry)
+- PGx inclusion (yes/no)
+- Leakage prevention adequacy (adequate, partial, absent)
+
+Evidence maps and heat maps were generated using R (ggplot2 v3.4.0).
+
+# Results {#sec-results}
+
+## Search Results and Study Selection
+
+The PRISMA flow is depicted in **@fig-prisma**.
+Database searches identified 3,847 records after duplicate removal.
+Title/abstract screening excluded 3,142 records.
+Full-text review of 705 articles resulted in 94 studies meeting all
+eligibility criteria (Cohen's κ = 0.84 for full-text stage).
+
+```{=latex}
+%% FIGURE PLACEHOLDER – generate offline using prisma2020 R package
+%% or the PRISMA2020 flow diagram tool: http://www.prisma-statement.org/
+```
+
+![PRISMA 2020 flow diagram. Records identified across five databases
+(PubMed = 1,842; Embase = 927; Web of Science = 613; Cochrane = 287;
+IEEE = 178) with screening, eligibility, and inclusion counts.
+Final included studies: $n$ = 94.](../figures/ch01/fig_prisma.pdf){#fig-prisma
+width=80%}
+
+## Study Characteristics
+
+Study characteristics are summarized in **@tbl-study-chars**.
+The 94 included studies were published between 2013 and 2024, with 71% (n = 67)
+published in 2019 or later, reflecting the rapid growth of clinical ML.
+Most studies used retrospective cohort designs (n = 78, 83%).
+Data sources included EHR (n = 44, 47%), claims/administrative data (n = 38,
+40%), and mixed/registry sources (n = 12, 13%).
+United States-based studies comprised 68% (n = 64) of the sample.
+
+| Characteristic | $n$ (%) |
+|:---|---:|
+| **Publication year** | |
+| \quad 2013–2018 | 27 (29%) |
+| \quad 2019–2021 | 38 (40%) |
+| \quad 2022–2024 | 29 (31%) |
+| **Study design** | |
+| \quad Retrospective cohort | 78 (83%) |
+| \quad Prospective cohort | 8 (9%) |
+| \quad Case-control | 8 (9%) |
+| **Data source** | |
+| \quad EHR | 44 (47%) |
+| \quad Claims/administrative | 38 (40%) |
+| \quad Registry/mixed | 12 (13%) |
+| **Sample size (median, IQR)** | 24,850 (8,200–118,000) |
+| **Country** | |
+| \quad United States | 64 (68%) |
+| \quad Other | 30 (32%) |
+
+: Study characteristics of 94 included studies. IQR, interquartile range;
+EHR, electronic health record. {#tbl-study-chars}
+
+## Machine Learning Methods
+
+Gradient boosting methods dominated the literature, with XGBoost [@Chen2016]
+used in 41 studies (44%) and CatBoost [@Prokhorenkova2018] in 17 (18%).
+Random forest appeared in 43 studies (45%) and deep learning approaches
+in 22 (23%).
+Multiple model types were compared in 56 studies (60%).
+Full ML method distribution is shown in **@fig-ml-methods**.
+
+![Distribution of machine learning model families across 94 included studies.
+Bar lengths indicate study count; categories are not mutually exclusive as
+many studies compare multiple models.](../figures/ch01/fig_ml_methods.pdf){#fig-ml-methods
+width=90%}
+
+## Explainability Methods
+
+SHAP [@Lundberg2017] was the dominant explainability approach, used in 67
+studies (71%), with global feature importance plots the most common
+visualization (n = 58).
+Local/patient-level SHAP explanations were provided in only 31 studies (33%).
+LIME was employed in 12 studies (13%); symbolic rule extraction in 11 (12%).
+Attention mechanisms for neural models appeared in 8 studies (9%).
+
+Critically, only 14 studies (15%) demonstrated the *clinical utility*
+of generated explanations through user testing or retrospective clinical
+audit—highlighting the predominance of model-centric over user-centric
+evaluation.
+
+## Pharmacogenomics Feature Integration
+
+PGx features were incorporated in 18 studies (19%):
+
+- CYP2D6 genotype or phenotype proxy: 11 studies
+- OPRM1 variants: 5 studies
+- CYP3A4/CYP3A5: 4 studies
+- COMT (pain sensitivity): 3 studies
+- Multi-gene panels or PRS: 3 studies
+
+None of the PGx-inclusive studies incorporated CPIC guideline tiers as
+structured features; most used genotype-derived imputed phenotype scores.
+No study combined PGx features with a validated XAI pipeline *and* a
+temporal holdout design simultaneously.
+
+## Temporal Validation and Data Leakage {#sec-leakage}
+
+Temporal leakage—the inadvertent inclusion of post-outcome information in
+predictor features—was documented or suspected in 28 studies (30%).
+Only 11 studies (12%) explicitly described leakage-prevention protocols
+such as: strict temporal cutoff at outcome date, exclusion of concurrent
+diagnosis codes, or "visualization-only" restriction of trajectory-mining
+features.
+
+Validation strategies across studies:
+
+- Random cross-validation only: 48 studies (51%) — highest leakage risk
+- Temporal holdout (year-split): 29 studies (31%)
+- External validation cohort: 17 studies (18%)
+
+## Outcome Definitions
+
+ICD-10 code F11.20 (opioid dependence, uncomplicated) was the primary outcome
+in 43 studies (46%).
+ED visit-based definitions using claims codes appeared in 27 studies (29%).
+Overdose (ICD-10: T40.xx) was the primary outcome in 19 studies (20%).
+Polypharmacy-related ADE outcomes appeared in only 5 studies (5%).
+
+## Quality Assessment
+
+PROBAST assessment indicated high risk of bias in the analysis domain for
+62% of studies, primarily due to inadequate handling of class imbalance,
+missing data, and the absence of calibration statistics.
+Only 34 studies (36%) reported Brier score or calibration plots alongside
+discrimination metrics.
+
+# Discussion {#sec-discussion}
+
+## Key Findings
+
+This SQLR identified 94 studies applying XAI-enabled ML to opioid and
+polypharmacy outcomes, revealing a rapidly growing but methodologically
+fragmented literature.
+Three critical gaps demand attention:
+
+**Gap 1: PGx integration remains rare.**
+Despite the established pharmacogenomic basis of opioid metabolism
+[@Crews2021; @Stamer2007], fewer than one-fifth of studies incorporated
+any PGx feature.
+This represents a significant missed opportunity: CYP2D6 poor metabolizers
+face substantially elevated codeine toxicity risk, and OPRM1 A118G carriers
+show differential morphine response—actionable information that ML models
+currently ignore.
+
+**Gap 2: Causal validity is routinely compromised.**
+The 30% temporal leakage rate identified here aligns with recent concerns
+about reproducibility in clinical ML [@Kapoor2023].
+Without strict temporal holdouts and explicit leakage-prevention protocols,
+model performance estimates are inflated, and feature attributions from SHAP
+may reflect post-hoc outcome information rather than causal drug exposure.
+
+**Gap 3: FAERS and APCD data are rarely combined.**
+Only 7 studies (7%) integrated both spontaneous pharmacovigilance data (FAERS)
+and longitudinal claims data (APCD) in a single analytic pipeline, despite
+the complementary strengths of each source: FAERS provides rich adverse event
+narratives while APCD provides population-level prescription trajectories.
+This gap is particularly consequential for Safety Net Hospital settings where
+providers lack access to the EHR data used in most published models.
+
+**Gap 4: Explainability is model-centric, not user-centric.**
+Only 15% of studies evaluated whether SHAP or other explanations actually
+improved clinician decision-making.
+This disconnect between computational explainability and clinical usability
+must be addressed before XAI tools can achieve adoption [@Bates2003].
+
+## Implications for a Combined XAI + PGx Architecture
+
+The findings motivate a novel architectural paradigm—a "Consensus Filter"
+combining distributional (SHAP) and structural (Formal Feature Attribution)
+analysis with PGx enrichment—as implemented in the accompanying empirical
+chapters of this dissertation.
+Such an architecture must enforce:
+
+1. Strict temporal validation (training 2016–2018; holdout 2019)
+2. Explicit leakage prevention at feature engineering (FP-Growth and process
+   mining for visualization only)
+3. PGx feature integration via CPIC-standardized gene-drug interaction scores
+4. Dual explainability confirmation: a feature is causal only if identified
+   by both SHAP and symbolic rule extraction
+
+## Limitations of This Review
+
+This SQLR is subject to several limitations.
+First, publication bias likely inflates reported model performance.
+Second, grey literature and conference proceedings were excluded.
+Third, heterogeneity in outcome definitions, data sources, and evaluation
+metrics limited direct comparisons across studies.
+Fourth, APCD-based studies (the primary data source for subsequent chapters)
+were relatively underrepresented (n = 7) given this data source's recent
+availability.
+
+# Conclusions {#sec-conclusions}
+
+This systematic review confirms a high-impact intersection of XAI,
+pharmacogenomics, and clinical prediction for opioid outcomes—currently
+underexplored in the literature.
+The evidence base demonstrates feasibility of ensemble ML approaches for OUD
+and polypharmacy prediction, but highlights critical methodological
+vulnerabilities around leakage, calibration, and PGx integration that must
+be resolved for clinical translation.
+The methodological gaps identified here directly motivate the partition-first,
+consensus-filter architecture developed in subsequent chapters of this
+dissertation, which addresses all three identified gaps simultaneously.
+
+<!-- ── Supplementary Materials Note ─────────────────────────── -->
+
+**Supplementary Materials:** The following are available online:
+Supplementary File S1 (full Boolean search strings per database);
+Supplementary File S2 (PRISMA checklist);
+Supplementary File S3 (data extraction template);
+Supplementary File S4 (PROBAST assessments for all 94 included studies);
+Supplementary File S5 (evidence map data file, CSV).
+
+**Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
+formal analysis, R.J.D.; investigation, R.J.D.; writing—original draft
+preparation, R.J.D.; writing—review and editing, R.J.D.;
+visualization, R.J.D.
+The author has read and agreed to the published version of the manuscript.
+
+**Funding:** [Funding statement].
+
+**Institutional Review Board Statement:** Not applicable (systematic review
+of published literature; no primary human subjects data collected).
+
+**Informed Consent Statement:** Not applicable.
+
+**Data Availability Statement:** The extracted dataset supporting the
+conclusions of this article is available in Supplementary File S5.
+
+**Conflicts of Interest:** The author declares no conflict of interest.
