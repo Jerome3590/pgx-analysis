@@ -3188,7 +3188,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Simple logger + log file for final model
-    logs_dir = PROJECT_ROOT / "logs" / "final_model"
+    logs_dir = PROJECT_ROOT / "logs" / "6_final_model"
     logs_dir.mkdir(parents=True, exist_ok=True)
     age_band_fname = age_band_to_fname(args.age_band)
     log_path = logs_dir / f"final_model_{args.cohort}_{age_band_fname}.log"
@@ -3202,9 +3202,6 @@ def main() -> None:
         fh = logging.FileHandler(log_path, mode="a", encoding="utf-8")
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
     logger.propagate = False
 
     env = detect_runtime_environment(PROJECT_ROOT)
@@ -3502,10 +3499,10 @@ def main() -> None:
                 "prepare_train_test_s3.py not found; model training input data must be uploaded to S3 for SHAP/FFA analysis."
             )
 
-    # Mirror log to pgx-repository/final_model_log (best-effort)
+    # Mirror log to pgx-repository/6_final_model_log (best-effort)
     try:
         mirror_log_to_s3(
-            feature_step="final_model",
+            feature_step="6_final_model",
             cohort=args.cohort,
             age_band=args.age_band,
             log_path=log_path,

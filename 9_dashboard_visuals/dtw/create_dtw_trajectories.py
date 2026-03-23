@@ -1147,7 +1147,7 @@ def main():
     project_root = Path(args.project_root)
     age_band_fname = args.age_band.replace("-", "_")
     logger = setup_pipeline_logger(
-        step_name="5_dtw",
+        step_name="9_dtw",
         cohort=args.cohort,
         age_band=args.age_band,
         script_name="create_dtw_trajectories"

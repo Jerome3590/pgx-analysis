@@ -118,9 +118,6 @@ def _get_logger(cohort_name: str, age_band: str) -> tuple[logging.Logger, Path]:
         file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
     logger.propagate = False
     return logger, log_path
 

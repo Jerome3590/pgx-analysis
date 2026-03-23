@@ -116,22 +116,67 @@ Step 6 for each `(cohort, age_band)` now has two main sub-steps:
 
 ## Model Training and Selection
 
-Final model development uses the **same three-model ensemble** as feature importance:
+Final model development trains and evaluates four candidates:
 
-- **CatBoost** (gradient boosting on categorical features)
-- **XGBoost (boosted trees)**
+- **XGBoost** (gradient boosted trees)
 - **XGBoost RF mode** (random forest-style XGBoost)
+- **CatBoost** (gradient boosting with oblivious trees)
+- **Ensemble** (probability average of XGBoost + CatBoost across each MC-CV fold)
 
 **CatBoost tree structure (explainability):**
 
-- For both feature importance and final modeling, CatBoost is explicitly configured with `grow_policy="SymmetricTree"`, forcing **oblivious (symmetric) trees**.
+- CatBoost is explicitly configured with `grow_policy="SymmetricTree"`, forcing **oblivious (symmetric) trees**.
 - This slightly constrains raw predictive flexibility, but:
-  - Makes tree structure **regular and shallow**, which is much easier to convert into a unified **path DataFrame** and then into symbolic rules for FFA.
-  - Ensures CatBoost’s trees are compatible with the same JSON → DataFrame → rules framework used by the XGBoost explainer.
-- Empirically, this only causes a **minor change in MC‑CV metrics** while greatly improving the stability and interpretability of downstream FFA and causal analysis.
+  - Makes tree structure **regular and shallow**, compatible with the JSON → DataFrame → symbolic rules framework used by FFA.
+  - Ensures CatBoost trees can be parsed by the same `XGBoostSymbolicExplainer` pipeline as XGBoost.
+- Empirically, this only causes a **minor change in MC‑CV metrics** while greatly improving FFA and causal analysis stability.
 
-These models are compared with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018),
-then the best-performing base model is further tuned before being evaluated on a strict 2019 holdout. **Platt calibration** is applied post-MC-CV using concatenated OOF predictions (see `README_final_model_implementation.md` § Platt calibration).
+All four candidates are evaluated with **Monte Carlo Cross-Validation (MC-CV)** on the training window (2016–2018). **Platt calibration** is applied post-MC-CV using concatenated OOF predictions (see `README_final_model_implementation.md` § Platt calibration).
+
+### Selection Criterion
+
+The winner is chosen by sorting candidates on **PR-AUC mean** (primary), then **Recall mean** (tiebreaker), both descending — implemented in `_recompute_selection_from_summary_df()` and `train_and_evaluate()` in `run_final_model.py`.
+
+**Why PR-AUC first?**
+- These cohorts are **severely class-imbalanced** (rare adverse outcomes). PR-AUC ignores true negatives entirely (Precision = TP/(TP+FP), Recall = TP/(TP+FN)) so it cannot be inflated by correctly labeling the majority negative class.
+- ROC-AUC includes the true negative rate and inflates on imbalanced data — it is **not used for selection**.
+- Recall at a fixed 0.5 threshold is the tiebreaker: it captures real-world sensitivity ("how many at-risk patients are we actually catching?") once PR-AUC is tied.
+
+**Results are written to** `outputs/{cohort}/{age_band_fname}/{cohort}_{age_band_fname}_model_metrics_summary.csv`:
+
+| Column | Description |
+|--------|-------------|
+| `model` | XGBoost \| XGBoost_RF \| CatBoost \| Ensemble |
+| `recall_mean` | Mean recall across MC-CV splits at threshold 0.5 |
+| `pr_auc_mean` | Mean Precision-Recall AUC across splits |
+| `auc_mean` | Mean ROC-AUC (informational only, not used for selection) |
+| `logloss_mean` | Mean log loss |
+| `n_runs` | Number of MC-CV splits contributing |
+| `selected` | `True` for the winning candidate |
+
+### Model Selection Business Rules
+
+| Concern | Rule |
+|---------|------|
+| **Primary selection metric** | PR-AUC mean (descending) |
+| **Tiebreaker** | Recall mean (descending) |
+| **Ensemble eligible** | Yes — Ensemble competes with single models on equal footing |
+| **SHAP analysis** | Always uses **XGBoost** (`.ubj`) + **CatBoost** (`.cbm`) native binaries, regardless of which model is selected |
+| **FFA rule analysis** | Always uses **best XGBoost variant** (`xgb` or `xgb_rf`) JSON export, regardless of which model is selected |
+| **Best XGBoost variant** | Chosen by PR-AUC then Recall between `xgb` and `xgb_rf`; stored as `best_xgb_variant` in `model_selection_metadata.json` |
+
+> **Rationale for fixed SHAP/FFA models:** SHAP TreeExplainer requires a single gradient boosting model with known tree structure. FFA symbolic rule extraction parses XGBoost tree dumps. Neither can operate on an ensemble probability average. Selecting Ensemble for *risk prediction* does not change which artifacts are used for *explainability*.
+
+### Deployment Weight Behavior (`prepare_models.py`)
+
+`calculate_model_weights()` reads `model_metrics_summary.csv` and writes `model_weights` into `feature_schema.json`, which the Lambda uses at inference time:
+
+| Selection outcome | Lambda `model_weights` |
+|-------------------|------------------------|
+| **Single model selected** (XGBoost, XGBoost RF, or CatBoost) | Winner-take-all: selected model weight `1.0`, others `0.0` |
+| **Ensemble selected** | Proportional weights from composite score (`0.5 × PR-AUC + 0.5 × 1/(1+logloss)`) normalized across all three component models |
+
+When Ensemble is selected, all three component models are loaded and their calibrated probabilities are averaged proportionally. Re-run `prepare_models.py` after any training run that changes the selected model.
 
 ### MC-CV Split Strategy (Feature Importance vs Final Model)
 
@@ -145,7 +190,7 @@ then the best-performing base model is further tuned before being evaluated on a
 
 See `final_model.ipynb` for the full Python workflow:
 
-- MC-CV performance comparison and model selection by mean Recall
+- MC-CV performance comparison and model selection by **PR-AUC then Recall** (Ensemble eligible)
 - Optuna hyperparameter tuning on 2016–2018
 - Platt calibration on MC-CV OOF predictions (supersedes earlier temporal hold-out approach)
 - Final model export (joblib + native formats) locally and to S3 `gold/final_model/.../event_year=train/models/`
