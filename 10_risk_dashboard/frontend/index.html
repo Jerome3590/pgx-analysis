@@ -2423,6 +2423,21 @@
 
   document.getElementById("causal-top-n")?.addEventListener("change", () => { applyCausalTopNAndRender(); });
 
+  // Event density (bin): trigger that tab's Load so per-bin assets refresh (Causal, FP-Growth, Cohort PGx, BupaR).
+  // DTW uses dtw-event-density: re-renders from already-loaded data (see listener after btnLoadDTW).
+  document.getElementById("causal-n-event-bin")?.addEventListener("change", () => {
+    document.getElementById("btnLoadCausal")?.click();
+  });
+  document.getElementById("fpgrowth-n-event-bin")?.addEventListener("change", () => {
+    document.getElementById("btnLoadFPGrowth")?.click();
+  });
+  document.getElementById("cohort-pgx-n-event-bin")?.addEventListener("change", () => {
+    document.getElementById("btnLoadCohortPgx")?.click();
+  });
+  document.getElementById("bupar-n-event-bin")?.addEventListener("change", () => {
+    document.getElementById("btnLoadBupaR")?.click();
+  });
+
   // DTW Visualizations Tab
   document.getElementById("btnLoadDTW")?.addEventListener("click", async () => {
     const cohort = document.getElementById("dtw-cohort").value;
@@ -3322,6 +3337,9 @@
         polar: { radialaxis: { range: [0, 1], tickvals: [0.25, 0.5, 0.75, 1] } },
         showlegend: traces.length > 1
       }, { responsive: true });
+    } else if (radarEl) {
+      try { if (window.Plotly) Plotly.purge(radarEl); } catch (_) {}
+      radarEl.innerHTML = '<p class="status-message info" style="margin:0;">No radar data for this selection.</p>';
     }
   }
 
