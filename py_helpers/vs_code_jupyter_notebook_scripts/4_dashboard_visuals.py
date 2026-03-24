@@ -1265,9 +1265,7 @@ def run_fetch_pubmed_citations(cohort_name, age_band, bin_name=None):
         else COHORT_PGX_NETWORKS_DIR / cohort_name / age_band_fname
     )
 
-    if not reports_file.exists():
-        return (cohort_name, age_band, bin_name, -1, f"Reports file not found: {reports_file}", "")
-
+    # When VIP reports missing (no drugs resolved to genes), script writes minimal output; no short-circuit.
     args = [
         str(PYTHON_BIN), str(FETCH_PUBMED_CITATIONS_SCRIPT),
         "--cohort", cohort_name,

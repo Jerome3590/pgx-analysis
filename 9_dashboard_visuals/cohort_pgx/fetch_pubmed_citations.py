@@ -113,10 +113,21 @@ def _load_top_drugs(
                 if col in rows[0]:
                     drugs = [r[col].strip() for r in rows if r.get(col, "").strip()][:top_n]
                     if drugs:
-                        logger.info("Top drugs from %s (col=%s): %s", path.name, col, drugs)
+                        try:
+                            rel = path.relative_to(project_root) if project_root else path.name
+                        except ValueError:
+                            rel = path.name
+                        logger.info(
+                            "Top drugs for PubMed context queries from %s (col=%s): %s",
+                            rel, col, drugs,
+                        )
                         return drugs
         except Exception as exc:
             logger.debug("Could not read top drugs from %s: %s", path, exc)
+    logger.info(
+        "No top drugs from combined_importance for %s/%s%s; PubMed will use cohort context keyword fallback",
+        cohort_name, age_band.replace("-", "_"), f" bin={bin_name}" if bin_name else "",
+    )
     return []
 
 
@@ -465,15 +476,63 @@ def fetch_pubmed_citations(
             pass
 
     if not reports_file.exists():
-        logger.error("VIP reports file not found: %s", reports_file)
-        return {}
+        logger.warning("VIP reports file not found: %s; writing minimal output (no genes to query)", reports_file)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        top_drugs: List[str] = []
+        if project_root:
+            top_drugs = _load_top_drugs(project_root, cohort_name, age_band, bin_name)
+        context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
+        current_year = datetime.now().year
+        minimal: Dict[str, Any] = {
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "bin": bin_name,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "date_range": f"{current_year - LIT_REVIEW_YEARS}\u2013{current_year}",
+            "context_keyword": ", ".join(top_drugs[:3]) if top_drugs else context_kw,
+            "top_drugs": top_drugs,
+            "genes_queried": 0,
+            "gene_scores": {},
+            "citations": {},
+        }
+        with open(output_file, "w", encoding="utf-8") as fh:
+            json.dump(minimal, fh, indent=2, ensure_ascii=False)
+        return minimal
 
     with open(reports_file, encoding="utf-8") as fh:
         reports = json.load(fh)
 
-    if not isinstance(reports, list) or not reports:
-        logger.warning("VIP reports empty or not a list: %s", reports_file)
+    if not isinstance(reports, list):
+        logger.error("VIP reports is not a list: %s", reports_file)
         return {}
+
+    if not reports:
+        logger.warning(
+            "VIP reports empty for %s/%s%s (no drugs resolved to genes); writing minimal output",
+            cohort_name, age_band, f" bin={bin_name}" if bin_name else "",
+        )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        top_drugs: List[str] = []
+        if project_root:
+            top_drugs = _load_top_drugs(project_root, cohort_name, age_band, bin_name)
+        context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
+        current_year = datetime.now().year
+        minimal: Dict[str, Any] = {
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "bin": bin_name,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "date_range": f"{current_year - LIT_REVIEW_YEARS}\u2013{current_year}",
+            "context_keyword": ", ".join(top_drugs[:3]) if top_drugs else context_kw,
+            "top_drugs": top_drugs,
+            "genes_queried": 0,
+            "gene_scores": {},
+            "citations": {},
+        }
+        with open(output_file, "w", encoding="utf-8") as fh:
+            json.dump(minimal, fh, indent=2, ensure_ascii=False)
+        logger.info("Saved empty citations: %s", output_file)
+        return minimal
 
     delay   = REQUEST_DELAY_WITH_KEY if api_key else REQUEST_DELAY_NO_KEY
     session = requests.Session()
@@ -489,7 +548,7 @@ def fetch_pubmed_citations(
         if top_drugs:
             logger.info("Drug-anchored context query: %s", top_drugs)
         else:
-            logger.info("No combined_importance.csv found; using cohort context keyword fallback")
+            logger.info("Using cohort context keyword fallback (no drug list from combined_importance)")
 
     context_kw = _COHORT_CONTEXT.get(cohort_name, _DEFAULT_CONTEXT)
     citations:  Dict[str, Any] = {}
