@@ -627,8 +627,46 @@ def generate_per_bin_activity_frequency(
     written = 0
     for bin_name in _DENSITY_BINS:
         bin_df = df[df["n_event_bin"] == bin_name]
-        if len(bin_df) < 10:
-            logger.info("Skipping per-bin BupaR activity freq for %s (n=%d < 10)", bin_name, len(bin_df))
+        n_events = len(bin_df)
+        n_patients = int(bin_df[patient_col].nunique()) if n_events > 0 else 0
+
+        bin_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / bin_name / "plots"
+        bin_plots_dir.mkdir(parents=True, exist_ok=True)
+        out_path = bin_plots_dir / f"{base}_activity_frequency.json"
+
+        if n_events < 10:
+            # Write empty-state so every bin has a file (dashboard can show "insufficient data")
+            freq_json = {
+                "year_labels": ["all"],
+                "data": {},
+                "density_bin": bin_name,
+                "n_patients": n_patients,
+                "n_events": n_events,
+                "empty": True,
+                "message": "Insufficient events for visualization (minimum 10 required)",
+            }
+            try:
+                out_path.write_text(json.dumps(freq_json, indent=2), encoding="utf-8")
+                logger.info("Per-bin BupaR activity_frequency (empty-state) written: %s (n=%d events)", out_path, n_events)
+                written += 1
+                if (_os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() not in ("1", "true", "yes"):
+                    try:
+                        import boto3 as _boto3
+                        s3_bucket = _os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+                        dashboard_prefix = _os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+                        s3_key = (
+                            f"{dashboard_prefix.rstrip('/')}/visualizations/bupar"
+                            f"/{cohort_name}/{age_band}/density/{bin_name}/plots/{base}_activity_frequency.json"
+                        )
+                        _boto3.client("s3").put_object(
+                            Bucket=s3_bucket, Key=s3_key,
+                            Body=out_path.read_bytes(), ContentType="application/json",
+                        )
+                        logger.info("Uploaded per-bin BupaR empty-state to s3://%s/%s", s3_bucket, s3_key)
+                    except Exception as e:
+                        logger.warning("Per-bin BupaR S3 upload failed (%s): %s", bin_name, e)
+            except Exception as e:
+                logger.warning("Per-bin BupaR activity_frequency empty-state failed (%s): %s", bin_name, e)
             continue
 
         try:
@@ -655,9 +693,6 @@ def generate_per_bin_activity_frequency(
                     "n_patients": int(bin_df[patient_col].nunique()),
                 }
 
-            bin_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / bin_name / "plots"
-            bin_plots_dir.mkdir(parents=True, exist_ok=True)
-            out_path = bin_plots_dir / f"{base}_activity_frequency.json"
             out_path.write_text(json.dumps(freq_json, indent=2), encoding="utf-8")
             logger.info("Per-bin BupaR activity_frequency written: %s", out_path)
             written += 1
@@ -682,7 +717,7 @@ def generate_per_bin_activity_frequency(
         except Exception as e:
             logger.warning("Per-bin BupaR activity_frequency failed (%s): %s", bin_name, e)
 
-    logger.info("Per-bin BupaR activity frequency: %d bins written for %s/%s", written, cohort_name, age_band)
+    logger.info("Per-bin BupaR activity frequency: %d bins written for %s/%s (all bins get file: full or empty-state)", written, cohort_name, age_band)
     return written > 0
 
 
