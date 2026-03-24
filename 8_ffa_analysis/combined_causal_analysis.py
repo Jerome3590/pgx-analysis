@@ -351,7 +351,8 @@ def causal_analysis_explainer_method(X: pd.DataFrame, y: pd.Series,
                 data_dir=str(DATA_PATH.parent),
                 output_dir=str(OUTPUT_DIR),
                 tree_rules_path=None,
-                age_band=AGE_BAND
+                age_band=AGE_BAND,
+                cohort=COHORT_NAME,
             )
             explainer = XGBoostSymbolicExplainer(path_config)
             explainer.model_json = model_json
@@ -408,7 +409,8 @@ def causal_analysis_explainer_method(X: pd.DataFrame, y: pd.Series,
                     data_dir=str(DATA_PATH.parent),
                     output_dir=str(OUTPUT_DIR),
                     tree_rules_path=None,
-                    age_band=AGE_BAND
+                    age_band=AGE_BAND,
+                    cohort=COHORT_NAME,
                 )
                 explainer = XGBoostSymbolicExplainer(path_config)
             with open(model_json_path, 'r') as f:

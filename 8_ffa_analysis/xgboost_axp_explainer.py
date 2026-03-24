@@ -61,7 +61,8 @@ class PathConfig:
                  output_dir: str,
                  tree_rules_path: str = None,
                  age_band: str = None,
-                 cohort: str = None):
+                 cohort: str = None,
+                 density_bin: str = None):
         """
         Initialize path configuration for S3 paths.
         
@@ -72,6 +73,7 @@ class PathConfig:
             tree_rules_path: Path to the tree rules JSON file
             age_band: Age band for the cohort (e.g., "0-12", "13-24", etc.)
             cohort: Cohort name (e.g., "opioid_ed", "non_opioid_ed")
+            density_bin: Optional n_event_bin label (low|medium|high|extreme) for per-bin FFA logging paths
         """
         self.model_path = model_path
         self.data_dir = data_dir
@@ -79,6 +81,7 @@ class PathConfig:
         self.tree_rules_path = tree_rules_path
         self.age_band = age_band
         self.cohort = cohort
+        self.density_bin = density_bin
         
     @property
     def train_data_path(self) -> str:
@@ -159,24 +162,10 @@ class XGBoostSymbolicExplainer(BaseSymbolicExplainer):
         self.path_config = path_config
         self.tree_rules = None
         
-        # Override logging setup to use file if path_config provides output_dir
+        # Per-output-dir detail log (same logger as base; base already added logs/8_ffa_analysis/*.log)
         if path_config and hasattr(path_config, 'output_dir'):
             log_file = os.path.join(path_config.output_dir, 'axp_analysis.log')
             self.setup_logging(log_file=log_file)
-
-        # Secondary handler: standard logs/8_ffa_analysis/ location at repo root
-        self._std_log_path = None
-        _cohort = getattr(path_config, 'cohort', None) if path_config else None
-        _age_band = getattr(path_config, 'age_band', None) if path_config else None
-        if _cohort and _age_band:
-            _repo_root = Path(__file__).resolve().parents[1]
-            _log_dir = _repo_root / "logs" / "8_ffa_analysis"
-            _log_dir.mkdir(parents=True, exist_ok=True)
-            _ab_fname = str(_age_band).replace("-", "_")
-            self._std_log_path = _log_dir / f"ffa_{_cohort}_{_ab_fname}.log"
-            _fh = logging.FileHandler(str(self._std_log_path), mode="a", encoding="utf-8")
-            _fh.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-            self.logger.addHandler(_fh)
 
     def fit_from_model_json(self, model_json):
         """Parse XGBoost model JSON and build symbolic CNF clauses for FFA."""

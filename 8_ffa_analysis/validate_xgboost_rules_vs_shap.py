@@ -313,7 +313,8 @@ def main():
         model_path=str(model_json_path),
         data_dir=str(data_path.parent),
         output_dir=str(output_dir),
-        age_band=args.age_band
+        age_band=args.age_band,
+        cohort=args.cohort,
     )
     
     explainer = XGBoostSymbolicExplainer(path_config, shap_importance_map=shap_importance)
