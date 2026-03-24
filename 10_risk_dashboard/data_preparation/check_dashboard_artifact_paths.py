@@ -5,6 +5,9 @@ Check that EC2 paths and artifacts required for the dashboard exist before Lambd
 Aligns with 10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md and
 RESEARCH_QUESTIONS_ARTIFACTS.md. Run from repo root (e.g. before Step 6 in 5_build_and_deploy.ipynb).
 
+Checks both cohort-level paths and per-bin paths (causal, BupaR, FP-Growth, PGx). Per-bin checks
+are informational; --strict only fails on required cohort-level/metadata paths.
+
 Usage:
   python 10_risk_dashboard/data_preparation/check_dashboard_artifact_paths.py
   python 10_risk_dashboard/data_preparation/check_dashboard_artifact_paths.py --strict   # exit 1 if any required missing
@@ -31,6 +34,20 @@ def _repo_root(project_root: Path | None) -> Path:
         if (parent / "10_risk_dashboard").exists():
             return parent
     return cwd
+
+
+_BINS = ("low", "medium", "high", "extreme")
+
+
+def _list_trained_bins(root: Path, cohort: str, age_band: str) -> list[str]:
+    """Return bins that have Step 6 artifacts (per-bin models trained)."""
+    try:
+        import sys
+        sys.path.insert(0, str(root))
+        from py_helpers.event_density_utils import list_trained_density_bins
+        return list_trained_density_bins(root, cohort, age_band)
+    except ImportError:
+        return []
 
 
 def _get_cohorts_and_bands(root: Path) -> list[tuple[str, str]]:
@@ -142,6 +159,60 @@ def check_pgx_cohort(root: Path, combos: list[tuple[str, str]]) -> list[tuple[st
     return results
 
 
+def check_causal_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
+    """Per-bin causal dashboard_data.json (for bins with Step 6 models). Informational only."""
+    results = []
+    out = root / "10_risk_dashboard" / "visualizations" / "causal"
+    for cohort, age_band in combos:
+        ab_fname = age_band.replace("-", "_")
+        trained = _list_trained_bins(root, cohort, age_band)
+        for bin_name in trained:
+            path = out / cohort / ab_fname / bin_name / "dashboard_data.json"
+            results.append((f"Causal (bin) {cohort}/{age_band}/{bin_name}", path.exists(), str(path)))
+    return results
+
+
+def check_bupar_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
+    """Per-bin BupaR plots under density/{bin}/. Informational only."""
+    results = []
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "bupar"
+    for cohort, age_band in combos:
+        ab_fname = age_band.replace("-", "_")
+        base_name = f"{cohort}_{ab_fname}"
+        for bin_name in _BINS:
+            plots_dir = base_dir / cohort / ab_fname / "density" / bin_name / "plots"
+            probe = plots_dir / f"{base_name}_activity_frequency.json"
+            results.append((f"BupaR (bin) {cohort}/{age_band}/{bin_name}", probe.exists(), str(plots_dir)))
+    return results
+
+
+def check_fpgrowth_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
+    """Per-bin FP-Growth itemsets/rules under density/{bin}/. Informational only."""
+    results = []
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "fpgrowth"
+    for cohort, age_band in combos:
+        ab_fname = age_band.replace("-", "_")
+        for bin_name in _BINS:
+            density_dir = base_dir / cohort / ab_fname / "density" / bin_name
+            itemsets = density_dir / "drug_name_itemsets.json"
+            rules = density_dir / "drug_name_rules.json"
+            any_exists = itemsets.exists() or rules.exists()
+            results.append((f"FP-Growth (bin) {cohort}/{age_band}/{bin_name}", any_exists, str(density_dir)))
+    return results
+
+
+def check_pgx_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
+    """Per-bin PGx network_topology.html under density/{bin}/. Informational only."""
+    results = []
+    base_dir = root / "10_risk_dashboard" / "visualizations" / "cohort_pgx" / "networks"
+    for cohort, age_band in combos:
+        ab_fname = age_band.replace("-", "_")
+        for bin_name in _BINS:
+            path = base_dir / cohort / ab_fname / "density" / bin_name / "network_topology.html"
+            results.append((f"PGx (bin) {cohort}/{age_band}/{bin_name}", path.exists(), str(path)))
+    return results
+
+
 def check_metadata_frontend(root: Path) -> list[tuple[str, bool, str]]:
     """Frontend, metadata (required for deploy)."""
     dash = root / "10_risk_dashboard"
@@ -158,7 +229,7 @@ def _print_section(title: str, results: list[tuple[str, bool, str]]) -> int:
     ok_count = sum(1 for _, ok, _ in results if ok)
     print(f"--- {title} ---")
     for name, ok, path in results:
-        sym = "✓" if ok else "✗"
+        sym = "[OK]" if ok else "[--]"
         print(f"  {sym} {name}")
     print(f"  ({ok_count}/{len(results)} present)")
     print()
@@ -223,6 +294,16 @@ def main() -> int:
     # PGx Cohort (optional)
     pgx = check_pgx_cohort(root, combos)
     _print_section("PGx Cohort", pgx)
+
+    # Per-bin paths (informational; Lambda/dashboard use these when density filter is active)
+    causal_bin = check_causal_per_bin(root, combos)
+    _print_section("Causal Analysis (per-bin)", causal_bin)
+    bupar_bin = check_bupar_per_bin(root, combos)
+    _print_section("BupaR (per-bin)", bupar_bin)
+    fpg_bin = check_fpgrowth_per_bin(root, combos)
+    _print_section("FP-Growth (per-bin)", fpg_bin)
+    pgx_bin = check_pgx_per_bin(root, combos)
+    _print_section("PGx Cohort (per-bin)", pgx_bin)
 
     total_results = meta + fi + causal + bupar + dtw + fpg + pgx
     total_ok = sum(1 for _, ok, _ in total_results if ok)
