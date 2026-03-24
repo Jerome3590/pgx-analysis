@@ -1232,6 +1232,19 @@ print(f"  Output: {COHORT_PGX_REPORTS_DIR}")
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Ensure Cohort PGx paths are defined (run "Cohort PGx Network Topology - Paths" cell first)
+try:
+    FETCH_PUBMED_CITATIONS_SCRIPT
+except NameError:
+    from pathlib import Path
+    _r = globals().get("REPO_ROOT", Path.cwd())
+    _step9 = _r / "10_risk_dashboard"
+    _visual = _step9 / "visualizations"
+    COHORT_PGX_DIR = _step9 / "cohort_pgx"
+    COHORT_PGX_REPORTS_DIR = _visual / "cohort_pgx" / "reports"
+    COHORT_PGX_NETWORKS_DIR = _visual / "cohort_pgx" / "networks"
+    FETCH_PUBMED_CITATIONS_SCRIPT = COHORT_PGX_DIR / "fetch_pubmed_citations.py"
+
 try:
     FAIL_FAST
 except NameError:
