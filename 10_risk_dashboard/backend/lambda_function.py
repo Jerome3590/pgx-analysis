@@ -432,7 +432,9 @@ def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str
         data = json.loads(obj["Body"].read().decode("utf-8"))
         return _from_data(data)
     except ClientError as e:
-        if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "NotFound"):
+        # Treat missing or forbidden (no IAM) as not found; return None instead of 500
+        code = e.response.get("Error", {}).get("Code")
+        if code not in ("NoSuchKey", "404", "NotFound", "AccessDenied", "403"):
             raise
     return None
 
