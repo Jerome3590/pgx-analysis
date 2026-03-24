@@ -1731,6 +1731,58 @@ def per_bin_model_files_exist(out_base: Path) -> bool:
     return True
 
 
+def repair_per_bin_fallbacks_from_aggregate(
+    cohort: str,
+    age_band: str,
+    logger=None,
+) -> None:
+    """
+    For sparse bins (no training rows / single class), training copies full-cohort artifacts
+    into bin_models/{bin}/ — but that only runs inside train_per_bin(). If the main() idempotency
+    path returns early (local + S3 look complete for aggregate, or checkpoint) or a run stopped
+    mid-loop, a bin can be missing joblibs while aggregate models exist. This repair mirrors
+    aggregate into any bin directory that is missing deployment joblibs, without retraining.
+
+    Safe to call repeatedly: copy_full_cohort_artifacts_to_bin_directory is idempotent for a bin.
+    """
+    age_band_fname = age_band_to_fname(age_band)
+    agg = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    if not agg.exists():
+        return
+    has_agg_models = (agg / "models" / "xgboost.joblib").exists() or (
+        agg / "models" / "catboost.joblib"
+    ).exists()
+    if not has_agg_models:
+        return
+
+    for bin_name in _DENSITY_BINS:
+        mdir = agg / "bin_models" / bin_name / "models"
+        has_xgb = mdir.exists() and (mdir / "xgboost.joblib").exists()
+        has_cb = mdir.exists() and (mdir / "catboost.joblib").exists()
+        if has_xgb and has_cb:
+            continue
+        msg = (
+            f"Repairing per-bin artifacts for bin={bin_name!r}: missing deployment joblibs "
+            f"(xgb={has_xgb}, catboost={has_cb}); copying full-cohort tree from aggregate root."
+        )
+        if logger:
+            logger.info(msg)
+        else:
+            print(f"[INFO] {msg}")
+        try:
+            copy_full_cohort_artifacts_to_bin_directory(
+                cohort,
+                age_band,
+                bin_name,
+                reason="repair: sparse bin or interrupted run — mirrored from aggregate so deploy has a full bin tree",
+            )
+        except Exception as e:
+            if logger:
+                logger.warning("Repair copy failed for bin=%s: %s", bin_name, e)
+            else:
+                print(f"[WARN] Repair copy failed for bin={bin_name}: {e}")
+
+
 def train_and_evaluate(
     df: pd.DataFrame,
     cohort: str,
@@ -3307,6 +3359,11 @@ def main() -> None:
         # Also check model_outputs copies (needed by FFA/SHAP)
         "model_outputs_xgb_json": PROJECT_ROOT / "6_final_model" / "model_outputs" / args.cohort / age_band_fname_check / f"{args.cohort}_{age_band_fname_check}_best_xgboost_model.json",
     }
+
+    # Sparse bins get full-cohort copies inside train_per_bin(); if we skip that (checkpoint / S3
+    # early exit, or partial run), bin_models/{bin}/ may be missing. Repair before idempotency.
+    if args.train_mode == "per_bin":
+        repair_per_bin_fallbacks_from_aggregate(args.cohort, args.age_band, logger=logger)
     
     # Check if all local outputs exist
     # In per_bin mode, require final features + every bin's XGBoost and CatBoost joblibs.
@@ -3381,6 +3438,22 @@ def main() -> None:
                 s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_train_final_features_no_leakage.csv"
                 if upload_file_to_s3(local_outputs["features_csv"], s3_path, logger):
                     s3_outputs.append(s3_path)
+
+            # Per-bin deployment joblibs (same keys as train_and_evaluate); repair may have just filled bins.
+            if args.train_mode == "per_bin":
+                from py_helpers.event_density_utils import DENSITY_BINS as _UP_BINS
+                for b in _UP_BINS:
+                    mdir = out_base_check / "bin_models" / b / "models"
+                    xjb = mdir / "xgboost.joblib"
+                    cjb = mdir / "catboost.joblib"
+                    if xjb.exists():
+                        s3_p = f"{s3_base}/bin_models/{b}/xgboost.joblib"
+                        if upload_file_to_s3(xjb, s3_p, logger):
+                            s3_outputs.append(s3_p)
+                    if cjb.exists():
+                        s3_p = f"{s3_base}/bin_models/{b}/catboost.joblib"
+                        if upload_file_to_s3(cjb, s3_p, logger):
+                            s3_outputs.append(s3_p)
             
             # Save checkpoint if outputs uploaded
             if s3_outputs:
@@ -3509,6 +3582,9 @@ def main() -> None:
                                 logger.info(f"Downloaded per-bin model {b}/{fname} from S3")
                             except Exception as e:
                                 logger.debug(f"Could not download bin {b} {fname}: {e}")
+
+                if args.train_mode == "per_bin":
+                    repair_per_bin_fallbacks_from_aggregate(args.cohort, args.age_band, logger=logger)
                 
                 # Check if we got the essential files (including features CSV needed by Step 8)
                 essential_files = [
