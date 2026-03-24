@@ -30,6 +30,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from py_helpers.constants import age_band_to_fname  # type: ignore
+from py_helpers.event_density_utils import (  # type: ignore
+    DENSITY_BINS,
+    cohort_aggregate_final_model_has_artifacts,
+    final_model_bin_has_trained_artifacts,
+)
 
 
 def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.Series]:
@@ -450,12 +455,15 @@ def write_row_shap_for_selected_features_catboost(
 
 def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
     """
-    Load the best models selected by the final model training step.
-    
-    Returns:
-        - best_catboost_model: CatBoost model loaded from .cbm binary
-        - model_selection_metadata: Dict with selection information
+    Load the best CatBoost model from Step 6 outputs.
+
+    When ``bin_name`` is set, only paths under
+    ``6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}/`` are
+    used (plus that bin's ``final_model_json``). Cohort-level fallbacks are used
+    only when ``bin_name`` is None, so per-bin SHAP never loads the aggregate model.
     """
+    import json
+
     age_band_fname = age_band_to_fname(age_band)
     _bin_infix = ("bin_models", bin_name) if bin_name else ()
     _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
@@ -465,96 +473,124 @@ def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
     metadata_path = _bin_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
     if not metadata_path.exists():
         metadata_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-    )
-    
-    import json
+            PROJECT_ROOT
+            / "6_final_model"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+        )
+
     if metadata_path.exists():
         with open(metadata_path, "r") as f:
             model_selection_metadata = json.load(f)
     else:
         print(f"Warning: Model selection metadata not found at {metadata_path}")
         model_selection_metadata = {}
-    
-    # Try loading CatBoost binary model — per-bin path first, then full-cohort fallbacks
-    cb_binary_path = _bin_base / "models" / "catboost_model.cbm"
 
-    # Fallback to model_outputs location
-    if not cb_binary_path.exists():
-        cb_binary_path = (
+    stem = f"{cohort}_{age_band_fname}_best_catboost_model"
+    age_band_h = age_band_fname.replace("_", "-")
+
+    # Native .cbm (Step 6 writes both models/catboost_model.cbm and final_model_json/*_best_catboost_model.cbm)
+    cb_binary_candidates: list[Path] = [
+        _bin_base / "models" / "catboost_model.cbm",
+        _bin_base / "final_model_json" / f"{stem}.cbm",
+    ]
+    if not bin_name:
+        cb_binary_candidates.extend(
+            [
+                PROJECT_ROOT
+                / "6_final_model"
+                / "model_outputs"
+                / cohort
+                / age_band_fname
+                / "models"
+                / "catboost_model.cbm",
+                PROJECT_ROOT
+                / "6_final_model"
+                / "outputs"
+                / cohort
+                / age_band_fname
+                / "final_model_json"
+                / f"{stem}.cbm",
+                PROJECT_ROOT
+                / "6_final_model"
+                / "model_outputs"
+                / cohort
+                / age_band_fname
+                / f"{stem}.cbm",
+            ]
+        )
+
+    for cb_path in cb_binary_candidates:
+        if cb_path.exists():
+            from catboost import CatBoostClassifier  # type: ignore
+
+            cb_model = CatBoostClassifier()
+            cb_model.load_model(str(cb_path))
+            print(f"Loaded best CatBoost model from {cb_path}")
+            return cb_model, model_selection_metadata
+
+    # JSON
+    cb_json_candidates: list[Path] = [_bin_base / "final_model_json" / f"{stem}.json"]
+    if not bin_name:
+        cb_json_candidates.append(
+            PROJECT_ROOT
+            / "6_final_model"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / "final_model_json"
+            / f"{stem}.json",
+        )
+    for cb_json_path in cb_json_candidates:
+        if cb_json_path.exists():
+            print(f"CatBoost binary (.cbm) not found, loading from JSON: {cb_json_path}")
+            from catboost import CatBoostClassifier  # type: ignore
+
+            cb_model = CatBoostClassifier()
+            cb_model.load_model(str(cb_json_path))
+            print(f"Loaded best CatBoost model from JSON: {cb_json_path}")
+            return cb_model, model_selection_metadata
+
+    # Joblib (saved by run_final_model.py in models/)
+    cb_joblib_candidates: list[Path] = [_bin_base / "models" / "catboost.joblib"]
+    if not bin_name:
+        cb_joblib_candidates.append(
             PROJECT_ROOT
             / "6_final_model"
             / "model_outputs"
             / cohort
             / age_band_fname
             / "models"
-            / "catboost_model.cbm"
+            / "catboost.joblib",
         )
-    
-    # Fallback to final_model_json location (legacy)
-    if not cb_binary_path.exists():
-        cb_binary_path = (
-            PROJECT_ROOT
-            / "6_final_model"
-            / "outputs"
-            / cohort
-            / age_band_fname
-            / "final_model_json"
-            / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
-        )
-    
-    # Final fallback to model_outputs root (legacy)
-    if not cb_binary_path.exists():
-        cb_binary_path = (
-            PROJECT_ROOT
-            / "6_final_model"
-            / "model_outputs"
-            / cohort
-            / age_band_fname
-            / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
-        )
-    
-    # Try loading from JSON if binary not found (CatBoost can load from JSON)
-    if not cb_binary_path.exists():
-        cb_json_path = (
-            PROJECT_ROOT
-            / "6_final_model"
-            / "outputs"
-            / cohort
-            / age_band_fname
-            / "final_model_json"
-            / f"{cohort}_{age_band_fname}_best_catboost_model.json"
-        )
-        if cb_json_path.exists():
-            print(f"CatBoost binary (.cbm) not found, loading from JSON: {cb_json_path}")
-            from catboost import CatBoostClassifier  # type: ignore
-            cb_model = CatBoostClassifier()
-            cb_model.load_model(str(cb_json_path))
-            print(f"Loaded best CatBoost model from JSON: {cb_json_path}")
+    for cb_joblib_path in cb_joblib_candidates:
+        if cb_joblib_path.exists():
+            print(f"CatBoost binary (.cbm) not found, loading from joblib: {cb_joblib_path}")
+            cb_model = joblib.load(str(cb_joblib_path))
+            print(f"Loaded best CatBoost model from joblib: {cb_joblib_path}")
             return cb_model, model_selection_metadata
-    
-    if not cb_binary_path.exists():
-        raise FileNotFoundError(
-            f"Best CatBoost model binary or JSON not found. Checked:\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'models' / 'catboost_model.cbm'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / 'models' / 'catboost_model.cbm'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / f'{cohort}_{age_band_fname}_best_catboost_model.cbm'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'final_model_json' / f'{cohort}_{age_band_fname}_best_catboost_model.json'}\n"
-            f"Please run 6_final_model_selection/run_final_model.py first or download model from S3."
+
+    lines = [
+        "Best CatBoost model not found (.cbm, .json, or catboost.joblib). Checked:",
+        *[f"  - {p}" for p in cb_binary_candidates],
+        *[f"  - {p}" for p in cb_json_candidates],
+        *[f"  - {p}" for p in cb_joblib_candidates],
+        f"Run Step 6: python 6_final_model/run_final_model.py --cohort {cohort} --age_band {age_band_h}",
+    ]
+    if bin_name:
+        lines.append(
+            f"Or sync per-bin artifact from S3: aws s3 cp "
+            f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band_h}/bin_models/{bin_name}/catboost_model.cbm "
+            f"{_bin_base / 'models' / 'catboost_model.cbm'}"
         )
-    
-    from catboost import CatBoostClassifier  # type: ignore
-    cb_model = CatBoostClassifier()
-    cb_model.load_model(str(cb_binary_path))
-    print(f"Loaded best CatBoost model from {cb_binary_path}")
-    
-    return cb_model, model_selection_metadata
+    else:
+        lines.append(
+            f"Or sync from S3: aws s3 cp s3://pgxdatalake/gold/final_model/{cohort}/{age_band_h}/catboost_model.cbm "
+            f"{PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'models' / 'catboost_model.cbm'}"
+        )
+    raise FileNotFoundError("\n".join(lines))
 
 
 def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = None):
@@ -563,6 +599,9 @@ def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = 
 
     Prefers native XGBoost booster binary model (UBJ format, most reliable for SHAP).
     Falls back to joblib if binary not available.
+
+    When ``bin_name`` is set, only that bin's ``bin_models/{bin_name}/models/`` are
+    searched; cohort-level paths are not used (avoid wrong model for per-bin SHAP).
 
     Returns:
         - best_xgboost_model: XGBoost model (loaded from binary or joblib)
@@ -574,51 +613,53 @@ def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = 
     _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
     _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
 
-    # Try loading native XGBoost booster binary model first (preferred for SHAP) — per-bin path first
-    xgb_binary_path = _bin_base / "models" / "xgboost_model.ubj"
-
-    # Fallback to model_outputs location
-    if not xgb_binary_path.exists():
-        xgb_binary_path = (
+    xgb_binary_candidates: list[Path] = [_bin_base / "models" / "xgboost_model.ubj"]
+    if not bin_name:
+        xgb_binary_candidates.append(
             PROJECT_ROOT
             / "6_final_model"
             / "model_outputs"
             / cohort
             / age_band_fname
             / "models"
-            / "xgboost_model.ubj"
+            / "xgboost_model.ubj",
         )
 
-    if xgb_binary_path.exists():
-        # Load from native binary model (most reliable for SHAP, avoids base_score issues)
-        xgb_model = xgb.XGBClassifier()
-        xgb_model.load_model(str(xgb_binary_path))
-        print(f"Loaded best XGBoost model from native binary: {xgb_binary_path}")
-        return xgb_model
+    for xgb_binary_path in xgb_binary_candidates:
+        if xgb_binary_path.exists():
+            xgb_model = xgb.XGBClassifier()
+            xgb_model.load_model(str(xgb_binary_path))
+            print(f"Loaded best XGBoost model from native binary: {xgb_binary_path}")
+            return xgb_model
 
-    # Fallback to joblib if binary not available
-    xgb_joblib_path = _bin_base / "models" / "xgboost.joblib"
-
-    if not xgb_joblib_path.exists():
-        xgb_joblib_path = (
+    xgb_joblib_candidates: list[Path] = [_bin_base / "models" / "xgboost.joblib"]
+    if not bin_name:
+        xgb_joblib_candidates.append(
             PROJECT_ROOT
             / "6_final_model"
             / "model_outputs"
             / cohort
             / age_band_fname
             / "models"
-            / "xgboost.joblib"
+            / "xgboost.joblib",
         )
 
-    if not xgb_joblib_path.exists():
-        raise FileNotFoundError(
-            f"Best XGBoost model not found. Checked:\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'models' / 'xgboost_model.ubj'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / 'models' / 'xgboost_model.ubj'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'outputs' / cohort / age_band_fname / 'models' / 'xgboost.joblib'}\n"
-            f"  - {PROJECT_ROOT / '6_final_model' / 'model_outputs' / cohort / age_band_fname / 'models' / 'xgboost.joblib'}\n"
-            f"Please run 6_final_model_selection/run_final_model.py first."
-        )
+    xgb_joblib_path = next((p for p in xgb_joblib_candidates if p.exists()), None)
+
+    if xgb_joblib_path is None:
+        age_band_h = age_band_fname.replace("_", "-")
+        lines = [
+            "Best XGBoost model not found. Checked:",
+            *[f"  - {p}" for p in xgb_binary_candidates],
+            *[f"  - {p}" for p in xgb_joblib_candidates],
+            f"Run Step 6: python 6_final_model/run_final_model.py --cohort {cohort} --age_band {age_band_h}",
+        ]
+        if bin_name:
+            lines.append(
+                f"Or sync: aws s3 cp s3://pgxdatalake/gold/final_model/{cohort}/{age_band_h}/bin_models/{bin_name}/xgboost_model.ubj "
+                f"{_bin_base / 'models' / 'xgboost_model.ubj'}"
+            )
+        raise FileNotFoundError("\n".join(lines))
 
     # Load from joblib and convert to booster for SHAP
     xgb_model = joblib.load(str(xgb_joblib_path))
@@ -788,6 +829,12 @@ def run_shap_analysis(
             print(f"Loaded sample of {len(df_full)} rows (max_rows={max_rows}{f', bin={bin_name}' if bin_name else ''}) for SHAP.")
         else:
             df_full = con.execute(f"SELECT * FROM read_csv_auto('{str(features_path)}'){_bin_filter}").df()
+        if bin_name and len(df_full) == 0:
+            print(
+                f"[SKIP] No training rows for n_event_bin={bin_name!r} in {features_path.name}; "
+                "cannot run per-bin SHAP."
+            )
+            return False
         if "target" not in df_full.columns:
             raise ValueError(f"'target' column not found in {features_path}")
         
@@ -1111,9 +1158,15 @@ def main() -> None:
     parser.add_argument("--age_band", required=True, help="Age band, e.g. 13-24")
     parser.add_argument(
         "--bin",
-        required=True,
-        choices=["low", "medium", "high", "extreme"],
-        help="Density bin (low/medium/high/extreme). Loads per-bin model and filters data to that bin.",
+        default=None,
+        metavar="BIN",
+        help="Optional density bin: low|medium|high|extreme. Per-bin SHAP under bin_models/{bin}/. "
+        "Omit for cohort-level (aggregate) models under outputs/{cohort}/{age_band}/ only.",
+    )
+    parser.add_argument(
+        "--skip-missing-bin",
+        action="store_true",
+        help="If --bin is set but Step 6 did not train that bin (no artifacts), exit 0 with a message instead of failing.",
     )
     parser.add_argument(
         "--n_background",
@@ -1135,7 +1188,34 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.bin is not None and args.bin not in DENSITY_BINS:
+        parser.error(f"--bin must be one of {list(DENSITY_BINS)}, got {args.bin!r}")
+
     age_band_fname = args.age_band.replace("-", "_")
+
+    if args.bin and args.skip_missing_bin:
+        if not final_model_bin_has_trained_artifacts(PROJECT_ROOT, args.cohort, args.age_band, args.bin):
+            print(
+                f"[SKIP] No Step 6 per-bin model for cohort={args.cohort} age_band={args.age_band} bin={args.bin!r} "
+                f"(expected under 6_final_model/outputs/.../bin_models/{args.bin}/). "
+                "Train Step 6 for this bin or omit --skip-missing-bin to surface errors."
+            )
+            sys.exit(0)
+
+    if args.bin and not final_model_bin_has_trained_artifacts(PROJECT_ROOT, args.cohort, args.age_band, args.bin):
+        print(
+            f"[ERROR] Step 6 has no trained model for bin={args.bin!r} "
+            f"({args.cohort} / {args.age_band}). "
+            "Run 6_final_model/run_final_model.py (per-bin mode) or use --skip-missing-bin to skip in batch runs."
+        )
+        sys.exit(1)
+
+    if not args.bin and not cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, args.cohort, args.age_band):
+        print(
+            f"[ERROR] No cohort-level Step 6 models under 6_final_model/outputs/{args.cohort}/{age_band_fname}/. "
+            "Omit --bin only when aggregate training produced models/, or pass --bin <density_bin> for per-bin SHAP."
+        )
+        sys.exit(1)
 
     # File logger — logs/7_shap_analysis/{cohort}_{age_band}[_{bin}].log
     _logs_dir = PROJECT_ROOT / "logs" / "7_shap_analysis"

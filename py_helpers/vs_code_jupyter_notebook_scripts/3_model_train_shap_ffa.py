@@ -419,76 +419,171 @@ else:
 # %% [markdown]
 # ### Step 7: SHAP values
 #
-# Generate SHAP values for each cohort/age_band using **7_shap_analysis/run_shap_analysis.py**. Outputs go to `7_shap_analysis/outputs/{cohort}/{age_band_fname}/` (global importance CSV, sample parquet). Run this **before** Step 8 (FFA) and Combine.
+# **7_shap_analysis/run_shap_analysis.py** — per-bin SHAP only for bins that Step 6 actually trained (`list_trained_density_bins`); if there are no per-bin models but cohort-level (aggregate) Step 6 outputs exist, runs once **without** `--bin`. Skips cohort/age bands with no Step 6 models. Run this **before** Step 8 (FFA) and Combine.
 
 # %%
-# Step 7: Generate SHAP values per cohort/age_band/bin.
+# Step 7: SHAP — per trained bin, else cohort-level aggregate if present.
+from py_helpers.event_density_utils import (
+    cohort_aggregate_final_model_has_artifacts,
+    list_trained_density_bins,
+)
+
 SHAP_SCRIPT = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
-_DENSITY_BINS = ("low", "medium", "high", "extreme")
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        for bin_name in _DENSITY_BINS:
-            print(f"→ Step 7 (SHAP bin={bin_name}): {cohort} / {age_band}")
+        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+        if trained:
+            for bin_name in trained:
+                print(f"→ Step 7 (SHAP bin={bin_name}): {cohort} / {age_band}")
+                r = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SHAP_SCRIPT),
+                        "--cohort",
+                        cohort,
+                        "--age_band",
+                        age_band,
+                        "--bin",
+                        bin_name,
+                    ],
+                    cwd=PROJECT_ROOT,
+                    capture_output=False,
+                )
+                if r.returncode != 0:
+                    raise SystemExit(r.returncode)
+        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+            print(f"→ Step 7 (SHAP cohort-level): {cohort} / {age_band}")
             r = subprocess.run(
-                [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band, "--bin", bin_name],
+                [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band],
                 cwd=PROJECT_ROOT,
                 capture_output=False,
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
+        else:
+            print(f"[skip] Step 7: no Step 6 models for {cohort} / {age_band}")
 print("Step 7 (SHAP) complete.")
 
 # %% [markdown]
 # ### Step 8: FFA rules
 #
-# Run FFA (Formal Feature Attribution) per cohort/age_band using **run_shap_ffa_workflow.py** with **--skip-shap --skip-combine**: uses existing Step 7 SHAP and XGBoost JSON, writes to `8_ffa_analysis/outputs`. Run this **after** Step 7 and **before** Combine.
+# **run_shap_ffa_workflow.py** with **--skip-shap --skip-combine** — same bin resolution as Step 7 (trained bins only, else cohort-level if aggregate models exist). Run this **after** Step 7 and **before** Combine.
 
 # %%
-# Step 8: Generate FFA rules per cohort/age_band/bin. Uses existing SHAP; no combine yet.
+# Step 8: FFA — per trained bin, else cohort-level if aggregate Step 6 + Step 7 exist.
+from py_helpers.event_density_utils import (
+    cohort_aggregate_final_model_has_artifacts,
+    list_trained_density_bins,
+)
+
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        for bin_name in _DENSITY_BINS:
-            print(f"→ Step 8 (FFA bin={bin_name}): {cohort} / {age_band}")
+        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+        if trained:
+            for bin_name in trained:
+                print(f"→ Step 8 (FFA bin={bin_name}): {cohort} / {age_band}")
+                r = subprocess.run(
+                    [
+                        sys.executable,
+                        "run_shap_ffa_workflow.py",
+                        "--cohort",
+                        cohort,
+                        "--age-band",
+                        age_band,
+                        "--bin",
+                        bin_name,
+                        "--skip-shap",
+                        "--skip-combine",
+                    ],
+                    cwd=DATA_PREP_DIR,
+                    capture_output=False,
+                )
+                if r.returncode != 0:
+                    raise SystemExit(r.returncode)
+        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+            print(f"→ Step 8 (FFA cohort-level): {cohort} / {age_band}")
             r = subprocess.run(
                 [
-                    sys.executable, "run_shap_ffa_workflow.py",
-                    "--cohort", cohort, "--age-band", age_band,
-                    "--bin", bin_name,
-                    "--skip-shap", "--skip-combine",
+                    sys.executable,
+                    "run_shap_ffa_workflow.py",
+                    "--cohort",
+                    cohort,
+                    "--age-band",
+                    age_band,
+                    "--skip-shap",
+                    "--skip-combine",
                 ],
                 cwd=DATA_PREP_DIR,
                 capture_output=False,
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
+        else:
+            print(f"[skip] Step 8: no Step 6 models for {cohort} / {age_band}")
 print("Step 8 (FFA) complete.")
 
 # %% [markdown]
 # ### Combine: SHAP + FFA → dashboard outputs
 #
-# Run **combine_shap_ffa_results.py** per cohort/age_band to produce `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/` (dashboard_data.json, combined_importance.csv, top_causal_factors, etc.) for the Causal Analysis tab and upload_causal_outputs_to_s3. Requires Step 7 and Step 8 outputs. Use `--workers 0` for auto worker count or `--workers 1` for sequential.
+# **combine_shap_ffa_results.py** — per trained bin (under `.../causal/{cohort}/{age_band}/{bin}/`), or cohort-level output under `.../causal/{cohort}/{age_band}/` when Step 7/8 used aggregate paths. Use `--workers 0` for auto worker count or `--workers 1` for sequential.
 
 # %%
-# Combine: Merge SHAP + FFA per cohort/age_band/bin into 10_risk_dashboard/visualizations/causal
-# (dashboard_data.json and combined_importance.csv for Causal tab and upload_causal_outputs_to_s3)
+# Combine: Merge SHAP + FFA per trained bin, else cohort-level.
+from py_helpers.event_density_utils import (
+    cohort_aggregate_final_model_has_artifacts,
+    list_trained_density_bins,
+)
+
 CAUSAL_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 COMBINE_SCRIPT = DATA_PREP_DIR / "combine_shap_ffa_results.py"
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
-        for bin_name in _DENSITY_BINS:
-            print(f"→ Combine (bin={bin_name}): {cohort} / {age_band}")
+        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+        if trained:
+            for bin_name in trained:
+                print(f"→ Combine (bin={bin_name}): {cohort} / {age_band}")
+                r = subprocess.run(
+                    [
+                        sys.executable,
+                        str(COMBINE_SCRIPT),
+                        "--cohort",
+                        cohort,
+                        "--age-band",
+                        age_band,
+                        "--bin",
+                        bin_name,
+                        "--output-dir",
+                        str(CAUSAL_VISUALS),
+                        "--workers",
+                        "0",
+                    ],
+                    cwd=DATA_PREP_DIR,
+                    capture_output=False,
+                )
+                if r.returncode != 0:
+                    raise SystemExit(r.returncode)
+        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+            print(f"→ Combine (cohort-level): {cohort} / {age_band}")
             r = subprocess.run(
                 [
-                    sys.executable, str(COMBINE_SCRIPT),
-                    "--cohort", cohort, "--age-band", age_band,
-                    "--bin", bin_name,
-                    "--output-dir", str(CAUSAL_VISUALS), "--workers", "0",
+                    sys.executable,
+                    str(COMBINE_SCRIPT),
+                    "--cohort",
+                    cohort,
+                    "--age-band",
+                    age_band,
+                    "--output-dir",
+                    str(CAUSAL_VISUALS),
+                    "--workers",
+                    "0",
                 ],
                 cwd=DATA_PREP_DIR,
                 capture_output=False,
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
+        else:
+            print(f"[skip] Combine: no Step 6 / trained bins for {cohort} / {age_band}")
 print("Combine complete.")
 
 # %% [markdown]

@@ -38,6 +38,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+from py_helpers.event_density_utils import DENSITY_BINS
+
 
 def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
     """Find SHAP results from Step 7 (7_shap_analysis). Prefer global importance CSV for combine."""
@@ -610,9 +612,10 @@ def main():
     parser.add_argument("--age-band", required=True, help="Age band")
     parser.add_argument(
         "--bin",
-        required=True,
-        choices=["low", "medium", "high", "extreme"],
-        help="Density bin. Reads SHAP/FFA from per-bin subdirs and writes output to {output_dir}/{cohort}/{age_band}/{bin}/.",
+        default=None,
+        metavar="BIN",
+        help="Optional density bin. Reads SHAP/FFA from bin_models/{bin}/ and writes to .../{cohort}/{age_band}/{bin}/. "
+        "Omit for cohort-level (aggregate) inputs under .../{cohort}/{age_band}/ only.",
     )
     parser.add_argument("--output-dir", default="10_risk_dashboard/visualizations/causal", help="Output directory (EC2: .../visualizations/causal/{cohort}/{age_band_fname}/)")
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
@@ -632,6 +635,9 @@ def main():
         help="Upload dashboard_data.json to S3 dashboard bucket as visualizations/causal/{cohort}/{age_band}/causal_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
     )
     args = parser.parse_args()
+
+    if args.bin is not None and args.bin not in DENSITY_BINS:
+        parser.error(f"--bin must be one of {list(DENSITY_BINS)}, got {args.bin!r}")
     
     # This script is in 10_risk_dashboard/data_preparation/; project root is 3 levels up
     project_root = Path(__file__).parent.parent.parent
