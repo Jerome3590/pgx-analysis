@@ -547,6 +547,13 @@ def load_cohort_genes(
         )
         return []
 
+    drug_list = sorted(drug_names)[:top_n * 2]  # log more than top_n for verification
+    log.info(
+        "Drug names from feature importance (%s/%s%s): %s",
+        cohort_name, age_band, f" bin={bin_name}" if bin_name else "",
+        drug_list,
+    )
+
     # Load CPIC drug -> genes for resolving drug names to genes
     known_genes, drug_to_genes, cpic_drug_list = _load_cpic_drug_to_genes(project_root)
     global_mapping_df = _load_global_drug_mapping(project_root)
@@ -565,7 +572,11 @@ def load_cohort_genes(
             project_root,
             log,
         )
-        genes.update(resolved)
+        if resolved:
+            genes.update(resolved)
+            log.info("  CPIC match: %s -> genes %s", drug_name, resolved)
+        else:
+            log.info("  No CPIC/VIP match (skipped): %s", drug_name)
 
     log.info(
         "Resolved %d gene symbols from %d drug_name codes (BupaR activity-type logic) for %s/%s",
@@ -670,8 +681,25 @@ def fetch_cohort_reports(
     )
 
     if not genes:
-        log.warning("No genes found for cohort=%s age_band=%s; exiting", cohort_name, age_band)
-        return {"genes_found": 0, "reports_fetched": 0}
+        log.warning(
+            "No genes to resolve for cohort=%s age_band=%s%s; writing empty reports",
+            cohort_name, age_band, f" bin={bin_name}" if bin_name else "",
+        )
+        with open(reports_file, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2)
+        summary = {
+            "cohort": cohort_name,
+            "age_band": age_band,
+            "genes_found": 0,
+            "reports_fetched": 0,
+            "genes": [],
+            "output_file": str(reports_file),
+        }
+        if bin_name:
+            summary["bin"] = bin_name
+        with open(summary_file, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+        return summary
 
     if pl is not None and hasattr(pl, "info"):
         pl.info("Genes to fetch: %s", ", ".join(genes[:10]) + ("..." if len(genes) > 10 else ""))
