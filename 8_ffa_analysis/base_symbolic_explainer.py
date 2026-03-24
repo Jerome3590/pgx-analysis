@@ -280,18 +280,73 @@ class BaseSymbolicExplainer(ABC):
         self.shap_importance_map = shap_importance_map  # Feature name -> SHAP importance (for validation)
         self.shap_values_df = shap_values_df  # Individual SHAP values per instance (REQUIRED)
         self.rule_frequencies = {}  # Maps rule_id -> frequency (how often rule matches across dataset)
+        self._std_log_path = None  # repo logs/8_ffa_analysis/ffa_*.log (Step 8 standard path; mirrors to S3)
         self.setup_logging()
     
     def setup_logging(self, log_file: Optional[str] = None, level: int = logging.INFO) -> None:
-        """Setup logging configuration."""
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, encoding="utf-8") if log_file else logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(self.__class__.__name__)
+        """
+        Configure Step 8 logging like Step 7 SHAP: one named logger, file under logs/8_ffa_analysis/,
+        plus stderr — no logging.basicConfig (avoids silent drops when root already has handlers).
+        """
+        from pathlib import Path as _Path
+
+        pc = getattr(self, "path_config", None)
+        cohort = getattr(pc, "cohort", None) if pc else None
+        age_band = getattr(pc, "age_band", None) if pc else None
+        density_bin = getattr(pc, "density_bin", None) if pc else None
+
+        _repo_root = _Path(__file__).resolve().parents[1]
+        fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+        if cohort and age_band:
+            ab = str(age_band).replace("-", "_")
+            bin_suffix = f"_{density_bin}" if density_bin else ""
+            log_name = f"8_ffa_analysis.{cohort}.{ab}{bin_suffix}"
+            _log_dir = _repo_root / "logs" / "8_ffa_analysis"
+            _log_dir.mkdir(parents=True, exist_ok=True)
+            std_path = _log_dir / f"ffa_{cohort}_{ab}{bin_suffix}.log"
+        else:
+            log_name = f"8_ffa_analysis.{self.__class__.__name__}"
+            std_path = None
+
+        self.logger = logging.getLogger(log_name)
+        self.logger.setLevel(level)
+
+        def _norm_path(p: str) -> str:
+            try:
+                return os.path.normcase(os.path.abspath(p))
+            except Exception:
+                return p
+
+        def _has_file_target(target: str) -> bool:
+            t = _norm_path(target)
+            for h in self.logger.handlers:
+                if isinstance(h, logging.FileHandler):
+                    bf = getattr(h, "baseFilename", None)
+                    if bf and _norm_path(str(bf)) == t:
+                        return True
+            return False
+
+        # Primary file: same layout as 7_shap_analysis (logs/<step>/<step>_<cohort>_<age>.log)
+        if std_path is not None:
+            sp = str(std_path)
+            if not _has_file_target(sp):
+                fh = logging.FileHandler(sp, mode="a", encoding="utf-8")
+                fh.setFormatter(fmt)
+                self.logger.addHandler(fh)
+            self._std_log_path = std_path
+
+        if log_file and not _has_file_target(log_file):
+            fh2 = logging.FileHandler(log_file, mode="a", encoding="utf-8")
+            fh2.setFormatter(fmt)
+            self.logger.addHandler(fh2)
+
+        if not any(type(h) is logging.StreamHandler for h in self.logger.handlers):
+            sh = logging.StreamHandler()
+            sh.setFormatter(fmt)
+            self.logger.addHandler(sh)
+
+        self.logger.propagate = False
 
     def mirror_logs_to_s3(self) -> None:
         """Mirror the standard logs/8_ffa_analysis/ log file to S3 (best-effort). Call after analysis completes."""
@@ -903,9 +958,15 @@ class BaseSymbolicExplainer(ABC):
             for rule_id in matched_rules:
                 rule_frequencies[rule_id] += 1
             
-            # Log progress every 1000 instances
-            if hasattr(self, 'logger') and (i + 1) % 1000 == 0:
+            # Log progress (more often on Windows — avoids "hung" appearance under Jupyter)
+            _freq_every = 500 if os.name == "nt" else 1000
+            if hasattr(self, 'logger') and (i + 1) % _freq_every == 0:
                 self.logger.info(f"  Processed {i+1}/{len(X)} instances for rule frequency computation...")
+                for _h in getattr(self.logger, "handlers", []):
+                    try:
+                        _h.flush()
+                    except Exception:
+                        pass
         
         if hasattr(self, 'logger'):
             self.logger.info(f"Computed frequencies for {len(rule_frequencies)} unique rules")
@@ -946,6 +1007,9 @@ class BaseSymbolicExplainer(ABC):
         # Determine number of jobs
         if n_jobs == -1:
             n_jobs = os.cpu_count() or 1
+            # Windows spawn + many workers: long quiet periods between progress logs; cap workers.
+            if os.name == "nt":
+                n_jobs = max(1, min(n_jobs, 4))
         
         # Use parallel processing if n_jobs > 1 and dataset is large enough
         # For small datasets, sequential is faster due to overhead
@@ -1073,6 +1137,7 @@ class BaseSymbolicExplainer(ABC):
         
         results = [None] * len(X)
         completed = 0
+        _prog_every = 10 if os.name == "nt" else 50
         
         # Process in parallel
         with ProcessPoolExecutor(max_workers=n_jobs) as executor:
@@ -1094,7 +1159,15 @@ class BaseSymbolicExplainer(ABC):
             if not use_tqdm:
                 iterator = as_completed(future_to_idx)
                 if show_progress and hasattr(self, 'logger'):
-                    self.logger.info(f"Processing {len(X)} instances in parallel (progress logged to file)...")
+                    self.logger.info(
+                        f"Processing {len(X)} instances in parallel with {n_jobs} workers "
+                        f"(progress every {_prog_every} completions; file log under logs/8_ffa_analysis/)..."
+                    )
+                    for _h in getattr(self.logger, "handlers", []):
+                        try:
+                            _h.flush()
+                        except Exception:
+                            pass
             
             for future in iterator:
                 idx = future_to_idx[future]
@@ -1103,8 +1176,13 @@ class BaseSymbolicExplainer(ABC):
                     results[idx] = result
                     completed += 1
                     
-                    if hasattr(self, 'logger') and (completed <= 5 or completed % 50 == 0):
+                    if hasattr(self, 'logger') and (completed <= 5 or completed % _prog_every == 0):
                         self.logger.info(f"Completed {completed}/{len(X)} instances")
+                        for _h in getattr(self.logger, "handlers", []):
+                            try:
+                                _h.flush()
+                            except Exception:
+                                pass
                 except Exception as e:
                     if hasattr(self, 'logger'):
                         self.logger.error(f"Error processing instance {idx}: {e}")

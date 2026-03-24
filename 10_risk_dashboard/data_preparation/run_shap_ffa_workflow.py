@@ -50,6 +50,14 @@ def _age_band_fname(age_band: str) -> str:
     return age_band.replace("-", "_")
 
 
+def _ffa_step_log_path(cohort: str, age_band: str, bin_name: Optional[str]) -> Path:
+    """Same filename pattern as 8_ffa_analysis base_symbolic_explainer (logs/8_ffa_analysis/ffa_*.log)."""
+    ab = _age_band_fname(age_band)
+    suf = f"_{bin_name}" if bin_name else ""
+    d = PROJECT_ROOT / "logs" / "8_ffa_analysis"
+    return d / f"ffa_{cohort}_{ab}{suf}.log"
+
+
 def _ensure_shap_artifacts(
     cohort: str,
     age_band: str,
@@ -212,6 +220,8 @@ def _run_ffa_with_shap(
         output_dir=str(output_dir),
         tree_rules_path=None,
         age_band=age_band,
+        cohort=cohort,
+        density_bin=bin_name,
     )
     explainer = XGBoostSymbolicExplainer(
         path_config=path_config,
@@ -332,6 +342,31 @@ def main() -> None:
     age_band_fname = _age_band_fname(args.age_band)
     bin_name: str | None = getattr(args, "bin", None)
 
+    # File log aligned with Step 7 SHAP: logs/8_ffa_analysis/ffa_<cohort>_<age>[_<bin>].log
+    _ffa_log_path = _ffa_step_log_path(args.cohort, args.age_band, bin_name)
+    _ffa_log_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.setLevel(logging.INFO)
+    _log_fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    _target = str(_ffa_log_path.resolve())
+    _already = False
+    for _h in logger.handlers:
+        if isinstance(_h, logging.FileHandler):
+            bf = getattr(_h, "baseFilename", None)
+            if bf and str(Path(bf).resolve()) == _target:
+                _already = True
+                break
+    if not _already:
+        _fh = logging.FileHandler(_ffa_log_path, mode="a", encoding="utf-8")
+        _fh.setFormatter(_log_fmt)
+        logger.addHandler(_fh)
+    logger.info(
+        "FFA workflow start: cohort=%s age_band=%s bin=%s (log file: %s)",
+        args.cohort,
+        args.age_band,
+        bin_name,
+        _ffa_log_path,
+    )
+
     if bin_name is not None and bin_name not in DENSITY_BINS:
         parser.error(f"--bin must be one of {list(DENSITY_BINS)}, got {bin_name!r}")
 
@@ -432,6 +467,12 @@ def main() -> None:
         if r.returncode != 0:
             raise SystemExit(r.returncode)
     logger.info("SHAP + FFA workflow done.")
+    try:
+        from py_helpers.fe_monitor import mirror_log_to_s3
+
+        mirror_log_to_s3("8_ffa_analysis", args.cohort, args.age_band, _ffa_log_path, logger)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
