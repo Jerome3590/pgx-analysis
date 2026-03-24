@@ -39,13 +39,24 @@ if str(FFA_DIR) not in sys.path:
     sys.path.insert(0, str(FFA_DIR))
 
 from py_helpers.env_utils import get_workflow_python_bin
+from py_helpers.event_density_utils import (
+    DENSITY_BINS,
+    cohort_aggregate_final_model_has_artifacts,
+    final_model_bin_has_trained_artifacts,
+)
 
 
 def _age_band_fname(age_band: str) -> str:
     return age_band.replace("-", "_")
 
 
-def _ensure_shap_artifacts(cohort: str, age_band: str, bin_name: str | None = None) -> None:
+def _ensure_shap_artifacts(
+    cohort: str,
+    age_band: str,
+    bin_name: str | None = None,
+    *,
+    skip_missing_bin: bool = False,
+) -> None:
     """Run Step 7 (SHAP) if outputs are missing."""
     age_band_fname = _age_band_fname(age_band)
     if bin_name:
@@ -61,6 +72,8 @@ def _ensure_shap_artifacts(cohort: str, age_band: str, bin_name: str | None = No
     cmd = [str(get_workflow_python_bin()), str(script), "--cohort", cohort, "--age_band", age_band]
     if bin_name:
         cmd.extend(["--bin", bin_name])
+    if skip_missing_bin:
+        cmd.append("--skip-missing-bin")
     r = subprocess.run(cmd, cwd=PROJECT_ROOT)
     if r.returncode != 0:
         raise SystemExit(r.returncode)
@@ -280,9 +293,15 @@ def main() -> None:
     parser.add_argument("--age-band", required=True, help="Age band (e.g. 13-24)")
     parser.add_argument(
         "--bin",
-        required=True,
-        choices=["low", "medium", "high", "extreme"],
-        help="Density bin. Loads per-bin XGBoost model and SHAP outputs, filters data to that bin.",
+        default=None,
+        metavar="BIN",
+        help="Optional density bin (low|medium|high|extreme). Per-bin FFA under bin_models/{bin}/. "
+        "Omit for cohort-level (aggregate) models only.",
+    )
+    parser.add_argument(
+        "--skip-missing-bin",
+        action="store_true",
+        help="If --bin is set but Step 6 did not train that bin, exit 0 (or skip Step 7) instead of failing.",
     )
     parser.add_argument("--skip-shap", action="store_true", help="Do not run Step 7 if SHAP missing (fail instead)")
     parser.add_argument("--skip-combine", action="store_true", help="Do not run combine step after FFA")
@@ -313,8 +332,41 @@ def main() -> None:
     age_band_fname = _age_band_fname(args.age_band)
     bin_name: str | None = getattr(args, "bin", None)
 
+    if bin_name is not None and bin_name not in DENSITY_BINS:
+        parser.error(f"--bin must be one of {list(DENSITY_BINS)}, got {bin_name!r}")
+
+    if bin_name:
+        if not final_model_bin_has_trained_artifacts(PROJECT_ROOT, args.cohort, args.age_band, bin_name):
+            if args.skip_missing_bin:
+                logger.info(
+                    "Skipping workflow: no Step 6 per-bin model for bin=%s (%s / %s).",
+                    bin_name,
+                    args.cohort,
+                    args.age_band,
+                )
+                sys.exit(0)
+            logger.error(
+                "No Step 6 per-bin model for bin=%s (%s / %s). Run 6_final_model or use --skip-missing-bin.",
+                bin_name,
+                args.cohort,
+                args.age_band,
+            )
+            sys.exit(1)
+    elif not cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, args.cohort, args.age_band):
+        logger.error(
+            "No cohort-level Step 6 models for %s / %s. Use --bin <density_bin> for per-bin FFA or train aggregate Step 6.",
+            args.cohort,
+            args.age_band,
+        )
+        sys.exit(1)
+
     if not args.skip_shap:
-        _ensure_shap_artifacts(args.cohort, args.age_band, bin_name=bin_name)
+        _ensure_shap_artifacts(
+            args.cohort,
+            args.age_band,
+            bin_name=bin_name,
+            skip_missing_bin=args.skip_missing_bin,
+        )
 
     shap_map, shap_values_df = _load_shap_for_ffa(
         args.cohort, args.age_band, max_shap_rows=args.max_shap_rows, bin_name=bin_name

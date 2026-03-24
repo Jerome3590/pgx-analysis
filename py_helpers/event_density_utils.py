@@ -258,3 +258,101 @@ def default_threshold_cache_path(project_root: Path, cohort: str, age_band: str)
         / age_band_fname
         / "n_event_bin_thresholds.json"
     )
+
+
+# ---------------------------------------------------------------------------
+# Step 6 per-bin vs cohort-level artifact detection (SHAP / FFA orchestration)
+# ---------------------------------------------------------------------------
+
+
+def _age_band_fname(age_band: str) -> str:
+    return age_band.replace("-", "_")
+
+
+def final_model_bin_base(
+    project_root: Path, cohort: str, age_band: str, bin_name: str
+) -> Path:
+    """``.../6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}``."""
+    abf = _age_band_fname(age_band)
+    return (
+        Path(project_root)
+        / "6_final_model"
+        / "outputs"
+        / cohort
+        / abf
+        / "bin_models"
+        / bin_name
+    )
+
+
+def final_model_bin_has_trained_artifacts(
+    project_root: Path, cohort: str, age_band: str, bin_name: str
+) -> bool:
+    """
+    True if Step 6 produced a usable model for this density bin (under ``bin_models/{bin}/``).
+
+    Bins are omitted when ``train_and_evaluate`` never ran for that slice (e.g. too few patients).
+    We treat presence of model files under ``models/`` or ``final_model_json/`` as success.
+    """
+    bdir = final_model_bin_base(project_root, cohort, age_band, bin_name)
+    if not bdir.is_dir():
+        return False
+    abf = _age_band_fname(age_band)
+    stem = f"{cohort}_{abf}_best"
+    models_dir = bdir / "models"
+    if models_dir.is_dir():
+        markers = (
+            "xgboost_model.ubj",
+            "xgboost.joblib",
+            "catboost_model.cbm",
+            "catboost.joblib",
+        )
+        if any((models_dir / m).exists() for m in markers):
+            return True
+    fj = bdir / "final_model_json"
+    if fj.is_dir():
+        if (fj / f"{stem}_xgboost_model.json").exists():
+            return True
+        if (fj / f"{stem}_catboost_model.cbm").exists() or (fj / f"{stem}_catboost_model.json").exists():
+            return True
+    return False
+
+
+def list_trained_density_bins(project_root: Path, cohort: str, age_band: str) -> list[str]:
+    """Return bins that have Step 6 artifacts, in ``DENSITY_BINS`` order."""
+    return [
+        b
+        for b in DENSITY_BINS
+        if final_model_bin_has_trained_artifacts(project_root, cohort, age_band, b)
+    ]
+
+
+def cohort_aggregate_final_model_has_artifacts(
+    project_root: Path, cohort: str, age_band: str
+) -> bool:
+    """
+    True if cohort-level (non-bin) Step 6 outputs exist under ``outputs/.../{cohort}/{ab}/models/``
+    or ``final_model_json/`` (aggregate / legacy train mode).
+    """
+    abf = _age_band_fname(age_band)
+    root = Path(project_root) / "6_final_model" / "outputs" / cohort / abf
+    if not root.is_dir():
+        return False
+    stem = f"{cohort}_{abf}_best"
+    models_dir = root / "models"
+    if models_dir.is_dir():
+        markers = (
+            "xgboost_model.ubj",
+            "xgboost.joblib",
+            "catboost_model.cbm",
+            "catboost.joblib",
+        )
+        if any((models_dir / m).exists() for m in markers):
+            return True
+    fj = root / "final_model_json"
+    if fj.is_dir():
+        if (fj / f"{stem}_xgboost_model.json").exists():
+            return True
+        if (fj / f"{stem}_catboost_model.cbm").exists() or (fj / f"{stem}_catboost_model.json").exists():
+            return True
+    return False
