@@ -38,7 +38,7 @@ try:
     import joblib
     import numpy as np
     import pandas as pd
-    from catboost import CatBoostClassifier
+    from catboost import CatBoostClassifier, Pool
     import xgboost as xgb
     MODEL_LIBS_AVAILABLE = True
 except ImportError:
@@ -829,6 +829,33 @@ def build_feature_vector(
     return np.array(feature_list).reshape(1, -1)
 
 
+def _catboost_predict_proba(model: Any, feature_vector: np.ndarray, feature_names: List[str]) -> float:
+    """
+    CatBoost was trained with Pool(cat_features=item_*), not a raw float ndarray.
+    Matches py_helpers.feature_importance_model_utils.predict_proba_catboost.
+    Subsets to model.feature_names_ when training dropped constant columns.
+    """
+    row = np.asarray(feature_vector, dtype=np.float64).reshape(1, -1)
+    if len(feature_names) != row.shape[1]:
+        raise ValueError(
+            f"Feature count mismatch: schema has {len(feature_names)} names, vector has {row.shape[1]} columns"
+        )
+    df = pd.DataFrame(row, columns=feature_names)
+    if hasattr(model, "feature_names_") and model.feature_names_ is not None:
+        mnames = list(model.feature_names_)
+        missing = [c for c in mnames if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"CatBoost model expects {len(missing)} column(s) not in schema (e.g. {missing[:3]})"
+            )
+        df = df[mnames].copy()
+    cat_cols = [c for c in df.columns if str(c).startswith("item_")]
+    cat_indices = [df.columns.get_loc(c) for c in cat_cols] if cat_cols else None
+    pool = Pool(data=df, cat_features=cat_indices)
+    proba = model.predict_proba(pool)
+    return float(proba[0, 1])
+
+
 def predict_risk(
     cohort: str,
     age_band: str,
@@ -899,7 +926,11 @@ def predict_risk(
                 bin_model_used = True
 
             if model_type == 'catboost':
-                prob = model.predict_proba(feature_vector)[0][1]
+                prob = _catboost_predict_proba(
+                    model,
+                    feature_vector,
+                    feature_schema.get("features", []),
+                )
             elif model_type in ['xgboost', 'xgboost_rf']:
                 if isinstance(model, xgb.Booster):
                     dmatrix = xgb.DMatrix(feature_vector)
