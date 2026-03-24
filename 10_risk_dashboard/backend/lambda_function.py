@@ -867,10 +867,9 @@ def predict_risk(
     """
     Run prediction using the best model for this cohort/age band.
 
-    When n_event_bin is supplied ('low'/'medium'/'high'/'extreme'), per-bin
-    models are loaded first; if absent they fall back to full-cohort models.
-    This ensures the model specialised on the patient's utilization density is
-    used when available.
+    When n_event_bin is supplied, per-bin models are loaded when present; if a
+    per-bin file is missing (FileNotFoundError), the full-cohort model for that
+    type is loaded and Platt calibration uses the full-cohort calibrator.
 
     Returns:
         {
@@ -916,14 +915,30 @@ def predict_risk(
         models_to_run = model_types
     print(f"Using model weights: {model_weights} (running: {models_to_run})")
     
-    bin_model_used = False  # becomes True if at least one per-bin model is loaded
+    bin_model_used = False  # True if at least one model was loaded from bin_models/{bin}/
+    fallback_model_types: List[str] = []  # Models where per-bin artifact was missing → full-cohort used
     for model_type in models_to_run:
         try:
-            model = load_model(cohort, age_band, model_type, bin_name=n_event_bin)
-            # Detect whether a per-bin model was actually served
-            _bin_cache_key = f"{cohort}/{age_band}/bin/{n_event_bin}/{model_type}" if n_event_bin else None
-            if _bin_cache_key and _bin_cache_key in _model_cache:
-                bin_model_used = True
+            this_model_from_bin = False
+            try:
+                model = load_model(cohort, age_band, model_type, bin_name=n_event_bin)
+                if n_event_bin:
+                    _ck = f"{cohort}/{age_band}/bin/{n_event_bin}/{model_type}"
+                    if _ck in _model_cache:
+                        this_model_from_bin = True
+                        bin_model_used = True
+            except FileNotFoundError:
+                # Training may copy full-cohort artifacts into each bin; if still missing, use aggregate models.
+                if n_event_bin:
+                    print(
+                        f"Per-bin model not found for {model_type} (bin={n_event_bin}); "
+                        f"loading full-cohort model."
+                    )
+                    model = load_model(cohort, age_band, model_type, bin_name=None)
+                    this_model_from_bin = False
+                    fallback_model_types.append(model_type)
+                else:
+                    raise
 
             if model_type == 'catboost':
                 prob = _catboost_predict_proba(
@@ -943,8 +958,9 @@ def predict_risk(
 
             raw_prob = float(prob)
             raw_predictions[model_type] = raw_prob
-            # Apply Platt calibration (per-bin calibrator preferred, falls back to full-cohort)
-            calibrator = load_calibration_model(cohort, age_band, model_type, bin_name=n_event_bin)
+            # Platt calibration: per-bin calibrator only when this model was loaded from per-bin path
+            cal_bin = n_event_bin if this_model_from_bin else None
+            calibrator = load_calibration_model(cohort, age_band, model_type, bin_name=cal_bin)
             if calibrator is not None:
                 calibrated = apply_calibration(raw_prob, calibrator)
                 predictions[model_type] = calibrated
@@ -1002,6 +1018,17 @@ def predict_risk(
         elif predictions:
             model_used = next(iter(predictions.keys()))
 
+    used_full_cohort_fallback = bool(n_event_bin and fallback_model_types)
+    inference_note: Optional[str] = None
+    if used_full_cohort_fallback and n_event_bin:
+        pretty = ", ".join(fallback_model_types)
+        inference_note = (
+            f"Note: Your event-density bin is «{n_event_bin}», but the per-bin trained model(s) "
+            f"({pretty}) were not available on the server; the full-cohort model(s) were used for those "
+            f"components instead. Risk is still valid; retrain or redeploy per-bin artifacts if you need "
+            f"bin-specific models."
+        )
+
     return {
         'predictions': predictions,
         'raw_predictions': raw_predictions,
@@ -1015,6 +1042,9 @@ def predict_risk(
         'model_used': model_used,
         'bin_model_used': bin_model_used,
         'n_event_bin': n_event_bin,
+        'used_full_cohort_fallback': used_full_cohort_fallback,
+        'fallback_model_types': fallback_model_types,
+        'inference_note': inference_note,
     }
 
 
@@ -1274,6 +1304,9 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 
         model_used = ensemble_result.get("model_used")
         bin_model_used = ensemble_result.get("bin_model_used", False)
+        used_full_cohort_fallback = ensemble_result.get("used_full_cohort_fallback", False)
+        fallback_model_types = ensemble_result.get("fallback_model_types") or []
+        inference_note = ensemble_result.get("inference_note")
         interpretation = "Estimated probability of target outcome (2019 holdout context) for the selected codes in this cohort and age band."
         if model_used:
             bin_note = f" [per-bin model: {n_event_bin_value}]" if bin_model_used else ""
@@ -1306,6 +1339,9 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "pgx_num_cpic_drugs": pgx_num_cpic_drugs,
             "model_used": model_used,
             "bin_model_used": bin_model_used,
+            "used_full_cohort_fallback": used_full_cohort_fallback,
+            "fallback_model_types": fallback_model_types,
+            "inference_note": inference_note,
             "model_breakdown": model_predictions,
             "ensemble_info": {
                 "method": ensemble_result['ensemble_method'],
