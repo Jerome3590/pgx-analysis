@@ -2360,7 +2360,11 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
                     f"No per-bin FP-Growth data for density='{n_event_bin}'. "
                     "Showing full-cohort combined output. Run cohort_fpgrowth.py with per-bin output enabled."
                 )
-            data_key = f"{prefix}/{cohort}/{age_band}/data/{item_type}_itemsets.json"
+            # Per-bin: read itemsets from the bin-specific path; full-cohort: use /data/ subpath
+            if data_scope == "per_bin":
+                data_key = f"{base_key}/{item_type}_itemsets.json"
+            else:
+                data_key = f"{prefix}/{cohort}/{age_band}/data/{item_type}_itemsets.json"
             try:
                 obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=data_key)
                 p["itemsets_data"] = json.loads(obj["Body"].read().decode("utf-8"))
@@ -2372,9 +2376,9 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
         if n_event_bin:
             bin_base_key = f"{prefix}/{cohort}/{age_band}/density/{n_event_bin}/plots"
             bin_empty_key = f"{bin_base_key}/empty_state.json"
-            # Check if per-bin data exists (probe empty_state or network html)
-            bin_network_key = f"{bin_base_key}/{cohort}_{age_band_fname}_combined_rules_network.html"
-            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_network_key) or _s3_object_exists(S3_DASHBOARD_BUCKET, bin_empty_key):
+            # Probe for per-bin itemsets JSON (pipeline writes {item_type}_itemsets.json here)
+            bin_itemsets_key = f"{bin_base_key}/{item_type}_itemsets.json"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_itemsets_key) or _s3_object_exists(S3_DASHBOARD_BUCKET, bin_empty_key):
                 try:
                     obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=bin_empty_key)
                     return _response(200, json.loads(obj["Body"].read().decode("utf-8")))

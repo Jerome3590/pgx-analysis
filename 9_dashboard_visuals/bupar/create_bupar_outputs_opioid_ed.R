@@ -47,14 +47,18 @@ project_root <- getwd()  # assume you launched from project root
 cohort_name <- "opioid_ed"
 
 # Optional command line argument to set age band; default is 0-12
+# Optional 2nd arg: density bin name (low/medium/high/extreme) for per-bin process mining
 args <- commandArgs(trailingOnly = TRUE)
-age_band <- if (length(args) >= 1) args[[1]] else "0-12"
+age_band  <- if (length(args) >= 1) args[[1]] else "0-12"
+bin_name  <- if (length(args) >= 2 && nzchar(trimws(args[[2]]))) trimws(args[[2]]) else NULL
 
 age_band_fname <- gsub("-", "_", age_band)
 train_years    <- c(2016L, 2017L, 2018L)
 
 cat("=== bupaR Analysis: Cohort 1 (OPIOID_ED) ===\n")
-cat("  Age band: ", age_band, " (control = within-cohort target=0, no F1120)\n\n", sep = "")
+cat("  Age band: ", age_band, " (control = within-cohort target=0, no F1120)\n", sep = "")
+if (!is.null(bin_name)) cat("  Density bin filter: ", bin_name, "\n", sep = "")
+cat("\n")
 
 # Cohort-specific target ICD definition
 target_icd_patterns <- c("F1120")   # opioid ED
@@ -141,16 +145,27 @@ cat("\n", sep = "")
 
 bup_ar_output_root <- file.path(project_root, "10_risk_dashboard", "visualizations", "bupar")
 
+# Per-bin subpath: when bin_name is set, redirect outputs under density/{bin}/
+bin_subpath <- if (!is.null(bin_name)) file.path("density", bin_name) else NULL
+
 save_bupar_csv <- function(df, filename,
                            cohort = cohort_name,
                            age_fname = age_band_fname,
                            age_str = age_band) {
-  out_dir <- file.path(bup_ar_output_root, cohort, age_fname, "features")
+  out_dir <- if (!is.null(bin_subpath)) {
+    file.path(bup_ar_output_root, cohort, age_fname, bin_subpath, "features")
+  } else {
+    file.path(bup_ar_output_root, cohort, age_fname, "features")
+  }
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   local_path <- file.path(out_dir, filename)
   readr::write_csv(df, local_path)
 
-  s3_key <- sprintf("gold/bupar/%s/%s/%s", cohort, age_str, filename)
+  s3_key <- if (!is.null(bin_name)) {
+    sprintf("gold/bupar/%s/%s/density/%s/%s", cohort, age_str, bin_name, filename)
+  } else {
+    sprintf("gold/bupar/%s/%s/%s", cohort, age_str, filename)
+  }
   s3_uri <- paste0("s3://pgxdatalake/", s3_key)
   cmd <- sprintf("aws s3 cp \"%s\" \"%s\"", local_path, s3_uri)
   cat("Uploading to S3 with command:\n  ", cmd, "\n", sep = "")
@@ -161,7 +176,11 @@ save_bupar_csv <- function(df, filename,
 # Central plots directory for this cohort/age band. We also route any
 # implicit base graphics output (e.g., from trace_explorer / process_map)
 # into a cohort-specific PDF here instead of the project root Rplots.pdf.
-plots_dir <- file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
+plots_dir <- if (!is.null(bin_subpath)) {
+  file.path(bup_ar_output_root, cohort_name, age_band_fname, bin_subpath, "plots")
+} else {
+  file.path(bup_ar_output_root, cohort_name, age_band_fname, "plots")
+}
 if (!dir.exists(plots_dir)) {
   dir.create(plots_dir, recursive = TRUE, showWarnings = FALSE)
 }
@@ -262,6 +281,45 @@ pgx_df <- dbGetQuery(con, query)
 
 cat("Loaded ", nrow(pgx_df), " events for ", cohort_name, " age_band=", age_band,
     " across years ", paste(train_years, collapse=","), "\n", sep = "")
+
+# Per-bin patient filter: load thresholds, assign n_event_bin, keep only patients in bin_name
+if (!is.null(bin_name)) {
+  thresholds_path <- file.path(project_root, "6_final_model", "outputs",
+                               cohort_name, age_band_fname, "n_event_bin_thresholds.json")
+  if (!file.exists(thresholds_path)) {
+    stop("n_event_bin_thresholds.json not found at: ", thresholds_path,
+         ". Run notebook 3 (train_per_bin) first.")
+  }
+  thresholds <- jsonlite::fromJSON(thresholds_path)
+  p25 <- as.numeric(thresholds$p25)
+  p50 <- as.numeric(thresholds$p50)
+  p95 <- as.numeric(thresholds$p95)
+  assign_density_bin_r <- function(n) {
+    dplyr::case_when(
+      n <= p25 ~ "low",
+      n <= p50 ~ "medium",
+      n <= p95 ~ "high",
+      TRUE     ~ "extreme"
+    )
+  }
+  n_events_per_patient <- pgx_df %>%
+    dplyr::group_by(mi_person_key) %>%
+    dplyr::summarise(n_events = dplyr::n(), .groups = "drop") %>%
+    dplyr::mutate(density_bin = assign_density_bin_r(n_events))
+  patients_in_bin <- n_events_per_patient %>%
+    dplyr::filter(density_bin == bin_name) %>%
+    dplyr::pull(mi_person_key)
+  cat("Bin filter: bin=", bin_name, " p25=", p25, " p50=", p50, " p95=", p95, "\n", sep = "")
+  cat("Patients in bin '", bin_name, "': ", length(patients_in_bin),
+      " of ", nrow(n_events_per_patient), " total\n", sep = "")
+  pgx_df <- pgx_df %>% dplyr::filter(mi_person_key %in% patients_in_bin)
+  cat("Rows after bin filter: ", nrow(pgx_df), "\n", sep = "")
+  if (nrow(pgx_df) == 0L) {
+    cat("No data for bin '", bin_name, "'; exiting with 0.\n", sep = "")
+    dev.off()
+    quit(save = "no", status = 0L)
+  }
+}
 
 pgx_df_target1 <- pgx_df %>%
   filter(target == 1L)

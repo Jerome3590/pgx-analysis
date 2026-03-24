@@ -89,5 +89,30 @@
           <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs tend to follow other drugs in patient treatment journeys? Each cell shows the number of times Drug B was observed directly after Drug A across the cohort. High-frequency transitions (darker cells) indicate common medication handoffs — e.g., from an opioid to a benzodiazepine — that may signal escalation, co-prescribing patterns, or treatment substitutions relevant to the target outcome.</small></p>
           <div id="bupar-process-matrix-typepair-image"></div>
         </div>
+        <div class="panel full-width">
+          <h2>Activity Rate by Event Density Bin</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drug codes have the highest activity rate within each density stratum, and do those profiles differ across low/medium/high/extreme? Toggle between grouped bars (bins on X, one bar group per activity) and a full matrix heatmap (activities × bins). Codes are ranked by peak rate across all bins.</small></p>
+          <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+            <div>
+              <span style="font-size:0.875rem;font-weight:600;margin-right:0.5rem;">Chart type:</span>
+              <label style="font-size:0.875rem;margin-right:0.75rem;cursor:pointer;">
+                <input type="radio" name="bupar-bin-chart-type" value="bar" checked onchange="renderBupaRBinChartView('bar')"> Grouped Bars
+              </label>
+              <label style="font-size:0.875rem;cursor:pointer;">
+                <input type="radio" name="bupar-bin-chart-type" value="heatmap" onchange="renderBupaRBinChartView('heatmap')"> Heatmap
+              </label>
+            </div>
+            <div id="bupar-bin-bar-topn-wrapper">
+              <label for="bupar-bin-bar-topn" style="font-size:0.875rem;">Show top:</label>
+              <select id="bupar-bin-bar-topn" style="font-size:0.875rem;margin-left:0.4rem;" onchange="renderBupaRBinChartView('bar')">
+                <option value="10" selected>10 activities</option>
+                <option value="20">20 activities</option>
+                <option value="30">30 activities</option>
+              </select>
+            </div>
+          </div>
+          <div id="bupar-bin-bar-container" style="min-height: 360px;"></div>
+          <div id="bupar-bin-heatmap-container" style="min-height: 300px; display:none;"></div>
+        </div>
       </div>
     

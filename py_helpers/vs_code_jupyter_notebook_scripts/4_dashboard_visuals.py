@@ -540,6 +540,80 @@ with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
             if FAIL_FAST:
                 raise RuntimeError(f"DTW {step} failed: {cohort_name} / {age_band}")
 print("DTW done (trajectories + alignment + visuals).")
+print("Per-bin DTW charts auto-built: create_dtw_features splits by event_density_bin; create_dtw_visuals writes density/{bin}/chart_data.json + sequence_heatmap.json per bin.")
+
+# %%
+# Bin transition analysis: track patients moving between event-density bins across years (2016-2019).
+# Output: density/transitions/bin_transitions.json with transition matrix, Sankey data, escalation rates.
+# Clinically: patients escalating from low→extreme density represent disease progression or worsening polypharmacy.
+BIN_TRANSITIONS_SCRIPT = STEP9_ROOT / "dtw" / "create_bin_transitions.py"
+
+def run_bin_transitions_one(cohort_name, age_band):
+    r = subprocess.run(
+        [str(PYTHON_BIN), str(BIN_TRANSITIONS_SCRIPT),
+         "--cohort", cohort_name, "--age-band", age_band,
+         "--project-root", str(REPO_ROOT)] + force_flag,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    return (cohort_name, age_band, r.returncode, r.stdout, r.stderr)
+
+if BIN_TRANSITIONS_SCRIPT.exists():
+    with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
+        futures = {ex.submit(run_bin_transitions_one, c, ab): (c, ab) for c, ab in combinations}
+        for fut in as_completed(futures):
+            cohort_name, age_band, code, stdout, stderr = fut.result()
+            if code == 0:
+                print(f"  [Bin Transitions] {cohort_name} / {age_band} -> SUCCESS")
+            else:
+                print(f"  [Bin Transitions] {cohort_name} / {age_band} -> SKIPPED/WARN (exit {code})")
+                if stderr:
+                    print(f"    {stderr[:400]}{'...' if len(stderr) > 400 else ''}")
+    print("Bin transition analysis done.")
+    print("  Output: density/transitions/bin_transitions.json per cohort/age_band")
+    print("  Contains: transition_matrix, sankey_nodes/links, escalation_rate, de_escalation_rate, per_year_distribution")
+else:
+    print(f"  create_bin_transitions.py not found at {BIN_TRANSITIONS_SCRIPT}; skipping.")
+
+# %%
+# Combined per-bin heatmaps: activity frequency (BupaR), itemset support (FP-Growth), and
+# sequence-code frequency (DTW) across all density bins in a single matrix view.
+# Format: rows=activities/items/codes, cols=bins (low/medium/high/extreme), values=rate_per_patient or support.
+# Same row_labels/column_labels/matrix shape as feature importance heatmaps — renderable with same Plotly component.
+COMBINED_HEATMAP_SCRIPT = STEP9_ROOT / "create_combined_bin_heatmap.py"
+
+def run_combined_heatmap_one(cohort_name, age_band):
+    r = subprocess.run(
+        [str(PYTHON_BIN), str(COMBINED_HEATMAP_SCRIPT),
+         "--cohort", cohort_name, "--age-band", age_band,
+         "--top-n", "30",
+         "--project-root", str(REPO_ROOT)] + force_flag,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    return (cohort_name, age_band, r.returncode, r.stdout, r.stderr)
+
+if COMBINED_HEATMAP_SCRIPT.exists():
+    with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS) as ex:
+        futures = {ex.submit(run_combined_heatmap_one, c, ab): (c, ab) for c, ab in combinations}
+        for fut in as_completed(futures):
+            cohort_name, age_band, code, stdout, stderr = fut.result()
+            if code == 0:
+                print(f"  [Combined Heatmap] {cohort_name} / {age_band} -> SUCCESS")
+            else:
+                print(f"  [Combined Heatmap] {cohort_name} / {age_band} -> SKIPPED/WARN (exit {code})")
+                if stderr:
+                    print(f"    {stderr[:400]}{'...' if len(stderr) > 400 else ''}")
+    print("Combined bin heatmaps done.")
+    print("  Outputs per cohort/age_band:")
+    print("    bupar/density/combined/bupar_activity_heatmap.json+.png")
+    print("    fpgrowth/density/combined/fpgrowth_itemset_heatmap.json+.png")
+    print("    dtw/density/combined/dtw_sequence_heatmap.json+.png")
+    print("    dtw/density/combined/bin_summary.json  (n_patients + escalation rates)")
+else:
+    print(f"  create_combined_bin_heatmap.py not found at {COMBINED_HEATMAP_SCRIPT}; skipping.")
 
 # %%
 # Convert FI CSVs to JSON for dashboard filters (model, cohort, age_band, all age bands)
