@@ -439,10 +439,34 @@ def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str
     return None
 
 
+def _normalize_feature_schema_for_training(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Align schema with run_final_model.py: n_event_bin is a string label for per-bin routing,
+    not a model input. Older feature_schema.json files listed n_event_bin → 2340 features vs
+    2339 in XGBoost (Feature shape mismatch).
+    """
+    if not schema or not isinstance(schema, dict):
+        return schema if isinstance(schema, dict) else {"features": [], "defaults": {}}
+    out = dict(schema)
+    feats = out.get("features")
+    if isinstance(feats, list) and "n_event_bin" in feats:
+        out["features"] = [f for f in feats if f != "n_event_bin"]
+        defaults = out.get("defaults")
+        if isinstance(defaults, dict) and "n_event_bin" in defaults:
+            defaults = dict(defaults)
+            del defaults["n_event_bin"]
+            out["defaults"] = defaults
+        if "n_features" in out:
+            out["n_features"] = len(out["features"])
+        print("feature_schema: dropped n_event_bin (not a trained model feature)")
+    return out
+
+
 def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
     """Load feature schema JSON from container filesystem or S3."""
     age_band_fname = age_band.replace("-", "_")
-    
+    data: Optional[Dict[str, Any]] = None
+
     # Try container filesystem first
     if USE_CONTAINER_MODELS:
         container_schema_path = os.path.join(
@@ -454,23 +478,23 @@ def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
         if os.path.exists(container_schema_path):
             try:
                 with open(container_schema_path, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
             except Exception as e:
                 print(f"Warning: Failed to load schema from container: {e}")
-    
+
     # Fallback to S3
-    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/feature_schema.json"
-    
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        data = json.loads(obj["Body"].read().decode("utf-8"))
-        return data
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
-            # Return default schema if not found
-            return {'features': [], 'defaults': {}}
-        raise
+    if data is None:
+        key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/feature_schema.json"
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "NotFound"):
+                return _normalize_feature_schema_for_training({"features": [], "defaults": {}})
+            raise
+
+    return _normalize_feature_schema_for_training(data or {"features": [], "defaults": {}})
 
 
 # ---- n_event_bin: utilization density bin (low/medium/high/extreme) ----
