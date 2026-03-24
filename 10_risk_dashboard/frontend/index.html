@@ -58,6 +58,16 @@
       background: #fef3c7;
       color: #92400e;
     }
+    .risk-model-source-note {
+      margin-top: 0.5rem;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: #92400e;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 0.5rem;
+    }
     .controls {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -1318,6 +1328,18 @@
         calibNoteEl.style.display = "";
       } else {
         calibNoteEl.style.display = "none";
+      }
+    }
+
+    const modelSourceNoteEl = document.getElementById("risk-model-source-note");
+    if (modelSourceNoteEl) {
+      const note = data && data.inference_note ? String(data.inference_note).trim() : "";
+      if (note) {
+        modelSourceNoteEl.textContent = note;
+        modelSourceNoteEl.style.display = "";
+      } else {
+        modelSourceNoteEl.textContent = "";
+        modelSourceNoteEl.style.display = "none";
       }
     }
 

@@ -1675,6 +1675,62 @@ def _recompute_selection_from_summary_df(summary_df: pd.DataFrame) -> tuple:
     return (selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason)
 
 
+def copy_full_cohort_artifacts_to_bin_directory(
+    cohort: str, age_band: str, bin_name: str, *, reason: Optional[str] = None
+) -> None:
+    """
+    Copy aggregate Step 6 outputs (full-cohort models) into bin_models/{bin_name}/.
+
+    Used when per-bin training is skipped (insufficient data or single class in bin)
+    so Lambda and prepare_models still find artifacts under each bin path.
+    Writes INFERENCE_SOURCE.txt so operators know these files are full-cohort mirrors, not bin-only training.
+    """
+    import shutil
+
+    age_band_fname = age_band_to_fname(age_band)
+    agg = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    if not agg.exists():
+        raise FileNotFoundError(f"Full-cohort model outputs missing (train aggregate first): {agg}")
+    dest_root = agg / "bin_models" / bin_name
+    dest_root.mkdir(parents=True, exist_ok=True)
+    for item in agg.iterdir():
+        if item.name == "bin_models":
+            continue
+        dest = dest_root / item.name
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        if item.is_dir():
+            shutil.copytree(item, dest)
+        else:
+            shutil.copy2(item, dest)
+    reason_line = (reason or "unknown").strip()
+    marker = (
+        "This folder mirrors full-cohort (aggregate) model artifacts; models were not trained "
+        f"only on the «{bin_name}» event-density bin.\n"
+        f"Reason: {reason_line}\n"
+        f"Cohort: {cohort} | Age band: {age_band}\n"
+    )
+    (dest_root / "INFERENCE_SOURCE.txt").write_text(marker, encoding="utf-8")
+    print(
+        f"[INFO] Fallback: copied full-cohort artifacts from {agg} -> {dest_root} "
+        f"(bin={bin_name})"
+    )
+
+
+def per_bin_model_files_exist(out_base: Path) -> bool:
+    """True if every density bin has XGBoost + CatBoost deployment joblibs under bin_models/{bin}/models/."""
+    for b in _DENSITY_BINS:
+        mdir = out_base / "bin_models" / b / "models"
+        if not (mdir / "xgboost.joblib").exists():
+            return False
+        if not (mdir / "catboost.joblib").exists():
+            return False
+    return True
+
+
 def train_and_evaluate(
     df: pd.DataFrame,
     cohort: str,
@@ -1789,6 +1845,17 @@ def train_and_evaluate(
             "\nOnly one class present in the assembled data; "
             "skipping model training for this cohort/age_band."
         )
+        if bin_name is not None:
+            try:
+                copy_full_cohort_artifacts_to_bin_directory(
+                    cohort, age_band, bin_name, reason="single class in bin subset (cannot train a classifier)"
+                )
+                print(
+                    f"[FALLBACK] Copied full-cohort models to bin_models/{bin_name}/ "
+                    "(single class in bin subset)."
+                )
+            except Exception as e:
+                print(f"[WARN] Could not copy full-cohort fallback for bin={bin_name}: {e}")
         return
 
     # ------------------------------------------------------------------
@@ -3124,10 +3191,11 @@ def train_per_bin(
       outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}/
 
     Bins with fewer than *min_total* patients or fewer than *min_per_class* in
-    either class are skipped with a warning.
+    either class: full-cohort artifacts are copied into that bin's directory
+    (same models as aggregate) so deploy/Lambda still have a complete bin tree.
 
-    Requires that build_final_features() has already been called (so df contains
-    the 'n_event_bin' string column and 'n_event_bin_ordinal' numeric feature).
+    Requires build_final_features() and a prior full-cohort train_and_evaluate
+    (aggregate outputs under outputs/{cohort}/{age_band}/).
     """
     if "n_event_bin" not in df.columns:
         print(
@@ -3152,9 +3220,19 @@ def train_per_bin(
 
         if n_total < min_total or n_cases < min_per_class or n_controls < min_per_class:
             print(
-                f"  [SKIP] Insufficient data for per-bin model "
-                f"(need >={min_total} total, >={min_per_class} per class)."
+                f"  [FALLBACK] Insufficient data for per-bin model "
+                f"(need >={min_total} total, >={min_per_class} per class); "
+                f"copying full-cohort artifacts to bin_models/{bin_name}/."
             )
+            try:
+                copy_full_cohort_artifacts_to_bin_directory(
+                    cohort,
+                    age_band,
+                    bin_name,
+                    reason="insufficient patients per class for per-bin training",
+                )
+            except Exception as e:
+                print(f"  [ERROR] Fallback copy failed for bin={bin_name}: {e}")
             continue
 
         train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name)
@@ -3231,15 +3309,10 @@ def main() -> None:
     }
     
     # Check if all local outputs exist
-    # In per_bin mode, cohort-level files are only a mirrored snapshot — check per-bin files instead.
+    # In per_bin mode, require final features + every bin's XGBoost and CatBoost joblibs.
     if args.train_mode == "per_bin":
-        from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
-        all_local_exist = (
-            local_outputs["features_csv"].exists()
-            and all(
-                (out_base_check / "bin_models" / b / "models" / "xgboost.joblib").exists()
-                for b in _CHECK_DENSITY_BINS
-            )
+        all_local_exist = local_outputs["features_csv"].exists() and per_bin_model_files_exist(
+            out_base_check
         )
     else:
         all_local_exist = all(path.exists() for path in local_outputs.values())
@@ -3329,10 +3402,15 @@ def main() -> None:
         
         if args.train_mode == "per_bin":
             from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
-            s3_output_paths = [
-                f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/xgboost.joblib"
-                for b in _CHECK_DENSITY_BINS
-            ]
+            # S3 keys match train_and_evaluate upload: .../bin_models/{bin}/xgboost.joblib (no extra models/ segment)
+            s3_output_paths = []
+            for b in _CHECK_DENSITY_BINS:
+                s3_output_paths.append(
+                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/xgboost.joblib"
+                )
+                s3_output_paths.append(
+                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/catboost.joblib"
+                )
         else:
             s3_output_paths = [
                 f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_best_xgboost_model.json",
@@ -3340,7 +3418,15 @@ def main() -> None:
                 f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname_check}_model_selection_metadata.json",
             ]
 
-        if check_step_outputs_exist(s3_output_paths, logger) or check_step_checkpoint_exists("6_final_model", args.cohort, args.age_band, logger):
+        # Per-bin mode: require every per-bin artifact on S3 (checkpoint alone is not enough — missing bins must rerun).
+        _s3_ok = check_step_outputs_exist(s3_output_paths, logger)
+        _checkpoint_ok = check_step_checkpoint_exists("6_final_model", args.cohort, args.age_band, logger)
+        if args.train_mode == "per_bin":
+            should_fetch_s3 = _s3_ok
+        else:
+            should_fetch_s3 = _s3_ok or _checkpoint_ok
+
+        if should_fetch_s3:
             logger.info(f"Step 6 outputs exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
             
             # Download from S3 to local
@@ -3409,6 +3495,20 @@ def main() -> None:
                     logger.info(f"Downloaded {local_outputs['features_csv']} from S3")
                 except Exception as e:
                     logger.debug(f"Could not download features CSV: {e}")
+
+                if args.train_mode == "per_bin":
+                    from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
+                    for b in _CHECK_DENSITY_BINS:
+                        mdir = out_base_check / "bin_models" / b / "models"
+                        mdir.mkdir(parents=True, exist_ok=True)
+                        for fname in ("xgboost.joblib", "catboost.joblib"):
+                            s3_key_bin = f"{s3_base_key}/bin_models/{b}/{fname}"
+                            dest = mdir / fname
+                            try:
+                                s3_client.download_file(S3_BUCKET, s3_key_bin, str(dest))
+                                logger.info(f"Downloaded per-bin model {b}/{fname} from S3")
+                            except Exception as e:
+                                logger.debug(f"Could not download bin {b} {fname}: {e}")
                 
                 # Check if we got the essential files (including features CSV needed by Step 8)
                 essential_files = [
@@ -3417,7 +3517,11 @@ def main() -> None:
                     local_outputs["cb_cbm"],
                     local_outputs["features_csv"]  # Required by Step 8 SHAP analysis
                 ]
-                if all(path.exists() for path in essential_files):
+                essential_ok = all(path.exists() for path in essential_files)
+                per_bin_ok = (
+                    per_bin_model_files_exist(out_base_check) if args.train_mode == "per_bin" else True
+                )
+                if essential_ok and per_bin_ok:
                     logger.info(f"Step 6 outputs downloaded from S3; skipping regeneration.")
                     # Ensure model_outputs copies exist (needed by FFA/SHAP)
                     model_outputs_base = PROJECT_ROOT / "6_final_model" / "model_outputs" / args.cohort / age_band_fname_check
@@ -3431,8 +3535,11 @@ def main() -> None:
                     return
                 else:
                     logger.warning(f"Some essential files missing after S3 download. Will regenerate.")
-                    missing_files = [f for f in essential_files if not f.exists()]
-                    logger.warning(f"Missing files: {[str(f) for f in missing_files]}")
+                    if not essential_ok:
+                        missing_files = [f for f in essential_files if not f.exists()]
+                        logger.warning(f"Missing files: {[str(f) for f in missing_files]}")
+                    if args.train_mode == "per_bin" and not per_bin_ok:
+                        logger.warning("Per-bin mode: one or more bin model joblibs missing locally after S3 fetch; will regenerate.")
             except Exception as e:
                 logger.warning(f"Could not download from S3: {e}. Will regenerate outputs.")
     except ImportError:
