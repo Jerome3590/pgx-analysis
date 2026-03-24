@@ -1720,7 +1720,228 @@
     document.querySelectorAll("#dtw-visualizations-tab .dtw-subpanel").forEach(panel => {
       panel.classList.toggle("active", panel.id === "dtw-subpanel-" + subtabId);
     });
+    // Lazy-render bin comparison on first switch to avoid layout issues in hidden panels
+    if (subtabId === "bins" && window.dtwBinComparisonData) {
+      renderDTWBinComparison(window.dtwBinComparisonData, window.dtwBinTransitionsData);
+      window.dtwBinComparisonData = null; // render once; data stays in dtwBinTransitionsData
+    }
   };
+
+  const _BIN_COLORS = { low: "#10b981", medium: "#3b82f6", high: "#f59e0b", extreme: "#ef4444" };
+  const _BIN_ORDER = ["low", "medium", "high", "extreme"];
+
+  function renderDTWBinBarChart(heatmapData, topN) {
+    _renderBinBarChart("dtw-bin-bar-container", heatmapData, topN);
+  }
+
+  function _renderBinChartView(type, barId, hmId, topNWrapperId, topNSelectId, cacheKey) {
+    const barContainer = document.getElementById(barId);
+    const hmContainer  = document.getElementById(hmId);
+    const topNWrapper  = document.getElementById(topNWrapperId);
+    const hm = window[cacheKey];
+    if (type === "bar") {
+      if (barContainer)  barContainer.style.display  = "";
+      if (hmContainer)   hmContainer.style.display   = "none";
+      if (topNWrapper)   topNWrapper.style.display   = "";
+      const topN = parseInt(document.getElementById(topNSelectId)?.value || "10", 10);
+      _renderBinBarChart(barId, hm, topN);
+    } else {
+      if (barContainer)  barContainer.style.display  = "none";
+      if (hmContainer)   hmContainer.style.display   = "";
+      if (topNWrapper)   topNWrapper.style.display   = "none";
+      if (!hmContainer) return;
+      if (!hm || !hm.row_labels || !hm.matrix || hm.empty) {
+        hmContainer.innerHTML = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">Heatmap not available.</p>";
+        return;
+      }
+      if (hmContainer.innerHTML !== "") return;
+      hmContainer.innerHTML = "";
+      const nRows = hm.row_labels.length;
+      Plotly.newPlot(hmContainer, [{
+        type: "heatmap", x: hm.column_labels, y: hm.row_labels, z: hm.matrix,
+        colorscale: "YlOrRd",
+        colorbar: { title: hm.metric || "rate_per_patient", thickness: 14, len: 0.6 },
+        hovertemplate: "Code: %{y}<br>Bin: %{x}<br>Rate: %{z:.4f}<extra></extra>"
+      }], {
+        height: Math.max(400, nRows * 18 + 100),
+        margin: { l: 180, r: 80, t: 30, b: 80 },
+        xaxis: { title: "Event Density Bin" },
+        yaxis: { autorange: "reversed", tickfont: { size: 8 } },
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+      }, { responsive: true, displayModeBar: false });
+    }
+  }
+
+  function _renderBinBarChart(barContainerId, heatmapData, topN) {
+    if (!window.Plotly) return;
+    const barContainer = document.getElementById(barContainerId);
+    if (!barContainer) return;
+    if (!heatmapData || !heatmapData.row_labels || !heatmapData.matrix || heatmapData.empty) {
+      barContainer.innerHTML = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">Grouped bar chart not available.</p>";
+      return;
+    }
+    const n = topN || 10;
+    const bins = heatmapData.column_labels;
+    const allRows = heatmapData.row_labels;
+    const allMatrix = heatmapData.matrix;
+    const ranked = allRows.map((label, ri) => ({ label, peak: Math.max(...allMatrix[ri]), ri }))
+      .sort((a, b) => b.peak - a.peak).slice(0, n);
+    const traces = bins.map((bin, bi) => ({
+      type: "bar", name: bin,
+      x: ranked.map(r => r.label),
+      y: ranked.map(r => allMatrix[r.ri][bi]),
+      marker: { color: _BIN_COLORS[bin] || "#94a3b8" },
+      hovertemplate: bin + " — %{x}: %{y:.4f}<extra></extra>"
+    }));
+    barContainer.innerHTML = "";
+    Plotly.newPlot(barContainer, traces, {
+      barmode: "group",
+      height: Math.max(320, n * 22 + 100),
+      margin: { l: 60, r: 20, t: 20, b: 160 },
+      xaxis: { title: "Activity code", tickangle: -45, automargin: true },
+      yaxis: { title: heatmapData.metric || "rate per patient", rangemode: "tozero" },
+      legend: { orientation: "h", y: 1.08 },
+      paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  window.renderDTWBinChartView = function(type) {
+    _renderBinChartView(type, "dtw-bin-bar-container", "dtw-bin-sequence-heatmap-container", "dtw-bin-bar-topn-wrapper", "dtw-bin-bar-topn", "_dtwBinHeatmapCache");
+  };
+
+  window.renderBupaRBinChartView = function(type) {
+    _renderBinChartView(type, "bupar-bin-bar-container", "bupar-bin-heatmap-container", "bupar-bin-bar-topn-wrapper", "bupar-bin-bar-topn", "_buparBinHeatmapCache");
+  };
+
+  function renderDTWBinComparison(combinedHeatmap, transitions) {
+    if (!window.Plotly) return;
+    // Cache heatmap data for toggle; render bar chart by default
+    window._dtwBinHeatmapCache = combinedHeatmap || null;
+    const topN = parseInt(document.getElementById("dtw-bin-bar-topn")?.value || "10", 10);
+    renderDTWBinBarChart(combinedHeatmap, topN);
+    // Ensure heatmap container starts hidden (bar is default)
+    const hmContainer = document.getElementById("dtw-bin-sequence-heatmap-container");
+    if (hmContainer) { hmContainer.style.display = "none"; hmContainer.innerHTML = ""; }
+
+    if (!transitions) {
+      const noData = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">Bin transition data not available. Run notebook 4 (create_bin_transitions.py) to generate <code>density/transitions/bin_transitions.json</code>.</p>";
+      ["dtw-bin-transition-matrix-container","dtw-bin-sankey-container","dtw-bin-year-distribution-container","dtw-bin-rates-container"].forEach(id => {
+        const el = document.getElementById(id); if (el) el.innerHTML = noData;
+      });
+      return;
+    }
+
+    // 2. Transition matrix heatmap (bins × bins)
+    const matrixContainer = document.getElementById("dtw-bin-transition-matrix-container");
+    if (matrixContainer && transitions.transition_matrix) {
+      matrixContainer.innerHTML = "";
+      const z = _BIN_ORDER.map(bFrom => _BIN_ORDER.map(bTo => (transitions.transition_matrix[bFrom] || {})[bTo] || 0));
+      const totalByRow = z.map(row => row.reduce((a, b) => a + b, 0));
+      const zPct = z.map((row, ri) => row.map(v => totalByRow[ri] > 0 ? parseFloat((v / totalByRow[ri] * 100).toFixed(1)) : 0));
+      const textLabels = z.map((row, ri) => row.map((v, ci) => v > 0 ? `${v}<br>(${zPct[ri][ci]}%)` : ""));
+      Plotly.newPlot(matrixContainer, [{
+        type: "heatmap",
+        x: _BIN_ORDER.map(b => "→ " + b),
+        y: _BIN_ORDER.map(b => b + " →"),
+        z: zPct,
+        text: textLabels,
+        texttemplate: "%{text}",
+        colorscale: [[0,"#f8fafc"],[0.5,"#93c5fd"],[1,"#1d4ed8"]],
+        colorbar: { title: "% of row", thickness: 14, len: 0.7 },
+        hovertemplate: "From %{y} To %{x}<br>%{text}<extra></extra>"
+      }], {
+        height: 340,
+        margin: { l: 90, r: 80, t: 30, b: 80 },
+        xaxis: { title: "To bin (year Y+1)" },
+        yaxis: { title: "From bin (year Y)", autorange: "reversed" },
+        annotations: textLabels.flatMap((row, ri) => row.map((txt, ci) => ({
+          x: _BIN_ORDER.map(b => "→ " + b)[ci], y: _BIN_ORDER.map(b => b + " →")[ri],
+          text: txt.replace("<br>", " "), showarrow: false, font: { size: 11, color: zPct[ri][ci] > 50 ? "#fff" : "#0f172a" }
+        }))),
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    // 3. Sankey — patient flow across years
+    const sankeyContainer = document.getElementById("dtw-bin-sankey-container");
+    if (sankeyContainer && transitions.sankey_nodes && transitions.sankey_links && transitions.sankey_links.length > 0) {
+      sankeyContainer.innerHTML = "";
+      const nodeLabels = transitions.sankey_nodes.map(n => n.label || n.id || "");
+      const nodeColors = transitions.sankey_nodes.map(n => _BIN_COLORS[n.bin] || "#94a3b8");
+      Plotly.newPlot(sankeyContainer, [{
+        type: "sankey",
+        orientation: "h",
+        node: {
+          pad: 18, thickness: 22, line: { color: "#e2e8f0", width: 0.5 },
+          label: nodeLabels,
+          color: nodeColors,
+          hovertemplate: "%{label}<br>%{value} patients<extra></extra>"
+        },
+        link: {
+          source: transitions.sankey_links.map(l => l.source),
+          target: transitions.sankey_links.map(l => l.target),
+          value: transitions.sankey_links.map(l => l.value),
+          color: transitions.sankey_links.map(l => (_BIN_COLORS[l.from_bin] || "#94a3b8") + "66"),
+          hovertemplate: "%{source.label} → %{target.label}<br>%{value} patients<extra></extra>"
+        }
+      }], {
+        height: 420,
+        margin: { l: 20, r: 20, t: 20, b: 20 },
+        paper_bgcolor: "#fff"
+      }, { responsive: true, displayModeBar: false });
+    } else if (sankeyContainer) {
+      sankeyContainer.innerHTML = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">No Sankey data (requires ≥2 training years with bin assignments).</p>";
+    }
+
+    // 4. Per-year stacked bar distribution
+    const yearDistContainer = document.getElementById("dtw-bin-year-distribution-container");
+    if (yearDistContainer && transitions.per_year_distribution) {
+      yearDistContainer.innerHTML = "";
+      const years = Object.keys(transitions.per_year_distribution).sort();
+      const traces = _BIN_ORDER.map(bin => ({
+        type: "bar", name: bin,
+        x: years,
+        y: years.map(yr => (transitions.per_year_distribution[yr] || {})[bin] || 0),
+        marker: { color: _BIN_COLORS[bin] },
+        hovertemplate: bin + " %{x}: %{y:,} patients<extra></extra>"
+      }));
+      Plotly.newPlot(yearDistContainer, traces, {
+        barmode: "stack", height: 300,
+        margin: { l: 60, r: 20, t: 20, b: 50 },
+        xaxis: { title: "Year" },
+        yaxis: { title: "Patients", rangemode: "tozero" },
+        legend: { orientation: "h", y: -0.2 },
+        paper_bgcolor: "#fff", plot_bgcolor: "#fff"
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    // 5. Rate summary cards
+    const ratesContainer = document.getElementById("dtw-bin-rates-container");
+    if (ratesContainer) {
+      const esc = transitions.escalation_rate != null ? (transitions.escalation_rate * 100).toFixed(1) + "%" : "—";
+      const desc = transitions.de_escalation_rate != null ? (transitions.de_escalation_rate * 100).toFixed(1) + "%" : "—";
+      const stb = transitions.stable_rate != null ? (transitions.stable_rate * 100).toFixed(1) + "%" : "—";
+      const n = transitions.total_transitions != null ? transitions.total_transitions.toLocaleString() : "—";
+      ratesContainer.innerHTML = `<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;">
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:1rem 1.25rem;min-width:130px;text-align:center;">
+          <div style="font-size:1.6rem;font-weight:700;color:#15803d;">${esc}</div>
+          <div style="font-size:0.8rem;color:#166534;margin-top:0.25rem;">Escalation</div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:1rem 1.25rem;min-width:130px;text-align:center;">
+          <div style="font-size:1.6rem;font-weight:700;color:#1d4ed8;">${stb}</div>
+          <div style="font-size:0.8rem;color:#1e40af;margin-top:0.25rem;">Stable</div>
+        </div>
+        <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:1rem 1.25rem;min-width:130px;text-align:center;">
+          <div style="font-size:1.6rem;font-weight:700;color:#c2410c;">${desc}</div>
+          <div style="font-size:0.8rem;color:#9a3412;margin-top:0.25rem;">De-escalation</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;min-width:130px;text-align:center;">
+          <div style="font-size:1.6rem;font-weight:700;color:#475569;">${n}</div>
+          <div style="font-size:0.8rem;color:#64748b;margin-top:0.25rem;">Year-pair transitions</div>
+        </div>
+      </div>`;
+    }
+  }
 
   function loadDocManifest() {
     const container = document.getElementById("doc-manifest-container");
@@ -2362,6 +2583,20 @@
       const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message) || (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message);
       document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
+      // Fetch bin comparison + transition data in background (lazy-rendered when Bin Comparison sub-tab is opened)
+      const ageBandFnameDTW = ageBand.replace(/-/g, "_");
+      const binHeatmapUrl = staticJsonPath(`visualizations/dtw/${cohort}/${ageBandFnameDTW}/density/combined/dtw_sequence_heatmap.json`);
+      const binTransUrl   = staticJsonPath(`visualizations/dtw/${cohort}/${ageBandFnameDTW}/density/transitions/bin_transitions.json`);
+      Promise.all([fetch(binHeatmapUrl), fetch(binTransUrl)]).then(async ([hmRes, trRes]) => {
+        window.dtwBinComparisonData  = hmRes.ok  ? await hmRes.json().catch(() => null)  : null;
+        window.dtwBinTransitionsData = trRes.ok  ? await trRes.json().catch(() => null)  : null;
+        // If user already switched to the bins sub-tab, render immediately
+        const activeSub = document.querySelector("#dtw-visualizations-tab .dtw-subtab.active");
+        if (activeSub && activeSub.getAttribute("data-dtw-subtab") === "bins") {
+          renderDTWBinComparison(window.dtwBinComparisonData, window.dtwBinTransitionsData);
+          window.dtwBinComparisonData = null;
+        }
+      }).catch(() => { /* bin comparison data optional */ });
     } catch (err) {
       document.getElementById("dtw-status").textContent = `Error: ${err.message}`;
       document.getElementById("dtw-status").className = "status-message error";
@@ -2799,6 +3034,17 @@
         document.getElementById("bupar-status").textContent = "BupaR images loaded; activity frequency JSON not found (run pipeline to generate).";
       }
       document.getElementById("bupar-status").className = "status-message success";
+      // Background fetch of combined bin activity heatmap for Bin Comparison panel
+      const ageBandFnameBupaR = ageBand.replace(/-/g, "_");
+      fetch(staticJsonPath(`visualizations/bupar/${cohort}/${ageBandFnameBupaR}/density/combined/bupar_activity_heatmap.json`))
+        .then(r => r.ok ? r.json().catch(() => null) : null)
+        .then(hm => {
+          window._buparBinHeatmapCache = hm;
+          const topN = parseInt(document.getElementById("bupar-bin-bar-topn")?.value || "10", 10);
+          _renderBinBarChart("bupar-bin-bar-container", hm, topN);
+          const hmEl = document.getElementById("bupar-bin-heatmap-container");
+          if (hmEl) { hmEl.style.display = "none"; hmEl.innerHTML = ""; }
+        }).catch(() => {});
     } catch (err) {
       document.getElementById("bupar-status").textContent = `Error: ${err.message}`;
       document.getElementById("bupar-status").className = "status-message error";

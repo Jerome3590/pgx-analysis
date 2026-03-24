@@ -1180,6 +1180,14 @@ def process_single_cohort(
                         rules_density = rules_density.sort_values("lift", ascending=False).reset_index(drop=True)
                         rules_density['event_year'] = year
                         all_year_rules.append(rules_density)
+                        # Write per-density output files (Lambda serves these via density/{bin}/plots/)
+                        try:
+                            _save_per_density_fpgrowth_outputs(
+                                cohort_name, age_band, density, item_type,
+                                itemsets_density, rules_density, logger,
+                            )
+                        except Exception as _e:
+                            logger.warning("Per-density save failed (year=%s density=%s): %s", year, density, _e)
                 logger.info("[ACTIVITY_COMPLETE] opioid_ed year=%s item_type=%s", year, item_type)
             # Combine all years' results, keeping patient linkage
             if len(all_year_itemsets) == 0:

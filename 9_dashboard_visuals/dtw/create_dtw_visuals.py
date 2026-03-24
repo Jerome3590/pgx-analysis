@@ -363,6 +363,62 @@ def create_dtw_visuals(
     _log("info", "Wrote %s", heatmap_path)
     _upload_sequence_heatmap_to_s3(project_root, cohort_name, age_band, heatmap_data, logger=logger)
 
+    # Per-bin chart_data and sequence_heatmap: build separate artifacts for each event_density_bin so the
+    # dashboard can show distinct trajectory profiles per patient density group (low/medium/high/extreme).
+    # Output: density/{bin}/chart_data.json and density/{bin}/sequence_heatmap.json
+    if dtw_df is not None and "event_density_bin" in dtw_df.columns and dtw_df["event_density_bin"].notna().any():
+        try:
+            from py_helpers.event_density_utils import DENSITY_BINS as _DENSITY_BINS
+        except ImportError:
+            _DENSITY_BINS = ("low", "medium", "high", "extreme")
+        for _bin in _DENSITY_BINS:
+            _bin_df = dtw_df[dtw_df["event_density_bin"] == _bin].copy()
+            if len(_bin_df) < 5:
+                _log("info", "Per-bin DTW visuals: skipping %s (n=%d < 5)", _bin, len(_bin_df))
+                continue
+            _bin_out = out_dir / "density" / _bin
+            _bin_out.mkdir(parents=True, exist_ok=True)
+            # chart_data
+            _bin_chart = _build_dtw_chart_data(_bin_df, logger=logger)
+            if not _bin_chart:
+                _bin_chart = {
+                    "message": f"No DTW chart data for {cohort_name}/{age_band} bin={_bin}.",
+                    "empty": True, "cohort": cohort_name, "age_band": age_band, "density_bin": _bin,
+                    "metrics": {"reason": "no_charts_built", "dtw_rows": len(_bin_df)},
+                }
+            else:
+                _bin_chart["density_bin"] = _bin
+                _bin_chart["n_patients"] = int(len(_bin_df))
+            _bin_chart_path = _bin_out / "chart_data.json"
+            with open(_bin_chart_path, "w", encoding="utf-8") as _f:
+                json.dump(_bin_chart, _f, indent=0)
+            # sequence_heatmap
+            _bin_heatmap = _build_sequence_heatmap_data(_bin_df)
+            if _bin_heatmap is None:
+                _bin_heatmap = {
+                    "message": f"No sequence heatmap for {cohort_name}/{age_band} bin={_bin}.",
+                    "empty": True, "cohort": cohort_name, "age_band": age_band, "density_bin": _bin,
+                    "metrics": {"reason": "empty_dataframe", "dtw_rows": len(_bin_df)},
+                }
+            _bin_heatmap_path = _bin_out / "sequence_heatmap.json"
+            with open(_bin_heatmap_path, "w", encoding="utf-8") as _f:
+                json.dump(_bin_heatmap, _f, indent=0)
+            _log("info", "Per-bin DTW visuals written: %s (n=%d)", _bin, len(_bin_df))
+            # Upload per-bin artifacts to S3
+            if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() not in ("1", "true", "yes"):
+                try:
+                    import boto3 as _boto3
+                    _s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+                    _dash_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+                    _s3_base = f"{_dash_prefix.rstrip('/')}/visualizations/dtw/{cohort_name}/{age_band}/density/{_bin}"
+                    _s3 = _boto3.client("s3")
+                    for _local, _key_name in [(_bin_chart_path, "chart_data.json"), (_bin_heatmap_path, "sequence_heatmap.json")]:
+                        _s3.put_object(Bucket=_s3_bucket, Key=f"{_s3_base}/{_key_name}",
+                                       Body=_local.read_bytes(), ContentType="application/json")
+                    _log("info", "Per-bin DTW uploaded: s3://%s/%s/", _s3_bucket, _s3_base)
+                except Exception as _upload_err:
+                    _log("warning", "Per-bin DTW S3 upload failed (%s): %s", _bin, _upload_err)
+
     # Save pipeline checkpoint (dashboard artifacts complete: plots + chart_data)
     s3_output_paths = [
         f"s3://{os.environ.get('S3_DASHBOARD_BUCKET', 'jerome-dixon.io')}/{os.environ.get('S3_DASHBOARD_PREFIX', 'vcu/pgx-risk-calculator')}/visualizations/dtw/{cohort_name}/{age_band}/plots/"

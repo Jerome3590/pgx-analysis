@@ -44,6 +44,7 @@
         <div class="dtw-subtabs" role="tablist">
           <button type="button" class="dtw-subtab active" data-dtw-subtab="overview" onclick="switchDTWSubtab('overview')" aria-selected="true">Overview &amp; Trajectories (drugs)</button>
           <button type="button" class="dtw-subtab" data-dtw-subtab="routine" onclick="switchDTWSubtab('routine')" aria-selected="false">Routine vs Utilization</button>
+          <button type="button" class="dtw-subtab" data-dtw-subtab="bins" onclick="switchDTWSubtab('bins')" aria-selected="false">Bin Comparison &amp; Transitions</button>
         </div>
       </div>
       <div class="panels">
@@ -118,6 +119,53 @@
               <small style="color: #64748b;"><strong>Research question:</strong> What is the typical gap between consecutive medical events in this cohort? The N3 feature (mean inter-event interval) is a key temporal predictor in the risk model. A left-skewed distribution (many short gaps) reflects rapid medication cycling; a right-skewed distribution reflects infrequent but sustained prescriptions. This distribution directly informs the model's temporal feature and the DTW trajectory clustering above.</small>
             </p>
             <div id="dtw-time-between-events-histogram-container"></div>
+          </div>
+        </div>
+        <div id="dtw-subpanel-bins" class="dtw-subpanel">
+          <div class="panel full-width">
+            <h2>Activity Rate by Event Density Bin</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drug / ICD / CPT codes have the highest activity rate within each density stratum, and how do rates differ across strata? Toggle between a grouped bar chart (bins on X, one bar group per activity) and a full matrix heatmap (activities × bins). Generated from <code>density/combined/dtw_sequence_heatmap.json</code>.</small></p>
+            <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+              <div>
+                <span style="font-size:0.875rem;font-weight:600;margin-right:0.5rem;">Chart type:</span>
+                <label style="font-size:0.875rem;margin-right:0.75rem;cursor:pointer;">
+                  <input type="radio" name="dtw-bin-chart-type" value="bar" checked onchange="renderDTWBinChartView('bar')"> Grouped Bars
+                </label>
+                <label style="font-size:0.875rem;cursor:pointer;">
+                  <input type="radio" name="dtw-bin-chart-type" value="heatmap" onchange="renderDTWBinChartView('heatmap')"> Heatmap
+                </label>
+              </div>
+              <div id="dtw-bin-bar-topn-wrapper">
+                <label for="dtw-bin-bar-topn" style="font-size:0.875rem;">Show top:</label>
+                <select id="dtw-bin-bar-topn" style="font-size:0.875rem;margin-left:0.4rem;" onchange="renderDTWBinChartView('bar')">
+                  <option value="10" selected>10 activities</option>
+                  <option value="20">20 activities</option>
+                  <option value="30">30 activities</option>
+                </select>
+              </div>
+            </div>
+            <div id="dtw-bin-bar-container" style="min-height: 360px;"></div>
+            <div id="dtw-bin-sequence-heatmap-container" style="min-height: 300px; display:none;"></div>
+          </div>
+          <div class="panel full-width">
+            <h2>Bin Transition Matrix (year-over-year patient movement)</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> How many patients moved between event-density bins across consecutive training years (2016–2019)? Each cell shows the count of patients who were in bin <em>From</em> in year Y and bin <em>To</em> in year Y+1. Diagonal = stable; upper-right = escalation; lower-left = de-escalation. Generated from <code>density/transitions/bin_transitions.json</code>.</small></p>
+            <div id="dtw-bin-transition-matrix-container" style="min-height: 300px;"></div>
+          </div>
+          <div class="panel full-width">
+            <h2>Patient Flow Across Bins by Year (Sankey)</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> What are the dominant patient migration paths through event-density bins over the training window? Each column = one training year; flows show patient volume moving between bins year-over-year. Wide flows = large patient populations; thin flows = rare transitions. Escalating flows (low→extreme) indicate worsening utilization trajectories.</small></p>
+            <div id="dtw-bin-sankey-container" style="min-height: 400px;"></div>
+          </div>
+          <div class="panel full-width">
+            <h2>Per-Year Bin Distribution</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Is the event-density distribution of this cohort shifting over time? Each bar = one training year; stacked segments = n patients per bin. An increasing extreme segment year-over-year suggests rising polypharmacy or adverse-event risk in this population.</small></p>
+            <div id="dtw-bin-year-distribution-container" style="min-height: 280px;"></div>
+          </div>
+          <div class="panel">
+            <h2>Escalation / De-escalation Rates</h2>
+            <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;">Summary rates across all consecutive year pairs. Escalation = patient moved to a higher density bin; de-escalation = moved to lower bin; stable = same bin. High escalation rates suggest a cohort whose drug utilization is intensifying over time.</small></p>
+            <div id="dtw-bin-rates-container"></div>
           </div>
         </div>
       </div>
