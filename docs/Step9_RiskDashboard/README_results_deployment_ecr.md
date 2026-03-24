@@ -108,9 +108,14 @@ aws iam attach-role-policy \
   --role-name pgx-lambda-execution-role \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
+# S3: Lambda must read models/metadata from pgxdatalake (gold/dashboard/*, gold/ffa_analysis/*, etc.)
+# Option A: Broad read (simple)
 aws iam attach-role-policy \
   --role-name pgx-lambda-execution-role \
   --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+# Option B: If using a custom role (e.g. pgx-lambda-role) without S3 access, add an inline policy.
+# See 10_risk_dashboard/docs/LAMBDA_IAM_POLICY_S3.md for the exact policy document.
 
 # Create Lambda function
 aws lambda create-function \

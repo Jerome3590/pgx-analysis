@@ -485,7 +485,7 @@ def prepare_models_for_cohort(cohort: str, age_bands: List[str]):
 
 
 def _upload_one_cohort_age_to_s3(cohort: str, age_band: str) -> None:
-    """Upload one cohort/age_band directory to S3. Used by ThreadPoolExecutor."""
+    """Upload one cohort/age_band directory to S3. Includes per-bin bin_models/ recursively."""
     import boto3
     s3_client = boto3.client("s3")
     bucket = "pgxdatalake"
@@ -494,9 +494,11 @@ def _upload_one_cohort_age_to_s3(cohort: str, age_band: str) -> None:
     local_dir = OUTPUT_DIR / cohort / age_band_fname
     if not local_dir.exists():
         return
-    for file_path in local_dir.glob("*"):
+    base_s3 = f"{prefix}/{cohort}/{age_band_fname}"
+    for file_path in local_dir.rglob("*"):
         if file_path.is_file():
-            s3_key = f"{prefix}/{cohort}/{age_band_fname}/{file_path.name}"
+            rel = file_path.relative_to(local_dir)
+            s3_key = f"{base_s3}/{rel.as_posix()}"
             s3_client.upload_file(str(file_path), bucket, s3_key)
 
 
