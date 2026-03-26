@@ -1,0 +1,15 @@
+{
+  "name": "vcu-lit-review-downloader",
+  "version": "1.0.0",
+  "description": "Puppeteer-based VCU library PDF downloader for literature review",
+  "scripts": {
+    "download": "node scripts/vcu_download.js",
+    "login-only": "node scripts/vcu_download.js --login-only",
+    "dump-html": "node scripts/vcu_dump_html.js"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.0",
+    "csv-stringify": "^6.4.0",
+    "puppeteer": "^24.40.0"
+  }
+}

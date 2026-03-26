@@ -1,0 +1,15 @@
+node_key,label,ooda_phase,n_articles,rq_tags,aim_tags
+technical_infrastructure::scalable_analytics,Scalable Analytics & OLAP (Aim 4),observe,1939,"RQ1, RQ2",4
+data_sources::claims_apcd,Claims Data & APCD,observe,669,"RQ1, RQ2","1, 2, 3"
+clinical_outcomes::pharmacovigilance,Pharmacovigilance & Pharmacogenomics,observe,359,"RQ1, RQ2",3
+data_sources::ehr_fhir,EHR & FHIR Interoperability,observe,317,"RQ1, RQ2",4
+data_sources::cpt_icd_codes,CPT / ICD Code Prediction (RQ2),observe,18,RQ2,1
+analytical_methods::association_rules,Association Rules & FP-Growth (N4),orient,898,N4,"3, 4"
+analytical_methods::process_mining,"Process Mining & Event Sequences (N2, N3)",orient,613,"N2, N3",4
+analytical_methods::temporal_analysis,"Temporal Analysis & Patient Trajectories (RQ1, N1, N2, N3)",orient,145,"RQ1, N1, N2, N3","2, 4"
+technical_infrastructure::routine_care_utilization,Routine vs. Non-Routine Healthcare Utilization (N1),orient,129,N1,4
+analytical_methods::target_leakage,Target Leakage & Methodological Validity,orient,124,"RQ1, RQ2","1, 2, 3"
+analytical_methods::explainable_ai,Explainable AI & Feature Attribution (N5),decide,161,N5,"1, 4"
+analytical_methods::gradient_boosting,Gradient Boosting Models (CatBoost / XGBoost),decide,45,"RQ1, RQ2","1, 2"
+clinical_outcomes::polypharmacy_ed,Polypharmacy & Non-Opioid ED Visits,act,2633,RQ1,"2, 3"
+clinical_outcomes::opioid_ed,Opioid Use Disorder & ED Visits,act,1674,RQ2,"1, 2"

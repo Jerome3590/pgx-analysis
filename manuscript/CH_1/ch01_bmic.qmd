@@ -199,6 +199,114 @@ The full Boolean search string is provided in **Supplementary File S1**.
 Date range: January 2010–December 2024.
 No language restrictions were applied at the search stage.
 
+### Search Term Ontology and Causal Structure
+
+Search terms were organised into a keyword ontology structured as an
+OODA loop [@Boyd1986]—Observe, Orient, Decide, Act—applied to the
+clinical analytics pipeline (**@fig-ontology**).
+This framing makes explicit both the causal data flow and the
+feedback mechanism that closes the decision cycle:
+
+- **Observe:** Raw clinical signals are collected from APCD claims,
+  CPT/ICD codes, and FAERS pharmacovigilance data, ingested at scale
+  via DuckDB. *Key question: what happened?*
+- **Orient:** Patterns are extracted (FP-Growth, BupaR, DTW) and
+  temporally validated (target leakage prevention, B1 balancing
+  constraint). *Key question: what does the pattern mean?*
+- **Decide:** Gradient boosting produces risk scores; SHAP/FFA explains
+  which features drive them. *Key question: what is the risk and why?*
+- **Act:** Clinical intervention is triggered by risk scores for opioid
+  ED (RQ2) and polypharmacy ED (RQ1). *Key question: what intervention
+  is warranted?*
+- **Feedback (Act → Observe):** Outcomes of intervention generate new
+  APCD claims, closing the loop. **The 2019 prospective holdout
+  dataset is the empirical instantiation of this feedback**—training
+  on 2016–2018 and evaluating on 2019 directly tests whether one
+  complete OODA cycle generalises to the next.
+
+Two structural loops emerge within this framework:
+
+- **R1 (reinforcing, in Act):** Polypharmacy drug burden increases
+  opioid comorbidity, which in turn increases polypharmacy—a positive
+  feedback loop motivating joint modelling of both cohorts.
+- **B1 (balancing, in Orient):** Target leakage prevention enforces
+  temporal cutoffs that constrain the Decide phase, dampening
+  artificially inflated CV metrics and enabling the OODA cycle to
+  generalise across years.
+
+```{mermaid}
+%%| label: fig-ontology
+%%| fig-cap: "Literature search keyword ontology structured as an OODA loop (Observe–Orient–Decide–Act). Solid arrows show the causal data flow through the analytical pipeline. Dashed arrows show indirect surveillance and infrastructure links. The dashed feedback arrow (Act → Observe, labelled '2019 holdout') is the empirical instantiation of the OODA cycle: model trained on 2016–2018, evaluated on 2019. R1 = reinforcing clinical feedback loop (polypharmacy ↔ opioid burden); B1 = balancing loop enforced by temporal leakage prevention. Node colours match OODA phase."
+%%| fig-width: 6.5
+
+flowchart LR
+    subgraph OBS["① OBSERVE"]
+        APCD["APCD Claims\nRQ1 · RQ2"]
+        CPT["CPT / ICD Codes\nRQ2"]
+        PV["FAERS\nPharmacovigil."]
+        DDB["DuckDB\nScalable Ingestion"]
+    end
+
+    subgraph ORI["② ORIENT"]
+        AR["FP-Growth\nN4"]
+        PM["BupaR Process\nMining N2·N3"]
+        TA["DTW Trajectories\nN1 · RQ1"]
+        TL["Target Leakage\nPrevention B1(−)"]
+    end
+
+    subgraph DEC["③ DECIDE"]
+        GB["Gradient Boosting\nCatBoost · XGBoost"]
+        XAI["SHAP / FFA\nN5"]
+    end
+
+    subgraph ACT["④ ACT"]
+        OED["Opioid ED\nRQ2 · Aim 1"]
+        PED["Polypharmacy ED\nRQ1 · Aims 2-3"]
+    end
+
+    APCD --> AR
+    APCD --> PM
+    APCD --> TA
+    APCD --> GB
+    CPT --> AR
+    CPT --> GB
+    PV -.-> OED
+    PV -.-> PED
+    DDB -.-> AR
+    DDB -.-> GB
+    TA --> TL
+    TL -- "B1(−)" --> GB
+
+    AR --> PM
+    PM --> TA
+    AR --> GB
+    PM --> GB
+    TA --> GB
+    GB --> XAI
+
+    GB --> OED
+    GB --> PED
+    XAI --> OED
+    XAI --> PED
+    AR --> PED
+
+    PED -- "R1(+)" --> OED
+    OED -- "R1(+)" --> PED
+
+    OED -.->|"2019 holdout\nOODA feedback"| APCD
+    PED -.->|"2019 holdout\nOODA feedback"| APCD
+
+    classDef obs fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef ori fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef dec fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef act fill:#fce7f3,stroke:#db2777,color:#831843
+
+    class APCD,CPT,PV,DDB obs
+    class AR,PM,TA,TL ori
+    class GB,XAI dec
+    class OED,PED act
+```
+
 ## Study Selection
 
 Two independent reviewers screened titles and abstracts using Covidence
