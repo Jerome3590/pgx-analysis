@@ -135,6 +135,119 @@ replicable, temporally valid, and causally interpretable.
 
 # Methods {#sec-methods}
 
+## Analytical Framework
+
+The analytical pipeline is structured as an OODA loop [@Boyd1986]
+(**@fig-framework**), providing an explicit causal map from raw claims
+data through to clinical intervention and back.
+The present chapter implements the **Orient** and **Decide** phases,
+with the **Observe** phase established by the Virginia APCD ingestion
+architecture:
+
+- **Observe (2016–2019 APCD):** Raw claims, CPT/ICD codes, and FAERS
+  signals are ingested via the DuckDB Partition-First architecture,
+  partitioned by Age Band × Year.
+- **Orient (this chapter):** FP-Growth, BupaR, and DTW extract
+  patterns from the 2016–2018 training partitions. Target leakage
+  prevention (B1 balancing constraint) enforces strict temporal cutoffs
+  at the outcome date before any feature reaches the Decide phase.
+- **Decide (this chapter):** Gradient boosting trains per partition;
+  the Consensus Filter (SHAP ∩ FFA agreement) selects the final
+  causal feature set.
+- **Act:** Clinical risk scores trigger intervention for opioid ED
+  (RQ2) and polypharmacy ED (RQ1) patients.
+- **Feedback — the 2019 holdout IS the OODA feedback loop:**
+  Evaluating on the strictly withheld 2019 partition tests whether
+  one complete OODA cycle (trained on 2016–2018) generalises to the
+  next year's observations. Convergence of CV and holdout PR-AUC
+  confirms B1 was correctly enforced; divergence signals either
+  residual temporal leakage or a real shift in R1 loop dynamics
+  between years.
+
+Two structural loops are embedded in this framework:
+
+- **R1 (reinforcing, in Act):** Polypharmacy drug burden and opioid
+  comorbidity form a positive feedback loop, requiring joint modelling
+  of both cohorts with shared feature engineering.
+- **B1 (balancing, in Orient):** Target leakage prevention dampens
+  spurious predictive signal, enabling the OODA cycle to generalise
+  across temporal partitions.
+
+```{mermaid}
+%%| label: fig-framework
+%%| fig-cap: "OODA loop analytical framework for Chapter 2. Nodes are grouped by OODA phase (Observe/Orient/Decide/Act). Bold-bordered nodes (DuckDB, Target Leakage Prevention, Gradient Boosting, SHAP/FFA) are the Chapter 2 implementations. The dashed feedback arrow (Act \u2192 Observe, '2019 holdout') is the empirical OODA feedback: model trained 2016\u20132018, evaluated on 2019. Convergence of CV and holdout PR-AUC validates B1 enforcement. R1 = reinforcing polypharmacy \u2194 opioid feedback loop; B1 = balancing temporal leakage constraint."
+%%| fig-width: 6.5
+
+flowchart LR
+    subgraph OBS["① OBSERVE"]
+        APCD["APCD Claims\nRQ1 · RQ2"]
+        CPT["CPT / ICD Codes\nRQ2"]
+        PV["FAERS\nPharmacovigil."]
+        DDB["DuckDB\nPartition-First"]
+    end
+
+    subgraph ORI["② ORIENT"]
+        AR["FP-Growth\nN4"]
+        PM["BupaR Process\nMining N2·N3"]
+        TA["DTW Trajectories\nN1 · RQ1"]
+        TL["Target Leakage\nPrevention B1(−)"]
+    end
+
+    subgraph DEC["③ DECIDE"]
+        GB["Gradient Boosting\nConsensus Filter"]
+        XAI["SHAP / FFA\nN5"]
+    end
+
+    subgraph ACT["④ ACT"]
+        OED["Opioid ED\nRQ2 · Aim 1"]
+        PED["Polypharmacy ED\nRQ1 · Aims 2-3"]
+    end
+
+    APCD --> AR
+    APCD --> PM
+    APCD --> TA
+    APCD --> GB
+    CPT --> AR
+    CPT --> GB
+    PV -.-> OED
+    PV -.-> PED
+    DDB -.-> AR
+    DDB -.-> GB
+    TA --> TL
+    TL -- "B1(−)" --> GB
+
+    AR --> PM
+    PM --> TA
+    AR --> GB
+    PM --> GB
+    TA --> GB
+    GB --> XAI
+
+    GB --> OED
+    GB --> PED
+    XAI --> OED
+    XAI --> PED
+    AR --> PED
+
+    PED -- "R1(+)" --> OED
+    OED -- "R1(+)" --> PED
+
+    OED -.->|"2019 holdout\nOODA feedback"| APCD
+    PED -.->|"2019 holdout\nOODA feedback"| APCD
+
+    classDef obs fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef ori fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef dec fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef act fill:#fce7f3,stroke:#db2777,color:#831843
+    classDef active stroke-width:3px,stroke:#7c3aed
+
+    class APCD,CPT,PV,DDB obs
+    class AR,PM,TA,TL ori
+    class GB,XAI dec
+    class OED,PED act
+    class DDB,TL,GB,XAI active
+```
+
 ## Data Source
 
 The primary data source is Virginia's All-Payer Claims Database (APCD)

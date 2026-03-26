@@ -4,6 +4,21 @@
 
 This document maps the research questions to the analysis workflow, verifying that our cohort configuration provides all necessary data to answer each question using the complete analysis pipeline. It covers the **two original research questions** (ED_NON_OPIOID and OPIOID_ED) and the **six additional research questions** (N1–N6) that drive the risk dashboard visualization tabs.
 
+## 🎯 Dissertation Aims → Operational RQ Alignment
+
+The operational RQs (RQ1, RQ2, N1–N6) are focused sub-questions the pipeline answers directly. They collectively support the higher-level dissertation aims:
+
+| Dissertation Aim | Operational RQs | How |
+|-----------------|-----------------|-----|
+| **Aim 1** — Predict opioid-influenced ER visits (>70% accuracy) | RQ2, N5 | RQ2 identifies ICD/CPT/drug predictors of OPIOID_ED; N5 (FFA+SHAP) validates causal attribution for the prediction model |
+| **Aim 2** — Predict general (non-opioid) ER visits | RQ1, N2, N3 | RQ1 defines the 30-day drug window → non-opioid ED outcome; N2/N3 surface the event sequences preceding the visit |
+| **Aim 3** — Identify drugs causing ADEs + ER visits | RQ1, N4, N6 | RQ1 measures drug window association; N4 maps ICD/CPT/Drug co-occurrences via FP-Growth; N6 isolates polypharmacy drug combinations |
+| **Aim 4** — Cloud-based technical architecture for precision medicine | N1–N6 (all tabs) | Each N-question maps to a deployed dashboard tab (DTW · BupaR · FP-Growth · Causal) — the tabs are the architecture deliverable |
+
+> The operational RQs are scoped to what the APCD pipeline can answer with the deployed dashboard. The dissertation aims are the clinical and policy significance layer on top.
+
+---
+
 ## 🔄 Updated Analysis Workflow
 
 ```
