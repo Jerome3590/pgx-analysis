@@ -113,6 +113,15 @@ data_offline/
 !sync_all_model_artifacts.sh
 !sync_dashboard_outputs.sh
 
+# ── Node.js / npm ────────────────────────────────────────────────────────────
+**/node_modules/
+**/package-lock.json
+npm-debug.log*
+yarn-error.log*
+
+# ── Infrastructure / operational tools (web scraping, secrets, local scripts) ─
+manuscript/infrastructure_setup/
+
 # ── Credentials & secrets ────────────────────────────────────────────────────
 secrets/
 secrets.txt
