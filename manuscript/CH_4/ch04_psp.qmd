@@ -10,8 +10,27 @@ author:
     orcid: "0000-0001-8622-0597"
     corresponding: true
     affiliations:
-      - id: vcu
-        name: Virginia Commonwealth University
+      - id: pts
+        name: >-
+          Department of Pharmacotherapy and Outcomes Science,
+          School of Pharmacy, Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+      - id: ils
+        name: >-
+          Ph.D. Program in Integrative Life Sciences,
+          School of Life Sciences and Sustainability,
+          Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+  - name: "Elvin T. Price"
+    orcid: "0000-0001-6046-7540"
+    affiliations:
+      - ref: pts
+      - id: cvl
+        name: "ConvergenceLabs@VCU—Health Outcomes, Virginia Commonwealth University"
         city: Richmond
         state: VA
         country: USA
@@ -147,7 +166,7 @@ geriatric non-opioid ED cohort derived from APCD.
 Retrospective cohort study using Virginia's All-Payer Claims Database
 (APCD; 2016–2019) under a data use agreement with the Virginia Center
 for Health Innovation (VCHI) and Virginia Health Information (VHI).
-IRB waiver: [IRB-XXXX].
+IRB waiver: HM20022300.
 
 ## Cohort Construction {#sec-cohort}
 
@@ -421,9 +440,17 @@ framework for clinical decision support in the aging population.
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.
 
-**Funding:** [Funding statement].
+**Funding:** This research received no external funding.
 
 **Ethics Statement:** Data use agreement with VCHI and VHI;
-IRB waiver [IRB-XXXX] (non-human-subjects research designation).
+IRB waiver HM20022300 (non-human-subjects research designation).
+
+**Data Availability:** The data supporting the findings of this study are
+derived from Virginia's All-Payer Claims Database (APCD). Restrictions apply
+to the availability of these data, which were used under a data use agreement
+with the Virginia Center for Health Innovation (VCHI) and Virginia Health
+Information (VHI). Requests for data access may be submitted to VHI at
+https://www.vhi.org. Analysis code is available at
+https://github.com/Jerome3590/pgx-analysis.
 
 **Conflicts of Interest:** The author declares no conflict of interest.

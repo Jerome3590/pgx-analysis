@@ -19,7 +19,9 @@
  *   node scripts/vcu_download.js --headed                # show browser
  */
 
-const puppeteer  = require('puppeteer');
+const puppeteer  = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 const fs         = require('fs');
 const path       = require('path');
 const { parse }  = require('csv-parse/sync');
@@ -42,6 +44,7 @@ const LOGIN_ONLY  = args.includes('--login-only');
 const HEADED      = args.includes('--headed') || LOGIN_ONLY;
 const LIMIT       = (() => { const i = args.indexOf('--limit'); return i >= 0 ? parseInt(args[i+1]) : 0; })();
 const DUO_ARG     = (() => { const m = args.find(a => a.startsWith('--duo-passcode=')); return m ? m.split('=')[1] : ''; })();
+const INPUT_ARG   = (() => { const i = args.indexOf('--input'); return i >= 0 ? args[i+1] : null; })();
 if (DUO_ARG) process.env.DUO_PASSCODE = DUO_ARG;  // env var consumed by waitForDuo
 
 // ── Load credentials ──────────────────────────────────────────────────────────
@@ -65,33 +68,78 @@ function loadSecrets() {
   return cfg;
 }
 
+// ── DOI → publisher URL resolution ───────────────────────────────────────────
+const https = require('https');
+const http  = require('http');
+
+function resolveDoi(doi) {
+  return new Promise((resolve) => {
+    const url = `https://doi.org/${doi}`;
+    function follow(u, hops) {
+      if (hops > 8) return resolve(null);
+      const mod = u.startsWith('https') ? https : http;
+      const req = mod.get(u, { headers: { 'Accept': 'text/html' } }, res => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          const loc = res.headers.location;
+          follow(loc.startsWith('http') ? loc : new URL(loc, u).href, hops + 1);
+        } else {
+          resolve(u);
+        }
+        res.resume();
+      });
+      req.on('error', () => resolve(null));
+      req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+    }
+    follow(url, 0);
+  });
+}
+
 // ── Load candidates ───────────────────────────────────────────────────────────
 function loadCandidates() {
-  if (!fs.existsSync(INPUT_CSV)) {
-    console.error(`ERROR: ${INPUT_CSV} not found.`);
-    console.error(`Run: python scripts/_check_doi_match.py`);
+  // --input accepts any CSV with screened_pmc_id + doi + title columns
+  // (screened_doi_map.csv or vcu_queue_with_dois.csv)
+  const csvFile = INPUT_ARG ? path.resolve(ROOT, INPUT_ARG) : INPUT_CSV;
+  if (!fs.existsSync(csvFile)) {
+    console.error(`ERROR: ${csvFile} not found.`);
+    if (!INPUT_ARG) console.error(`Run: python scripts/_check_doi_match.py`);
+    else            console.error(`Run: python scripts/_build_vcu_doi_map.py`);
     process.exit(1);
   }
 
-  // Already successfully downloaded
+  // Skip PDF files already on disk OR already logged OK
   const done = new Set();
   if (fs.existsSync(LOG_FILE)) {
-    const rows = parse(fs.readFileSync(LOG_FILE, 'utf8'), { columns: true, skip_empty_lines: true });
-    for (const row of rows) {
-      if (row.status === 'ok') done.add(row.hsh_id);
+    try {
+      const rows = parse(fs.readFileSync(LOG_FILE, 'utf8'), { columns: true, skip_empty_lines: true, relax_column_count: true });
+      for (const row of rows) {
+        if (row.status === 'ok') done.add(row.hsh_id);
+      }
+    } catch (_) { /* corrupt log — ignore, will append fresh */ }
+  }
+  // Also skip if JSON already exists in scholar_json/
+  const scholarJsonDir = path.join(ROOT, 'data', 'scholar_json');
+  const jsonSet = new Set();
+  if (fs.existsSync(scholarJsonDir)) {
+    for (const f of fs.readdirSync(scholarJsonDir)) {
+      if (f.endsWith('.json')) jsonSet.add(f.replace(/\.json$/, ''));
     }
   }
 
-  // screened_doi_map.csv columns: screened_pmc_id, doi, title
-  const rows = parse(fs.readFileSync(INPUT_CSV, 'utf8'), { columns: true, skip_empty_lines: true });
+  // Supports both screened_doi_map.csv and vcu_queue_with_dois.csv schemas
+  const rows = parse(fs.readFileSync(csvFile, 'utf8'), { columns: true, skip_empty_lines: true });
   const candidates = rows
-    .filter(r => r.screened_pmc_id && r.doi && !done.has(r.screened_pmc_id))
+    .filter(r => {
+      const id  = r.screened_pmc_id || r.pmc_id || '';
+      const doi = r.doi || '';
+      return id && doi && !done.has(id) && !jsonSet.has(id);
+    })
     .map(r => ({
-      hsh_id: r.screened_pmc_id,
+      hsh_id: r.screened_pmc_id || r.pmc_id || `article_${r.article_id}`,
       title:  r.title || '',
       doi:    r.doi,
     }));
 
+  console.log(`Input CSV:  ${csvFile}  (${rows.length} rows, ${candidates.length} need download)`);
   return LIMIT > 0 ? candidates.slice(0, LIMIT) : candidates;
 }
 
@@ -100,7 +148,7 @@ const LOG_FIELDS = ['hsh_id', 'title', 'doi', 'proxy_url', 'status', 'bytes', 't
 
 function appendLog(row) {
   const header = !fs.existsSync(LOG_FILE);
-  const line   = stringify([row], { header, columns: LOG_FIELDS });
+  const line   = stringify([row], { header, columns: LOG_FIELDS, record_delimiter: '\r\n' });
   fs.appendFileSync(LOG_FILE, line, 'utf8');
 }
 
@@ -269,78 +317,108 @@ async function waitForDuo(page, creds, timeoutMs = 120000) {
   throw new Error(`Duo 2FA timed out after ${timeoutMs/1000}s`);
 }
 
-// ── PDF detection & download ──────────────────────────────────────────────────
-async function downloadPdf(page, browser, targetUrl, destPath) {
-  // Use CDP to intercept PDF responses
-  const client = await page.target().createCDPSession();
-  await client.send('Page.setDownloadBehavior', {
-    behavior:     'allow',
-    downloadPath: PDF_DIR,
-  });
+// ── Publisher PDF URL patterns ────────────────────────────────────────────────
+function guessPdfUrl(articleUrl) {
+  // Most publishers use /doi/pdf/ instead of /doi/abs/ or /doi/full/
+  const pdfUrl = articleUrl
+    .replace(/\/doi\/abs\//,  '/doi/pdf/')
+    .replace(/\/doi\/full\//, '/doi/pdf/')
+    .replace(/\/doi\/epdf\//, '/doi/pdf/');
+  if (pdfUrl !== articleUrl) return pdfUrl;
 
-  let pdfBytes = null;
+  // Wiley: pdfdirect (matches both direct and EZProxy proxied hostnames)
+  if (/onlinelibrary[.\-]wiley/i.test(articleUrl))
+    return articleUrl.replace('/doi/', '/doi/pdfdirect/');
 
-  // Intercept responses to capture PDFs returned inline
-  page.on('response', async response => {
-    const ct = response.headers()['content-type'] || '';
-    if (ct.includes('pdf') && !pdfBytes) {
-      try { pdfBytes = await response.buffer(); } catch (_) {}
-    }
-  });
+  // ScienceDirect: use pdfft download link (works via proxy)
+  if (/sciencedirect[.-]com/i.test(articleUrl) && !/pdfft/.test(articleUrl))
+    return articleUrl.replace(/(\/pii\/[^/?#]+).*$/, '$1/pdfft?isDTMRedir=true&download=true');
 
-  await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+  // BMJ: /content/X/Y.full → /content/X/Y.full.pdf
+  if (/bmj[.-]com/i.test(articleUrl) && !articleUrl.endsWith('.pdf'))
+    return articleUrl.replace(/(\.full)?$/, '.full.pdf');
 
-  // Give time for any redirect chain to settle
-  await new Promise(r => setTimeout(r, 3000));
+  // bioRxiv/medRxiv: /content/XXXX → /content/XXXX.full.pdf
+  if (/biorxiv|medrxiv/i.test(articleUrl) && !articleUrl.endsWith('.pdf'))
+    return articleUrl.replace(/(v\d+)?$/, '$1.full.pdf');
 
-  // Check if final URL is a direct PDF
-  const finalUrl = page.url();
-  if (finalUrl.endsWith('.pdf') || (await page.evaluate(() => document.contentType || '')).includes('pdf')) {
-    if (!pdfBytes) {
-      pdfBytes = await page.evaluate(async url => {
-        const r = await fetch(url);
-        const ab = await r.arrayBuffer();
-        return Array.from(new Uint8Array(ab));
-      }, finalUrl);
-      pdfBytes = Buffer.from(pdfBytes);
-    }
-  }
+  return null;
+}
 
-  if (pdfBytes && pdfBytes.length > 1024) {
-    fs.writeFileSync(destPath, pdfBytes);
-    return pdfBytes.length;
-  }
-
-  // Try clicking a "Download PDF" / "Full Text PDF" button
-  const pdfBtnSels = [
-    'a[href*=".pdf"]', 'a[title*="PDF" i]', 'a[aria-label*="PDF" i]',
-    'button[title*="PDF" i]', '.pdf-download', '#pdfLink', '.article-pdf-download',
-    'a.show-pdf', 'a[data-track-action*="PDF" i]',
-  ];
-  for (const sel of pdfBtnSels) {
+// ── In-browser fetch (carries proxy session cookies) ─────────────────────────
+async function browserFetch(page, url, destPath) {
+  const result = await page.evaluate(async (u) => {
     try {
-      const el = await page.$(sel);
-      if (el) {
-        const href = await page.evaluate(e => e.href || e.getAttribute('href'), el);
-        if (href && (href.includes('pdf') || href.endsWith('.pdf'))) {
-          const proxyHref = href.startsWith('http') ? href : new URL(href, finalUrl).href;
-          pdfBytes = await page.evaluate(async u => {
-            const r = await fetch(u);
-            if (!r.ok) return null;
-            const ab = await r.arrayBuffer();
-            return Array.from(new Uint8Array(ab));
-          }, proxyHref);
-          if (pdfBytes) {
-            pdfBytes = Buffer.from(pdfBytes);
-            if (pdfBytes.length > 1024) {
-              fs.writeFileSync(destPath, pdfBytes);
-              return pdfBytes.length;
-            }
-          }
+      const r = await fetch(u, { credentials: 'include', redirect: 'follow' });
+      if (!r.ok) return { ok: false, status: r.status };
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('pdf')) return { ok: false, ct };
+      const ab  = await r.arrayBuffer();
+      return { ok: true, bytes: Array.from(new Uint8Array(ab)) };
+    } catch (e) { return { ok: false, err: e.message }; }
+  }, url);
+  if (result && result.ok && result.bytes && result.bytes.length > 1024) {
+    const buf = Buffer.from(result.bytes);
+    fs.writeFileSync(destPath, buf);
+    return buf.length;
+  }
+  return 0;
+}
+
+// ── PDF detection & download ──────────────────────────────────────────────────
+async function downloadPdf(page, destPath) {
+  const articleUrl = page.url();
+  process.stdout.write(`\n    proxy→ ${articleUrl.substring(0, 100)}\n`);
+
+  // 1. Direct PDF URL (article already IS a PDF)
+  const ct = await page.evaluate(() => document.contentType || '').catch(() => '');
+  if (ct.includes('pdf') || articleUrl.endsWith('.pdf')) {
+    const n = await browserFetch(page, articleUrl, destPath);
+    if (n > 1024) return n;
+  }
+
+  // 2. Publisher-specific guessed PDF URL
+  const pdfUrl = guessPdfUrl(articleUrl);
+  if (pdfUrl && pdfUrl !== articleUrl) {
+    const n = await browserFetch(page, pdfUrl, destPath);
+    if (n > 1024) return n;
+    // Also try navigating to PDF URL (some publishers require cookie from article page)
+    try {
+      let captured = 0;
+      const handler = async r => {
+        if ((r.headers()['content-type'] || '').includes('pdf') && !captured) {
+          try { const buf = await r.buffer(); fs.writeFileSync(destPath, buf); captured = buf.length; } catch (_) {}
         }
+      };
+      page.on('response', handler);
+      await page.goto(pdfUrl, { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+      await new Promise(r => setTimeout(r, 2000));
+      page.off('response', handler);
+      if (captured > 1024) return captured;
+      // If we landed on a PDF page
+      const ct2 = await page.evaluate(() => document.contentType || '').catch(() => '');
+      if (ct2.includes('pdf')) {
+        const n2 = await browserFetch(page, page.url(), destPath);
+        if (n2 > 1024) return n2;
       }
     } catch (_) {}
   }
+
+  // 3. Scrape all PDF-bearing links from the article page (navigate back first)
+  try {
+    if (page.url() !== articleUrl)
+      await page.goto(articleUrl, { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+    const links = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href]')]
+        .map(a => a.href)
+        .filter(h => /pdf/i.test(h) && h.startsWith('http'))
+        .slice(0, 10)
+    );
+    for (const link of links) {
+      const n = await browserFetch(page, link, destPath);
+      if (n > 1024) return n;
+    }
+  } catch (_) {}
 
   return 0;
 }
@@ -348,9 +426,10 @@ async function downloadPdf(page, browser, targetUrl, destPath) {
 // ── Auth check ────────────────────────────────────────────────────────────────
 async function isLoginPage(page) {
   const url = page.url();
-  if (url.includes('login.vcu.edu') || url.includes('cas.vcu.edu') ||
-      url.includes('microsoftonline') || url.includes('shibboleth')) return true;
-  return await page.$('#username') !== null;
+  // Only match VCU's own CAS / SSO domains — never publisher login forms
+  return url.includes('login.vcu.edu') ||
+         url.includes('cas.vcu.edu')   ||
+         url.includes('shibboleth.vcu.edu');
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -364,7 +443,7 @@ async function isLoginPage(page) {
 
   const browser = await puppeteer.launch({
     headless:  HEADED ? false : 'new',
-    args:      ['--no-sandbox', '--disable-setuid-sandbox'],
+    args:      ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
     defaultViewport: { width: 1280, height: 900 },
   });
 
@@ -420,9 +499,29 @@ async function isLoginPage(page) {
 
     let proxyUrl = '';
     if (doi) {
-      proxyUrl = creds.proxy_base + encodeURIComponent(`https://doi.org/${doi}`);
+      // Resolve DOI → publisher URL, then build direct EZProxy URL
+      // Format: https://publisher.host.proxy.library.vcu.edu/path
+      const publisherUrl = await resolveDoi(doi);
+      if (!publisherUrl) {
+        process.stdout.write('doi_resolve_failed\n');
+        appendLog({ hsh_id, title: label, doi, proxy_url: '', status: 'doi_resolve_failed', bytes: 0, timestamp: new Date().toISOString() });
+        continue;
+      }
+      try {
+        let targetUrl = publisherUrl;
+        // Elsevier linkinghub is a redirect broker — map directly to ScienceDirect
+        const linkingHub = targetUrl.match(/linkinghub\.elsevier\.com\/retrieve\/pii\/([^?#/]+)/i);
+        if (linkingHub) {
+          targetUrl = `https://www.sciencedirect.com/science/article/pii/${linkingHub[1]}`;
+        }
+        const u      = new URL(targetUrl);
+        const ezHost = u.hostname + '.proxy.library.vcu.edu';
+        proxyUrl = `https://${ezHost}${u.pathname}${u.search}`;
+      } catch (_) {
+        proxyUrl = creds.proxy_base + encodeURIComponent(publisherUrl);
+      }
+      process.stdout.write(`\n    proxy→ ${proxyUrl.substring(0, 100)}\n    `);
     } else {
-      // No DOI — skip for now; needs Google Scholar URL resolution first
       process.stdout.write('no_doi — skipped\n');
       appendLog({ hsh_id, title: label, doi, proxy_url: '', status: 'no_doi', bytes: 0, timestamp: new Date().toISOString() });
       continue;
@@ -430,25 +529,29 @@ async function isLoginPage(page) {
 
     const destPath = path.join(PDF_DIR, `${hsh_id}.pdf`);
     try {
-      await page.goto(proxyUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+      // domcontentloaded fires once HTML is parsed — avoids hanging on
+      // publishers (SAGE, T&F) that keep firing analytics/tracking requests
+      // indefinitely and never reach networkidle2.
+      try {
+        await page.goto(proxyUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
+      } catch (navErr) {
+        if (!navErr.message.includes('timeout')) throw navErr;
+        process.stdout.write('(nav-timeout, attempting pdf anyway) ');
+      }
 
       // Handle login if prompted
       if (!loggedIn || await isLoginPage(page)) {
         await doVcuLogin(page, creds);
         loggedIn = true;
-        // Save cookies immediately after login
-        const cookies = await page.cookies();
-        fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+        await saveAllCookies();
+        try {
+          await page.goto(proxyUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        } catch (navErr) {
+          if (!navErr.message.includes('timeout')) throw navErr;
+        }
       }
 
-      // Navigate back to article after login (proxy may have lost the target)
-      if (page.url().includes('proxy.library.vcu.edu') === false || page.url() === proxyUrl) {
-        // Already on article or need to navigate
-      } else {
-        await page.goto(proxyUrl, { waitUntil: 'networkidle2', timeout: 45000 });
-      }
-
-      const bytes = await downloadPdf(page, browser, page.url(), destPath);
+      const bytes = await downloadPdf(page, destPath);
       if (bytes > 1024) {
         found++;
         process.stdout.write(`OK  ${(bytes/1024).toFixed(1)} KB\n`);
@@ -467,8 +570,8 @@ async function isLoginPage(page) {
     await new Promise(r => setTimeout(r, 2000));
   }
 
-  // Save final cookies (full jar)
-  await saveAllCookies();
+  // Save final cookies (full jar) — guard against CDP session already closed
+  try { await saveAllCookies(); } catch (_) {}
 
   await browser.close();
 

@@ -403,6 +403,26 @@ def main():
             print("Cohort PGx: scripts not found; skip.")
             print()
 
+    # Extract manuscript metrics (FP-Growth top rules, DTW trajectory summary,
+    # SHAP top features, PGx coverage %) from all visualization outputs.
+    print("Manuscript metrics extraction")
+    print("-" * 40)
+    extract_script = step9_root / "extract_manuscript_metrics.py"
+    if extract_script.exists():
+        extract_cmd = [
+            str(get_workflow_python_bin()),
+            str(extract_script),
+            "--top-n-rules", "5",
+            "--top-n-shap", "10",
+        ]
+        r = subprocess.run(extract_cmd, cwd=str(REPO_ROOT))
+        if r.returncode == 0:
+            print("  [manuscript metrics] written to manuscript/PIPELINE_RESULTS_AUTO.json + .md")
+        else:
+            print(f"  [manuscript metrics] FAILED (exit {r.returncode}); continuing.")
+    else:
+        print("  extract_manuscript_metrics.py not found; skip.")
+
     print()
     print("Dashboard visuals workflow done.")
 

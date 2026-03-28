@@ -9,8 +9,21 @@ year: 2026
 author:
   - name: "R. Jerome Dixon"
     affiliation: >-
-      Virginia Commonwealth University, Richmond, VA 23284, USA
+      Department of Pharmacotherapy and Outcomes Science,
+      School of Pharmacy, Virginia Commonwealth University;
+      Ph.D. Program in Integrative Life Sciences,
+      School of Life Sciences and Sustainability,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
     email: dixonrj@vcu.edu
+  - name: "Elvin T. Price, Pharm.D., Ph.D., FAHA"
+    orcid: "0000-0001-6046-7540"
+    affiliation: >-
+      Department of Pharmacotherapy and Outcomes Science,
+      School of Pharmacy, Virginia Commonwealth University;
+      ConvergenceLabs@VCU—Health Outcomes,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
 
 abstract: >
   This concluding chapter synthesizes the contributions of a five-chapter
@@ -329,6 +342,18 @@ The work presented here addresses this imperative across all five chapters—
 from the evidence map in Chapter 1 that defined the gap, to the dashboard
 in Chapter 5 that bridges it.
 
+**Data Availability:** The data supporting the findings of this dissertation
+are derived from Virginia's All-Payer Claims Database (APCD). Restrictions
+apply to the availability of these data, which were used under a data use
+agreement with the Virginia Center for Health Innovation (VCHI) and Virginia
+Health Information (VHI). Requests for data access may be submitted to VHI at
+https://www.vhi.org. Analysis code is available at
+https://github.com/Jerome3590/pgx-analysis.
+
+**Funding:** This research received no external funding.
+
+**Conflicts of Interest:** The authors declare no conflict of interest.
+
 ---
 
 *This dissertation was completed in partial fulfillment of the requirements
@@ -336,6 +361,6 @@ for the degree of Doctor of Philosophy in Health Related Sciences
 (Translational Health Research) at Virginia Commonwealth University,
 Richmond, Virginia.*
 
-*Dissertation Committee: [Chair], [Member 1], [Member 2], [Member 3]*
+*Dissertation Committee: Elvin T. Price, Pharm.D., Ph.D., FAHA (Chair); Tamas Gal, Ph.D.; Lukasz Kurgan, Ph.D.; Dayanjan Wijesinghe, Ph.D.; Jonathan DeShazo, Ph.D.*
 
-*Defense Date: [Month Year]*
+*Defense Date: 1 June 2026 (planned)*

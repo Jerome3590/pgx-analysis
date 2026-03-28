@@ -9,14 +9,30 @@ year: 2026
 
 author:
   - name: "R. Jerome Dixon"
-    number: 1
+    number: "1,2"
     orcid: "0000-0001-8622-0597"
+  - name: "Elvin T. Price"
+    number: "1,3"
+    orcid: "0000-0001-6046-7540"
 
 affiliation:
   - number: 1
-    name: >-
-      Virginia Commonwealth University, Richmond, VA 23284, USA
+    name: >
+      Department of Pharmacotherapy and Outcomes Science,
+      School of Pharmacy, Virginia Commonwealth University,
+      Richmond, VA 23284, USA
     email: "dixonrj@vcu.edu"
+  - number: 2
+    name: >
+      Ph.D. Program in Integrative Life Sciences,
+      School of Life Sciences and Sustainability,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
+  - number: 3
+    name: >
+      ConvergenceLabs@VCU---Health Outcomes,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
 
 correspondence: "dixonrj@vcu.edu"
 
@@ -358,7 +374,7 @@ from PharmVar and CPIC are applied for 12 high-evidence PGx genes
 SLCO1B1, OPRM1, COMT, HLA-B).
 
 **Step 3: CPIC lookup.** The bundled CPIC database snapshot (CPIC
-guidelines release: [version/date]) is queried for all drug-gene pairs
+guidelines release: March 2026) is queried for all drug-gene pairs
 with CPIC evidence level A or B for the patient's inferred phenotypes.
 
 **Step 4: Card generation.** A structured PDF report is generated with:
@@ -487,12 +503,12 @@ Supplementary File S4 (container image build script).
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 software, R.J.D.; validation, R.J.D.; writing, R.J.D.
 
-**Funding:** [Funding statement].
+**Funding:** This research received no external funding.
 
 **Institutional Review Board Statement:** Not applicable (no primary
 patient data processed; system evaluation used synthetic inputs only).
 
-**Data Availability:** Source code is available at [https://github.com/[repo]].
+**Data Availability:** Source code is available at https://github.com/Jerome3590/pgx-analysis.
 Model weights are available upon reasonable request.
 
 **Conflicts of Interest:** The author declares no conflict of interest.

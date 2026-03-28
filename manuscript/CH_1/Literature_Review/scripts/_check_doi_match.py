@@ -19,11 +19,20 @@ for r in sm:
     doi = doi_map.get(mid, '')
     if doi:
         matched.append({
-            'screened_pmc_id': r['pmc_id'],
+            'screened_pmc_id': mid,   # miss_pmc_id is unique per article/DOI
             'miss_pmc_id':     mid,
             'doi':             doi,
             'title':           r.get('title', '')[:80],
         })
+
+# Deduplicate: keep first occurrence of each DOI
+seen_doi = set()
+deduped  = []
+for m in matched:
+    if m['doi'] not in seen_doi:
+        seen_doi.add(m['doi'])
+        deduped.append(m)
+matched = deduped
 
 print(f"screened_missing rows    : {len(sm)}")
 print(f"title matched to missing : {title_in_miss}")

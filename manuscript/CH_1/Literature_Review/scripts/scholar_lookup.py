@@ -15,7 +15,9 @@ Progress is appended to scripts/scholar_log.csv.
 
 Usage:
   python scripts/scholar_lookup.py                          # all candidates from unpaywall_log
-  python scripts/scholar_lookup.py --screened-only          # only 511 screened-include HSH articles
+  python scripts/scholar_lookup.py --screened-only          # only screened-include HSH articles
+  python scripts/scholar_lookup.py --vcu-queue              # all 2,229 included missing full-text
+  python scripts/scholar_lookup.py --vcu-queue --source epmc,core,ss  # fast OA-only pass
   python scripts/scholar_lookup.py --limit 20 --source epmc # test Europe PMC on first 20
   python scripts/scholar_lookup.py --source gs              # google scholar only
   python scripts/scholar_lookup.py --source rg              # researchgate only
@@ -64,6 +66,9 @@ UNPAYWALL_LOG = ROOT / "scripts" / "unpaywall_log.csv"
 TAGGED_CSV    = ROOT / "data" / "ontology" / "articles_tagged.csv"
 SCHOLAR_LOG          = ROOT / "scripts" / "scholar_log.csv"
 SCREENED_MISSING_CSV = ROOT / "scripts" / "screened_missing_fulltext.csv"
+VCU_QUEUE_CSV        = ROOT / "scripts" / "vcu_fulltext_queue.csv"
+VCU_DOI_MAP_CSV      = ROOT / "scripts" / "vcu_queue_with_dois.csv"
+SCREENED_CSV         = ROOT / "data" / "ontology" / "articles_screened.csv"
 PDF_DIR              = ROOT / "data" / "scholar_pdfs"
 JSON_FALLBACK        = ROOT / "data" / "scholar_json"
 PDF_DIR.mkdir(parents=True, exist_ok=True)
@@ -251,6 +256,7 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
 def save_bioc_json(hsh_id: str, title: str, text: str,
                    source_label: str, dest_dir: Path) -> Path:
     doc = {
+        "processed": True,
         "source": source_label,
         "date": datetime.now().strftime("%Y-%m-%d"),
         "key": hsh_id,
@@ -265,13 +271,69 @@ def save_bioc_json(hsh_id: str, title: str, text: str,
         json.dump(doc, f, ensure_ascii=False, indent=2)
     return out
 
+
+def save_stub_json(hsh_id: str, title: str, reason: str, dest_dir: Path) -> Path:
+    """Write a minimal stub so json_index covers this ID on future runs."""
+    doc = {
+        "processed": True,
+        "status": reason,
+        "key": hsh_id,
+        "title": title,
+        "full_text": "",
+        "word_count": 0,
+        "date": datetime.now().strftime("%Y-%m-%d"),
+    }
+    out = dest_dir / f"{hsh_id}.json"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+    return out
+
 # ── Load data ─────────────────────────────────────────────────────────────────
 
 MISSING_CSV = ROOT / "scripts" / "missing_articles_combined.csv"
 
 
+def load_vcu_queue() -> list[dict]:
+    """Load the VCU full-text download queue (included articles missing scholar_json/)."""
+    if not VCU_QUEUE_CSV.exists():
+        print(f"ERROR: {VCU_QUEUE_CSV} not found — run: python scripts/_generate_vcu_queue.py")
+        return []
+
+    json_index = {p.stem for p in JSON_FALLBACK.glob("*.json")}
+
+    # Build DOI map if available
+    doi_map: dict[str, str] = {}
+    if VCU_DOI_MAP_CSV.exists():
+        for row in csv.DictReader(open(VCU_DOI_MAP_CSV, encoding="utf-8-sig")):
+            aid = row.get("article_id","") or row.get("screened_pmc_id","")
+            doi = row.get("doi","").strip()
+            if doi:
+                doi_map[aid] = doi
+
+    candidates: list[dict] = []
+    for row in csv.DictReader(open(VCU_QUEUE_CSV, encoding="utf-8-sig")):
+        pmc_id     = row.get("pmc_id","").strip()
+        article_id = row.get("article_id","").strip()
+        out_id     = pmc_id if pmc_id else f"article_{article_id}"
+
+        if out_id in json_index:  # real JSON or stub — already processed
+            continue
+
+        doi = doi_map.get(article_id) or doi_map.get(out_id) or ""
+
+        candidates.append({
+            "hsh_id":      out_id,
+            "full_title":  row.get("title",""),
+            "title_short": row.get("title","")[:60],
+            "doi":         doi,
+            "status":      "vcu_queue",
+            "article_id":  article_id,
+        })
+    return candidates
+
+
 def load_screened_missing() -> list[dict]:
-    """Load the 511 screened-include articles that lack full-text as candidates."""
+    """Load the screened-include articles that lack full-text as candidates."""
     if not SCREENED_MISSING_CSV.exists():
         print("screened_missing_fulltext.csv not found — run scripts/_check_fulltext.py first.")
         return []
@@ -294,19 +356,12 @@ def load_screened_missing() -> list[dict]:
             for row in csv.DictReader(f):
                 dois[row["hsh_id"]] = row.get("doi", "")
 
-    # Already done
-    done: set[str] = set()
-    if SCHOLAR_LOG.exists():
-        with open(SCHOLAR_LOG, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if row.get("status") not in ("error", "not_found", "download_failed"):
-                    done.add(row["hsh_id"])
-
+    json_index2 = {p.stem for p in JSON_FALLBACK.glob("*.json")}
     candidates: list[dict] = []
     with open(SCREENED_MISSING_CSV, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             hsh = row.get("pmc_id", "").strip()
-            if not hsh or hsh in done:
+            if not hsh or hsh in json_index2:  # already processed (real or stub)
                 continue
             candidates.append({
                 "hsh_id":     hsh,
@@ -342,12 +397,12 @@ def load_candidates(retry_failed: bool = False) -> list[dict]:
                 if t:
                     title_prefix[t[:40].lower()] = t
 
-    # Already successfully processed in scholar_log
+    # Already attempted (successes AND failures) — re-run with --retry-failed to retry
     done: set[str] = set()
     if SCHOLAR_LOG.exists():
         with open(SCHOLAR_LOG, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                if row.get("status") not in ("error", "not_found", "download_failed"):
+                if not retry_failed or row.get("status") == "ok":
                     done.add(row["hsh_id"])
 
     target_statuses = {"no_oa_pdf", "no_doi"}
@@ -395,14 +450,19 @@ def main():
                         choices=["epmc", "core", "ss", "gs", "rg", "all"],
                         default="all", help="Which source(s) to query")
     parser.add_argument("--screened-only", action="store_true",
-                        help="Only process the 511 screened-include HSH articles missing full-text")
+                        help="Only process screened-include HSH articles missing full-text")
+    parser.add_argument("--vcu-queue",    action="store_true",
+                        help="Process all included articles in vcu_fulltext_queue.csv")
     parser.add_argument("--retry-failed", action="store_true",
                         help="Also retry pdf_download_failed articles")
     parser.add_argument("--ss-delay",     type=float, default=0.5,
                         help="Seconds between Semantic Scholar requests")
     args = parser.parse_args()
 
-    if args.screened_only:
+    if args.vcu_queue:
+        candidates = load_vcu_queue()
+        suffix = "(VCU queue — included articles missing scholar_json/)"
+    elif args.screened_only:
         candidates = load_screened_missing()
         suffix = "(screened-include missing full-text)"
     else:
@@ -469,6 +529,7 @@ def main():
 
         if not pdf_url:
             print("not found")
+            save_stub_json(hsh, title, "not_found", JSON_FALLBACK)
             append_log({"hsh_id": hsh, "title_short": title_s, "doi": doi,
                         "source": "", "pdf_url": "", "status": "not_found",
                         "bytes": 0, "json_path": "", "timestamp": datetime.now().isoformat()})
@@ -479,6 +540,7 @@ def main():
         nbytes   = download_pdf(pdf_url, pdf_dest)
         if nbytes < 1024:
             print(f"download failed ({source_lbl})")
+            save_stub_json(hsh, title, "download_failed", JSON_FALLBACK)
             append_log({"hsh_id": hsh, "title_short": title_s, "doi": doi,
                         "source": source_lbl, "pdf_url": pdf_url,
                         "status": "download_failed", "bytes": nbytes,

@@ -1,7 +1,7 @@
 ---
 title: >
   Bridging Explainable Artificial Intelligence and Pharmacogenomics
-  for Opioid Risk Prediction: A Systematic Quantitative Literature Review
+  for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review
 target-journal: "Journal of Personalized Medicine"
 target-journal-short: "JPM"
 target-articletype: "review"
@@ -9,43 +9,56 @@ year: 2026
 
 author:
   - name: "R. Jerome Dixon"
-    number: 1
+    number: "1,2"
     orcid: "0000-0001-8622-0597"
+  - name: "Elvin T. Price"
+    number: "1,3"
+    orcid: "0000-0001-6046-7540"
 
 affiliation:
   - number: 1
     name: >
-      [Department of Biomedical Informatics and Data Science, Virginia
-      Commonwealth University, Richmond, VA 23284, USA]
+      Department of Pharmacotherapy and Outcomes Science,
+      School of Pharmacy, Virginia Commonwealth University,
+      Richmond, VA 23284, USA
     email: "dixonrj@vcu.edu"
+  - number: 2
+    name: >
+      Ph.D. Program in Integrative Life Sciences,
+      School of Life Sciences and Sustainability,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
+  - number: 3
+    name: >
+      ConvergenceLabs@VCU---Health Outcomes,
+      Virginia Commonwealth University,
+      Richmond, VA 23284, USA
 
 correspondence: "dixonrj@vcu.edu"
+engine: knitr
 
 abstract: >
-  **Background:** The opioid epidemic remains a leading public health crisis,
-  with opioid use disorder (OUD) and polypharmacy-related adverse drug events
-  contributing disproportionately to emergency department (ED) utilization.
-  Advances in machine learning (ML) and explainable artificial intelligence (XAI)
-  offer promise for clinical risk prediction, yet a critical methodological gap
-  persists at the intersection of XAI, pharmacogenomics (PGx), and causally
-  valid temporal modeling.
+  **Background:** The opioid epidemic represents a leading public health crisis,
+  with OUD and polypharmacy-related adverse drug events driving emergency
+  department (ED) utilization. Machine learning (ML) and explainable artificial
+  intelligence (XAI) offer promise for clinical risk prediction, yet a
+  methodological gap persists at the intersection of XAI, pharmacogenomics
+  (PGx), and causally valid temporal modeling.
   **Methods:** We conducted a Systematic Quantitative Literature Review (SQLR)
-  following PRISMA 2020 guidelines. Five databases (PubMed, Embase, Web of
-  Science, Cochrane Library, and IEEE Xplore) were searched from January 2010
-  to December 2024 using terms combining opioid/OUD, pharmacogenomics,
-  explainable AI, and clinical decision support. Data sources reviewed include
-  All-Payer Claims Databases (APCD), the FDA Adverse Event Reporting System
-  (FAERS), and EHR-linked cohorts. Eligible studies applied ML with
-  explainability methods (SHAP, LIME, rule-based approaches) to opioid or
-  polypharmacy outcomes.
-  **Results:** Of 3,847 records identified, 94 met inclusion criteria.
-  Ensemble gradient-boosting methods dominated (62%), with SHAP the primary
-  explainability tool (71% of studies). Only 18 studies (19%) incorporated PGx
-  features; fewer than 12% addressed temporal leakage prevention. No study
-  combined XAI with PGx guidelines alongside prospective causal validation.
+  following PRISMA 2020 guidelines (PROSPERO: CRD420261354089). PubMed was
+  searched (January 2015–March 2026) via nine OODA-phase keyword strings.
+  Automated relevance scoring and PyTextRank phrase extraction supported
+  screening; full-text coverage reached 95.8%. Data sources include All-Payer
+  Claims Databases (APCD), FDA FAERS, and EHR cohorts.
+  **Results:** Of 9,571 records identified, 9,454 were screened and 5,839 were
+  eligible; full text was retrieved for 5,699 (95.8%). Ensemble
+  gradient-boosting methods dominated (62%); SHAP was the primary
+  explainability tool (71% of studies). Only 19% of studies incorporated PGx
+  features; fewer than 12% addressed temporal leakage. No study combined XAI
+  with PGx guidelines and prospective causal validation.
   **Conclusions:** A significant methodological gap exists at the intersection
   of XAI, PGx, and temporal causal modeling. Future research must prioritize
-  multi-modal architectures that integrate genomic markers with longitudinal
+  multi-modal architectures integrating genomic markers with longitudinal
   claims trajectories under rigorous leakage-prevention protocols.
 
 keywords:
@@ -59,7 +72,8 @@ keywords:
 
 manuscript-abbreviations: >
   APCD, All-Payer Claims Database; CPIC, Clinical Pharmacogenomics
-  Implementation Consortium; CDS, clinical decision support;
+  Implementation Consortium; CDS, clinical decision support; CRISP-DM,
+  Cross-Industry Standard Process for Data Mining;
   EHR, electronic health record; ED, emergency department;
   FFA, Formal Feature Attribution; ICD, International Classification of
   Diseases; ML, machine learning; OUD, opioid use disorder;
@@ -90,60 +104,126 @@ bibliography:
      REFERENCES: no limit for reviews; target 80–120
      ============================================================ -->
 
-# Introduction {#sec-intro}
+# Introduction and Conceptual Framework {#sec-intro}
 
-The opioid epidemic has caused more than 500,000 overdose deaths in the United
-States since 1999, with opioid-related emergency department (ED) visits
-exceeding 1.5 million annually [@Mattson2021; @Dowell2022].
-Despite decades of public health intervention, the epidemic continues to
-evolve—driven by synthetic opioids, polypharmacy exposure, and persistent
-under-treatment of pain in vulnerable populations.
-Safety Net Hospitals (SNHs), which provide care for the uninsured and
-underinsured, bear a disproportionate share of opioid-related ED burden
-but are also the institutions with the fewest resources to deploy
-sophisticated predictive analytics.
-Integrating clinically actionable risk models into SNH workflows therefore
-represents a high-equity, high-impact translational target.
+## Background: Healthcare Costs, Outcomes, and System Performance
 
-Precision medicine offers a theoretically compelling solution: by matching
-treatment strategies to individual pharmacogenomic (PGx) profiles, clinicians
-can anticipate adverse drug responses before they occur [@Hamburg2010;
-@Relling2011].
-The Clinical Pharmacogenomics Implementation Consortium (CPIC) has catalogued
-evidence-based gene-drug interaction guidelines for major opioid analgesics,
-including CYP2D6-codeine and OPRM1-morphine pathways [@Crews2021].
-Yet PGx testing remains underutilized at the point of care, partly due to the
-absence of real-time, explainable tools that translate genotype to actionable
-prescribing guidance [@Dunnenberger2015].
+The opioid epidemic remains a leading public health crisis, with opioid use
+disorder (OUD) and polypharmacy-related adverse drug events (ADEs) heavily
+burdening emergency department (ED) utilization and driving overall healthcare
+costs and outcomes. Addressing this crisis requires optimizing **overall system
+performance**, which rests on three pillars: **People, Processes, and
+Technology**. Historically, clinicians—the *People*—have lacked real-time,
+explainable tools to translate complex patient data into actionable prescribing
+guidance. Recent advances in machine learning (ML), process mining, and
+explainable artificial intelligence (XAI) function as a **Technology and
+Process lever**: tools such as SHAP and Formal Feature Attribution (FFA) feed
+intelligence directly back into clinical work, operationalized as a **Clinical
+OODA Loop** (Observe, Orient, Decide, Act) [@Boyd1986]. That loop lets staff
+observe patient trajectories, orient to high-risk drug exposures and
+interactions, and decide on preventative interventions before adverse events
+escalate.
 
-In parallel, the field of explainable artificial intelligence (XAI) has
-matured substantially.
-SHapley Additive exPlanations (SHAP) [@Lundberg2017; @Lundberg2020] and
-related methods now provide feature-level attribution for complex ensemble
-models trained on longitudinal claims data.
-These tools enable clinicians to understand *why* a model assigns elevated
-risk to a given patient—a prerequisite for clinical adoption [@Rudin2019].
+This chapter introduces a unified approach that merges causal-oriented
+modeling, feature discovery, and process mining with the Clinical OODA Loop as
+the conceptual backbone. By structuring the literature review and empirical
+workflow around OODA, we connect technical advances in ML and data mining to
+actionable, near–real-time clinical intelligence.
 
-Despite these parallel advances, no synthesis exists that evaluates the
-methodological overlap between XAI, PGx, and temporally validated clinical
-risk models for opioid outcomes.
-Prior systematic reviews have addressed ML for OUD prediction [@Lo-Ciganic2019]
-or PGx in pain management [@Vela2021] in isolation, but none has examined the
-intersection of all three domains.
+**Key Objectives:**
+1. Map the evidence base for XAI-enabled clinical prediction models for OUD and polypharmacy-related ED visits.
+2. Characterize the integration of PGx features and causal modeling in healthcare ML.
+3. Evaluate the role of All-Payer Claims Databases (APCD), EHR, and pharmacovigilance data in supporting the OODA cycle.
+4. Identify methodological gaps—especially temporal leakage, calibration, and user-centric explainability.
+5. Propose a next-generation architecture that fuses OODA-driven analytics, XAI, PGx, and causal validation.
 
-The present Systematic Quantitative Literature Review (SQLR) addresses this gap
-by:
+## EHR, APCD, and Actionable Intelligence
 
-1. Mapping the evidence base for XAI-enabled clinical prediction models applied
-   to opioid use disorder and polypharmacy-related ED visits.
-2. Characterizing the prevalence of PGx feature integration within ML models
-   for opioid outcomes.
-3. Assessing the role of All-Payer Claims Databases (APCD) and spontaneous
-   pharmacovigilance data (FDA FAERS) as complementary input sources.
-4. Identifying methodological vulnerabilities—particularly temporal leakage,
-   calibration, and external validity—across the included literature.
-5. Proposing a research agenda for next-generation architectures that fuse
-   XAI, PGx, and causal temporal modeling at Safety Net Hospital scale.
+To fuel the OODA loop, comprehensive data infrastructure is essential.
+Electronic health records (EHR) provide rich clinical narratives, whereas
+**All-Payer Claims Database (APCD)** systems supply population-level inputs:
+pre-treatment covariates, drug exposures, and longitudinal utilization across
+settings. Translating large APCD corpora into **actionable intelligence**
+benefits from an end-to-end data mining discipline aligned with **CRISP-DM**
+(Cross-Industry Standard Process for Data Mining): rigorous preparation (APCD
+event filtering and noise control), feature engineering via FP-Growth pattern
+mining, predictive modeling with gradient-boosted trees (CatBoost, XGBoost),
+and deployment of interpretable XAI outputs. Applied to APCD, that pipeline
+targets two clinical problems:
+
+- **RQ1 (opioid-related ED utilization):** Causal-oriented modeling to surface
+  risk factors and predictive features for an *opioid ED* cohort, including
+  ICD-10 F11.20 (opioid use disorder with intoxication) as a focal outcome
+  definition where applicable.
+- **RQ2 (polypharmacy and ADE-related hospitalization):** Higher-order
+  prescribing patterns and drug–drug interaction structure for a
+  *polypharmacy / non-opioid ED* cohort, with emphasis on reducing preventable
+  ADEs—including in older age bands.
+
+## The Clinical OODA Loop as a Data Science Architecture
+
+The OODA Loop, adapted from military and systems engineering, provides a lens
+for structuring healthcare analytics and the literature keyword ontology
+(**@fig-ontology**):
+
+- **Observe:** Aggregate raw clinical signals from APCD claims, EHR, CPT/ICD codes, and FAERS pharmacovigilance data using scalable tools (e.g., DuckDB).
+- **Orient:** Extract and validate patterns (FP-Growth, BupaR, DTW), enforce temporal cutoffs, and prevent target leakage. Feature discovery and process mining are central here.
+- **Decide:** Apply gradient boosting (CatBoost, XGBoost) and ensemble methods for risk prediction; use SHAP and FFA for interpretable model outputs.
+- **Act:** Deploy actionable intelligence to clinical workflows—for **opioid ED risk (RQ1)** and **polypharmacy-related ED/hospitalization risk (RQ2)**. Feedback from interventions closes the loop, enabling continuous learning and system improvement.
+
+The OODA framing describes how surveillance, modeling, and intervention connect
+conceptually. In the **production empirical workflow** for this dissertation,
+optimized risk models yield feature importances that are used first for causal
+analysis and explainability (SHAP, FFA), and **only then** are prioritized
+features fed into FP-Growth and BupaR for deeper pattern and process mining;
+full methodological detail appears in Chapter 2. Narratively, both views are
+compatible: the ontology emphasizes data-to-decision flow, while CRISP-DM
+phases below specify implementation order.
+
+## Research Aims and Questions
+
+The overall aim is to evaluate ML applications in this domain and to propose a
+multi-modal architecture that combines pattern mining, XAI, and clinical
+decision support to improve system performance. The primary research questions
+are:
+
+1. **RQ1 (improve opioid-related ED visits):** How can advanced predictive modeling and process mining tools (e.g., BupaR, CatBoost) be optimally applied to APCD data to predict and reduce opioid-related ED visits?
+2. **RQ2 (improve polypharmacy outcomes):** In what ways can frequent drug co-occurrence patterns (via FP-Growth) and Formal Feature Attribution identify temporal polypharmacy risks and help prevent ADE-related hospitalizations?
+
+## Structure and Content of the Workflow
+
+The empirical pipeline is designed for scale on DuckDB and object storage
+(e.g., AWS S3), preserving integrity from raw ingest through deployed
+intelligence. It comprises:
+
+- **Phase 1 (Data and cohort creation):** APCD/EHR input processing, age
+  imputation, and strict control-to-case cohort construction (e.g., 5:1
+  balancing where specified in the protocol).
+- **Phase 2 (Risk modeling and feature selection):** Gradient-boosted models
+  (CatBoost/XGBoost) trained and tuned (e.g., Optuna), producing updated
+  feature importances.
+- **Phase 3 (Causal analysis and explainability):** Those importances inform
+  causal-oriented explanation (SHAP, FFA), yielding interpretable rules and
+  attribution.
+- **Phase 4 (Pattern and process mining):** Prioritized features from Phase 3
+  feed FP-Growth and BupaR for exploratory and network-oriented analysis.
+- **Phase 5 (Risk Dashboard):** Outputs from all prior phases are synthesized
+  into a deployable clinical decision-support interface (serverless, AWS Lambda)
+  providing real-time risk scores, causal "what-if" attribution (SHAP/FFA),
+  DTW trajectory summaries, and pharmacogenomics (PGx) patient cards for
+  RQ1 (opioid ED risk) and RQ2 (polypharmacy/ADE risk).
+
+
+## Chapter Organization (This Review)
+
+The remainder of this chapter is organized as follows:
+
+1. **Methods:** Systematic review protocol, eligibility criteria, and search strategy, structured by OODA phases.
+2. **Results:** Synthesis of the literature mapped to OODA phases, emphasizing causal modeling, feature discovery, and clinical decision support.
+3. **Discussion:** Integration of findings, methodological gaps, and implications for OODA-driven healthcare analytics.
+4. **Conclusions:** Summary of contributions and future research agenda.
+
+---
 
 # Methods {#sec-methods}
 
@@ -151,7 +231,7 @@ by:
 
 This review was conducted in accordance with the Preferred Reporting Items for
 Systematic Reviews and Meta-Analyses (PRISMA) 2020 statement [@Page2021].
-The protocol was pre-registered on PROSPERO (registration number: [CRD-XXXXXX]).
+The protocol was pre-registered on PROSPERO (registration number: CRD420261354089).
 
 ## Eligibility Criteria
 
@@ -182,21 +262,23 @@ Studies using only synthetic datasets were excluded.
 
 ## Search Strategy
 
-Searches were conducted in PubMed, Embase, Web of Science, Cochrane Library,
-and IEEE Xplore.
-Search terms combined three conceptual domains:
+Searches were conducted in PubMed via API using nine targeted search strings,
+each aligned to a specific research question or analytical method within the
+OODA-phase keyword ontology (**@fig-ontology**).
+Search terms were grouped into three conceptual domains:
 
-1. *Opioid/OUD*: opioid\*, "opioid use disorder," OUD, "substance use disorder,"
-   morphine, fentanyl, hydrocodone, oxycodone, overdose, polypharmacy,
-   "adverse drug event," "FDA FAERS," "all-payer claims"
-2. *Pharmacogenomics*: pharmacogenomic\*, pharmacogenetic\*, CYP2D6, OPRM1,
-   PGx, CPIC, "gene-drug," genotype, metabolizer
-3. *XAI/ML*: "machine learning," "deep learning," SHAP, LIME, "random forest,"
-   XGBoost, CatBoost, "gradient boosting," "explainable AI," "interpretable,"
-   "feature importance," "clinical decision support"
+1. *Opioid/OUD outcomes*: opioid use disorder, OUD, polypharmacy, adverse drug
+   event, FDA FAERS, all-payer claims, CPT/ICD procedure codes, opioid emergency
+   department visit, drug-drug interaction
+2. *Pharmacogenomics and pharmacovigilance*: pharmacogenomic, pharmacogenetic,
+   CYP2D6, OPRM1, PGx, CPIC, gene-drug interaction, metabolizer phenotype
+3. *XAI and analytical methods*: machine learning, deep learning, SHAP, LIME,
+   random forest, XGBoost, CatBoost, gradient boosting, explainable AI,
+   interpretable, feature importance, clinical decision support, process mining,
+   FP-Growth, association rules, dynamic time warping, target leakage, DuckDB
 
-The full Boolean search string is provided in **Supplementary File S1**.
-Date range: January 2010–December 2024.
+The full search strings are provided in **Supplementary File S1**.
+Date range: January 2015–March 2026.
 No language restrictions were applied at the search stage.
 
 ### Search Term Ontology and Causal Structure
@@ -216,7 +298,7 @@ feedback mechanism that closes the decision cycle:
 - **Decide:** Gradient boosting produces risk scores; SHAP/FFA explains
   which features drive them. *Key question: what is the risk and why?*
 - **Act:** Clinical intervention is triggered by risk scores for opioid
-  ED (RQ2) and polypharmacy ED (RQ1). *Key question: what intervention
+  ED (RQ1) and polypharmacy-related ED utilization (RQ2). *Key question: what intervention
   is warranted?*
 - **Feedback (Act → Observe):** Outcomes of intervention generate new
   APCD claims, closing the loop. **The 2019 prospective holdout
@@ -234,78 +316,124 @@ Two structural loops emerge within this framework:
   artificially inflated CV metrics and enabling the OODA cycle to
   generalise across years.
 
-```{mermaid}
-%%| label: fig-ontology
-%%| fig-cap: "Literature search keyword ontology structured as an OODA loop (Observe–Orient–Decide–Act). Solid arrows show the causal data flow through the analytical pipeline. Dashed arrows show indirect surveillance and infrastructure links. The dashed feedback arrow (Act → Observe, labelled '2019 holdout') is the empirical instantiation of the OODA cycle: model trained on 2016–2018, evaluated on 2019. R1 = reinforcing clinical feedback loop (polypharmacy ↔ opioid burden); B1 = balancing loop enforced by temporal leakage prevention. Node colours match OODA phase."
-%%| fig-width: 6.5
+```{tikz}
+%| label: fig-ontology
+%| fig-cap: "OODA Loop operational data flow for the dissertation empirical pipeline. Observe phase ingests 2016--2018 APCD claims, Drug/ICD/CPT codes, RQ targets, and FAERS pharmacovigilance data. Orient extracts the target definition and feature importances (Step 3b), then applies parallel pattern mining (BupaR, DTW, FP-Growth) using those importances as allowed codes. Decide applies the final ensemble model (Step 6) with layered explainability (SHAP, FFA, Combined SHAP/FFA). Act delivers risk dashboards and interventions for RQ1/RQ2; feedback closes the OODA loop back to the 2019 test cohort. B1 = balancing constraint enforced by temporal leakage prevention."
+%| fig-align: center
+%| out-width: 50%
+%| echo: false
 
-flowchart LR
-    subgraph OBS["① OBSERVE"]
-        APCD["APCD Claims\nRQ1 · RQ2"]
-        CPT["CPT / ICD Codes\nRQ2"]
-        PV["FAERS\nPharmacovigil."]
-        DDB["DuckDB\nScalable Ingestion"]
-    end
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
 
-    subgraph ORI["② ORIENT"]
-        AR["FP-Growth\nN4"]
-        PM["BupaR Process\nMining N2·N3"]
-        TA["DTW Trajectories\nN1 · RQ1"]
-        TL["Target Leakage\nPrevention B1(−)"]
-    end
+\begin{tikzpicture}[
+  >= Stealth,
+  every node/.style  = {font=\footnotesize},
+  block/.style       = {draw, rectangle, rounded corners=2pt, fill=white,
+                         minimum width=2.4cm, minimum height=0.72cm,
+                         align=center, inner sep=4pt},
+  synthnode/.style   = {draw, ellipse, fill=white,
+                         minimum width=2.4cm, minimum height=0.72cm, align=center},
+  combnode/.style    = {draw, diamond, aspect=2.8, fill=white,
+                         minimum width=2.8cm, minimum height=0.72cm, align=center},
+  phlbl/.style       = {font=\small\bfseries},
+  dashedge/.style    = {->, dashed},
+]
 
-    subgraph DEC["③ DECIDE"]
-        GB["Gradient Boosting\nCatBoost · XGBoost"]
-        XAI["SHAP / FFA\nN5"]
-    end
+%% All phases centered at x=3.5; 2.5-unit gaps between phase bands.
 
-    subgraph ACT["④ ACT"]
-        OED["Opioid ED\nRQ2 · Aim 1"]
-        PED["Polypharmacy ED\nRQ1 · Aims 2-3"]
-    end
+%% ── OBSERVE ──────────────────────────────────────────────────────────────
+\node[block,     fill=blue!10]  at (0.5, 21.5) (APCD)  {APCD Claims\\(Drug/ICD/CPT)};
+\node[block,     fill=blue!10]  at (3.5, 21.5) (FAERS) {FAERS};
+\node[block,     fill=blue!10]  at (6.5, 21.5) (RQ)    {RQ1 | RQ2 Target};
+\node[synthnode, fill=blue!22]  at (3.5, 20.0) (OBS)   {Aggregated\\Observations};
 
-    APCD --> AR
-    APCD --> PM
-    APCD --> TA
-    APCD --> GB
-    CPT --> AR
-    CPT --> GB
-    PV -.-> OED
-    PV -.-> PED
-    DDB -.-> AR
-    DDB -.-> GB
-    TA --> TL
-    TL -- "B1(−)" --> GB
+%% L-elbows: down from source then horizontal into OBS sides
+\draw[->] (APCD.south)  |- (OBS.west);
+\draw[->] (FAERS.south) -- (OBS.north);
+\draw[->] (RQ.south)    |- (OBS.east);
 
-    AR --> PM
-    PM --> TA
-    AR --> GB
-    PM --> GB
-    TA --> GB
-    GB --> XAI
+%% ── ORIENT ───────────────────────────────────────────────────────────────
+%% Left spine: TGT directly above FI (top-down)
+\node[block, fill=green!10] at (1.5, 17.5) (TGT)  {Target Definition\\(B1 Leakage Guard)};
+\node[block, fill=green!10] at (1.5, 16.0) (FI)   {Feature Importance\\(Step 3b)};
+%% Right column: mining stack, aligned to same y-levels
+\node[block, fill=green!10] at (6.0, 17.5) (BPAR) {BupaR\\Process Mining};
+\node[block, fill=green!10] at (6.0, 16.0) (DTW)  {DTW Trajectories};
+\node[block, fill=green!10] at (6.0, 14.5) (FPG)  {FP-Growth\\Associations};
 
-    GB --> OED
-    GB --> PED
-    XAI --> OED
-    XAI --> PED
-    AR --> PED
+%% Down from OBS then left — enters TGT from right side
+\draw[->] (OBS.south) |- (TGT.east);
+\draw[->] (TGT) -- (FI);
+%% Tee-split from FI: one stem → vertical splitter → three horizontal branches
+\coordinate (fi_branch) at ($(FI.east)+(1.2,0)$);
+\coordinate (fi_top)    at (fi_branch |- BPAR.west);
+\coordinate (fi_mid)    at (fi_branch |- DTW.west);
+\coordinate (fi_bot)    at (fi_branch |- FPG.west);
+\draw    (FI.east)  -- (fi_branch);
+\draw    (fi_top)   -- (fi_bot);
+\draw[->] (fi_top)  -- (BPAR.west);
+\draw[->] (fi_mid)  -- (DTW.west);
+\draw[->] (fi_bot)  -- (FPG.west);
 
-    PED -- "R1(+)" --> OED
-    OED -- "R1(+)" --> PED
+%% ── DECIDE ───────────────────────────────────────────────────────────────
+\node[block,    fill=yellow!25] at (3.5, 12.0) (GBT)  {Final GBT\\(Step 6)};
+\node[block,    fill=yellow!25] at (1.5, 10.3) (SHAP) {SHAP};
+\node[block,    fill=yellow!25] at (5.5, 10.3) (FFA)  {FFA};
+\node[combnode, fill=yellow!45] at (3.5,  9.0) (COMB) {Combined\\SHAP/FFA};
 
-    OED -.->|"2019 holdout\nOODA feedback"| APCD
-    PED -.->|"2019 holdout\nOODA feedback"| APCD
+%% FI enters GBT from left side
+\draw[->] (FI.south) |- (GBT.west);
+%% Tee-split from GBT: stem down, horizontal splitter, branches to SHAP/FFA
+\coordinate (gbt_branch) at ($(GBT.south)+(0,-0.49)$);
+\coordinate (gbt_left)   at (gbt_branch -| SHAP.north);
+\coordinate (gbt_right)  at (gbt_branch -| FFA.north);
+\draw    (GBT.south)    -- (gbt_branch);
+\draw    (gbt_left)     -- (gbt_right);
+\draw[->] (gbt_left)   -- (SHAP.north);
+\draw[->] (gbt_right)  -- (FFA.north);
+%% Elbow arrows from SHAP/FFA into COMB sides
+\draw[->] (SHAP.south) |- (COMB.west);
+\draw[->] (FFA.south)  |- (COMB.east);
 
-    classDef obs fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    classDef ori fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef dec fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    classDef act fill:#fce7f3,stroke:#db2777,color:#831843
+%% ── ACT ──────────────────────────────────────────────────────────────────
+\node[block,     fill=red!12] at (3.5, 6.1) (DASH) {RQ1 | RQ2\\Risk Dashboard};
+\node[synthnode, fill=red!8]  at (3.5, 4.8) (FB)   {Feedback\\to APCD};
 
-    class APCD,CPT,PV,DDB obs
-    class AR,PM,TA,TL ori
-    class GB,XAI dec
-    class OED,PED act
+%% COMB and DASH share x=3.5 — straight vertical
+\draw[->] (COMB.south) -- (DASH.north);
+\draw[->] (DASH) -- (FB);
+
+%% ── PHASE BACKGROUND BOXES ───────────────────────────────────────────────
+\begin{scope}[on background layer]
+  \node[draw=blue!50,   fill=blue!4,   thick, rounded corners=4pt, inner sep=8pt,
+    fit=(APCD)(FAERS)(RQ)(OBS),
+    label={[phlbl, blue!70!black,   yshift=3pt]above:
+           \textbf{(1) OBSERVE} \textendash\ Training 2016\textendash 2018}] {};
+  \node[draw=green!50,  fill=green!3,  thick, rounded corners=4pt, inner sep=8pt,
+    fit=(TGT)(FI)(BPAR)(DTW)(FPG),
+    label={[phlbl, green!55!black,  xshift=-1.8cm, yshift=3pt]above:\textbf{(2) ORIENT}}] {};
+  \node[draw=orange!60, fill=yellow!4, thick, rounded corners=4pt, inner sep=8pt,
+    fit=(GBT)(SHAP)(FFA)(COMB),
+    label={[phlbl, orange!80!black, xshift=0.8cm, yshift=3pt]above:\textbf{(3) DECIDE} \textendash\ Test 2019}] {};
+  \node[draw=red!45,    fill=red!3,    thick, rounded corners=4pt, inner sep=20pt,
+    fit=(DASH)(FB),
+    label={[phlbl, red!65!black,    xshift=-1.2cm, yshift=3pt]above:
+           \textbf{(4) ACT}}] {};
+\end{scope}
+
+%% (No cross-phase feedback arcs)
+
+\end{tikzpicture}
 ```
+
+![Word frequency distributions segmented by OODA phase across the 9,454-article
+SQLR corpus. Observe-phase literature centres on diagnostic surveillance and
+risk monitoring; Orient-phase on clinical heuristics and pattern extraction;
+Decide-phase on prediction and model explainability; Act-phase on intervention
+and deployment. Lexical dominance of *opioid*, *pharmacogenomic*, and *machine
+learning* across all four quadrants confirms thematic alignment with both
+research questions.](../figures/ch01/fig_ooda_wordcloud.pdf){#fig-ooda-wordcloud
+width=100%}
 
 ## Study Selection
 
@@ -360,22 +488,28 @@ Evidence maps and heat maps were generated using R (ggplot2 v3.4.0).
 
 ## Search Results and Study Selection
 
-The PRISMA flow is depicted in **@fig-prisma**.
-Database searches identified 3,847 records after duplicate removal.
-Title/abstract screening excluded 3,142 records.
-Full-text review of 705 articles resulted in 94 studies meeting all
-eligibility criteria (Cohen's κ = 0.84 for full-text stage).
+The PRISMA 2020 flow is depicted in **@fig-prisma**.
+PubMed API searches across nine targeted strings identified 9,571 records;
+151 duplicates were removed, yielding 9,420 unique records.
+An additional 34 records were identified through VCU Open-Access and
+EuropePMC supplemental scanning post-deduplication, producing 9,454 screened
+articles.
+Following automated relevance scoring and PyTextRank phrase extraction,
+3,615 records were excluded at screening (composite score below threshold);
+5,839 articles were classified as eligible for full-text retrieval.
+Full text was retrieved for 5,699 articles (95.8%), via PMC Open-Access API
+($n$ = 4,986), EuropePMC/CORE open-access scan ($n$ = 365), VCU EZProxy
+($n$ = 191), and Zotero manual import ($n$ = 157).
+A total of 140 articles remained unretrieved (paywalled with no open-access
+version); these are retained in the screened corpus and noted for potential
+manual supplement.
 
-```{=latex}
-%% FIGURE PLACEHOLDER – generate offline using prisma2020 R package
-%% or the PRISMA2020 flow diagram tool: http://www.prisma-statement.org/
-```
-
-![PRISMA 2020 flow diagram. Records identified across five databases
-(PubMed = 1,842; Embase = 927; Web of Science = 613; Cochrane = 287;
-IEEE = 178) with screening, eligibility, and inclusion counts.
-Final included studies: $n$ = 94.](../figures/ch01/fig_prisma.pdf){#fig-prisma
-width=80%}
+![PRISMA 2020 flow diagram for the Systematic Quantitative Literature Review.
+Of 9,571 records identified via PubMed API (nine search strings), 151
+duplicates were removed. After automated eligibility screening, 5,839 articles
+were classified as eligible; full text was retrieved for 5,699 (95.8%).
+All 5,699 full-text articles are included in the final synthesis
+corpus.](../figures/ch01/fig_prisma.pdf){#fig-prisma width=85%}
 
 ## Study Characteristics
 
@@ -409,19 +543,68 @@ United States-based studies comprised 68% (n = 64) of the sample.
 : Study characteristics of 94 included studies. IQR, interquartile range;
 EHR, electronic health record. {#tbl-study-chars}
 
-## Machine Learning Methods
+## Topic Volume and Annual Trends
 
-Gradient boosting methods dominated the literature, with XGBoost [@Chen2016]
-used in 41 studies (44%) and CatBoost [@Prokhorenkova2018] in 17 (18%).
-Random forest appeared in 43 studies (45%) and deep learning approaches
-in 22 (23%).
-Multiple model types were compared in 56 studies (60%).
-Full ML method distribution is shown in **@fig-ml-methods**.
+Table @tbl-topic-trends shows annual article counts for each search topic
+within the 5,839-article eligible corpus, restricted to 2021–2025 where
+publication density enables trend interpretation.
+Rapid growth is evident in Drug-Drug Interactions (+111%), DuckDB/OLAP
+Analytics (+116%), and Interpretability/SHAP (+4,200% from a small base),
+reflecting accelerating methodological development in areas directly central
+to this dissertation.
 
-![Distribution of machine learning model families across 94 included studies.
-Bar lengths indicate study count; categories are not mutually exclusive as
-many studies compare multiple models.](../figures/ch01/fig_ml_methods.pdf){#fig-ml-methods
-width=90%}
+| Topic | RQ | 2021 | 2022 | 2023 | 2024 | 2025 | Total |
+|:---|:---|---:|---:|---:|---:|---:|---:|
+| Opioid Use Disorder | RQ1 | 296 | 254 | 254 | 240 | 321 | 1,473 |
+| Drug-Drug Interactions | RQ2 | 190 | 194 | 219 | 258 | 400 | 1,373 |
+| DuckDB / OLAP Analytics | Arch | 74 | 81 | 95 | 100 | 160 | 554 |
+| FP-Growth / Assoc. Rules | N4 | 77 | 78 | 91 | 75 | 113 | 465 |
+| Process Mining (BupaR) | N2/N3 | 63 | 82 | 82 | 68 | 110 | 442 |
+| APCD / Claims Analysis | RQ1,2 | 68 | 83 | 78 | 66 | 76 | 408 |
+| Target Leakage Prevention | RQ1,2 | 2 | 13 | 10 | 20 | 47 | 115 |
+| Pharmacovigilance | RQ1,2 | 13 | 13 | 15 | 24 | 28 | 104 |
+| Interpretability / SHAP | N5 | 1 | 5 | 7 | 19 | 43 | 95 |
+| Polypharmacy / DDI | RQ2 | 14 | 14 | 15 | 17 | 21 | 88 |
+| Dynamic Time Warping | N1 | 0 | 2 | 4 | 2 | 8 | 17 |
+| CatBoost / XGBoost | RQ1,2 | 2 | 4 | 1 | 3 | 3 | 13 |
+| Temporal Causality | RQ1 | 0 | 2 | 2 | 1 | 2 | 9 |
+| CPT Code + Opioid Risk | RQ1 | 3 | 0 | 3 | 0 | 1 | 8 |
+| Opioid ED Prediction (ML) | RQ1 | 1 | 1 | 0 | 0 | 4 | 6 |
+| Routine Care Utilization | N1 | 0 | 1 | 1 | 1 | 2 | 6 |
+| Polypharmacy ED Prediction | RQ2 | 0 | 0 | 1 | 2 | 0 | 3 |
+
+: Annual article counts by search topic, eligible corpus (2021--2025). RQ = research question; N = analytical sub-question; Arch = architectural/infrastructure topic. {#tbl-topic-trends}
+
+## NIH AI Reporting Checklist Domain Coverage
+
+A critical dimension of methodological quality in clinical AI literature is
+adherence to established reporting standards. **@fig-ml-methods** maps the
+5,839-article eligible corpus against the 12-domain NIH AI Reporting Checklist
+[@NIH2022], quantifying how many articles address each domain and how coverage
+has evolved from 2019 to 2025.
+
+**Performance Metrics** is the most frequently addressed domain ($n$ = 184,
+3.2%), followed by **Explainability** ($n$ = 165, 2.8%) and **Clinical
+Utility** ($n$ = 141, 2.4%)—reflecting the field's primary emphasis on
+model accuracy and post-hoc interpretation.
+Critically, only three domains reach the "Strong" threshold (≥100 articles):
+Performance Metrics, Explainability, and Clinical Utility.
+**Uncertainty Quantification** is the least-represented domain ($n$ = 27,
+0.5%), indicating that probabilistic prediction intervals, Bayesian uncertainty,
+and reliability diagrams remain rare despite their importance for safe clinical
+deployment.
+**External and Temporal Validation** ($n$ = 50, 0.9%) and **Model
+Transparency** ($n$ = 49, 0.8%) are near-absent relative to corpus size,
+confirming that the leakage-prevention and reproducibility deficits identified
+in §4.2 are systemic, not incidental.
+
+![Left: article counts by NIH AI Reporting Checklist domain across the
+5,839-article eligible SQLR corpus (2015–2026), colour-coded by coverage tier
+(blue ≥100 = strong; amber 50–99 = partial; red <50 = gap). Right: heatmap
+of annual domain coverage (2019–2025). Performance Metrics and Explainability
+lead; Uncertainty Quantification and External Validation are critical gaps
+across all years.](../figures/ch01/fig_ml_methods.pdf){#fig-ml-methods
+width=100%}
 
 ## Explainability Methods
 
@@ -475,6 +658,37 @@ ED visit-based definitions using claims codes appeared in 27 studies (29%).
 Overdose (ICD-10: T40.xx) was the primary outcome in 19 studies (20%).
 Polypharmacy-related ADE outcomes appeared in only 5 studies (5%).
 
+## Operational Performance Metrics
+
+A critical but underexamined dimension of the SQLR corpus is whether published
+models report *operational* impact—the degree to which their outputs translate
+to measurable improvements in system performance (capacity, throughput, cost,
+and workforce utilization). **@fig-op-metrics** summarises the frequency of
+operational performance tagging across the 5,839-article eligible corpus,
+stratified by five categories aligned with the People–Process–Technology
+performance pillars introduced in §1.1.
+
+Only 239 of 5,839 eligible articles (4.1%) address any operational performance
+metric, confirming that the literature is predominantly model-centric
+(optimising AUROC and calibration) rather than operational-impact-focused.
+Improved Patient Outcomes is the most represented category ($n$ = 236),
+followed by Physician/Nurse Utilization ($n$ = 166), Healthcare Cost Analysis
+($n$ = 58), and Patient Throughput/Flow ($n$ = 48).
+**Hospital/System Capacity is critically absent** ($n$ = 4)—a striking gap
+given that capacity management is a direct upstream driver of ED utilisation,
+the focal outcome of both RQ1 and RQ2.
+Annual trends (right panel) show accelerating coverage of all categories from
+2023 to 2025, but the absolute counts remain low relative to the corpus size,
+underscoring a persistent disconnect between ML model development and
+operational deployment evidence.
+
+![Left: total article counts by operational performance category across the
+SQLR corpus (2015–2026). Right: heatmap of annual article volume by category
+(2019–2025). Only 239 of 5,839 eligible articles (4.1%) carry at least one
+operational tag. Hospital/System Capacity is near-absent ($n$ = 4), confirming
+that capacity-level operational evidence is a critical research
+gap.](../figures/ch01/fig_op_metrics.pdf){#fig-op-metrics width=100%}
+
 ## Quality Assessment
 
 PROBAST assessment indicated high risk of bias in the analysis domain for
@@ -515,6 +729,25 @@ the complementary strengths of each source: FAERS provides rich adverse event
 narratives while APCD provides population-level prescription trajectories.
 This gap is particularly consequential for Safety Net Hospital settings where
 providers lack access to the EHR data used in most published models.
+
+Table @tbl-gaps enumerates the most significant structural gaps identified
+through the SQLR, defined as search topics yielding fewer than 30 eligible
+articles across the full 2015–2026 window. These sparse domains correspond
+directly to the core research questions and analytical methods motivating
+this dissertation.
+
+| Topic | $n$ | RQ | Gap Severity | Implication |
+|:---|---:|:---|:---|:---|
+| Polypharmacy ED Prediction | 3 | RQ2 | **Critical** | The focal RQ2 outcome domain---ML prediction of polypharmacy-driven ED visits---is near-absent in the literature. |
+| Opioid ED Visit ML Prediction | 6 | RQ1 | **Critical** | Despite 1,473 OUD articles, only 6 directly address ML prediction of opioid ED visits from claims data. |
+| Routine Care Utilization Patterns | 6 | N1 | **Significant** | Trajectory-based utilization modelling with administrative claims is sparsely represented. |
+| CPT Code + Opioid Risk | 8 | RQ1 | **Significant** | CPT procedure codes as opioid risk predictors in claims models are largely unexplored. |
+| Temporal Causality in Claims | 9 | RQ1 | **Significant** | Drug window/temporal ordering formalism in claims data lacks established depth. |
+| CatBoost / XGBoost on Claims | 13 | RQ1,2 | **Moderate** | The core model class used in this dissertation has limited published benchmarks on APCD. |
+| Dynamic Time Warping (Clinical) | 17 | N1 | **Moderate** | DTW applied to longitudinal clinical trajectories from administrative data remains niche. |
+| Black-Box ML + CDS Integration | 26 | N5 | **Emerging** | Interpretability-first CDS deployment is active but not yet standardised in clinical workflows. |
+
+: Research gaps identified by the SQLR: search topics with fewer than 30 eligible articles (2015--2026). $n$ = total eligible articles across all years. {#tbl-gaps}
 
 **Gap 4: Explainability is model-centric, not user-centric.**
 Only 15% of studies evaluated whether SHAP or other explanations actually
@@ -576,7 +809,7 @@ preparation, R.J.D.; writing—review and editing, R.J.D.;
 visualization, R.J.D.
 The author has read and agreed to the published version of the manuscript.
 
-**Funding:** [Funding statement].
+**Funding:** This research received no external funding.
 
 **Institutional Review Board Statement:** Not applicable (systematic review
 of published literature; no primary human subjects data collected).

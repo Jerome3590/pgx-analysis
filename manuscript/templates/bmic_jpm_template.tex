@@ -130,7 +130,8 @@ $if(manuscript-abbreviations)$
 \abbreviations{Abbreviations}{$manuscript-abbreviations$}
 $endif$
 
-%% References are emitted by Quarto inside $body$ when cite-method: natbib is used.
-%% Do NOT add \bibliographystyle or \bibliography here — that causes duplicate \bibstyle errors.
+%% \bibliography is required here — Quarto natbib does NOT auto-inject \bibdata into the .aux.
+%% Paths are relative to the CH_X/ directory where bibtex runs.
+\bibliography{../refs/discipline,../refs/bmic-jpm}
 
 \end{document}

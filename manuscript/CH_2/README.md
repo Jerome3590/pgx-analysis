@@ -218,12 +218,13 @@ CH_2/
 
 ### Deployment
 - AWS Lambda / ECR (serverless inference)
-- FastAPI (REST endpoints)
+- API Gateway (REST endpoints)
 - Docker (containerization)
 
 ### Exploratory Tools
 - FP-Growth (association mining)
 - BupaR (process mining visualization)
+- Dynamic Time Warping (DTW) for pattern matching
 - Plotly/Dash (interactive dashboards)
 
 ---
