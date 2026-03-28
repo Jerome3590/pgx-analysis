@@ -4,7 +4,20 @@
 output/*.pdf
 output/*.tex
 output/*.log
+output/*.html
+output/CH_*/
+output/figures/
 edits/*.docx
+
+# PNG figure artifacts — canonical format is PDF
+figures/**/*.png
+CH_1/Literature_Review/figures/*.png
+
+# Literature review generated log/data CSVs (large, auto-generated)
+CH_1/Literature_Review/scripts/*.csv
+
+# Sample files (unrelated papers — not part of this dissertation)
+samples/
 
 # LaTeX intermediates left by keep-tex: true
 CH_*/*.tex
@@ -14,6 +27,9 @@ CH_*/*.blg
 CH_*/*.log
 CH_*/*.out
 CH_*/*.toc
+
+# In-source PDFs — canonical output is output/*.pdf via build.ps1
+CH_*/*.pdf
 
 # Quarto render cache
 *_files/

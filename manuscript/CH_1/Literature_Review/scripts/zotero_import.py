@@ -7,11 +7,10 @@ Prerequisites:
   1. Zotero account at https://www.zotero.org/user/login
   2. API key:  https://www.zotero.org/settings/security → "Create new private key"
      - Scope: Personal Library → Read/Write
-  3. Library ID: visible in your Zotero web URL (numeric user ID)
-  4. Set env vars:
-       $env:ZOTERO_API_KEY  = "your_key_here"
-       $env:ZOTERO_USER_ID  = "123456"       # numeric, from zotero.org URL
-       $env:ZOTERO_GROUP_ID = ""             # leave blank for personal library
+  3. Add to secrets/secrets.txt:
+       zotero_api_key=YOUR_KEY_HERE
+       zotero_user_id=6037399
+  Env vars ZOTERO_API_KEY / ZOTERO_USER_ID are used as fallback if not in secrets.txt.
 
 Run from: manuscript/CH_1/Literature_Review/
   python scripts/zotero_import.py [--dry-run] [--screened]
@@ -21,11 +20,26 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
 
 import requests
+
+SECRETS_FILE = Path("secrets/secrets.txt")
+
+
+def load_secrets() -> dict:
+    """Parse secrets/secrets.txt (key=value, # comments). Same format as vcu_download.js."""
+    cfg = {}
+    if not SECRETS_FILE.exists():
+        return cfg
+    for line in SECRETS_FILE.read_text(encoding="utf-8").splitlines():
+        m = re.match(r'^\s*([^#=\s][^=]*)=(.*)$', line)
+        if m:
+            cfg[m.group(1).strip()] = m.group(2).strip()
+    return cfg
 
 SCREENED_CSV = Path("data/ontology/articles_screened.csv")
 TAGGED_CSV   = Path("data/ontology/articles_tagged.csv")
@@ -126,19 +140,23 @@ def main():
                         help="Zotero collection key to add items to")
     args = parser.parse_args()
 
-    api_key  = os.environ.get("ZOTERO_API_KEY", "")
-    user_id  = os.environ.get("ZOTERO_USER_ID", "")
-    group_id = os.environ.get("ZOTERO_GROUP_ID", "")
+    secrets  = load_secrets()
+    api_key  = secrets.get("zotero_api_key") or os.environ.get("ZOTERO_API_KEY", "")
+    user_id  = secrets.get("zotero_user_id") or os.environ.get("ZOTERO_USER_ID", "")
+    group_id = secrets.get("zotero_group_id") or os.environ.get("ZOTERO_GROUP_ID", "")
 
-    if not args.dry_run and not api_key:
+    if not args.dry_run and (not api_key or api_key == "YOUR_KEY_HERE"):
         sys.exit(
-            "ERROR: Set ZOTERO_API_KEY environment variable.\n"
-            "  $env:ZOTERO_API_KEY = 'your_key_here'\n"
-            "  $env:ZOTERO_USER_ID = '123456'\n"
-            "Get key at: https://www.zotero.org/settings/security"
+            "ERROR: Zotero API key not set.\n"
+            f"  Edit {SECRETS_FILE} and set: zotero_api_key=YOUR_KEY_HERE\n"
+            "  Get key at: https://www.zotero.org/settings/security\n"
+            "  (Personal Library → Read/Write)"
         )
     if not args.dry_run and not user_id and not group_id:
-        sys.exit("ERROR: Set ZOTERO_USER_ID or ZOTERO_GROUP_ID.")
+        sys.exit(
+            "ERROR: Zotero user ID not set.\n"
+            f"  Edit {SECRETS_FILE} and set: zotero_user_id=6037399"
+        )
 
     # ── Load articles ─────────────────────────────────────────────────────────
     if args.screened and SCREENED_CSV.exists():

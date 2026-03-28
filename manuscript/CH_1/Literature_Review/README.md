@@ -1,29 +1,44 @@
 # CH_1 Literature Review — SQLR Workflow
 
 **Systematic Quantitative Literature Review (SQLR)** for:
-> *Improving Hospital Operational Excellence and Patient Operational Excellence with Precision Medicine: A Case Study Utilizing Virginia's All Payers Claim Database (APCD) and the FDA's Adverse Drug Event Reporting System (FAERS)*
+> *Pharmacogenomics Implementation: A Systematic Review*
 
 **Target journal:** MDPI Journal of Personalized Medicine  
 **PRISMA registration:** `[CRD-XXXXXX]` (register at prospero.ac.uk)  
-**R path:** `C:\Program Files\R\R-4.5.2\bin\Rscript.exe`
+**Pipeline:** Pure Python — no R, no AWS, no S3 required  
+**Full workflow:** see [`PRISMA_WORKFLOW.md`](PRISMA_WORKFLOW.md)
 
 ---
 
-## SQLR Pipeline Overview
+## Quick Start
+
+```bash
+# From: manuscript/CH_1/Literature_Review/
+
+# Full pipeline run (all steps, skip VCU proxy)
+python scripts/_run_fulltext_pipeline.py --skip-vcu
+
+# Resume from a specific step
+python scripts/_run_fulltext_pipeline.py --step 4
+
+# After Zotero manual review — import PDFs and re-score
+python scripts/_import_zotero_pdfs.py
+python scripts/_run_fulltext_pipeline.py --step 4 --step 5 --step 5b --step 5c --step 5d
+```
+
+---
+
+## Pipeline Overview
 
 ```mermaid
 flowchart TD
-    A["1. PubMed API Search\nrentrez::entrez_search()\n14 topic queries"] --> B
-    B["2. Fetch Article Metadata\nCSV per topic\ntitle / authors / year / PMC ID"] --> C
-    C["3. Identify Missing PMC IDs\nNo open-access full text\nHSH hash assigned"] --> D
-    D["4a. Download OA Full Text\nPMC BioC JSON API\ndatasets/topic/pubmed_json_files/"] --> E
-    C --> F["4b. Manual Zotero Search\nPDF download for non-OA\nExport → refs/bmic-jpm.bib"]
-    F --> G["5. Convert PDFs → JSON\nAWS Textract + Comprehend\nS3: pgx-repository/projects/Lit_Review/"]
-    E --> H
-    G --> H["6. NLP Screening\nspaCy + PyTextRank\nphrase extraction / entity scoring"]
-    H --> I["7. PRISMA Accounting\nscripts/prisma_tracker.R\ncounts per stage"]
-    I --> J["8. PRISMA Mermaid Chart\nembedded in lit_review.qmd\nfig_prisma.pdf → figures/ch01/"]
-    J --> K["9. Zotero → bib Export\nBetter BibTeX auto-export\nrefs/bmic-jpm.bib"]
+    A["1. PubMed API Search\n9 RQ-aligned search strings\n9,571 records identified"] --> B
+    B["2. Deduplicate + Screen\nscreen_articles.py\n_phase7_review.py (pytextrank)\n9,454 screened · 5,839 eligible"] --> C
+    C["3. Full-Text Retrieval\n_fetch_missing_fulltext.py  ← PMC OA API\nscholar_lookup.py  ← EuropePMC/CORE/SS\nvcu_download.js  ← VCU EZProxy (manual)\n_build_full_json.py  ← PDF extraction\n5,975 scholar_json/ files (95.8% coverage)"] --> D
+    D["4. pytextrank Re-score\n_phase7_review.py --write\nNever overwrites existing decisions\n5,839 include · 3,615 exclude"] --> E
+    E["5. Checklist Rebuild\n_build_review_checklist.py\nCarries forward prior selected/notes\n_enrich_scholar_json.py → classification tags\n_generate_prisma.py → PRISMA flowchart\ngenerate_wordclouds.py → data/wordclouds/"] --> F
+    F["6. Manual Review\nUpload to Google Sheets\n_apply_checklist_decisions.py\n5,699 included in synthesis"] --> G
+    G["7. Zotero Final Sync\nzotero_import.py --screened\nRequires Zotero API key"]
 ```
 
 ---

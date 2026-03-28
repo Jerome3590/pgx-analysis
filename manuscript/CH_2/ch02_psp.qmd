@@ -10,8 +10,27 @@ author:
     orcid: "0000-0001-8622-0597"
     corresponding: true
     affiliations:
-      - id: vcu
-        name: Virginia Commonwealth University
+      - id: pts
+        name: >-
+          Department of Pharmacotherapy and Outcomes Science,
+          School of Pharmacy, Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+      - id: ils
+        name: >-
+          Ph.D. Program in Integrative Life Sciences,
+          School of Life Sciences and Sustainability,
+          Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+  - name: "Elvin T. Price"
+    orcid: "0000-0001-6046-7540"
+    affiliations:
+      - ref: pts
+      - id: cvl
+        name: "ConvergenceLabs@VCU\u2014Health Outcomes, Virginia Commonwealth University"
         city: Richmond
         state: VA
         country: USA
@@ -568,11 +587,14 @@ polypharmacy prediction studies presented in subsequent chapters.
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 software, R.J.D.; formal analysis, R.J.D.; writing, R.J.D.
 
-**Funding:** [Funding statement].
+**Funding:** This research received no external funding.
 
 **Conflicts of Interest:** The author declares no conflict of interest.
 
-**Data Availability:** Virginia APCD data are available under a data use
-agreement with the Virginia Center for Health Innovation (VCHI) and
-Virginia Health Information (VHI). Analysis code is available at
-[https://github.com/[repo]].
+**Data Availability:** The data supporting the findings of this study are
+derived from Virginia's All-Payer Claims Database (APCD). Restrictions apply
+to the availability of these data, which were used under a data use agreement
+with the Virginia Center for Health Innovation (VCHI) and Virginia Health
+Information (VHI). Requests for data access may be submitted to VHI at
+https://www.vhi.org. Analysis code is available at
+https://github.com/Jerome3590/pgx-analysis.
