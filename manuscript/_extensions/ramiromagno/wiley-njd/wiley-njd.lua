@@ -40,12 +40,33 @@ Header = function(el)
 end
 
 
+-- Quarto cross-reference prefixes — do NOT convert these to \cite{}
+local xref_prefixes = {
+  "fig%-", "tbl%-", "sec%-", "eq%-", "lst%-",
+  "thm%-", "lem%-", "cor%-", "prp%-", "def%-", "exm%-", "exr%-", "rem%-"
+}
+
+local function is_xref(id)
+  for _, prefix in ipairs(xref_prefixes) do
+    if id:match("^" .. prefix) then return true end
+  end
+  return false
+end
+
 Cite = function(el)
   if quarto.doc.is_format("pdf") then
-    local cites = el.citations:map(function(cite)
-      return cite.id
-    end)
-    local citesStr = "\\cite{" .. table.concat(cites, ",") .. "}"
+    -- Filter out cross-reference IDs; keep only real bibliography keys
+    local bib_keys = {}
+    for _, cite in ipairs(el.citations) do
+      if not is_xref(cite.id) then
+        table.insert(bib_keys, cite.id)
+      end
+    end
+    if #bib_keys == 0 then
+      -- All were cross-refs — return nil so Quarto handles them natively
+      return nil
+    end
+    local citesStr = "\\cite{" .. table.concat(bib_keys, ",") .. "}"
     return pandoc.RawInline("latex", citesStr)
   end
 end

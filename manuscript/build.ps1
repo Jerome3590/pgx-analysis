@@ -29,6 +29,8 @@ $Edits   = Join-Path $Root "edits"
 $env:TEXINPUTS = ".;$Root\templates\;;$env:TEXINPUTS"
 # ── BSTINPUTS: lets bibtex find Definitions/mdpi.bst from any chapter dir ────
 $env:BSTINPUTS = ".;$Root\templates\Definitions\;;$env:BSTINPUTS"
+# ── BIBINPUTS: lets bibtex find refs/*.bib regardless of working directory ───
+$env:BIBINPUTS = ".;$Root\refs\;;$env:BIBINPUTS"
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 function Build-Chapter {

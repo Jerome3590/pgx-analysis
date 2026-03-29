@@ -84,6 +84,7 @@ abbreviations-note: >-
 format:
   wiley-njd-pdf:
     pdf-engine: xelatex
+    cite-method: natbib
     template: ../templates/cpt_psp_template.tex
     classoption: [AMA, STIX2COL]
     article-type: "Research Article"
@@ -160,7 +161,7 @@ APCD-scale pharmacoepidemiological modeling.
 ## Analytical Framework
 
 The analytical pipeline is structured as an OODA loop [@Boyd1986]
-(**@fig-framework**), providing an explicit causal map from raw claims
+(@fig-framework), providing an explicit causal map from raw claims
 data through to clinical intervention and back.
 The present chapter implements the **Orient** and **Decide** phases,
 with the **Observe** phase established by the Virginia APCD ingestion
@@ -277,7 +278,7 @@ spanning calendar years 2016–2020, comprising approximately 4.2 million
 unique patients, 380 million claim records, and 2.1 billion individual
 service line items.
 Raw data were provided in fixed-width text format and staged into a Bronze
-→ Silver → Gold data lake on AWS S3 (**@fig-architecture**).
+→ Silver → Gold data lake on AWS S3 (@fig-architecture).
 
 ```{tikz}
 %| label: fig-architecture
@@ -425,7 +426,7 @@ Throughput was measured as records processed per minute, averaged over three
 complete pipeline runs.
 Baseline (monolithic, single node): 1.2 M records/min.
 Partition-first (32 workers): 18.1 M records/min—a **15.1× improvement**
-(**@tbl-throughput**).
+(@tbl-throughput).
 
 | Configuration | Workers | Records/min | Speedup |
 |:---|---:|---:|---:|
@@ -538,7 +539,7 @@ confounding of healthcare utilization patterns.
 ## Deployed Risk Dashboard {#sec-dashboard}
 
 Ensemble model outputs and Consensus-Causal rules are translated to the
-point of care via a serverless PGx Risk Dashboard (**@fig-dashboard**).
+point of care via a serverless PGx Risk Dashboard (@fig-dashboard).
 The system is stateless and ephemeral: no patient data are stored at any tier.
 
 ```{tikz}
@@ -670,7 +671,7 @@ simultaneously SHAP-positive and FFA-positive in the same partition.
 Intervention Rate (IR) quantified the expected change in $\hat{p}_{\text{ens}}$
 under counterfactual removal or substitution of each causal feature.
 
-The interactive analytics and deployment workflow is illustrated in **@fig-insights**.
+The interactive analytics and deployment workflow is illustrated in @fig-insights.
 
 ```{tikz}
 %| label: fig-insights
@@ -813,7 +814,7 @@ The opioid ED cohort comprised [N = XX,XXX] cases and [N = XX,XXX]
 55–64 years).
 The polypharmacy (non-opioid) ED cohort comprised [N = XX,XXX] cases across
 the three geriatric age bands (65–74, 75–84, 85–94 years).
-Full cohort attrition is depicted in **@fig-attrition**.
+Full cohort attrition is depicted in @fig-attrition.
 
 ![CONSORT-style cohort attrition diagram. Left column: opioid ED cohort
 construction from raw APCD through Bronze/Silver/Gold layers.
@@ -823,7 +824,7 @@ width=90%}
 
 ## Architecture Performance
 
-As shown in **@tbl-throughput**, the 32-worker partition-first configuration
+As shown in @tbl-throughput, the 32-worker partition-first configuration
 achieved 15.1× throughput improvement.
 Linear scalability was confirmed: doubling workers from 8 to 16 produced
 a 1.51× speedup (theoretical maximum: 2.0×); doubling from 16 to 32
@@ -851,7 +852,7 @@ drug combinations with insufficient population-level signal.
 
 Consensus-Causal features showed significantly lower variance in Brier score
 across 2019 holdout partitions compared to SHAP-only or FFA-only subsets
-(**@fig-consensus**).
+(@fig-consensus).
 
 ![Consensus Filter evaluation. Box plots of Brier score on 2019 holdout for
 models trained with: (A) All MCCV features; (B) SHAP-only features;
@@ -865,7 +866,7 @@ width=90%}
 Mean PR-AUC on the 2019 holdout across all partitions and both cohorts
 was [0.XX ± 0.XX].
 Full per-partition results (AUROC, PR-AUC, Brier score, LogLoss) are
-reported in **@tbl-validation**.
+reported in @tbl-validation.
 
 | Cohort | Age Band | AUROC | PR-AUC | Brier | LogLoss |
 |:---|:---|---:|---:|---:|---:|
