@@ -200,6 +200,7 @@ Two structural loops are embedded in this framework:
 %| label: fig-framework
 %| fig-cap: "OODA loop analytical framework for Chapter 2. Nodes are grouped by phase: Observe (blue), Orient (green), Decide (yellow), Act (pink). Thick-bordered nodes (DuckDB, Target Leakage Prevention, Gradient Boosting, SHAP/FFA) are Chapter 2 implementations. Dashed feedback arrows (Act $\\rightarrow$ Observe, 2019 holdout) represent the empirical OODA feedback cycle: model trained on 2016--2018, evaluated on 2019. R1 = reinforcing polypharmacy $\\leftrightarrow$ opioid feedback loop; B1 = balancing temporal leakage constraint."
 %| fig-align: center
+%| fig-env: figure*
 %| out-width: 100%
 %| echo: false
 
@@ -319,6 +320,7 @@ Raw data were provided in fixed-width text format and staged into a Bronze
 %| label: fig-architecture
 %| fig-cap: "Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed)."
 %| fig-align: center
+%| fig-env: figure*
 %| out-width: 100%
 %| echo: false
 
@@ -579,8 +581,9 @@ The system is stateless and ephemeral: no patient data are stored at any tier.
 
 ```{tikz}
 %| label: fig-dashboard
-%| fig-cap: "Serverless PGx Risk Dashboard architecture. Model artifacts (21 age-band ensemble models) are stored in AWS S3. At inference time, the AWS Lambda container loads the appropriate per-age-band model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response."
+%| fig-cap: "Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response."
 %| fig-align: center
+%| fig-env: figure*
 %| out-width: 100%
 %| echo: false
 
@@ -601,7 +604,7 @@ The system is stateless and ephemeral: no patient data are stored at any tier.
 
 %% ── STORAGE TIER ─────────────────────────────────────────────────────────────
 \node[svcbox, fill=yellow!22, draw=yellow!60!black] (s3models) at (0, 4.5)
-      {S3\\Model Store\\21 models};
+      {$\lambda$ Container\\per-bin models\\(up to 84)};
 \node[svcbox, fill=yellow!14, draw=yellow!50!black] (s3assets) at (0, 3.0)
       {S3\\Static Assets\\(frontend)};
 
@@ -712,6 +715,7 @@ The interactive analytics and deployment workflow is illustrated in @fig-insight
 %| label: fig-insights
 %| fig-cap: "Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team."
 %| fig-align: center
+%| fig-env: figure*
 %| out-width: 100%
 %| echo: false
 
@@ -856,7 +860,7 @@ Full cohort attrition is depicted in @fig-attrition.
 construction from raw APCD through Bronze/Silver/Gold layers.
 Right column: non-opioid ED (polypharmacy) cohort.
 Exclusion counts are shown at each step.](../figures/ch02/fig_attrition.pdf){#fig-attrition
-width=90%}
+width=90% fig-align="center"}
 
 ## Architecture Performance
 
@@ -895,7 +899,7 @@ models trained with: (A) All MCCV features; (B) SHAP-only features;
 (C) FFA-only features; (D) Consensus-Causal features (SHAP ∩ FFA).
 Lower Brier score = better calibration. Consensus features show lowest
 variance across age-band partitions.](../figures/ch02/fig_consensus.pdf){#fig-consensus
-width=90%}
+width=90% fig-align="center"}
 
 ## Temporal Validation Summary
 
