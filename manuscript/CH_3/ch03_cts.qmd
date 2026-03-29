@@ -139,7 +139,7 @@ current visit---a retrospective detection task rather than a prospective
 risk stratification task.
 Longitudinal prediction from administrative claims---identifying which
 patients will *develop* an OUD-related ED visit over the next 12–22 months
-based on current prescription and diagnosis sequences---is fundamentally
+based on current prescription and diagnosis sequences---is
 different and requires temporal modeling of prescription escalation patterns.
 Only 6 published studies applied ML to predict opioid ED visits from
 APCD/claims data in the manner required (Chapter 1 SQLR, $n$ = 6 of 5,839).

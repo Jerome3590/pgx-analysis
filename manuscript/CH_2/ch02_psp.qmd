@@ -1107,7 +1107,7 @@ Mean pharmacy claim count in the 12-month lookback window was 18.4 per case
 vs. 6.2 per control, reflecting the high prescription burden preceding opioid-related
 ED visits.
 The 3.0:1 case-to-control ratio of mean pharmacy counts demonstrates that
-opioid ED cases are not simply high-utilization patients in general
+opioid ED cases are not high-utilization patients in general
 but specifically high-prescription-utilization patients, supporting the
 clinical hypothesis that drug-exposure accumulation is the primary
 mechanism driving the outcome rather than general healthcare-seeking behavior.
@@ -1170,7 +1170,7 @@ retained 498 features for the opioid cohort and 89 features for the
 polypharmacy cohort after removing features whose median recall rank fell in
 the bottom quartile across all splits.
 The 5.6-fold difference in retained feature counts between cohorts reflects
-both the broader drug-exposure landscape of younger opioid patients
+both the broader drug-exposure range of younger opioid patients
 and the focused pharmacological profile of the geriatric cohort.
 
 The 498 retained opioid cohort features spanned:
@@ -1262,8 +1262,8 @@ width=90% fig-align="center"}
 Across all 15 age-band–cohort partitions, the 2019 temporal holdout
 yielded PR-AUC ranging from 0.840 (opioid ED, 13–24) to 0.997
 (non-opioid ED, 75–84), with a weighted mean of 0.954 (@tbl-validation).
-Two distinct performance trajectories emerge that are driven by
-fundamentally different pharmacoepidemiological mechanisms:
+Two distinct performance trajectories emerge, driven by
+different pharmacoepidemiological mechanisms:
 
 **Opioid ED cohort: inverted-U with age.**
 PR-AUC increases from 0.840 (13–24) through 0.935 (25–44), 0.955

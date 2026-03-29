@@ -136,7 +136,7 @@ eliminating both the infrastructure overhead and the latency cost of
 inter-service API hops.
 
 For pharmacogenomics specifically, an additional challenge exists: PGx testing
-results are inherently personal genomic data, requiring HIPAA-compliant
+results are personal genomic data, requiring HIPAA-compliant
 handling even when transmitted voluntarily by patients [@HHS2013].
 The 21st Century Cures Act (2016) and its implementing regulations mandate
 patient access to their genomic data, but existing PGx clinical decision
@@ -209,7 +209,7 @@ containerized serverless backend (**@fig-architecture**).
 This architecture was selected over three alternatives evaluated during
 design:
 
-(1) **Persistent EC2 server**: would require always-on compute costs
+(1) **Persistent EC2 server**: would require continuous compute costs
 (~\$120/month for a t3.medium instance with sufficient RAM for 84 models)
 and manual scaling configuration for concurrent-user loads during
 clinical peak hours; idle between encounters, which is the majority of
@@ -387,9 +387,9 @@ signal.
 
 **Validation:** Sensitivity analysis on the 2019 holdout randomly masked
 drug flag features in 10% increments (10%–90% missingness), with
-`n_events` and PGx scores always provided (never masked), reflecting
+`n_events` and PGx scores provided in full, reflecting
 the realistic clinical scenario where basic patient characteristics
-are always available but specific drug counts may be incomplete.
+are present at all sparsity levels but specific drug counts may be incomplete.
 Mean |$\Delta\hat{p}$| between sparse and full-input inference was < 0.06
 across all sparsity levels up to 70% missingness (**@fig-imputation**).
 At extreme sparsity (≥99% drug-flag missingness, where only `n_events`
@@ -411,11 +411,11 @@ estimating missing feature values from observed correlates,
 it treats the median as a "null hypothesis" baseline representing
 an unremarkable patient profile, allowing the clinician's partial
 knowledge to shift predictions *away* from the baseline only when
-evidence is actually available.
+evidence is present.
 This prevents the overcalibration problem seen when zero-imputed features
 are used: a patient with no recorded pharmacy history is not
-assigned zero opioid count (implying they have never been prescribed
-opioids) but rather the median opioid count for their age band,
+assigned zero opioid count (implying no recorded opioid prescriptions)
+but rather the median opioid count for their age band,
 producing a more conservative and clinically safer risk estimate.
 
 ![Imputation of Normality sensitivity analysis. (A) Mean absolute
@@ -503,7 +503,7 @@ for patients similar to the current profile.
 At dashboard runtime, the 25 nearest neighbors to the submitted patient
 profile are retrieved from the training cohort using Euclidean distance
 in SHAP-importance space (top-20 features), ensuring that "similar
-patients" are similar in the features that actually drive risk, not in
+patients" are similar in the features that drive risk, not in
 raw demographic characteristics.
 BupaR then renders the care-sequence process map for those 25 patients as
 a Sankey diagram, where:
@@ -517,7 +517,7 @@ a Sankey diagram, where:
   ED visit; red gradient = pathway that precedes an opioid ED visit)
 
 **Benefits.** The Sankey diagram answers a question that SHAP bars
-cannot: not just *which features matter* but *what sequence of care
+cannot: *which features matter* and *what sequence of care
 events typically precedes the outcome in patients like this one*.
 A clinician seeing a high-risk patient with chronic pain + gabapentin
 co-prescription can see that, among the 25 most similar training patients,
@@ -525,7 +525,7 @@ co-prescription can see that, among the 25 most similar training patients,
 *Oxycodone fill → Gabapentin co-prescription → Benzodiazepine add-on →
 OUD-ED visit*,
 whereas patients who received a physical therapy referral before the
-benzodiazepine step had a markedly lower transition to ED.
+benzodiazepine step had a lower transition to ED.
 
 **Results.** Across training-cohort simulations, the most common
 high-risk pathway identified by BupaR for the 25--44 opioid ED cohort was:
@@ -544,7 +544,7 @@ node.
 confidence 0.50) was applied to the training-cohort drug fill sequences
 to produce a pre-computed high-lift drug association ruleset.
 At dashboard runtime, the full co-occurrence network is filtered to the
-subset of drugs actually present in the current patient's submitted
+subset of drugs present in the current patient's submitted
 prescription list, revealing which of the patient's own medications
 participate in population-level high-risk combinations.
 
@@ -561,8 +561,8 @@ Network rendering:
   bridges connecting multiple high-risk co-prescription patterns
 
 **Benefits.** The FP-Growth network gives clinicians a structural view
-of the patient's current polypharmacy landscape:
-which of their prescriptions cluster together in the population,
+of the patient's current polypharmacy profile:
+which prescriptions cluster together in the population,
 and which clusters are associated with adverse events.
 Hub drugs are particularly actionable: a drug with high betweenness
 centrality is one that, if discontinued, would sever multiple high-risk
@@ -819,7 +819,7 @@ Agreement [@HHS2013].
 The CPIC card's zero-storage design delivers PGx guidance with no HIPAA
 storage burden beyond standard TLS transport encryption: a design
 principle that should be adopted broadly in clinical AI deployment,
-not just in PGx tools.
+beyond PGx tools.
 Compared to the Epic Sepsis Model, which flags patients but provides no
 explicit pharmacological action and stores all inputs in the EHR,
 the PGx Dashboard's ephemeral-compute approach decouples clinical

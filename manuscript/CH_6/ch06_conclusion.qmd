@@ -324,7 +324,7 @@ and ensures that the dramatic performance difference between the opioid
 cohort (PR-AUC 0.840–0.979) and the polypharmacy cohort (PR-AUC
 0.984–0.997) reflects genuine pharmacoepidemiological differences,
 specifically the lower case prevalence and more diffuse drug-exposure
-landscape of the opioid cohort, rather than methodological variation.
+distribution of the opioid cohort, rather than methodological variation.
 The shared infrastructure also guarantees that Chapters 3–5 inherit
 the temporal leakage protections validated in Chapter 2, preventing
 the reproducibility failures that affect 88% of reviewed studies.
@@ -465,7 +465,7 @@ narrative that dominates geriatric pharmacotherapy guidelines: the primary
 driver of ADE risk reduction is *coordinated monitoring*, not drug count
 reduction per se.
 Patients with high raw claim counts but high Z-code proportions (\'managed
-polypharmacy\') are fundamentally different from patients with the same
+polypharmacy\') carry a distinct risk profile from patients with the same
 drug count but no monitoring (\'unmanaged polypharmacy\'), and this
 distinction does not appear in any current guideline-based risk stratification
 tool.
@@ -488,8 +488,8 @@ cohort-specific IR ranking that Beers Criteria cannot provide.
    Virginia has a relatively affluent, suburban-skewed insurance
    population; states with higher rural opioid prevalence (e.g.,
    West Virginia, Kentucky) or different Medicaid expansion histories
-   may show substantially different prescribing patterns and feature
-   importance rankings.
+   may show different prescribing patterns and feature
+importance rankings.
    External validation on a second-state APCD or national dataset is
    required before national policy generalization is warranted.
 2. **Claims-only data**: Laboratory values (renal/hepatic function),
@@ -597,7 +597,7 @@ or an opioid treatment program, with pre-specified primary outcomes
   data pooling.
   The partition-first design is well-suited for federation because each
   Age Band × Cohort stratum is already fully independent; federation
-  simply adds a geographic axis to the existing partition structure.
+  adds a geographic axis to the existing partition structure.
   A four-state pilot (Virginia, Maryland, North Carolina, West Virginia)
   spanning the Appalachian opioid epicenter would provide the geographic
   and demographic diversity needed to assess model generalizability
@@ -689,7 +689,7 @@ pharmacotherapy could prevent. The polypharmacy burden in geriatric patients
 continues to generate preventable ED visits that coordinated medication
 management with tools like IR-ranked deprescribing could reduce.
 Translational informatics requires that models reach clinicians and patients,
-not just satisfy publication metrics. All five chapters of this dissertation
+move beyond publication metrics. All five chapters of this dissertation
 address this requirement: from the evidence map that defined the gap
 (Chapter 1) to the dashboard that closes it (Chapter 5).
 
