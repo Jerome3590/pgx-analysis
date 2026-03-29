@@ -258,7 +258,7 @@ IQR, interquartile range. {#tbl-cohort-chars}
 record (2016–2019), sequential exclusion criteria are applied to derive the
 final analytic cohort of cases and 5:1 matched controls. Exclusion reasons
 are shown at each step with patient counts.](../figures/ch03/fig_attrition.pdf){#fig-attrition
-width=85%}
+width=85% fig-align="center"}
 
 ## Predictive Performance {#sec-performance}
 
@@ -288,7 +288,7 @@ age band; dashed line indicates no-skill baseline (case prevalence = 0.17).
 (B) Reliability (calibration) diagrams, 10-bin; diagonal = perfect
 calibration. (C) Ensemble weight distribution across age bands; CatBoost
 dominates 25–44 and 45–54; XGBoost-RF contributes more in
-13–24.](../figures/ch03/fig_curves.pdf){#fig-curves width=100%}
+13–24.](../figures/ch03/fig_curves.pdf){#fig-curves width=100% fig-align="center"}
 
 ## Consensus-Causal Features {#sec-causal-features}
 
@@ -316,7 +316,7 @@ THEN P(OUD-ED) ↑↑   [support = 0.12, confidence = 0.83]
 Consensus-Causal features in the 25–44 year age band (2019 holdout, $n$ =
 2,000 sampled patients). Feature value encoded by color (red = high, blue = low).
 Features selected by both SHAP and FFA are marked with ★.](../figures/ch03/fig_shap.pdf){#fig-shap
-width=90%}
+width=90% fig-align="center"}
 
 ## Trajectory Analysis {#sec-trajectories}
 
@@ -345,7 +345,7 @@ two clusters are clearly separable.
 Chronic-Escalation cluster (bottom); drug events = circles,
 diagnoses = squares, procedures = triangles.
 Timeline in months before index date.](../figures/ch03/fig_trajectories.pdf){#fig-trajectories
-width=100%}
+width=100% fig-align="center"}
 
 # Discussion {#sec-discussion}
 

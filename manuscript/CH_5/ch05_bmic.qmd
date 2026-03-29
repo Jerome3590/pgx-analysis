@@ -177,10 +177,10 @@ no patient data persists beyond the request lifetime. {#tbl-architecture}
 ![PGx Risk Dashboard architecture. Left: S3-hosted static frontend with
 four functional tabs (Patient Input, Risk Score, Causal What-If,
 PGx Card). Center: API Gateway routes to AWS Lambda Docker container (ECR).
-Right: Lambda container internals—21 ensemble models, CPIC database
-snapshot, and inference engine. Arrows indicate data flow; no patient
+Right: Lambda container internals—per-density-bin ensemble models (up to 84),
+CPIC database snapshot, and inference engine. Arrows indicate data flow; no patient
 data is written to persistent storage at any step.](../figures/ch05/fig_architecture.pdf){#fig-architecture
-width=100%}
+width=100% fig-align="center"}
 
 ## Partition-First Routing
 
@@ -267,7 +267,7 @@ Shaded band = ± 1 SD. Prediction stability is maintained up to 70% sparsity.
 (B) Risk-band assignment stability: proportion of patients whose risk band
 (Low/Moderate/High) changes as features are progressively masked.
 Band assignment is stable up to ~60% sparsity.](../figures/ch05/fig_imputation.pdf){#fig-imputation
-width=90%}
+width=90% fig-align="center"}
 
 # Dashboard Features {#sec-features}
 
@@ -300,7 +300,7 @@ A representative risk output screenshot is shown in **@fig-dashboard**.
 hydrocodone count and chronic pain diagnosis are the dominant
 risk-increasing features; physical therapy referral is protective.
 Patient data shown are synthetic, for illustration only.](../figures/ch05/fig_dashboard.pdf){#fig-dashboard
-width=90%}
+width=90% fig-align="center"}
 
 ## Feature 2: Causal "What-If" Counterfactual Analysis (Tab 3)
 
@@ -436,7 +436,7 @@ synthetic requests per metric; warm inference uses provisioned concurrency. {#tb
 invocations); dashed line = 500 ms target. (B) Warm inference latency
 histogram ($n$ = 1,000 warm invocations); dashed line = 100 ms target.
 Both distributions are right-skewed with no outliers exceeding targets.](../figures/ch05/fig_latency.pdf){#fig-latency
-width=90%}
+width=90% fig-align="center"}
 
 # Discussion {#sec-discussion}
 
