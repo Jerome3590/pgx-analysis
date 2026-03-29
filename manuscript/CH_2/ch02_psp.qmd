@@ -577,12 +577,32 @@ discarded.
 
 *Step 3b (PGx enrichment)*: CPIC gene-drug interaction scores [@Crews2021]
 were integrated for drugs with CPIC Level A or B evidence.
-For each patient, a per-drug PGx interaction count was computed based on
-known CYP2D6, CYP2C9, CYP2C19, and OPRM1 variant associations.
+For each patient, two aggregate PGx interaction scores were computed:
+
+- `pgx_num_drugs`: count of all unique drugs with any CPIC annotation,
+  regardless of evidence level, in the 12-month lookback window.
+  This captures the breadth of genetically-relevant medication exposure.
+- `pgx_num_cpic_drugs`: count of drugs with CPIC Level A or B evidence
+  specifically, weighted by interaction severity tier.
+  This captures the clinically actionable pharmacogenomic burden.
+
+These aggregate scores are genotype-agnostic: they measure the patient's
+cumulative exposure to pharmacogenomically sensitive medications without
+requiring knowledge of the patient's individual CYP metabolizer phenotype.
+The `pgx_num_cpic_drugs` score in particular proxies the compound risk
+from multiple co-prescribed drugs competing for the same CYP enzyme pathways,
+a risk pattern that worsens with polypharmacy and cannot be captured by
+any single drug-gene pair interaction.
 
 *Step 3c (Final feature set)*: Target-leakage validation confirmed that no
 feature encoded outcome information by applying the Consensus Filter to
-training-set data only and verifying temporal ordering.
+training-set data only, verifying temporal ordering (all feature windows
+closed strictly before the index ED visit date), and performing a
+sanity-check regression: a model trained on only the top-5 SHAP features
+on training data was evaluated on the 2019 holdout; significantly higher
+holdout than training AUROC would indicate that the features carry
+prospective signal absent from training (consistent with leakage prevention),
+while holdout >> training AUROC would signal reverse-leakage from future data.
 
 ### Visualization-Only Process Mining
 
@@ -593,6 +613,22 @@ These methods were explicitly **excluded** from the predictive feature set.
 This restriction addresses a common source of target leakage: association
 rules and process maps encode co-occurrence statistics that implicitly
 include the target outcome when constructed without temporal constraints.
+
+The mechanism of FP-Growth leakage is worth clarifying because it is
+non-obvious: FP-Growth discovers high-lift itemsets from the full
+observation window. If the window includes post-outcome pharmacy claims
+(e.g., naltrexone or buprenorphine fills that follow an OUD-ED visit),
+then high-lift rules like
+\{Oxycodone, Buprenorphine\} ⇒ OUD will appear in training data.
+A model using these rules as features would learn that
+buprenorphine co-occurrence predicts OUD outcome---factually true
+but causally inverted, since buprenorphine is a *consequence* of the
+diagnosis, not a predictor.
+The visualization-only restriction prevents this inversion entirely:
+the dashboard shows FP-Growth drug co-occurrence networks to clinicians
+for pattern exploration, but the ensemble model is trained exclusively
+on pre-outcome drug and diagnosis counts where temporal ordering is
+strictly enforced.
 
 ## Ensemble Modeling {#sec-models}
 
