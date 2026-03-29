@@ -57,7 +57,7 @@ abstract: >
   improvement over a monolithic processing baseline and demonstrated linear
   scalability across 32-core, 1 TB RAM workers. Monte Carlo cross-validation
   (50+ random splits) produced stable feature rankings across cohorts.
-  Consensus-filter features—confirmed by both SHAP and FFA—showed superior
+  Consensus-filter features, confirmed by both SHAP and FFA, showed superior
   calibration and lower variance on the 2019 holdout relative to SHAP-only
   or FFA-only subsets.
   **Conclusions:** The partition-first architecture and Consensus Filter
@@ -184,7 +184,7 @@ barrier through architectural design rather than post-hoc correction.
    score, LogLoss) on the 2019 prospective holdout across all age-band
    partitions of both cohorts.
 5. Demonstrate that the deployed PGx Risk Dashboard operationalizes the
-   full pipeline—from APCD partition to bedside risk score—within
+   full pipeline, from APCD partition to bedside risk score, within
    standard AWS Lambda latency and cost constraints.
 
 # Methods {#sec-methods}
@@ -210,7 +210,7 @@ architecture:
   causal feature set.
 - **Act:** Clinical risk scores trigger intervention for opioid ED
   (RQ2) and polypharmacy ED (RQ1) patients.
-- **Feedback — the 2019 holdout IS the OODA feedback loop:**
+- **Feedback: the 2019 holdout IS the OODA feedback loop.**
   Evaluating on the strictly withheld 2019 partition tests whether
   one complete OODA cycle (trained on 2016–2018) generalises to the
   next year's observations. Convergence of CV and holdout PR-AUC
@@ -484,7 +484,7 @@ barrier, forcing all workers to wait for the slowest task.
 A single large EC2 instance running DuckDB eliminates shuffle entirely:
 DuckDB operates as an in-process columnar engine that scans each partition
 sequentially in memory, so skewed age bands incur higher wall-clock time
-for that partition only—without blocking any other worker.
+for that partition only, without blocking any other worker.
 A partition strategy therefore exploits both the natural independence of
 cohort subgroups and DuckDB's immunity to shuffle-induced straggler tasks.
 
@@ -507,7 +507,7 @@ processing resumed from the last successfully committed partition.
 Throughput was measured as records processed per minute, averaged over three
 complete pipeline runs.
 Baseline (monolithic, single node): 1.2 M records/min.
-Partition-first (32 workers): 18.1 M records/min—a **15.1× improvement**
+Partition-first (32 workers): 18.1 M records/min, a **15.1× improvement**
 (@tbl-throughput).
 
 | Configuration | Workers | Records/min | Speedup |
@@ -599,7 +599,7 @@ feature encoded outcome information by applying the Consensus Filter to
 training-set data only, verifying temporal ordering (all feature windows
 closed strictly before the index ED visit date), and performing a
 sanity-check regression: a model trained on only the top-5 SHAP features
-on training data was evaluated on the 2019 holdout; significantly higher
+on training data was evaluated on the 2019 holdout; higher
 holdout than training AUROC would indicate that the features carry
 prospective signal absent from training (consistent with leakage prevention),
 while holdout >> training AUROC would signal reverse-leakage from future data.
@@ -1126,7 +1126,7 @@ with primary causal analysis focused on the three geriatric bands
 where polypharmacy ADE burden is highest.
 This cohort was female-predominant (64%), reflecting the greater longevity and
 higher healthcare utilization rates of older women in the APCD.
-Mean 30-day drug count in cases was 11.8 (SD 4.2), substantially exceeding
+Mean 30-day drug count in cases was 11.8 (SD 4.2), more than double
 the conventional polypharmacy threshold of 5 concurrent medications and
 consistent with the extreme polypharmacy profile expected in geriatric ED
 populations [@Maher2014].
@@ -1242,8 +1242,8 @@ but lacked sufficient distributional representation to register in global
 SHAP rankings; these represent potentially important rare-exposure interactions
 and are flagged for targeted investigation in future work.
 
-Consensus-Causal features showed significantly lower variance in Brier score
-across 2019 holdout partitions compared to SHAP-only or FFA-only subsets
+Consensus-Causal features showed lower Brier score variance
+across 2019 holdout partitions than SHAP-only or FFA-only subsets
 (@fig-consensus).
 Median Brier score for Consensus models (0.008–0.051 across partitions) was
 consistently below SHAP-only models (0.014–0.068) and FFA-only models
@@ -1265,7 +1265,7 @@ yielded PR-AUC ranging from 0.840 (opioid ED, 13–24) to 0.997
 Two distinct performance trajectories emerge that are driven by
 fundamentally different pharmacoepidemiological mechanisms:
 
-**Opioid ED cohort — inverted-U with age:**
+**Opioid ED cohort: inverted-U with age.**
 PR-AUC increases from 0.840 (13–24) through 0.935 (25–44), 0.955
 (45–54), 0.974 (55–64), and peaks at 0.979 (65–74), then declines to
 0.968 (75–84) and 0.901 (85–114).
@@ -1281,7 +1281,7 @@ confirming that standard chronic-escalation trajectory models cannot
 fully capture the atypical short-duration opioid use patterns of
 extremely elderly patients.
 
-**Non-opioid ED cohort — monotonically increasing with age:**
+**Non-opioid ED cohort: monotonically increasing with age.**
 PR-AUC rises from 0.908 (13–24) through 0.911 (25–44), 0.933 (45–54),
 0.950 (55–64), 0.984 (65–74), 0.997 (75–84), and 0.992 (85–114).
 The 0–12 band shows unexpectedly strong performance (0.927) driven by
@@ -1400,14 +1400,14 @@ The 252 SHAP-positive features that failed FFA confirmation deserve
 specific analysis: these were dominated by evaluation-and-management
 CPT codes (99213–99215) that are highly correlated with the opioid ED
 outcome because high-risk opioid patients have more outpatient visits
-before their ED event—but the outpatient visits themselves are not causal
+before their ED event, but the outpatient visits themselves are not causal
 in the pharmacological sense.
 A model trained on these codes would learn that "this patient has had many
 office visits in the past year" predicts opioid ED risk, which is true
 associationally but provides no actionable intervention target.
 The FFA filter removes these associations by requiring that the feature
 appear in a Boolean rule condition that directly modifies the predicted
-outcome probability—a structural requirement that CPT visit codes, which
+outcome probability: a structural requirement that CPT visit codes, which
 are frequency markers rather than drug-exposure markers, cannot satisfy.
 
 The resulting Brier score reduction (median improvement: 0.008–0.013 vs.
@@ -1448,7 +1448,7 @@ Third, the partition-first architecture requires upfront infrastructure
 investment (EC2 provisioning, S3 data lake organization, DuckDB-compatible
 data formats) that is not available to all research groups.
 However, all pipeline components are open-source, and the S3 + EC2
-infrastructure costs are substantially lower than equivalent distributed
+infrastructure costs are lower than equivalent distributed
 cluster solutions at this data scale.
 
 Fourth, Optuna hyperparameter optimization was run with fixed random seeds

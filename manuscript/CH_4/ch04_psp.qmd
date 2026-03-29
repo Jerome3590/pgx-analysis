@@ -316,7 +316,7 @@ sum); $\text{IE} < 0$ indicates antagonism.
 ### Computational Pre-filtering
 
 Exhaustive pairwise testing over 487 drug features requires evaluation of
-$\binom{487}{2} = 118{,}141$ pairs—computationally intensive.
+$\binom{487}{2} = 118{,}141$ pairs: exhaustive evaluation was infeasible.
 Pre-filtering restricted pairwise testing to the 54 features with non-zero
 SHAP importance in any partition, reducing the search space to
 $\binom{54}{2} = 1{,}431$ pairs.
@@ -415,7 +415,7 @@ The non-opioid ED cohort comprised 1,182 cases and 16,105 matched
 controls across the three geriatric age bands (**@tbl-cohort-chars**).
 Median polypharmacy count in the 30-day window was 1 drug (IQR 1–1)
 among cases vs. 3 drugs (IQR 1–7) among controls.
-This reversal—where cases have fewer observed drug claims than controls—reflects
+This reversal, where cases have fewer observed drug claims than controls, reflects
 a known feature of acute ADE-driven ED presentations: the precipitating
 ADE is often caused by a *single* high-impact DDI rather than the overall
 polypharmacy burden, and the cases represent acute events triggered by
@@ -456,7 +456,7 @@ All eight bands achieved PR-AUC ≥ 0.908, with performance increasing
 monotonically from the 13–24 band to a peak at 75–84, then slightly
 decreasing at 85–114.
 
-**Age-band trend — Non-Opioid ED cohort:**
+**Age-band trend: Non-Opioid ED cohort.**
 The most striking feature of the non-opioid ED performance landscape is
 the *monotonic improvement with age*: PR-AUC rises from 0.908 (13–24)
 steadily through 0.933 (45–54), 0.950 (55–64), and 0.984 (65–74),
@@ -561,7 +561,7 @@ Of 5,021 high-frequency triplet combinations identified across geriatric
 bands, 312 exceeded the synergistic IE threshold (IE > 1, 95% CI > 0)
 in at least one age band.
 The highest-frequency triplet in the 85–114 band was
-furosemide + hydrochlorothiazide + lisinopril—a dual-diuretic/ACE-inhibitor
+furosemide + hydrochlorothiazide + lisinopril: a dual-diuretic/ACE-inhibitor
 combination representing convergent antihypertensive management in extreme
 polypharmacy patients.
 Clinically, this triplet represents additive renal clearance burden:
@@ -594,7 +594,7 @@ The top deprescribing targets, with their pharmacological rationale and
 relevant clinical classification codes, were:
 
 1. **Simvastatin** (CYP3A4 substrate; NDC prefix 00006-0726-xx;
-   highest IR: $7.0 \times 10^{-4}$ in the 65–74 band)—
+   highest IR: $7.0 \times 10^{-4}$ in the 65–74 band):
    simvastatin is a Beers Criteria-listed statin (Category: CYP3A4
    drug interactions) and a STOPP Criterion C6 (high-dose statin +
    renal impairment) flag in the 65+ population.
@@ -606,7 +606,7 @@ relevant clinical classification codes, were:
    plasma levels and increase myopathy risk.
 
 2. **Furosemide** (loop diuretic; NDC prefix 00469-2620-xx;
-   IR: $2.0 \times 10^{-4}$ in 65–74)—
+   IR: $2.0 \times 10^{-4}$ in 65–74):
    ICD-10 I50.9 (heart failure) and N18.3–N18.5 (CKD stage 3–5)
    were the dominant diagnoses driving furosemide fills in the cohort.
    Its high IR reflects its central role in the triple-whammy interaction
@@ -616,7 +616,7 @@ relevant clinical classification codes, were:
 
 3. **Alprazolam** (short-acting benzodiazepine; brand: Xanax;
    NDC prefix 00009-0029-xx;
-   IR: $1.0 \times 10^{-4}$ in 65–74)—
+   IR: $1.0 \times 10^{-4}$ in 65–74):
    listed in the 2023 Beers Criteria (Category: CNS-active, falls risk)
    and STOPP Criterion D6 (benzodiazepines in falls-risk patients).
    In the APCD, alprazolam fills appeared with ICD-10 F41.1
@@ -627,7 +627,7 @@ relevant clinical classification codes, were:
 4. **Levofloxacin** (fluoroquinolone antibiotic; brand: Levaquin;
    NDC prefix 00069-7520-xx;
    IR: top-5 in *all three* geriatric bands despite 6.2% 30-day
-   window prevalence)—
+   window prevalence):
    ICD-10 J18.9 (pneumonia, unspecified) and J06.9 (upper respiratory
    infection) drove the majority of levofloxacin fills in the APCD cohort.
    Its disproportionate IR reflects CYP1A2 inhibition that potentiates
@@ -640,7 +640,7 @@ relevant clinical classification codes, were:
    pneumonia in the absence of penicillin allergy).
 
 5. **Lorazepam** (intermediate benzodiazepine; brand: Ativan;
-   NDC prefix 00069-0081-xx)—
+   NDC prefix 00069-0081-xx):
    Beers Criteria 2023 (benzodiazepines; risk of cognitive impairment,
    delirium, falls, motor vehicle accidents).
    ICD-10 F41.1 (anxiety) drove 54% of fills; G40.x (seizures) drove 31%.
@@ -674,7 +674,7 @@ High-frequency but low-interaction drugs (metoprolol succinate
 NDC 00186-1088-xx; lisinopril NDC 00071-0220-xx) ranked consistently
 lower than lower-frequency but high-interaction drugs (levofloxacin,
 alprazolam), demonstrating that the IR score captures expected risk
-reduction from removal—not raw prescribing frequency—and thereby
+reduction from removal, not raw prescribing frequency, and thereby
 directs attention to pharmacologically actionable targets.
 
 ![Intervention Rate (IR) scores for the top 15 drugs by causal contribution
@@ -691,8 +691,8 @@ exhibited a U-shaped association with ADE risk.
 The protective Z-codes analyzed include:
 
 - **Z00.xx** (encounter for general examination): annual wellness visits,
-  Medicare Annual Wellness Visits, Well-Baby checks—administrative markers
-  of *proactive* contact with the healthcare system
+  Medicare Annual Wellness Visits, Well-Baby checks: administrative markers
+  of proactive contact with the healthcare system
 - **Z01.xx** (encounter for other special examinations): preventive
   screenings (Z01.00 eye examination; Z01.411 gynecological examination;
   Z01.89 other specified examination)
@@ -736,8 +736,8 @@ disconnected episodes without coordinated reconciliation
 A clinically significant Q2 phenotype emerged: patients with
 1–12% Z-code claims had their drug fills predominantly associated with
 ICD-10 Z71.89 (medication counseling), Z79.xx (long-term drug use status),
-and Z87.xx (personal history codes)—specifically Z87.39 (personal history of
-cardiovascular disease) and Z87.891 (personal history of long-term opioid)—
+and Z87.xx (personal history codes), specifically Z87.39 (personal history of
+cardiovascular disease) and Z87.891 (personal history of long-term opioid),
 present at higher rates in controls than in cases (Z71.89: 29% vs. 14%;  $P$
 < 0.001), confirming that documented medication counseling is the specific
 monitoring activity driving the protective effect.
@@ -749,7 +749,7 @@ protective monitoring fractions, confirming that high raw claim counts
 do not reflect managed polypharmacy.
 
 ![Z-code proportion and ADE risk. (A) Violin plots of Z-code proportion
-by ADE case status; cases have significantly lower Z-code proportions
+by ADE case status; cases have lower Z-code proportions
 ($P$ < 0.001 by Mann–Whitney U). (B) Adjusted OR for ADE ED visit by Z-code
 proportion quartile (Q1 = lowest, Q4 = highest), adjusted for age band, sex,
 and 30-day drug count. Error bars = 95% CI.](../figures/ch04/fig_zcode.pdf){#fig-zcode
@@ -833,8 +833,8 @@ clinical encounters without a reconciling clinical review,
 creating drug combinations that individually pass single-prescriber
 reviews but collectively exceed safe polypharmacy thresholds.
 Fromm et al. [@Fromm2023] similarly found that the prevalence of
-contraindicated drug combinations increased substantially when
-prescriptions were issued by multiple prescribers rather than
+contraindicated drug combinations increased when prescriptions were
+issued by multiple prescribers rather than
 a single coordinating provider, directly validating the claim
 that Z-code fragmentation predicts elevated DDI-ADE risk.
 
@@ -847,7 +847,7 @@ chronic statin-related myopathy building over 6–12 months);
 a sensitivity analysis extending the window to 90 days is planned.
 Second, laboratory values (kidney and liver function tests) that
 modulate drug toxicity are absent from claims data; renal impairment
-in particular substantially alters the pharmacokinetics of
+in particular alters the pharmacokinetics of
 furosemide, digoxin, and metformin---all among the top-ranked IR
 targets---and their ADE risk cannot be fully characterized
 without creatinine values.
@@ -891,7 +891,7 @@ each patient's specific age subgroup.
 
 Third, the Z-code U-shaped analysis reframes the clinical goal of geriatric
 pharmacotherapy: the target is not drug count reduction per se, but
-coordinated medication management—a distinction with direct implications
+coordinated medication management: a distinction with direct implications
 for quality metrics, Medicare Advantage star ratings, and clinical pharmacist
 workflow prioritization.
 Patients flagged for deprescribing consultation should be the Q1 (unmonitored)

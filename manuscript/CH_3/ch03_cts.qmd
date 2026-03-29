@@ -164,8 +164,8 @@ developed in Chapter 2 to the opioid ED cohort, with three specific aims:
    across all seven modeled age bands (13–24, 25–44, 45–54, 55–64, 65–74,
    75–84, 85–114 years) using a strict temporal holdout
    (training 2016–2018; validation 2019).
-2. Identify Consensus-Causal features—confirmed by both SHAP and Formal
-   Feature Attribution (FFA)—as modifiable intervention targets rather than
+2. Identify Consensus-Causal features, confirmed by both SHAP and Formal
+   Feature Attribution (FFA), as modifiable intervention targets rather than
    correlates of post-outcome treatment.
 3. Characterize pre-diagnosis patient trajectories using Dynamic Time Warping
    (DTW) clustering to define clinically distinct risk archetypes with
@@ -420,13 +420,13 @@ All seven age bands achieved AUROC ≥ 0.957 and PR-AUC ≥ 0.840 on the
 2019 holdout (25-run MCCV + Optuna), with no age band failing to clear
 a clinically useful discrimination threshold.
 
-**Age-band trend — Opioid ED cohort:**
+**Age-band trend: Opioid ED cohort.**
 PR-AUC increases monotonically from 0.840 in the 13–24 band to a peak of
 0.979 in the 65–74 band, then declines to 0.901 in the 85–114 band.
 This inverted-U pattern reflects two competing factors as age increases:
-(1) a *stronger prescription signature*—older patients accumulate more
+(1) a stronger prescription signature: older patients accumulate more
 chronic opioid fills before the index ED visit, creating richer and more
-predictable claims patterns; and (2) a *smaller case count* in the oldest
+predictable claims patterns; and (2) a smaller case count in the oldest
 bands (N = 38,808 cases in 85–114 vs. 569,096 in 25–44), reducing the
 statistical power for training per-density-bin sub-models and producing
 the drop at 85–114.
@@ -490,7 +490,7 @@ The highest-ranked Consensus-Causal features were:
 
 1. **Gabapentin count** (`gabapentin_count`; generic: gabapentin;
    brand: Neurontin, Gralise; NDC prefix 00071-0805-xx and 68382-080-xx;
-   mean |SHAP| = 0.34, 25–44 band)—
+   mean |SHAP| = 0.34, 25–44 band):
    gabapentinoids co-prescribed with opioids represent a convergent CNS
    depression risk that the FDA flagged with a black-box warning in 2019
    [@Crews2021].
@@ -500,7 +500,7 @@ The highest-ranked Consensus-Causal features were:
    matched controls, confirming the clinical epidemiology.
 
 2. **Long-term opioid use (ICD-10 Z79.891)** (chronic exposure marker;
-   top-ranked ICD feature across 45–64 bands)—
+   top-ranked ICD feature across 45–64 bands):
    Z79.891 is a status code indicating *current long-term prescribed
    opioid therapy*, distinct from opioid use disorder (F11.xx).
    Its high SHAP rank in older working-age patients confirms that the
@@ -511,7 +511,7 @@ The highest-ranked Consensus-Causal features were:
    ICD-10 code in the cohort.
 
 3. **PGx polydrug exposure score** (`pgx_num_cpic_drugs`;
-   mean |SHAP| = 2.22, rank \#1 across all bands)—
+   mean |SHAP| = 2.22, rank \#1 across all bands):
    the highest-ranked feature overall, exceeding any individual drug code.
    Counts drugs with CPIC Level A/B evidence:
    opioids (codeine NDC 65162-0673-xx, tramadol NDC 65862-063-xx,
@@ -523,14 +523,14 @@ The highest-ranked Consensus-Causal features were:
 
 4. **Gabapentin ⊕ Alprazolam co-prescription** (FFA pair;
    alprazolam: brand Xanax; ICD-10 F41.1 generalized anxiety disorder;
-   rule frequency = 0.033, causal responsibility = 0.008)—
+   rule frequency = 0.033, causal responsibility = 0.008):
    this benzodiazepine-gabapentinoid combination has been independently
    flagged by the FDA as a high-risk CNS depressant combination.
    In the APCD, alprazolam fills (NDC 00009-0029-xx) co-occurring with
    gabapentin in the same 30-day window appeared in 14.7% of 25–44 cases.
 
-5. **Event density bin** (`n_event_bin_ordinal`; ordinal: low/medium/high/extreme)—
-   patients in the *extreme* density bin (top quartile of total claims)
+5. **Event density bin** (`n_event_bin_ordinal`; ordinal: low/medium/high/extreme):
+   patients in the extreme density bin (top quartile of total claims)
    show paradoxically lower opioid ED risk than medium-density patients,
    consistent with the managed-care finding in Chapter 4:
    very high claim volume with coordinated monitoring (Z-code proportion
@@ -539,7 +539,7 @@ The highest-ranked Consensus-Causal features were:
 6. **Oxycodone count** (`oxycodone_count`; includes all formulations:
    immediate-release oxycodone NDC 00406-0510-xx, oxycodone/APAP NDC
    00406-0512-xx, extended-release OxyContin NDC 59011-0410-xx;
-   mean |SHAP| = 0.28, 25–44 band)—
+   mean |SHAP| = 0.28, 25–44 band):
    the number of distinct oxycodone fills in the 12-month window is a
    direct dose-escalation signal, with each additional fill associated
    with an incremental 0.05 SHAP probability shift in the medium-density
@@ -547,7 +547,7 @@ The highest-ranked Consensus-Causal features were:
 
 7. **Physical therapy absence** (NOT `PhysicalTherapy_count ≥ 1`;
    CPT codes 97110 – therapeutic exercise; 97530 – therapeutic activities;
-   97035 – ultrasound therapy; mean protective |SHAP| = 0.11 when present)—
+   97035 – ultrasound therapy; mean protective |SHAP| = 0.11 when present):
    the absence of any physical therapy claim in the 12-month window is
    a protective-feature-absent signal: its negation elevates predicted
    OUD-ED risk because physical therapy referral functions as a
@@ -572,7 +572,7 @@ Representative FFA rules across age bands:
 
 These rules capture the absence of non-pharmacological pain management
 (CPT 97110/97530) and preventive monitoring (ICD-10 Z23) as causal
-preconditions—not merely correlates—of OUD-ED risk.
+preconditions, not merely correlates, of OUD-ED risk.
 Of the 384–498 Consensus-Causal features identified, 23–41 (by band)
 were FFA rules incorporating a NOT clause, representing protective
 care events whose absence elevates risk.
@@ -619,7 +619,7 @@ neuropathic pain); (2) at 9 months: physical therapy referral before
 benzodiazepine co-prescription; and (3) at 15 months: mental health referral
 before the dose-escalation step that immediately precedes the ED visit.
 Patients in this archetype have the most identifiable intervention opportunities
-but the longest lead time requirement—their risk is detectable up to 18 months
+but the longest lead time requirement: risk is detectable up to 18 months
 before the ED visit if the 22.1-month trajectory is observed in time.
 
 ![Patient trajectory archetypes identified by DTW clustering.
@@ -647,7 +647,7 @@ the highest-risk profiles.
 
 The co-occurrence of high-dose opioids with chronic pain diagnoses *in the
 absence of non-pharmacological pain management* (physical therapy, cognitive
-behavioral therapy) emerged as the highest-ranking causal pattern—consistent
+behavioral therapy) emerged as the highest-ranking causal pattern, consistent
 with CDC clinical practice guideline recommendations [@Dowell2022].
 This "absence of care" causal structure is clinically important: it implies
 that the most actionable intervention is not drug discontinuation but
@@ -668,14 +668,14 @@ Filter's ranking of gabapentin count as the top single-drug feature (mean
 is the single most actionable prescribing-level intervention target in the
 Virginia opioid ED cohort.
 
-PGx features—specifically CYP2D6 interaction scores via `pgx_num_cpic_drugs`—
+PGx features, specifically CYP2D6 interaction scores via `pgx_num_cpic_drugs`,
 ranked within the top 10 Consensus-Causal features for the 25–44 age band,
 supporting the relevance of opioid metabolizer status in OUD risk even in
 claims-based (genotype-imputed) analysis [@Crews2021].
 The `pgx_num_cpic_drugs` score captures the compound CYP enzyme burden from
 multiple co-prescribed drugs---a patient on both a CYP2D6 substrate (opioid)
 and a CYP2D6 inhibitor (fluoxetine, paroxetine) will have their metabolizer
-phenotype effectively shifted toward poor metabolizer status by drug
+phenotype shifted toward poor metabolizer status by drug
 interaction, even if their underlying genotype is extensive metabolizer.
 This drug-drug-gene interaction is precisely the clinical scenario that
 standard PGx genotype testing alone cannot detect, and that the
@@ -711,7 +711,7 @@ across the seven opioid ED age bands:
 - **55–64 band** (Ensemble, PR-AUC 0.974; N = 480,246 cases): Highest recall
   (0.874) of all bands, reflecting the most predictable escalation trajectory.
   Z79.891 (long-term opioid) appeared in 67% of cases vs. 12% of controls
-  (prevalence ratio 5.6)—the single most discriminating feature in the
+  (prevalence ratio 5.6): the single most discriminating feature in the
   entire cohort.
   Concurrent alprazolam (F41.1 anxiety indication) was the second-highest
   causal driver.
@@ -745,9 +745,9 @@ Rapid-Onset patients (21% of opioid ED cases; 4.2-month trajectory)
 require immediate post-acute care protocols: opioid alternative pathways,
 mandatory physical therapy referral within 30 days of first opioid
 prescription, and early PDMP consultation [@Prescription2019].
-The 4.2-month median trajectory is substantially shorter than the
+The 4.2-month median trajectory is 7.8 months shorter than the
 12-month monitoring window assumed by most opioid prescribing guidelines,
-suggesting that these patients deteriorate faster than current clinical
+suggesting these patients deteriorate faster than current clinical
 protocols are designed to detect.
 
 Chronic-Escalation patients (79% of cases; 22.1-month trajectory) present
@@ -786,7 +786,7 @@ shift slightly on the full cohort.
 Fifth, these findings are from a single-state Virginia APCD;
 external validation on a second-state APCD is required before
 national policy generalization, as prescribing regulations, formulary
-structures, and Medicaid expansion status vary substantially by state.
+structures, and Medicaid expansion status vary by state.
 
 # Conclusions {#sec-conclusions}
 
