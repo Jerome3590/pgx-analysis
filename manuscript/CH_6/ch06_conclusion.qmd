@@ -560,9 +560,43 @@ cohort-specific IR ranking that Beers Criteria cannot provide.
 
 # Conclusions {#sec-conclusions}
 
+This dissertation establishes three propositions whose combination has not
+previously been demonstrated in the pharmacoepidemiology literature:
+
+**Proposition 1: Causal validity and computational scalability are not
+in conflict.**
+The partition-first architecture achieves 15$\times$ throughput improvement
+over a monolithic baseline precisely *because* it embraces temporal and
+demographic independence---the same independence that enforces leakage
+prevention. Researchers working with stratified longitudinal data do not
+need to choose between scalable processing and rigorous temporal cutoffs;
+the partition-first pattern delivers both simultaneously.
+
+**Proposition 2: Pharmacogenomic signal is recoverable from administrative
+claims data without genotyping.**
+The `pgx_num_cpic_drugs` composite feature---a count of CPIC-actionable
+medications weighted by evidence level---ranked as the single most
+important Consensus-Causal feature across both the opioid and polypharmacy
+cohorts, exceeding any individual drug code. This finding validates the
+premise that population-scale pharmacogenomic risk stratification can
+begin with existing claims infrastructure, without waiting for universal
+genotype data, which remains economically and logistically unavailable
+for most health systems.
+
+**Proposition 3: Privacy-first serverless architecture resolves the primary
+institutional barrier to clinical AI adoption.**
+The zero-storage, ephemeral-compute design of the PGx Risk Dashboard
+requires no Business Associate Agreement beyond TLS transport encryption,
+no EHR integration, and no institutional IT infrastructure beyond
+a web browser. This design is replicable by any health system with an
+AWS account, a trained ensemble model, and a CPIC database snapshot.
+The architectural pattern---stateless API Gateway → Lambda container →
+ephemeral response---can be adopted by other clinical AI teams facing
+the same HIPAA compliance barrier.
+
 Integrating explainable AI, pharmacogenomics, and causal temporal modeling
 in clinical prediction is technically achievable, computationally scalable,
-and clinically deployable.
+and clinically deployable at community pharmacy and Safety Net hospital scale.
 
 The partition-first architecture and Consensus Filter provide a replicable
 methodological foundation for APCD-scale pharmacoepidemiology.
@@ -571,12 +605,19 @@ features from longitudinal claims data, including PGx signals the existing
 literature has largely overlooked.
 The PGx Risk Dashboard completes the pipeline, delivering ensemble risk
 scores, causal counterfactuals, and genomic personalization within the
-latency and privacy constraints clinical adoption requires.
+latency and privacy constraints clinical adoption requires---for the first
+time, all five layers of the translational pipeline (data, model, causal
+rules, PGx guidelines, user interface) are integrated in a single open-source,
+production-deployed system.
 
+The opioid epidemic continues to claim lives that data-driven precision
+pharmacotherapy could prevent. The polypharmacy burden in geriatric patients
+continues to generate preventable ED visits that coordinated medication
+management with tools like IR-ranked deprescribing could reduce.
 Translational informatics requires that models reach clinicians and patients,
-not just satisfy publication metrics. All five chapters address this
-requirement: from the evidence map that defined the gap (Chapter 1)
-to the dashboard that closes it (Chapter 5).
+not just satisfy publication metrics. All five chapters of this dissertation
+address this requirement: from the evidence map that defined the gap
+(Chapter 1) to the dashboard that closes it (Chapter 5).
 
 **Data Availability:** The data supporting the findings of this dissertation
 are derived from Virginia's All-Payer Claims Database (APCD). Restrictions

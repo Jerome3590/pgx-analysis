@@ -121,29 +121,51 @@ All-Payer Claims Databases (APCD) provide rich longitudinal data for
 pharmacoepidemiological research, capturing multi-year prescription histories,
 diagnosis trajectories, and procedure utilization across insured populations
 [@Ghosh2019; @Cantor2012].
+In the United States, 18 states operate mandatory APCDs covering commercial,
+Medicaid, and Medicare claims in a single integrated repository; Virginia's
+APCD captures approximately 6.9 million unique patients per calendar year
+across all payer types, providing the population-level prescription trajectory
+data required for opioid and polypharmacy risk modeling.
 For opioid risk modeling specifically, APCD data enables identification of
-drug-exposure sequences preceding emergency department (ED) visits, a temporal
-signal unavailable in cross-sectional survey data or single-payer registries.
+drug-exposure sequences preceding emergency department (ED) visits, a
+temporal signal unavailable in cross-sectional survey data or single-payer
+registries, and one that is critical for detecting prescription escalation
+patterns in the 12–22 months before OUD-related ED visits.
 
 However, the computational and methodological challenges of APCD-scale
-analysis are substantial.
+analysis are substantial and have limited the use of advanced ML methods
+on these data sources despite their obvious richness.
 First, raw APCD files routinely exceed 10 TB per state-year, precluding
-single-node processing.
+single-node processing with standard data science tooling; the Virginia APCD
+contains approximately 1.8 TB of structured claims data for the 2016–2019
+analysis period (medical, pharmacy, dental, and eligibility files combined),
+requiring a distributed processing strategy that most published pharmacoepidemiology
+studies do not address.
 Second, the same longitudinal richness that provides signal also creates
-leakage hazards: trajectory-mining methods (FP-Growth, process mining)
-encode future outcome information into predictive features if not carefully
-constrained [@Kapoor2023].
+leakage hazards: trajectory-mining methods (FP-Growth, process mining, and
+Dynamic Time Warping) encode future outcome information into predictive features
+if not carefully constrained by strict temporal cutoffs [@Kapoor2023; @Mahmoudi2020].
+A model trained on FP-Growth association rules computed over a window that
+includes the outcome date will learn that the presence of OUD treatment codes
+(buprenorphine, naltrexone) predicts OUD outcomes---a logically inverted
+relationship that produces near-perfect training AUROC but fails completely
+at prospective deployment.
 Third, while ensemble machine learning models now achieve high discrimination
 on held-out test sets, the features driving predictions often lack causal
 interpretability, a critical barrier to clinical adoption [@Rudin2019;
 @Arrieta2020].
+Distributional explainability methods (SHAP) identify which features have
+large prediction effects but cannot distinguish causal drug exposures from
+documentation artifacts; a single confounded feature with high SHAP value
+can drive clinical recommendations toward harm.
 
 No prior work has addressed all three challenges (scalability, leakage
 prevention, and causal explainability) within a single, production-deployed
-pharmacoepidemiological framework.
+pharmacoepidemiological framework applied to state-level APCD data.
 This paper presents the **Partition-First Architecture and Consensus Filter**:
 a replicable, temporally valid, and causally interpretable framework for
-APCD-scale pharmacoepidemiological modeling.
+APCD-scale pharmacoepidemiological modeling that directly addresses each
+barrier through architectural design rather than post-hoc correction.
 
 ## Study Objectives
 
