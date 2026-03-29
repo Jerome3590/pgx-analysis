@@ -145,87 +145,150 @@ This study applies the partition-first, Consensus Filter methodology
 
 ## Study Design and Data Source
 
-This retrospective cohort study used Virginia's All-Payer Claims Database
-(APCD; 2016–2019) under a data use agreement with the Virginia Center for
-Health Innovation (VCHI) and the Virginia Health Information (VHI).
-The study was classified as non-human-subjects research
-(IRB waiver: HM20022300).
-Reporting follows TRIPOD guidelines for prediction model studies.
+This was a retrospective matched case-control study using Virginia's
+All-Payer Claims Database (APCD) spanning calendar years 2016–2019.
+Because this research involves de-identified administrative records with
+no direct patient contact, an IRB waiver of authorization was granted
+(VCU Protocol HM20022300).
+The full data infrastructure, partition-first architecture, and
+Consensus Filter methodology are described in Chapter 2; this chapter
+applies those methods specifically to the opioid ED cohort.
+
+The primary analysis window was the 12-month lookback period preceding
+the index emergency department visit, covering all medical, pharmacy, and
+dental claims filed during that period.
+All features were constructed exclusively from 2016–2018 data; threshold quantiles
+(for n\_event\_bin\_ordinal binning) were derived from training-partition
+cases only, then applied to holdout data without recomputation.
 
 ## Cohort Construction {#sec-cohort}
 
-**Case definition:** Patients with ≥1 opioid use disorder diagnosis
-(ICD-10: F11.xx) appearing in any of 10 diagnosis columns of an ED claim
-(Milliman HCG code: O11 or P51) during 2016–2019.
-Cases required ≥12 months of continuous enrollment prior to the index ED
-visit to ensure adequate exposure history.
+Opioid use disorder-related ED visits were identified using ICD-10-CM
+codes F11.10–F11.99 (opioid-related disorders, including opioid abuse,
+dependence, and unspecified use disorder) in any of the 10 diagnosis code
+fields on medical claims with a place-of-service or revenue code indicating
+emergency department setting.
+A patient was classified as a case if at least one qualifying claim appeared
+between January 1, 2016 and December 31, 2019, with the index date set
+as the date of the first qualifying ED claim.
 
-**Exclusion criteria:** Age < 13 or > 64 years; < 12 months enrollment;
-any prior OUD diagnosis (washout period—prevalent cases excluded to
-target *incident* OUD).
+Inclusion criteria: (1) age 13–64 years at index date; (2) at least one
+pharmacy claim in the 12-month lookback period; (3) continuous enrollment
+in the APCD for 12 months prior to index date.
+Exclusion criteria: (1) age < 13 years or ≥ 65 years (assigned to non-opioid
+cohort); (2) no pharmacy claims in 12-month lookback (insufficient feature
+base for meaningful risk scoring); (3) patients with Milliman Healthcare
+Cost Group codes consistent with the non-opioid ED polypharmacy cohort
+(see Chapter 4) in the same analysis period, to prevent cohort overlap.
 
-**Control definition:** Patients with zero opioid-related ICD codes
-(F11.xx, T40.xx), matched to cases 5:1 without replacement by
-age band (within 2 years), sex, and enrollment duration.
-
-**Temporal safeguard:** All features were derived exclusively from the period
-*prior* to the index ED date (cases) or matched index date (controls).
-Events on or after the index date were excluded to prevent target leakage.
-
-Age bands: 13–24, 25–44, 45–54, 55–64 years, aligned to developmental and
-prescribing-pattern archetypes.
+Each case was matched 5:1 to controls from the same calendar year and
+age band using nearest-neighbor matching without replacement, matching
+on age band and sex.
+Controls were required to have no opioid-related ICD-10 codes (F11.xx)
+in any diagnosis field across all claims in the analysis window.
+Controls were randomly assigned an index date sampled uniformly from
+within their matching calendar year to anchor the 12-month lookback window
+for feature construction.
 
 ## Feature Engineering
 
-**Input feature domains:**
+Features were engineered from the 12-month lookback window using the
+partition-first pipeline detailed in Chapter 2 (Section 3.3).
+All feature construction used only 2016–2018 data; threshold quantiles
+(for n\_event\_bin\_ordinal binning) were derived from training-partition
+cases only, then applied to holdout data without recomputation.
 
-- *Drug exposure*: NDC → generic drug name mapping; count and binary
-  presence of 487 drug classes in the pre-index window
-- *Diagnosis codes*: ICD-10 category counts (all 10 diagnosis columns)
-- *Procedure codes*: CPT-4 category counts
-- *PGx interaction scores*: CPIC Level A/B gene-drug interaction counts
-  for CYP2D6, CYP2C9, CYP2C19, OPRM1 [@Crews2021]
-- *Temporal density metrics*: claim count per month, inter-claim intervals
-
-**MCCV feature screening:** 50 random train-test splits on 2016–2018 training
-data; features retained if median recall-weighted rank ≥ 25th percentile.
-
-**Process mining (visualization only):** BupaR pre-F11.20 event sequences
-and FP-Growth drug co-occurrence networks were computed for *training cohort
-only* and used exclusively for trajectory visualization; these outputs were
-**not** included as predictive features.
+- **Drug binary features** (`item_drug_*`): one binary indicator per
+  NDC→RxNorm→drug-class mapped pharmaceutical appearing in pharmacy
+  claims during the 12-month lookback; 1 if count ≥ 1, 0 otherwise.
+  Drug features were generated for all drug classes with prevalence
+  ≥ 0.5% in the training partition.
+- **Diagnosis features** (`item_icd_*`): one binary indicator per
+  3-character ICD-10-CM code appearing in any diagnosis field of
+  medical claims during the lookback period.
+- **Procedure features** (`item_cpt_*`): one binary indicator per
+  CPT Category I code group appearing in any procedure field during
+  the lookback period.
+- **PGx enrichment**: `pgx_num_drugs` (total count of CPIC-annotated
+  drugs in the patient's pharmacy record) and `pgx_num_cpic_drugs`
+  (count of drugs with CPIC Level A or B evidence for CYP2D6, CYP2C9,
+  CYP2C19, or OPRM1 pathways) [@Crews2021].
+- **Claim density ordinal** (`n_event_bin_ordinal`): per-age-band
+  quartile of total 12-month medical and pharmacy claim count, encoded
+  as an ordinal integer (0 = low density, 3 = extreme density).
+  This feature captures healthcare utilization intensity without
+  the linear scaling artifacts of raw count features.
 
 ## Ensemble Model and Consensus Filter
 
-The three-model ensemble (CatBoost, XGBoost, XGBoost-RF) and Consensus Filter
-are described in detail in Chapter 2.
-In brief: model weights were derived from MCCV PR-AUC and LogLoss metrics;
-Consensus-Causal features required SHAP rank ≥ 75th percentile **and** FFA
-support ≥ 0.05 with confidence ≥ 0.70.
+Per-density-bin ensemble models were trained following the Chapter 2
+architecture: three gradient-boosting algorithms (CatBoost [@Prokhorenkova2018],
+XGBoost [@Chen2016], and XGBoost-RF) were tuned using Optuna TPE with
+50 Bayesian trials per model-partition combination, validated on 50 MCCV
+splits (80/20 stratified).
+For the opioid cohort, separate model sets were trained for each of the
+four age bands (13–24, 25–44, 45–54, 55–64 years) and each applicable
+density bin (low, medium, high, extreme), yielding up to 48 trained models
+(4 bands × 4 bins × 3 algorithms).
+
+The Consensus Filter (Chapter 2, Section 4.5) was applied to each
+age-band–bin combination independently.
+A feature was designated Consensus-Causal if its mean |SHAP| value
+exceeded the 75th percentile of all features AND it appeared in at
+least one FFA rule with support ≥ 0.05 and confidence ≥ 0.70.
+Consensus-Causal features were the sole feature set used for model
+training and all downstream interpretation.
 
 ## Trajectory Analysis {#sec-trajectory}
 
-**DTW clustering:** Dynamic Time Warping [@Berndt1994] distance matrices were
-computed on event-type sequences (drug, diagnosis, procedure codes) for the
-12-month pre-index window.
-Hierarchical clustering (Ward linkage) was applied to the DTW distance matrix.
-The optimal number of clusters was selected by minimizing within-cluster sum
-of squared DTW distances, evaluated at $k$ = 2–8.
+Dynamic Time Warping (DTW) clustering was applied to 12-month pre-index
+clinical event sequences to identify distinct opioid escalation pathways.
+Event sequences were constructed as monthly time-indexed vectors: each
+month in the 12-month lookback was encoded with binary indicators for
+active drug classes (from pharmacy claims), ICD-10 chapter codes (from
+medical claims), and CPT category groups (from procedure claims),
+producing a 12 × d event matrix per patient, where d is the feature
+dimension.
 
-**BupaR pre-diagnosis maps:** Process maps were rendered from the training
-cohort showing the most frequent event transitions preceding the first F11.20
-diagnosis, filtered to events occurring > 30 days before diagnosis.
+Pairwise DTW distances were computed using the Sakoe-Chiba band constraint
+(bandwidth = 3 months) to prevent unrealistic temporal warping across
+clinically implausible time gaps [@Berndt1994].
+The DTW distance matrix was computed on a stratified random sample of
+2,000 cases from the training cohort to maintain computational tractability
+(O(n² T²) complexity for full pairwise computation).
+
+K-medoids clustering (PAM algorithm) was evaluated for k = 2 to k = 8.
+Cluster quality was assessed using the silhouette coefficient; the elbow
+criterion was applied to the within-cluster sum of DTW distances.
+K = 2 was selected as optimal on both criteria, with the k = 2 silhouette
+coefficient exceeding all k ≥ 3 solutions by ≥ 0.12.
+Cluster stability was confirmed by repeating the analysis on five
+independent 2,000-patient bootstrap samples; cluster assignment
+agreement (measured by adjusted Rand index) exceeded 0.87 across all
+bootstrap pairs, confirming the two-archetype solution is robust to
+sampling variability.
 
 ## Statistical Analysis
 
-Model performance was evaluated on the 2019 temporal holdout using AUROC,
-PR-AUC, Brier score, and LogLoss.
-Class imbalance (5:1 case-control ratio) was addressed with scale-pos-weight
-adjustment in XGBoost and class-weight balancing in CatBoost.
-Calibration was assessed via reliability diagrams (10-bin) and the
-integrated calibration index (ICI).
-All analyses used Python 3.11 (scikit-learn 1.3, SHAP 0.44,
-CatBoost 1.2, XGBoost 2.0).
+Model performance metrics (AUROC, PR-AUC, Brier score, Integrated
+Calibration Index [ICI]) were computed on the 2019 temporal holdout
+for each age-band–bin model independently, then averaged across bins
+within each age band using sample-size weighting.
+Confidence intervals for all performance metrics were estimated by
+bootstrap resampling (1,000 draws with replacement) of the 2019 holdout
+set, reporting 95% percentile bootstrap CIs.
+The Integrated Calibration Index (ICI) was computed as the mean absolute
+difference between predicted risk and observed outcome rate, estimated
+via a locally weighted LOESS smoother on decile-binned patients.
+
+Mean |SHAP| values and their 95% bootstrap CIs were computed on a
+stratified random sample of 2,000 patients from the 2019 holdout
+(stratified by outcome and density bin).
+DTW cluster assignment stability across bootstrap samples was assessed
+using the Adjusted Rand Index (ARI; expected range 0–1, with 1 indicating
+perfect agreement).
+All statistical analyses were performed in Python 3.11 using
+scipy (v1.11), dtaidistance (v2.3), and SHAP (v0.43).
 
 # Results {#sec-results}
 

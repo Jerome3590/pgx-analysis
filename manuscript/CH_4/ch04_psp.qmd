@@ -164,31 +164,53 @@ geriatric non-opioid ED cohort derived from APCD.
 
 ## Study Design and Data Source
 
-Retrospective cohort study using Virginia's All-Payer Claims Database
-(APCD; 2016–2019) under a data use agreement with the Virginia Center
-for Health Innovation (VCHI) and Virginia Health Information (VHI).
-IRB waiver: HM20022300.
+This was a retrospective matched case-control study using Virginia's
+All-Payer Claims Database (APCD) spanning calendar years 2016–2019,
+obtained under a data-use agreement (DUA) with the Virginia Center for
+Health Innovation (VCHI) and Virginia Health Information (VHI).
+Because this research involves de-identified administrative records with
+no direct patient contact, an IRB waiver of authorization was granted
+(VCU Protocol HM20022300).
+
+The study population was restricted to adults aged 65 years and older,
+representing the geriatric polypharmacy cohort defined in Chapter 2.
+The analysis window was the 30-day period immediately preceding each
+patient's index ED visit (for cases) or matched index date (for controls),
+a window selected to capture proximal drug exposures responsible for
+acute adverse drug events rather than chronic long-term prescription patterns.
+All features were derived from 2016–2018 claims only; the 2019 claims year
+served as the strictly withheld prospective temporal holdout for model
+evaluation, consistent with the temporal validation strategy applied
+across all dissertation chapters.
 
 ## Cohort Construction {#sec-cohort}
 
-**Target (case) definition:** Adults aged 65–94 years with ≥1 ED visit
-identified by Milliman Healthcare Cost Group (HCG) codes O11 or P51,
-with *strict exclusion* of any opioid-related ICD-10 code (F11.xx, T40.xx).
-This exclusion ensures the study measures *non-addiction* adverse events
-attributable to drug-drug interactions, not opioid misuse overlap.
+**Case definition:** Adults aged 65–114 years with at least one emergency
+department visit identified by Milliman Healthcare Cost Group (HCG) codes
+O11 (Emergency Room) or P51 (Emergency Room Visit) on medical claims with
+an index date between January 1, 2016 and December 31, 2019.
+All patients with any opioid-related ICD-10 codes (F11.xx, T40.xx) in any
+diagnosis field across all claims in the analysis period were strictly
+excluded; this exclusion ensures the study measures polypharmacy-related
+adverse drug events attributable to drug-drug interactions, not opioid
+use disorder co-morbidity.
 
-**Control definition:** Adults aged 65–94 years with no ED visits (HCG O11/P51)
-and no opioid codes, matched 5:1 to cases without replacement, within age
-band (±2 years) and sex.
+Patients were required to have at least one pharmacy claim in the 30-day
+lookback window (minimum drug exposure for meaningful DDI testing) and
+continuous APCD enrollment for 30 days prior to the index date.
 
-**30-day causality window:** All predictive features were derived from
-claims occurring within the 30-day window *prior* to each case's index ED
-date (or matched date for controls).
-This window focuses on proximal drug exposures responsible for acute ADEs,
-as most pharmacokinetic-mediated DDIs manifest within days to weeks of
-co-prescription [@Becker2007].
+**Control definition:** Adults aged 65–114 years with no ED visits
+(no HCG O11/P51 claims in the analysis period) and no opioid-related codes,
+matched 5:1 to cases without replacement using nearest-neighbor matching
+within age band and sex.
+Controls were randomly assigned an index date sampled from within their
+matching calendar year to anchor the 30-day lookback window.
 
-**Age bands:** 65–74, 75–84, 85–114 years.
+**Age bands:** Three geriatric age bands were analyzed separately:
+65–74 years (young-old), 75–84 years (middle-old), and 85–114 years
+(oldest-old), reflecting clinically distinct pharmacokinetic profiles
+(declining renal clearance, body composition changes, and
+polypharmacy burden escalation across the geriatric age spectrum).
 
 ## Feature Engineering {#sec-features}
 
@@ -220,11 +242,24 @@ as a proxy for managed polypharmacy with regular clinical oversight.
 
 ## Ensemble Model {#sec-model}
 
-The three-model ensemble (CatBoost, XGBoost, XGBoost-RF) with MCCV
-performance-based weighting is identical to Chapter 2.
-Hyperparameter tuning used Optuna [@AWSLambda2023] with 100 trials per model
-per age band on the 2016–2018 training set.
-The 2019 holdout was strictly withheld.
+The three-model ensemble (CatBoost [@Prokhorenkova2018], XGBoost [@Chen2016],
+and XGBoost-RF) with MCCV performance-based weighting is identical to the
+Chapter 2 architecture.
+Separate model sets were trained for each of the three geriatric age bands
+(65–74, 75–84, 85–114) and each applicable density bin, yielding up to
+36 trained models per cohort (3 bands × 4 bins × 3 algorithms).
+Hyperparameter tuning used Optuna [@Akiba2019] TPE with 50 trials per
+model-partition combination on the 2016–2018 training set.
+The 2019 holdout was strictly withheld from all training, feature selection,
+hyperparameter optimization, and FFA threshold derivation.
+
+The polypharmacy cohort's feature engineering differs from the opioid cohort
+(Chapter 3) in one key respect: the primary lookback window is 30 days
+(not 12 months), reflecting the acute proximal exposure window most
+relevant to ADE-driven ED visits.
+ICD-10 and CPT features were retained as secondary covariates to control
+for comorbidity confounding, but drug-exposure binary features
+received priority weighting in MCCV recall ranking.
 
 ## Formal Feature Attribution: Multi-Feature Interaction Testing {#sec-ffa}
 
@@ -265,13 +300,19 @@ attribution); values are normalized by the population-level case prevalence.
 
 ## Statistical Analysis
 
-Performance metrics: AUROC, PR-AUC, Brier score, LogLoss on 2019 holdout.
-Synergistic pairs: IE > 0 with bootstrap 95% CI excluding zero (1,000
-bootstrap resamples of the 2019 holdout).
-Z-code protective effect: logistic regression (outcome = ADE ED visit;
-predictor = Z-code proportion quartile; covariates = age, sex, drug count),
-reported as OR with 95% CI.
-Software: Python 3.11, R 4.3.
+Pairwise interaction effects (IE) and confidence intervals were estimated
+by bootstrap resampling (1,000 draws with replacement) of the 2019 holdout
+set, with the IE formula applied to each bootstrap sample independently.
+Synergistic pairs were designated at IE > 0 with a 95% CI lower bound > 0
+after Bonferroni correction for the number of pre-filtered candidate pairs
+(n = 1,081 pairs from the top-47 drug features).
+
+Z-code proportion quartile comparisons used Kruskal-Wallis tests with
+post-hoc Dunn's test for pairwise comparisons, with Bonferroni correction.
+Adjusted odds ratios (ORs) with 95% CIs were computed via logistic regression
+with age band, sex, and 30-day drug count as covariates.
+All analyses were performed in Python 3.11 (scipy v1.11; statsmodels v0.14);
+significance level α = 0.05.
 
 # Results {#sec-results}
 
