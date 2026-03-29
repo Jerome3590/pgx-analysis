@@ -623,6 +623,28 @@ across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90% fig-align="center"}
 
 Z-code proportion (protective monitoring codes Z00–Z13 and Z23–Z28 only)
 exhibited a U-shaped association with ADE risk.
+The protective Z-codes analyzed include:
+
+- **Z00.xx** (encounter for general examination): annual wellness visits,
+  Medicare Annual Wellness Visits, Well-Baby checks—administrative markers
+  of *proactive* contact with the healthcare system
+- **Z01.xx** (encounter for other special examinations): preventive
+  screenings (Z01.00 eye examination; Z01.411 gynecological examination;
+  Z01.89 other specified examination)
+- **Z02.xx** (encounter for administrative examinations): pre-employment,
+  pre-operative, and insurance exams that bring patients into documented
+  contact with prescribers who can review the full medication list
+- **Z23** (encounter for immunization): vaccine-related visits that
+  provide annual or more-frequent prescriber contact
+- **Z71.xx** (encounter for counseling): medication counseling (Z71.89),
+  specifically relevant to polypharmacy reconciliation
+
+These codes share a critical property: they represent *scheduled,
+proactive healthcare contact* where a medication review is contextually
+appropriate, distinct from reactive encounter codes (J18.9 pneumonia,
+I50.9 heart failure exacerbation) that trigger prescribing without
+necessarily providing opportunity for polypharmacy reconciliation.
+
 In logistic regression adjusted for `n_events` and age band, each quartile
 increment of Z-code proportion was associated with an odds ratio of
 2.10 (95% CI 1.51–2.94, $P$ < 0.001), but with the protective effect
@@ -632,16 +654,28 @@ Patients with moderate preventive monitoring (Q2: 1–12% of claims;
 case rate 3.0%) had the lowest ADE risk, with a crude OR of 0.25
 (95% CI 0.18–0.34; $P$ < 0.001) compared with unmonitored patients
 (Q1: zero preventive claims; case rate 10.7%).
-Patients with very high monitoring proportions (Q4: ≥12% of claims; case
-rate 10.0%) had risk equivalent to unmonitored patients (crude OR ≈ 0.94
-vs Q1), despite having non-zero monitoring visits. Importantly, Q4 patients had markedly lower total claim counts (median raw claim count = 174) than Q2
-(median 594) and Q3 (median 387), ruling out confounding by indication
-(i.e., already-sick patients accumulating reactive screenings): genuinely
-high-burden patients fall in Q2–Q3, not Q4. Instead, Q4 characterises a
-fragmented-care phenotype — patients whose healthcare contact consists
-predominantly of periodic screenings with limited integrated
-medication-management visits — such that drugs are prescribed across
-disconnected episodes without coordinated reconciliation (**@fig-zcode**).
+Patients with very high monitoring proportions (Q4: ≥12% of claims;
+case rate 10.0%) had risk equivalent to unmonitored patients
+(crude OR ≈ 0.94 vs Q1), despite having non-zero monitoring visits.
+Q4 patients had markedly lower total claim counts
+(median raw claim count = 174) than Q2 (median 594) and Q3 (median 387),
+ruling out confounding by indication: genuinely high-burden patients fall
+in Q2–Q3, not Q4.
+Instead, Q4 characterizes a *fragmented-care phenotype*: patients whose
+healthcare contact consists predominantly of periodic screenings
+(Z00.00 annual exam; Z01.89 preventive check) without integrated
+medication-management visits, such that drugs are prescribed across
+disconnected episodes without coordinated reconciliation
+(**@fig-zcode**).
+
+A clinically significant Q2 phenotype emerged: patients with
+1–12% Z-code claims had their drug fills predominantly associated with
+ICD-10 Z71.89 (medication counseling), Z79.xx (long-term drug use status),
+and Z87.xx (personal history codes)—specifically Z87.39 (personal history of
+cardiovascular disease) and Z87.891 (personal history of long-term opioid)—
+present at higher rates in controls than in cases (Z71.89: 29% vs. 14%;  $P$
+< 0.001), confirming that documented medication counseling is the specific
+monitoring activity driving the protective effect.
 
 Among the extreme-density stratum (top 5% raw claim count), all patients were
 controls by cohort construction; Z-code proportions fell progressively
