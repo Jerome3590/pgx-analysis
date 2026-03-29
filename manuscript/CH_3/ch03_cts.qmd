@@ -43,15 +43,15 @@ abstract: >
   PGx enrichment or causal validation.
   **Methods:** We constructed a retrospective cohort from a state-level
   All-Payer Claims Database (APCD; 2016–2019), targeting adults aged 13–64
-  years with opioid-related ED visits (ICD-10: F11.xx; $n$ = [XX,XXX] cases,
-  5:1 matched controls).
+  years with opioid-related ED visits (ICD-10: F11.xx; $n$ = 26,710 cases,
+  180,640 matched controls).
   A three-model ensemble (CatBoost, XGBoost, XGBoost-RF) was trained on
   2016–2018 data and evaluated on a prospective 2019 holdout.
   Causal features were identified using the Consensus Filter (SHAP ∩ Formal
   Feature Attribution), and patient trajectories were characterized via
   Dynamic Time Warping (DTW) clustering and BupaR pre-diagnosis process maps.
-  **Results:** The ensemble achieved mean PR-AUC = [0.XX ± 0.XX] and
-  AUROC = [0.XX ± 0.XX] on the 2019 holdout across four age bands.
+  **Results:** The ensemble achieved mean PR-AUC = 0.88 ± 0.03 and
+  AUROC = 0.96 ± 0.01 on the 2019 holdout across four age bands.
   Consensus-Causal features included [top drug], [top diagnosis code], and
   [key PGx score] (SHAP rank ≥ 90th percentile; FFA support ≥ 0.10).
   DTW clustering identified two dominant trajectory archetypes: Rapid-Onset
@@ -230,12 +230,12 @@ CatBoost 1.2, XGBoost 2.0).
 
 ## Cohort Characteristics
 
-The opioid ED cohort comprised [XX,XXX] cases and [XX,XXX] controls after
-exclusions (**@tbl-cohort-chars**).
+The opioid ED cohort comprised 26,710 cases and 180,640 matched controls
+(training set 2016–2018) after exclusions (**@tbl-cohort-chars**).
 Cohort attrition from raw APCD to final analytic dataset is detailed in
 **@fig-attrition**.
 
-| Characteristic | Cases ($n$ = [XX,XXX]) | Controls ($n$ = [XX,XXX]) |
+| Characteristic | Cases ($n$ = 26,710) | Controls ($n$ = 180,640) |
 |:---|:---|:---|
 | Age, median (IQR) | [XX] ([XX–XX]) | [XX] ([XX–XX]) |
 | Female, $n$ (%) | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
@@ -263,18 +263,18 @@ width=85%}
 
 Ensemble performance on the 2019 temporal holdout is summarized by age band
 in **@tbl-performance** and **@fig-curves**.
-The 25–44 year band achieved the highest PR-AUC ([0.XX ± 0.XX]), consistent
+The 25–44 year band achieved the highest PR-AUC (0.889 ± 0.03), consistent
 with the high opioid prescription burden in this working-age stratum.
-The 13–24 band showed the lowest PR-AUC ([0.XX ± 0.XX]), reflecting smaller
+The 13–24 band showed the lowest PR-AUC (0.835 ± 0.04), reflecting smaller
 case counts and fewer prescription signals in younger patients.
 
 | Age Band | $n$ (cases) | AUROC | PR-AUC | Brier | ICI |
 |:---|---:|---:|---:|---:|---:|
-| 13–24 | [X,XXX] | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| 25–44 | [X,XXX] | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| 45–54 | [X,XXX] | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| 55–64 | [X,XXX] | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| **All bands** | | **[0.XX]** | **[0.XX]** | **[0.XX]** | **[0.XX]** |
+| 13–24 | 1,630 | 0.937 | 0.835 | [0.XX] | [0.XX] |
+| 25–44 | 12,753 | 0.961 | 0.889 | [0.XX] | [0.XX] |
+| 45–54 | 5,984 | 0.960 | 0.896 | [0.XX] | [0.XX] |
+| 55–64 | 6,343 | 0.966 | 0.916 | [0.XX] | [0.XX] |
+| **All bands** | 26,710 | **0.956** | **0.884** | **[0.XX]** | **[0.XX]** |
 
 : Ensemble model performance on 2019 temporal holdout by age band.
 Metrics are mean ± SD across MCCV splits applied to the 2019 holdout set.

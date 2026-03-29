@@ -844,11 +844,12 @@ The interactive analytics and deployment workflow is illustrated in @fig-insight
 
 ## Cohort Characteristics
 
-The opioid ED cohort comprised [N = XX,XXX] cases and [N = XX,XXX]
-5:1 matched controls across the four primary age bands (13–24, 25–44, 45–54,
+The opioid ED cohort comprised N = 26,710 cases and N = 180,640
+matched controls across the four primary age bands (13–24, 25–44, 45–54,
 55–64 years).
-The polypharmacy (non-opioid) ED cohort comprised [N = XX,XXX] cases across
-the three geriatric age bands (65–74, 75–84, 85–94 years).
+The polypharmacy (non-opioid) ED cohort comprised N = 1,182 cases and
+N = 16,105 matched controls across the three geriatric age bands
+(65–74, 75–84, 85–114 years).
 Full cohort attrition is depicted in @fig-attrition.
 
 ![CONSORT-style cohort attrition diagram. Left column: opioid ED cohort
@@ -899,19 +900,19 @@ width=90%}
 ## Temporal Validation Summary
 
 Mean PR-AUC on the 2019 holdout across all partitions and both cohorts
-was [0.XX ± 0.XX].
+was 0.93 ± 0.06.
 Full per-partition results (AUROC, PR-AUC, Brier score, LogLoss) are
 reported in @tbl-validation.
 
 | Cohort | Age Band | AUROC | PR-AUC | Brier | LogLoss |
 |:---|:---|---:|---:|---:|---:|
-| Opioid ED | 13–24 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Opioid ED | 25–44 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Opioid ED | 45–54 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Opioid ED | 55–64 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Non-Opioid ED | 65–74 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Non-Opioid ED | 75–84 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
-| Non-Opioid ED | 85–94 | [0.XX] | [0.XX] | [0.XX] | [0.XX] |
+| Opioid ED | 13–24 | 0.937 | 0.835 | [0.XX] | 0.252 |
+| Opioid ED | 25–44 | 0.961 | 0.889 | [0.XX] | 0.207 |
+| Opioid ED | 45–54 | 0.960 | 0.896 | [0.XX] | 0.209 |
+| Opioid ED | 55–64 | 0.966 | 0.916 | [0.XX] | 0.213 |
+| Non-Opioid ED | 65–74 | 0.996 | 0.984 | [0.XX] | 0.064 |
+| Non-Opioid ED | 75–84 | 0.999 | 0.997 | [0.XX] | 0.043 |
+| Non-Opioid ED | 85–114 | 0.997 | 0.991 | [0.XX] | 0.081 |
 
 : 2019 temporal holdout performance by cohort and age band.
 Metrics: AUROC, area under the receiver operating characteristic curve;
