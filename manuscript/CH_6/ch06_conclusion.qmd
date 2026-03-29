@@ -307,6 +307,28 @@ The shared infrastructure also guarantees that Chapters 3–5 inherit
 the temporal leakage protections validated in Chapter 2, preventing
 the reproducibility failures that affect 88% of reviewed studies.
 
+The cross-cohort performance difference also has a direct translational
+implication: the polypharmacy models (PR-AUC 0.984–0.997) are substantially
+more deployment-ready than the opioid models (PR-AUC 0.835–0.916) in the
+sense that higher discrimination enables more precise risk-band thresholds
+and fewer borderline cases that require clinician judgment under uncertainty.
+For the polypharmacy cohort, a 75th-percentile risk cutoff reliably
+separates high-risk from lower-risk patients; for the opioid cohort,
+the same cutoff produces more false positives and requires clinical
+judgment augmentation—which is precisely what the What-If counterfactual
+tab in Chapter 5 is designed to support.
+
+The COVID-19 exclusion of 2020 data deserves specific justification.
+Emergency department utilization collapsed by 40–50% in Spring 2020
+and did not recover to pre-pandemic levels until mid-2021 for opioid-related
+presentations.
+Including 2020 data in the prospective holdout would introduce a systematic
+downward shift in case detection that reflects pandemic-era patient behavior
+(reluctance to present to the ED) rather than true risk reduction.
+The 2019 holdout—the last pre-pandemic year—provides the cleanest test
+of whether the 2016–2018 training distribution generalizes to a new year
+under normal clinical operations.
+
 ## Performance Summary
 
 | Cohort | Age Range | Ensemble PR-AUC | AUROC | Notes |

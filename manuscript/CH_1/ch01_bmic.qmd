@@ -659,12 +659,32 @@ Utility** ($n$ = 141, 2.4%)—reflecting the field's primary emphasis on
 model accuracy and post-hoc interpretation.
 Only three domains reach the "Strong" threshold (≥100 articles):
 Performance Metrics, Explainability, and Clinical Utility.
+This concentration in the top three domains reflects a publication incentive
+structure that rewards accuracy benchmarking over deployment readiness:
+journals and reviewers evaluate model performance against competing
+methods and clinical baselines, creating a cycle where performance
+measurement is systematically over-reported while deployment infrastructure
+is systematically under-reported.
+
 **Uncertainty Quantification** is the least-represented domain ($n$ = 27,
 0.5%); probabilistic prediction intervals, Bayesian uncertainty estimates,
 and reliability diagrams remain absent from most published models.
+This is a critical gap: clinicians using risk scores for prescribing
+decisions require calibrated probability estimates ("this patient has a
+73% probability of an opioid ED visit in the next 12 months") rather than
+binary classifications or uncalibrated probability outputs.
+The Brier score and ICI calibration metrics reported in Chapters 3–4
+directly address this gap, establishing that ensemble probability outputs
+are suitable for direct clinical risk-band assignment.
+
 **External and Temporal Validation** ($n$ = 50, 0.9%) and **Model
 Transparency** ($n$ = 49, 0.8%) are near-absent, confirming that
 leakage-prevention and reproducibility deficits are systemic.
+The 2019–2025 trend data shows only modest improvement in External/Temporal
+Validation coverage (+18 articles over five years), suggesting that
+the field is not self-correcting toward prospective validation practices
+at the rate required to address the reproducibility crisis documented
+by Kapoor and Narayanan [@Kapoor2023].
 
 ![Left: article counts by NIH AI Reporting Checklist domain across the
 5,839-article eligible SQLR corpus (2015–2026), colour-coded by coverage tier
