@@ -1044,15 +1044,22 @@ Two calibration metrics were computed for each partition:
 
 - **Brier Score**: $\frac{1}{N}\sum_{i=1}^{N}(\hat{p}_i - y_i)^2$,
   where $\hat{p}_i$ is the ensemble-calibrated probability and $y_i$ is
-  the binary outcome.
-  A Brier Score of 0 indicates perfect calibration; a score of 0.25
-  indicates a null (prevalence-only) model for 50% prevalence.
+  the binary outcome; computed via `sklearn.metrics.brier_score_loss`.
+  A score of 0 indicates perfect calibration.
+  Observed range across opioid ED bands: **0.007–0.051**
+  (`brier_ici_results.json`); non-opioid ED geriatric bands: **0.007–0.008**.
 - **Integrated Calibration Index (ICI)**: mean absolute deviation between
-  observed outcome rates and predicted probabilities, computed across
-  10 equal-width probability bins.
-  ICI = 0 indicates perfect average calibration; values > 0.20 indicate
-  systematic probability miscalibration that would require post-hoc
-  recalibration before clinical use.
+  observed event rates and mean predicted probabilities across 10
+  equal-width probability bins, computed as:
+  ```python
+  frac_pos, mean_pred = calibration_curve(
+      y_true, y_prob, n_bins=10, strategy="uniform")
+  ICI = mean(abs(frac_pos - mean_pred))
+  ```
+  (sklearn `calibration_curve`; `scripts/compute_brier_ici.py`).
+  ICI = 0 indicates perfect calibration.
+  Observed range: opioid ED **0.108–0.163**; non-opioid ED geriatric bands
+  **0.071–0.290** (`brier_ici_results.json`).
 
 Prior to ensemble weighting, individual model probabilities were
 Platt-scaled (logistic regression on out-of-fold predictions) to

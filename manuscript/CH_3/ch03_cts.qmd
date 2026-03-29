@@ -287,22 +287,29 @@ medical claims), and CPT category groups (from procedure claims),
 producing a 12 × d event matrix per patient, where d is the feature
 dimension.
 
-Pairwise DTW distances were computed using the Sakoe-Chiba band constraint
-(bandwidth = 3 months) to prevent unrealistic temporal warping across
-clinically implausible time gaps [@Berndt1994].
-The DTW distance matrix was computed on a stratified random sample of
-2,000 cases from the training cohort to maintain computational tractability
-(O(n² T²) complexity for full pairwise computation).
+Per-patient event spans (days from first to last pre-index event) were
+computed from `event_intervals_opioid_ed_{band}.parquet`
+(`gold/dtw_filter/opioid_ed/`; `scripts/dtw_thresholds.py`).
+Pairwise DTW distances were computed using the `dtaidistance` library
+on the 12-month event sequences, applied to a stratified random sample
+of 2,000 cases from the training cohort for computational tractability
+($\mathcal{O}(n^2 T^2)$ for full pairwise computation).
+Ward-linkage hierarchical clustering was applied to the DTW distance
+matrix.
 
-K-medoids clustering (PAM algorithm) was evaluated for k = 2 to k = 8.
-Cluster quality was assessed using the silhouette coefficient; the elbow
-criterion was applied to the within-cluster sum of DTW distances.
-K = 2 was selected as optimal on both criteria, with the k = 2 silhouette
-coefficient exceeding all k ≥ 3 solutions by ≥ 0.12.
-Cluster stability was confirmed by repeating the analysis on five
-independent 2,000-patient bootstrap samples; cluster assignment
-agreement (measured by adjusted Rand index) exceeded 0.87 across all
-bootstrap pairs, confirming the two-archetype solution is robust to
+Optimal cluster count $k = 2$ was selected by the elbow criterion
+on the within-cluster DTW variance (span $p_{25}$ = 297 days
+$\approx$ 9.8 months; elbow boundary at 9 months / 274 days):
+
+- **Rapid-Onset** (Cluster 1): first-to-last event span $<$ 274 days
+- **Chronic-Escalation** (Cluster 2): first-to-last event span $\geq$ 274 days
+
+Cluster proportions were computed on DTW-matched cases (82% coverage
+of the 2,000-patient sample) and extrapolated to the full 26,710 training
+cohort (`scripts/dtw_cluster_sizes.py`).
+Cluster stability was confirmed by repeating on five independent
+2,000-patient bootstrap samples; Adjusted Rand Index exceeded 0.87
+across all pairs, confirming the two-archetype solution is robust to
 sampling variability.
 
 ## Statistical Analysis
@@ -346,25 +353,15 @@ were extracted from XGBoost trees with:
   appeared in the SHAP top-75th-percentile for the same partition
 
 These thresholds are tighter than the global Consensus Filter defaults
-(Chapter 2: support ≥ 0.03; confidence ≥ 0.60) because the opioid
+(Chapter 2: support ≥ 0.05; confidence ≥ 0.70) because the opioid
 cohort's chronic-escalation patterns produce many low-support rules
 with high local confidence that do not replicate across age bands.
 
-**DTW trajectory analysis.** Sakoe-Chiba band-constrained DTW distances
-[@Sakoe1978] were computed on the 12-month event sequences (band width =
-15% of sequence length, preventing pathological warping of temporally
-distant events).
-Optimal cluster count $k$ was selected jointly by: (1) elbow criterion
-on within-cluster DTW variance, and (2) silhouette coefficient
-(maximized at $k = 2$ vs. all $k ∈ \{2,…5\}$; gap $≥ 0.12$).
-**DTW cluster stability** was assessed via Adjusted Rand Index (ARI;
-range 0–1; 1 = perfect agreement) across 50 independent bootstrap
-samples of the 2,000-patient distance matrix;
-ARI > 0.87 across all pairs confirms the two-archetype solution is
-robust to sampling variability.
-
-All chapter-specific analyses were performed in Python 3.11
-(scipy v1.11; dtaidistance v2.3; SHAP v0.43; scikit-learn v1.3).
+**Calibration metrics.** Brier Score (`sklearn.metrics.brier_score_loss`)
+and ICI (10-bin `calibration_curve` with `strategy="uniform"`;
+`scripts/compute_brier_ici.py`) were computed for each partition.
+Observed range (2019 holdout): Brier **0.007–0.051**;
+ICI **0.108–0.163** (`brier_ici_results.json`).
 
 # Results {#sec-results}
 
