@@ -757,13 +757,45 @@ The PGx Risk Dashboard translates the ensemble models, causal rules, and
 PGx guidelines developed across Chapters 2–4 into a production-ready,
 privacy-first serverless application that meets clinical usability targets
 for latency, sparsity tolerance, and data security.
-Cold-start latency of ~2,100 ms (container init) and warm inference ~6 ms demonstrate
-that bundling all per-density-bin models in a single Lambda container is both
-feasible and performant within standard AWS Lambda constraints.
-The stateless CPIC Patient Card resolves the privacy-compliance barrier
-for point-of-care PGx access.
+
+Three architectural contributions address the specific deployment failures
+identified in Chapter 1's systematic review:
+
+**Contribution 1: Partition-first inference within a single container.**
+By routing all 84 per-density-bin models through in-process partition
+logic rather than separate Lambda functions, the dashboard achieves
+6 ms warm inference without the inter-service API overhead that would
+accompany a microservices architecture.
+This single-container design also eliminates the container orchestration
+complexity (service discovery, load balancing, circuit breakers) that
+makes multi-service clinical AI deployments operationally prohibitive
+for research teams.
+
+**Contribution 2: Imputation of Normality for real-world sparsity tolerance.**
+The median-initialization imputation strategy maintains risk-band assignment
+stability up to 60% input sparsity and mean |$\Delta\hat{p}$| < 0.06
+up to 70% missingness, enabling productive clinical use with partial
+patient histories that are the rule rather than the exception in real-world
+prescribing contexts.
+This directly resolves the "complete data" assumption that disqualifies
+most published ML models from practical deployment.
+
+**Contribution 3: Stateless PGx card with zero HIPAA storage burden.**
+The ephemeral-compute CPIC card architecture enables patient-specific
+pharmacogestored genomic guidance without a Business Associate Agreement,
+EHR integration, or institutional data governance infrastructure.
+This design principle---compute, respond, discard---is generalizable
+beyond PGx to any clinical AI application where genetic, behavioral,
+or other sensitive personal data must be processed without retention.
+
+Cold-start latency of ~2,100 ms (container init) and warm inference ~6 ms
+demonstrate that bundling all per-density-bin models in a single Lambda
+container is both feasible and performant within standard AWS Lambda constraints.
 These features complete the translational pipeline from APCD-scale modeling
-to bedside decision support.
+to bedside decision support, demonstrating that clinical AI deployment
+does not require EHR integration, institutional IT infrastructure, or
+proprietary software---only validated models, a cloud account, and
+architectural attention to privacy-by-design.
 
 **Supplementary Materials:** Supplementary File S1 (API endpoint
 specification); Supplementary File S2 (CPIC database version and gene
