@@ -348,32 +348,50 @@ PR-AUC was the primary discrimination metric given the 3.5–6.8% case
 prevalence in the polypharmacy cohort: at these low prevalences, the
 conventional 0.80 AUROC threshold corresponds to PR-AUC values as low as
 0.30, making AUROC unsuitable as the sole performance indicator.
+Observed performance (geriatric bands, 2019 holdout): **PR-AUC 0.991±0.007**
+(mean±SD); Brier **0.007–0.008**; ICI **0.071–0.290**
+(`brier_ici_results.json`, `model_performance_metrics.json`).
+Calibration metrics used 10-bin `calibration_curve` with
+`strategy="uniform"` (`scripts/compute_brier_ici.py`).
 
-**Interaction Effect (IE) estimation.** Pairwise IE was defined as:
-$$\text{IE}_{ij} = \hat{p}(f_i = 1, f_j = 1) - \hat{p}(f_i = 1) - \hat{p}(f_j = 1)
-  + \hat{p}(f_i = 0, f_j = 0)$$
+**Interaction Effect (IE) estimation.** Pairwise IE was defined as
+a lift-based synergy score:
+$$\text{IE}(f_i, f_j) = \mathbb{E}[\hat{p}(f_i{=}1, f_j{=}1)]
+  - \mathbb{E}[\hat{p}(f_i{=}1, f_j{=}0)]
+  - \mathbb{E}[\hat{p}(f_i{=}0, f_j{=}1)]
+  + \mathbb{E}[\hat{p}(f_i{=}0, f_j{=}0)]$$
 where each term is the counterfactual ensemble probability under the
-specified feature configuration.
+specified feature configuration (`scripts/ffa_synergy_pairs.py`).
+IE $>$ 0 indicates synergy; IE $<$ 0 indicates antagonism.
 Triplet IE was defined analogously for three-feature configurations.
 All IEs were estimated by bootstrap resampling (1,000 draws with
-replacement) of the 2019 holdout with the formula applied independently
-per draw, yielding 95% percentile bootstrap CIs.
-**Synergy designation** required IE > 0 with 95% CI lower bound strictly
-positive, after Bonferroni correction for the 1,081 pre-filtered
-candidate pairs (selected from the top-47 drug features by MCCV recall
-rank).
-Bonferroni-corrected α = 0.05 / 1,081 = 4.6×10⁻⁵.
+replacement) of the 2019 holdout, yielding 95% percentile bootstrap CIs.
+**Synergy designation** required **IE $>$ 1.0** (lift-based independence
+baseline) with 95% CI lower bound $>$ 0, after Bonferroni correction
+for the 1,081 pre-filtered candidate pairs (top-47 drug features by
+MCCV recall rank; $\alpha_{\text{Bonf}}$ = 0.05/1,081 = $4.6\times10^{-5}$).
+Result: 115 synergistic pairs; 5,021 high-risk triplets
+(`scripts/ffa_synergy_pairs.py`; `ffa_manuscript_data.json`).
 
-**Z-code protective effect analysis.** Patients were stratified into
-quartiles of Z-code proportion (Q1: 0%; Q2: 1–12%; Q3: 12–20%; Q4: >20%).
-Between-group differences in Z-code proportion were assessed by
-Kruskal-Wallis test with post-hoc Dunn’s test for all pairwise
-comparisons (Bonferroni-corrected for 6 pairs).
-Adjusted odds ratios (ORs) for ADE-related ED visit were estimated by
-logistic regression with Z-code quartile (Q1 as reference), age band
-(fixed strata), sex (binary), and log-transformed 30-day drug count as
-covariates.
-95% Wald CIs were reported; two-sided $P$-values with $\alpha$ = 0.05.
+**Z-code protective effect analysis.** Z-code proportion
+($z_\text{prop}$ = Z-code claims $\div$ total 30-day claims) was
+computed from `model_events.parquet` filtered to the 30-day pre-index
+window (`scripts/zcode_30day.py`).
+Patients were stratified into quartiles (Q1: $z_\text{prop}=0$;
+Q2: 1–12%; Q3: 12–20%; Q4: $>$20%).
+Between-group differences were assessed by Kruskal-Wallis test
+with post-hoc Dunn’s test (Bonferroni-corrected for 6 pairwise
+comparisons).
+The logistic regression model was:
+$$\text{logit}(P(\text{target}=1)) = \beta_0 + \beta_1 z_q
+  + \beta_2 n_{\text{events}} + \textstyle\sum_b \beta_b \cdot \text{band}_b$$
+where $z_q \in \{1,2,3,4\}$ is the Z-code proportion quartile
+(Q1 reference) and $n_{\text{events}}$ is the 30-day total claim count.
+OR $= e^{\beta_1}$; 95% CI $= e^{\beta_1 \pm 1.96 \cdot \text{SE}}$
+(Fisher information SE; `scipy.optimize.minimize` L-BFGS-B).
+Result: per-quartile OR = **2.10 (95% CI 1.51–2.94)**;
+protective Q2 crude OR = **0.25 (95% CI 0.18–0.34)**
+(`scripts/zcode_30day.py`; `scripts/zcode_athena.py`).
 
 **Intervention Rate (IR) score derivation.** IR was defined as the
 mean counterfactual probability shift across the holdout:
