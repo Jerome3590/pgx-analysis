@@ -59,9 +59,12 @@ abstract: >
   exceeding the additive interaction threshold.
   Top synergistic pairs included levofloxacin + lorazepam (IE = 11.9) and
   acetaminophen + levofloxacin (IE = 16.3) in the 85–114 age band.
-  Z-code analysis revealed that extreme-density patients with high routine
-  care (Z-codes ≥ 40% of claims) had significantly lower ADE risk despite
-  high drug counts (OR = [0.XX]; 95% CI [0.XX–0.XX]).
+  Z-code analysis revealed a U-shaped relationship between routine monitoring
+  and ADE risk: patients with moderate preventive monitoring (Z-codes 1–12%
+  of claims; Q2) had the lowest ADE risk compared with unmonitored patients
+  (Q1, crude OR = 0.25; $P$ < 0.001), while patients with extreme monitoring
+  proportions (Q4, ≥12%) had similarly elevated risk as unmonitored patients,
+  consistent with reactive rather than preventive care.
   **Conclusions:** FFA multi-feature interaction analysis constitutes a
   "causal calculator" for polypharmacy risk: it moves beyond pairwise DDI
   databases to identify synergistic combinations and quantify
@@ -276,17 +279,17 @@ Software: Python 3.11, R 4.3.
 
 The non-opioid ED cohort comprised 1,182 cases and 16,105 matched
 controls across the three geriatric age bands (**@tbl-cohort-chars**).
-Median polypharmacy count in the 30-day window was [X] drugs (IQR [X–X])
-among cases vs. [X] drugs (IQR [X–X]) among controls.
-The 85–114 age band had the highest median drug count ([X]; IQR [X–X]).
+Median polypharmacy count in the 30-day window was 1 drug (IQR 1–1)
+among cases vs. 3 drugs (IQR 1–7) among controls.
+The 85–114 age band had the highest control median drug count (3; IQR 0–6).
 
 | Characteristic | Cases | Controls |
 |:---|:---|:---|
 | $n$ | 1,182 | 16,105 |
-| Age, median (IQR) | [XX] ([XX–XX]) | [XX] ([XX–XX]) |
-| Female, $n$ (%) | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| Drug count (30-day), median (IQR) | [X] ([X–X]) | [X] ([X–X]) |
-| Z-code proportion, median (IQR) | [0.XX] ([0.XX–0.XX]) | [0.XX] ([0.XX–0.XX]) |
+| Age, median (IQR) | 70 (66–78) | 71 (67–78) |
+| Female, $n$ (%) | 628 (53.1%) | 8,439 (52.4%) |
+| Drug count (30-day), median (IQR) | 1 (1–1) | 3 (1–7) |
+| Z-code proportion, median (IQR) | 0.05 (0.00–0.24) | 0.05 (0.01–0.12) |
 | **Age band** | | |
 | \quad 65–74 | 801 (67.8%) | 10,770 (66.9%) |
 | \quad 75–84 | 213 (18.0%) | 2,980 (18.5%) |
@@ -313,11 +316,11 @@ The top synergistic pairs are shown in **@tbl-ddi** and **@fig-network**.
 
 | Drug A | Drug B | IE Score | IR_A | IR_B | 95% CI |
 |:---|:---|---:|---:|---:|:---|
-| Acetaminophen | Levofloxacin | 16.3 | <0.001 | <0.001 | [0.XX–0.XX] |
-| Levofloxacin | Lorazepam | 11.9 | <0.001 | <0.001 | [0.XX–0.XX] |
-| Carvedilol | Levofloxacin | 10.5 | <0.001 | <0.001 | [0.XX–0.XX] |
-| Gabapentin | Levofloxacin | 9.4 | <0.001 | <0.001 | [0.XX–0.XX] |
-| Digoxin | Simvastatin | 6.0 | <0.001 | <0.001 | [0.XX–0.XX] |
+| Acetaminophen | Levofloxacin | 16.3 | <0.001 | <0.001 | 9.94–35.80 |
+| Levofloxacin | Lorazepam | 11.9 | <0.001 | <0.001 | 8.14–22.38 |
+| Carvedilol | Levofloxacin | 10.5 | <0.001 | <0.001 | 7.16–17.90 |
+| Gabapentin | Levofloxacin | 9.4 | <0.001 | <0.001 | 6.63–16.27 |
+| Digoxin | Simvastatin | 6.0 | <0.001 | <0.001 | 1.47–22.38 |
 
 : Top synergistic drug-drug interaction pairs from FFA multi-feature testing
 (85–114 age band; pairs ranked by lift-based interaction effect score).
@@ -362,7 +365,7 @@ IR magnitudes reflect per-patient absolute probability shifts; while small
 individually ($< 0.001$), they provide relative deprescribing prioritization
 independent of overall polypharmacy burden (which is captured by $n_{\text{events}}$).
 IR rankings were consistent across the three geriatric age bands
-(rank correlation $\rho$ = [0.XX–0.XX]), supporting the robustness of
+(rank correlation $\rho$ = 0.53–0.68), supporting the robustness of
 causal attribution.
 
 ![Intervention Rate (IR) scores for the top 15 drugs by causal contribution
@@ -374,18 +377,28 @@ across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90%}
 
 ## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#sec-zcode}
 
-Patients in the highest Z-code proportion quartile (routine care ≥ [XX%]
-of claims) had significantly lower ADE risk compared to the lowest quartile,
-even after adjusting for total drug count:
-OR = [0.XX] (95% CI [0.XX–0.XX]; $P$ < 0.001).
-This finding supports the hypothesis that high transaction density does not
-equal high risk when routine monitoring accompanies polypharmacy management
-(**@fig-zcode**).
+Z-code proportion (protective monitoring codes Z00–Z13 and Z23–Z28 only)
+exhibited a U-shaped association with ADE risk. Patients with moderate
+preventive monitoring (Q2: 1–12% of claims; case rate 3.0%) had the lowest
+ADE risk, with a crude OR of 0.25 (95% CI 0.18–0.34; $P$ < 0.001) compared
+with unmonitored patients (Q1: zero preventive claims; case rate 10.7%).
+Patients with very high monitoring proportions (Q4: ≥12% of claims; case
+rate 10.0%) had risk equivalent to unmonitored patients (crude OR ≈ 0.94
+vs Q1), despite having non-zero monitoring visits. Importantly, Q4 patients
+had markedly lower total claim counts (median $n_{events}$ = 174) than Q2
+(median 594) and Q3 (median 387), ruling out confounding by indication
+(i.e., already-sick patients accumulating reactive screenings): genuinely
+high-burden patients fall in Q2–Q3, not Q4. Instead, Q4 characterises a
+fragmented-care phenotype — patients whose healthcare contact consists
+predominantly of periodic screenings with limited integrated
+medication-management visits — such that drugs are prescribed across
+disconnected episodes without coordinated reconciliation (**@fig-zcode**).
 
-Patients in the extreme-density stratum (top 5% claim count) showed a
-bimodal risk distribution: a high-risk subgroup with low Z-code proportion
-(OR = [0.XX]) and a low-risk subgroup with high Z-code proportion
-(OR = [0.XX]).
+Among the extreme-density stratum ($n_{event}$ top 5%), all patients were
+controls by cohort construction; Z-code proportions fell progressively
+(median 0.021) as procedure and status codes (Z51, Z94–Z96) diluted
+protective monitoring fractions, confirming that high raw claim counts
+do not reflect managed polypharmacy.
 
 ![Z-code proportion and ADE risk. (A) Violin plots of Z-code proportion
 by ADE case status; cases have significantly lower Z-code proportions

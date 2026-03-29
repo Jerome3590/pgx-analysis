@@ -199,9 +199,12 @@ def _extract_feature_schema_duckdb(data_path: Path, data_format: str) -> Dict[st
     Returns feature_names, defaults (medians), patient_bucket_thresholds, n_samples.
     Path is passed as parameter to avoid injection; table/source is our own path.
     """
-    # Align with run_final_model.py _EXCLUDE_FROM_FEATURES: n_event_bin is a string label for per-bin
-    # filtering; only n_event_bin_ordinal is used as a model feature.
-    exclude_cols = {"mi_person_key", "target", "event_year", "cohort_name", "age_band", "n_event_bin"}
+    # Align with run_final_model.py _EXCLUDE_FROM_FEATURES:
+    # - n_event_bin: string label for per-bin routing, not a model input
+    # - n_events: continuous claim count excluded post-refactor; per-bin routing already
+    #   stratifies by density, and n_events dominates splits → per-drug Δp̂ ≈ 0
+    #   n_event_bin_ordinal (0-3) is the retained density signal
+    exclude_cols = {"mi_person_key", "target", "event_year", "cohort_name", "age_band", "n_event_bin", "n_events"}
     path_str = str(data_path.resolve())
 
     con = duckdb.connect(":memory:")

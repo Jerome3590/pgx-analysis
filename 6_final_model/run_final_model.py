@@ -1817,7 +1817,10 @@ def train_and_evaluate(
     # Separate features and label.
     # n_event_bin is a string label used for per-bin filtering; n_event_bin_ordinal is the
     # numeric model feature (0=low, 1=medium, 2=high, 3=extreme).
-    _EXCLUDE_FROM_FEATURES = {"mi_person_key", "target", "n_event_bin"}
+    # n_events (continuous claim count) is excluded: the per-bin routing already stratifies
+    # by density, and keeping n_events as a continuous feature dominates gradient-boosted
+    # splits so that individual drug/ICD/CPT codes cannot produce meaningful counterfactuals.
+    _EXCLUDE_FROM_FEATURES = {"mi_person_key", "target", "n_event_bin", "n_events"}
     feature_cols: List[str] = [
         c for c in df.columns if c not in _EXCLUDE_FROM_FEATURES
     ]

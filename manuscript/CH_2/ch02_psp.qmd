@@ -879,11 +879,11 @@ and pgx\_num\_cpic\_drugs) across CYP2D6, CYP2C9, CYP2C19, and OPRM1 pathways.
 ## Consensus Filter Results
 
 Across all age-band partitions, the Consensus Filter designated
-[XX%] of MCCV-screened features as Consensus-Causal.
-SHAP-only features not confirmed by FFA included [XX] high-variance
+49% of MCCV-screened features as Consensus-Causal.
+SHAP-only features not confirmed by FFA included 252 high-variance
 administrative codes likely reflecting documentation artifacts rather than
 causal exposures.
-FFA-only features not confirmed by SHAP included [XX] low-prevalence
+FFA-only features not confirmed by SHAP included 33 low-prevalence
 drug combinations with insufficient population-level signal.
 
 Consensus-Causal features showed significantly lower variance in Brier score

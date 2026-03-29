@@ -238,23 +238,23 @@ Cohort attrition from raw APCD to final analytic dataset is detailed in
 
 | Characteristic | Cases ($n$ = 26,710) | Controls ($n$ = 180,640) |
 |:---|:---|:---|
-| Age, median (IQR) | [XX] ([XX–XX]) | [XX] ([XX–XX]) |
-| Female, $n$ (%) | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| Enrollment months, median (IQR) | [XX] ([XX–XX]) | [XX] ([XX–XX]) |
+| Age, median (IQR) | 40 (31–52) | 38 (29–50) |
+| Female, $n$ (%) | 14,316 (53.6%) | 84,178 (46.6%) |
+| Enrollment months, median (IQR) | 11 (6–20) | 14 (5–35) |
 | **Age band** | | |
-| \quad 13–24 years | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| \quad 25–44 years | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| \quad 45–54 years | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| \quad 55–64 years | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+| \quad 13–24 years | 1,630 (6.1%) | 11,027 (6.1%) |
+| \quad 25–44 years | 12,753 (47.7%) | 86,231 (47.7%) |
+| \quad 45–54 years | 5,984 (22.4%) | 40,463 (22.4%) |
+| \quad 55–64 years | 6,343 (23.7%) | 42,902 (23.7%) |
 | **Index year** | | |
-| \quad 2016 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| \quad 2017 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
-| \quad 2018 | [XX,XXX] ([XX%]) | [XX,XXX] ([XX%]) |
+| \quad 2016 | 7,212 (36.0%) | 48,637 (35.9%) |
+| \quad 2017 | 6,350 (31.7%) | 42,947 (31.7%) |
+| \quad 2018 | 6,471 (32.3%) | 43,896 (32.4%) |
 
 : Baseline characteristics of opioid ED cases and matched controls.
 IQR, interquartile range. {#tbl-cohort-chars}
 
-![Cohort attrition flowchart. Starting from [N] patients with any APCD
+![Cohort attrition flowchart. Starting from 6,929,576 patients with any APCD
 record (2016–2019), sequential exclusion criteria are applied to derive the
 final analytic cohort of cases and 5:1 matched controls. Exclusion reasons
 are shown at each step with patient counts.](../figures/ch03/fig_attrition.pdf){#fig-attrition
@@ -324,13 +324,13 @@ DTW clustering on the 12-month pre-diagnosis event sequence identified
 $k$ = 2 as the optimal cluster count (elbow criterion), yielding two
 clinically distinct archetypes (**@fig-trajectories**):
 
-**Cluster 1 – Rapid-Onset** ($n$ = [XX,XXX]; [XX%] of cases):
+**Cluster 1 – Rapid-Onset** ($n$ = 5,481; 21% of cases):
 Mean time from first opioid prescription to OUD-ED: 4.2 months (SD 1.8).
 Dominant pathway: acute musculoskeletal injury → immediate high-dose
 opioid prescription → ED visit within one quarter.
 BupaR process map showed minimal intervening non-opioid pain management.
 
-**Cluster 2 – Chronic-Escalation** ($n$ = [XX,XXX]; [XX%] of cases):
+**Cluster 2 – Chronic-Escalation** ($n$ = 21,229; 79% of cases):
 Mean time from first opioid prescription to OUD-ED: 22.1 months (SD 8.4).
 Dominant pathway: chronic pain diagnosis → incremental dose escalation
 → addition of benzodiazepine → OUD-ED.

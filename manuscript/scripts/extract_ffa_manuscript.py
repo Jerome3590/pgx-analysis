@@ -34,8 +34,8 @@ def top_features(df, n=10, label_col="feature", score_col="causal_responsibility
 
 
 configs = {
-    "non_opioid_ed": ["65_74", "75_84", "85_114"],
-    "opioid_ed":     ["13_24", "25_44", "45_54", "55_64"],
+    "opioid_ed":     ["0_12", "13_24", "25_44", "45_54", "55_64", "65_74", "75_84", "85_114"],
+    "non_opioid_ed": ["0_12", "13_24", "25_44", "45_54", "55_64", "65_74", "75_84", "85_114"],
 }
 
 results = {}
