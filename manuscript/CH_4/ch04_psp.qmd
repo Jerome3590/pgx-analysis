@@ -336,19 +336,50 @@ attribution); values are normalized by the population-level case prevalence.
 
 ## Statistical Analysis
 
-Pairwise interaction effects (IE) and confidence intervals were estimated
-by bootstrap resampling (1,000 draws with replacement) of the 2019 holdout
-set, with the IE formula applied to each bootstrap sample independently.
-Synergistic pairs were designated at IE > 0 with a 95% CI lower bound > 0
-after Bonferroni correction for the number of pre-filtered candidate pairs
-(n = 1,081 pairs from the top-47 drug features).
+**Performance metrics** on the 2019 holdout were computed independently
+for each age-band–bin model and aggregated across bins by sample-size
+weighting.
 
-Z-code proportion quartile comparisons used Kruskal-Wallis tests with
-post-hoc Dunn's test for pairwise comparisons, with Bonferroni correction.
-Adjusted odds ratios (ORs) with 95% CIs were computed via logistic regression
-with age band, sex, and 30-day drug count as covariates.
-All analyses were performed in Python 3.11 (scipy v1.11; statsmodels v0.14);
-significance level α = 0.05.
+- **PR-AUC** was the primary discrimination metric.
+  For the polypharmacy cohort (case prevalence 3.5–6.8%), PR-AUC is
+  more informative than AUROC because the large control-to-case ratio
+  makes AUROC insensitive to false-positive rate changes that matter
+  clinically in screening contexts.
+- **AUROC** was reported as a secondary metric for cross-study
+  comparability.
+- **Recall** at the F₁-optimal threshold (derived from training partition
+  only) quantifies sensitivity at the operating point most relevant to
+  pharmacist-driven medication reconciliation workflows.
+- **Brier Score** and **ICI** (LOESS-estimated mean absolute calibration
+  deviation across decile bins) assessed probability calibration quality.
+  Both are required for clinical risk-score deployment: a model with
+  AUROC = 0.99 but ICI = 0.40 produces risk probabilities unsuitable
+  for direct clinical interpretation.
+
+Individual model probabilities were Platt-scaled prior to ensemble
+weighting to correct for gradient-boosting overconfidence on the
+imbalanced case-control sample.
+
+**Interaction effect (IE) estimation**: Pairwise and triplet IEs were
+estimated by bootstrap resampling (1,000 draws with replacement) of the
+2019 holdout, with the counterfactual probability formula applied
+independently per bootstrap draw.
+Synergistic pairs were designated at IE > 0 with 95% CI lower bound > 0
+after Bonferroni correction for the 1,081 pre-filtered candidate pairs
+(top-47 drug features by MCCV recall rank).
+
+**Z-code analysis**: Z-code proportion quartile comparisons used
+Kruskal-Wallis tests with post-hoc Dunn’s test for pairwise comparisons
+(Bonferroni-corrected).
+Adjusted ORs with 95% Wald CIs were computed via logistic regression
+with age band (fixed strata), sex, and 30-day drug count as covariates.
+
+**IR score consistency**: Spearman rank correlation (ρ) across the three
+geriatric age bands was used to assess generalizability of the
+deprescribing priority list across the geriatric age spectrum.
+
+All statistical analyses were performed in Python 3.11
+(scipy v1.11; statsmodels v0.14; scikit-learn v1.3); α = 0.05.
 
 # Results {#sec-results}
 
