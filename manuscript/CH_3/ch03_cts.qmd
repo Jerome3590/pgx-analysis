@@ -430,22 +430,52 @@ claims-based (genotype-imputed) analysis [@Crews2021].
 ## Trajectory-Informed Intervention
 
 The two DTW archetypes require different intervention strategies.
-Rapid-Onset patients require immediate post-acute care protocols: opioid
-alternative pathways, mandatory physical therapy, and early PDMP
-consultation [@Prescription2019].
-Chronic-Escalation patients present ≥18 months of intervention windows;
-≥3 missed non-opioid care opportunities in this cluster demand systematic
-care coordination tools.
+Rapid-Onset patients (21% of opioid ED cases; 4.2-month trajectory)
+require immediate post-acute care protocols: opioid alternative pathways,
+mandatory physical therapy referral within 30 days of first opioid
+prescription, and early PDMP consultation [@Prescription2019].
+The 4.2-month median trajectory is substantially shorter than the
+12-month monitoring window assumed by most opioid prescribing guidelines,
+suggesting that these patients deteriorate faster than current clinical
+protocols are designed to detect.
+
+Chronic-Escalation patients (79% of cases; 22.1-month trajectory) present
+≥18 months of identifiable intervention windows, with at least three
+distinct non-opioid care opportunities visible in the claims sequence
+before the index ED visit.
+Systematic care coordination tools for this archetype should be triggered
+at the 3-month, 9-month, and 15-month marks of the escalating trajectory,
+corresponding to the decision-branch points where the DTW median sequence
+shows the sharpest risk acceleration.
+Terranova and Venkatakrishnan [@Terranova2024] demonstrate that ML
+trajectory modeling in clinical pharmacology can identify model-informed
+precision medicine intervention windows that are not apparent from
+cross-sectional risk scores; the DTW archetypes in this study operationalize
+this approach specifically for the opioid epidemic context.
 
 ## Limitations
 
-Key limitations: (1) Claims data do not capture cash-pay prescriptions or
-illicit opioid use, likely underestimating true exposure [@Lo-Ciganic2019];
-(2) PGx features are imputed from drug-gene interaction databases, not
-measured genotypes; (3) the 5:1 case-control design may not reflect
-population-level risk distribution; (4) findings are from a single state
-APCD and may not generalize across states with different prescribing
-regulations.
+Several limitations merit discussion.
+First, claims data do not capture cash-pay prescriptions, illicit opioid
+use, or over-the-counter medications, likely underestimating true opioid
+exposure---particularly in the 13--24 age band [@Lo-Ciganic2019].
+Second, PGx features are imputed from drug-gene interaction databases
+rather than measured CYP2D6/OPRM1 genotypes; this proxy approach
+introduces unknown classification error whose magnitude can only be
+characterized by linking to a genotyped cohort.
+Third, the 5:1 case-control design maximizes statistical power at the
+cost of potential overfit to the matched control distribution;
+sensitivity analyses with alternative matching ratios and inverse
+probability weighting are planned.
+Fourth, the DTW distance computation was performed on a 2,000-patient
+stratified sample rather than the full training cohort for computational
+feasibility; while bootstrap stability analyses confirm the two-archetype
+solution is robust (ARI > 0.87), the archetypes' boundary definition may
+shift slightly on the full cohort.
+Fifth, these findings are from a single-state Virginia APCD;
+external validation on a second-state APCD is required before
+national policy generalization, as prescribing regulations, formulary
+structures, and Medicaid expansion status vary substantially by state.
 
 # Conclusions {#sec-conclusions}
 

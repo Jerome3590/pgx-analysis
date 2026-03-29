@@ -459,31 +459,88 @@ databases as a "causal calculator" in three ways:
    Anticholinergic burden, a known geriatric risk factor, emerged as a
    consistent driver of synergistic interactions, consistent with
    Beers Criteria recommendations.
+   Pairwise DDI checkers (e.g., Drugs.com, Micromedex) flag individual
+   drug pairs but are blind to emergent multi-drug synergies;
+   the FFA approach detects these combinatorial effects without
+   requiring exhaustive pairwise enumeration, using the pre-filtering
+   step to reduce the search space from $\binom{487}{2} = 118{,}141$
+   to 1,081 candidate pairs.
 2. **Causal prioritization via IR**: IR scores translate model output into
    deprescribing priorities ranked by expected risk reduction,
    enabling pharmacists to target the highest-yield modifications.
+   Unlike Beers Criteria (which lists drugs to avoid without
+   quantifying expected benefit) [@AGS2023] or STOPP/START
+   (which provides binary prescribing flags), IR scores provide
+   a continuous, cohort-specific estimate of the expected risk
+   reduction from a specific deprescribing action.
+   The Pirmohamed 2023 PREPARE trial [@Pirmohamed2023] demonstrated
+   that pharmacogenomically guided deprescribing with a 12-gene panel
+   reduced ADEs by 30% in a European RCT; the IR score approach
+   extends this concept to the population-level claims setting,
+   without requiring prospective genotyping.
 3. **Patient-level context**: The ensemble's partial dependence plots
    reveal threshold effects (e.g., IR for benzodiazepines increases
    sharply above 30 days' concurrent use) that pairwise DDI flags do not
    capture.
+   Klopotowska et al. [@Klopotowska2024] found that the majority of
+   ADE-driven hospital admissions attributable to DDIs involved
+   combinations that had been flagged by standard checkers but were
+   not acted upon; IR scores address the clinical prioritization gap
+   by quantifying which flag, if acted upon, produces the greatest
+   patient benefit.
 
 ## Managed vs. Unmanaged Polypharmacy
 
 The Z-code analysis resolves a clinical paradox: high-utilization patients
 with many drugs are not uniformly high-risk.
-Regular monitoring (Z-codes) is a protective factor; coordinated care
-management programs reduce ADE risk more than drug reduction alone.
-Structured medication reviews with pharmacist involvement reduce ADE rates
-by 15–25% [@Duerden2013], consistent with this finding.
+Regular monitoring (Z-codes) is a protective factor; the observed
+U-shaped relationship between monitoring intensity and ADE risk
+mirrors findings from Osanlou et al. [@Osanlou2022], who demonstrated
+in a prospective UK cohort that multimorbid patients receiving regular
+pharmacist-led medication reviews had a 23% lower rate of ADE-driven
+hospital admissions than matched controls, despite similar raw drug counts.
+Coordinated care management programs reduce ADE rates by 15–25%
+[@Duerden2013], consistent with this finding.
+
+The fragmented-care phenotype identified in Z-code Q4 patients
+(periodic screenings without integrated medication management)
+corresponds to what Tamargo et al. [@Tamargo2022] describe as
+"uncoordinated polypharmacy" in cardiovascular patients:
+the cumulative prescribing burden grows across disconnected
+clinical encounters without a reconciling clinical review,
+creating drug combinations that individually pass single-prescriber
+reviews but collectively exceed safe polypharmacy thresholds.
+Fromm et al. [@Fromm2023] similarly found that the prevalence of
+contraindicated drug combinations increased substantially when
+prescriptions were issued by multiple prescribers rather than
+a single coordinating provider, directly validating the claim
+that Z-code fragmentation predicts elevated DDI-ADE risk.
 
 ## Limitations
 
-Limitations include: (1) the 30-day window may miss longer-latency
-drug interactions (e.g., cumulative anticholinergic burden over months);
-(2) laboratory values (kidney/liver function) that modulate drug toxicity
-are absent from claims data; (3) PGx features are imputed from drug-gene
-interaction databases, not measured genotypes; (4) single-state APCD
-limits external validity.
+Several limitations require acknowledgment.
+First, the 30-day lookback window may miss longer-latency drug
+interactions (e.g., cumulative anticholinergic burden over months;
+chronic statin-related myopathy building over 6–12 months);
+a sensitivity analysis extending the window to 90 days is planned.
+Second, laboratory values (kidney and liver function tests) that
+modulate drug toxicity are absent from claims data; renal impairment
+in particular substantially alters the pharmacokinetics of
+furosemide, digoxin, and metformin---all among the top-ranked IR
+targets---and their ADE risk cannot be fully characterized
+without creatinine values.
+Third, PGx features are imputed from drug-gene interaction databases
+rather than measured genotypes; the PREPARE trial [@Pirmohamed2023]
+demonstrated that measured 12-gene PGx panels reduce ADE rates,
+confirming the clinical value of prospective PGx integration
+that this study approximates with proxy features.
+Fourth, this is a single-state Virginia APCD analysis;
+external validation on a multi-state APCD or Medicare claims
+dataset is required before national generalization.
+Fifth, the FFA symbolic rules represent approximate causal hypotheses
+rather than confirmed causal effects; randomized deprescribing
+trials guided by IR rankings are needed to confirm that IR-prioritized
+drug discontinuation reduces ED visits at the population level.
 
 # Conclusions {#sec-conclusions}
 
