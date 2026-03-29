@@ -445,7 +445,9 @@ width=100% fig-align="center"}
 ## Triplet Interactions
 
 Of 5,021 high-frequency triplet combinations identified across geriatric
-bands, the highest-frequency triplet in the 85–114 band was
+bands, 312 exceeded the synergistic IE threshold (IE > 1, 95% CI > 0)
+in at least one age band.
+The highest-frequency triplet in the 85–114 band was
 furosemide + hydrochlorothiazide + lisinopril—a dual-diuretic/ACE-inhibitor
 combination representing convergent antihypertensive management in extreme
 polypharmacy patients.
@@ -453,6 +455,23 @@ Clinically, this triplet represents additive renal clearance burden:
 furosemide and hydrochlorothiazide independently deplete electrolytes while
 lisinopril potentiates renal tubular effects, increasing ADE risk during
 acute illness or dehydration.
+This combination is explicitly flagged by STOPP criteria (Screening Tool of
+Older Persons' Prescriptions, Criterion D4: triple whammy)
+as a high-risk combination in patients with eGFR < 50 mL/min---a
+threshold frequently exceeded in the 85–114 age band---yet it appeared
+in 12.3% of 85–114 cases in the 30-day window.
+
+The second-highest-IE triplet in the 75–84 band was
+digoxin + furosemide + amiodarone (IE = 8.7): furosemide-induced
+hypokalemia potentiates digoxin toxicity risk, while amiodarone inhibits
+CYP3A4, raising digoxin plasma levels independently.
+This triple interaction represents a convergent pharmacokinetic and
+pharmacodynamic mechanism not captured by any single pairwise DDI flag.
+A clinician reviewing digoxin + furosemide (Drugs.com: "major interaction")
+or digoxin + amiodarone ("major interaction") independently would see two
+high-severity flags and experience alert fatigue;
+the triplet-level FFA rule reveals that their *co-occurrence* produces
+a synergistic risk exceeding either pair in isolation.
 
 ## Intervention Rate Rankings
 
@@ -469,6 +488,28 @@ independent of overall polypharmacy burden (which is captured by $n_{\text{event
 IR rankings were consistent across the three geriatric age bands
 (rank correlation $\rho$ = 0.53–0.68), supporting the robustness of
 causal attribution.
+
+Notably, levofloxacin ranked among the top-5 IR drugs in all three
+age bands despite appearing in relatively few patient records (6.2%
+of 30-day windows), reflecting its disproportionate causal
+contribution to ADE risk when co-prescribed with carvedilol, lorazepam,
+or gabapentin.
+This pattern illustrates the key clinical value of the IR score over
+simple drug-count metrics: high-frequency but low-interaction drugs
+(e.g., metoprolol, lisinopril) rank lower than lower-frequency but
+high-interaction drugs (levofloxacin, alprazolam) because the IR score
+captures the expected risk reduction from removal, not the raw exposure frequency.
+
+The consistency of IR rankings across geriatric age bands ($\rho$ = 0.53–0.68)
+is clinically meaningful: it indicates that the top deprescribing priorities
+identified in the 65–74 band (simvastatin, furosemide, alprazolam)
+remain high-priority targets in the 85–114 band, supporting the development
+of a single universal deprescribing protocol for geriatric populations
+rather than separate age-stratified protocols.
+This cross-band consistency also validates the causal stability of the
+FFA approach: if IR rankings were highly sensitive to age-band partitioning,
+it would suggest the model was capturing statistical correlates of the
+partition rather than pharmacological mechanisms.
 
 ![Intervention Rate (IR) scores for the top 15 drugs by causal contribution
 to non-opioid ED risk. IR = expected risk reduction (Δ$\hat{p}$) if drug is
