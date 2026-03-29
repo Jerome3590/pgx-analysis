@@ -280,7 +280,7 @@ Raw data were provided in fixed-width text format and staged into a Bronze
 
 ```{tikz}
 %| label: fig-architecture
-%| fig-cap: "Partition-first data lake and parallel processing architecture. Bronze layer: raw APCD text ingestion and Parquet conversion to AWS S3. Silver layer: demographic imputation and ICD/NDC code standardization. Gold layer: cohort construction. Data are partitioned by Age Band $\\times$ Year (21 partitions); each partition is processed by an independent DuckDB worker on a dedicated AWS EC2 instance. Feature matrices feed the ensemble model training pipeline (CatBoost, XGBoost, XGBoost-RF). S3 checkpointing enables fault-tolerant partition recovery. FAERS pharmacovigilance signals inform cohort labeling (dashed)."
+%| fig-cap: "Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed)."
 %| fig-align: center
 %| out-width: 100%
 %| echo: false
@@ -291,61 +291,94 @@ Raw data were provided in fixed-width text format and staged into a Bronze
   >= Stealth,
   every node/.style = {font=\footnotesize},
   block/.style = {draw, rectangle, rounded corners=2pt, fill=white,
-                  minimum width=2.0cm, minimum height=0.65cm,
+                  minimum width=1.75cm, minimum height=0.62cm,
                   align=center, inner sep=4pt},
-  arr/.style   = {-Stealth, semithick},
-  darr/.style  = {-Stealth, dashed, gray, semithick},
+  arr/.style  = {-Stealth, semithick},
+  darr/.style = {-Stealth, dashed, gray, semithick},
+  zlbl/.style = {font=\tiny\bfseries},
 ]
 
-%% ── DATA LAKE TIERS (horizontal, y=4) ──────────────────────────────────────
-\node[block, fill=blue!10,     draw=blue!50]          (apcd)   at (0,   4) {APCD Raw\\Files (10 TB+)};
-\node[block, fill=orange!22,   draw=orange!65]         (bronze) at (3,   4) {\textbf{Bronze}\\Parquet $\cdot$ S3};
-\node[block, fill=gray!18,     draw=gray!55]           (silver) at (6,   4) {\textbf{Silver}\\Impute $\cdot$ Std.};
-\node[block, fill=yellow!28,   draw=yellow!60!black]   (gold)   at (9,   4) {\textbf{Gold}\\Cohort Construct};
-\node[block, fill=blue!8,      draw=blue!35]           (faers)  at (0,   3) {FAERS\\Pharmacovigil.};
-
-\draw[arr]  (apcd)   -- (bronze);
-\draw[arr]  (bronze) -- (silver);
-\draw[arr]  (silver) -- (gold);
-\draw[darr] (faers.east) -- ++(0.6,0) |- (gold.south);
-
-%% ── PARTITIONS (y=2) ────────────────────────────────────────────────────────
-\node[block, fill=purple!12, draw=purple!50,
-      minimum width=3.2cm] (part) at (9, 2) {Age Band $\times$ Year\\21 Partitions};
-
-\draw[arr] (gold.south) -- (part.north);
-
-%% S3 checkpoint annotation
-\draw[darr] (bronze.south) -- ++(0,-0.35)
-            node[right, font=\tiny, gray, xshift=2pt] {S3 checkpoint / recovery}
-            -- ++(0,-0.3);
-
-%% ── PARALLEL WORKERS (y=0.5, EC2 boundary) ──────────────────────────────────
-\node[block, fill=green!12, draw=green!50] (w1) at (5.5, 0.5) {W$_1$\\DuckDB};
-\node[block, fill=green!12, draw=green!50] (w2) at (7.5, 0.5) {W$_2$\\DuckDB};
-\node[block, fill=green!12, draw=green!50] (w3) at (9.5, 0.5) {$\cdots$};
-\node[block, fill=green!12, draw=green!50] (wn) at (11.5, 0.5) {W$_n$\\DuckDB};
-
+%% ── 1  DATA SOURCES ──────────────────────────────────────────────────────────
+\node[block, fill=blue!15, draw=blue!55] (med)   at (0, 4.6) {Medical\\Claims};
+\node[block, fill=blue!15, draw=blue!55] (pharm) at (0, 3.4) {Pharmacy\\Claims};
+\node[block, fill=blue!8,  draw=blue!35] (faers) at (0, 2.2) {FAERS\\Pharmacovigil.};
 \begin{scope}[on background layer]
-  \node[draw=orange!55, fill=orange!4, dashed, rounded corners=5pt, inner sep=7pt,
-        fit=(w1)(wn),
-        label={[font=\tiny, orange!70!black]above:AWS EC2 (c5.18xlarge $\cdot$ 72 vCPUs $\cdot$ 144 GB RAM)}]
-        (ec2) {};
+  \node[draw=blue!40, fill=blue!4, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(med)(faers), label={[zlbl]above:\textcircled{1} Data Sources}] (z1) {};
 \end{scope}
 
-\draw[arr] (part.south) -- ++(0,-0.35) -| (w1.north);
-\draw[arr] (part.south) -- ++(0,-0.35) -| (w2.north);
-\draw[arr] (part.south) -- ++(0,-0.35) -| (wn.north);
+%% ── 2  INGESTION ─────────────────────────────────────────────────────────────
+\node[block, fill=blue!10, draw=blue!40] (upload) at (2.5, 3.9) {Direct\\Upload};
+\begin{scope}[on background layer]
+  \node[draw=blue!30, fill=blue!3, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(upload), label={[zlbl]above:\textcircled{2} Ingestion}] (z2) {};
+\end{scope}
 
-%% ── OUTPUT TIER (y=-1.2) ─────────────────────────────────────────────────────
-\node[block, fill=pink!15, draw=red!40,
-      minimum width=3.0cm] (feat) at (10, -1.2) {Feature Matrices\\(per partition)};
-\node[block, fill=red!10, draw=red!50,
-      minimum width=3.8cm] (ens)  at (5,  -1.2) {\textbf{Ensemble}\\CatBoost $\cdot$ XGBoost $\cdot$ XGBoost-RF};
+%% ── 3  BRONZE ZONE ───────────────────────────────────────────────────────────
+\node[block, fill=orange!22, draw=orange!65] (s3raw)   at (5.0, 4.6) {S3 Raw\\(Bronze)};
+\node[block, fill=orange!12, draw=orange!45] (glacier) at (5.0, 3.4) {S3 Glacier\\Archive};
+\begin{scope}[on background layer]
+  \node[draw=orange!55, fill=orange!5, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(s3raw)(glacier), label={[zlbl]above:\textcircled{3} Bronze Zone}] (z3) {};
+\end{scope}
 
-\draw[arr] (w1.south) |- (feat.west);
-\draw[arr] (wn.south) |- (feat.east);
-\draw[arr] (feat) -- (ens);
+%% ── 4  CATALOG ───────────────────────────────────────────────────────────────
+\node[block, fill=purple!12, draw=purple!50] (glue1) at (7.5, 3.9) {AWS Glue\\Crawler};
+\begin{scope}[on background layer]
+  \node[draw=purple!40, fill=purple!4, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(glue1), label={[zlbl]above:\textcircled{4} Catalog}] (z4) {};
+\end{scope}
+
+%% ── 5  TRANSFORM (EC2 + DuckDB) ──────────────────────────────────────────────
+\node[block, fill=orange!20, draw=orange!60,
+      minimum width=2.1cm] (ec2t)  at (10.0, 4.6) {EC2 Spot\\Instance};
+\node[block, fill=yellow!25, draw=yellow!60!black,
+      minimum width=2.1cm] (duck)  at (10.0, 3.4) {DuckDB\\Steps 1--14};
+\begin{scope}[on background layer]
+  \node[draw=orange!55, fill=orange!4, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(ec2t)(duck), label={[zlbl]above:\textcircled{5} Transform}] (z5) {};
+\end{scope}
+
+%% ── 6  SILVER ZONE ───────────────────────────────────────────────────────────
+\node[block, fill=gray!18, draw=gray!55,
+      minimum width=2.0cm] (s3ck) at (12.6, 3.9) {S3\\Checkpoints};
+\begin{scope}[on background layer]
+  \node[draw=gray!50, fill=gray!5, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(s3ck), label={[zlbl]above:\textcircled{6} Silver Zone}] (z6) {};
+\end{scope}
+
+%% ── 7  GOLD ZONE ─────────────────────────────────────────────────────────────
+\node[block, fill=purple!12, draw=purple!50] (glue2)  at (15.2, 4.6) {AWS Glue\\Crawler};
+\node[block, fill=yellow!28, draw=yellow!60!black,
+      minimum width=2.1cm] (s3gold) at (15.2, 3.4) {S3 Curated\\Age Bd $\times$ Year};
+\begin{scope}[on background layer]
+  \node[draw=yellow!65!black, fill=yellow!6, dashed, rounded corners=4pt, inner sep=6pt,
+        fit=(glue2)(s3gold), label={[zlbl, fill=yellow!25, inner sep=1pt,
+        rounded corners=2pt]above:\textcircled{7} Gold Zone}] (z7) {};
+\end{scope}
+
+%% ── ARROWS: main pipeline ─────────────────────────────────────────────────────
+\draw[arr] (med.east)    -- (upload.west |- med.east);
+\draw[arr] (pharm.east)  -- (upload.west |- pharm.east);
+\draw[darr](faers.east)  -- ++(0.5,0) |- (s3raw.west |- faers.east);
+\draw[arr] (upload.east) -- (s3raw.west |- upload.east);
+\draw[darr](s3raw.south) -- (glacier.north);
+\draw[arr] (s3raw.east)  -- (glue1.west |- s3raw.east);
+\draw[arr] (glue1.east)  -- (ec2t.west |- glue1.east);
+\draw[arr] (ec2t.east)   -- (s3ck.west |- ec2t.east);
+\draw[arr] (duck.east)   -- (s3ck.west |- duck.east);
+\draw[arr] (s3ck.east)   -- (glue2.west |- s3ck.east);
+\draw[arr] (glue2.south) -- (s3gold.north);
+
+%% ── GOVERNANCE BAR ───────────────────────────────────────────────────────────
+\node[block, fill=pink!15, draw=red!40]     (cw)   at (5.5,  1.5) {Amazon\\CloudWatch};
+\node[block, fill=orange!18, draw=orange!55](ec2g)  at (8.5,  1.5) {EC2 $\cdot$ DuckDB\\Observability};
+\node[block, fill=pink!12, draw=red!35]     (ct)   at (11.5, 1.5) {AWS\\CloudTrail};
+\begin{scope}[on background layer]
+  \node[draw=red!35, fill=red!3, dashed, rounded corners=4pt, inner sep=7pt,
+        fit=(cw)(ct),
+        label={[zlbl]above:\textcircled{7} Governance, Automation \& Security}] {};
+\end{scope}
 
 \end{tikzpicture}
 ```
@@ -618,13 +651,13 @@ simultaneously SHAP-positive and FFA-positive in the same partition.
 Intervention Rate (IR) quantified the expected change in $\hat{p}_{\text{ens}}$
 under counterfactual removal or substitution of each causal feature.
 
-The full Consensus Filter logic is illustrated in **@fig-filter**.
+The interactive analytics and deployment workflow is illustrated in **@fig-insights**.
 
 ```{tikz}
-%| label: fig-filter
-%| fig-cap: "Consensus Filter (SHAP $\\cap$ FFA) feature designation pipeline. MCCV-screened candidate features enter two independent analysis paths: SHAP TreeExplainer (distributional, mean $|\\phi_i|$ > 75th percentile) and Formal Feature Attribution (structural Boolean rules, confidence $\\geq$ 0.70, support $\\geq$ 0.05). A feature is designated Consensus-Causal only when confirmed by both methods simultaneously. SHAP-only and FFA-only features are excluded from the causal set. Intervention Rate (IR) scores rank Consensus-Causal features by expected risk reduction under counterfactual removal."
+%| label: fig-insights
+%| fig-cap: "Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team."
 %| fig-align: center
-%| out-width: 80%
+%| out-width: 100%
 %| echo: false
 
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
@@ -632,68 +665,110 @@ The full Consensus Filter logic is illustrated in **@fig-filter**.
 \begin{tikzpicture}[
   >= Stealth,
   every node/.style = {font=\footnotesize},
-  block/.style    = {draw, rectangle, rounded corners=2pt, fill=white,
-                     minimum width=2.4cm, minimum height=0.65cm,
-                     align=center, inner sep=4pt},
-  combnode/.style = {draw, diamond, aspect=2.8, fill=white,
-                     minimum width=3.0cm, minimum height=0.65cm, align=center},
+  block/.style = {draw, rectangle, rounded corners=2pt, fill=white,
+                  minimum width=2.0cm, minimum height=0.62cm,
+                  align=center, inner sep=4pt},
   arr/.style  = {-Stealth, semithick},
   darr/.style = {-Stealth, dashed, gray, semithick},
+  zlbl/.style = {font=\tiny\bfseries},
 ]
 
-%% ── INPUT ──────────────────────────────────────────────────────────────────
-\node[block, fill=blue!10, draw=blue!50,
-      minimum width=3.2cm] (pool) at (3.5, 8.5) {MCCV Feature Pool\\(50+ random splits)};
+%% ── 1  GOLD ZONE (S3 Data Lake) ──────────────────────────────────────────────
+\node[block, fill=yellow!25, draw=yellow!60!black] (g1) at (0.0, 6.0) {S3 Gold\\Opioid ED\\13--24};
+\node[block, fill=yellow!25, draw=yellow!60!black] (g2) at (2.2, 6.0) {S3 Gold\\Opioid ED\\25--44};
+\node[block, fill=yellow!20, draw=yellow!55!black] (g3) at (4.4, 6.0) {$\cdots$};
+\node[block, fill=yellow!25, draw=yellow!60!black] (g4) at (6.6, 6.0) {S3 Gold\\Non-Opioid\\65--94};
+\begin{scope}[on background layer]
+  \node[draw=yellow!65!black, fill=yellow!6, dashed, rounded corners=5pt, inner sep=8pt,
+        fit=(g1)(g4),
+        label={[zlbl, fill=yellow!20, inner sep=2pt, rounded corners=2pt]%
+               above:\textcircled{1} Gold Zone (S3 Data Lake --- Age Band $\times$ Year Partitions)}]
+        (zgold) {};
+\end{scope}
 
-%% ── DUAL ANALYSIS PATHS ────────────────────────────────────────────────────
-\node[block, fill=yellow!20, draw=yellow!60!black,
-      minimum width=2.6cm] (shap) at (1.0, 6.5)
-      {SHAP\\TreeExplainer\\mean $|\phi_i| >$ P75};
-
-\node[block, fill=yellow!20, draw=yellow!60!black,
-      minimum width=2.6cm] (ffa) at (6.0, 6.5)
-      {FFA\\Boolean Rules\\conf $\geq$ 0.70};
-
-%% Tee-split from pool
-\coordinate (split) at (3.5, 7.7);
-\draw[arr] (pool.south) -- (split);
-\draw[arr] (split) -| (shap.north);
-\draw[arr] (split) -| (ffa.north);
-
-%% ── REJECTED FEATURES (sides) ──────────────────────────────────────────────
-\node[block, fill=gray!14, draw=gray!50,
-      minimum width=2.2cm] (shaponly) at (0.0, 4.8)
-      {SHAP-only\\(excluded)};
-
-\node[block, fill=gray!14, draw=gray!50,
-      minimum width=2.2cm] (ffaonly) at (7.0, 4.8)
-      {FFA-only\\(excluded)};
-
-\draw[darr] (shap.west)  -- ++(-0.4,0) |- (shaponly.east);
-\draw[darr] (ffa.east)   -- ++(0.4,0)  |- (ffaonly.west);
-
-%% ── CONSENSUS INTERSECTION ─────────────────────────────────────────────────
-\node[combnode, fill=yellow!35, draw=yellow!60!black]
-      (cons) at (3.5, 5.0) {$\text{SHAP} \cap \text{FFA}$\\Consensus};
-
-\draw[arr] (shap.south) |- (cons.west);
-\draw[arr] (ffa.south)  |- (cons.east);
-
-%% ── OUTPUT ──────────────────────────────────────────────────────────────────
-\node[block, fill=green!15, draw=green!55,
-      minimum width=3.4cm] (causal) at (3.5, 3.2)
-      {\textbf{Consensus-Causal Features}\\confirmed by both methods};
-
+%% ── 2  AI/ML CUSTOM ANALYTICS ────────────────────────────────────────────────
+\node[block, fill=orange!20, draw=orange!60,
+      minimum width=2.2cm] (ec2a) at (0.5, 3.8) {EC2 Spot\\Instance\\DuckDB};
 \node[block, fill=red!10, draw=red!45,
-      minimum width=3.4cm] (ir) at (3.5, 1.8)
-      {Intervention Rate (IR)\\counterfactual deprescribing rank};
+      minimum width=2.4cm] (ml)   at (3.2, 3.8) {CatBoost $\cdot$ XGBoost\\Optuna Tuning\\MCCV 50+ splits};
+\node[block, fill=yellow!20, draw=yellow!60!black,
+      minimum width=2.2cm] (xai)  at (6.0, 3.8) {SHAP $\cdot$ FFA\\Consensus Filter\\IR Scores};
+\begin{scope}[on background layer]
+  \node[draw=orange!50, fill=orange!4, dashed, rounded corners=5pt, inner sep=8pt,
+        fit=(ec2a)(xai),
+        label={[zlbl]above:\textcircled{2} AI/ML Custom Analytics}] (zml) {};
+\end{scope}
 
-\draw[arr] (cons.south)   -- (causal.north);
-\draw[arr] (causal.south) -- (ir.north);
+%% ── 3  DATA SHARING (S3 + CloudFront) ────────────────────────────────────────
+\node[block, fill=yellow!18, draw=yellow!55!black] (s3fe)  at (9.5, 5.2) {S3\\Static Hosting\\(frontend)};
+\node[block, fill=purple!14, draw=purple!50]        (cfront) at (9.5, 3.8) {CloudFront\\CDN $\cdot$ HTTPS};
+\begin{scope}[on background layer]
+  \node[draw=purple!45, fill=purple!4, dashed, rounded corners=5pt, inner sep=8pt,
+        fit=(s3fe)(cfront),
+        label={[zlbl]above:\textcircled{3} Data Sharing (S3 $+$ CloudFront)}] (zds) {};
+\end{scope}
 
-%% ── LEGEND ───────────────────────────────────────────────────────────────────
-\node[font=\tiny, gray, align=left] at (8.2, 3.0)
-      {$\bullet$ SHAP: distributional\\$\bullet$ FFA: structural\\$\bullet$ IR: causal rank};
+%% ── 4  CI/CD PIPELINE ────────────────────────────────────────────────────────
+\node[block, fill=gray!16, draw=gray!55]            (gh)  at (0.5, 1.5) {GitHub\\Actions};
+\node[block, fill=orange!18, draw=orange!55]         (lam) at (3.2, 1.5) {$\lambda$ Lambda\\Container\\(model deploy)};
+\begin{scope}[on background layer]
+  \node[draw=gray!50, fill=gray!5, dashed, rounded corners=5pt, inner sep=8pt,
+        fit=(gh)(lam),
+        label={[zlbl]above:\textcircled{4} CI/CD Pipeline}] (zci) {};
+\end{scope}
+
+%% ── 5  COLLABORATION ─────────────────────────────────────────────────────────
+\node[block, fill=blue!10, draw=blue!45,
+      minimum width=2.2cm] (jup)  at (6.5, 1.5) {Jupyter\\Notebook\\(Python $\cdot$ R)};
+\node[block, fill=green!12, draw=green!50,
+      minimum width=2.2cm] (bupar) at (9.5, 1.5) {BupaR\\FP-Growth\\Exploratory};
+\begin{scope}[on background layer]
+  \node[draw=blue!40, fill=blue!4, dashed, rounded corners=5pt, inner sep=8pt,
+        fit=(jup)(bupar),
+        label={[zlbl]above:\textcircled{5} Collaboration}] (zcol) {};
+\end{scope}
+
+%% ── ARROWS ───────────────────────────────────────────────────────────────────
+%% Gold → AI/ML
+\draw[arr] (g1.south) |- (ec2a.north);
+\draw[arr] (g4.south) |- (xai.north);
+%% AI/ML internal
+\draw[arr] (ec2a) -- (ml);
+\draw[arr] (ml)   -- (xai);
+%% Gold → S3 frontend
+\draw[arr] (zgold.east) -- ++(0.3,0) |- (s3fe.west);
+%% S3 → CloudFront
+\draw[arr] (s3fe.south) -- (cfront.north);
+%% AI/ML → CI/CD
+\draw[arr] (ml.south) -- (lam.north);
+\draw[arr] (ec2a.south) -- (gh.north);
+%% CI/CD → CloudFront (model artifact)
+\draw[arr] (lam.east) -- ++(0.4,0) |- (cfront.south);
+%% Collaboration
+\draw[arr] (xai.south) |- (jup.north);
+\draw[arr] (jup) -- (bupar);
+%% CloudFront → Clinician (outside)
+\draw[arr] (cfront.east) -- ++(0.5,0)
+           node[right, font=\tiny\bfseries, green!60!black] {Clinician\\Browser};
+
+%% ── COST / PERFORMANCE CALLOUTS ──────────────────────────────────────────────
+%% Callout 1: EMR → EC2 + DuckDB
+\node[draw=red!55, fill=red!6, rounded corners=3pt,
+      font=\tiny, align=left, inner sep=4pt,
+      text width=3.2cm] (c1) at (0.5, -0.4)
+      {\textbf{\textcolor{red!70!black}{Cost improvement}}\\
+       AWS EMR Studio Lab\\$\rightarrow$ EC2 Spot $+$ DuckDB\\
+       \textit{90\% cost reduction}};
+\draw[darr, red!50] (c1.north) -- (ec2a.south);
+
+%% Callout 2: QuickSight → S3 + Lambda + CloudFront
+\node[draw=red!55, fill=red!6, rounded corners=3pt,
+      font=\tiny, align=left, inner sep=4pt,
+      text width=3.4cm] (c2) at (9.5, -0.4)
+      {\textbf{\textcolor{red!70!black}{Cost improvement}}\\
+       AWS QuickSight\\$\rightarrow$ S3 $+$ $\lambda$ Lambda $+$ CloudFront\\
+       \textit{Serverless, zero idle cost}};
+\draw[darr, red!50] (c2.north) -- (cfront.south);
 
 \end{tikzpicture}
 ```
