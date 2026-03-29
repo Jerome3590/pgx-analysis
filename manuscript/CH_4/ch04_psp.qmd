@@ -550,8 +550,8 @@ IR, individual-drug causal responsibility (probability shift per patient;
 (A) FP-Growth network (training cohort): nodes = drug classes; edge weight =
 lift; edge color = risk gradient (blue = low risk, red = high risk).
 Hub nodes (betweenness centrality ≥ 90th pct) marked with larger circles.
-(B) FFA synergistic pair network: only drug pairs with IE > 0 (95% CI > 0)
-shown; edge weight proportional to IE score. Overlapping nodes between (A)
+(B) FFA synergistic pair network: only drug pairs with IE > 1.0 (95% CI > 0;
+lift-based independence baseline) shown; edge weight proportional to IE score. Overlapping nodes between (A)
 and (B) indicate high co-occurrence AND causal synergy.](../figures/ch04/fig_network.pdf){#fig-network
 width=100% fig-align="center"}
 
