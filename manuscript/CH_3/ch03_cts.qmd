@@ -627,6 +627,62 @@ standard PGx genotype testing alone cannot detect, and that the
 pharmacogenomic feature engineering in this study is specifically designed
 to capture from prescription pattern data alone.
 
+**Per-age-band driver patterns** reveal meaningful clinical heterogeneity
+across the seven opioid ED age bands:
+
+- **13–24 band** (XGBoost, PR-AUC 0.840; N = 52,629 cases): The dominant
+  causal features were acute injury diagnoses (ICD-10 S-codes: S72.xx
+  femur fracture, S52.xx forearm fracture) and single-fill opioid events
+  (hydrocodone, NDC 00406-3780-xx) without any refill in the 90-day
+  window, consistent with the predominance of acute single-episode opioid
+  events in this age group.
+  The absence of chronic escalation signals explains the lower PR-AUC (0.840)
+  and recall (0.648) relative to older bands.
+
+- **25–44 band** (XGBoost, PR-AUC 0.935; N = 569,096 cases): Oxycodone
+  (NDC 00406-0510-xx) and gabapentin co-prescription emerged as the
+  dominant causal cluster, alongside ICD-10 M54.5 (low back pain),
+  the most frequent musculoskeletal diagnosis in the cohort.
+  CPT 97110/97530 physical therapy absence was the top protective-absent
+  feature (causal NOT rule; support 0.12).
+
+- **45–54 band** (Ensemble, PR-AUC 0.955; N = 413,630 cases): Transition from
+  acute-injury to chronic-pain-plus-psychiatric comorbidity pattern.
+  ICD-10 F32.9 (major depressive disorder) and F41.1 (generalized anxiety)
+  co-occurring with chronic opioid fills (Z79.891) ranked in the top 5.
+  Antidepressant-opioid combinations (fluoxetine NDC 00002-3105-xx;
+  paroxetine NDC 00029-3211-xx) elevated CYP2D6 inhibition risk.
+
+- **55–64 band** (Ensemble, PR-AUC 0.974; N = 480,246 cases): Highest recall
+  (0.874) of all bands, reflecting the most predictable escalation trajectory.
+  Z79.891 (long-term opioid) appeared in 67% of cases vs. 12% of controls
+  (prevalence ratio 5.6)—the single most discriminating feature in the
+  entire cohort.
+  Concurrent alprazolam (F41.1 anxiety indication) was the second-highest
+  causal driver.
+
+- **65–74 band** (Ensemble, PR-AUC 0.979; N = 397,743 cases): Peak PR-AUC
+  for the opioid ED cohort, driven by the richest 12-month prescription
+  histories and clearest dose-escalation signatures.
+  Hydrocodone/APAP combinations (Vicodin; NDC 00074-3049-xx) were the
+  dominant opioid fill, with concurrent ICD-10 G89.29 (chronic pain)
+  and M79.3 (panniculitis/myalgia) as the leading pain diagnoses.
+
+- **75–84 band** (Ensemble, PR-AUC 0.968; N = 153,082 cases): Co-prescription
+  of opioids with muscle relaxants (cyclobenzaprine; Beers Criteria-listed
+  for falls risk in 65+) and tramadol (NDC 65862-063-xx; CYP2D6 substrate)
+  emerged as the leading risk combination, reflecting the shift from
+  opioids for injury/pain to opioids as chronic multimodal analgesic
+  in multimorbid elderly patients.
+
+- **85–114 band** (Ensemble, PR-AUC 0.901; N = 38,808 cases): Lowest recall
+  (0.552), reflecting the highest proportion of atypical short-duration
+  opioid prescriptions (post-surgical, palliative) that don't match the
+  chronic-escalation training patterns.
+  ICD-10 Z51.5 (palliative care encounter) was disproportionately present
+  in case records, suggesting that a subset of 85+ opioid ED cases reflect
+  palliative opioid management rather than OUD escalation.
+
 ## Trajectory-Informed Intervention
 
 The two DTW archetypes require different intervention strategies.
