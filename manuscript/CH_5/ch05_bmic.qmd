@@ -306,6 +306,26 @@ $$\hat{p}_{\text{ens}} = \sum_{i \in \{CB, XGB, RF\}} w_i \cdot \hat{p}_i(\mathb
 
 where weights $w_i$ were derived from MCCV PR-AUC and LogLoss metrics
 on the 2016–2018 training set (see Chapter 2, Equation 1).
+Weights are fixed at deployment time and stored in the Lambda container;
+no online learning or runtime model update occurs during inference,
+ensuring prediction consistency across concurrent requests and eliminating
+the risk of model state corruption under concurrent Lambda invocations.
+
+The per-density-bin routing logic computes `n_event_bin` from the submitted
+claim code count *before* loading any model weights, using the bin
+boundary thresholds serialized at training time:
+
+```python
+bin_name = classify_density_bin(len(submitted_codes), thresholds_json)
+model = load_model(cohort, age_band, bin_name)
+p_hat = model.predict_proba(X_full)[::, 1]
+```
+
+This ensures that the correct density-stratum model handles the request
+regardless of which Lambda container instance processes it.
+An explicit `FileNotFoundError` is raised and returned as a structured
+HTTP 422 if the requested bin/cohort/age-band combination has no
+trained model artifact, preventing silent fallback to an incorrect model.
 
 The risk score is returned on a 0–100% scale, accompanied by:
 
@@ -315,6 +335,9 @@ The risk score is returned on a 0–100% scale, accompanied by:
   on the risk band (flags when models disagree: $< 2/3$ agreement)
 - **Top 5 risk drivers**: highest SHAP features for this patient's input,
   pre-loaded from the per-partition SHAP importance metadata
+- **Density stratum**: the assigned `n_event_bin` (low/medium/high/extreme),
+  shown to the clinician to contextualize which sub-population model was applied
+  and whether the patient's claim history volume is typical or atypical
 
 ## Handling Real-World Data Sparsity: Imputation of Normality {#sec-imputation}
 
@@ -341,8 +364,26 @@ signal.
 
 **Validation:** Sensitivity analysis on the 2019 holdout randomly masked
 features in 10% increments (10%–90% missingness).
-Mean |Δ$\hat{p}$| between sparse and full-input inference was < 0.06
+Mean |$\Delta\hat{p}$| between sparse and full-input inference was < 0.06
 across all sparsity levels up to 70% missingness (**@fig-imputation**).
+Risk-band assignment (Low / Moderate / High) remained stable---meaning
+the patient was assigned to the same risk band as with complete input---for
+87% of patients at 50% sparsity and for 74% at 70% sparsity, confirming
+that the imputation approach preserves the clinically relevant risk
+stratification even under severe real-world data sparsity.
+
+The Imputation of Normality design differs conceptually from multiple
+imputation and MICE [@Buuren2011] approaches used in training: rather than
+estimating missing feature values from observed correlates,
+it treats the median as a "null hypothesis" baseline representing
+an unremarkable patient profile, allowing the clinician's partial
+knowledge to shift predictions *away* from the baseline only when
+evidence is actually available.
+This prevents the overcalibration problem seen when zero-imputed features
+are used: a patient with no recorded pharmacy history is not
+assigned zero opioid count (implying they have never been prescribed
+opioids) but rather the median opioid count for their age band,
+producing a more conservative and clinically safer risk estimate.
 
 ![Imputation of Normality sensitivity analysis. (A) Mean absolute
 prediction error (|Δ$\hat{p}$|) as a function of input sparsity level

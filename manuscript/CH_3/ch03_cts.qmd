@@ -504,15 +504,49 @@ width=100% fig-align="center"}
 The Consensus Filter identified 384–498 Consensus-Causal features spanning
 drug exposure, comorbidity burden, PGx interaction, and claim-density
 domains.
+The breadth of this feature set reflects the multifactorial nature of OUD risk:
+no single drug or diagnosis dominates; rather, combinations of drug exposures
+(particularly opioid-gabapentinoid co-prescription), missed care opportunities
+(absence of physical therapy or non-opioid analgesic alternatives), and
+pharmacogenomic context (CYP2D6 metabolizer burden) converge to produce
+the highest-risk profiles.
+
 The co-occurrence of high-dose opioids with chronic pain diagnoses *in the
 absence of non-pharmacological pain management* (physical therapy, cognitive
 behavioral therapy) emerged as the highest-ranking causal pattern—consistent
 with CDC clinical practice guideline recommendations [@Dowell2022].
+This "absence of care" causal structure is clinically important: it implies
+that the most actionable intervention is not drug discontinuation but
+care pathway addition---physical therapy referral or CBT enrollment at the
+point of opioid prescription.
+For a patient already on opioids for chronic pain, adding non-pharmacological
+alternatives is safer, more acceptable, and more sustainable than abrupt
+tapering or dose reduction.
 
-PGx features—specifically CYP2D6 interaction scores—ranked within the top
-10 Consensus-Causal features for the 25–44 age band, supporting the
-relevance of opioid metabolizer status in OUD risk even in
+Gabapentin co-prescription deserves particular attention as a modifiable
+causal driver.
+Gabapentinoids (gabapentin, pregabalin) are frequently prescribed alongside
+opioids for neuropathic pain, and their co-prescription has been independently
+associated with increased opioid overdose risk in multiple large cohort studies.
+The CDC 2022 guidelines now specifically flag this combination; the Consensus
+Filter's ranking of gabapentin count as the top single-drug feature (mean
+|SHAP| = 0.34) provides APCD-level population evidence that this combination
+is the single most actionable prescribing-level intervention target in the
+Virginia opioid ED cohort.
+
+PGx features—specifically CYP2D6 interaction scores via `pgx_num_cpic_drugs`—
+ranked within the top 10 Consensus-Causal features for the 25–44 age band,
+supporting the relevance of opioid metabolizer status in OUD risk even in
 claims-based (genotype-imputed) analysis [@Crews2021].
+The `pgx_num_cpic_drugs` score captures the compound CYP enzyme burden from
+multiple co-prescribed drugs---a patient on both a CYP2D6 substrate (opioid)
+and a CYP2D6 inhibitor (fluoxetine, paroxetine) will have their metabolizer
+phenotype effectively shifted toward poor metabolizer status by drug
+interaction, even if their underlying genotype is extensive metabolizer.
+This drug-drug-gene interaction is precisely the clinical scenario that
+standard PGx genotype testing alone cannot detect, and that the
+pharmacogenomic feature engineering in this study is specifically designed
+to capture from prescription pattern data alone.
 
 ## Trajectory-Informed Intervention
 
