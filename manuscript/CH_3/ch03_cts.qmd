@@ -42,26 +42,32 @@ abstract: >
   Existing prediction models are predominantly cross-sectional and lack
   PGx enrichment or causal validation.
   **Methods:** We constructed a retrospective cohort from a state-level
-  All-Payer Claims Database (APCD; 2016–2019), targeting adults aged 13–64
-  years with opioid-related ED visits (ICD-10: F11.xx; $n$ = 26,710 cases,
-  180,640 matched controls).
-  A three-model ensemble (CatBoost, XGBoost, XGBoost-RF) was trained on
-  2016–2018 data and evaluated on a prospective 2019 holdout.
+  All-Payer Claims Database (APCD; 2016–2019) encompassing 6,929,576
+  unique patients, targeting individuals aged 0–114 years with
+  opioid-related ED visits (ICD-10: F11.xx; $n$ = 1,505,138 cases across
+  seven modeled age bands, with 5:1 matched controls).
+  A three-model ensemble (CatBoost, XGBoost, XGBoost-RF) with per-event-density
+  sub-models (Optuna-tuned) was trained on 2016–2018 data and evaluated on
+  a prospective 2019 holdout.
   Causal features were identified using the Consensus Filter (SHAP ∩ Formal
   Feature Attribution), and patient trajectories were characterized via
   Dynamic Time Warping (DTW) clustering and BupaR pre-diagnosis process maps.
-  **Results:** The ensemble achieved mean PR-AUC = 0.88 ± 0.03 and
-  AUROC = 0.96 ± 0.01 on the 2019 holdout across four age bands.
-  Consensus-Causal features included gabapentin, long-term opioid use
-  (ICD-10: Z79891), and the PGx polydrug exposure score
-  (SHAP rank ≥ 90th percentile; FFA support ≥ 0.10).
+  **Results:** All seven modeled age bands achieved AUROC ≥ 0.957 and
+  PR-AUC ≥ 0.840 on the 2019 holdout (range: PR-AUC 0.840–0.979;
+  AUROC 0.957–0.992; peak at 65–74 band).
+  An inverted-U age-trajectory pattern emerged: discrimination peaked at
+  65–74 and declined at 85–114, reflecting atypical palliative opioid
+  trajectories in the oldest-old.
+  Consensus-Causal features included gabapentin (NDC 68382-080-xx),
+  long-term opioid use (ICD-10 Z79.891), and the PGx polydrug exposure
+  score `pgx_num_cpic_drugs` (SHAP rank \#1; mean |SHAP| = 2.22).
   DTW clustering identified two dominant trajectory archetypes: Rapid-Onset
-  (acute injury → high-dose escalation, median 4.2 months to OUD diagnosis)
-  and Chronic-Escalation (long-term pain → dose creep, median 22.1 months).
+  ($n$ = 5,481; 21\%; median 4.2 months to OUD-ED) and Chronic-Escalation
+  ($n$ = 21,229; 79\%; median 22.1 months with ≥3 identifiable intervention windows).
   **Conclusions:** Ensemble modeling with Consensus Filter feature selection
   identifies robust, modifiable causal drivers of OUD-related ED visits up
-  to two years before diagnosis, enabling proactive, trajectory-informed
-  clinical intervention.
+  to 22 months before diagnosis across all age strata, enabling proactive,
+  trajectory-stratified clinical intervention and PGx-informed prescribing.
 
 keywords:
   - "opioid use disorder"
