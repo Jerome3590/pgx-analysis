@@ -149,7 +149,7 @@ directly onto these phases.
 1. Map the evidence base for XAI-enabled clinical prediction models for OUD and polypharmacy-related ED visits.
 2. Characterize the integration of PGx features and causal modeling in healthcare ML.
 3. Evaluate the role of All-Payer Claims Databases (APCD), EHR, and pharmacovigilance data in supporting the OODA cycle.
-4. Identify methodological gaps—especially temporal leakage, calibration, and user-centric explainability.
+4. Identify methodological gaps, especially temporal leakage, calibration, and user-centric explainability.
 5. Propose a multi-modal architecture fusing OODA-driven analytics, XAI, PGx, and causal validation.
 
 ## Data Infrastructure: EHR and APCD
@@ -170,7 +170,7 @@ That pipeline targets two clinical problems:
 - **RQ2 (polypharmacy and ADE-related hospitalization):** Higher-order
   prescribing patterns and drug–drug interaction structure for a
   *polypharmacy / non-opioid ED* cohort, with emphasis on reducing preventable
-  ADEs—including in older age bands.
+  ADEs, including in older age bands.
 
 ## The Clinical OODA Loop as a Data Science Architecture
 
@@ -281,7 +281,7 @@ No language restrictions were applied at the search stage.
 ### Search Term Ontology and Causal Structure
 
 Search terms were organised into a keyword ontology structured as an
-OODA loop [@Boyd1986]—Observe, Orient, Decide, Act—applied to the
+OODA loop [@Boyd1986] (Observe, Orient, Decide, Act), applied to the
 clinical analytics pipeline (**@fig-ontology**).
 This framing makes explicit both the causal data flow and the
 feedback mechanism that closes the decision cycle:
@@ -299,14 +299,14 @@ feedback mechanism that closes the decision cycle:
   is warranted?*
 - **Feedback (Act → Observe):** Outcomes of intervention generate new
   APCD claims, closing the loop. **The 2019 prospective holdout
-  dataset is the empirical instantiation of this feedback**—training
-  on 2016–2018 and evaluating on 2019 directly tests whether one
+  dataset is the empirical instantiation of this feedback**: training
+on 2016–2018 and evaluating on 2019 directly tests whether one
   complete OODA cycle generalises to the next.
 
 Two structural loops emerge within this framework:
 
 - **R1 (reinforcing, in Act):** Polypharmacy drug burden increases
-  opioid comorbidity, which in turn increases polypharmacy—a positive
+  opioid comorbidity, which in turn increases polypharmacy: a positive
   feedback loop motivating joint modelling of both cohorts.
 - **B1 (balancing, in Orient):** Target leakage prevention enforces
   temporal cutoffs that constrain the Decide phase, dampening
@@ -622,7 +622,7 @@ Table @tbl-topic-trends shows annual article counts for each search topic
 within the 5,839-article eligible corpus, restricted to 2021–2025 where
 publication density enables trend interpretation.
 Drug-Drug Interactions grew 111%, DuckDB/OLAP Analytics 116%, and
-Interpretability/SHAP 4,200% from a small base—all areas central to this
+Interpretability/SHAP 4,200% from a small base: all areas central to this
 dissertation's analytical stack.
 
 | Topic | RQ | 2021 | 2022 | 2023 | 2024 | 2025 | Total |
@@ -655,7 +655,7 @@ and coverage trends from 2019 to 2025.
 
 **Performance Metrics** is the most frequently addressed domain ($n$ = 184,
 3.2%), followed by **Explainability** ($n$ = 165, 2.8%) and **Clinical
-Utility** ($n$ = 141, 2.4%)—reflecting the field's primary emphasis on
+Utility** ($n$ = 141, 2.4%), reflecting the field's primary emphasis on
 model accuracy and post-hoc interpretation.
 Only three domains reach the "Strong" threshold (≥100 articles):
 Performance Metrics, Explainability, and Clinical Utility.
@@ -753,8 +753,8 @@ modeled.
 
 ## Temporal Validation and Data Leakage {#sec-leakage}
 
-Temporal leakage—the inadvertent inclusion of post-outcome information in
-predictor features—was documented or suspected in 28 studies (30%).
+Temporal leakage, the inadvertent inclusion of post-outcome information in
+predictor features, was documented or suspected in 28 studies (30%).
 Only 11 studies (12%) explicitly described leakage-prevention protocols
 such as: strict temporal cutoff at outcome date, exclusion of concurrent
 diagnosis codes, or "visualization-only" restriction of trajectory-mining
@@ -793,7 +793,7 @@ Polypharmacy-related ADE outcomes appeared in only 5 studies (5%).
 
 ## Operational Performance Metrics
 
-Published models rarely report *operational* impact—whether outputs translate
+Published models rarely report operational impact: whether outputs translate
 to measurable improvements in capacity, throughput, cost, or workforce
 utilization. **@fig-op-metrics** summarises operational performance tagging
 across the 5,839-article eligible corpus, stratified by five outcome categories.
@@ -805,7 +805,7 @@ Improved Patient Outcomes is the most represented category ($n$ = 236),
 followed by Physician/Nurse Utilization ($n$ = 166), Healthcare Cost Analysis
 ($n$ = 58), and Patient Throughput/Flow ($n$ = 48).
 **Hospital/System Capacity** is near-absent ($n$ = 4), despite capacity
-management being a direct upstream driver of ED utilisation—the focal outcome
+management being a direct upstream driver of ED utilisation, the focal outcome
 of both RQ1 and RQ2.
 Annual trends (right panel) show accelerating coverage from 2023 to 2025,
 but absolute counts remain low relative to corpus size. ML model development
@@ -966,8 +966,8 @@ but currently underutilized in the pharmacoepidemiology ML literature.
 
 # Conclusions {#sec-conclusions}
 
-Ninety-four studies demonstrate that ensemble ML methods—particularly
-gradient boosting (XGBoost, CatBoost) and neural network ensembles—are
+Ninety-four studies demonstrate that ensemble ML methods, particularly
+gradient boosting (XGBoost, CatBoost) and neural network ensembles, are
 feasible for OUD and polypharmacy ADE prediction from administrative data,
 with AUROC ≥ 0.80 reported in 67% of included studies.
 However, three critical gaps prevent clinical translation:
