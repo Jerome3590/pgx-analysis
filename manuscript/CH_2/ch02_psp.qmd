@@ -755,20 +755,32 @@ The interactive analytics and deployment workflow is illustrated in **@fig-insig
 %% Callout 1: EMR → EC2 + DuckDB
 \node[draw=red!55, fill=red!6, rounded corners=3pt,
       font=\tiny, align=left, inner sep=4pt,
-      text width=3.2cm] (c1) at (0.5, -0.4)
-      {\textbf{\textcolor{red!70!black}{Cost improvement}}\\
-       AWS EMR Studio Lab\\$\rightarrow$ EC2 Spot $+$ DuckDB\\
-       \textit{90\% cost reduction}};
+      text width=3.6cm] (c1) at (0.5, -0.6)
+      {\textbf{\textcolor{red!70!black}{Architecture substitution}}\\
+       AWS EMR Studio Lab $\rightarrow$ EC2 Spot $+$ DuckDB\\[1pt]
+       \textit{AWS Pricing Calculator estimate:}\\
+       \textit{order-of-magnitude lower cost}\\
+       \textit{per 2 TB transform step$^\dagger$}};
 \draw[darr, red!50] (c1.north) -- (ec2a.south);
 
 %% Callout 2: QuickSight → S3 + Lambda + CloudFront
 \node[draw=red!55, fill=red!6, rounded corners=3pt,
       font=\tiny, align=left, inner sep=4pt,
-      text width=3.4cm] (c2) at (9.5, -0.4)
-      {\textbf{\textcolor{red!70!black}{Cost improvement}}\\
-       AWS QuickSight\\$\rightarrow$ S3 $+$ $\lambda$ Lambda $+$ CloudFront\\
-       \textit{Serverless, zero idle cost}};
+      text width=3.6cm] (c2) at (9.5, -0.6)
+      {\textbf{\textcolor{red!70!black}{Architecture substitution}}\\
+       AWS QuickSight $\rightarrow$ S3 $+$ $\lambda$ $+$ CloudFront\\[1pt]
+       \textit{AWS Pricing Calculator estimate:}\\
+       \textit{order-of-magnitude lower cost;}\\
+       \textit{serverless, zero idle capacity$^\dagger$}};
 \draw[darr, red!50] (c2.north) -- (cfront.south);
+
+%% Footnote caveat
+\node[font=\tiny, gray, align=left, text width=9.0cm] at (5.0, -1.8)
+      {$^\dagger$Estimates derived from AWS Pricing Calculator for a 2~TB
+       data-transformation workload. Direct comparison is not strictly
+       apples-to-apples: EMR and EC2$+$DuckDB differ in execution model,
+       cluster provisioning, and I/O patterns. Isolated head-to-head
+       benchmarking on identical datasets and transformations was not performed.};
 
 \end{tikzpicture}
 ```
