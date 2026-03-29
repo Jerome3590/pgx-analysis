@@ -390,7 +390,19 @@ Raw data were provided in fixed-width text format and staged into a Bronze
 Monolithic processing of full APCD data on a single worker node saturated
 memory at approximately 450 GB and produced throughput of
 ${\sim}1.2$ M records/minute.
-A partition strategy exploits the natural independence of cohort subgroups.
+A distributed cluster approach (e.g., AWS EMR) introduces a second failure
+mode: **data skew**.
+Claims data are heavily skewed by age band and diagnosis frequency; the
+geriatric bands (65–94) generate disproportionately large shuffle volumes
+relative to younger cohorts.
+In an EMR cluster, skewed partitions stall the entire job at each shuffle
+barrier, forcing all workers to wait for the slowest task.
+A single large EC2 instance running DuckDB eliminates shuffle entirely:
+DuckDB operates as an in-process columnar engine that scans each partition
+sequentially in memory, so skewed age bands incur higher wall-clock time
+for that partition only—without blocking any other worker.
+A partition strategy therefore exploits both the natural independence of
+cohort subgroups and DuckDB's immunity to shuffle-induced straggler tasks.
 
 ### Partition Scheme
 
@@ -423,6 +435,12 @@ Partition-first (32 workers): 18.1 M records/min—a **15.1× improvement**
 
 : Throughput benchmarking. Records per minute averaged over three runs.
 Speedup calculated relative to monolithic baseline. {#tbl-throughput}
+
+Near-linear scaling across worker counts reflects the partition independence
+property: because DuckDB processes each Age Band x Year partition in memory
+without cross-node shuffles, skewed age bands (e.g., geriatric 65-94 cohorts
+with higher diagnosis density) slow only their own worker and do not induce
+straggler delays across the pool.
 
 ## Cohort Construction {#sec-cohort}
 
