@@ -649,11 +649,37 @@ drug discontinuation reduces ED visits at the population level.
 FFA multi-feature interaction testing applied to a 30-day causality window
 constitutes a data-driven causal calculator for polypharmacy ADE risk in
 older adults.
-It identifies synergistic drug combinations that exceed pairwise DDI
-predictions, quantifies deprescribing priorities via IR scores, and
-distinguishes managed from unmanaged polypharmacy through Z-code analysis.
-Geriatric pharmacists gain a computationally feasible prioritization tool
-that pairwise DDI databases cannot provide.
+Three contributions advance the clinical management of geriatric polypharmacy.
+
+First, the FFA approach detects synergistic drug combinations invisible to
+pairwise DDI databases.
+Of 312 synergistic triplets (IE > 1, 95% CI > 0), none would be flagged as
+high-risk by standard pairwise DDI checking because each constituent pair
+appears at or below the individual-drug alert threshold.
+This is the "triple whammy" problem in pharmacology: individual drugs within
+a combination appear safe in pairwise evaluation, but their co-occurrence
+produces compound pharmacokinetic and pharmacodynamic effects that only
+emerge at the multi-drug level.
+
+Second, IR scores translate FFA output into ranked deprescribing priorities
+that are directly actionable by clinical pharmacists during medication
+reconciliation reviews.
+The cross-band consistency of IR rankings ($\rho$ = 0.53--0.68 across
+geriatric age bands) supports a universal deprescribing priority list
+for geriatric populations, applicable without separate calculation for
+each patient's specific age subgroup.
+
+Third, the Z-code U-shaped analysis reframes the clinical goal of geriatric
+pharmacotherapy: the target is not drug count reduction per se, but
+coordinated medication management—a distinction with direct implications
+for quality metrics, Medicare Advantage star ratings, and clinical pharmacist
+workflow prioritization.
+Patients flagged for deprescribing consultation should be the Q1 (unmonitored)
+and Q4 (fragmented-care) groups, not all high-drug-count patients equally.
+
+Geriatric pharmacists gain a computationally feasible, clinically interpretable
+prioritization tool that pairwise DDI databases cannot provide, grounded in
+population-level causal evidence from a state-wide All-Payer Claims Database.
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.

@@ -602,13 +602,37 @@ structures, and Medicaid expansion status vary substantially by state.
 
 Ensemble ML with Consensus Filter feature selection identifies robust, causal,
 and *modifiable* drivers of OUD-related ED visits up to 22 months before
-clinical diagnosis.
-DTW trajectory analysis reveals two clinically distinct risk archetypes
-with different optimal intervention windows.
-PGx interaction features contribute independently to model performance,
-supporting genomic context integration in administrative-data risk models.
-These findings enable proactive clinical decision support before the
-pre-diagnosis stage of the opioid epidemic.
+clinical diagnosis, across four age bands representing the full range of the
+Virginia working-age opioid epidemic population.
+Three findings have direct clinical implications.
+
+First, the Rapid-Onset archetype (21% of cases; 4.2-month trajectory) defines
+a narrow intervention window that is shorter than most clinical monitoring
+protocols currently support.
+Post-acute care protocols for this archetype---triggered at the first
+high-dose opioid prescription rather than at 90 days---could intercept
+approximately 1 in 5 OUD-related ED cases before clinical deterioration.
+
+Second, the Chronic-Escalation archetype (79% of cases; 22.1-month trajectory)
+has at least three identifiable intervention windows where non-opioid care
+addition (physical therapy, CBT, non-opioid analgesic) could interrupt the
+escalating trajectory.
+The counterfactual "What-If" dashboard feature in Chapter 5 directly
+operationalizes these windows, allowing clinicians to simulate expected risk
+reduction from specific care additions.
+
+Third, PGx interaction features---specifically the `pgx_num_cpic_drugs` polydrug
+exposure score---contribute independently to model performance and rank as the
+highest-SHAP feature overall.
+This finding demonstrates that pharmacogenomic risk context is recoverable from
+claims-derived prescription patterns without direct genotyping, making PGx-informed
+risk stratification scalable to the population level through existing claims
+infrastructure.
+
+These findings enable proactive, trajectory-stratified clinical decision support
+for opioid ED risk before the pre-diagnosis stage of OUD,
+closing the gap identified in the Chapter 1 systematic review where 81% of
+published models omit PGx context and 88% lack temporal leakage protection.
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.
