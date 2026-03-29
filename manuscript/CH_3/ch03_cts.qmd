@@ -416,7 +416,7 @@ width=85% fig-align="center"}
 
 Ensemble performance on the 2019 temporal holdout is summarized for all
 seven opioid ED age bands in **@tbl-performance** and **@fig-curves**.
-All seven age bands achieved AUROC ≥ 0.967 and PR-AUC ≥ 0.840 on the
+All seven age bands achieved AUROC ≥ 0.957 and PR-AUC ≥ 0.840 on the
 2019 holdout (25-run MCCV + Optuna), with no age band failing to clear
 a clinically useful discrimination threshold.
 
