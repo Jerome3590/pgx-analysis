@@ -307,45 +307,63 @@ sampling variability.
 
 ## Statistical Analysis
 
-**Performance metrics** on the 2019 holdout were computed for each
-age-band–bin model independently, then averaged across bins within
-each age band using sample-size weighting.
+Overarching performance metrics (AUROC, PR-AUC, Brier, ICI), MCCV
+protocol, calibration methodology, and ensemble weighting are defined
+in Chapter 2, Section 4.8 [@sec-analytical]; the same definitions
+apply here.
+This section describes the analytical methods specific to the
+opioid ED cohort research questions.
 
-- **PR-AUC** (Area Under the Precision-Recall Curve) was the primary
-  discrimination metric.  This choice reflects the case-control imbalance
-  (opioid ED cases: 14.8–17.4% of the matched cohort): PR-AUC is more
-  sensitive to minority-class performance than AUROC and does not inflate
-  with the addition of true-negative controls, making it the appropriate
-  metric for clinical screening applications.
-- **AUROC** (Area Under the ROC Curve) was reported as a secondary
-  metric to enable comparison with published opioid prediction literature
-  that predominantly reports AUROC.
-- **Recall** (Sensitivity at optimal F₁ threshold): the threshold was
-  selected to maximize F₁ on the training partition and applied
-  unchanged to the holdout, ensuring no threshold-tuning leakage.
-- **Brier Score**: $\frac{1}{N}\sum(\hat{p}_i - y_i)^2$; values
-  near 0 indicate well-calibrated probability outputs; the null-model
-  Brier Score at 17% case prevalence is $\approx 0.141$.
-- **Integrated Calibration Index (ICI)**: mean absolute deviation
-  between predicted probability and observed event rate, estimated via
-  a LOESS smoother on decile-binned patients. ICI = 0 = perfect calibration;
-  ICI > 0.20 would require post-hoc recalibration.
+**Opioid ED model evaluation.** Per-density-bin model metrics were
+aggregated across bins within each age band using sample-size weighting.
+PR-AUC was the primary metric given the 14.8–17.4% case prevalence;
+Recall was evaluated at the F₁-optimal threshold from the training
+partition, applied unchanged to the holdout.
+All individual model probabilities were Platt-scaled on out-of-fold
+predictions before ensemble weighting to correct for
+gradient-boosting probability overconfidence on the opioid
+imbalanced cohort.
 
-Prior to ensemble weighting, individual model probabilities were
-Platt-scaled (logistic regression on out-of-fold predictions) to
-correct for gradient-boosting probability overconfidence.
-
-**Bootstrap inference**: 95% percentile bootstrap CIs (1,000 draws
-with replacement) were computed for AUROC, PR-AUC, Brier, and ICI.
-Mean |SHAP| values were computed on a stratified random sample of
+**SHAP causal feature ranking.** Global mean |SHAP| values were computed
+using TreeExplainer [@Lundberg2020] on a *stratified random sample* of
 2,000 patients from the 2019 holdout (stratified by outcome and
-density bin).
+density bin), not on the full holdout.
+This sample-based approach was required for computational tractability
+across 84 per-bin model objects and ensures SHAP attribution reflects
+the density-bin conditional distribution.
+Features were ranked by mean |SHAP| within each age band;
+cross-band rank consistency was assessed by Spearman ρ between
+adjacent bands (e.g., 25–44 vs. 45–54).
 
-**DTW cluster stability**: Adjusted Rand Index (ARI; range 0–1; 1 =
-perfect agreement) assessed cluster assignment reproducibility across
-50 bootstrap samples of the DTW distance matrix.
+**FFA rule extraction thresholds.** For the opioid cohort, FFA rules
+were extracted from XGBoost trees with:
 
-All statistical analyses were performed in Python 3.11
+- Support threshold: ≥ 0.05 (rule applies to ≥ 5% of training cases
+  in the relevant density-bin partition)
+- Confidence threshold: ≥ 0.70 (rule correctly classifies ≥ 70% of
+  patients satisfying its condition)
+- A rule feature was designated Consensus-Causal only if it also
+  appeared in the SHAP top-75th-percentile for the same partition
+
+These thresholds are tighter than the global Consensus Filter defaults
+(Chapter 2: support ≥ 0.03; confidence ≥ 0.60) because the opioid
+cohort's chronic-escalation patterns produce many low-support rules
+with high local confidence that do not replicate across age bands.
+
+**DTW trajectory analysis.** Sakoe-Chiba band-constrained DTW distances
+[@Sakoe1978] were computed on the 12-month event sequences (band width =
+15% of sequence length, preventing pathological warping of temporally
+distant events).
+Optimal cluster count $k$ was selected jointly by: (1) elbow criterion
+on within-cluster DTW variance, and (2) silhouette coefficient
+(maximized at $k = 2$ vs. all $k ∈ \{2,…5\}$; gap $≥ 0.12$).
+**DTW cluster stability** was assessed via Adjusted Rand Index (ARI;
+range 0–1; 1 = perfect agreement) across 50 independent bootstrap
+samples of the 2,000-patient distance matrix;
+ARI > 0.87 across all pairs confirms the two-archetype solution is
+robust to sampling variability.
+
+All chapter-specific analyses were performed in Python 3.11
 (scipy v1.11; dtaidistance v2.3; SHAP v0.43; scikit-learn v1.3).
 
 # Results {#sec-results}
