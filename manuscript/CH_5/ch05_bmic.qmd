@@ -112,18 +112,42 @@ bibliography:
 High-performance ML models for clinical risk prediction face a well-documented
 translational barrier: even when performance metrics satisfy publication
 standards, models rarely reach the clinical workflow [@Topol2019; @Rajpurkar2022].
-Barriers include: privacy concerns about processing patient data in cloud
-systems, inability to handle incomplete real-world inputs, lack of
+A systematic review of 84 FDA-cleared AI/ML-based medical devices found that
+fewer than 30% included prospective clinical validation evidence, and fewer
+than 10% reported deployment architecture details sufficient for independent
+replication [@FDA2021].
+Barriers to deployment include: privacy concerns about processing patient data
+in cloud systems, inability to handle incomplete real-world inputs, lack of
 interpretable explanations for non-ML-trained clinicians, and the complexity
-of deploying and maintaining inference infrastructure [@Char2018].
+of deploying and maintaining inference infrastructure at health-system scale
+[@Char2018].
+
+This last category—infrastructure complexity—is particularly acute for
+ensemble models trained on stratified population partitions.
+The Chapter 2–4 models comprise up to 84 independently trained gradient
+boosting models (3 algorithms × 4 density bins × up to 7 age bands), each
+requiring separate serialization, versioning, and routing logic.
+A naive deployment approach (one Lambda function per model) would require
+84 separately deployed endpoints, 84 independent container images, and a
+routing layer with O(84) latency overhead.
+The partition-first serverless architecture described in this chapter collapses
+this to a single Lambda container endpoint with in-process partition routing,
+eliminating both the infrastructure overhead and the latency cost of
+inter-service API hops.
 
 For pharmacogenomics specifically, an additional challenge exists: PGx testing
 results are inherently personal genomic data, requiring HIPAA-compliant
 handling even when transmitted voluntarily by patients [@HHS2013].
-Existing PGx clinical decision support tools (e.g., CPIC lookup systems,
-institutional pharmacogenomics portals) are typically siloed, requiring
-separate queries for drug-gene interactions and clinical risk scores,
-with no integration of model-based prediction.
+The 21st Century Cures Act (2016) and its implementing regulations mandate
+patient access to their genomic data, but existing PGx clinical decision
+support tools (e.g., CPIC lookup systems, institutional pharmacogenomics portals)
+are typically siloed, requiring separate queries for drug-gene interactions
+and clinical risk scores, with no integration of model-based prediction.
+The PREDICT program at Vanderbilt [@Liu2021] demonstrated 10-year sustainability
+of clinical PGx CDS through EHR-embedded alerts, but required institutional
+EHR integration that is unavailable to community pharmacies, Safety Net hospitals,
+and independent prescribers who serve high-burden opioid and polypharmacy
+populations.
 
 This paper presents the **PGx Risk Dashboard**—a production-deployed,
 privacy-first serverless application that addresses all these barriers
@@ -137,10 +161,13 @@ simultaneously by:
    rules from Chapter 4.
 4. Delivering a stateless, ephemeral PGx Patient Card via CPIC lookup
    that processes genetic data without storing any PII.
+5. Operating without EHR integration—accessible to any prescriber via
+   web browser, without institutional IT infrastructure requirements.
 
-This paper demonstrates that translational informatics requires models to
-reach patients and providers in usable, trustworthy forms, not just meet
-publication performance standards.
+The dashboard is designed as a "last-mile" translational tool: it assumes
+that model development (Chapters 2–4) has produced validated, performant
+models, and focuses entirely on making those models usable, trustworthy,
+and accessible to non-data-scientist clinicians in real-world prescribing contexts.
 
 # System Architecture {#sec-architecture}
 
