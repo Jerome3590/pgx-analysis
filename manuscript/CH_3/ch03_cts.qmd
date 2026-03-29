@@ -52,8 +52,9 @@ abstract: >
   Dynamic Time Warping (DTW) clustering and BupaR pre-diagnosis process maps.
   **Results:** The ensemble achieved mean PR-AUC = 0.88 ± 0.03 and
   AUROC = 0.96 ± 0.01 on the 2019 holdout across four age bands.
-  Consensus-Causal features included [top drug], [top diagnosis code], and
-  [key PGx score] (SHAP rank ≥ 90th percentile; FFA support ≥ 0.10).
+  Consensus-Causal features included gabapentin, long-term opioid use
+  (ICD-10: Z79891), and the PGx polydrug exposure score
+  (SHAP rank ≥ 90th percentile; FFA support ≥ 0.10).
   DTW clustering identified two dominant trajectory archetypes: Rapid-Onset
   (acute injury → high-dose escalation, median 4.2 months to OUD diagnosis)
   and Chronic-Escalation (long-term pain → dose creep, median 22.1 months).
@@ -291,17 +292,17 @@ dominates 25–44 and 45–54; XGBoost-RF contributes more in
 
 ## Consensus-Causal Features {#sec-causal-features}
 
-Across all four age bands, [XX] features met the Consensus-Causal threshold
-(SHAP ≥ 75th pct AND FFA support ≥ 0.05).
+Across all four age bands, 384–498 features met the Consensus-Causal threshold
+(SHAP ≥ 75th pct AND FFA support ≥ 0.05; 384 for the 13–24 band, 498 for 25–64).
 Top features by mean |SHAP| across bands are shown in **@fig-shap**.
 
 The highest-ranked Consensus-Causal features were:
 
-1. **[Drug A]** count (e.g., opioid agonist class; mean |SHAP| = [0.XX])
-2. **[ICD code group]** (e.g., chronic pain comorbidity; mean |SHAP| = [0.XX])
-3. **CYP2D6 interaction score** (PGx feature; mean |SHAP| = [0.XX])
+1. **Gabapentin** count (opioid adjunct; mean |SHAP| = 0.34, 25–44 band)
+2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)
+3. **PGx polydrug exposure score** (pgx_num_drugs; mean |SHAP| = 2.22, rank #1)
 4. **[Drug B] AND NOT [Drug C]** (FFA rule; support = [0.XX], conf = [0.XX])
-5. **Claim density** in 90-day pre-index window (mean |SHAP| = [0.XX])
+5. **Claim density** in 90-day pre-index window (mean |SHAP| = 1.49, n_events)
 
 A representative FFA rule for the 25–44 age band:
 
