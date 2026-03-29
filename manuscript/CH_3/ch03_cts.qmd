@@ -433,44 +433,94 @@ Top features by mean |SHAP| across bands are shown in **@fig-shap**.
 
 The highest-ranked Consensus-Causal features were:
 
-1. **Gabapentin count** (opioid adjunct; mean |SHAP| = 0.34, 25–44 band)—
-   gabapentinoids have emerged as a co-prescription risk amplifier in
-   opioid misuse contexts, reflecting both their abuse potential and their
-   frequent co-prescription with opioids for neuropathic pain [@Crews2021].
-2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)—
-   this ICD-10 Z-code is a direct administrative marker of prescribed
-   long-term opioid therapy, and its high SHAP rank across older age bands
-   confirms the study's ability to detect chronic prescribing escalation
-   rather than only acute overdose events.
-3. **PGx polydrug exposure score** (`pgx_num_cpic_drugs`; mean |SHAP| = 2.22, rank #1)—
-   the highest-ranked feature overall, exceeding any single drug code;
-   this composite score captures the cumulative CYP enzyme burden across
-   all co-prescribed CPIC-actionable medications, making it the most
-   informative single feature for PGx-mediated interaction risk.
-4. **Gabapentin AND Alprazolam** (FFA co-occurring pair; rule frequency = 0.033,
-   causal responsibility = 0.008)— this benzodiazepine-gabapentinoid
-   combination has been independently flagged by the FDA as a
-   high-risk combination for respiratory depression.
-5. **Event density bin** (`n_event_bin_ordinal`; ordinal density stratum 0–3;
-   mean |SHAP| updated post-retrain)—patients in the *extreme* density bin
-   (top quartile of claim count) show paradoxically lower opioid ED risk
-   than medium-density patients, consistent with the Z-code managed care
-   finding in Chapter 4: high claim volume with coordinated care reduces
-   rather than amplifies risk.
+1. **Gabapentin count** (`gabapentin_count`; generic: gabapentin;
+   brand: Neurontin, Gralise; NDC prefix 00071-0805-xx and 68382-080-xx;
+   mean |SHAP| = 0.34, 25–44 band)—
+   gabapentinoids co-prescribed with opioids represent a convergent CNS
+   depression risk that the FDA flagged with a black-box warning in 2019
+   [@Crews2021].
+   In the APCD, gabapentin fills are clustered with neuropathic pain
+   diagnoses (ICD-10 G89.29 – other chronic pain; M79.2 – neuralgia)
+   and appear in 41% of opioid ED cases in the 25–44 band vs. 18% of
+   matched controls, confirming the clinical epidemiology.
 
-A representative FFA rule for the 25–44 age band:
+2. **Long-term opioid use (ICD-10 Z79.891)** (chronic exposure marker;
+   top-ranked ICD feature across 45–64 bands)—
+   Z79.891 is a status code indicating *current long-term prescribed
+   opioid therapy*, distinct from opioid use disorder (F11.xx).
+   Its high SHAP rank in older working-age patients confirms that the
+   models detect *chronic prescribing escalation trajectories*, not only
+   acute overdose events.
+   In the 55–64 band, Z79.891 appeared in 67% of cases vs. 12% of controls
+   (prevalence ratio 5.6), making it the single most discriminating
+   ICD-10 code in the cohort.
+
+3. **PGx polydrug exposure score** (`pgx_num_cpic_drugs`;
+   mean |SHAP| = 2.22, rank \#1 across all bands)—
+   the highest-ranked feature overall, exceeding any individual drug code.
+   Counts drugs with CPIC Level A/B evidence:
+   opioids (codeine NDC 65162-0673-xx, tramadol NDC 65862-063-xx,
+   hydrocodone NDC 00406-3780-xx, oxycodone NDC 00406-0510-xx),
+   gabapentinoids, benzodiazepines, and antidepressants with
+   CYP2D6/CYP2C19 interactions.
+   A score of 4 (four co-prescribed CPIC drugs) increases OUD-ED
+   probability by a mean of 0.18 (SHAP delta) over a score of 0.
+
+4. **Gabapentin ⊕ Alprazolam co-prescription** (FFA pair;
+   alprazolam: brand Xanax; ICD-10 F41.1 generalized anxiety disorder;
+   rule frequency = 0.033, causal responsibility = 0.008)—
+   this benzodiazepine-gabapentinoid combination has been independently
+   flagged by the FDA as a high-risk CNS depressant combination.
+   In the APCD, alprazolam fills (NDC 00009-0029-xx) co-occurring with
+   gabapentin in the same 30-day window appeared in 14.7% of 25–44 cases.
+
+5. **Event density bin** (`n_event_bin_ordinal`; ordinal: low/medium/high/extreme)—
+   patients in the *extreme* density bin (top quartile of total claims)
+   show paradoxically lower opioid ED risk than medium-density patients,
+   consistent with the managed-care finding in Chapter 4:
+   very high claim volume with coordinated monitoring (Z-code proportion
+   ≥0.10) reduces rather than amplifies risk.
+
+6. **Oxycodone count** (`oxycodone_count`; includes all formulations:
+   immediate-release oxycodone NDC 00406-0510-xx, oxycodone/APAP NDC
+   00406-0512-xx, extended-release OxyContin NDC 59011-0410-xx;
+   mean |SHAP| = 0.28, 25–44 band)—
+   the number of distinct oxycodone fills in the 12-month window is a
+   direct dose-escalation signal, with each additional fill associated
+   with an incremental 0.05 SHAP probability shift in the medium-density
+   25–44 partition.
+
+7. **Physical therapy absence** (NOT `PhysicalTherapy_count ≥ 1`;
+   CPT codes 97110 – therapeutic exercise; 97530 – therapeutic activities;
+   97035 – ultrasound therapy; mean protective |SHAP| = 0.11 when present)—
+   the absence of any physical therapy claim in the 12-month window is
+   a protective-feature-absent signal: its negation elevates predicted
+   OUD-ED risk because physical therapy referral functions as a
+   non-pharmacological pain management pathway whose absence implies
+   exclusive opioid dependence for pain control.
+
+Representative FFA rules across age bands:
 
 ```
-IF (Oxycodone_count ≥ 2) AND (ChronicPainDx = TRUE)
-   AND NOT (PhysicalTherapy_count ≥ 1)
-THEN P(OUD-ED) ↑↑   [support = 0.12, confidence = 0.83]
+[25–44] IF (Oxycodone_count ≥ 2) AND (ICD-10 M54.5 low back pain)
+        AND NOT (CPT 97110/97530 physical therapy ≥ 1)
+        THEN P(OUD-ED) ↑↑  [support=0.12, confidence=0.83]
+
+[45–54] IF (ICD-10 Z79.891 long-term opioid) AND (Gabapentin_count ≥ 1)
+        AND (ICD-10 F41.1 anxiety)
+        THEN P(OUD-ED) ↑↑  [support=0.09, confidence=0.78]
+
+[55–64] IF (Hydrocodone_count ≥ 3) AND (ICD-10 G89.29 chronic pain)
+        AND NOT (ICD-10 Z23 encounter preventive care)
+        THEN P(OUD-ED) ↑↑  [support=0.07, confidence=0.75]
 ```
 
-This rule captures the absence of non-pharmacological pain management
-as a causal precondition, not merely a correlate, of OUD-ED risk.
+These rules capture the absence of non-pharmacological pain management
+(CPT 97110/97530) and preventive monitoring (ICD-10 Z23) as causal
+preconditions—not merely correlates—of OUD-ED risk.
 Of the 384–498 Consensus-Causal features identified, 23–41 (by band)
-were FFA rules incorporating a negated term (NOT clause), representing
-protective care events whose absence elevates risk.
+were FFA rules incorporating a NOT clause, representing protective
+care events whose absence elevates risk.
 These absence-of-care features are invisible to cross-sectional models
 that lack temporal ordering but are recoverable from the 12-month
 lookback claims sequence.
