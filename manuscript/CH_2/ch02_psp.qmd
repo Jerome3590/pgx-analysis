@@ -1058,10 +1058,37 @@ polypharmacy cohort after removing features whose median recall rank fell in
 the bottom quartile across all splits.
 The 5.6-fold difference in retained feature counts between cohorts reflects
 both the broader drug-exposure landscape of younger opioid patients
-(498 features spanning 12 drug classes, 8 ICD-10 chapters, and 6 CPT
-categories) and the focused pharmacological profile of the geriatric
-polypharmacy cohort (89 features concentrated in cardiovascular, diuretic,
-and psychotropic drug classes).
+and the focused pharmacological profile of the geriatric cohort.
+
+The 498 retained opioid cohort features spanned:
+
+- **Drug count features** (12 classes): opioids (oxycodone, hydrocodone,
+  tramadol, codeine, morphine, fentanyl); gabapentinoids (gabapentin,
+  pregabalin); benzodiazepines (alprazolam, lorazepam, diazepam, clonazepam);
+  stimulants; antidepressants (SSRIs, SNRIs, TCAs); antipsychotics;
+  muscle relaxants; NSAIDs; proton pump inhibitors; and sleep aids (zolpidem)
+- **ICD-10 chapter features** (8 chapters): Chapter V Mental and behavioral
+  disorders (F-codes; F11 opioid disorders, F41 anxiety, F32-33 depression);
+  Chapter XIII Musculoskeletal (M-codes; M54.5 low back pain, M79.3 panniculitis);
+  Chapter XI Digestive; Chapter VI Nervous system (G89 chronic pain, G40 epilepsy);
+  Chapter Z Status/history codes (Z79.891 long-term opioid, Z87.891 hx opioid
+  dependence); Chapter XVIII Symptoms; Chapter XIX Injury/poisoning;
+  Chapter XXI Factors influencing health (Z-encounter codes)
+- **CPT procedure features** (6 categories): physical therapy and rehabilitation
+  (97110, 97530, 97035); pain management procedures (64483 nerve block,
+  62323 epidural injection); mental health services (90837, 90834);
+  primary care E/M visits (99213-99215); specialist consultations
+  (99243-99245); substance use disorder treatment (H0020, H2035)
+
+The 89 retained polypharmacy cohort features were concentrated in:
+cardiovascular agents (simvastatin, atorvastatin, metoprolol, carvedilol,
+lisinopril, furosemide, amlodipine, diltiazem, amiodarone, digoxin);
+diuretics and electrolyte agents (furosemide, hydrochlorothiazide,
+spironolactone); psychotropic and CNS agents (alprazolam, lorazepam,
+gabapentin, quetiapine); and antibiotics (levofloxacin, azithromycin).
+ICD-10 features included I50.9 (heart failure), E78.5 (hyperlipidemia),
+N18.3-N18.5 (CKD stage 3-5), E11.xx (type 2 diabetes), E87.6 (hypokalemia),
+and N17.9 (acute kidney injury).
 
 Dropped features were dominated by rare administrative procedure codes
 (CPT 99xxx facility management codes; n = 142) and single-digit prevalence
@@ -1070,11 +1097,15 @@ provided insufficient signal for stable MCCV ranking.
 
 PGx enrichment added 2 aggregate gene-drug interaction scores
 (`pgx_num_drugs` and `pgx_num_cpic_drugs`) derived from CPIC Level A and B
-evidence across CYP2D6, CYP2C9, CYP2C19, and OPRM1 pharmacogenomic pathways
-[@Crews2021].
+evidence across CYP2D6 (opioids, antidepressants, antipsychotics, beta-blockers),
+CYP2C9 (NSAIDs, warfarin), CYP2C19 (SSRIs, PPIs, clopidogrel),
+CYP3A4 (statins, benzodiazepines, opioids), and OPRM1 (opioid sensitivity)
+pharmacomic pathways [@Crews2021].
 Of the 498 opioid cohort features, 61 individual drug features had at least
-one CPIC-annotated interaction, making PGx enrichment relevant to 12% of the
-final opioid feature set.
+one CPIC-annotated interaction (12% of the final feature set);
+for the polypharmacy cohort, 34 of 89 features (38%) overlapped with
+CPIC-annotated drugs, reflecting the higher CYP interaction density
+of geriatric cardiovascular and CNS polypharmacy.
 
 ## Consensus Filter Results
 
