@@ -48,7 +48,7 @@ abstract: >
   static frontend with AWS Lambda containerized backends (Docker/ECR).
   Up to 84 ensemble models (2 cohorts × 7 usable age bands × 4 density bins;
   3 algorithms per bin: CatBoost, XGBoost, XGBoost-RF) from Chapters 3–4
-  are packaged within a ~1.5 GB Lambda container, enabling sub-100 ms warm inference.
+  are packaged within a 619 MB Lambda container (ECR: `pgx-risk-calculator`), enabling sub-100 ms warm inference.
   Partial-input imputation (training-set medians) handles real-world data
   sparsity.
   The PGx Patient Card accepts user-uploaded genetic data (23andMe format),
