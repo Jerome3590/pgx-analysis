@@ -321,7 +321,7 @@ All empirical chapters shared a common methodological foundation:
 
 This methodological consistency enables direct cross-chapter comparison
 and ensures that the dramatic performance difference between the opioid
-cohort (PR-AUC 0.840–0.974) and the polypharmacy cohort (PR-AUC
+cohort (PR-AUC 0.840–0.979) and the polypharmacy cohort (PR-AUC
 0.984–0.997) reflects genuine pharmacoepidemiological differences—
 specifically, the lower case prevalence and more diffuse drug-exposure
 landscape of the opioid cohort—rather than methodological variation.
@@ -331,7 +331,7 @@ the reproducibility failures that affect 88% of reviewed studies.
 
 The cross-cohort performance difference also has a direct translational
 implication: the polypharmacy models (PR-AUC 0.984–0.997) are substantially
-more deployment-ready than the opioid models (PR-AUC 0.840–0.974) in the
+more deployment-ready than the opioid models (PR-AUC 0.840–0.979) in the
 sense that higher discrimination enables more precise risk-band thresholds
 and fewer borderline cases that require clinician judgment under uncertainty.
 For the polypharmacy cohort, a 75th-percentile risk cutoff reliably
