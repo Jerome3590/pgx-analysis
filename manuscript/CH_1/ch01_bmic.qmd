@@ -106,50 +106,40 @@ bibliography:
 
 # Introduction and Conceptual Framework {#sec-intro}
 
-## Background: Healthcare Costs, Outcomes, and System Performance
+## Background: OUD, Polypharmacy, and the Clinical Decision Gap
 
-The opioid epidemic remains a leading public health crisis, with opioid use
-disorder (OUD) and polypharmacy-related adverse drug events (ADEs) heavily
-burdening emergency department (ED) utilization and driving overall healthcare
-costs and outcomes. Addressing this crisis requires optimizing **overall system
-performance**, which rests on three pillars: **People, Processes, and
-Technology**. Historically, clinicians—the *People*—have lacked real-time,
-explainable tools to translate complex patient data into actionable prescribing
-guidance. Recent advances in machine learning (ML), process mining, and
-explainable artificial intelligence (XAI) function as a **Technology and
-Process lever**: tools such as SHAP and Formal Feature Attribution (FFA) feed
-intelligence directly back into clinical work, operationalized as a **Clinical
-OODA Loop** (Observe, Orient, Decide, Act) [@Boyd1986]. That loop lets staff
-observe patient trajectories, orient to high-risk drug exposures and
-interactions, and decide on preventative interventions before adverse events
-escalate.
+Opioid use disorder (OUD) and polypharmacy-related adverse drug events (ADEs)
+drive a disproportionate share of emergency department (ED) visits and
+downstream healthcare costs. Clinicians treating these patients lack real-time,
+explainable tools to translate complex claims trajectories into prescribing
+decisions. Machine learning (ML) and explainable artificial intelligence (XAI)
+partially address this gap—SHAP and Formal Feature Attribution (FFA) convert
+model outputs into interpretable feature rankings—but no deployed system
+integrates pharmacogenomics (PGx) with temporally valid causal modeling.
 
-This chapter introduces a unified approach that merges causal-oriented
-modeling, feature discovery, and process mining with the Clinical OODA Loop as
-the conceptual backbone. By structuring the literature review and empirical
-workflow around OODA, we connect technical advances in ML and data mining to
-actionable, near–real-time clinical intelligence.
+This chapter frames that integration around the **Clinical OODA Loop** (Observe,
+Orient, Decide, Act) [@Boyd1986]: a four-phase decision cycle in which staff
+observe patient trajectories, orient to high-risk drug exposures, decide on
+preventive action, and close the loop through outcome feedback. Causal-oriented
+modeling, feature discovery, and process mining map directly onto these phases.
 
 **Key Objectives:**
 1. Map the evidence base for XAI-enabled clinical prediction models for OUD and polypharmacy-related ED visits.
 2. Characterize the integration of PGx features and causal modeling in healthcare ML.
 3. Evaluate the role of All-Payer Claims Databases (APCD), EHR, and pharmacovigilance data in supporting the OODA cycle.
 4. Identify methodological gaps—especially temporal leakage, calibration, and user-centric explainability.
-5. Propose a next-generation architecture that fuses OODA-driven analytics, XAI, PGx, and causal validation.
+5. Propose a multi-modal architecture fusing OODA-driven analytics, XAI, PGx, and causal validation.
 
-## EHR, APCD, and Actionable Intelligence
+## Data Infrastructure: EHR and APCD
 
-To fuel the OODA loop, comprehensive data infrastructure is essential.
-Electronic health records (EHR) provide rich clinical narratives, whereas
-**All-Payer Claims Database (APCD)** systems supply population-level inputs:
-pre-treatment covariates, drug exposures, and longitudinal utilization across
-settings. Translating large APCD corpora into **actionable intelligence**
-benefits from an end-to-end data mining discipline aligned with **CRISP-DM**
-(Cross-Industry Standard Process for Data Mining): rigorous preparation (APCD
-event filtering and noise control), feature engineering via FP-Growth pattern
-mining, predictive modeling with gradient-boosted trees (CatBoost, XGBoost),
-and deployment of interpretable XAI outputs. Applied to APCD, that pipeline
-targets two clinical problems:
+Electronic health records (EHR) supply clinical narratives; **All-Payer Claims
+Database (APCD)** systems supply population-level inputs: pre-treatment
+covariates, drug exposures, and longitudinal utilization across settings.
+Converting APCD corpora into clinical predictions follows the **CRISP-DM**
+(Cross-Industry Standard Process for Data Mining) pipeline: event filtering and
+noise control, feature engineering via FP-Growth pattern mining, gradient-boosted
+modeling (CatBoost, XGBoost), and deployment of interpretable XAI outputs.
+That pipeline targets two clinical problems:
 
 - **RQ1 (opioid-related ED utilization):** Causal-oriented modeling to surface
   risk factors and predictive features for an *opioid ED* cohort, including
@@ -162,39 +152,33 @@ targets two clinical problems:
 
 ## The Clinical OODA Loop as a Data Science Architecture
 
-The OODA Loop, adapted from military and systems engineering, provides a lens
-for structuring healthcare analytics and the literature keyword ontology
-(**@fig-ontology**):
+The OODA Loop, adapted from military decision theory, structures the healthcare
+analytics pipeline and the literature keyword ontology (**@fig-ontology**):
 
 - **Observe:** Aggregate raw clinical signals from APCD claims, EHR, CPT/ICD codes, and FAERS pharmacovigilance data using scalable tools (e.g., DuckDB).
 - **Orient:** Extract and validate patterns (FP-Growth, BupaR, DTW), enforce temporal cutoffs, and prevent target leakage. Feature discovery and process mining are central here.
 - **Decide:** Apply gradient boosting (CatBoost, XGBoost) and ensemble methods for risk prediction; use SHAP and FFA for interpretable model outputs.
-- **Act:** Deploy actionable intelligence to clinical workflows—for **opioid ED risk (RQ1)** and **polypharmacy-related ED/hospitalization risk (RQ2)**. Feedback from interventions closes the loop, enabling continuous learning and system improvement.
+- **Act:** Deliver risk scores and explanations to clinical workflows for **opioid ED risk (RQ1)** and **polypharmacy-related ED/hospitalization risk (RQ2)**. Intervention outcomes feed back to Observe, closing the loop.
 
-The OODA framing describes how surveillance, modeling, and intervention connect
-conceptually. In the **production empirical workflow** for this dissertation,
-optimized risk models yield feature importances that are used first for causal
-analysis and explainability (SHAP, FFA), and **only then** are prioritized
-features fed into FP-Growth and BupaR for deeper pattern and process mining;
-full methodological detail appears in Chapter 2. Narratively, both views are
-compatible: the ontology emphasizes data-to-decision flow, while CRISP-DM
-phases below specify implementation order.
+In the **production empirical workflow**, optimized risk models yield feature
+importances used first for causal analysis (SHAP, FFA); only then do prioritized
+features feed FP-Growth and BupaR for pattern and process mining. Full
+methodological detail appears in Chapter 2. The ontology above emphasizes
+data-to-decision flow; the workflow phases below specify implementation order.
 
 ## Research Aims and Questions
 
-The overall aim is to evaluate ML applications in this domain and to propose a
-multi-modal architecture that combines pattern mining, XAI, and clinical
-decision support to improve system performance. The primary research questions
-are:
+This review evaluates ML applications for OUD and polypharmacy prediction and
+proposes a multi-modal architecture integrating pattern mining, XAI, and
+clinical decision support. The primary research questions are:
 
-1. **RQ1 (improve opioid-related ED visits):** How can advanced predictive modeling and process mining tools (e.g., BupaR, CatBoost) be optimally applied to APCD data to predict and reduce opioid-related ED visits?
-2. **RQ2 (improve polypharmacy outcomes):** In what ways can frequent drug co-occurrence patterns (via FP-Growth) and Formal Feature Attribution identify temporal polypharmacy risks and help prevent ADE-related hospitalizations?
+1. **RQ1 (improve opioid-related ED visits):** Can advanced predictive modeling and process mining tools (e.g., BupaR, CatBoost) applied to APCD data reliably predict and reduce opioid-related ED visits?
+2. **RQ2 (improve polypharmacy outcomes):** Can frequent drug co-occurrence patterns (via FP-Growth) and Formal Feature Attribution identify temporal polypharmacy risks and reduce ADE-related hospitalizations?
 
 ## Structure and Content of the Workflow
 
-The empirical pipeline is designed for scale on DuckDB and object storage
-(e.g., AWS S3), preserving integrity from raw ingest through deployed
-intelligence. It comprises:
+The empirical pipeline runs on DuckDB and object storage (AWS S3), preserving
+data integrity from raw ingest through model deployment. It comprises:
 
 - **Phase 1 (Data and cohort creation):** APCD/EHR input processing, age
   imputation, and strict control-to-case cohort construction (e.g., 5:1
@@ -213,15 +197,6 @@ intelligence. It comprises:
   DTW trajectory summaries, and pharmacogenomics (PGx) patient cards for
   RQ1 (opioid ED risk) and RQ2 (polypharmacy/ADE risk).
 
-
-## Chapter Organization (This Review)
-
-The remainder of this chapter is organized as follows:
-
-1. **Methods:** Systematic review protocol, eligibility criteria, and search strategy, structured by OODA phases.
-2. **Results:** Synthesis of the literature mapped to OODA phases, emphasizing causal modeling, feature discovery, and clinical decision support.
-3. **Discussion:** Integration of findings, methodological gaps, and implications for OODA-driven healthcare analytics.
-4. **Conclusions:** Summary of contributions and future research agenda.
 
 ---
 
@@ -548,10 +523,9 @@ EHR, electronic health record. {#tbl-study-chars}
 Table @tbl-topic-trends shows annual article counts for each search topic
 within the 5,839-article eligible corpus, restricted to 2021–2025 where
 publication density enables trend interpretation.
-Rapid growth is evident in Drug-Drug Interactions (+111%), DuckDB/OLAP
-Analytics (+116%), and Interpretability/SHAP (+4,200% from a small base),
-reflecting accelerating methodological development in areas directly central
-to this dissertation.
+Drug-Drug Interactions grew 111%, DuckDB/OLAP Analytics 116%, and
+Interpretability/SHAP 4,200% from a small base—all areas central to this
+dissertation's analytical stack.
 
 | Topic | RQ | 2021 | 2022 | 2023 | 2024 | 2025 | Total |
 |:---|:---|---:|---:|---:|---:|---:|---:|
@@ -577,26 +551,22 @@ to this dissertation.
 
 ## NIH AI Reporting Checklist Domain Coverage
 
-A critical dimension of methodological quality in clinical AI literature is
-adherence to established reporting standards. **@fig-ml-methods** maps the
-5,839-article eligible corpus against the 12-domain NIH AI Reporting Checklist
-[@NIH2022], quantifying how many articles address each domain and how coverage
-has evolved from 2019 to 2025.
+**@fig-ml-methods** maps the 5,839-article eligible corpus against the 12-domain
+NIH AI Reporting Checklist [@NIH2022], quantifying article coverage per domain
+and coverage trends from 2019 to 2025.
 
 **Performance Metrics** is the most frequently addressed domain ($n$ = 184,
 3.2%), followed by **Explainability** ($n$ = 165, 2.8%) and **Clinical
 Utility** ($n$ = 141, 2.4%)—reflecting the field's primary emphasis on
 model accuracy and post-hoc interpretation.
-Critically, only three domains reach the "Strong" threshold (≥100 articles):
+Only three domains reach the "Strong" threshold (≥100 articles):
 Performance Metrics, Explainability, and Clinical Utility.
 **Uncertainty Quantification** is the least-represented domain ($n$ = 27,
-0.5%), indicating that probabilistic prediction intervals, Bayesian uncertainty,
-and reliability diagrams remain rare despite their importance for safe clinical
-deployment.
+0.5%); probabilistic prediction intervals, Bayesian uncertainty estimates,
+and reliability diagrams remain absent from most published models.
 **External and Temporal Validation** ($n$ = 50, 0.9%) and **Model
-Transparency** ($n$ = 49, 0.8%) are near-absent relative to corpus size,
-confirming that the leakage-prevention and reproducibility deficits identified
-in §4.2 are systemic, not incidental.
+Transparency** ($n$ = 49, 0.8%) are near-absent, confirming that
+leakage-prevention and reproducibility deficits are systemic.
 
 ![Left: article counts by NIH AI Reporting Checklist domain across the
 5,839-article eligible SQLR corpus (2015–2026), colour-coded by coverage tier
@@ -615,10 +585,9 @@ Local/patient-level SHAP explanations were provided in only 31 studies (33%).
 LIME was employed in 12 studies (13%); symbolic rule extraction in 11 (12%).
 Attention mechanisms for neural models appeared in 8 studies (9%).
 
-Critically, only 14 studies (15%) demonstrated the *clinical utility*
-of generated explanations through user testing or retrospective clinical
-audit—highlighting the predominance of model-centric over user-centric
-evaluation.
+Only 14 studies (15%) demonstrated *clinical utility* of generated explanations
+through user testing or retrospective audit. Model-centric evaluation
+predominates; user-centric evaluation does not.
 
 ## Pharmacogenomics Feature Integration
 
@@ -660,13 +629,10 @@ Polypharmacy-related ADE outcomes appeared in only 5 studies (5%).
 
 ## Operational Performance Metrics
 
-A critical but underexamined dimension of the SQLR corpus is whether published
-models report *operational* impact—the degree to which their outputs translate
-to measurable improvements in system performance (capacity, throughput, cost,
-and workforce utilization). **@fig-op-metrics** summarises the frequency of
-operational performance tagging across the 5,839-article eligible corpus,
-stratified by five categories aligned with the People–Process–Technology
-performance pillars introduced in §1.1.
+Published models rarely report *operational* impact—whether outputs translate
+to measurable improvements in capacity, throughput, cost, or workforce
+utilization. **@fig-op-metrics** summarises operational performance tagging
+across the 5,839-article eligible corpus, stratified by five outcome categories.
 
 Only 239 of 5,839 eligible articles (4.1%) address any operational performance
 metric, confirming that the literature is predominantly model-centric
@@ -674,13 +640,12 @@ metric, confirming that the literature is predominantly model-centric
 Improved Patient Outcomes is the most represented category ($n$ = 236),
 followed by Physician/Nurse Utilization ($n$ = 166), Healthcare Cost Analysis
 ($n$ = 58), and Patient Throughput/Flow ($n$ = 48).
-**Hospital/System Capacity is critically absent** ($n$ = 4)—a striking gap
-given that capacity management is a direct upstream driver of ED utilisation,
-the focal outcome of both RQ1 and RQ2.
-Annual trends (right panel) show accelerating coverage of all categories from
-2023 to 2025, but the absolute counts remain low relative to the corpus size,
-underscoring a persistent disconnect between ML model development and
-operational deployment evidence.
+**Hospital/System Capacity** is near-absent ($n$ = 4), despite capacity
+management being a direct upstream driver of ED utilisation—the focal outcome
+of both RQ1 and RQ2.
+Annual trends (right panel) show accelerating coverage from 2023 to 2025,
+but absolute counts remain low relative to corpus size. ML model development
+and operational deployment evidence remain poorly coupled.
 
 ![Left: total article counts by operational performance category across the
 SQLR corpus (2015–2026). Right: heatmap of annual article volume by category
@@ -701,40 +666,34 @@ discrimination metrics.
 
 ## Key Findings
 
-This SQLR identified 94 studies applying XAI-enabled ML to opioid and
-polypharmacy outcomes, revealing a rapidly growing but methodologically
-fragmented literature.
-Three critical gaps demand attention:
+Ninety-four studies apply XAI-enabled ML to opioid and polypharmacy outcomes.
+The literature is growing rapidly but remains methodologically fragmented
+around three critical gaps:
 
 **Gap 1: PGx integration remains rare.**
 Despite the established pharmacogenomic basis of opioid metabolism
 [@Crews2021; @Stamer2007], fewer than one-fifth of studies incorporated
 any PGx feature.
-This represents a significant missed opportunity: CYP2D6 poor metabolizers
-face substantially elevated codeine toxicity risk, and OPRM1 A118G carriers
-show differential morphine response—actionable information that ML models
-currently ignore.
+CYP2D6 poor metabolizers face elevated codeine toxicity risk; OPRM1 A118G
+carriers show differential morphine response. Published ML models omit both.
 
 **Gap 2: Causal validity is routinely compromised.**
-The 30% temporal leakage rate identified here aligns with recent concerns
-about reproducibility in clinical ML [@Kapoor2023].
-Without strict temporal holdouts and explicit leakage-prevention protocols,
-model performance estimates are inflated, and feature attributions from SHAP
-may reflect post-hoc outcome information rather than causal drug exposure.
+The 30% temporal leakage rate aligns with reproducibility concerns in clinical
+ML [@Kapoor2023]. Without temporal holdouts and explicit leakage-prevention
+protocols, performance estimates are inflated and SHAP attributions reflect
+post-outcome information rather than causal drug exposure.
 
 **Gap 3: FAERS and APCD data are rarely combined.**
-Only 7 studies (7%) integrated both spontaneous pharmacovigilance data (FAERS)
-and longitudinal claims data (APCD) in a single analytic pipeline, despite
-the complementary strengths of each source: FAERS provides rich adverse event
-narratives while APCD provides population-level prescription trajectories.
-This gap is particularly consequential for Safety Net Hospital settings where
-providers lack access to the EHR data used in most published models.
+Only 7 studies (7%) integrated FAERS pharmacovigilance with APCD longitudinal
+claims in a single pipeline. FAERS captures adverse event narratives; APCD
+captures population-level prescription trajectories. Safety Net Hospital
+providers lack the EHR access most published models require, making this
+combined claims-pharmacovigilance approach the only feasible option for
+many high-burden settings.
 
-Table @tbl-gaps enumerates the most significant structural gaps identified
-through the SQLR, defined as search topics yielding fewer than 30 eligible
-articles across the full 2015–2026 window. These sparse domains correspond
-directly to the core research questions and analytical methods motivating
-this dissertation.
+Table @tbl-gaps lists search topics yielding fewer than 30 eligible articles
+across 2015–2026. These sparse domains map to the core research questions
+and analytical methods of this dissertation.
 
 | Topic | $n$ | RQ | Gap Severity | Implication |
 |:---|---:|:---|:---|:---|
@@ -750,18 +709,16 @@ this dissertation.
 : Research gaps identified by the SQLR: search topics with fewer than 30 eligible articles (2015--2026). $n$ = total eligible articles across all years. {#tbl-gaps}
 
 **Gap 4: Explainability is model-centric, not user-centric.**
-Only 15% of studies evaluated whether SHAP or other explanations actually
-improved clinician decision-making.
-This disconnect between computational explainability and clinical usability
-must be addressed before XAI tools can achieve adoption [@Bates2003].
+Only 15% of studies evaluated whether SHAP or other explanations improved
+clinician decision-making. Computational explainability and clinical usability
+are not the same thing; XAI adoption requires evidence of both [@Bates2003].
 
 ## Implications for a Combined XAI + PGx Architecture
 
-The findings motivate a novel architectural paradigm—a "Consensus Filter"
-combining distributional (SHAP) and structural (Formal Feature Attribution)
-analysis with PGx enrichment—as implemented in the accompanying empirical
-chapters of this dissertation.
-Such an architecture must enforce:
+The findings motivate a Consensus Filter architecture that combines
+distributional (SHAP) and structural (Formal Feature Attribution) explainability
+with PGx enrichment, implemented in the accompanying empirical chapters.
+That architecture enforces:
 
 1. Strict temporal validation (training 2016–2018; holdout 2019)
 2. Explicit leakage prevention at feature engineering (FP-Growth and process
@@ -772,27 +729,19 @@ Such an architecture must enforce:
 
 ## Limitations of This Review
 
-This SQLR is subject to several limitations.
-First, publication bias likely inflates reported model performance.
-Second, grey literature and conference proceedings were excluded.
-Third, heterogeneity in outcome definitions, data sources, and evaluation
-metrics limited direct comparisons across studies.
-Fourth, APCD-based studies (the primary data source for subsequent chapters)
-were relatively underrepresented (n = 7) given this data source's recent
+Publication bias likely inflates reported model performance. Grey literature
+and conference proceedings were excluded. Heterogeneity in outcome definitions,
+data sources, and evaluation metrics prevented direct comparison across studies.
+APCD-based studies (n = 7) are underrepresented given this source's recent
 availability.
 
 # Conclusions {#sec-conclusions}
 
-This systematic review confirms a high-impact intersection of XAI,
-pharmacogenomics, and clinical prediction for opioid outcomes—currently
-underexplored in the literature.
-The evidence base demonstrates feasibility of ensemble ML approaches for OUD
-and polypharmacy prediction, but highlights critical methodological
-vulnerabilities around leakage, calibration, and PGx integration that must
-be resolved for clinical translation.
-The methodological gaps identified here directly motivate the partition-first,
-consensus-filter architecture developed in subsequent chapters of this
-dissertation, which addresses all three identified gaps simultaneously.
+Ensemble ML methods are feasible for OUD and polypharmacy prediction, but
+leakage, calibration failures, and absent PGx integration block clinical
+translation. No published study combines temporally valid causal modeling with
+XAI and PGx in a single pipeline. The partition-first, consensus-filter
+architecture developed in subsequent chapters addresses all three gaps.
 
 <!-- ── Supplementary Materials Note ─────────────────────────── -->
 
