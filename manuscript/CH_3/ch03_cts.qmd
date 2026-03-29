@@ -307,25 +307,46 @@ sampling variability.
 
 ## Statistical Analysis
 
-Model performance metrics (AUROC, PR-AUC, Brier score, Integrated
-Calibration Index [ICI]) were computed on the 2019 temporal holdout
-for each age-band–bin model independently, then averaged across bins
-within each age band using sample-size weighting.
-Confidence intervals for all performance metrics were estimated by
-bootstrap resampling (1,000 draws with replacement) of the 2019 holdout
-set, reporting 95% percentile bootstrap CIs.
-The Integrated Calibration Index (ICI) was computed as the mean absolute
-difference between predicted risk and observed outcome rate, estimated
-via a locally weighted LOESS smoother on decile-binned patients.
+**Performance metrics** on the 2019 holdout were computed for each
+age-band–bin model independently, then averaged across bins within
+each age band using sample-size weighting.
 
-Mean |SHAP| values and their 95% bootstrap CIs were computed on a
-stratified random sample of 2,000 patients from the 2019 holdout
-(stratified by outcome and density bin).
-DTW cluster assignment stability across bootstrap samples was assessed
-using the Adjusted Rand Index (ARI; expected range 0–1, with 1 indicating
-perfect agreement).
-All statistical analyses were performed in Python 3.11 using
-scipy (v1.11), dtaidistance (v2.3), and SHAP (v0.43).
+- **PR-AUC** (Area Under the Precision-Recall Curve) was the primary
+  discrimination metric.  This choice reflects the case-control imbalance
+  (opioid ED cases: 14.8–17.4% of the matched cohort): PR-AUC is more
+  sensitive to minority-class performance than AUROC and does not inflate
+  with the addition of true-negative controls, making it the appropriate
+  metric for clinical screening applications.
+- **AUROC** (Area Under the ROC Curve) was reported as a secondary
+  metric to enable comparison with published opioid prediction literature
+  that predominantly reports AUROC.
+- **Recall** (Sensitivity at optimal F₁ threshold): the threshold was
+  selected to maximize F₁ on the training partition and applied
+  unchanged to the holdout, ensuring no threshold-tuning leakage.
+- **Brier Score**: $\frac{1}{N}\sum(\hat{p}_i - y_i)^2$; values
+  near 0 indicate well-calibrated probability outputs; the null-model
+  Brier Score at 17% case prevalence is $\approx 0.141$.
+- **Integrated Calibration Index (ICI)**: mean absolute deviation
+  between predicted probability and observed event rate, estimated via
+  a LOESS smoother on decile-binned patients. ICI = 0 = perfect calibration;
+  ICI > 0.20 would require post-hoc recalibration.
+
+Prior to ensemble weighting, individual model probabilities were
+Platt-scaled (logistic regression on out-of-fold predictions) to
+correct for gradient-boosting probability overconfidence.
+
+**Bootstrap inference**: 95% percentile bootstrap CIs (1,000 draws
+with replacement) were computed for AUROC, PR-AUC, Brier, and ICI.
+Mean |SHAP| values were computed on a stratified random sample of
+2,000 patients from the 2019 holdout (stratified by outcome and
+density bin).
+
+**DTW cluster stability**: Adjusted Rand Index (ARI; range 0–1; 1 =
+perfect agreement) assessed cluster assignment reproducibility across
+50 bootstrap samples of the DTW distance matrix.
+
+All statistical analyses were performed in Python 3.11
+(scipy v1.11; dtaidistance v2.3; SHAP v0.43; scikit-learn v1.3).
 
 # Results {#sec-results}
 
