@@ -1099,9 +1099,9 @@ width=90% fig-align="center"}
 ## Temporal Validation Summary
 
 Mean PR-AUC on the 2019 holdout across all partitions and both cohorts
-was 0.93 ± 0.06 (range: 0.835 opioid 13–24 to 0.997 polypharmacy 75–84).
+was 0.954 (range: 0.840 opioid 13–24 to 0.997 polypharmacy 75–84).
 The systematic performance gap between the opioid ED cohort
-(PR-AUC 0.835–0.916) and the polypharmacy cohort (PR-AUC 0.984–0.997)
+(PR-AUC 0.840–0.974) and the polypharmacy cohort (PR-AUC 0.984–0.997)
 reflects a fundamental difference in case prevalence rather than model
 quality: opioid ED cases constitute approximately 14.8% of the matched
 cohort, while polypharmacy ED cases constitute 6.8%, concentrating the
