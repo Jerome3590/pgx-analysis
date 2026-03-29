@@ -117,14 +117,12 @@ bibliography:
 
 # Introduction {#sec-intro}
 
-Polypharmacy—typically defined as the concurrent use of ≥5 medications
-[@Masnoon2017]—affects more than 40% of adults aged ≥65 years in the
-United States [@Qato2016].
-In older adults, polypharmacy is the primary driver of adverse drug events
-(ADEs), accounting for an estimated 100,000 hospitalizations and 28,000
-deaths annually [@Duerden2013].
-Emergency department utilization attributable to polypharmacy-related ADEs
-represents a substantial and partially preventable burden.
+Polypharmacy (concurrent use of ≥5 medications [@Masnoon2017]) affects
+more than 40% of adults aged ≥65 years in the United States [@Qato2016].
+In older adults, polypharmacy drives adverse drug events (ADEs), accounting
+for an estimated 100,000 hospitalizations and 28,000 deaths annually
+[@Duerden2013].
+Polypharmacy-related ED utilization is partially preventable.
 
 Current approaches to polypharmacy management rely on pairwise DDI databases
 (e.g., Drugs.com, Micromedex) that flag co-prescribed drug pairs based on
@@ -139,13 +137,13 @@ These databases are useful but fundamentally limited:
 
 A systems pharmacology perspective demands a "causal calculator" that
 simultaneously: (a) identifies multi-drug combinations with *synergistic*
-ADE risk exceeding additive pairwise predictions; (b) quantifies the causal
-contribution of each drug to population-level risk; and (c) provides
-actionable deprescribing priorities ranked by expected risk reduction.
+ADE risk exceeding additive pairwise predictions; (b) quantifies each drug's
+causal contribution to population-level risk; and (c) ranks deprescribing
+priorities by expected risk reduction.
 
 This study extends Formal Feature Attribution (FFA) from the Chapter 2
-Consensus Filter to multi-feature interaction testing—evaluating feature
-pairs and triplets for synergistic and antagonistic effects—applied to a
+Consensus Filter to multi-feature interaction testing, evaluating feature
+pairs and triplets for synergistic and antagonistic effects, applied to a
 geriatric non-opioid ED cohort derived from APCD.
 
 ## Study Objectives
@@ -389,13 +387,12 @@ width=90%}
 
 ## The FFA Causal Calculator
 
-FFA multi-feature interaction testing provides a clinically actionable
-"causal calculator" that extends beyond existing pairwise DDI databases
-in three ways:
+FFA multi-feature interaction testing extends beyond existing pairwise DDI
+databases as a "causal calculator" in three ways:
 
 1. **Multi-drug synergy detection**: [XX] synergistic triplets were
    identified that would appear benign under pairwise-only analysis.
-   Anticholinergic burden—a known geriatric risk factor—emerged as a
+   Anticholinergic burden, a known geriatric risk factor, emerged as a
    consistent driver of synergistic interactions, consistent with
    Beers Criteria recommendations.
 2. **Causal prioritization via IR**: IR scores translate model output into
@@ -410,12 +407,10 @@ in three ways:
 
 The Z-code analysis resolves a clinical paradox: high-utilization patients
 with many drugs are not uniformly high-risk.
-Regular monitoring (Z-codes) is a protective factor, suggesting that
-proactive care management programs—not drug reduction alone—are the
-appropriate intervention for this population.
-This finding aligns with recent deprescribing evidence showing that structured
-medication reviews with pharmacist involvement reduce ADE rates by
-15–25% [@Duerden2013].
+Regular monitoring (Z-codes) is a protective factor; coordinated care
+management programs reduce ADE risk more than drug reduction alone.
+Structured medication reviews with pharmacist involvement reduce ADE rates
+by 15–25% [@Duerden2013], consistent with this finding.
 
 ## Limitations
 
@@ -428,14 +423,14 @@ limits external validity.
 
 # Conclusions {#sec-conclusions}
 
-FFA multi-feature interaction testing, applied to a 30-day causality window
-in the geriatric non-opioid ED cohort, constitutes a data-driven causal
-calculator for polypharmacy ADE risk.
+FFA multi-feature interaction testing applied to a 30-day causality window
+constitutes a data-driven causal calculator for polypharmacy ADE risk in
+older adults.
 It identifies synergistic drug combinations that exceed pairwise DDI
 predictions, quantifies deprescribing priorities via IR scores, and
 distinguishes managed from unmanaged polypharmacy through Z-code analysis.
-These findings provide a pharmacologically grounded, computationally feasible
-framework for clinical decision support in the aging population.
+Geriatric pharmacists gain a computationally feasible prioritization tool
+that pairwise DDI databases cannot provide.
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.

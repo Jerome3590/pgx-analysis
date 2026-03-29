@@ -138,10 +138,9 @@ simultaneously by:
 4. Delivering a stateless, ephemeral PGx Patient Card via CPIC lookup
    that processes genetic data without storing any PII.
 
-The system is positioned as an implementation paper demonstrating that
-translational informatics is not merely about publishing accurate models—it
-is about ensuring those models reach patients and providers in usable,
-trustworthy, and actionable forms.
+This paper demonstrates that translational informatics requires models to
+reach patients and providers in usable, trustworthy forms, not just meet
+publication performance standards.
 
 # System Architecture {#sec-architecture}
 
@@ -450,21 +449,19 @@ problem identified in Chapter 1:
 architecture removes the primary barrier to PGx tool adoption in ambulatory
 settings: clinicians and patients are reluctant to upload genomic or clinical
 data to systems that retain records [@HHS2013].
-The CPIC card's zero-storage design provides PGx-grade clinical utility
-without HIPAA compliance burden beyond standard TLS transport encryption.
+The CPIC card's zero-storage design delivers PGx guidance with no HIPAA
+storage burden beyond standard TLS transport encryption.
 
-**Partial-input tolerance enabling real-world use.** The Imputation of
-Normality mechanism extends ensemble risk scoring to the incomplete data
-environments of actual clinical practice.
-Sensitivity analysis demonstrates stable risk-band assignment up to 60%
-input sparsity, meaning a meaningful risk score is available from as few
-as 3–5 current medications.
+**Partial-input tolerance enabling real-world use.** Imputation of Normality
+extends risk scoring to the incomplete inputs of clinical practice.
+Risk-band assignment is stable up to 60% input sparsity; a meaningful score
+is available from as few as 3–5 current medications.
 
 **Causal interpretability enabling trust.** The What-If counterfactual tab
-grounds the risk score in the FFA causal rules from Chapter 4, enabling
-clinicians to move from "this patient is high risk" to "if I remove
-benzodiazepine X, risk decreases by [XX%]"—an actionable, causally
-grounded recommendation aligned with deprescribing priorities.
+grounds the risk score in FFA causal rules from Chapter 4, enabling
+clinicians to move from "this patient is high risk" to "removing
+benzodiazepine X reduces risk by [XX%]", a causally grounded deprescribing
+priority.
 
 ## Limitations and Future Work
 
@@ -492,8 +489,8 @@ that bundling all 21 age-band models in a single Lambda container is both
 feasible and performant within standard AWS Lambda constraints.
 The stateless CPIC Patient Card resolves the privacy-compliance barrier
 for point-of-care PGx access.
-Together, these features constitute a complete translational pipeline from
-APCD-scale modeling to bedside decision support.
+These features complete the translational pipeline from APCD-scale modeling
+to bedside decision support.
 
 **Supplementary Materials:** Supplementary File S1 (API endpoint
 specification); Supplementary File S2 (CPIC database version and gene

@@ -117,12 +117,11 @@ The active workforce and young adult population (ages 13–64) bear a
 disproportionate burden, with opioid-related ED utilization concentrated in
 this age range [@Hudgins2019].
 
-Early identification of high-risk trajectories—before the clinical diagnosis
-of dependence (ICD-10: F11.20)—offers the greatest potential for
-cost-effective intervention [@Dowell2022].
-Yet most published risk models are static at the time of clinical encounter,
-failing to leverage the longitudinal prescription and diagnosis sequences
-available in administrative claims data.
+Identifying high-risk trajectories before dependence diagnosis (ICD-10: F11.20)
+enables cost-effective intervention [@Dowell2022].
+Most published risk models are static at the time of clinical encounter and
+ignore the longitudinal prescription and diagnosis sequences available in
+administrative claims data.
 
 Pharmacogenomic (PGx) factors further complicate individual opioid risk:
 CYP2D6 poor metabolizers accumulate higher active metabolite concentrations
@@ -366,13 +365,13 @@ claims-based (genotype-imputed) analysis [@Crews2021].
 
 ## Trajectory-Informed Intervention
 
-The two DTW archetypes suggest fundamentally different intervention strategies.
+The two DTW archetypes require different intervention strategies.
 Rapid-Onset patients require immediate post-acute care protocols: opioid
 alternative pathways, mandatory physical therapy, and early PDMP
 consultation [@Prescription2019].
-Chronic-Escalation patients present multiple intervention windows over
-≥18 months; the identification of ≥3 missed non-opioid care opportunities
-in this cluster underscores the need for systematic care coordination tools.
+Chronic-Escalation patients present ≥18 months of intervention windows;
+≥3 missed non-opioid care opportunities in this cluster demand systematic
+care coordination tools.
 
 ## Limitations
 
@@ -386,17 +385,15 @@ regulations.
 
 # Conclusions {#sec-conclusions}
 
-This study demonstrates that ensemble ML with Consensus Filter feature
-selection identifies robust, causal, and *modifiable* drivers of OUD-related
-ED visits up to 22 months before clinical diagnosis.
+Ensemble ML with Consensus Filter feature selection identifies robust, causal,
+and *modifiable* drivers of OUD-related ED visits up to 22 months before
+clinical diagnosis.
 DTW trajectory analysis reveals two clinically distinct risk archetypes
 with different optimal intervention windows.
 PGx interaction features contribute independently to model performance,
-supporting the integration of genomic context into administrative-data
-risk models.
-These findings provide an actionable, evidence-based foundation for
-proactive clinical decision support at the pre-diagnosis stage of the
-opioid epidemic.
+supporting genomic context integration in administrative-data risk models.
+These findings enable proactive clinical decision support before the
+pre-diagnosis stage of the opioid epidemic.
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.

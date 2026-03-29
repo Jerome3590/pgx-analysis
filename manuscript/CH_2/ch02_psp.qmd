@@ -113,12 +113,12 @@ bibliography:
 
 # Introduction {#sec-intro}
 
-All-Payer Claims Databases (APCD) represent one of the richest longitudinal
-data sources for pharmacoepidemiological research, capturing multi-year
-prescription histories, diagnosis trajectories, and procedure utilization
-across insured populations [@Ghosh2019; @Cantor2012].
+All-Payer Claims Databases (APCD) provide rich longitudinal data for
+pharmacoepidemiological research, capturing multi-year prescription histories,
+diagnosis trajectories, and procedure utilization across insured populations
+[@Ghosh2019; @Cantor2012].
 For opioid risk modeling specifically, APCD data enables identification of
-drug-exposure sequences preceding emergency department (ED) visits—a temporal
+drug-exposure sequences preceding emergency department (ED) visits, a temporal
 signal unavailable in cross-sectional survey data or single-payer registries.
 
 However, the computational and methodological challenges of APCD-scale
@@ -131,15 +131,15 @@ encode future outcome information into predictive features if not carefully
 constrained [@Kapoor2023].
 Third, while ensemble machine learning models now achieve high discrimination
 on held-out test sets, the features driving predictions often lack causal
-interpretability—a critical barrier to clinical adoption [@Rudin2019;
+interpretability, a critical barrier to clinical adoption [@Rudin2019;
 @Arrieta2020].
 
-No prior work has addressed all three challenges—scalability, leakage
-prevention, and causal explainability—within a single, production-deployed
+No prior work has addressed all three challenges (scalability, leakage
+prevention, and causal explainability) within a single, production-deployed
 pharmacoepidemiological framework.
 This paper presents the **Partition-First Architecture and Consensus Filter**:
-a full-stack solution designed for APCD-scale claims analysis that is
-replicable, temporally valid, and causally interpretable.
+a replicable, temporally valid, and causally interpretable framework for
+APCD-scale pharmacoepidemiological modeling.
 
 ## Study Objectives
 
@@ -291,8 +291,7 @@ width=100%}
 Monolithic processing of full APCD data on a single worker node saturated
 memory at approximately 450 GB and produced throughput of
 ${\sim}1.2$ M records/minute.
-A partition strategy was designed to exploit the natural independence of
-cohort subgroups.
+A partition strategy exploits the natural independence of cohort subgroups.
 
 ### Partition Scheme
 
@@ -538,30 +537,23 @@ LogLoss, log-loss. Values are mean ± SD across MCCV splits. {#tbl-validation}
 
 # Discussion {#sec-discussion}
 
-The partition-first architecture resolves a fundamental scalability barrier
-in APCD-based pharmacoepidemiology by distributing independent cohort strata
-across parallel compute workers.
-The 15× throughput improvement is consistent with theoretical linear scaling
-and validates the practical feasibility of terabyte-scale claims modeling
-on standard cloud infrastructure.
+The partition-first architecture resolves the scalability barrier in
+APCD-based pharmacoepidemiology by distributing independent cohort strata
+across parallel workers.
+The 15× throughput improvement confirms near-linear scaling and makes
+terabyte-scale claims modeling feasible on standard cloud infrastructure.
 
-The Consensus Filter addresses the interpretability gap by enforcing dual
-confirmation of causal features.
-The reduction in Brier score variance on the 2019 holdout suggests that
-Consensus-Causal features are more stable across population strata than
-features identified by either method in isolation—consistent with the
-hypothesis that dual confirmation reduces false-positive causal assignments
-[@Pearl2009].
+The Consensus Filter enforces dual confirmation of causal features.
+Consensus-Causal features show lower Brier score variance on the 2019 holdout
+than features identified by either method alone, consistent with dual
+confirmation reducing false-positive causal assignments [@Pearl2009].
 
-The visualization-only restriction on FP-Growth and BupaR is a critical
-methodological safeguard.
-Prior work has demonstrated that association rules constructed without
-temporal constraints can encode target-outcome co-occurrence into predictor
-features, inflating performance estimates by up to 15–20 percentage points
-in AUC-PR [@Kapoor2023].
-By restricting these methods to exploratory dashboards and clinical context
-visualization, the pipeline maintains causal validity without sacrificing
-interpretive richness.
+Restricting FP-Growth and BupaR to visualization prevents a documented
+leakage hazard: association rules built without temporal constraints encode
+target-outcome co-occurrence into predictor features, inflating AUC-PR by
+up to 15–20 percentage points [@Kapoor2023].
+Exploratory dashboards preserve interpretive context; causal validity is
+maintained.
 
 ## Limitations
 
@@ -573,16 +565,15 @@ infrastructure investment not available to all research settings.
 
 # Conclusions {#sec-conclusions}
 
-The partition-first architecture and Consensus Filter together provide a
-replicable, scalable, and causally valid framework for large-scale
-pharmacoepidemiological modeling.
-Throughput improvement of 15× enables iterative APCD analysis previously
-infeasible on single-node infrastructure.
-The Consensus Filter's dual-confirmation requirement produces feature sets
-with superior calibration on prospective holdouts compared to single-method
-alternatives.
-This architecture forms the methodological backbone for the opioid and
-polypharmacy prediction studies presented in subsequent chapters.
+The partition-first architecture and Consensus Filter together deliver a
+replicable, causally valid framework for large-scale pharmacoepidemiological
+modeling.
+The 15× throughput improvement makes iterative APCD analysis feasible on
+standard cloud infrastructure.
+Dual-confirmation feature selection produces superior holdout calibration
+relative to single-method alternatives.
+This architecture underpins the opioid and polypharmacy prediction studies
+in subsequent chapters.
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 software, R.J.D.; formal analysis, R.J.D.; writing, R.J.D.

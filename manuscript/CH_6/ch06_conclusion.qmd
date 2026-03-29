@@ -75,11 +75,9 @@ bibliography:
 
 # Overview of the Dissertation {#sec-overview}
 
-This dissertation addressed a fundamental challenge in clinical informatics:
-how can the predictive power of large-scale administrative healthcare data
-be translated into causally valid, pharmacogenomically enriched,
-and clinically actionable risk tools for opioid use disorder (OUD) and
-polypharmacy-related adverse drug events?
+This dissertation addresses one challenge: translating large-scale
+administrative healthcare data into causally valid, PGx-enriched risk tools
+for opioid use disorder (OUD) and polypharmacy-related adverse drug events.
 
 The five empirical chapters approached this challenge from complementary
 angles, producing a coherent research arc:
@@ -164,16 +162,15 @@ Deployed the full pipeline as a privacy-first serverless application:
 - Cold-start < [XXX] ms; warm inference < [XX] ms (both targets met)
 - Imputation of Normality: stable risk-band assignment up to 60% input sparsity
 - Stateless PGx Patient Card: CPIC lookup for 573 gene-drug pairs with
-  zero PII storage—the first clinical PGx tool integrated with ensemble
+  zero PII storage; the first clinical PGx tool integrated with ensemble
   opioid/polypharmacy risk scoring in a single serverless deployment
 
 # Integrated Findings {#sec-integrated}
 
 ## The XAI–PGx–Causal Integration
 
-The central theoretical contribution of this dissertation is demonstrating
-that XAI, PGx, and causal temporal modeling are not merely compatible—they
-are mutually reinforcing when properly sequenced:
+XAI, PGx, and causal temporal modeling are mutually reinforcing when
+properly sequenced:
 
 1. **PGx enrichment** (Chapter 2, Step 3b) adds genomic context to
    drug-exposure features that SHAP alone would rank as clinically
@@ -229,23 +226,20 @@ $$\text{APCD} \to \text{Cohort} \to \text{Features (+ PGx)}
   \to \text{Ensemble} \to \text{Consensus Filter}
   \to \text{Causal Rules} \to \text{Dashboard} \to \text{Clinician}$$
 
-Each step was evaluated not only for technical performance but for
-clinical validity (leakage prevention, calibration, sparsity tolerance).
-The result is a fully documented, replicable pipeline that other
-translational informatics researchers can adapt for different disease areas,
-data sources, or clinical contexts.
+Each step was evaluated for both technical performance and clinical validity
+(leakage prevention, calibration, sparsity tolerance).
+The pipeline is fully documented and replicable across disease areas,
+data sources, and clinical contexts.
 
 ## For the Opioid Epidemic
 
-The Rapid-Onset trajectory archetype (Chapter 3)—characterized by rapid
-escalation from acute injury to OUD within ~4 months—suggests that
-post-acute care protocols following surgical or injury-related opioid
-prescriptions may be the highest-yield intervention point for OUD prevention
-in the 25–44 age group.
-Coupling such protocols with the PGx Patient Card (Chapter 5) enables
-pre-identification of CYP2D6 poor metabolizers at elevated risk of
-dose escalation—a precision medicine approach to the opioid epidemic
-not yet implemented at scale.
+Post-acute care protocols following surgical or injury-related opioid
+prescriptions are the highest-yield OUD prevention point for the 25–44
+age group. The Rapid-Onset archetype (Chapter 3) shows why: acute injury
+escalates to OUD-ED in approximately 4 months, leaving a narrow window.
+Pairing these protocols with the PGx Patient Card (Chapter 5)
+pre-identifies CYP2D6 poor metabolizers before dose escalation occurs,
+a precision medicine approach not yet implemented at scale.
 
 ## For Geriatric Pharmacotherapy
 
@@ -320,27 +314,23 @@ appropriate, which drugs reduce risk most per discontinuation?
 
 # Conclusions {#sec-conclusions}
 
-This dissertation demonstrates that the integration of explainable AI,
-pharmacogenomics, and causal temporal modeling in clinical prediction
-is not merely theoretically desirable—it is technically achievable,
-computationally scalable, and clinically deployable.
+Integrating explainable AI, pharmacogenomics, and causal temporal modeling
+in clinical prediction is technically achievable, computationally scalable,
+and clinically deployable.
 
 The partition-first architecture and Consensus Filter provide a replicable
 methodological foundation for APCD-scale pharmacoepidemiology.
-The opioid and polypharmacy prediction models identify causal,
-modifiable features from longitudinal claims data—including PGx signals
-that existing literature has largely overlooked.
-The PGx Risk Dashboard completes the translational pipeline, delivering
-ensemble risk scores, causal counterfactuals, and genomic personalization
-to the point of care within the latency and privacy constraints required
-for clinical adoption.
+The opioid and polypharmacy prediction models identify causal, modifiable
+features from longitudinal claims data, including PGx signals the existing
+literature has largely overlooked.
+The PGx Risk Dashboard completes the pipeline, delivering ensemble risk
+scores, causal counterfactuals, and genomic personalization within the
+latency and privacy constraints clinical adoption requires.
 
-Translational informatics demands more than methodological rigor: it demands
-that models be *usable* by the clinicians and patients they are designed
-to serve.
-The work presented here addresses this imperative across all five chapters—
-from the evidence map in Chapter 1 that defined the gap, to the dashboard
-in Chapter 5 that bridges it.
+Translational informatics requires that models reach clinicians and patients,
+not just satisfy publication metrics. All five chapters address this
+requirement: from the evidence map that defined the gap (Chapter 1)
+to the dashboard that closes it (Chapter 5).
 
 **Data Availability:** The data supporting the findings of this dissertation
 are derived from Virginia's All-Payer Claims Database (APCD). Restrictions
