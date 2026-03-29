@@ -114,32 +114,55 @@ bibliography:
 Opioid use disorder (OUD) affects approximately 2.7 million Americans and
 contributes to more than 80,000 opioid-related deaths and 1.5 million ED
 visits annually [@Mattson2021; @Vivolo2018].
+Virginia's opioid overdose mortality rate has consistently exceeded the
+national average, driven by high rates of fentanyl adulteration in the
+illicit supply and concentrated prescribing in rural health service areas.
 The active workforce and young adult population (ages 13–64) bear a
 disproportionate burden, with opioid-related ED utilization concentrated in
 this age range [@Hudgins2019].
+Opioid-related ED visits in this age group represent a critical intervention
+opportunity: many represent pre-diagnosis escalation rather than established
+OUD, with up to 22 months of identifiable prescription history preceding
+formal dependence diagnosis.
 
-Identifying high-risk trajectories before dependence diagnosis (ICD-10: F11.20)
-enables cost-effective intervention [@Dowell2022].
-Most published risk models are static at the time of clinical encounter and
-ignore the longitudinal prescription and diagnosis sequences available in
-administrative claims data.
+Most published opioid risk models address a single cross-section of risk:
+the point of clinical encounter.
+These models predict whether a patient presenting to a clinic or ED will
+have a positive toxicology screen or carry an OUD diagnosis at the
+current visit---a retrospective detection task rather than a prospective
+risk stratification task.
+Longitudinal prediction from administrative claims---identifying which
+patients will *develop* an OUD-related ED visit over the next 12–22 months
+based on current prescription and diagnosis sequences---is fundamentally
+different and requires temporal modeling of prescription escalation patterns.
+Only 6 published studies applied ML to predict opioid ED visits from
+APCD/claims data in the manner required (Chapter 1 SQLR, $n$ = 6 of 5,839).
 
-Pharmacogenomic (PGx) factors further complicate individual opioid risk:
+Pharmacogenomic (PGx) factors further complicate individual opioid risk.
 CYP2D6 poor metabolizers accumulate higher active metabolite concentrations
-from hydrocodone and oxycodone, while CYP2D6 ultrarapid metabolizers derive
-inadequate analgesia from codeine and may escalate doses [@Crews2021].
+from hydrocodone and oxycodone, predisposing them to respiratory depression
+at standard therapeutic doses, while CYP2D6 ultrarapid metabolizers derive
+inadequate analgesia from codeine and may escalate to higher doses or
+switch to more potent opioids [@Crews2021].
+The OPRM1 A118G variant modulates mu-opioid receptor sensitivity,
+affecting both analgesic response and the reinforcing properties that
+underlie opioid dependence.
 Despite these established mechanisms, PGx features are absent from nearly
-all published OUD prediction models (Chapter 1).
+all published OUD prediction models (Chapter 1, fewer than 20% of eligible
+studies included any PGx feature).
 
 This study applies the partition-first, Consensus Filter methodology
-(Chapter 2) to the opioid ED cohort to:
+developed in Chapter 2 to the opioid ED cohort, with three specific aims:
 
 1. Develop and validate an ensemble model predicting opioid-related ED visits
-   across four age bands (13–24, 25–44, 45–54, 55–64 years).
-2. Identify Consensus-Causal features—confirmed by both SHAP and FFA—as
-   modifiable intervention targets.
-3. Characterize pre-diagnosis patient trajectories using DTW clustering to
-   define clinically distinct risk archetypes.
+   across four age bands (13–24, 25–44, 45–54, 55–64 years) using a strict
+   temporal holdout (training 2016–2018; validation 2019).
+2. Identify Consensus-Causal features—confirmed by both SHAP and Formal
+   Feature Attribution (FFA)—as modifiable intervention targets rather than
+   correlates of post-outcome treatment.
+3. Characterize pre-diagnosis patient trajectories using Dynamic Time Warping
+   (DTW) clustering to define clinically distinct risk archetypes with
+   different intervention windows.
 
 # Methods {#sec-methods}
 
