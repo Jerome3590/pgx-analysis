@@ -331,17 +331,21 @@ under normal clinical operations.
 
 ## Performance Summary
 
-| Cohort | Age Range | Ensemble PR-AUC | AUROC | Notes |
-|:---|:---|---:|---:|:---|
-| Opioid ED | 13–24 | 0.835 | 0.937 | Full drug history |
-| Opioid ED | 25–44 | 0.889 | 0.961 | Highest signal |
-| Opioid ED | 45–54 | 0.896 | 0.960 | |
-| Opioid ED | 55–64 | 0.916 | 0.966 | |
-| Non-Opioid ED | 65–74 | 0.984 | 0.996 | 30-day window |
-| Non-Opioid ED | 75–84 | 0.997 | 0.999 | |
-| Non-Opioid ED | 85–114 | 0.991 | 0.997 | Highest polypharmacy |
+| Cohort | Age Band | Model | AUROC | PR-AUC | Brier | ICI |
+|:---|:---|:---|---:|---:|---:|---:|
+| Opioid ED | 13–24 | XGBoost | 0.957 | 0.840 | 0.008 | 0.163 |
+| Opioid ED | 25–44 | XGBoost | 0.979 | 0.935 | 0.013 | 0.108 |
+| Opioid ED | 45–54 | Ensemble | 0.987 | 0.955 | 0.007 | 0.110 |
+| Opioid ED | 55–64 | Ensemble | 0.991 | 0.974 | 0.051 | 0.113 |
+| Non-Opioid ED | 65–74 | CatBoost | 0.996 | 0.984 | 0.008 | 0.071 |
+| Non-Opioid ED | 75–84 | Ensemble | 0.999 | 0.997 | 0.007 | 0.128 |
+| Non-Opioid ED | 85–114 | Ensemble | 0.997 | 0.992 | 0.007 | 0.290 |
 
-: Cross-chapter performance summary on 2019 temporal holdout. {#tbl-performance}
+: Cross-chapter performance summary on 2019 temporal holdout (25-run MCCV + Optuna).
+AUROC, area under the receiver operating characteristic curve;
+PR-AUC, area under the precision-recall curve;
+ICI, Integrated Calibration Index (10-bin; lower = better calibrated).
+Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-performance}
 
 # Broader Implications {#sec-implications}
 

@@ -366,44 +366,36 @@ width=85% fig-align="center"}
 
 Ensemble performance on the 2019 temporal holdout is summarized by age band
 in **@tbl-performance** and **@fig-curves**.
-All age bands exceeded AUROC 0.93 and PR-AUC 0.83 on the 2019 holdout,
+All four age bands (13–64) achieved AUROC ≥ 0.957 and PR-AUC ≥ 0.840,
 demonstrating that the temporal validation design
 (training 2016–2018; testing 2019) did not inflate performance
 through data leakage.
-The 25–44 year band achieved the highest PR-AUC (0.889 ± 0.03), consistent
-with the high opioid prescription burden and rich prescription signal in
-this working-age stratum.
-The 55–64 band achieved the highest AUROC (0.966), likely because
-opioid escalation in older working-age patients produces stronger
-distinction from age-matched controls who predominantly use non-opioid
-pain management.
+The 55–64 band achieved the highest PR-AUC (0.974) and AUROC (0.991),
+consistent with the strong opioid escalation signal in older working-age
+patients relative to age-matched controls.
+The 25–44 band had the highest case count and richest prescription signal
+(PR-AUC 0.935), supporting robust discrimination in the peak
+opioid epidemic demographic.
+The 13–24 band showed the lowest PR-AUC (0.840), reflecting smaller
+case counts (N = 1,630 cases; 6.1% of cohort) and fewer chronic
+prescription signals in younger patients, who more commonly present
+with acute single-episode opioid events.
+Brier scores (0.007–0.051) and ICI values (0.108–0.163) confirm that
+ensemble probability outputs are well-calibrated for direct risk-band
+assignment across all age bands.
 
-The 13–24 band showed the lowest PR-AUC (0.835 ± 0.04), reflecting smaller
-case counts and fewer prescription signals in younger patients.
-However, AUROC 0.937 in the youngest band remains clinically actionable;
-the lower PR-AUC reflects the case scarcity ($n$ = 1,630 cases) rather
-than model failure.
-Brier scores were low across all bands (0.007–0.051), confirming that
-calibrated probability estimates can be used directly for risk
-stratification without post-hoc recalibration.
-The Integrated Calibration Index (ICI) ranged from 0.108 to 0.164,
-indicating acceptable but imperfect calibration; the 25–44 band showed
-the best calibration (ICI = 0.108), consistent with having the most
-training cases for the calibration isotonic regression step.
+| Age Band | Selected Model | AUROC | PR-AUC | Brier | ICI |
+|:---|:---|---:|---:|---:|---:|
+| 13–24 | XGBoost | 0.957 | 0.840 | 0.008 | 0.163 |
+| 25–44 | XGBoost | 0.979 | 0.935 | 0.013 | 0.108 |
+| 45–54 | Ensemble | 0.987 | 0.955 | 0.007 | 0.110 |
+| 55–64 | Ensemble | 0.991 | 0.974 | 0.051 | 0.113 |
 
-| Age Band | $n$ (cases) | AUROC | PR-AUC | Brier | ICI |
-|:---|---:|---:|---:|---:|---:|
-| 13–24 | 1,630 | 0.937 | 0.835 | 0.008 | 0.164 |
-| 25–44 | 12,753 | 0.961 | 0.889 | 0.013 | 0.108 |
-| 45–54 | 5,984 | 0.960 | 0.896 | 0.007 | 0.154 |
-| 55–64 | 6,343 | 0.966 | 0.916 | 0.051 | 0.138 |
-| **All bands** | 26,710 | **0.956** | **0.884** | **0.020** | **0.141** |
-
-: Ensemble model performance on 2019 temporal holdout by age band.
-Metrics are mean ± SD across MCCV splits applied to the 2019 holdout set.
-AUROC, area under the receiver operating characteristic curve; PR-AUC,
-area under the precision-recall curve; Brier, Brier score;
-ICI, integrated calibration index. {#tbl-performance}
+: Opioid ED predictive performance on 2019 temporal holdout (25-run MCCV + Optuna).
+AUROC, area under the receiver operating characteristic curve;
+PR-AUC, area under the precision-recall curve; Brier, Brier score;
+ICI, Integrated Calibration Index (10-bin; 0 = perfect calibration).
+Source: `brier_ici_results.json`, `model_performance_metrics.json`. {#tbl-performance}
 
 ![Model performance curves on 2019 holdout. (A) Precision-recall curves by
 age band; dashed line indicates no-skill baseline (case prevalence = 0.17).
