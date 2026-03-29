@@ -338,7 +338,7 @@ Hub nodes (betweenness centrality ≥ 90th pct) marked with larger circles.
 (B) FFA synergistic pair network: only drug pairs with IE > 0 (95% CI > 0)
 shown; edge weight proportional to IE score. Overlapping nodes between (A)
 and (B) indicate high co-occurrence AND causal synergy.](../figures/ch04/fig_network.pdf){#fig-network
-width=100%}
+width=100% fig-align="center"}
 
 ## Triplet Interactions
 
@@ -373,7 +373,7 @@ to non-opioid ED risk. IR = expected risk reduction (Δ$\hat{p}$) if drug is
 removed, averaged over the 2019 holdout cohort and normalized by case
 prevalence. Error bars = bootstrap 95% CI. Drugs are ranked within each of
 the three geriatric age bands; rankings are highly consistent
-across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90%}
+across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90% fig-align="center"}
 
 ## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#sec-zcode}
 
@@ -404,7 +404,7 @@ by ADE case status; cases have significantly lower Z-code proportions
 ($P$ < 0.001 by Mann–Whitney U). (B) Adjusted OR for ADE ED visit by Z-code
 proportion quartile (Q1 = lowest, Q4 = highest), adjusted for age band, sex,
 and 30-day drug count. Error bars = 95% CI.](../figures/ch04/fig_zcode.pdf){#fig-zcode
-width=90%}
+width=90% fig-align="center"}
 
 # Discussion {#sec-discussion}
 

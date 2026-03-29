@@ -408,7 +408,7 @@ Decide-phase on prediction and model explainability; Act-phase on intervention
 and deployment. Lexical dominance of *opioid*, *pharmacogenomic*, and *machine
 learning* across all four quadrants confirms thematic alignment with both
 research questions.](../figures/ch01/fig_ooda_wordcloud.pdf){#fig-ooda-wordcloud
-width=100%}
+width=100% fig-align="center"}
 
 ## Study Selection
 
@@ -484,7 +484,7 @@ Of 9,571 records identified via PubMed API (nine search strings), 151
 duplicates were removed. After automated eligibility screening, 5,839 articles
 were classified as eligible; full text was retrieved for 5,699 (95.8%).
 All 5,699 full-text articles are included in the final synthesis
-corpus.](../figures/ch01/fig_prisma.pdf){#fig-prisma width=85%}
+corpus.](../figures/ch01/fig_prisma.pdf){#fig-prisma width=85% fig-align="center"}
 
 ## Study Characteristics
 
@@ -574,7 +574,7 @@ leakage-prevention and reproducibility deficits are systemic.
 of annual domain coverage (2019–2025). Performance Metrics and Explainability
 lead; Uncertainty Quantification and External Validation are critical gaps
 across all years.](../figures/ch01/fig_ml_methods.pdf){#fig-ml-methods
-width=100%}
+width=100% fig-align="center"}
 
 ## Explainability Methods
 
@@ -652,7 +652,7 @@ SQLR corpus (2015–2026). Right: heatmap of annual article volume by category
 (2019–2025). Only 239 of 5,839 eligible articles (4.1%) carry at least one
 operational tag. Hospital/System Capacity is near-absent ($n$ = 4), confirming
 that capacity-level operational evidence is a critical research
-gap.](../figures/ch01/fig_op_metrics.pdf){#fig-op-metrics width=100%}
+gap.](../figures/ch01/fig_op_metrics.pdf){#fig-op-metrics width=100% fig-align="center"}
 
 ## Quality Assessment
 
