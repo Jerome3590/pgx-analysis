@@ -1,8 +1,7 @@
 ---
 title: >-
-  A Partition-First Data Architecture and Causal Consensus Filter
-  for Scalable Pharmacoepidemiological Modeling of Opioid and
-  Polypharmacy Risk
+  Building the Clinical OODA Loop: A Partition-First Data Architecture
+  for Model-Based Precision Therapeutics
 
 author:
   - name: "R. Jerome Dixon"
