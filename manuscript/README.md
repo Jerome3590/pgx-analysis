@@ -611,3 +611,169 @@ All `[0.XX]` cells in performance tables (AUROC, PR-AUC, Brier score, ICI, LogLo
 | Container image pull | `[XX]` s (SD `[X]` s) | < 30 s |
 | CPIC concordance | `[XX.X]`% across `[XX]` test cases | — |
 | Sensitivity Δp̂ (sparse input) | < `[0.XX]` at ≤ 70% missingness | — |
+
+---
+
+## S3 Data Sources
+
+Audited **2026-03-29**. Canonical paths used to retrieve values that populate manuscript placeholders.
+Scripts that query these paths live in `manuscript/scripts/`.
+
+---
+
+### Bucket: `pgxdatalake`  *(primary model outputs)*
+
+#### Cohort training data (patient-level, cases + controls, 2016–2018)
+
+```
+gold/cohorts/cohort_name={cohort}/event_year={year}/age_band={age_band}/cohort.parquet
+```
+- One row per **claim event** (not per patient); `is_target_case` = 1/0 distinguishes cases from controls.
+- `target` = 1 for all rows (parquet stores cases only; controls are implicit via `is_target_case`).
+- Years present: 2016, 2017, 2018 (training); 2019 (temporal holdout).
+- Cohorts: `opioid_ed`, `non_opioid_ed`.
+- Age bands: `0-12`, `13-24`, `25-44`, `45-54`, `55-64`, `65-74`, `75-84`, `85-114`.
+
+**Note:** Use the `5_pgx_analysis_log` (see `pgx-repository` below) for definitive patient counts —
+do NOT count rows in this parquet (it is claim-level, not patient-level).
+
+#### Final model training CSVs (patient-level feature matrix)
+
+```
+gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_snake}_train_final_features_no_leakage.csv
+```
+- One row per patient; columns: `mi_person_key`, `target` (0/1), `n_events`, `n_event_bin`, binary drug/ICD features.
+- Used by `scripts/count_cases_s3select.py` (S3 Select COUNT) to derive per-band case/control counts.
+- File sizes: 7 MB (non_opioid_ed/85-114) → 325 MB (non_opioid_ed/13-24).
+
+#### Model selection metadata (MCCV 25-run summary per bin × cohort × age_band)
+
+```
+gold/final_model/{cohort}/{age_band}/bin_models/{bin}/
+  {cohort}_{age_band_snake}_model_selection_metadata.json   ← selected model + best params
+  {cohort}_{age_band_snake}_model_metrics_summary.csv       ← recall, PR-AUC, AUROC, LogLoss, n_runs, selected
+  {cohort}_{age_band_snake}_mc_cv_results.csv               ← per-split × per-model metrics
+```
+Bins: `low`, `medium`, `high`, `extreme` (event-density strata).
+
+**Values used in manuscript** (from `bin_models/low/`, selected model, 25-run MCCV mean):
+
+| Cohort | Age Band | Selected Model | AUROC | PR-AUC | LogLoss |
+|:-------|:---------|:---------------|------:|-------:|--------:|
+| opioid_ed | 13–24 | CatBoost | 0.937 | 0.835 | 0.252 |
+| opioid_ed | 25–44 | Ensemble | 0.961 | 0.889 | 0.207 |
+| opioid_ed | 45–54 | Ensemble | 0.960 | 0.896 | 0.209 |
+| opioid_ed | 55–64 | Ensemble | 0.966 | 0.916 | 0.213 |
+| non_opioid_ed | 65–74 | CatBoost | 0.996 | 0.984 | 0.064 |
+| non_opioid_ed | 75–84 | Ensemble | 0.999 | 0.997 | 0.043 |
+| non_opioid_ed | 85–114 | Ensemble | 0.997 | 0.991 | 0.081 |
+
+#### SHAP outputs
+
+```
+gold/shap_analysis/{cohort}/{age_band}/
+  {cohort}_{age_band_snake}_shap_global_importance_{model}.csv
+  {cohort}_{age_band_snake}_shap_sample_values_{model}.parquet
+```
+Models: `xgboost`, `catboost`. Required for Consensus Filter feature counts (still pending).
+
+#### PGx features
+
+```
+gold/pgx_features/{cohort}/{age_band}/pgx_features_{cohort}_{age_band_snake}.csv
+gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band_snake}.csv
+```
+Columns: `mi_person_key`, `pgx_num_drugs`, `pgx_num_cpic_drugs`.
+
+#### FP-Growth outputs
+
+```
+gold/fpgrowth/cohort/drug_name/cohort_name={cohort}/age_band={age_band}/
+```
+Cohorts also include `opioid_ed_extreme_density`. Used for drug co-occurrence networks (visualization only).
+
+---
+
+### Bucket: `pgx-repository`  *(pipeline logs, checkpoints, code snapshots)*
+
+#### Definitive patient counts — `5_pgx_analysis_log`
+
+```
+5_pgx_analysis_log/{cohort}/{age_band}/pgx_{cohort}_{age_band_snake}.log
+```
+Logs `"Created 2 PGx features for {N} patients"` — **N = total patients (cases + controls)**
+for that cohort × age_band in the training set.  This is the **authoritative source** for cohort size.
+
+**Confirmed counts (training set 2016–2018):**
+
+| Cohort | Age Band | Total Patients | Cases | Controls |
+|:-------|:---------|---------------:|------:|---------:|
+| opioid_ed | 13–24 | 13,710 | 1,630 | 12,080 |
+| opioid_ed | 25–44 | 107,388 | 12,753 | 94,635 |
+| opioid_ed | 45–54 | 43,639 | 5,984 | 37,655 |
+| opioid_ed | 55–64 | 42,613 | 6,343 | 36,270 |
+| opioid_ed | 65–74 | 31,607 | — | — |
+| opioid_ed | 75–84 | 11,941 | — | — |
+| opioid_ed | 85–114 | 3,163 | — | — |
+| non_opioid_ed | 13–24 | 160,337 | — | — |
+| non_opioid_ed | 25–44 | 118,534 | — | — |
+| non_opioid_ed | 45–54 | 46,075 | — | — |
+| non_opioid_ed | 55–64 | 34,511 | — | — |
+| non_opioid_ed | 65–74 | 11,571 | 801 | 10,770 |
+| non_opioid_ed | 75–84 | 3,193 | 213 | 2,980 |
+| non_opioid_ed | 85–114 | 2,523 | 168 | 2,355 |
+
+*Cases/controls blank = out of scope for manuscript cohort descriptions.*  
+*Grand totals used in manuscript: opioid_ed (13–64) 26,710 cases / 180,640 controls;
+non_opioid_ed (65–114) 1,182 cases / 16,105 controls.*
+
+#### Pipeline checkpoints
+
+```
+pipeline_checkpoints/{step}/{cohort}/{age_band_snake}/checkpoint.json
+```
+Steps present: `6_final_model`, `7_shap_analysis`, `9_dashboard_metadata`, `9_dashboard_models`,
+`9_dashboard_visuals`. Checkpoints record step completion status and output S3 paths — they do **not**
+contain cohort counts or model metrics.
+
+#### Step logs (per cohort × age_band, most recent first)
+
+| Step prefix | Content |
+|:------------|:--------|
+| `4_model_data_log/` | Parquet write confirmation for `model_events.parquet` (no counts) |
+| `5_pgx_analysis_log/` | **Patient counts**, PGx feature creation, DuckDB aggregation details |
+| `6_final_model_log/` | Model training runtime, bin training durations, S3 upload confirmation |
+| `7_shap_analysis_log/` | SHAP n_background, n_eval per bin; no cohort size data |
+| `8_ffa_analysis_log/` | FFA drug pair/triplet outputs (needed for CH_4 placeholders) |
+| `9_cohort_pgx_log/` | PGx network topology (genes, drugs, DDI, CPIC); most recent 2026-03-28 |
+| `9_fpgrowth_log/` | FP-Growth visualization logs; most recent 2026-03-28 |
+
+#### Code snapshots
+
+```
+pgx-repository/pgx-analysis/          ← pipeline code snapshots
+pgx-repository/pgx-datasets/          ← model results, ffa, fpgrowth, cohort analysis outputs
+pgx-repository/pgx-datasets/model_results/ffa/   ← FFA visualization PNGs (AXP cattail, feature importance)
+```
+
+---
+
+### CloudWatch — Lambda latency
+
+**Log group:** `/aws/lambda/pgx-risk-calculator`
+
+**Values used in manuscript (commit 54f85ed):**
+
+| Metric | Value | SD | Source |
+|:-------|------:|---:|:-------|
+| Warm inference latency | 6 ms | 1 ms | 18 REPORT lines; Duration field |
+| Cold-start (container init) | 2,100 ms | 250 ms | 4 INIT_REPORT lines; Init Duration field (excluded 1 outlier at 3,532 ms — likely image pull) |
+
+Query used:
+```bash
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/pgx-risk-calculator \
+  --filter-pattern "REPORT" \
+  --start-time {epoch_ms} \
+  --query "events[*].message" --output text
+```
