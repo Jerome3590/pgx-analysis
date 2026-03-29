@@ -384,33 +384,68 @@ Drug count and Z-code proportion reflect the 30-day pre-index window. {#tbl-coho
 
 ## Ensemble Performance
 
-Mean PR-AUC on the 2019 holdout was 0.991 ± 0.007 across geriatric age bands
-(**@tbl-ch4-perf**).
-AUROC ranged from 0.996 (65–74 band) to 0.999 (75–84 band), substantially
-exceeding the Chapter 3 opioid cohort performance (AUROC 0.957–0.991),
-reflecting the stronger and more consistent drug-combination claims signatures
-in polypharmacy ADE events vs. opioid use disorder events.
-Opioid ED events are frequently confounded by illicit drug use, cash-pay
-prescriptions, and treatment-seeking patterns invisible in claims data;
-polypharmacy ADE events arise from documented, insured prescription fills
-that leave complete claims trails.
-Calibration was good across all three bands (Brier score 0.007–0.008;
-ICI 0.07–0.29), confirming that the high discrimination also translates
-to well-calibrated probability estimates suitable for direct clinical use.
-The 75–84 band achieved the highest PR-AUC (0.997), with the 85–114 band
-slightly lower (0.992) consistent with the smaller case count (N = 193)
-and higher pharmacokinetic variability in the oldest-old.
+Non-opioid ED models were trained and evaluated for all eight age bands
+(0–12 through 85–114), with complete metrics available from the
+2019 temporal holdout (**@tbl-ch4-perf**; **@fig-curves**).
+All eight bands achieved PR-AUC ≥ 0.908, with performance increasing
+monotonically from the 13–24 band to a peak at 75–84, then slightly
+decreasing at 85–114.
 
-| Age Band | Selected Model | AUROC | PR-AUC | Brier | ICI |
-|:---|:---|---:|---:|---:|---:|
-| 65–74 | CatBoost | 0.996 | 0.984 | 0.008 | 0.071 |
-| 75–84 | Ensemble | 0.999 | 0.997 | 0.007 | 0.128 |
-| 85–114 | Ensemble | 0.997 | 0.992 | 0.007 | 0.290 |
+**Age-band trend — Non-Opioid ED cohort:**
+The most striking feature of the non-opioid ED performance landscape is
+the *monotonic improvement with age*: PR-AUC rises from 0.908 (13–24)
+steadily through 0.933 (45–54), 0.950 (55–64), and 0.984 (65–74),
+peaking at 0.997 (75–84) before settling at 0.992 (85–114).
+This monotonic pattern is the inverse of the opioid ED cohort's inverted-U
+shape, reflecting a fundamental pharmacoepidemiological difference:
+non-opioid ADE events in older patients are driven by documented,
+insured polypharmacy fills that accumulate predictably with age and
+multimorbidity burden, while opioid ED events in the oldest-old often
+arise from atypical or newly initiated opioid regimens with sparse
+anticipatory claims histories.
 
-: Non-opioid ED (polypharmacy) predictive performance on 2019 temporal holdout (25-run MCCV + Optuna).
-AUROC, area under receiver operating characteristic curve;
-PR-AUC, area under precision-recall curve;
-ICI, Integrated Calibration Index (10-bin).
+The 0–12 band shows unexpectedly strong performance (PR-AUC 0.927,
+Recall 0.983) despite very high case prevalence (27,742 cases in 0–12;
+the highest case count outside the 25–44 opioid band).
+This reflects the phenotype of pediatric polypharmacy ADE events:
+children with complex chronic conditions (oncology, transplant, rheumatologic
+disease) prescribed multiple high-risk medications present with highly
+discriminable claims signatures that are easily separated from
+age-matched controls with simpler medication profiles.
+
+In the three primary geriatric study bands (65–74, 75–84, 85–114),
+performance is uniformly excellent (PR-AUC 0.984–0.997, AUROC
+0.996–0.999), with calibration confirmed by Brier scores of 0.007–0.008
+and ICI values of 0.071–0.290.
+The elevated ICI in the 85–114 band (0.290 vs. 0.071–0.128 in other
+geriatric bands) indicates moderate calibration deviation in the
+extreme predicted-probability deciles for the oldest-old, likely
+reflecting the heterogeneous pharmacokinetic profiles of
+multimorbid patients aged ≥85 that are not fully captured by
+the training-set distribution.
+
+Recall is notably high in younger bands (0.983 at 0–12; 0.935–0.977
+for 13–74) compared with the opioid ED cohort (≤0.874),
+consistent with the tighter drug-combination signatures driving
+non-opioid ADE events.
+
+| Age Band | Cases ($N$) | Selected Model | AUROC | PR-AUC | Recall |
+|:---|---:|:---|---:|---:|---:|
+| 0–12 | 27,742 | Ensemble | 0.973 | 0.927 | 0.983 |
+| 13–24 | 11,956 | Ensemble | 0.977 | 0.908 | 0.935 |
+| 25–44 | 8,433 | CatBoost | 0.979 | 0.911 | 0.933 |
+| 45–54 | 3,310 | CatBoost | 0.984 | 0.933 | 0.919 |
+| 55–64 | 2,563 | CatBoost | 0.988 | 0.950 | 0.937 |
+| 65–74 | 827 | CatBoost | 0.996 | 0.984 | 0.977 |
+| 75–84 | 224 | Ensemble | 0.999 | 0.997 | 0.973 |
+| 85–114 | 193 | Ensemble | 0.997 | 0.992 | 0.971 |
+
+: Non-opioid ED predictive performance on 2019 temporal holdout across all age bands
+(25-run MCCV + Optuna per density bin). AUROC, area under the receiver operating
+characteristic curve; PR-AUC, area under the precision-recall curve;
+Recall, sensitivity at optimal threshold.
+Brier score and ICI computed for primary study bands (65–114):
+Brier 0.007–0.008; ICI 0.071–0.290.
 Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-ch4-perf}
 
 ## Synergistic Drug-Drug Interactions {#sec-ddi}
