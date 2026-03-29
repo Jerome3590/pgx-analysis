@@ -46,9 +46,9 @@ abstract: >
   **Methods:** We describe design, implementation, and evaluation of the
   PGx Risk Dashboard: a hybrid serverless system combining an S3-hosted
   static frontend with AWS Lambda containerized backends (Docker/ECR).
-  Twenty-one ensemble models (7 age bands × 3 algorithms: CatBoost,
-  XGBoost, XGBoost-RF) from Chapters 3–4 are packaged within a
-  1.5 GB Lambda container, enabling sub-100 ms warm inference.
+  Up to 84 ensemble models (2 cohorts × 7 usable age bands × 4 density bins;
+  3 algorithms per bin: CatBoost, XGBoost, XGBoost-RF) from Chapters 3–4
+  are packaged within a ~1.5 GB Lambda container, enabling sub-100 ms warm inference.
   Partial-input imputation (training-set medians) handles real-world data
   sparsity.
   The PGx Patient Card accepts user-uploaded genetic data (23andMe format),
@@ -129,8 +129,8 @@ This paper presents the **PGx Risk Dashboard**—a production-deployed,
 privacy-first serverless application that addresses all these barriers
 simultaneously by:
 
-1. Packaging the 21 ensemble models from Chapters 3–4 in an AWS Lambda
-   container for real-time, age-stratified risk inference.
+1. Packaging up to 84 per-density-bin ensemble models from Chapters 3–4
+   in an AWS Lambda container for real-time, age- and density-stratified risk inference.
 2. Implementing "Imputation of Normality" to handle partial patient inputs
    without model retraining.
 3. Providing causal "What-If" counterfactual analysis grounded in FFA
@@ -168,7 +168,7 @@ containerized serverless backend (**@fig-architecture**):
 |:---|:---|:---|
 | **Frontend** | S3-hosted static HTML/JS | High availability; no server management |
 | **Backend** | AWS Lambda + Docker/ECR | Elastic scaling; cost-effective |
-| **Models** | Lambda Container (~1.5 GB) | All 21 models bundled; eliminates S3 latency |
+| **Models** | Lambda Container (~1.5 GB) | Up to 84 per-bin models bundled; eliminates S3 latency |
 | **PGx DB** | CPIC snapshot in container | Stateless lookup; no external API dependency |
 
 : Hybrid deployment component summary. All components are stateless;
@@ -487,7 +487,7 @@ PGx guidelines developed across Chapters 2–4 into a production-ready,
 privacy-first serverless application that meets clinical usability targets
 for latency, sparsity tolerance, and data security.
 Cold-start latency of ~2,100 ms (container init) and warm inference ~6 ms demonstrate
-that bundling all 21 age-band models in a single Lambda container is both
+that bundling all per-density-bin models in a single Lambda container is both
 feasible and performant within standard AWS Lambda constraints.
 The stateless CPIC Patient Card resolves the privacy-compliance barrier
 for point-of-care PGx access.

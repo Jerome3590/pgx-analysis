@@ -384,8 +384,7 @@ ADE risk, with a crude OR of 0.25 (95% CI 0.18–0.34; $P$ < 0.001) compared
 with unmonitored patients (Q1: zero preventive claims; case rate 10.7%).
 Patients with very high monitoring proportions (Q4: ≥12% of claims; case
 rate 10.0%) had risk equivalent to unmonitored patients (crude OR ≈ 0.94
-vs Q1), despite having non-zero monitoring visits. Importantly, Q4 patients
-had markedly lower total claim counts (median $n_{events}$ = 174) than Q2
+vs Q1), despite having non-zero monitoring visits. Importantly, Q4 patients had markedly lower total claim counts (median raw claim count = 174) than Q2
 (median 594) and Q3 (median 387), ruling out confounding by indication
 (i.e., already-sick patients accumulating reactive screenings): genuinely
 high-burden patients fall in Q2–Q3, not Q4. Instead, Q4 characterises a
@@ -394,7 +393,7 @@ predominantly of periodic screenings with limited integrated
 medication-management visits — such that drugs are prescribed across
 disconnected episodes without coordinated reconciliation (**@fig-zcode**).
 
-Among the extreme-density stratum ($n_{event}$ top 5%), all patients were
+Among the extreme-density stratum (top 5% raw claim count), all patients were
 controls by cohort construction; Z-code proportions fell progressively
 (median 0.021) as procedure and status codes (Z51, Z94–Z96) diluted
 protective monitoring fractions, confirming that high raw claim counts

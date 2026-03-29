@@ -302,7 +302,7 @@ The highest-ranked Consensus-Causal features were:
 2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)
 3. **PGx polydrug exposure score** (pgx_num_drugs; mean |SHAP| = 2.22, rank #1)
 4. **Gabapentin AND Alprazolam** (FFA co-occurring pair; rule frequency = 0.033, causal responsibility = 0.008)
-5. **Claim density** in 90-day pre-index window (mean |SHAP| = 1.49, n_events)
+5. **Event density bin** (n_event_bin_ordinal; ordinal density stratum 0–3; mean |SHAP| updated post-retrain)
 
 A representative FFA rule for the 25–44 age band:
 
