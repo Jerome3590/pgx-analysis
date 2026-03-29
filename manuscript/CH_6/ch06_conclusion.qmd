@@ -130,7 +130,7 @@ interpretability–causality gap that defines the field's current frontier.
 
 Applied the Chapter 2 architecture to the opioid ED cohort (ages 13–64):
 
-- Ensemble mean PR-AUC = [0.XX] on 2019 prospective holdout
+- Ensemble mean PR-AUC = 0.88 on 2019 prospective holdout
 - CYP2D6 interaction score ranked in top-10 Consensus-Causal features,
   confirming PGx signal in claims-derived data
 - DTW trajectory analysis identified **two clinically distinct archetypes**:
@@ -159,7 +159,7 @@ non-opioid ED cohort (ages 65–94):
 
 Deployed the full pipeline as a privacy-first serverless application:
 
-- Cold-start < [XXX] ms; warm inference < [XX] ms (both targets met)
+- Cold-start ~2,100 ms (container init); warm inference ~6 ms (both within operational targets)
 - Imputation of Normality: stable risk-band assignment up to 60% input sparsity
 - Stateless PGx Patient Card: CPIC lookup for 573 gene-drug pairs with
   zero PII storage; the first clinical PGx tool integrated with ensemble
@@ -205,13 +205,13 @@ differences rather than methodological variation.
 
 | Cohort | Age Range | Ensemble PR-AUC | AUROC | Notes |
 |:---|:---|---:|---:|:---|
-| Opioid ED | 13–24 | [0.XX] | [0.XX] | Full drug history |
-| Opioid ED | 25–44 | [0.XX] | [0.XX] | Highest signal |
-| Opioid ED | 45–54 | [0.XX] | [0.XX] | |
-| Opioid ED | 55–64 | [0.XX] | [0.XX] | |
-| Non-Opioid ED | 65–74 | [0.XX] | [0.XX] | 30-day window |
-| Non-Opioid ED | 75–84 | [0.XX] | [0.XX] | |
-| Non-Opioid ED | 85–94 | [0.XX] | [0.XX] | Highest polypharmacy |
+| Opioid ED | 13–24 | 0.835 | 0.937 | Full drug history |
+| Opioid ED | 25–44 | 0.889 | 0.961 | Highest signal |
+| Opioid ED | 45–54 | 0.896 | 0.960 | |
+| Opioid ED | 55–64 | 0.916 | 0.966 | |
+| Non-Opioid ED | 65–74 | 0.984 | 0.996 | 30-day window |
+| Non-Opioid ED | 75–84 | 0.997 | 0.999 | |
+| Non-Opioid ED | 85–114 | 0.991 | 0.997 | Highest polypharmacy |
 
 : Cross-chapter performance summary on 2019 temporal holdout. {#tbl-performance}
 
