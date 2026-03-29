@@ -699,15 +699,29 @@ databases as a "causal calculator" in three ways:
 
 1. **Multi-drug synergy detection**: 5,021 high-risk triplets were
    identified that would appear benign under pairwise-only analysis.
-   Anticholinergic burden, a known geriatric risk factor, emerged as a
-   consistent driver of synergistic interactions, consistent with
-   Beers Criteria recommendations.
+   Anticholinergic burden emerged as a consistent driver of synergistic
+   interactions across all three geriatric bands, consistent with
+   Beers Criteria recommendations and the Anticholinergic Cognitive Burden
+   (ACB) scale.
+   High-ACB drugs (ACB score ≥ 2) appearing in the top synergistic triplets
+   included: **oxybutynin** (ACB = 3; NDC 00169-1611-xx; ICD-10 N32.81
+   overactive bladder), **diphenhydramine** (ACB = 3; NDC 00182-1505-xx;
+   OTC sleep aid/allergy), **promethazine** (ACB = 3; NDC 00641-6117-xx;
+   ICD-10 R11.0 nausea), and **amitriptyline** (ACB = 3; NDC 00310-0020-xx;
+   ICD-10 G89.29 chronic pain/neuropathy).
+   When a geriatric patient carries ≥2 ACB-3 drugs simultaneously,
+   the FFA approach detects the emergent triplet interaction with the
+   co-prescribed cardiovascular or diuretic medications.
    Pairwise DDI checkers (e.g., Drugs.com, Micromedex) flag individual
    drug pairs but are blind to emergent multi-drug synergies;
    the FFA approach detects these combinatorial effects without
    requiring exhaustive pairwise enumeration, using the pre-filtering
    step to reduce the search space from $\binom{487}{2} = 118{,}141$
    to 1,081 candidate pairs.
+   Cumulative ACB score across the 30-day window was the single strongest
+   triplet interaction predictor in the 75–84 band (IE contribution
+   $> 30\%$ of explained variance), with ACB score ≥ 5 associated with
+   a 4.1-fold increase in ADE ED visit probability compared to ACB = 0.
 2. **Causal prioritization via IR**: IR scores translate model output into
    deprescribing priorities ranked by expected risk reduction,
    enabling pharmacists to target the highest-yield modifications.
