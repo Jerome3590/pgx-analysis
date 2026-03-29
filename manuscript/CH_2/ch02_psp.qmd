@@ -812,7 +812,7 @@ by both methods, eliminating the characteristic failure modes of each.
 
 ### SHAP Analysis (Distributional Importance)
 
-Global SHAP values were computed via `TreeExplainer` [@Lundberg2020] applied
+Global SHAP values were computed via `TreeExplainer` [@Lundberg2020; @SHAPdocs2023] applied
 to the native binaries of the XGBoost and CatBoost final models for each
 Age Band $\times$ Cohort partition (`7_shap_analysis/run_shap_analysis.py`).
 `TreeExplainer` exploits the tree structure directly, computing exact Shapley
@@ -851,7 +851,7 @@ utilization proxy that co-occurs with high-risk patients.
 
 FFA transforms the opaque decision trees of the best-performing XGBoost
 variant into explicit symbolic Boolean rules suitable for formal causal
-verification [@Ignatiev2020].
+verification [@Ignatiev2023ffa; @Ignatiev2020].
 CatBoost FFA was not performed: CatBoost's Counter-based Target Statistics
 (CTR) transformations for categorical variables make direct symbolic rule
 extraction intractable.
