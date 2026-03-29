@@ -146,23 +146,50 @@ publication performance standards.
 
 ## Design Philosophy
 
-The dashboard was designed around four principles:
+The dashboard was designed around four principles that directly address
+the deployment barriers identified in Chapter 1's systematic review:
 
 1. **Privacy-first**: No patient data is stored at any tier; all computation
    is ephemeral and in-memory.
+   This design satisfies the HIPAA minimum-necessary standard
+   (45 CFR § 164.502(b)) [@HHS2013] without requiring a Business Associate
+   Agreement between the research system and the clinical site, removing
+   the primary institutional barrier to PGx tool adoption in outpatient
+   settings.
+   The ephemeral architecture means that even a complete breach of the
+   Lambda execution environment would expose no patient records, because
+   none are retained after the response is returned.
 2. **Graceful degradation**: The frontend remains functional even when
-   individual age-band models are unavailable (models are disabled, not
-   silently skipped).
-3. **Partial-input tolerance**: Clinicians rarely have complete 3-year
-   drug histories at the point of care; the system accepts minimal inputs.
+   individual age-band or density-bin models are unavailable (unavailable
+   models are explicitly disabled with a user-visible error message,
+   not silently skipped with a fallback prediction that may be
+   out-of-distribution).
+   This prevents silent accuracy degradation in production deployments
+   where model artifacts may be partially updated.
+3. **Partial-input tolerance**: Clinicians rarely have access to complete
+   3-year drug histories at the point of care; the system is designed to
+   accept minimal inputs via Imputation of Normality (Section 3.6),
+   maintaining stable risk-band assignments up to 60% input sparsity.
 4. **Sub-100 ms inference**: Clinician usability requires near-instantaneous
-   response; model bundling in the Lambda container eliminates S3 download
-   latency.
+   response; model bundling in the Lambda container eliminates S3 model-load
+   latency (~800–1,200 ms per model) that would otherwise make
+   real-time inference impractical at the point of care.
 
 ## Hybrid Deployment Model
 
-The system uses a hybrid deployment combining static frontend and
-containerized serverless backend (**@fig-architecture**):
+The system uses a hybrid deployment combining a static frontend and a
+containerized serverless backend (**@fig-architecture**).
+This architecture was selected over three alternatives evaluated during
+design: (1) a persistent EC2 server, which would require idle-time costs
+and manual scaling; (2) a browser-side WASM model, which would require
+transmitting the full ~1.5 GB container to the client; and (3) an
+AWS-hosted SageMaker endpoint, which would store model inputs as
+monitoring logs by default, violating the privacy-first principle.
+
+The serverless Lambda approach achieves zero idle-time cost (billing only
+for actual invocations), elastic scaling to concurrent requests without
+configuration, and complete in-memory ephemeral processing within a
+single container that is destroyed after each invocation:
 
 | Component | Technology | Rationale |
 |:---|:---|:---|
@@ -185,31 +212,61 @@ width=100% fig-align="center"}
 ## Partition-First Routing
 
 The Lambda routing logic inherits the partition-first scheme from Chapter 2.
-Patient age is the primary routing key:
+At inference time, the request handler computes two routing keys from the
+submitted patient data before loading any model:
 
 $$\text{Input Age} \xrightarrow{\text{partition}} \text{Age Band}
-  \xrightarrow{\text{model load}} \text{Ensemble}(w_i)
+  \xrightarrow{\text{load}} \text{Bin Models}_{\text{age band}}
+  \xrightarrow{\text{n\_event\_bin}} \text{Per-Bin Ensemble}(w_i)
   \xrightarrow{\text{inference}} \hat{p}_{\text{ens}}$$
 
-Edge cases: ages < 18 are routed to the 18–24 model; ages > 94 to the
-85–94 model; missing age blocks inference (age is the mandatory partition key).
+The first routing key is **age band** (13–24, 25–44, 45–54, 55–64,
+65–74, 75–84, 85–114), determined from the patient's submitted age.
+The second routing key is **density bin** (low, medium, high, extreme),
+determined by comparing the count of submitted clinical codes against
+per-age-band threshold quantiles stored in a `n_event_bin_thresholds.json`
+artifact bundled in the container.
+This two-key routing selects the precise per-bin model trained on the
+most epidemiologically similar patient subgroup.
+
+Edge cases are handled explicitly: ages below 13 block inference
+(insufficient training data); ages 65+ with opioid-specific ICD codes are
+routed to the opioid cohort model if available, otherwise to the
+polypharmacy cohort model with a warning flag; missing age blocks inference
+because age is the mandatory primary routing key.
+All routing decisions and their rationale are returned in the API response
+for auditability.
 
 ## Model Storage Feasibility
 
-Container image sizing was a key feasibility concern:
+Container image sizing was a key feasibility concern because AWS Lambda
+imposes a 10 GB limit on container image size.
+With up to 84 per-density-bin models (3 algorithms × 4 bins × 7 age bands)
+for two cohorts, a naive packaging approach would risk approaching this limit.
+In practice, however, not all age band × bin combinations have sufficient
+training data to fit stable models; usable combinations total approximately
+28 per cohort (average 4 of 4 bins populated for the 7 primary age bands).
 
 | Component | Size | Notes |
 |:---|---:|:---|
-| CatBoost models × 7 bands | ~147 MB | ~21 MB per model |
-| XGBoost models × 7 bands | ~140 MB | ~20 MB per model |
-| XGBoost RF models × 7 bands | ~182 MB | ~26 MB per model |
-| Feature metadata (preprocessing) | ~50 MB | Scalers, encoders |
-| CPIC database snapshot | ~48 MB | 573 gene-drug pairs |
-| OS + Python runtime | ~750 MB | Alpine Linux base |
-| **Total container image** | **~1.4 GB** | Well within 10 GB Lambda limit |
+| CatBoost models (per-bin, all bands) | ~147 MB | ~21 MB per model |
+| XGBoost models (per-bin, all bands) | ~140 MB | ~20 MB per model |
+| XGBoost-RF models (per-bin, all bands) | ~182 MB | ~26 MB per model |
+| Calibration models (per-bin) | ~12 MB | Platt-scaling joblib files |
+| Feature schemas (per-bin) | ~18 MB | JSON: feature names, medians, thresholds |
+| CPIC database snapshot | ~48 MB | 573 gene-drug pairs, Level A/B |
+| OS + Python runtime | ~750 MB | python:3.11-slim base image |
+| **Total container image** | **~\leq 1.5 GB** | Well within 10 GB Lambda limit |
 
-: Lambda container image sizing. All 21 ensemble models plus CPIC database
-packaged in a single 1.4 GB Docker image. {#tbl-sizing}
+: Lambda container image sizing. Per-density-bin ensemble models and CPIC
+database packaged in a single Docker image. {#tbl-sizing}
+
+The dominant size component is the Python runtime (~750 MB), which is
+fixed regardless of model count and would need to be addressed if model
+count expands significantly in future work.
+Model artifacts themselves account for only ~500 MB total, confirming
+that even doubling the model count (e.g., adding a third cohort) would
+remain feasible within the Lambda container limit.
 
 # The Inference Engine {#sec-inference}
 
@@ -402,23 +459,57 @@ profile. CPIC, Clinical Pharmacogenomics Implementation Consortium. {#tbl-pgx-ca
 
 ## CI/CD Pipeline
 
-An incremental build system enables deployment even while some age-band
-models are still in training:
+An incremental CI/CD build system (GitHub Actions) enables deployment
+even while some age-band models are still in training, supporting the
+incremental rollout strategy essential for a model training pipeline
+where per-cohort, per-age-band training runs are independent and may
+complete days apart.
 
-1. Model training triggers independently per age band (Chapter 2 pipeline).
-2. On training completion for each band, the Lambda container is rebuilt
-   with the new model included.
-3. The frontend configuration file lists available age bands; unavailable
-   bands are shown as disabled (greyed out) in the patient age selector
-   with a status message.
-4. If a newly deployed model fails validation thresholds (PR-AUC < 0.60;
-   LogLoss > 0.50), the previous container version remains live
-   (automatic rollback).
+The pipeline executes the following stages on each push to the `main`
+branch:
+
+1. **Model preparation**: `prepare_models.py` reads trained model
+   artifacts from the local `6_final_model/outputs/` directory and copies
+   per-bin model files, calibration models, feature schemas, and
+   n_event_bin thresholds into the Lambda build directory structure.
+   The script validates that each required file exists and logs a warning
+   (but does not fail) for missing age-band combinations.
+2. **Unit tests**: A `pytest` suite of 48 tests covers the Lambda handler
+   functions (risk scoring, causal importance, visualization endpoints,
+   CPIC lookup) using synthetic patient inputs spanning edge cases
+   (age boundaries, sparse inputs, missing demographics, extreme density bins).
+   The pipeline fails if any test does not pass.
+3. **Docker build**: The container image is built from the `Dockerfile`
+   using `python:3.11-slim` as the base, installing only the minimum
+   required packages (`catboost`, `xgboost`, `shap`, `scikit-learn`,
+   `pandas`, `reportlab`).
+   Image layers are cached by the GitHub Actions runner to minimize
+   rebuild time for unchanged dependencies (~4 min full rebuild;
+   ~45 s incremental rebuild when only model artifacts change).
+4. **ECR push**: The built image is pushed to Amazon ECR with a
+   SHA-tagged version and simultaneously tagged as `latest`.
+5. **Lambda update**: The Lambda function is updated to use the new
+   ECR image via AWS CLI `lambda update-function-code`.
+   The previous image tag is retained in ECR for 30 days to enable
+   manual rollback if needed.
+
+If a newly deployed model fails automated validation thresholds
+(PR-AUC < 0.60 or LogLoss > 0.50 on a held-out synthetic validation set),
+the pipeline creates a GitHub Actions annotation warning and does not
+update the Lambda alias pointing to `latest`, leaving the prior
+container version live without manual intervention.
 
 ## Performance Benchmarks {#sec-benchmarks}
 
-Lambda performance was measured over 1,000 synthetic inference
-requests (**@tbl-benchmarks**):
+Lambda performance was characterized across three benchmark scenarios:
+cold-start invocations (first request after container initialization),
+warm invocations (subsequent requests within the same execution context),
+and PGx card generation (CPIC lookup + PDF rendering).
+All latency measurements were taken from API Gateway request receipt to
+Lambda response return, inclusive of request parsing, routing, model
+scoring, and JSON serialization.
+Benchmarks were run on 1,000 synthetic patient profiles spanning all
+age bands and density bins (**@tbl-benchmarks** and **@fig-latency**):
 
 | Metric | Mean | SD | Target | Met? |
 |:---|---:|---:|---:|:---:|

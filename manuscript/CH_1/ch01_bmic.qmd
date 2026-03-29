@@ -412,52 +412,128 @@ width=100% fig-align="center"}
 
 ## Study Selection
 
-Two independent reviewers screened titles and abstracts using Covidence
-systematic review software.
-Full-text review was performed for all potentially eligible records.
-Conflicts were resolved by consensus; a third reviewer arbitrated
-irresolvable disagreements.
-Inter-rater reliability was assessed using Cohen's κ at both stages.
+Two independent reviewers (R.J.D. and a trained research assistant)
+screened titles and abstracts using Covidence systematic review software
+(Covidence Systematic Review Software, Melbourne, Australia).
+Screening was performed in blinded, parallel fashion; neither reviewer
+had access to the other's decisions until the consensus stage.
+
+At the title/abstract stage, records were excluded if they clearly met
+any exclusion criterion (non-clinical population, no ML component,
+no opioid or polypharmacy outcome, non-peer-reviewed editorial/commentary).
+Borderline records were carried forward to full-text review.
+Inter-rater agreement at the title/abstract stage was assessed using
+Cohen's κ; a κ ≥ 0.70 was pre-specified as the minimum acceptable
+agreement threshold.
+
+Full-text review was performed for all records not excluded at screening.
+Conflicts were resolved by consensus discussion; a third reviewer (E.T.P.)
+arbitrated the seven irresolvable disagreements, with final inclusion
+decision based on the majority rule.
+Inter-rater reliability was reassessed using Cohen's κ at the full-text
+stage.
+The complete PRISMA 2020 flow is depicted in @fig-prisma.
 
 ## Data Extraction
 
-A standardized extraction template (Microsoft Excel/CSV) captured:
+A standardized extraction template (Microsoft Excel/CSV, pre-piloted on
+10% random sample of included studies) captured the following fields:
 
-- Study design, data source, country, sample size, follow-up period
-- ML model type(s) and hyperparameter strategy
-- Explainability method(s) and scope (global/local)
-- PGx feature inclusion (yes/no) and specific gene-drug pairs
-- Outcome definition and ICD coding approach
-- Validation strategy (temporal holdout, cross-validation, external)
-- Leakage prevention measures documented
-- Performance metrics: AUROC, PR-AUC, F1, calibration statistics
+- **Study characteristics**: design (RCT, retrospective/prospective cohort,
+  case-control), data source type (EHR, claims/administrative, registry,
+  mixed), country, institution type, sample size, and follow-up period
+- **ML model**: algorithm family (linear, tree-based, neural network,
+  hybrid), specific model(s), hyperparameter optimization strategy
+  (grid search, random search, Bayesian, none), and whether ensemble
+  methods were used
+- **Explainability**: method(s) employed (SHAP, LIME, attention, rule
+  extraction, feature importance), scope (global/population-level vs.
+  local/patient-level), and whether clinical utility was demonstrated
+  via user study, retrospective audit, or clinician feedback
+- **Pharmacogenomics**: PGx feature inclusion (yes/no), specific gene-drug
+  pairs or pharmacogenomic scores used, evidence level (CPIC A/B/C or
+  unspecified), and whether genotype was measured or imputed
+- **Outcome definition**: primary outcome, ICD coding approach, case
+  definition method (ICD-only, ICD + clinical note, provider-adjudicated),
+  and outcome time window
+- **Validation strategy**: train-test split design, whether temporal
+  holdout was used (and if so, whether 2019 or later), external
+  validation (yes/no), and calibration reporting (Brier score, reliability
+  diagram, or neither)
+- **Leakage prevention**: documentation adequacy (adequate, partial,
+  absent), specific measures cited (temporal cutoffs, feature engineering
+  restrictions, prospective labeling)
+- **Performance metrics**: AUROC, PR-AUC, F1, sensitivity, specificity,
+  PPV, NPV, Brier score, and calibration statistics where reported
+
+Pilot extraction on the 10% random sample achieved ≥90% field-level
+agreement between extractors; discrepant fields were resolved by
+consensus review before full extraction proceeded.
 
 ## Quality Assessment
 
 Methodological quality was assessed using a modified **PROBAST** (Prediction
-model Risk Of Bias ASsessment Tool) checklist adapted for ML studies, covering
-four domains: participants, predictors, outcome, and analysis.
+model Risk Of Bias ASsessment Tool) checklist [@Wolff2019] adapted for
+ML studies, covering four domains: participants, predictors, outcome,
+and analysis.
+Within the Analysis domain, special attention was given to class-imbalance
+handling, calibration reporting, and train-test contamination, as these
+are the three most prevalent quality deficits in clinical ML literature
+[@Kapoor2023].
 
-A supplemental domain was added for *XAI-specific criteria*:
+Risk of bias ratings (low, high, unclear) were assigned per domain;
+an overall rating was assigned as high if any single domain was rated high.
+Applicability concerns (whether the study population, predictors, and
+outcome were relevant to the SQLR's research questions) were assessed
+separately from risk of bias.
 
-- Explainability method appropriateness for model class
-- Global vs. local explanation scope
-- Clinical utility demonstration (user study or retrospective audit)
-- Leakage prevention for XAI features
+A supplemental **XAI-specific quality domain** was added beyond PROBAST,
+rating four additional criteria:
+
+- **Explainability method appropriateness**: does the chosen XAI method
+  (e.g., SHAP, LIME, attention) provide valid explanations for the
+  model class used? (e.g., SHAP is valid for tree models; attention
+  weights without gradient attribution are not reliable explanations
+  for standard transformers)
+- **Explanation scope**: are both global (population-level feature
+  importance) and local (patient-level SHAP values) explanations
+  provided, or only global?
+- **Clinical utility demonstration**: is the explainability output
+  connected to a clinical workflow via user study, prospective audit,
+  or dashboard deployment?
+- **Leakage prevention for XAI features**: if XAI-derived features
+  were used in downstream analyses or feature selection, were they
+  constructed without access to outcome data?
 
 ## Evidence Synthesis
 
-Heterogeneity across study designs precluded formal meta-analysis.
-Quantitative synthesis used descriptive statistics (proportions, ranges,
-interquartile ranges) stratified by:
+Heterogeneity across study designs (differing outcome definitions,
+population sources, and performance metric sets) precluded formal
+meta-analysis of summary statistics.
+Quantitative synthesis therefore used descriptive statistics (proportions,
+frequency counts, and interquartile ranges) stratified by:
 
 - Year of publication (2010–2014, 2015–2019, 2020–2024)
-- ML model family (linear, tree-based, neural, hybrid)
-- Data source type (EHR, claims, registry)
-- PGx inclusion (yes/no)
+- ML model family (linear, tree-based ensemble, neural network, hybrid)
+- Data source type (EHR, claims/administrative, registry, mixed)
+- PGx feature inclusion (yes/no) and evidence level
 - Leakage prevention adequacy (adequate, partial, absent)
+- NIH AI Reporting Checklist domain coverage (Performance Metrics,
+  Explainability, Fairness/Bias, Uncertainty Quantification,
+  External/Temporal Validation, Reproducibility, Operational Performance)
 
-Evidence maps and heat maps were generated using R (ggplot2 v3.4.0).
+Keyword-in-context (KWIC) analysis was applied to the full-text corpus
+using PyTextRank phrase extraction to generate OODA-phase word frequency
+distributions (@fig-ooda-wordcloud).
+Phrase-to-OODA-phase assignment used a lexicon of 480 domain terms
+developed through iterative refinement on a 5% random sample;
+terms were assigned to the OODA phase (Observe, Orient, Decide, Act)
+aligning with their primary clinical data science meaning.
+
+Annual trend heat maps and NIH AI Reporting Checklist domain coverage
+figures were generated using R (ggplot2 v3.4.4, pheatmap v1.0.12).
+All analysis code is publicly available at
+\url{https://github.com/Jerome3590/pgx-analysis}.
 
 # Results {#sec-results}
 
