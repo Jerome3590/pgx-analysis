@@ -275,7 +275,7 @@ width=90%}
 
 **Tab 1: Patient Input**
 
-The input form is dynamically populated with the top-[XX] Consensus-Causal
+The input form is dynamically populated with the top-20 Consensus-Causal
 features from the appropriate age-band model (loaded at runtime from
 pre-computed SHAP importance metadata).
 Required fields: patient age (mandatory for partition routing) and
