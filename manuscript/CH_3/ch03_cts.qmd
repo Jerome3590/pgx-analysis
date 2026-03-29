@@ -316,8 +316,7 @@ sampling variability.
 
 Overarching performance metrics (AUROC, PR-AUC, Brier, ICI), MCCV
 protocol, calibration methodology, and ensemble weighting are defined
-in Chapter 2, Section 4.8 [@sec-analytical]; the same definitions
-apply here.
+in Chapter 2, Section 4.8; the same definitions apply here.
 This section describes the analytical methods specific to the
 opioid ED cohort research questions.
 
