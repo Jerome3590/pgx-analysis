@@ -122,7 +122,7 @@ interpretable explanations for non-ML-trained clinicians, and the complexity
 of deploying and maintaining inference infrastructure at health-system scale
 [@Char2018].
 
-This last category—infrastructure complexity—is particularly acute for
+This last category, infrastructure complexity, is particularly acute for
 ensemble models trained on stratified population partitions.
 The Chapter 2–4 models comprise up to 84 independently trained gradient
 boosting models (3 algorithms × 4 density bins × up to 7 age bands), each
@@ -149,7 +149,7 @@ EHR integration that is unavailable to community pharmacies, Safety Net hospital
 and independent prescribers who serve high-burden opioid and polypharmacy
 populations.
 
-This paper presents the **PGx Risk Dashboard**—a production-deployed,
+This paper presents the **PGx Risk Dashboard**: a production-deployed,
 privacy-first serverless application that addresses all these barriers
 simultaneously by:
 
@@ -161,7 +161,7 @@ simultaneously by:
    rules from Chapter 4.
 4. Delivering a stateless, ephemeral PGx Patient Card via CPIC lookup
    that processes genetic data without storing any PII.
-5. Operating without EHR integration—accessible to any prescriber via
+5. Operating without EHR integration, accessible to any prescriber via
    web browser, without institutional IT infrastructure requirements.
 
 The dashboard is designed as a "last-mile" translational tool: it assumes
@@ -310,8 +310,8 @@ database packaged in a single Docker image. {#tbl-sizing}
 
 The dominant size component is the model artifacts (~507 MB combined),
 which account for 82% of the 619 MB container image.
-The Python 3.11-slim runtime layer is significantly more compact (~112 MB)
-than the standard Python 3.11 image, a deliberate optimization to preserve
+The Python 3.11-slim runtime layer is 36% the size of the standard Python 3.11
+image (~112 MB vs. ~310 MB), a deliberate optimization to preserve
 headroom for future model additions.
 Model artifacts themselves account for ~507 MB total, confirming
 that even doubling the model count (e.g., adding a third cohort or
@@ -817,7 +817,7 @@ minimum-necessary standard creates compliance friction for any system that
 stores patient-identifiable data without a formal Business Associate
 Agreement [@HHS2013].
 The CPIC card's zero-storage design delivers PGx guidance with no HIPAA
-storage burden beyond standard TLS transport encryption—a design
+storage burden beyond standard TLS transport encryption: a design
 principle that should be adopted broadly in clinical AI deployment,
 not just in PGx tools.
 Compared to the Epic Sepsis Model, which flags patients but provides no
@@ -835,7 +835,7 @@ Risk-band assignment is stable up to 60% input sparsity; the mean absolute
 risk delta remains below 0.06 at 70% missingness, meaning that even an
 ED clinician who knows only the patient's current medications can obtain
 a clinically useful risk stratification.
-This 60% sparsity tolerance substantially exceeds what would be achievable
+This 60% sparsity tolerance exceeds what would be achievable
 without explicit imputation design: a model receiving zero-imputed missing
 features would systematically underestimate risk for sparse patients,
 because zero-imputed drug counts are indistinguishable from
