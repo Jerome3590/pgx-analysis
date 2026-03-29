@@ -521,10 +521,16 @@ across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90% fig-align="center"}
 ## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#sec-zcode}
 
 Z-code proportion (protective monitoring codes Z00–Z13 and Z23–Z28 only)
-exhibited a U-shaped association with ADE risk. Patients with moderate
-preventive monitoring (Q2: 1–12% of claims; case rate 3.0%) had the lowest
-ADE risk, with a crude OR of 0.25 (95% CI 0.18–0.34; $P$ < 0.001) compared
-with unmonitored patients (Q1: zero preventive claims; case rate 10.7%).
+exhibited a U-shaped association with ADE risk.
+In logistic regression adjusted for `n_events` and age band, each quartile
+increment of Z-code proportion was associated with an odds ratio of
+2.10 (95% CI 1.51–2.94, $P$ < 0.001), but with the protective effect
+concentrated in Q2 and the reversal in Q4 producing the non-monotone
+U-shape.
+Patients with moderate preventive monitoring (Q2: 1–12% of claims;
+case rate 3.0%) had the lowest ADE risk, with a crude OR of 0.25
+(95% CI 0.18–0.34; $P$ < 0.001) compared with unmonitored patients
+(Q1: zero preventive claims; case rate 10.7%).
 Patients with very high monitoring proportions (Q4: ≥12% of claims; case
 rate 10.0%) had risk equivalent to unmonitored patients (crude OR ≈ 0.94
 vs Q1), despite having non-zero monitoring visits. Importantly, Q4 patients had markedly lower total claim counts (median raw claim count = 174) than Q2

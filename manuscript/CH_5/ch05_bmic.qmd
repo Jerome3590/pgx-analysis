@@ -282,18 +282,21 @@ training data to fit stable models; usable combinations total approximately
 | Calibration models (per-bin) | ~12 MB | Platt-scaling joblib files |
 | Feature schemas (per-bin) | ~18 MB | JSON: feature names, medians, thresholds |
 | CPIC database snapshot | ~48 MB | 573 gene-drug pairs, Level A/B |
-| OS + Python runtime | ~750 MB | python:3.11-slim base image |
-| **Total container image** | **~\leq 1.5 GB** | Well within 10 GB Lambda limit |
+| OS + Python runtime | ~112 MB | python:3.11-slim base image |
+| **Total container image** | **619 MB** | ECR: `pgx-risk-calculator` repo; well within 10 GB Lambda limit |
 
 : Lambda container image sizing. Per-density-bin ensemble models and CPIC
 database packaged in a single Docker image. {#tbl-sizing}
 
-The dominant size component is the Python runtime (~750 MB), which is
-fixed regardless of model count and would need to be addressed if model
-count expands significantly in future work.
-Model artifacts themselves account for only ~500 MB total, confirming
-that even doubling the model count (e.g., adding a third cohort) would
-remain feasible within the Lambda container limit.
+The dominant size component is the model artifacts (~507 MB combined),
+which account for 82% of the 619 MB container image.
+The Python 3.11-slim runtime layer is significantly more compact (~112 MB)
+than the standard Python 3.11 image, a deliberate optimization to preserve
+headroom for future model additions.
+Model artifacts themselves account for ~507 MB total, confirming
+that even doubling the model count (e.g., adding a third cohort or
+extending to additional age bands) would approach but not exceed the
+10 GB Lambda container image limit.
 
 # The Inference Engine {#sec-inference}
 
