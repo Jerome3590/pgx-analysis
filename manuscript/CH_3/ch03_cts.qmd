@@ -271,11 +271,11 @@ case counts and fewer prescription signals in younger patients.
 
 | Age Band | $n$ (cases) | AUROC | PR-AUC | Brier | ICI |
 |:---|---:|---:|---:|---:|---:|
-| 13–24 | 1,630 | 0.937 | 0.835 | [0.XX] | [0.XX] |
-| 25–44 | 12,753 | 0.961 | 0.889 | [0.XX] | [0.XX] |
-| 45–54 | 5,984 | 0.960 | 0.896 | [0.XX] | [0.XX] |
-| 55–64 | 6,343 | 0.966 | 0.916 | [0.XX] | [0.XX] |
-| **All bands** | 26,710 | **0.956** | **0.884** | **[0.XX]** | **[0.XX]** |
+| 13–24 | 1,630 | 0.937 | 0.835 | 0.008 | 0.164 |
+| 25–44 | 12,753 | 0.961 | 0.889 | 0.013 | 0.108 |
+| 45–54 | 5,984 | 0.960 | 0.896 | 0.007 | 0.154 |
+| 55–64 | 6,343 | 0.966 | 0.916 | 0.051 | 0.138 |
+| **All bands** | 26,710 | **0.956** | **0.884** | **0.020** | **0.141** |
 
 : Ensemble model performance on 2019 temporal holdout by age band.
 Metrics are mean ± SD across MCCV splits applied to the 2019 holdout set.

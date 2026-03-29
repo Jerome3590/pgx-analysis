@@ -299,8 +299,8 @@ Drug count and Z-code proportion reflect the 30-day pre-index window. {#tbl-coho
 
 Mean PR-AUC on the 2019 holdout was 0.991 ± 0.007 across geriatric age bands.
 AUROC ranged from 0.996 (65–74 band) to 0.999 (75–84 band).
-Calibration was good across all three bands (Brier score [0.XX–0.XX];
-ICI [0.XX–0.XX]).
+Calibration was good across all three bands (Brier score 0.007–0.008;
+ICI 0.07–0.29).
 The 85–114 band showed the highest PR-AUC, consistent with the higher
 ADE signal from extreme polypharmacy in this stratum.
 
