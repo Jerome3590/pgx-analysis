@@ -630,9 +630,17 @@ analysis and quality management system documentation would be required
 before commercial clinical deployment, though research and educational
 use is not subject to SaMD oversight.
 
-Future enhancements: mobile-responsive frontend; real-time PDMP integration
-for opioid risk contexts; multi-lingual card generation; federated model
-update mechanism.
+Planned future enhancements include: (1) a mobile-responsive frontend
+for point-of-care use on tablet devices; (2) real-time PDMP integration
+for opioid prescribing contexts, allowing the risk score to incorporate
+state prescription monitoring data automatically; (3) multi-lingual card
+generation (Spanish, Vietnamese) for high-LEP patient populations;
+(4) a federated model update mechanism enabling participating health
+systems to contribute local model weight differentials without sharing
+patient data, following the architecture described by Joshi et al.
+[@Joshi2022] for federated learning pipelines in healthcare; and
+(5) VCF v4.3 and FHIR R4 Genomics input parser for EHR-integrated\
+deployment.
 
 # Conclusions {#sec-conclusions}
 

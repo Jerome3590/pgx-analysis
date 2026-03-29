@@ -688,10 +688,27 @@ Only 11 studies (12%) explicitly described leakage-prevention protocols
 such as: strict temporal cutoff at outcome date, exclusion of concurrent
 diagnosis codes, or "visualization-only" restriction of trajectory-mining
 features.
+This finding is consistent with Mahmoudi et al. [@Mahmoudi2020], whose
+systematic review of EHR-based hospital readmission prediction models
+found that temporal data leakage was present or suspected in over 40%
+of reviewed studies, and that performance estimates from temporally
+leaky models exceeded those from rigorously validated counterparts by
+a median AUROC of 0.07---representing a clinically meaningful
+overestimation of real-world utility.
+
+Among pharmacogenomic and opioid-specific ML studies, temporal leakage
+is particularly insidious because pharmacy claims naturally contain
+post-diagnosis drug codes (e.g., OUD treatment medications such as
+buprenorphine or naltrexone appearing in lookback windows constructed
+without explicit temporal cutoffs). A model that inadvertently includes
+treatment drug indicators in predictors trained on outcome labels will
+learn that treatment predicts outcome rather than that exposure predicts
+risk---a logical inversion that produces near-perfect training AUROC
+but fails entirely at prospective deployment.
 
 Validation strategies across studies:
 
-- Random cross-validation only: 48 studies (51%) — highest leakage risk
+- Random cross-validation only: 48 studies (51%) --- highest leakage risk
 - Temporal holdout (year-split): 29 studies (31%)
 - External validation cohort: 17 studies (18%)
 
@@ -755,9 +772,13 @@ carriers show differential morphine response. Published ML models omit both.
 
 **Gap 2: Causal validity is routinely compromised.**
 The 30% temporal leakage rate aligns with reproducibility concerns in clinical
-ML [@Kapoor2023]. Without temporal holdouts and explicit leakage-prevention
-protocols, performance estimates are inflated and SHAP attributions reflect
-post-outcome information rather than causal drug exposure.
+ML [@Kapoor2023; @Mahmoudi2020]. Without temporal holdouts and explicit
+leakage-prevention protocols, performance estimates are inflated and SHAP
+attributions reflect post-outcome information rather than causal drug exposure.
+This undermines the core translational value of XAI: if SHAP values identify
+buprenorphine (an OUD treatment drug) as a top feature because it leaked
+into pre-outcome lookback windows, the resulting explanation actively
+misguides clinical intervention.
 
 **Gap 3: FAERS and APCD data are rarely combined.**
 Only 7 studies (7%) integrated FAERS pharmacovigilance with APCD longitudinal
@@ -791,17 +812,31 @@ are not the same thing; XAI adoption requires evidence of both [@Bates2003].
 
 ## Implications for a Combined XAI + PGx Architecture
 
-The findings motivate a Consensus Filter architecture that combines
-distributional (SHAP) and structural (Formal Feature Attribution) explainability
-with PGx enrichment, implemented in the accompanying empirical chapters.
-That architecture enforces:
+The four gaps identified by this SQLR directly motivate the methodological
+architecture implemented in Chapters 2--5:
 
-1. Strict temporal validation (training 2016–2018; holdout 2019)
+- **Gap 1 (PGx rare)** motivates the `pgx_num_cpic_drugs` feature and CPIC
+  Patient Card (Chapter 5), which integrate pharmacogenomic enrichment into
+  the full prediction-to-deployment pipeline.
+- **Gap 2 (causal validity)** motivates the Consensus Filter combining SHAP
+  and FFA, with strict temporal cutoffs enforced at all feature engineering
+  stages (Chapter 2, Section 4.5).
+- **Gap 3 (FAERS + APCD)** motivates the pharmacovigilance integration in
+  the feature engineering pipeline, where FAERS drug-gene interaction signals
+  supplement CPIC evidence for CYP enzyme features.
+- **Gap 4 (user-centric XAI)** motivates the What-If counterfactual tab in
+  the dashboard (Chapter 5), which moves from global SHAP bars to patient-level
+  actionable risk deltas that clinicians can directly act on.
+
+The combined architecture enforces:
+
+1. Strict temporal validation (training 2016–2018; holdout 2019) with
+   year-split matching all 29 studies (31%) that used temporal holdouts
 2. Explicit leakage prevention at feature engineering (FP-Growth and process
-   mining for visualization only)
+   mining for visualization only; outcome codes excluded from lookback windows)
 3. PGx feature integration via CPIC-standardized gene-drug interaction scores
 4. Dual explainability confirmation: a feature is causal only if identified
-   by both SHAP and symbolic rule extraction
+   by both SHAP and symbolic rule extraction (Consensus Filter)
 
 ## Limitations of This Review
 
