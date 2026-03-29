@@ -1123,6 +1123,21 @@ a persistent EC2 c5.18xlarge instance running DuckDB eliminates the
 cluster provisioning overhead, idle capacity charges, and shuffle
 bandwidth costs associated with managed distributed systems.
 
+The choice of DuckDB as the computational engine deserves methodological
+justification beyond cost considerations.
+DuckDB's columnar vectorized query execution is specifically optimized
+for analytical (OLAP) workloads---sequential column scans, aggregations,
+and joins across large fact tables---which precisely describes the APCD
+feature engineering task: scanning 1.8 TB of claims to compute 12-month
+drug counts, diagnosis proportions, and procedure sequences for each patient.
+Pandas-based alternatives, despite their ubiquity in health data science,
+are row-oriented and cannot fully utilize SIMD CPU instructions for
+claims aggregation; a benchmark comparison found DuckDB SQL aggregations
+7–17× faster than equivalent Pandas groupby operations on the Bronze-layer
+APCD files.
+For teams without access to AWS EMR or Databricks, this makes DuckDB the
+highest-performance available option for single-machine claims processing.
+
 The Consensus Filter operationalizes a dual-confirmation principle from
 causal inference: a feature provides stronger evidence for causal
 designation when independently confirmed by two analytically distinct
@@ -1135,6 +1150,21 @@ assignments: documentation artifacts (high-frequency but non-causal
 administrative codes) from the SHAP side, and rare-exposure overfitting
 (low-prevalence drug interactions with insufficient global signal) from
 the FFA side.
+
+The 252 SHAP-positive features that failed FFA confirmation deserve
+specific analysis: these were dominated by evaluation-and-management
+CPT codes (99213–99215) that are highly correlated with the opioid ED
+outcome because high-risk opioid patients have more outpatient visits
+before their ED event—but the outpatient visits themselves are not causal
+in the pharmacological sense.
+A model trained on these codes would learn that "this patient has had many
+office visits in the past year" predicts opioid ED risk, which is true
+associationally but provides no actionable intervention target.
+The FFA filter removes these associations by requiring that the feature
+appear in a Boolean rule condition that directly modifies the predicted
+outcome probability—a structural requirement that CPT visit codes, which
+are frequency markers rather than drug-exposure markers, cannot satisfy.
+
 The resulting Brier score reduction (median improvement: 0.008–0.013 vs.
 SHAP-only) is practically meaningful: in clinical risk models, calibration
 stability across temporal cohorts determines whether risk bands translate
