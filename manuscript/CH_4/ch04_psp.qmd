@@ -41,7 +41,7 @@ abstract: >
   utilization, yet existing DDI databases characterize pairwise interactions
   in isolation, failing to capture synergistic multi-drug effects.
   **Methods:** Using a state-level All-Payer Claims Database (2016–2019),
-  we constructed a non-opioid ED cohort of adults aged 65–94 years
+  we constructed a non-opioid ED cohort of adults aged 65–114 years
   ($n$ = 1,182 cases, 16,105 matched controls).
   A 30-day causality window isolated proximal drug exposures preceding each
   ED visit.
@@ -149,7 +149,7 @@ geriatric non-opioid ED cohort derived from APCD.
 ## Study Objectives
 
 1. Apply FFA multi-feature interaction testing to identify synergistic DDI
-   combinations in the 65–94 year polypharmacy cohort.
+   combinations in the 65–114 year polypharmacy cohort.
 2. Quantify Intervention Rate (IR) scores as deprescribing priorities for
    the highest-risk drug-drug combinations.
 3. Characterize the "hairball" of drug co-occurrence networks via FP-Growth
@@ -185,7 +185,7 @@ This window focuses on proximal drug exposures responsible for acute ADEs,
 as most pharmacokinetic-mediated DDIs manifest within days to weeks of
 co-prescription [@Becker2007].
 
-**Age bands:** 65–74, 75–84, 85–94 years.
+**Age bands:** 65–74, 75–84, 85–114 years.
 
 ## Feature Engineering {#sec-features}
 
@@ -278,7 +278,7 @@ The non-opioid ED cohort comprised 1,182 cases and 16,105 matched
 controls across the three geriatric age bands (**@tbl-cohort-chars**).
 Median polypharmacy count in the 30-day window was [X] drugs (IQR [X–X])
 among cases vs. [X] drugs (IQR [X–X]) among controls.
-The 85–94 age band had the highest median drug count ([X]; IQR [X–X]).
+The 85–114 age band had the highest median drug count ([X]; IQR [X–X]).
 
 | Characteristic | Cases | Controls |
 |:---|:---|:---|
@@ -301,7 +301,7 @@ Mean PR-AUC on the 2019 holdout was 0.991 ± 0.007 across geriatric age bands.
 AUROC ranged from 0.996 (65–74 band) to 0.999 (75–84 band).
 Calibration was good across all three bands (Brier score [0.XX–0.XX];
 ICI [0.XX–0.XX]).
-The 85–94 band showed the highest PR-AUC, consistent with the higher
+The 85–114 band showed the highest PR-AUC, consistent with the higher
 ADE signal from extreme polypharmacy in this stratum.
 
 ## Synergistic Drug-Drug Interactions {#sec-ddi}
