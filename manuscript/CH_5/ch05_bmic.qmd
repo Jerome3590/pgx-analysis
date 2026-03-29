@@ -251,7 +251,7 @@ no patient data persists beyond the request lifetime. {#tbl-architecture}
 ![PGx Risk Dashboard architecture. Left: S3-hosted static frontend with
 four functional tabs (Patient Input, Risk Score, Causal What-If,
 PGx Card). Center: API Gateway routes to AWS Lambda Docker container (ECR).
-Right: Lambda container internals—per-density-bin ensemble models (up to 84),
+Right: Lambda container internals, per-density-bin ensemble models (up to 84),
 CPIC database snapshot, and inference engine. Arrows indicate data flow; no patient
 data is written to persistent storage at any step.](../figures/ch05/fig_architecture.pdf){#fig-architecture
 width=100% fig-align="center"}
@@ -474,7 +474,7 @@ The "What-If" tab allows clinicians to perform counterfactual analysis:
 
 **Causal grounding:**
 Counterfactual predictions respect the FFA causal rules from Chapter 4.
-When a selected drug participates in a known synergistic pair or triplet
+If a selected drug participates in a known synergistic pair or triplet
 (IR > 0.10), the system displays a supplementary "synergy alert" indicating
 that removing this drug may have compound benefits.
 
