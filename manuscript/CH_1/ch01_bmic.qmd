@@ -110,18 +110,40 @@ bibliography:
 
 Opioid use disorder (OUD) and polypharmacy-related adverse drug events (ADEs)
 drive a disproportionate share of emergency department (ED) visits and
-downstream healthcare costs. Clinicians treating these patients lack real-time,
+downstream healthcare costs.
+The United States opioid crisis has now claimed more than 500,000 lives since
+1999 and costs an estimated \$78.5 billion annually in healthcare, lost
+productivity, addiction treatment, and criminal justice expenditure [@Florence2021].
+Polypharmacy (concurrent use of ≥5 medications) affects more than 40% of adults
+aged ≥65 years and is the leading driver of preventable ADE-related
+hospitalizations in older adults, contributing to an estimated 125,000 deaths
+and 700,000 ED visits annually [@Duerden2013; @Osanlou2022].
+Despite this burden, clinicians treating these patients lack real-time,
 explainable tools to translate complex claims trajectories into prescribing
-decisions. Machine learning (ML) and explainable artificial intelligence (XAI)
-partially address this gap—SHAP and Formal Feature Attribution (FFA) convert
-model outputs into interpretable feature rankings—but no deployed system
-integrates pharmacogenomics (PGx) with temporally valid causal modeling.
+decisions at the point of care.
 
-This chapter frames that integration around the **Clinical OODA Loop** (Observe,
-Orient, Decide, Act) [@Boyd1986]: a four-phase decision cycle in which staff
-observe patient trajectories, orient to high-risk drug exposures, decide on
-preventive action, and close the loop through outcome feedback. Causal-oriented
-modeling, feature discovery, and process mining map directly onto these phases.
+Machine learning (ML) and explainable artificial intelligence (XAI)
+partially address this gap: SHAP and Formal Feature Attribution (FFA) convert
+black-box model outputs into interpretable feature rankings.
+However, three systematic failures limit the clinical utility of existing
+published models:
+(1) **temporal leakage**, where post-outcome codes are inadvertently encoded
+in predictive features, inflating training performance by 5–20 percentage points
+but failing at prospective deployment;
+(2) **PGx omission**, where pharmacogenomic factors (CYP2D6, CYP2C19, OPRM1)
+known to modify individual opioid response are absent from nearly all
+published prediction models despite CPIC Level A/B evidence;
+and (3) **deployment gap**, where no published system integrates a validated
+XAI pipeline with PGx guidance and production clinical decision support
+in a single privacy-preserving architecture.
+
+This chapter maps the published evidence base and quantifies these failures
+through a Systematic Quantitative Literature Review (SQLR) framed around the
+**Clinical OODA Loop** (Observe, Orient, Decide, Act) [@Boyd1986]: a four-phase
+decision cycle in which staff observe patient trajectories, orient to high-risk
+drug exposures, decide on preventive action, and close the loop through outcome
+feedback. Causal-oriented modeling, feature discovery, and process mining map
+directly onto these phases.
 
 **Key Objectives:**
 1. Map the evidence base for XAI-enabled clinical prediction models for OUD and polypharmacy-related ED visits.
@@ -656,14 +678,26 @@ width=100% fig-align="center"}
 
 SHAP [@Lundberg2017] was the dominant explainability approach, used in 67
 studies (71%), with global feature importance plots the most common
-visualization (n = 58).
-Local/patient-level SHAP explanations were provided in only 31 studies (33%).
+visualization ($n$ = 58).
+Local/patient-level SHAP explanations were provided in only 31 studies (33%),
+reflecting a gap between population-level model interpretability (which SHAP
+provides at the cohort level) and point-of-care clinical utility (which requires
+patient-specific explanations that update for each individual's drug list).
 LIME was employed in 12 studies (13%); symbolic rule extraction in 11 (12%).
 Attention mechanisms for neural models appeared in 8 studies (9%).
 
 Only 14 studies (15%) demonstrated *clinical utility* of generated explanations
-through user testing or retrospective audit. Model-centric evaluation
-predominates; user-centric evaluation does not.
+through user testing, clinician survey, or retrospective audit of decision impact.
+This finding is consistent with the broader XAI adoption literature, which
+documents a persistent gap between technical explainability performance (accuracy
+of model-explanation alignment) and clinical usability (whether explanations
+actually change clinician behavior or improve patient outcomes) [@Char2018].
+Model-centric evaluation (how well does the explanation reflect the model's
+decision boundary?) predominates; user-centric evaluation (does the clinician
+find the explanation actionable and trustworthy?) does not.
+This gap directly motivated the dashboard design in Chapter 5, which combines
+global SHAP importance bars with local What-If counterfactual tabs specifically
+to address both evaluation dimensions simultaneously.
 
 ## Pharmacogenomics Feature Integration
 
@@ -675,10 +709,27 @@ PGx features were incorporated in 18 studies (19%):
 - COMT (pain sensitivity): 3 studies
 - Multi-gene panels or PRS: 3 studies
 
-None of the PGx-inclusive studies incorporated CPIC guideline tiers as
-structured features; most used genotype-derived imputed phenotype scores.
+None of the PGx-inclusive studies incorporated CPIC guideline evidence tiers
+(Level A/B/C) as structured feature inputs; most used genotype-derived imputed
+phenotype scores (e.g., CYP2D6 metabolizer group as a categorical variable)
+without linking to actionable dosing thresholds from CPIC recommendations.
+This approach fails to capture the dose-level clinical guidance that CPIC
+guidelines provide: a CYP2D6 poor metabolizer is not merely at elevated risk
+in general, but specifically at risk for toxicity at standard codeine/tramadol
+doses and should receive alternative opioids according to CPIC Level A criteria.
+
 No study combined PGx features with a validated XAI pipeline *and* a
-temporal holdout design simultaneously.
+temporal holdout design simultaneously---the minimum combination required for
+a study's results to be directly applicable to prospective clinical deployment.
+This triple gap (PGx + XAI + temporal validation) confirms that the
+dissertation's integrated approach occupies an unoccupied niche in the
+literature, not merely an incremental improvement over existing work.
+
+The 81% of studies that omit PGx features represent a systematic blind spot:
+opioid dosing pharmacology is inherently genetically modulated, and models
+trained without PGx signal cannot account for the 20–30% of patients whose
+genotypic metabolizer status would change their risk classification if properly
+modeled.
 
 ## Temporal Validation and Data Leakage {#sec-leakage}
 
