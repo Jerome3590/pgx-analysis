@@ -826,6 +826,25 @@ missing data, and the absence of calibration statistics.
 Only 34 studies (36%) reported Brier score or calibration plots alongside
 discrimination metrics.
 
+The PROBAST analysis domain subsection was the dominant source of high risk
+of bias: the most common failures were (1) no calibration statistics reported
+(62% of studies), (2) no handling of class imbalance despite opioid ED events
+being a minority class in population-level data (47%), and (3) no sensitivity
+analysis for missing covariate data (71%).
+Participant domain bias (non-representative patient populations) was
+flagged in 23% of studies, primarily those using single-center EHR cohorts
+without external validation.
+Predictor domain bias (measurement error in drug exposure features) was
+present in 38% of studies, most commonly through use of medication orders
+rather than dispensing records as the drug exposure measure.
+
+Low PROBAST applicability concern was recorded for 71% of studies on the
+population domain (well-matched to RQ1/RQ2 patient populations) and
+58% on the outcome domain (opioid or ADE-related ED visit definitions
+consistent with the target population); predictor applicability was lower
+(48% low concern) due to EHR-based studies that cannot be replicated with
+claims data alone.
+
 # Discussion {#sec-discussion}
 
 ## Key Findings
