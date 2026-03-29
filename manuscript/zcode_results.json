@@ -1,0 +1,32 @@
+{
+  "note": "Protective Z-codes only: Z00-Z13 (exams/screens) + Z23-Z28 (immunizations)",
+  "cases_median": 0.05,
+  "cases_q25": 0.0,
+  "cases_q75": 0.24,
+  "controls_median": 0.05,
+  "controls_q25": 0.01,
+  "controls_q75": 0.12,
+  "q1_upper_pct": 1,
+  "q4_threshold_pct": 12,
+  "or_q2_vs_q1": {
+    "or": 7.18,
+    "ci_lo": 2.48,
+    "ci_hi": 20.75,
+    "pval": "<0.001"
+  },
+  "or_q3_vs_q1": {
+    "or": 30.63,
+    "ci_lo": 6.35,
+    "ci_hi": 147.76,
+    "pval": "<0.001"
+  },
+  "or_q4_vs_q1": {
+    "or": 20.83,
+    "ci_lo": 8.62,
+    "ci_hi": 50.31,
+    "pval": "<0.001"
+  },
+  "crude_q2_vs_q1": 0.25,
+  "crude_q3_vs_q1": 0.31,
+  "pattern": "U-shaped: Q2/Q3 protective, Q4 similar to Q1 (reactive care)"
+}

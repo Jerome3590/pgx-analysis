@@ -365,6 +365,19 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         print("[WARNING] Target column missing after merge, adding from base_df")
         merged = merged.merge(base_df[['mi_person_key', 'target']], on="mi_person_key", how="left")
 
+    # Drop n_events (continuous claim count) and n_event_bin (string) from the
+    # model feature table.  n_event_bin_ordinal (0–3) is the only density signal
+    # the per-bin models should see; the per-bin routing already stratifies by
+    # density, and the continuous n_events dominates gradient-boosted model
+    # splits to the point where individual drug/ICD/CPT features cannot produce
+    # meaningful leave-one-out counterfactuals (Δp̂ ≈ 0 for any single code).
+    # Both columns are retained in base_df for threshold computation but must
+    # not appear as model inputs.
+    cols_to_drop = [c for c in ("n_events", "n_event_bin") if c in merged.columns]
+    if cols_to_drop:
+        merged = merged.drop(columns=cols_to_drop)
+        print(f"[INFO] Dropped non-feature columns from model inputs: {cols_to_drop}")
+
     out_dir = project_root / "6_final_model" / "outputs" / cohort_name / age_band_fname
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path_csv = out_dir / f"{cohort_name}_{age_band_fname}_train_final_features.csv"

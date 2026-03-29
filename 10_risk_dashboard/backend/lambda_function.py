@@ -11,6 +11,7 @@ Handles:
 - GET /metadata - Returns valid codes for cohorts/age_bands (filter by cohort)
 - POST /risk - Risk score from ensemble, filtered by user-selected cohort and features
 - POST /risk/comparison - Compares risk scores for user-provided scenarios
+- POST /risk/drug_contributions - Leave-one-out per-drug Δp̂ for What-If / deprescribing tab
 - POST /causal/importance - Returns causal importance filtered by selected drugs/features (prebuilt data)
 - POST /causal/interactions - Returns interaction results filtered by selection (prebuilt data)
 - GET /visualizations/* - Returns URLs to prebuilt S3 assets only (no processing)
@@ -441,24 +442,31 @@ def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str
 
 def _normalize_feature_schema_for_training(schema: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Align schema with run_final_model.py: n_event_bin is a string label for per-bin routing,
-    not a model input. Older feature_schema.json files listed n_event_bin → 2340 features vs
-    2339 in XGBoost (Feature shape mismatch).
+    Align schema with run_final_model.py _EXCLUDE_FROM_FEATURES:
+    - n_event_bin (string label for per-bin routing) is not a model input.
+    - n_events (continuous claim count) is excluded post-refactor: the per-bin
+      routing already stratifies by density; keeping n_events as a continuous
+      feature dominates gradient-boosted splits and makes per-drug
+      counterfactuals flat (Δp̂ ≈ 0).  n_event_bin_ordinal (0–3) is retained
+      as the density signal.
+    Older feature_schema.json files may still list both → drop them here so
+    the feature vector matches the retrained model's expected shape.
     """
     if not schema or not isinstance(schema, dict):
         return schema if isinstance(schema, dict) else {"features": [], "defaults": {}}
     out = dict(schema)
     feats = out.get("features")
-    if isinstance(feats, list) and "n_event_bin" in feats:
-        out["features"] = [f for f in feats if f != "n_event_bin"]
+    _to_drop = {"n_event_bin", "n_events"}
+    if isinstance(feats, list) and _to_drop.intersection(feats):
+        dropped = [f for f in feats if f in _to_drop]
+        out["features"] = [f for f in feats if f not in _to_drop]
         defaults = out.get("defaults")
-        if isinstance(defaults, dict) and "n_event_bin" in defaults:
-            defaults = dict(defaults)
-            del defaults["n_event_bin"]
+        if isinstance(defaults, dict):
+            defaults = {k: v for k, v in defaults.items() if k not in _to_drop}
             out["defaults"] = defaults
         if "n_features" in out:
             out["n_features"] = len(out["features"])
-        print("feature_schema: dropped n_event_bin (not a trained model feature)")
+        print(f"feature_schema: dropped non-model-input column(s): {dropped}")
     return out
 
 
@@ -546,6 +554,10 @@ def n_event_bin_from_n_events(n_events: int, thresholds: Dict[str, float]) -> st
     if n_events <= p95:
         return "high"
     return "extreme"
+
+
+# Ordinal encoding used in feature schema: low=0, medium=1, high=2, extreme=3
+_BIN_ORDINAL_MAP: Dict[str, float] = {"low": 0.0, "medium": 1.0, "high": 2.0, "extreme": 3.0}
 
 
 # ---- Platt calibration models ----
@@ -755,9 +767,24 @@ def build_feature_vector(
     n_drugs: Optional[float] = None,
     pgx_num_drugs: Optional[float] = None,
     pgx_num_cpic_drugs: Optional[float] = None,
+    auto_pgx_num_drugs: bool = False,
+    n_event_bin: Optional[str] = None,
 ) -> np.ndarray:
     """
     Build feature vector matching model's expected schema.
+
+    When auto_pgx_num_drugs=True and pgx_num_drugs/pgx_num_cpic_drugs are not
+    supplied, both aggregate counts are derived from len(drugs) so that
+    leave-one-out counterfactuals produce meaningful Δp̂ values instead of
+    collapsing to zero (previously the schema training-median default was used
+    regardless of submitted drug count, making the dominant model features
+    constant across all counterfactual scenarios).
+
+    When n_event_bin is provided (e.g. 'low', 'medium', 'high', 'extreme'),
+    n_event_bin_ordinal is set from _BIN_ORDINAL_MAP instead of falling back
+    to the schema default (training median = 1.0/medium). This ensures the
+    model sees the density stratum that corresponds to the actual submitted
+    code count rather than the population median.
     """
     features = {}
     
@@ -811,18 +838,39 @@ def build_feature_vector(
     # These override schema defaults so the user can see how predictions change.
     if n_drugs is not None and "n_drugs" in features:
         features["n_drugs"] = float(n_drugs)
+
+    # Auto-derive pgx_num_drugs / pgx_num_cpic_drugs from submitted drug count
+    # when auto_pgx_num_drugs=True and no explicit values were provided.
+    # This ensures counterfactual scenarios (drug removed → n_drug-1) produce
+    # a real Δp̂ instead of staying stuck at the training-median default.
+    if auto_pgx_num_drugs:
+        if pgx_num_drugs is None:
+            pgx_num_drugs = float(len([d for d in (drugs or []) if d]))
+        if pgx_num_cpic_drugs is None:
+            # Conservative proxy: CPIC ≈ pgx_num_drugs (overestimate is safe;
+            # callers that know the true count should pass it explicitly).
+            pgx_num_cpic_drugs = pgx_num_drugs
+
     if pgx_num_drugs is not None and "pgx_num_drugs" in features:
         features["pgx_num_drugs"] = float(pgx_num_drugs)
     if pgx_num_cpic_drugs is not None and "pgx_num_cpic_drugs" in features:
         features["pgx_num_cpic_drugs"] = float(pgx_num_cpic_drugs)
-    
-    # Apply schema defaults for any feature not set by request (age / item_*).
-    # This includes n_drugs, pgx_num_drugs, pgx_num_cpic_drugs, etc. Dashboard does not need to send these;
-    # we use training medians so the model gets consistent inputs.
+
+    # Apply schema defaults for any feature not yet set by the request.
+    # Uses == 0.0 as "unset" sentinel — must run BEFORE n_event_bin_ordinal
+    # override so that the ordinal value of 0.0 (low bin) is not clobbered
+    # by the training-median default (1.0 / medium).
     defaults = feature_schema.get('defaults', {})
     for feature in features:
         if features[feature] == 0.0 and feature in defaults:
             features[feature] = defaults[feature]
+
+    # Set n_event_bin_ordinal AFTER defaults so low-bin (0.0) is not
+    # overwritten by the default (1.0 = medium).  Overrides the schema
+    # default so the model sees the density stratum that corresponds to
+    # the actual submitted code count rather than the population median.
+    if n_event_bin is not None and "n_event_bin_ordinal" in features:
+        features["n_event_bin_ordinal"] = _BIN_ORDINAL_MAP.get(n_event_bin, 1.0)
     
     # Convert to array in correct order
     feature_list = [features.get(f, 0.0) for f in feature_schema.get('features', [])]
@@ -1070,18 +1118,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_metrics(event)
         elif method == "POST" and path.endswith("/pgx/card"):
             return handle_pgx_card(event)
+        elif method == "POST" and path.endswith("/risk/drug_contributions"):
+            return handle_drug_contributions(event)
+        elif method == "POST" and path.endswith("/risk/comparison"):
+            return handle_risk_comparison(event)
         elif method == "POST" and path.endswith("/risk"):
-            if path.endswith("/risk/comparison"):
-                return handle_risk_comparison(event)
-            else:
-                return handle_risk(event)
+            return handle_risk(event)
+        elif method == "POST" and path.endswith("/causal/interactions"):
+            return handle_causal_interactions(event)
+        elif method == "POST" and path.endswith("/causal/importance"):
+            return handle_causal_importance(event)
         elif method == "POST" and path.endswith("/causal"):
-            if path.endswith("/causal/interactions"):
-                return handle_causal_interactions(event)
-            elif path.endswith("/causal/importance"):
-                return handle_causal_importance(event)
-            else:
-                return _response(404, {"error": "Unknown causal endpoint"})
+            return _response(404, {"error": "Unknown causal endpoint — use /causal/importance or /causal/interactions"})
         elif method == "GET" and path.startswith("/visualizations/"):
             if path.endswith("/causal"):
                 return handle_visualizations_causal(event)
@@ -1274,6 +1322,16 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         # Load feature schema and run ensemble when user has entered codes
         feature_schema = load_feature_schema(cohort, age_band)
         codes_validation = get_codes_used_unknown(drugs, icds, cpts, feature_schema)
+        # Compute n_event_bin FIRST so it can be embedded in the feature vector
+        # (n_event_bin_ordinal) as well as used for per-bin model routing.
+        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
+        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
+        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
+
+        # When pgx_num_drugs is not explicitly provided by the caller, auto-derive
+        # it from the submitted drug count so that the model's dominant aggregate
+        # features respond to what the user actually submitted.
+        _auto_pgx = pgx_num_drugs is None and pgx_num_cpic_drugs is None
         feature_vector = build_feature_vector(
             age,
             drugs,
@@ -1283,11 +1341,9 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             n_drugs=n_drugs,
             pgx_num_drugs=pgx_num_drugs,
             pgx_num_cpic_drugs=pgx_num_cpic_drugs,
+            auto_pgx_num_drugs=_auto_pgx,
+            n_event_bin=n_event_bin_value,
         )
-        # Compute n_event_bin before inference so the per-bin model can be loaded
-        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
-        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
-        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
 
         ensemble_result = predict_risk(
             cohort, age_band, feature_vector,
@@ -1408,13 +1464,19 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
             base_cpts = list(base_cpts) if base_cpts else []
         base_no_codes = not (base_drugs or base_icds or base_cpts)
         
+        nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
         if base_no_codes and baseline_risk is not None:
             base_risk = float(baseline_risk)
         else:
+            base_n_events = len(base_drugs) + len(base_icds) + len(base_cpts)
+            base_bin = n_event_bin_from_n_events(base_n_events, nevent_thresholds)
             base_feature_vector = build_feature_vector(
-                base_age, base_drugs, base_icds, base_cpts, feature_schema
+                base_age, base_drugs, base_icds, base_cpts, feature_schema,
+                auto_pgx_num_drugs=True,
+                n_event_bin=base_bin,
             )
-            base_ensemble = predict_risk(cohort, age_band, base_feature_vector, require_all_models=True)
+            base_ensemble = predict_risk(cohort, age_band, base_feature_vector,
+                                         require_all_models=True, n_event_bin=base_bin)
             base_risk = base_ensemble['ensemble_score']
         
         scenario_results = []
@@ -1433,10 +1495,15 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
                 scenario_risk = float(baseline_risk)
                 scenario_ensemble_preds = {}
             else:
+                s_n_events = len(s_drugs) + len(s_icds) + len(s_cpts)
+                s_bin = n_event_bin_from_n_events(s_n_events, nevent_thresholds)
                 scenario_feature_vector = build_feature_vector(
-                    base_age, s_drugs, s_icds, s_cpts, feature_schema
+                    base_age, s_drugs, s_icds, s_cpts, feature_schema,
+                    auto_pgx_num_drugs=True,
+                    n_event_bin=s_bin,
                 )
-                scenario_ensemble = predict_risk(cohort, age_band, scenario_feature_vector, require_all_models=True)
+                scenario_ensemble = predict_risk(cohort, age_band, scenario_feature_vector,
+                                                 require_all_models=True, n_event_bin=s_bin)
                 scenario_risk = scenario_ensemble['ensemble_score']
                 scenario_ensemble_preds = scenario_ensemble['predictions']
             scenario_results.append({
@@ -1457,6 +1524,159 @@ def handle_risk_comparison(event: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(e),
             "traceback": traceback.format_exc()
         })
+
+
+def handle_drug_contributions(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    POST /risk/drug_contributions
+
+    Computes per-drug leave-one-out counterfactual Δp̂ for every drug in the
+    submitted list, powering the What-If / deprescribing tab.
+
+    For each drug D:
+      - Build feature vector with D removed (item_drug_D=0) AND pgx_num_drugs -= 1
+      - Δp̂(D) = p̂_base − p̂_without_D
+      - Positive Δp̂ means removing D reduces risk → deprescribing candidate
+
+    Request body (same shape as POST /risk):
+    {
+        "cohort": "non_opioid_ed",
+        "age_band": "65-74",
+        "age": 70,                 // optional
+        "drugs": ["LEVOFLOXACIN", "LORAZEPAM", "CARVEDILOL"],
+        "icds": [...],             // optional
+        "cpts": [...],             // optional
+        "pgx_num_cpic_drugs": 3    // optional — passed through if known
+    }
+
+    Response:
+    {
+        "base_risk": 0.412,
+        "n_event_bin": "medium",
+        "drug_contributions": [
+            {"drug": "LEVOFLOXACIN", "risk_without": 0.318, "delta_risk": 0.094,
+             "pct_contribution": 22.8, "rank": 1},
+            {"drug": "LORAZEPAM",    "risk_without": 0.355, "delta_risk": 0.057,
+             "pct_contribution": 13.8, "rank": 2},
+            ...
+        ],
+        "cohort": "non_opioid_ed",
+        "age_band": "65-74"
+    }
+    """
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError as e:
+        return _response(400, {"error": "Invalid JSON body", "detail": str(e)})
+
+    cohort         = body.get("cohort")
+    age_band_input = body.get("age_band")
+    raw_age        = body.get("age")
+    drugs          = body.get("drugs") or []
+    icds           = body.get("icds") or []
+    cpts           = body.get("cpts") or []
+    pgx_num_cpic_drugs_input = body.get("pgx_num_cpic_drugs")
+
+    if not isinstance(drugs, list): drugs = list(drugs) if drugs else []
+    if not isinstance(icds,  list): icds  = list(icds)  if icds  else []
+    if not isinstance(cpts,  list): cpts  = list(cpts)  if cpts  else []
+
+    try:
+        # Resolve cohort / age_band / age
+        if age_band_input and cohort:
+            age_band = str(age_band_input)
+            if raw_age is None:
+                try:
+                    parts = age_band.split("-")
+                    age = int((int(parts[0]) + int(parts[1])) / 2) if len(parts) == 2 else 50
+                except Exception:
+                    age = 50
+            else:
+                age = int(raw_age)
+        else:
+            age = int(raw_age or 0)
+            if age <= 0:
+                return _response(400, {"error": "age or (cohort + age_band) required"})
+            cohort, age_band = determine_cohort_and_age_band(age)
+
+        if not drugs:
+            return _response(400, {"error": "At least one drug is required"})
+
+        feature_schema = load_feature_schema(cohort, age_band)
+        n_events_submitted = len(drugs) + len(icds) + len(cpts)
+        nevent_thresholds  = load_n_event_bin_thresholds(cohort, age_band)
+        n_event_bin_value  = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
+
+        # ── Base prediction (all drugs present) ──────────────────────────────
+        n_drugs_base = float(len(drugs))
+        cpic_base    = float(pgx_num_cpic_drugs_input) if pgx_num_cpic_drugs_input is not None else n_drugs_base
+        base_fv = build_feature_vector(
+            age, drugs, icds, cpts, feature_schema,
+            pgx_num_drugs=n_drugs_base,
+            pgx_num_cpic_drugs=cpic_base,
+            n_event_bin=n_event_bin_value,
+        )
+        base_result = predict_risk(
+            cohort, age_band, base_fv,
+            require_all_models=False,
+            n_event_bin=n_event_bin_value,
+        )
+        base_risk = base_result["ensemble_score"]
+
+        # ── Leave-one-out per drug ────────────────────────────────────────────
+        contributions = []
+        n_drugs_loo = max(n_drugs_base - 1.0, 0.0)
+        cpic_loo    = max(cpic_base - 1.0, 0.0)
+
+        # n_event_bin for LOO (one fewer event)
+        n_events_loo = max(n_events_submitted - 1, 0)
+        n_event_bin_loo = n_event_bin_from_n_events(n_events_loo, nevent_thresholds)
+
+        for drug in drugs:
+            drugs_loo = [d for d in drugs if d != drug]
+            try:
+                loo_fv = build_feature_vector(
+                    age, drugs_loo, icds, cpts, feature_schema,
+                    pgx_num_drugs=n_drugs_loo,
+                    pgx_num_cpic_drugs=cpic_loo,
+                    n_event_bin=n_event_bin_loo,
+                )
+                loo_result = predict_risk(
+                    cohort, age_band, loo_fv,
+                    require_all_models=False,
+                    n_event_bin=n_event_bin_loo,
+                )
+                risk_without = loo_result["ensemble_score"]
+            except Exception as loo_err:
+                print(f"LOO failed for {drug}: {loo_err}")
+                risk_without = base_risk  # fallback: no contribution
+
+            delta      = float(base_risk - risk_without)
+            pct_contrib = (delta / base_risk * 100.0) if base_risk > 0 else 0.0
+            contributions.append({
+                "drug":          drug,
+                "risk_without":  round(float(risk_without), 6),
+                "delta_risk":    round(delta, 6),
+                "pct_contribution": round(pct_contrib, 2),
+            })
+
+        # Sort by delta_risk descending (highest contributor first)
+        contributions.sort(key=lambda x: x["delta_risk"], reverse=True)
+        for i, c in enumerate(contributions, 1):
+            c["rank"] = i
+
+        return _response(200, {
+            "base_risk":          round(base_risk, 6),
+            "n_event_bin":        n_event_bin_value,
+            "n_drugs":            int(n_drugs_base),
+            "drug_contributions": contributions,
+            "cohort":             cohort,
+            "age_band":           age_band,
+        })
+
+    except Exception as e:
+        import traceback
+        return _response(500, {"error": str(e), "traceback": traceback.format_exc()})
 
 
 def handle_pgx_card(event: Dict[str, Any]) -> Dict[str, Any]:

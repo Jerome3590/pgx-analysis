@@ -36,8 +36,8 @@ def ici(y_true, y_prob, n_bins=10):
 
 
 configs = [
-    ("opioid_ed",     ["13_24", "25_44", "45_54", "55_64"], "CatBoost"),
-    ("non_opioid_ed", ["65_74", "75_84", "85_114"],          "CatBoost"),
+    ("opioid_ed",     ["0_12", "13_24", "25_44", "45_54", "55_64", "65_74", "75_84", "85_114"], "CatBoost"),
+    ("non_opioid_ed", ["0_12", "13_24", "25_44", "45_54", "55_64", "65_74", "75_84", "85_114"], "CatBoost"),
 ]
 
 print(f"{'Cohort':<15s} {'Band':>7s} {'Model':>10s}  {'Brier':>7s}  {'ICI':>7s}  {'N_test':>7s}")
