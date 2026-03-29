@@ -18,7 +18,8 @@ param(
     [int]$Chapter  = 0,      # 0 = all chapters
     [switch]$Draft  = $false,
     [switch]$Docx   = $false,
-    [switch]$Clean  = $false
+    [switch]$Clean  = $false,
+    [switch]$Full   = $false  # build full dissertation PDF
 )
 
 $Root    = $PSScriptRoot
@@ -76,6 +77,25 @@ function Build-Chapter {
     } else {
         Write-Error "    FAILED: $PdfName (exit $LASTEXITCODE)"
     }
+}
+
+# ── Full dissertation ────────────────────────────────────────────────────────
+if ($Full) {
+    $FullQmd = Join-Path $Root "full_dissertation\full_dissertation.qmd"
+    if (-not (Test-Path $FullQmd)) {
+        Write-Error "Full dissertation QMD not found: $FullQmd"
+        exit 1
+    }
+    Write-Host "`n==> Building full dissertation PDF ..." -ForegroundColor Cyan
+    quarto render $FullQmd --to pdf `
+        --output-dir $Output `
+        --output "dissertation_dixon.pdf"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "    OK  -> $Output\dissertation_dixon.pdf" -ForegroundColor Green
+    } else {
+        Write-Error "    FAILED: full dissertation (exit $LASTEXITCODE)"
+    }
+    exit 0
 }
 
 # ── Clean ────────────────────────────────────────────────────────────────────
