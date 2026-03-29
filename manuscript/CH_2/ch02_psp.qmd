@@ -1207,21 +1207,34 @@ that temporal leakage prevention was achieved.
 Full per-partition results (AUROC, PR-AUC, Brier score, LogLoss) are
 reported in @tbl-validation.
 
-| Cohort | Age Band | Selected Model | AUROC | PR-AUC | Brier | ICI |
-|:---|:---|:---|---:|---:|---:|---:|
-| Opioid ED | 13–24 | XGBoost | 0.957 | 0.840 | 0.008 | 0.163 |
-| Opioid ED | 25–44 | XGBoost | 0.979 | 0.935 | 0.013 | 0.108 |
-| Opioid ED | 45–54 | Ensemble | 0.987 | 0.955 | 0.007 | 0.110 |
-| Opioid ED | 55–64 | Ensemble | 0.991 | 0.974 | 0.051 | 0.113 |
-| Non-Opioid ED | 65–74 | CatBoost | 0.996 | 0.984 | 0.008 | 0.071 |
-| Non-Opioid ED | 75–84 | Ensemble | 0.999 | 0.997 | 0.007 | 0.128 |
-| Non-Opioid ED | 85–114 | Ensemble | 0.997 | 0.992 | 0.007 | 0.290 |
+| Cohort | Age Band | Model | AUROC | PR-AUC | Recall |
+|:---|:---|:---|---:|---:|---:|
+| Opioid ED | 13–24 | XGBoost | 0.957 | 0.840 | 0.648 |
+| Opioid ED | 25–44 | XGBoost | 0.979 | 0.935 | 0.799 |
+| Opioid ED | 45–54 | Ensemble | 0.987 | 0.955 | 0.816 |
+| Opioid ED | 55–64 | Ensemble | 0.991 | 0.974 | 0.874 |
+| Opioid ED | 65–74 | Ensemble | 0.992 | 0.979 | 0.867 |
+| Opioid ED | 75–84 | Ensemble | 0.990 | 0.968 | 0.810 |
+| Opioid ED | 85–114 | Ensemble | 0.967 | 0.901 | 0.552 |
+| Non-Opioid ED | 0–12 | Ensemble | 0.973 | 0.927 | 0.983 |
+| Non-Opioid ED | 13–24 | Ensemble | 0.977 | 0.908 | 0.935 |
+| Non-Opioid ED | 25–44 | CatBoost | 0.979 | 0.911 | 0.933 |
+| Non-Opioid ED | 45–54 | CatBoost | 0.984 | 0.933 | 0.919 |
+| Non-Opioid ED | 55–64 | CatBoost | 0.988 | 0.950 | 0.937 |
+| Non-Opioid ED | 65–74 | CatBoost | 0.996 | 0.984 | 0.977 |
+| Non-Opioid ED | 75–84 | Ensemble | 0.999 | 0.997 | 0.973 |
+| Non-Opioid ED | 85–114 | Ensemble | 0.997 | 0.992 | 0.971 |
 
-: 2019 temporal holdout performance by cohort and age band.
+: 2019 temporal holdout performance across all cohorts and age bands
+(25-run MCCV + Optuna per density bin).
+Opioid ED 0–12 excluded (N = 893; insufficient for stable Optuna training).
+Brier score and ICI available for primary study bands: opioid ED 13–64
+(Brier 0.007–0.051; ICI 0.108–0.163) and non-opioid ED 65–114
+(Brier 0.007–0.008; ICI 0.071–0.290).
 AUROC, area under the receiver operating characteristic curve;
-PR-AUC, area under the precision-recall curve; Brier, Brier score;
-ICI, Integrated Calibration Index (mean absolute calibration deviation, 10-bin;
-0 = perfect calibration). Source: `brier_ici_results.json`; 25-run MCCV + Optuna. {#tbl-validation}
+PR-AUC, area under the precision-recall curve;
+Recall, sensitivity at optimal classification threshold.
+Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-validation}
 
 # Discussion {#sec-discussion}
 
