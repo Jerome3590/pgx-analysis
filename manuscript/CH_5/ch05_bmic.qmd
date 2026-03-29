@@ -366,14 +366,24 @@ signal.
 ```
 
 **Validation:** Sensitivity analysis on the 2019 holdout randomly masked
-features in 10% increments (10%–90% missingness).
+drug flag features in 10% increments (10%–90% missingness), with
+`n_events` and PGx scores always provided (never masked), reflecting
+the realistic clinical scenario where basic patient characteristics
+are always available but specific drug counts may be incomplete.
 Mean |$\Delta\hat{p}$| between sparse and full-input inference was < 0.06
 across all sparsity levels up to 70% missingness (**@fig-imputation**).
+At extreme sparsity (≥99% drug-flag missingness, where only `n_events`
+and 5 random drug flags are provided), mean |$\Delta\hat{p}$| = 0.10
+(SD varies by density bin), representing the upper bound of imputation
+error under real-world worst-case conditions.
 Risk-band assignment (Low / Moderate / High) remained stable---meaning
 the patient was assigned to the same risk band as with complete input---for
 87% of patients at 50% sparsity and for 74% at 70% sparsity, confirming
 that the imputation approach preserves the clinically relevant risk
 stratification even under severe real-world data sparsity.
+Sensitivity analysis code: `scripts/sparse_sensitivity.py`;
+results derived from 50 random masking trials on 2,000 sampled patients
+from `opioid_ed/25–44` low-density bin.
 
 The Imputation of Normality design differs conceptually from multiple
 imputation and MICE [@Buuren2011] approaches used in training: rather than
