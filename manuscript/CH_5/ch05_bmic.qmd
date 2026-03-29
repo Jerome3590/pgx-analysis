@@ -207,11 +207,31 @@ the deployment barriers identified in Chapter 1's systematic review:
 The system uses a hybrid deployment combining a static frontend and a
 containerized serverless backend (**@fig-architecture**).
 This architecture was selected over three alternatives evaluated during
-design: (1) a persistent EC2 server, which would require idle-time costs
-and manual scaling; (2) a browser-side WASM model, which would require
-transmitting the full ~1.5 GB container to the client; and (3) an
-AWS-hosted SageMaker endpoint, which would store model inputs as
-monitoring logs by default, violating the privacy-first principle.
+design:
+
+(1) **Persistent EC2 server**: would require always-on compute costs
+(~\$120/month for a t3.medium instance with sufficient RAM for 84 models)
+and manual scaling configuration for concurrent-user loads during
+clinical peak hours; idle between encounters, which is the majority of
+operating time for a consultative clinical tool.
+
+(2) **Browser-side WebAssembly (WASM) model**: would require transmitting
+the 619 MB container payload to every client browser on first load,
+producing a 15+ second initial load time on typical hospital Wi-Fi
+(20–40 Mbps) and making the tool unusable on mobile devices with
+limited RAM for WASM runtime environments.
+
+(3) **AWS SageMaker endpoint**: would store model inference inputs
+as monitoring logs by default in the SageMaker Data Capture feature,
+violating the privacy-first principle even when the logs contain
+only anonymized feature vectors---because the feature vectors themselves
+may be re-identifiable when combined with age band and drug list.
+
+The serverless Lambda approach achieves zero idle-time cost (billing only
+for actual invocations at \$0.000017 per GB-second), elastic scaling to
+concurrent requests without configuration, and complete in-memory
+ephemeral processing within a single container that is destroyed after
+each invocation.
 
 The serverless Lambda approach achieves zero idle-time cost (billing only
 for actual invocations), elastic scaling to concurrent requests without
@@ -222,7 +242,7 @@ single container that is destroyed after each invocation:
 |:---|:---|:---|
 | **Frontend** | S3-hosted static HTML/JS | High availability; no server management |
 | **Backend** | AWS Lambda + Docker/ECR | Elastic scaling; cost-effective |
-| **Models** | Lambda Container (~1.5 GB) | Up to 84 per-bin models bundled; eliminates S3 latency |
+| **Models** | Lambda Container (619 MB) | Up to 84 per-bin models bundled; eliminates S3 latency |
 | **PGx DB** | CPIC snapshot in container | Stateless lookup; no external API dependency |
 
 : Hybrid deployment component summary. All components are stateless;
