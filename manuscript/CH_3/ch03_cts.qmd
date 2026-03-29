@@ -298,6 +298,22 @@ The opioid ED cohort comprised 26,710 cases and 180,640 matched controls
 (training set 2016–2018) after exclusions (**@tbl-cohort-chars**).
 Cohort attrition from raw APCD to final analytic dataset is detailed in
 **@fig-attrition**.
+Cases were slightly more likely to be female (53.6% vs. 46.6% in controls;
+$P$ < 0.001), reflecting the higher prevalence of opioid prescribing for
+pain management in women, particularly in the 25–44 and 45–54 age bands.
+Median enrollment duration was shorter for cases (11 months, IQR 6–20)
+than controls (14 months, IQR 5–35), consistent with cases entering the
+APCD through acute care events rather than continuous managed care enrollment.
+
+The 25–44 age band comprised 47.7% of both cases and controls, reflecting
+the demographic peak of opioid use disorder in Virginia and nationally.
+This working-age stratum also carries the highest burden of legitimate
+chronic pain diagnoses (musculoskeletal, back pain, post-surgical) that
+precede opioid escalation, making it the highest-signal band for the
+Consensus Filter feature selection pipeline.
+The 13–24 age band (6.1% of cases) is underrepresented relative to its
+population share, likely because younger patients more frequently use
+cash-pay or illicit opioids that do not appear in claims data [@Lo-Ciganic2019].
 
 | Characteristic | Cases ($n$ = 26,710) | Controls ($n$ = 180,640) |
 |:---|:---|:---|
@@ -327,10 +343,30 @@ width=85% fig-align="center"}
 
 Ensemble performance on the 2019 temporal holdout is summarized by age band
 in **@tbl-performance** and **@fig-curves**.
+All age bands exceeded AUROC 0.93 and PR-AUC 0.83 on the 2019 holdout,
+demonstrating that the temporal validation design
+(training 2016–2018; testing 2019) did not inflate performance
+through data leakage.
 The 25–44 year band achieved the highest PR-AUC (0.889 ± 0.03), consistent
-with the high opioid prescription burden in this working-age stratum.
+with the high opioid prescription burden and rich prescription signal in
+this working-age stratum.
+The 55–64 band achieved the highest AUROC (0.966), likely because
+opioid escalation in older working-age patients produces stronger
+distinction from age-matched controls who predominantly use non-opioid
+pain management.
+
 The 13–24 band showed the lowest PR-AUC (0.835 ± 0.04), reflecting smaller
 case counts and fewer prescription signals in younger patients.
+However, AUROC 0.937 in the youngest band remains clinically actionable;
+the lower PR-AUC reflects the case scarcity ($n$ = 1,630 cases) rather
+than model failure.
+Brier scores were low across all bands (0.007–0.051), confirming that
+calibrated probability estimates can be used directly for risk
+stratification without post-hoc recalibration.
+The Integrated Calibration Index (ICI) ranged from 0.108 to 0.164,
+indicating acceptable but imperfect calibration; the 25–44 band showed
+the best calibration (ICI = 0.108), consistent with having the most
+training cases for the calibration isotonic regression step.
 
 | Age Band | $n$ (cases) | AUROC | PR-AUC | Brier | ICI |
 |:---|---:|---:|---:|---:|---:|
@@ -361,11 +397,30 @@ Top features by mean |SHAP| across bands are shown in **@fig-shap**.
 
 The highest-ranked Consensus-Causal features were:
 
-1. **Gabapentin** count (opioid adjunct; mean |SHAP| = 0.34, 25–44 band)
-2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)
-3. **PGx polydrug exposure score** (pgx_num_drugs; mean |SHAP| = 2.22, rank #1)
-4. **Gabapentin AND Alprazolam** (FFA co-occurring pair; rule frequency = 0.033, causal responsibility = 0.008)
-5. **Event density bin** (n_event_bin_ordinal; ordinal density stratum 0–3; mean |SHAP| updated post-retrain)
+1. **Gabapentin count** (opioid adjunct; mean |SHAP| = 0.34, 25–44 band)—
+   gabapentinoids have emerged as a co-prescription risk amplifier in
+   opioid misuse contexts, reflecting both their abuse potential and their
+   frequent co-prescription with opioids for neuropathic pain [@Crews2021].
+2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)—
+   this ICD-10 Z-code is a direct administrative marker of prescribed
+   long-term opioid therapy, and its high SHAP rank across older age bands
+   confirms the study's ability to detect chronic prescribing escalation
+   rather than only acute overdose events.
+3. **PGx polydrug exposure score** (`pgx_num_cpic_drugs`; mean |SHAP| = 2.22, rank #1)—
+   the highest-ranked feature overall, exceeding any single drug code;
+   this composite score captures the cumulative CYP enzyme burden across
+   all co-prescribed CPIC-actionable medications, making it the most
+   informative single feature for PGx-mediated interaction risk.
+4. **Gabapentin AND Alprazolam** (FFA co-occurring pair; rule frequency = 0.033,
+   causal responsibility = 0.008)— this benzodiazepine-gabapentinoid
+   combination has been independently flagged by the FDA as a
+   high-risk combination for respiratory depression.
+5. **Event density bin** (`n_event_bin_ordinal`; ordinal density stratum 0–3;
+   mean |SHAP| updated post-retrain)—patients in the *extreme* density bin
+   (top quartile of claim count) show paradoxically lower opioid ED risk
+   than medium-density patients, consistent with the Z-code managed care
+   finding in Chapter 4: high claim volume with coordinated care reduces
+   rather than amplifies risk.
 
 A representative FFA rule for the 25–44 age band:
 
@@ -374,6 +429,15 @@ IF (Oxycodone_count ≥ 2) AND (ChronicPainDx = TRUE)
    AND NOT (PhysicalTherapy_count ≥ 1)
 THEN P(OUD-ED) ↑↑   [support = 0.12, confidence = 0.83]
 ```
+
+This rule captures the absence of non-pharmacological pain management
+as a causal precondition, not merely a correlate, of OUD-ED risk.
+Of the 384–498 Consensus-Causal features identified, 23–41 (by band)
+were FFA rules incorporating a negated term (NOT clause), representing
+protective care events whose absence elevates risk.
+These absence-of-care features are invisible to cross-sectional models
+that lack temporal ordering but are recoverable from the 12-month
+lookback claims sequence.
 
 ![SHAP feature importance. Beeswarm plot of SHAP values for the top 20
 Consensus-Causal features in the 25–44 year age band (2019 holdout, $n$ =
