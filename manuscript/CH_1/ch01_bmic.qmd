@@ -930,19 +930,66 @@ The combined architecture enforces:
 
 ## Limitations of This Review
 
-Publication bias likely inflates reported model performance. Grey literature
-and conference proceedings were excluded. Heterogeneity in outcome definitions,
-data sources, and evaluation metrics prevented direct comparison across studies.
-APCD-based studies (n = 7) are underrepresented given this source's recent
-availability.
+Several limitations constrain the conclusions of this systematic review.
+
+**Publication bias** likely inflates reported model performance: 67% of
+reviewed studies (63/94) reported AUROC ≥ 0.80, but only 34 studies (36%)
+reported Brier scores or calibration plots alongside discrimination metrics.
+Models that fail to achieve headline AUROC may be selectively unpublished,
+making the literature's performance distribution optimistic relative to
+the underlying distribution of research attempts.
+
+**Narrow literature scope**: Grey literature, preprints, and conference
+proceedings were excluded; studies published in languages other than
+English were excluded. These restrictions introduce potential gaps in
+coverage of rapid-publication ML research and international pharmacovigilance
+studies (particularly from countries with national EHR or claims coverage
+that differs structurally from US APCD data).
+
+**Heterogeneity in outcome definitions** prevented meta-analysis or
+direct cross-study performance comparison: opioid-related outcomes
+included OUD diagnosis (ICD-10 F11.xx), opioid overdose (T40.xx),
+high-dose opioid prescription (≥90 MME/day), and opioid-related ED visit
+(defined inconsistently across studies). Polypharmacy outcomes ranged
+from drug count thresholds (≥5 drugs) to specific ADE event codes.
+This outcome heterogeneity was rated as the primary reason meta-analysis
+was infeasible.
+
+**APCD underrepresentation**: Only 7 of 94 studies (7%) used APCD data;
+the majority used EHR cohorts from single academic medical centers.
+APCD-based studies offer population representativeness that EHR cohorts
+cannot, particularly for uninsured or cash-pay patients.
+The recent availability of multi-state APCD consortia (2019–2023) and
+the Virginia APCD's all-payer coverage (6,929,576 patients; commercial,
+Medicaid, Medicare, self-insured) make this source increasingly accessible
+but currently underutilized in the pharmacoepidemiology ML literature.
 
 # Conclusions {#sec-conclusions}
 
-Ensemble ML methods are feasible for OUD and polypharmacy prediction, but
-leakage, calibration failures, and absent PGx integration block clinical
-translation. No published study combines temporally valid causal modeling with
-XAI and PGx in a single pipeline. The partition-first, consensus-filter
-architecture developed in subsequent chapters addresses all three gaps.
+Ninety-four studies demonstrate that ensemble ML methods—particularly
+gradient boosting (XGBoost, CatBoost) and neural network ensembles—are
+feasible for OUD and polypharmacy ADE prediction from administrative data,
+with AUROC ≥ 0.80 reported in 67% of included studies.
+However, three critical gaps prevent clinical translation:
+(1) temporal leakage affecting 30% of studies inflates performance estimates
+and biases SHAP attributions toward post-outcome features;
+(2) pharmacogenomic integration is absent in 81% of studies despite the
+well-established pharmacogenomic basis of opioid metabolism;
+(3) no published study combines temporally valid causal modeling, PGx
+integration, and production deployment in a single pipeline.
+
+The partition-first, Consensus-Filter architecture developed in subsequent
+chapters (Chapters 2–5) directly addresses all three gaps:
+strict 2016–2018/2019 temporal partitioning with explicit leakage-prevention
+constraints (Chapter 2); CPIC-standardized PGx enrichment applied to
+6,929,576 Virginia APCD patients (Chapters 2–3); FFA causal validation
+producing actionable deprescribing priorities (Chapter 4); and a
+privacy-first serverless dashboard enabling clinical deployment without
+EHR integration (Chapter 5).
+Across all 15 age-band–cohort partitions, the resulting ensemble achieved
+PR-AUC 0.840–0.997 and AUROC 0.957–0.999 on the 2019 prospective holdout,
+demonstrating that the architecture produces both methodologically rigorous
+and clinically performant predictions.
 
 <!-- ── Supplementary Materials Note ─────────────────────────── -->
 

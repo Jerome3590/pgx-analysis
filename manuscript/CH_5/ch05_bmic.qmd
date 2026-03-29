@@ -944,7 +944,7 @@ most published ML models from practical deployment.
 
 **Contribution 3: Stateless PGx card with zero HIPAA storage burden.**
 The ephemeral-compute CPIC card architecture enables patient-specific
-pharmacogestored genomic guidance without a Business Associate Agreement,
+pharmacogenomic-guided clinical recommendations without a Business Associate Agreement,
 EHR integration, or institutional data governance infrastructure.
 This design principle---compute, respond, discard---is generalizable
 beyond PGx to any clinical AI application where genetic, behavioral,
