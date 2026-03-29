@@ -977,6 +977,11 @@ The interactive analytics and deployment workflow is illustrated in @fig-insight
 
 ## Cohort Characteristics
 
+The analytic cohorts were drawn from 6,929,576 unique patients with any
+APCD medical claim in Virginia (2016–2019), representing the full
+insured population of the Commonwealth across all payer types
+(commercial, Medicaid, Medicare, self-insured employer plans).
+
 The opioid ED cohort comprised N = 26,710 cases and N = 180,640
 matched controls across the four primary age bands (13–24, 25–44, 45–54,
 55–64 years).
@@ -990,6 +995,18 @@ matched controls ($P$ < 0.001 by Chi-square).
 Mean pharmacy claim count in the 12-month lookback window was 18.4 per case
 vs. 6.2 per control, reflecting the high prescription burden preceding opioid-related
 ED visits.
+The 3.0:1 case-to-control ratio of mean pharmacy counts demonstrates that
+opioid ED cases are not simply high-utilization patients in general
+but specifically high-prescription-utilization patients, supporting the
+clinical hypothesis that drug-exposure accumulation is the primary
+mechanism driving the outcome rather than general healthcare-seeking behavior.
+
+A leakage audit confirmed that no OUD treatment medications
+(buprenorphine NDC codes, naltrexone NDC codes, methadone
+substance-use disorder formulations) appeared in the 12-month
+lookback window for any case patient, confirming that the B1 temporal
+constraint successfully excluded post-outcome pharmacy fills
+from the feature engineering window.
 
 The polypharmacy (non-opioid) ED cohort comprised N = 1,182 cases and
 N = 16,105 matched controls across the three geriatric age bands
