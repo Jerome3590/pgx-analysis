@@ -384,21 +384,34 @@ Drug count and Z-code proportion reflect the 30-day pre-index window. {#tbl-coho
 
 ## Ensemble Performance
 
-Mean PR-AUC on the 2019 holdout was 0.991 ± 0.007 across geriatric age bands.
+Mean PR-AUC on the 2019 holdout was 0.991 ± 0.007 across geriatric age bands
+(**@tbl-ch4-perf**).
 AUROC ranged from 0.996 (65–74 band) to 0.999 (75–84 band), substantially
-exceeding the Chapter 3 opioid cohort performance (AUROC 0.937–0.966).
-This performance gap reflects a key difference between the two cohorts:
-polypharmacy DDI-driven ADE events produce stronger and more consistent
-claims signatures than opioid use disorder events, which are often
-confounded by illicit drug use, cash-pay prescriptions, and treatment
-seeking patterns that are invisible in claims data.
+exceeding the Chapter 3 opioid cohort performance (AUROC 0.957–0.991),
+reflecting the stronger and more consistent drug-combination claims signatures
+in polypharmacy ADE events vs. opioid use disorder events.
+Opioid ED events are frequently confounded by illicit drug use, cash-pay
+prescriptions, and treatment-seeking patterns invisible in claims data;
+polypharmacy ADE events arise from documented, insured prescription fills
+that leave complete claims trails.
 Calibration was good across all three bands (Brier score 0.007–0.008;
 ICI 0.07–0.29), confirming that the high discrimination also translates
 to well-calibrated probability estimates suitable for direct clinical use.
-The 85–114 band showed the highest PR-AUC, consistent with the more
-predictable pharmacokinetic burden of extreme polypharmacy in the
-oldest-old, where CYP enzyme saturation effects compound more reliably
-across a narrower range of physiological reserve.
+The 75–84 band achieved the highest PR-AUC (0.997), with the 85–114 band
+slightly lower (0.992) consistent with the smaller case count (N = 193)
+and higher pharmacokinetic variability in the oldest-old.
+
+| Age Band | Selected Model | AUROC | PR-AUC | Brier | ICI |
+|:---|:---|---:|---:|---:|---:|
+| 65–74 | CatBoost | 0.996 | 0.984 | 0.008 | 0.071 |
+| 75–84 | Ensemble | 0.999 | 0.997 | 0.007 | 0.128 |
+| 85–114 | Ensemble | 0.997 | 0.992 | 0.007 | 0.290 |
+
+: Non-opioid ED (polypharmacy) predictive performance on 2019 temporal holdout (25-run MCCV + Optuna).
+AUROC, area under receiver operating characteristic curve;
+PR-AUC, area under precision-recall curve;
+ICI, Integrated Calibration Index (10-bin).
+Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-ch4-perf}
 
 ## Synergistic Drug-Drug Interactions {#sec-ddi}
 
