@@ -202,14 +202,21 @@ A patient was classified as a case if at least one qualifying claim appeared
 between January 1, 2016 and December 31, 2019, with the index date set
 as the date of the first qualifying ED claim.
 
-Inclusion criteria: (1) age 13–64 years at index date; (2) at least one
+Inclusion criteria: (1) age 0–114 years at index date; (2) at least one
 pharmacy claim in the 12-month lookback period; (3) continuous enrollment
 in the APCD for 12 months prior to index date.
-Exclusion criteria: (1) age < 13 years or ≥ 65 years (assigned to non-opioid
-cohort); (2) no pharmacy claims in 12-month lookback (insufficient feature
-base for meaningful risk scoring); (3) patients with Milliman Healthcare
-Cost Group codes consistent with the non-opioid ED polypharmacy cohort
-(see Chapter 4) in the same analysis period, to prevent cohort overlap.
+The primary study bands (13–64) received full FFA causal analysis;
+extended geriatric bands (65–74, 75–84, 85–114) received ensemble
+modeling with per-density-bin Optuna tuning but reduced FFA rule depth
+due to smaller case counts.
+The 0–12 pediatric opioid band was excluded from modeling (N = 893 cases;
+insufficient for stable Optuna tuning).
+Exclusion criteria: (1) age < 13 years at index date (insufficient case N
+for per-bin Optuna training); (2) no pharmacy claims in 12-month lookback
+(insufficient feature base for meaningful risk scoring);
+(3) patients with Milliman Healthcare Cost Group codes consistent with
+the non-opioid ED polypharmacy cohort (see Chapter 4) in the same
+analysis period, to prevent cohort overlap.
 
 Each case was matched 5:1 to controls from the same calendar year and
 age band using nearest-neighbor matching without replacement, matching

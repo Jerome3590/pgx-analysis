@@ -1008,9 +1008,11 @@ lookback window for any case patient, confirming that the B1 temporal
 constraint successfully excluded post-outcome pharmacy fills
 from the feature engineering window.
 
-The polypharmacy (non-opioid) ED cohort comprised N = 1,182 cases and
-N = 16,105 matched controls across the three geriatric age bands
-(65–74, 75–84, 85–114 years).
+The polypharmacy (non-opioid) ED cohort spanned all 8 age bands
+(0–114 years; N = 54,247 total cases, 5:1 matched controls),
+with primary causal analysis focused on the three geriatric bands
+(65–74, 75–84, 85–114; N = 1,182 cases, N = 16,105 controls)
+where polypharmacy ADE burden is highest.
 This cohort was female-predominant (64%), reflecting the greater longevity and
 higher healthcare utilization rates of older women in the APCD.
 Mean 30-day drug count in cases was 11.8 (SD 4.2), substantially exceeding
