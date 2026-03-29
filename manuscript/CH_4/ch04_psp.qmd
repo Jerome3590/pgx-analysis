@@ -338,7 +338,7 @@ attribution); values are normalized by the population-level case prevalence.
 
 Overarching performance metrics (AUROC, PR-AUC, Brier, ICI), MCCV
 protocol, Platt scaling, and calibration methodology are defined in
-Chapter 2, Section 4.8 [@sec-analytical]; the same definitions apply here.
+Chapter 2, Section 4.8; the same definitions apply here.
 This section describes the analytical methods specific to the polypharmacy
 DDI causal analysis and Z-code protective effect investigation.
 
@@ -451,7 +451,7 @@ Drug count and Z-code proportion reflect the 30-day pre-index window. {#tbl-coho
 
 Non-opioid ED models were trained and evaluated for all eight age bands
 (0–12 through 85–114), with complete metrics available from the
-2019 temporal holdout (**@tbl-ch4-perf**; **@fig-curves**).
+2019 temporal holdout (**@tbl-ch4-perf**).
 All eight bands achieved PR-AUC ≥ 0.908, with performance increasing
 monotonically from the 13–24 band to a peak at 75–84, then slightly
 decreasing at 85–114.
