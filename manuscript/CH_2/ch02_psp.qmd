@@ -83,6 +83,7 @@ abbreviations-note: >-
 
 format:
   wiley-njd-pdf:
+    pdf-engine: xelatex
     template: ../templates/cpt_psp_template.tex
     classoption: [AMA, STIX2COL]
     article-type: "Research Article"
