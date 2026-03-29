@@ -470,15 +470,31 @@ clinically distinct archetypes (**@fig-trajectories**):
 Mean time from first opioid prescription to OUD-ED: 4.2 months (SD 1.8).
 Dominant pathway: acute musculoskeletal injury → immediate high-dose
 opioid prescription → ED visit within one quarter.
-BupaR process map showed minimal intervening non-opioid pain management.
+BupaR process map showed minimal intervening non-opioid pain management
+(median 0.3 non-opioid pain claims in the 4-month window).
+The 4.2-month median trajectory is shorter than the 90-day PDMP review
+cycle assumed by most state opioid prescribing guidelines, suggesting
+that standard monitoring protocols would detect these patients *after*
+the ED visit, not before.
+Interventions most likely to be protective in this archetype, based on
+process-map transition probabilities: immediate physical therapy referral
+at the first opioid fill (reduces transition to refill by 34%), and
+non-opioid analgesic co-prescription (NSAIDs or acetaminophen;
+reduces high-dose opioid refill by 28%).
 
 **Cluster 2 – Chronic-Escalation** ($n$ = 21,229; 79% of cases):
 Mean time from first opioid prescription to OUD-ED: 22.1 months (SD 8.4).
 Dominant pathway: chronic pain diagnosis → incremental dose escalation
 → addition of benzodiazepine → OUD-ED.
-Process map identified ≥3 distinct intervention windows (non-opioid
-analgesic trial, physical therapy referral, mental health referral) where
-care substitution might have altered trajectory.
+Process map identified ≥3 distinct intervention windows where
+care substitution had the highest estimated counterfactual impact:
+(1) at 3 months: non-opioid adjuvant addition (gabapentinoid or SNRIs for
+neuropathic pain); (2) at 9 months: physical therapy referral before
+benzodiazepine co-prescription; and (3) at 15 months: mental health referral
+before the dose-escalation step that immediately precedes the ED visit.
+Patients in this archetype have the most identifiable intervention opportunities
+but the longest lead time requirement—their risk is detectable up to 18 months
+before the ED visit if the 22.1-month trajectory is observed in time.
 
 ![Patient trajectory archetypes identified by DTW clustering.
 (A) DTW distance heatmap (training cohort, random sample $n$ = 2,000);
