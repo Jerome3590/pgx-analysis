@@ -164,10 +164,11 @@ interpretability–causality gap at the field's current frontier.
 
 ## Chapter 3: Causal Drivers of Opioid ED Risk
 
-Chapter 3 applied the Chapter 2 architecture to 1,505,138 opioid ED cases
-across all seven modeled age bands (13–114 years; 0–12 excluded due to
-N = 893 cases), with 5:1 matched controls, 2016–2018 training, and a
-strict 2019 prospective temporal holdout.
+Chapter 3 applied the Chapter 2 architecture to the Virginia opioid ED
+cohort across seven age bands (13–114 years; 0–12 excluded, N = 893 cases
+insufficient for stable Optuna training): 26,710 matched training cases
+and 180,640 matched controls (5:1; 2016–2018), with a strict 2019
+prospective temporal holdout.
 All seven bands achieved AUROC ≥ 0.957 and PR-AUC ≥ 0.840 on the holdout.
 An inverted-U age-trajectory pattern emerged: PR-AUC increased from 0.840
 (13–24) to a peak of 0.979 (65–74), then declined to 0.901 (85–114),

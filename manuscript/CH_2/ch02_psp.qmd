@@ -1120,7 +1120,7 @@ constraint successfully excluded post-outcome pharmacy fills
 from the feature engineering window.
 
 The polypharmacy (non-opioid) ED cohort spanned all 8 age bands
-(0–114 years; N = 54,247 total cases, 5:1 matched controls),
+(0–114 years; N = 55,248 total cases, 5:1 matched controls),
 with primary causal analysis focused on the three geriatric bands
 (65–74, 75–84, 85–114; N = 1,182 cases, N = 16,105 controls)
 where polypharmacy ADE burden is highest.
