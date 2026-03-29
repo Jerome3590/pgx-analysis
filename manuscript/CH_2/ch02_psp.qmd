@@ -802,40 +802,174 @@ Full deployment details are described in Chapter 5.
 ### Rationale
 
 No single analytical method suffices for causal inference in observational
-claims data:
+claims data.
+SHAP quantifies distributional feature importance but conflates causal drug
+exposures with documentation artifacts correlated with healthcare utilization.
+FFA extracts structural Boolean logic from XGBoost trees but can overfit to
+rare drug combinations that lack broad population support.
+The **Consensus Filter** (SHAP $\cap$ FFA) requires independent confirmation
+by both methods, eliminating the characteristic failure modes of each.
 
-- **SHAP alone** quantifies correlational importance but conflates causal
-  and confounding contributions.
-- **FFA alone** extracts symbolic Boolean rules from XGBoost trees but may
-  miss distributional nuances across feature quantiles.
-- **SHAP ∩ FFA** (Consensus Filter): a feature is designated causal only
-  when independently confirmed by both methods, reducing false-positive
-  causal claims.
+### SHAP Analysis (Distributional Importance)
 
-### SHAP Analysis
+Global SHAP values were computed via `TreeExplainer` [@Lundberg2020] applied
+to the native binaries of the XGBoost and CatBoost final models for each
+Age Band $\times$ Cohort partition (`7_shap_analysis/run_shap_analysis.py`).
+`TreeExplainer` exploits the tree structure directly, computing exact Shapley
+values without sampling approximation.
+Both XGBoost and CatBoost SHAP importances were retained: when CatBoost was
+the best-performing model in a partition, its SHAP values were used for
+distributional filtering; the best XGBoost variant's SHAP values were
+used to prioritize rule sets in the FFA stage (see §\ref{sec-ffa}).
 
-Global SHAP values (mean |SHAP|) were computed for CatBoost and XGBoost
-models using TreeExplainer [@Lundberg2020].
-A feature was SHAP-positive if its mean |SHAP| exceeded the 75th percentile
-of all features in the partition.
+**Threshold.** A feature was designated **SHAP-positive** if its global
+importance (mean $|\text{SHAP}|$ across the training partition) exceeded the
+75th percentile of all features in that partition.
 
-### Formal Feature Attribution (FFA)
+**Strength.** SHAP measures the marginal contribution of each feature to the
+model's predicted probability, averaged across the distributional support of the
+training data.
+It excels at identifying which features have the largest overall effect on
+predictions and correctly surfaces features the model relies on, even when
+those features are correlated proxies rather than independent causes.
 
-FFA converts XGBoost decision trees into interpretable Boolean rules:
+**Limitation: the false-positive confounding problem.** In observational claims
+data, SHAP alone conflates correlation with causation.
+Across partitions, 252 features were SHAP-positive but ultimately non-causal
+under FFA evaluation.
+These false positives were dominated by high-frequency administrative and
+evaluation-and-management codes (CPT 99213–99215, office visits, annual exams,
+Z00.00 preventive check).
+SHAP flagged these codes because high-risk patients engage the healthcare
+system more frequently; the codes are strongly correlated with the outcome but
+do not *cause* an opioid or polypharmacy ED event.
+Because SHAP measures model behavior rather than the true data-generating
+process, it has no mechanism for distinguishing a causal drug exposure from a
+utilization proxy that co-occurs with high-risk patients.
 
-$$\text{IF } (f_1 \geq \theta_1) \wedge (f_2 < \theta_2) \cdots
-  \text{ THEN } \hat{y} \in \{0,1\}$$
+### Formal Feature Attribution (FFA) {#sec-ffa}
 
-Rules were extracted from all trees and aggregated by support and confidence.
-A feature was FFA-positive if it appeared in at least one high-confidence
-(≥0.70) rule with support ≥ 0.05 in the training partition.
+FFA transforms the opaque decision trees of the best-performing XGBoost
+variant into explicit symbolic Boolean rules suitable for formal causal
+verification [@Ignatiev2020].
+CatBoost FFA was not performed: CatBoost's Counter-based Target Statistics
+(CTR) transformations for categorical variables make direct symbolic rule
+extraction intractable.
+This design choice functions as a deliberate quality-control gate: a signal
+found by CatBoost but not expressible as XGBoost Boolean logic is likely an
+artifact of CatBoost's specific categorical encoding rather than a robust
+pharmacological relationship.
 
-### Causal Designation
+**Rule extraction.** FFA converts each root-to-leaf path in the XGBoost
+model to a conjunctive clause in propositional logic:
+
+$$\text{IF } (f_1 \geq \theta_1) \wedge (f_2 < \theta_2) \wedge \cdots
+  \text{ THEN } \hat{y} \in \{0, 1\}$$
+
+Rules are extracted via a DataFrame-centric path
+(`8_ffa_analysis/xgboost_axp_explainer.py`): each tree text dump is parsed
+into a structured representation, exploded to a path DataFrame, and converted
+to CNF clauses with feature names aligned to the training feature matrix.
+This guarantees name alignment across XGBoost versions and avoids dependency
+on the model's internal JSON schema.
+
+**Rule selection (five-set union).** For each patient instance, the set of
+matched rules used to compute an Abductive Explanation (AXP) is the union of
+five complementary rule sets, capped at approximately 300--500 unique rules per
+instance to maintain tractability while preserving coverage:
+
+| Set | Selection criterion | SHAP-dependent |
+|:----|:---|:---:|
+| 1 | First 100 matched rules (order-based coverage) | No |
+| 2 | Random sample of 100 matched rules (diversity, seed = 42) | No |
+| 3 | Top 300 rules by SHAP importance score, or all rules above 10th percentile (whichever is larger) | Yes |
+| 4 | Up to 100 rules with SHAP = 0 (completeness fallback) | No |
+| 5 | Top 100 most frequently matched rules across the dataset | No |
+
+SHAP scores (from Step 7) prioritize model-relevant rules in Set 3 but do not
+exclude rules from Sets 1, 2, 4, or 5.
+This multi-set strategy ensures that low-SHAP rules with high clinical
+frequency (Set 5) are not discarded, matching the implicit frequency weighting
+of the reference FFA implementation [@ffattr2023] while maintaining
+computational tractability at $\mathcal{O}(n \times 500)$ rather than
+$\mathcal{O}(n \times 10{,}000^+)$.
+
+**FFA-positive threshold.** A feature was designated **FFA-positive** if it
+appeared in at least one extracted rule with confidence $\geq 0.70$ and
+training-partition support $\geq 0.05$.
+Confidence measures the fraction of instances where the rule correctly predicts
+the outcome class; support measures the fraction of instances for which all
+conditions in the rule are satisfied.
+
+**Strength.** FFA provides structural decision boundaries that clinicians
+can interpret and verify: each rule is an explicit logical condition that, if
+satisfied, shifts the predicted outcome.
+This supports counterfactual "what-if" simulation---if Drug $A$ is removed
+from a patient's profile, the matched rules that include Drug $A$ are
+re-evaluated and the explanation change is measured.
+
+**Limitation: the rare-exposure problem.** FFA used alone identified 33
+features forming high-confidence Boolean rules ($\text{confidence} \geq 0.70$)
+but with population prevalence below 2%.
+These rules capture genuine but rare pharmacological interactions; they lack
+the broad distributional signal needed to serve as primary predictive drivers
+and are susceptible to overfitting in MCCV resampling.
+
+### Causal Designation and Intervention Rate
 
 A feature was designated **Consensus-Causal** if and only if it was
-simultaneously SHAP-positive and FFA-positive in the same partition.
-Intervention Rate (IR) quantified the expected change in $\hat{p}_{\text{ens}}$
-under counterfactual removal or substitution of each causal feature.
+simultaneously SHAP-positive and FFA-positive in the same Age Band $\times$
+Cohort partition.
+This dual-confirmation acts as a strict filter:
+
+- **SHAP eliminates FFA's rare-exposure overfitting:** high-confidence rules
+  for low-prevalence combinations ($<2\%$) are suppressed because the
+  corresponding features do not exceed the SHAP 75th-percentile threshold
+  across the full distribution.
+- **FFA eliminates SHAP's confounding artifacts:** high-frequency
+  administrative codes (CPT 99213--99215, annual exams) are filtered because
+  these codes fail to form the direct structural Boolean conditions required to
+  mathematically alter the predicted outcome probability---they appear in
+  explanations only as co-occurring context, not as causal conditions.
+
+The **Model Agreement** property is embedded in this design: features must be
+detectable by CatBoost (SHAP $> 0$) *and* expressible by XGBoost (symbolic
+rule existence).
+Features found by CatBoost but not replicable as XGBoost Boolean logic
+are excluded from causal analysis, as signals too complex or
+architecture-specific to translate into explicit logic are unlikely to support
+safe clinical intervention recommendations.
+
+**Intervention Rate (IR).** For each Consensus-Causal feature $j$,
+the **Intervention Rate** quantifies causal responsibility:
+
+$$\text{IR}(j) = \frac{\left|\left\{i \in S_j :
+  \text{AXP}\!\left(x_i^{(j \to \mathrm{med})}\right) \neq
+  \text{AXP}(x_i)\right\}\right|}{|S_j|}$$
+
+where $x_i^{(j \to \mathrm{med})}$ denotes the counterfactual instance with
+feature $j$ set to its training-partition median, and $S_j$ is the support
+set---the subset of instances for which the counterfactual intervention is
+applicable (i.e., instances where binary feature $j = 1$, or all instances for
+continuous features).
+IR $= 0$ indicates the feature has no effect on any patient's model explanation
+under intervention; IR $= 1$ indicates the feature alters the explanation in
+every applicable instance.
+Threshold IR $> 0.10$ was used as the minimum meaningful causal effect
+(`8_ffa_analysis/ffa_analysis.py`).
+
+IR scores are computed via grouped AXP comparison for computational
+tractability: instances sharing an identical set of matched rules and the same
+predicted class are grouped and evaluated once, reducing computation from
+$\mathcal{O}(n)$ to $\mathcal{O}(g)$ where $g \ll n$ (typically
+$10{,}000$ instances reduce to $100$--$500$ groups with no loss of accuracy,
+since instances in the same group have identical explanations by construction).
+
+**Calibration outcome.** Models trained on Consensus-Causal features
+demonstrated lower Brier score variance on the 2019 temporal holdout relative
+to SHAP-only or FFA-only feature subsets, confirming that the intersection
+criterion filters genuine distributional noise rather than discarding
+predictive signal.
 
 The interactive analytics and deployment workflow is illustrated in @fig-insights.
 
