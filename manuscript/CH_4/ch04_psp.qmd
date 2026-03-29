@@ -336,50 +336,58 @@ attribution); values are normalized by the population-level case prevalence.
 
 ## Statistical Analysis
 
-**Performance metrics** on the 2019 holdout were computed independently
-for each age-band–bin model and aggregated across bins by sample-size
-weighting.
+Overarching performance metrics (AUROC, PR-AUC, Brier, ICI), MCCV
+protocol, Platt scaling, and calibration methodology are defined in
+Chapter 2, Section 4.8 [@sec-analytical]; the same definitions apply here.
+This section describes the analytical methods specific to the polypharmacy
+DDI causal analysis and Z-code protective effect investigation.
 
-- **PR-AUC** was the primary discrimination metric.
-  For the polypharmacy cohort (case prevalence 3.5–6.8%), PR-AUC is
-  more informative than AUROC because the large control-to-case ratio
-  makes AUROC insensitive to false-positive rate changes that matter
-  clinically in screening contexts.
-- **AUROC** was reported as a secondary metric for cross-study
-  comparability.
-- **Recall** at the F₁-optimal threshold (derived from training partition
-  only) quantifies sensitivity at the operating point most relevant to
-  pharmacist-driven medication reconciliation workflows.
-- **Brier Score** and **ICI** (LOESS-estimated mean absolute calibration
-  deviation across decile bins) assessed probability calibration quality.
-  Both are required for clinical risk-score deployment: a model with
-  AUROC = 0.99 but ICI = 0.40 produces risk probabilities unsuitable
-  for direct clinical interpretation.
+**Polypharmacy model evaluation.** Metrics were computed per density-bin
+model and aggregated by sample-size weighting.
+PR-AUC was the primary discrimination metric given the 3.5–6.8% case
+prevalence in the polypharmacy cohort: at these low prevalences, the
+conventional 0.80 AUROC threshold corresponds to PR-AUC values as low as
+0.30, making AUROC unsuitable as the sole performance indicator.
 
-Individual model probabilities were Platt-scaled prior to ensemble
-weighting to correct for gradient-boosting overconfidence on the
-imbalanced case-control sample.
+**Interaction Effect (IE) estimation.** Pairwise IE was defined as:
+$$\text{IE}_{ij} = \hat{p}(f_i = 1, f_j = 1) - \hat{p}(f_i = 1) - \hat{p}(f_j = 1)
+  + \hat{p}(f_i = 0, f_j = 0)$$
+where each term is the counterfactual ensemble probability under the
+specified feature configuration.
+Triplet IE was defined analogously for three-feature configurations.
+All IEs were estimated by bootstrap resampling (1,000 draws with
+replacement) of the 2019 holdout with the formula applied independently
+per draw, yielding 95% percentile bootstrap CIs.
+**Synergy designation** required IE > 0 with 95% CI lower bound strictly
+positive, after Bonferroni correction for the 1,081 pre-filtered
+candidate pairs (selected from the top-47 drug features by MCCV recall
+rank).
+Bonferroni-corrected α = 0.05 / 1,081 = 4.6×10⁻⁵.
 
-**Interaction effect (IE) estimation**: Pairwise and triplet IEs were
-estimated by bootstrap resampling (1,000 draws with replacement) of the
-2019 holdout, with the counterfactual probability formula applied
-independently per bootstrap draw.
-Synergistic pairs were designated at IE > 0 with 95% CI lower bound > 0
-after Bonferroni correction for the 1,081 pre-filtered candidate pairs
-(top-47 drug features by MCCV recall rank).
+**Z-code protective effect analysis.** Patients were stratified into
+quartiles of Z-code proportion (Q1: 0%; Q2: 1–12%; Q3: 12–20%; Q4: >20%).
+Between-group differences in Z-code proportion were assessed by
+Kruskal-Wallis test with post-hoc Dunn’s test for all pairwise
+comparisons (Bonferroni-corrected for 6 pairs).
+Adjusted odds ratios (ORs) for ADE-related ED visit were estimated by
+logistic regression with Z-code quartile (Q1 as reference), age band
+(fixed strata), sex (binary), and log-transformed 30-day drug count as
+covariates.
+95% Wald CIs were reported; two-sided $P$-values with $\alpha$ = 0.05.
 
-**Z-code analysis**: Z-code proportion quartile comparisons used
-Kruskal-Wallis tests with post-hoc Dunn’s test for pairwise comparisons
-(Bonferroni-corrected).
-Adjusted ORs with 95% Wald CIs were computed via logistic regression
-with age band (fixed strata), sex, and 30-day drug count as covariates.
+**Intervention Rate (IR) score derivation.** IR was defined as the
+mean counterfactual probability shift across the holdout:
+$$\text{IR}(f_i) = \frac{1}{n}\sum_{k=1}^{n}
+  [\hat{p}^{(k)} - \hat{p}^{(k)}_{f_i \to \tilde{f}_i}]$$
+where $\tilde{f}_i$ is the training-set median value for feature $f_i$.
+IR scores were computed separately for each of the three geriatric bands;
+**Spearman rank correlation** ($\rho$) between bands assessed whether a
+universal deprescribing priority list is supported by the data
+($\rho$ > 0.50 was pre-specified as the threshold for declaring
+consistency).
 
-**IR score consistency**: Spearman rank correlation (ρ) across the three
-geriatric age bands was used to assess generalizability of the
-deprescribing priority list across the geriatric age spectrum.
-
-All statistical analyses were performed in Python 3.11
-(scipy v1.11; statsmodels v0.14; scikit-learn v1.3); α = 0.05.
+All chapter-specific analyses were performed in Python 3.11
+(scipy v1.11; statsmodels v0.14; scikit-learn v1.3); $\alpha$ = 0.05.
 
 # Results {#sec-results}
 
