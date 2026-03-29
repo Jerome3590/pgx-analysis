@@ -121,11 +121,31 @@ bibliography:
 # Introduction {#sec-intro}
 
 Polypharmacy (concurrent use of ≥5 medications [@Masnoon2017]) affects
-more than 40% of adults aged ≥65 years in the United States [@Qato2016].
+more than 40% of adults aged ≥65 years in the United States [@Qato2016],
+with prevalence rising to over 67% in adults aged ≥75 years.
 In older adults, polypharmacy drives adverse drug events (ADEs), accounting
 for an estimated 100,000 hospitalizations and 28,000 deaths annually
 [@Duerden2013].
-Polypharmacy-related ED utilization is partially preventable.
+A prospective UK cohort study found that 6.5% of medical admissions were
+directly attributable to ADEs, with DDIs responsible for 11% of those
+admissions and polypharmacy burden (drug count) the strongest independent
+predictor [@Osanlou2022].
+Polypharmacy-related ED utilization is partially preventable through
+proactive medication review, but the clinical tools available for
+polypharmacy management have not kept pace with the complexity of
+modern multi-drug regimens in geriatric patients.
+
+The pharmacogenomic dimension of polypharmacy risk is systematically
+understudied in geriatric populations. Older adults experience age-related
+declines in CYP enzyme activity (particularly CYP3A4 and CYP2C9), renal
+clearance, and hepatic blood flow that alter drug metabolism in ways
+that existing DDI databases do not fully capture [@Tamargo2022].
+A 12-gene pharmacogenetic panel study demonstrated that PGx-guided prescribing
+reduced actionable ADEs by 30% in a European RCT [@Pirmohamed2023],
+confirming that genomically-informed medication review has measurable
+clinical impact even in real-world settings.
+Yet no published claims-based study has combined PGx interaction scoring
+with multi-feature DDI detection in a geriatric polypharmacy cohort.
 
 Current approaches to polypharmacy management rely on pairwise DDI databases
 (e.g., Drugs.com, Micromedex) that flag co-prescribed drug pairs based on
@@ -135,19 +155,27 @@ These databases are useful but fundamentally limited:
 1. They characterize *pairwise* interactions, ignoring synergistic
    multi-drug effects (e.g., triple combinations where each pairwise
    interaction appears benign).
-2. They do not prioritize interventions by expected clinical impact.
-3. They cannot account for patient-level comorbidity context.
+2. They do not prioritize interventions by expected clinical impact;
+   every flagged pair receives the same alert regardless of the expected
+   probability of a serious adverse event.
+3. They cannot account for patient-level comorbidity context or the
+   pharmacokinetic consequences of combined renal and hepatic impairment
+   in the oldest-old.
 
 A systems pharmacology perspective demands a "causal calculator" that
 simultaneously: (a) identifies multi-drug combinations with *synergistic*
 ADE risk exceeding additive pairwise predictions; (b) quantifies each drug's
 causal contribution to population-level risk; and (c) ranks deprescribing
-priorities by expected risk reduction.
+priorities by expected risk reduction, enabling pharmacists to target
+the highest-yield intervention from a finite clinical review budget.
 
 This study extends Formal Feature Attribution (FFA) from the Chapter 2
 Consensus Filter to multi-feature interaction testing, evaluating feature
 pairs and triplets for synergistic and antagonistic effects, applied to a
-geriatric non-opioid ED cohort derived from APCD.
+geriatric non-opioid ED cohort derived from the Virginia APCD.
+The 30-day causality window isolates proximal drug exposures responsible
+for acute ADE events, distinguishing this approach from annual medication
+reconciliation tools that cannot resolve acute DDI timing.
 
 ## Study Objectives
 
