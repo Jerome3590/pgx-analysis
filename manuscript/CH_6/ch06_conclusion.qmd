@@ -196,30 +196,43 @@ dashboard.
 ## Chapter 4: Polypharmacy DDI Causal Calculator
 
 Chapter 4 extended FFA to multi-feature interaction testing in the
-geriatric non-opioid ED cohort (N = 1,182 cases; ages 65–114 years),
-achieving ensemble PR-AUC of 0.984–0.997 across geriatric age bands.
+non-opioid ED cohort across all 8 age bands (0–114 years),
+with primary study focus on geriatric bands (N = 1,182 cases; 65–114 years)
+achieving ensemble PR-AUC of 0.984–0.997 and AUROC 0.996–0.999.
+All 8 age bands achieved PR-AUC ≥ 0.908, with the monotonically
+increasing performance pattern (0.927 at 0–12 through 0.997 at 75–84)
+contrasting sharply with the opioid ED inverted-U.
 
 The FFA Causal Calculator identified 115 synergistic drug pairs and
-5,021 high-risk triplet combinations whose interaction effects exceeded
-the sum of pairwise predictions—combinations that would appear
-acceptable under standard pairwise DDI database screening (e.g., Drugs.com,
-Micromedex).
-Top synergistic pairs included levofloxacin + lorazepam (QT prolongation
-combined with CNS depression) and acetaminophen + levofloxacin (combined
-hepatic and renal clearance burden), both with positive interaction
-effects (IE > 0, 95% CI lower bound > 0).
+5,021 high-risk triplet combinations exceeding the sum of pairwise
+predictions---combinations that would appear acceptable under standard
+pairwise DDI database screening (e.g., Drugs.com, Micromedex).
+Top synergistic pairs ranked by interaction effect score:
+**Acetaminophen + Levofloxacin** (IE = 16.3; CYP1A2-mediated reactive
+metabolite production), **Levofloxacin + Lorazepam** (IE = 11.9; QT
+prolongation combined with CNS depression), and **Carvedilol + Levofloxacin**
+(IE = 10.5; beta-blocker plasma level elevation via CYP1A2 inhibition).
+The highest-frequency triplet in the 85–114 band was furosemide +
+hydrochlorothiazide + lisinopril (STOPP Criterion D4 \"triple whammy\";
+present in 12.3% of 85–114 cases in the 30-day window).
 
-Intervention Rate (IR) scores provided ranked deprescribing priorities
-actionable by pharmacists without requiring pharmacokinetic modeling
-expertise: simvastatin and furosemide consistently ranked as the
-highest-IR drugs across all three geriatric bands.
+Intervention Rate (IR) scores provided ranked deprescribing priorities:
+**simvastatin** (IR $7.0\times10^{-4}$, 65–74 band; ICD-10 E78.5;
+CYP3A4-mediated statin myopathy risk); **furosemide** (IR $2.0\times10^{-4}$;
+ICD-10 I50.9 heart failure / N18.x CKD; triple-whammy risk);
+**alprazolam** (IR $1.0\times10^{-4}$; ICD-10 F41.1 anxiety;
+2023 Beers Criteria CNS/falls risk).
+IR rankings were consistent across the 65–114 age spectrum
+($\rho$ = 0.53–0.68), supporting a universal geriatric deprescribing protocol.
 
 The **Z-code protective effect** was a novel finding: patients with
-moderate preventive monitoring (Z-codes comprising 1–12% of claims)
+moderate preventive monitoring (Z00–Z13, Z23–Z28 comprising 1–12% of
+claims; dominated by Z71.89 medication counseling and Z00.00 annual exam)
 had a crude OR of 0.25 (95% CI 0.18–0.34) for ADE-related ED visits
-compared with unmonitored patients, distinguishing *managed* polypharmacy
-from *unmanaged* polypharmacy and challenging the simplistic
-"deprescribe more" framing of geriatric pharmacotherapy guidelines.
+compared with unmonitored patients (Q1: zero Z-code claims; case rate 10.7%),
+distinguishing *managed* from *unmanaged* polypharmacy and challenging
+the simplistic \"deprescribe more\" framing of geriatric pharmacotherapy
+guidelines.
 
 ## Chapter 5: The PGx Risk Dashboard
 
@@ -227,8 +240,14 @@ Chapter 5 deployed the complete pipeline—from APCD-trained ensemble models
 to bedside decision support—as a privacy-first serverless application on
 AWS Lambda with CloudFront CDN delivery.
 Up to 84 per-density-bin ensemble models (2 cohorts × 7 usable age bands
-× 4 density bins × 3 algorithms) are packaged within a ~1.5 GB Lambda
-container, enabling sub-100 ms warm inference without S3 model-load latency.
+× 4 density bins × 3 algorithms) are packaged within a 619 MB Lambda
+container (ECR: `pgx-risk-calculator`), enabling sub-100 ms warm inference
+without S3 model-load latency.
+Three exploratory visualization types (BupaR Sankey care-pathway diagrams;
+FP-Growth drug co-occurrence networks; DTW trajectory archetype overlays)
+are rendered from training-cohort population context and clearly labeled
+as non-predictive, preserving the clinical value of process-mining insights
+while maintaining the causal validity of the risk score.
 
 Key performance results:
 - Cold-start latency: mean 2,100 ms (SD 250 ms), dominated by container
