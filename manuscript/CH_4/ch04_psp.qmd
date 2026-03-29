@@ -277,9 +277,13 @@ as a proxy for managed polypharmacy with regular clinical oversight.
 The three-model ensemble (CatBoost [@Prokhorenkova2018], XGBoost [@Chen2016],
 and XGBoost-RF) with MCCV performance-based weighting is identical to the
 Chapter 2 architecture.
-Separate model sets were trained for each of the three geriatric age bands
-(65–74, 75–84, 85–114) and each applicable density bin, yielding up to
-36 trained models per cohort (3 bands × 4 bins × 3 algorithms).
+Separate model sets were trained for each of the eight non-opioid ED
+age bands (0–12, 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114) and
+each applicable density bin, yielding up to 96 trained models per cohort
+(8 bands × 4 bins × 3 algorithms).
+Primary FFA causal analysis was performed on the three geriatric bands
+(65–74, 75–84, 85–114) where polypharmacy ADE burden is highest;
+all 8 bands contributed to the 15-band cross-cohort performance summary.
 Hyperparameter tuning used Optuna [@Akiba2019] TPE with 50 trials per
 model-partition combination on the 2016–2018 training set.
 The 2019 holdout was strictly withheld from all training, feature selection,
