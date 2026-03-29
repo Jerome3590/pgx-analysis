@@ -154,7 +154,7 @@ with multi-feature DDI detection in a geriatric polypharmacy cohort.
 Current approaches to polypharmacy management rely on pairwise DDI databases
 (e.g., Drugs.com, Micromedex) that flag co-prescribed drug pairs based on
 known pharmacokinetic or pharmacodynamic mechanisms.
-These databases are useful but fundamentally limited:
+These databases are useful but limited in a specific way:
 
 1. They characterize *pairwise* interactions, ignoring synergistic
    multi-drug effects (e.g., triple combinations where each pairwise
@@ -457,7 +457,7 @@ monotonically from the 13–24 band to a peak at 75–84, then slightly
 decreasing at 85–114.
 
 **Age-band trend: Non-Opioid ED cohort.**
-The most striking feature of the non-opioid ED performance landscape is
+The most striking feature of the non-opioid ED performance pattern is
 the *monotonic improvement with age*: PR-AUC rises from 0.908 (13–24)
 steadily through 0.933 (45–54), 0.950 (55–64), and 0.984 (65–74),
 peaking at 0.997 (75–84) before settling at 0.992 (85–114).
@@ -722,9 +722,9 @@ case rate 3.0%) had the lowest ADE risk, with a crude OR of 0.25
 Patients with very high monitoring proportions (Q4: ≥12% of claims;
 case rate 10.0%) had risk equivalent to unmonitored patients
 (crude OR ≈ 0.94 vs Q1), despite having non-zero monitoring visits.
-Q4 patients had markedly lower total claim counts
+Q4 patients had lower total claim counts
 (median raw claim count = 174) than Q2 (median 594) and Q3 (median 387),
-ruling out confounding by indication: genuinely high-burden patients fall
+ruling out confounding by indication: high-burden patients fall
 in Q2–Q3, not Q4.
 Instead, Q4 characterizes a *fragmented-care phenotype*: patients whose
 healthcare contact consists predominantly of periodic screenings
