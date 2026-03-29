@@ -685,6 +685,47 @@ gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band_snak
 ```
 Columns: `mi_person_key`, `pgx_num_drugs`, `pgx_num_cpic_drugs`.
 
+#### Dashboard metadata — top features per cohort × band
+
+```
+gold/dashboard/metadata/metadata_{cohort}.json
+```
+- Keys: `cohort`, `age_bands` (list of band names), `codes` (dict keyed by age band)
+- Each `codes[band]` has `drugs`, `icds`, `cpts` lists with `display`, `importance` (0–1 normalized), `feature_name` fields
+- **Used for:** top-N drug/ICD/CPT names by band — confirmed source for CH_3, CH_4 feature names
+
+**Top drugs by band (from dashboard metadata):**
+
+| Cohort | Band | #1 Drug | #2 Drug | #3 Drug |
+|:-------|:-----|:--------|:--------|:--------|
+| opioid_ed | 13–24 | Buprenorphine-Naloxone | Gabapentin | Naltrexone |
+| opioid_ed | 25–44 | Buprenorphine-Naloxone | Gabapentin | Quetiapine |
+| opioid_ed | 45–54 | Buprenorphine-Naloxone | Clonidine | Gabapentin |
+| opioid_ed | 55–64 | Buprenorphine-Naloxone | Oxycodone HCl | Gabapentin |
+| non_opioid_ed | 65–74 | Gabapentin | Fluzone HD | Gavilyte-C |
+| non_opioid_ed | 75–84 | Losartan | Pravastatin | Furosemide |
+| non_opioid_ed | 85–114 | Amlodipine | Furosemide | Potassium Chloride ER |
+
+#### Consensus-Causal feature lists (SHAP ∩ FFA allowed codes)
+
+```
+gold/bupar/allowed_codes/allowed_codes_shap_ffa_{cohort}_{age_band_snake}.json
+```
+- JSON array of code strings (CPT, ICD-10, drug names) passing both SHAP ≥ 75th pct AND FFA support ≥ 0.05
+- **Authoritative source for Consensus-Causal feature counts**
+
+**Confirmed counts (from `scripts/get_consensus_counts.py`):**
+
+| Cohort | Band | Consensus-Causal Features |
+|:-------|:-----|-------------------------:|
+| opioid_ed | 13–24 | 384 |
+| opioid_ed | 25–44 | 498 |
+| opioid_ed | 45–54 | 498 |
+| opioid_ed | 55–64 | 498 |
+| non_opioid_ed | 65–74 | 89 |
+| non_opioid_ed | 75–84 | 33 |
+| non_opioid_ed | 85–114 | 29 |
+
 #### FP-Growth outputs
 
 ```
@@ -744,9 +785,15 @@ contain cohort counts or model metrics.
 | `5_pgx_analysis_log/` | **Patient counts**, PGx feature creation, DuckDB aggregation details |
 | `6_final_model_log/` | Model training runtime, bin training durations, S3 upload confirmation |
 | `7_shap_analysis_log/` | SHAP n_background, n_eval per bin; no cohort size data |
-| `8_ffa_analysis_log/` | FFA drug pair/triplet outputs (needed for CH_4 placeholders) |
+| `8_ffa_analysis_log/` | FFA rules processing log — writes `ffa_causal_factors.csv` to **local EC2 disk only** (not S3). Drug pairs + triplets + IR scores not retrievable from this log. |
 | `9_cohort_pgx_log/` | PGx network topology (genes, drugs, DDI, CPIC); most recent 2026-03-28 |
+| `9_dtw_log/` | DTW trajectory logs — **FAILED 2026-03-29** with `ERROR: Model data has no target date column (first_f1120_date / first_opioid_ed_date not found)`. Produces placeholder artifacts only; cluster sizes unavailable. |
 | `9_fpgrowth_log/` | FP-Growth visualization logs; most recent 2026-03-28 |
+
+**FFA outputs blocked:** `ffa_causal_factors.csv`, `axp_explanations.parquet`, `feature_importance_axp.parquet`
+are written to `/home/pgx3874/pgx-analysis/8_ffa_analysis/outputs/{cohort}/{band}/bin_models/{bin}/`
+on the EC2 and **never uploaded to S3**. To fill CH_4 DDI table (drug pairs, triplets, IR scores),
+these files must be manually copied to S3 or the FFA step must be extended to upload outputs.
 
 #### Code snapshots
 
