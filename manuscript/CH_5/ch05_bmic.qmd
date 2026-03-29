@@ -533,39 +533,102 @@ width=90% fig-align="center"}
 
 ## Resolving the Last-Mile Problem
 
-The PGx Risk Dashboard demonstrates three solutions to the last-mile
-problem identified in Chapter 1:
+The PGx Risk Dashboard demonstrates three concrete solutions to the
+last-mile translational failure identified in Chapter 1's systematic review,
+where 0% of 94 reviewed studies combined XAI, PGx integration, and
+production deployment in a single framework:
 
 **Privacy-first design enabling adoption.** The stateless, ephemeral
-architecture removes the primary barrier to PGx tool adoption in ambulatory
-settings: clinicians and patients are reluctant to upload genomic or clinical
-data to systems that retain records [@HHS2013].
+architecture removes the primary institutional barrier to PGx tool adoption
+in ambulatory settings: clinicians and patients are reluctant to upload
+genomic or clinical data to systems that retain records, and HIPAA's
+minimum-necessary standard creates compliance friction for any system that
+stores patient-identifiable data without a formal Business Associate
+Agreement [@HHS2013].
 The CPIC card's zero-storage design delivers PGx guidance with no HIPAA
-storage burden beyond standard TLS transport encryption.
+storage burden beyond standard TLS transport encryption—a design
+principle that should be adopted broadly in clinical AI deployment,
+not just in PGx tools.
+Compared to the Epic Sepsis Model, which flags patients but provides no
+explicit pharmacological action and stores all inputs in the EHR,
+the PGx Dashboard's ephemeral-compute approach decouples clinical
+decision support from patient-record retention entirely.
 
 **Partial-input tolerance enabling real-world use.** Imputation of Normality
 extends risk scoring to the incomplete inputs of clinical practice.
-Risk-band assignment is stable up to 60% input sparsity; a meaningful score
-is available from as few as 3–5 current medications.
+This addresses a fundamental challenge that affects all clinical ML
+deployments: the training data (comprehensive 12-month lookback histories)
+rarely match the deployment context (ED visit with 3–5 known medications
+and no prior pharmacy history).
+Risk-band assignment is stable up to 60% input sparsity; the mean absolute
+risk delta remains below 0.06 at 70% missingness, meaning that even an
+ED clinician who knows only the patient's current medications can obtain
+a clinically useful risk stratification.
+This 60% sparsity tolerance substantially exceeds what would be achievable
+without explicit imputation design: a model receiving zero-imputed missing
+features would systematically underestimate risk for sparse patients,
+because zero-imputed drug counts are indistinguishable from
+genuine no-exposure records.
 
 **Causal interpretability enabling trust.** The What-If counterfactual tab
 grounds the risk score in FFA causal rules from Chapter 4, enabling
 clinicians to move from "this patient is high risk" to "this patient
-carries the levofloxacin–lorazepam synergistic pair (IE = 11.9×); removing
-lorazepam eliminates the interaction-amplified component of risk, reducing
-the pair-attributable effect to the individual-drug baseline", a causally
-grounded deprescribing priority that no single-drug CPIC lookup can provide.
+carries the levofloxacin–lorazepam synergistic pair (IE = 11.9);
+removing lorazepam eliminates the interaction-amplified risk component,
+reducing the pair-attributable effect to the individual-drug baseline."
+This is a causally grounded deprescribing priority that no single-drug
+CPIC lookup or SHAP bar chart alone can provide.
+The combination of global SHAP bars (what matters for this age/density
+stratum) and local What-If deltas (what is actionable for this specific
+patient's drug list) addresses the clinician trust deficit identified in
+XAI adoption research [@Char2018]: explanations must be both globally
+credible (consistent with known pharmacology) and locally actionable
+(pointing to a specific decision the clinician can take today).
 
 ## Limitations and Future Work
 
-Key limitations: (1) the Lambda container requires periodic redeployment
-when CPIC guidelines are updated (currently quarterly); (2) no prospective
-clinical validation has been conducted—the system requires evaluation in a
-real clinical workflow before broader deployment; (3) the 23andMe input
-format is consumer-grade; clinical-grade VCF input support is planned;
-(4) FDA guidance on AI-based clinical decision support as a Software as a
-Medical Device (SaMD) may require additional regulatory review before
-formal clinical integration.
+Several limitations of the current implementation should be acknowledged.
+
+**Static CPIC snapshot.** The Lambda container bundles a CPIC database
+snapshot frozen at the time of container build (current: March 2026).
+CPIC guidelines are updated quarterly as new pharmacogenomic evidence
+becomes available, meaning the PGx card may not reflect the most current
+clinical recommendations without a container rebuild.
+The CI/CD pipeline partially mitigates this by triggering container rebuilds
+automatically, but the CPIC update cycle must be manually monitored to
+determine when a rebuild is warranted.
+Future work should implement an automated CPIC version-check that compares
+the bundled snapshot hash against the CPIC API at container start time
+and issues a staleness warning if the snapshot is more than 90 days old.
+
+**No prospective clinical validation.** The system has been benchmarked
+on synthetic patient inputs and temporal holdout data, but has not been
+evaluated in a prospective clinical workflow.
+Clinician acceptance rate, decision-impact rate (proportion of consultations
+resulting in a documented prescribing change), and time-to-decision metrics
+have not yet been measured.
+A formal pilot study in an emergency department or opioid treatment program
+(N ≥ 200 eligible encounters; 6-month follow-up) is required before
+broad deployment can be recommended.
+
+**Consumer-grade PGx input.** The current implementation accepts 23andMe
+raw data format (tab-separated rsID/genotype), which is the most widely
+available patient-held genomic data format but is not clinical-grade.
+Clinical laboratories report results in VCF (Variant Call Format) or
+HL7 FHIR Genomics profiles; support for these formats is required for
+EHR-integrated deployment.
+Parser support for VCF v4.3 and FHIR R4 Genomics is planned for the
+next release.
+
+**Regulatory status.** The FDA's Digital Health Center of Excellence
+has signaled that AI-based clinical decision support systems that
+influence clinical management decisions may be subject to Software as a
+Medical Device (SaMD) oversight under 21 CFR Part 820 [@FDA2021].
+The PGx Risk Dashboard presents model-based risk scores that could
+influence opioid prescribing decisions; formal regulatory classification
+analysis and quality management system documentation would be required
+before commercial clinical deployment, though research and educational
+use is not subject to SaMD oversight.
 
 Future enhancements: mobile-responsive frontend; real-time PDMP integration
 for opioid risk contexts; multi-lingual card generation; federated model
