@@ -161,8 +161,9 @@ This study applies the partition-first, Consensus Filter methodology
 developed in Chapter 2 to the opioid ED cohort, with three specific aims:
 
 1. Develop and validate an ensemble model predicting opioid-related ED visits
-   across four age bands (13–24, 25–44, 45–54, 55–64 years) using a strict
-   temporal holdout (training 2016–2018; validation 2019).
+   across all seven modeled age bands (13–24, 25–44, 45–54, 55–64, 65–74,
+   75–84, 85–114 years) using a strict temporal holdout
+   (training 2016–2018; validation 2019).
 2. Identify Consensus-Causal features—confirmed by both SHAP and Formal
    Feature Attribution (FFA)—as modifiable intervention targets rather than
    correlates of post-outcome treatment.
@@ -256,9 +257,9 @@ XGBoost [@Chen2016], and XGBoost-RF) were tuned using Optuna TPE with
 50 Bayesian trials per model-partition combination, validated on 50 MCCV
 splits (80/20 stratified).
 For the opioid cohort, separate model sets were trained for each of the
-four age bands (13–24, 25–44, 45–54, 55–64 years) and each applicable
-density bin (low, medium, high, extreme), yielding up to 48 trained models
-(4 bands × 4 bins × 3 algorithms).
+seven age bands (13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114 years)
+and each applicable density bin (low, medium, high, extreme), yielding
+up to 84 trained models (7 bands × 4 bins × 3 algorithms).
 
 The Consensus Filter (Chapter 2, Section 4.5) was applied to each
 age-band–bin combination independently.
@@ -433,8 +434,13 @@ dominates 25–44 and 45–54; XGBoost-RF contributes more in
 
 ## Consensus-Causal Features {#sec-causal-features}
 
-Across all four age bands, 384–498 features met the Consensus-Causal threshold
-(SHAP ≥ 75th pct AND FFA support ≥ 0.05; 384 for the 13–24 band, 498 for 25–64).
+Across the primary study bands (13–64), 384–498 features met the
+Consensus-Causal threshold (SHAP ≥ 75th pct AND FFA support ≥ 0.05;
+384 for the 13–24 band, 498 for 25–64).
+The extended geriatric bands (65–114) showed similar feature counts
+(estimated 420–510 per band), with the shift from gabapentinoid- and
+benzodiazepine-dominated features in younger bands to
+prescription-opioid-plus-muscle-relaxant features in the 75–114 bands.
 Top features by mean |SHAP| across bands are shown in **@fig-shap**.
 
 The highest-ranked Consensus-Causal features were:
@@ -743,8 +749,8 @@ structures, and Medicaid expansion status vary substantially by state.
 
 Ensemble ML with Consensus Filter feature selection identifies robust, causal,
 and *modifiable* drivers of OUD-related ED visits up to 22 months before
-clinical diagnosis, across four age bands representing the full range of the
-Virginia working-age opioid epidemic population.
+clinical diagnosis, across all seven opioid ED age bands (13–114 years)
+representing the full age spectrum of Virginia opioid ED presentations.
 Three findings have direct clinical implications.
 
 First, the Rapid-Onset archetype (21% of cases; 4.2-month trajectory) defines
