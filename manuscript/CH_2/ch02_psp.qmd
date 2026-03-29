@@ -102,6 +102,8 @@ csl: ../templates/csl/ama.csl
 bibliography:
   - ../refs/discipline.bib
   - ../refs/cpt-psp.bib
+
+engine: knitr
 ---
 
 <!-- ============================================================
@@ -276,13 +278,77 @@ service line items.
 Raw data were provided in fixed-width text format and staged into a Bronze
 → Silver → Gold data lake on AWS S3 (**@fig-architecture**).
 
-![End-to-end pipeline architecture. Bronze layer: raw text ingestion and
-Parquet conversion. Silver layer: demographic imputation and code
-standardization. Gold layer: cohort construction, partitioned by Age Band ×
-Year. Independent DuckDB workers process each partition in parallel on AWS
-EC2. Feature-engineered datasets feed the ensemble model training and
-Consensus Filter.](../figures/ch02/fig_architecture.pdf){#fig-architecture
-width=100%}
+```{tikz}
+%| label: fig-architecture
+%| fig-cap: "Partition-first data lake and parallel processing architecture. Bronze layer: raw APCD text ingestion and Parquet conversion to AWS S3. Silver layer: demographic imputation and ICD/NDC code standardization. Gold layer: cohort construction. Data are partitioned by Age Band $\\times$ Year (21 partitions); each partition is processed by an independent DuckDB worker on a dedicated AWS EC2 instance. Feature matrices feed the ensemble model training pipeline (CatBoost, XGBoost, XGBoost-RF). S3 checkpointing enables fault-tolerant partition recovery. FAERS pharmacovigilance signals inform cohort labeling (dashed)."
+%| fig-align: center
+%| out-width: 100%
+%| echo: false
+
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
+
+\begin{tikzpicture}[
+  >= Stealth,
+  every node/.style = {font=\footnotesize},
+  block/.style = {draw, rectangle, rounded corners=2pt, fill=white,
+                  minimum width=2.0cm, minimum height=0.65cm,
+                  align=center, inner sep=4pt},
+  arr/.style   = {-Stealth, semithick},
+  darr/.style  = {-Stealth, dashed, gray, semithick},
+]
+
+%% ── DATA LAKE TIERS (horizontal, y=4) ──────────────────────────────────────
+\node[block, fill=blue!10,     draw=blue!50]          (apcd)   at (0,   4) {APCD Raw\\Files (10 TB+)};
+\node[block, fill=orange!22,   draw=orange!65]         (bronze) at (3,   4) {\textbf{Bronze}\\Parquet $\cdot$ S3};
+\node[block, fill=gray!18,     draw=gray!55]           (silver) at (6,   4) {\textbf{Silver}\\Impute $\cdot$ Std.};
+\node[block, fill=yellow!28,   draw=yellow!60!black]   (gold)   at (9,   4) {\textbf{Gold}\\Cohort Construct};
+\node[block, fill=blue!8,      draw=blue!35]           (faers)  at (0,   3) {FAERS\\Pharmacovigil.};
+
+\draw[arr]  (apcd)   -- (bronze);
+\draw[arr]  (bronze) -- (silver);
+\draw[arr]  (silver) -- (gold);
+\draw[darr] (faers.east) -- ++(0.6,0) |- (gold.south);
+
+%% ── PARTITIONS (y=2) ────────────────────────────────────────────────────────
+\node[block, fill=purple!12, draw=purple!50,
+      minimum width=3.2cm] (part) at (9, 2) {Age Band $\times$ Year\\21 Partitions};
+
+\draw[arr] (gold.south) -- (part.north);
+
+%% S3 checkpoint annotation
+\draw[darr] (bronze.south) -- ++(0,-0.35)
+            node[right, font=\tiny, gray, xshift=2pt] {S3 checkpoint / recovery}
+            -- ++(0,-0.3);
+
+%% ── PARALLEL WORKERS (y=0.5, EC2 boundary) ──────────────────────────────────
+\node[block, fill=green!12, draw=green!50] (w1) at (5.5, 0.5) {W$_1$\\DuckDB};
+\node[block, fill=green!12, draw=green!50] (w2) at (7.5, 0.5) {W$_2$\\DuckDB};
+\node[block, fill=green!12, draw=green!50] (w3) at (9.5, 0.5) {$\cdots$};
+\node[block, fill=green!12, draw=green!50] (wn) at (11.5, 0.5) {W$_n$\\DuckDB};
+
+\begin{scope}[on background layer]
+  \node[draw=orange!55, fill=orange!4, dashed, rounded corners=5pt, inner sep=7pt,
+        fit=(w1)(wn),
+        label={[font=\tiny, orange!70!black]above:AWS EC2 (c5.18xlarge $\cdot$ 72 vCPUs $\cdot$ 144 GB RAM)}]
+        (ec2) {};
+\end{scope}
+
+\draw[arr] (part.south) -- ++(0,-0.35) -| (w1.north);
+\draw[arr] (part.south) -- ++(0,-0.35) -| (w2.north);
+\draw[arr] (part.south) -- ++(0,-0.35) -| (wn.north);
+
+%% ── OUTPUT TIER (y=-1.2) ─────────────────────────────────────────────────────
+\node[block, fill=pink!15, draw=red!40,
+      minimum width=3.0cm] (feat) at (10, -1.2) {Feature Matrices\\(per partition)};
+\node[block, fill=red!10, draw=red!50,
+      minimum width=3.8cm] (ens)  at (5,  -1.2) {\textbf{Ensemble}\\CatBoost $\cdot$ XGBoost $\cdot$ XGBoost-RF};
+
+\draw[arr] (w1.south) |- (feat.west);
+\draw[arr] (wn.south) |- (feat.east);
+\draw[arr] (feat) -- (ens);
+
+\end{tikzpicture}
+```
 
 ## Partition-First Architecture {#sec-partition}
 
@@ -417,6 +483,101 @@ ensemble weight derivation.
 The year 2020 was excluded from all analyses due to COVID-19 pandemic
 confounding of healthcare utilization patterns.
 
+## Deployed Risk Dashboard {#sec-dashboard}
+
+Ensemble model outputs and Consensus-Causal rules are translated to the
+point of care via a serverless PGx Risk Dashboard (**@fig-dashboard**).
+The system is stateless and ephemeral: no patient data are stored at any tier.
+
+```{tikz}
+%| label: fig-dashboard
+%| fig-cap: "Serverless PGx Risk Dashboard architecture. Model artifacts (21 age-band ensemble models) are stored in AWS S3. At inference time, the AWS Lambda container loads the appropriate per-age-band model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response."
+%| fig-align: center
+%| out-width: 100%
+%| echo: false
+
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
+
+\begin{tikzpicture}[
+  >= Stealth,
+  every node/.style = {font=\footnotesize},
+  block/.style  = {draw, rectangle, rounded corners=2pt, fill=white,
+                   minimum width=2.0cm, minimum height=0.65cm,
+                   align=center, inner sep=4pt},
+  svcbox/.style = {draw, rectangle, rounded corners=4pt, fill=white,
+                   minimum width=2.2cm, minimum height=0.75cm,
+                   align=center, inner sep=5pt},
+  arr/.style  = {-Stealth, semithick},
+  darr/.style = {-Stealth, dashed, gray, semithick},
+]
+
+%% ── STORAGE TIER ─────────────────────────────────────────────────────────────
+\node[svcbox, fill=yellow!22, draw=yellow!60!black] (s3models) at (0, 4.5)
+      {S3\\Model Store\\21 models};
+\node[svcbox, fill=yellow!14, draw=yellow!50!black] (s3assets) at (0, 3.0)
+      {S3\\Static Assets\\(frontend)};
+
+%% ── COMPUTE TIER (Lambda) ────────────────────────────────────────────────────
+\node[svcbox, fill=orange!20, draw=orange!65,
+      minimum width=2.8cm, minimum height=1.1cm] (lambda) at (4.0, 4.5)
+      {$\lambda$ Lambda\\Container\\CatBoost $\cdot$ XGBoost\\Impute Normality};
+
+%% ── CPIC PATH ────────────────────────────────────────────────────────────────
+\node[svcbox, fill=blue!10, draw=blue!45] (cpic) at (4.0, 2.4)
+      {CPIC Database\\573 gene-drug pairs};
+\node[svcbox, fill=green!12, draw=green!50,
+      minimum width=2.6cm] (pgxcard) at (7.5, 2.4)
+      {PGx Patient Card\\stateless $\cdot$ ephemeral\\zero PII stored};
+
+%% ── API TIER ──────────────────────────────────────────────────────────────────
+\node[svcbox, fill=blue!14, draw=blue!55,
+      minimum width=2.4cm] (apigw) at (7.5, 4.5)
+      {API Gateway\\{\small/risk $\cdot$ /causal}\\{\small/pgx}};
+
+%% ── CDN TIER ─────────────────────────────────────────────────────────────────
+\node[svcbox, fill=purple!14, draw=purple!55] (cf) at (11.0, 4.5)
+      {CloudFront\\CDN $\cdot$ HTTPS\\TLS termination};
+
+%% ── CLIENT ───────────────────────────────────────────────────────────────────
+\node[svcbox, fill=green!14, draw=green!55] (cli) at (14.5, 4.5)
+      {Clinician\\Browser};
+
+%% ── PRIVACY BOUNDARY (ephemeral compute) ─────────────────────────────────────
+\begin{scope}[on background layer]
+  \node[draw=red!45, fill=red!3, dashed, rounded corners=6pt, inner sep=8pt,
+        fit=(lambda)(apigw)(cpic)(pgxcard),
+        label={[font=\tiny, red!60!black]above:No PII stored\,---\,ephemeral in-memory compute}]
+        (priv) {};
+\end{scope}
+
+%% ── AWS CLOUD BOUNDARY ───────────────────────────────────────────────────────
+\begin{scope}[on background layer]
+  \node[draw=orange!45, fill=orange!3, dashed, rounded corners=8pt, inner sep=14pt,
+        fit=(s3models)(s3assets)(lambda)(apigw)(cf)(cpic)(pgxcard),
+        label={[font=\tiny, orange!65!black]below:AWS Cloud}]
+        (aws) {};
+\end{scope}
+
+%% ── ARROWS: main inference path ──────────────────────────────────────────────
+\draw[arr] (s3models.east) -- (lambda.west);
+\draw[arr] (s3assets.east) -- ++(0.6,0) |- (cf.west);
+\draw[arr] (lambda.east)   -- (apigw.west);
+\draw[arr] (apigw.east)    -- (cf.west);
+\draw[arr] (cf.east)       -- (cli.west);
+
+%% ── ARROWS: CPIC / PGx path ──────────────────────────────────────────────────
+\draw[arr]  (cpic.east)   -- (pgxcard.west);
+\draw[arr]  (lambda.south) -- (cpic.north);
+\draw[darr] (pgxcard.north) -- ++(0,0.5) -| (apigw.south);
+
+%% ── ENDPOINT LABELS ──────────────────────────────────────────────────────────
+\node[font=\tiny, gray] at (2.0, 5.0) {load model};
+\node[font=\tiny, gray] at (5.75, 5.0) {REST response};
+\node[font=\tiny, gray] at (9.25, 5.0) {CDN delivery};
+
+\end{tikzpicture}
+```
+
 ## The Consensus Filter {#sec-consensus}
 
 ### Rationale
@@ -456,6 +617,86 @@ A feature was designated **Consensus-Causal** if and only if it was
 simultaneously SHAP-positive and FFA-positive in the same partition.
 Intervention Rate (IR) quantified the expected change in $\hat{p}_{\text{ens}}$
 under counterfactual removal or substitution of each causal feature.
+
+The full Consensus Filter logic is illustrated in **@fig-filter**.
+
+```{tikz}
+%| label: fig-filter
+%| fig-cap: "Consensus Filter (SHAP $\\cap$ FFA) feature designation pipeline. MCCV-screened candidate features enter two independent analysis paths: SHAP TreeExplainer (distributional, mean $|\\phi_i|$ > 75th percentile) and Formal Feature Attribution (structural Boolean rules, confidence $\\geq$ 0.70, support $\\geq$ 0.05). A feature is designated Consensus-Causal only when confirmed by both methods simultaneously. SHAP-only and FFA-only features are excluded from the causal set. Intervention Rate (IR) scores rank Consensus-Causal features by expected risk reduction under counterfactual removal."
+%| fig-align: center
+%| out-width: 80%
+%| echo: false
+
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
+
+\begin{tikzpicture}[
+  >= Stealth,
+  every node/.style = {font=\footnotesize},
+  block/.style    = {draw, rectangle, rounded corners=2pt, fill=white,
+                     minimum width=2.4cm, minimum height=0.65cm,
+                     align=center, inner sep=4pt},
+  combnode/.style = {draw, diamond, aspect=2.8, fill=white,
+                     minimum width=3.0cm, minimum height=0.65cm, align=center},
+  arr/.style  = {-Stealth, semithick},
+  darr/.style = {-Stealth, dashed, gray, semithick},
+]
+
+%% ── INPUT ──────────────────────────────────────────────────────────────────
+\node[block, fill=blue!10, draw=blue!50,
+      minimum width=3.2cm] (pool) at (3.5, 8.5) {MCCV Feature Pool\\(50+ random splits)};
+
+%% ── DUAL ANALYSIS PATHS ────────────────────────────────────────────────────
+\node[block, fill=yellow!20, draw=yellow!60!black,
+      minimum width=2.6cm] (shap) at (1.0, 6.5)
+      {SHAP\\TreeExplainer\\mean $|\phi_i| >$ P75};
+
+\node[block, fill=yellow!20, draw=yellow!60!black,
+      minimum width=2.6cm] (ffa) at (6.0, 6.5)
+      {FFA\\Boolean Rules\\conf $\geq$ 0.70};
+
+%% Tee-split from pool
+\coordinate (split) at (3.5, 7.7);
+\draw[arr] (pool.south) -- (split);
+\draw[arr] (split) -| (shap.north);
+\draw[arr] (split) -| (ffa.north);
+
+%% ── REJECTED FEATURES (sides) ──────────────────────────────────────────────
+\node[block, fill=gray!14, draw=gray!50,
+      minimum width=2.2cm] (shaponly) at (0.0, 4.8)
+      {SHAP-only\\(excluded)};
+
+\node[block, fill=gray!14, draw=gray!50,
+      minimum width=2.2cm] (ffaonly) at (7.0, 4.8)
+      {FFA-only\\(excluded)};
+
+\draw[darr] (shap.west)  -- ++(-0.4,0) |- (shaponly.east);
+\draw[darr] (ffa.east)   -- ++(0.4,0)  |- (ffaonly.west);
+
+%% ── CONSENSUS INTERSECTION ─────────────────────────────────────────────────
+\node[combnode, fill=yellow!35, draw=yellow!60!black]
+      (cons) at (3.5, 5.0) {$\text{SHAP} \cap \text{FFA}$\\Consensus};
+
+\draw[arr] (shap.south) |- (cons.west);
+\draw[arr] (ffa.south)  |- (cons.east);
+
+%% ── OUTPUT ──────────────────────────────────────────────────────────────────
+\node[block, fill=green!15, draw=green!55,
+      minimum width=3.4cm] (causal) at (3.5, 3.2)
+      {\textbf{Consensus-Causal Features}\\confirmed by both methods};
+
+\node[block, fill=red!10, draw=red!45,
+      minimum width=3.4cm] (ir) at (3.5, 1.8)
+      {Intervention Rate (IR)\\counterfactual deprescribing rank};
+
+\draw[arr] (cons.south)   -- (causal.north);
+\draw[arr] (causal.south) -- (ir.north);
+
+%% ── LEGEND ───────────────────────────────────────────────────────────────────
+\node[font=\tiny, gray, align=left] at (8.2, 3.0)
+      {$\bullet$ SHAP: distributional\\$\bullet$ FFA: structural\\$\bullet$ IR: causal rank};
+
+\end{tikzpicture}
+```
 
 # Results {#sec-results}
 
