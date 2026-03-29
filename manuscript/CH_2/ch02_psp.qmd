@@ -870,11 +870,11 @@ checkpoint recovery was validated by simulating mid-run worker termination.
 
 ## Feature Selection
 
-MCCV screening (50 random splits) retained [XX] features for the opioid
-cohort and [XX] features for the polypharmacy cohort after removing unstable
+MCCV screening (50 random splits) retained 498 features for the opioid
+cohort and 89 features for the polypharmacy cohort after removing unstable
 bottom-quartile features.
-PGx enrichment added [XX] gene-drug interaction scores across CYP2D6,
-CYP2C9, CYP2C19, and OPRM1 pathways.
+PGx enrichment added 2 aggregate gene-drug interaction scores (pgx\_num\_drugs
+and pgx\_num\_cpic\_drugs) across CYP2D6, CYP2C9, CYP2C19, and OPRM1 pathways.
 
 ## Consensus Filter Results
 

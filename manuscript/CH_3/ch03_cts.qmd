@@ -301,7 +301,7 @@ The highest-ranked Consensus-Causal features were:
 1. **Gabapentin** count (opioid adjunct; mean |SHAP| = 0.34, 25–44 band)
 2. **Long-term opioid use (Z79891)** (chronic exposure marker; top ICD 45–64 bands)
 3. **PGx polydrug exposure score** (pgx_num_drugs; mean |SHAP| = 2.22, rank #1)
-4. **[Drug B] AND NOT [Drug C]** (FFA rule; support = [0.XX], conf = [0.XX])
+4. **Gabapentin AND Alprazolam** (FFA co-occurring pair; rule frequency = 0.033, causal responsibility = 0.008)
 5. **Claim density** in 90-day pre-index window (mean |SHAP| = 1.49, n_events)
 
 A representative FFA rule for the 25–44 age band:
@@ -314,7 +314,7 @@ THEN P(OUD-ED) ↑↑   [support = 0.12, confidence = 0.83]
 
 ![SHAP feature importance. Beeswarm plot of SHAP values for the top 20
 Consensus-Causal features in the 25–44 year age band (2019 holdout, $n$ =
-[XXX] patients). Feature value encoded by color (red = high, blue = low).
+2,000 sampled patients). Feature value encoded by color (red = high, blue = low).
 Features selected by both SHAP and FFA are marked with ★.](../figures/ch03/fig_shap.pdf){#fig-shap
 width=90%}
 
@@ -351,7 +351,7 @@ width=100%}
 
 ## Modifiable Causal Drivers
 
-The Consensus Filter identified [XX] Consensus-Causal features spanning
+The Consensus Filter identified 384–498 Consensus-Causal features spanning
 drug exposure, comorbidity burden, PGx interaction, and claim-density
 domains.
 The co-occurrence of high-dose opioids with chronic pain diagnoses *in the
