@@ -278,22 +278,63 @@ training and all downstream interpretation.
 
 ## Trajectory Analysis {#sec-trajectory}
 
-Dynamic Time Warping (DTW) clustering was applied to 12-month pre-index
-clinical event sequences to identify distinct opioid escalation pathways.
+DTW served two distinct roles in this pipeline, sequenced to prevent
+target leakage at each stage.
+
+**Stage 1 — Upstream protocol event filtering (Step 1b).**
+Prior to any feature construction, DTW was applied to the raw
+`model_events.parquet` to identify and remove standard administrative
+care protocol codes: well-visit, preventive screening, and routine
+disease-management codes that both cases and controls generate at
+comparable rates.
+These codes are uninformative for prediction but inflate apparent sequence
+similarity between cases and controls; their removal produced
+`model_events_no_protocols.parquet`
+(`gold/dtw_filter/opioid_ed/`; `scripts/1b_apcd_event_filter.py`),
+which was used for all downstream MCCV feature engineering.
+Protocol removal statistics are summarized in
+`protocol_summary_opioid_ed_{band}.csv` per age band.
+
+**Stage 2 — Trajectory archetype analysis.**
+DTW clustering was applied to 12-month pre-index clinical event sequences
+to identify distinct opioid escalation archetypes.
+Sequences were anchored at the first recorded ICD-10 F11.20
+(`first_f1120_date`) and constructed from events in the 12-month lookback
+window preceding that date.
+
+Before trajectory construction, events were filtered to the top-500
+features by **Step 3b cohort feature importance**
+(`cohort_feature_importance_{band}.csv`; `3b_feature_importance_eda/`):
+the same ranked feature set used as input to Step 4 model training,
+shared across the BupaR and FP-Growth exploratory modules
+(`allowed_codes_shap_ffa_opioid_ed_{band}.json`).
+This pre-filtering focuses the trajectory analysis on the model's
+decision-relevant event sequences and prevents noise from codes the
+training pipeline assigned zero importance.
+
 Event sequences were constructed as monthly time-indexed vectors: each
 month in the 12-month lookback was encoded with binary indicators for
 active drug classes (from pharmacy claims), ICD-10 chapter codes (from
-medical claims), and CPT category groups (from procedure claims),
-producing a 12 × d event matrix per patient, where d is the feature
-dimension.
+medical claims), and CPT category groups (from procedure claims)
+restricted to the allowed set,
+producing a 12 × d event matrix per patient, where d is the
+Consensus-Causal feature dimension.
+
+Administrative ICD codes (well-visit Z00.xx, preventive screening V70.x,
+and related routine management codes) were counted separately as a
+routine-care indicator: patients with ≥1 such code in the lookback
+window were classified as **routine** (accessing scheduled preventive
+care alongside their opioid trajectory); those with zero were classified
+as **non-routine** (healthcare contact driven by acute utilization only).
+This distinction provides a clinically meaningful overlay on the
+archetype clusters.
 
 Per-patient event spans (days from first to last pre-index event) were
-computed from `event_intervals_opioid_ed_{band}.parquet`
-(`gold/dtw_filter/opioid_ed/`; `scripts/dtw_thresholds.py`).
+computed from `event_intervals_opioid_ed_{band}.parquet`.
 Pairwise DTW distances were computed using the `dtaidistance` library
-on the 12-month event sequences, applied to a stratified random sample
-of 2,000 cases from the training cohort for computational tractability
-($\mathcal{O}(n^2 T^2)$ for full pairwise computation).
+[@Meert2020] on the 12-month event sequences, applied to a stratified random
+sample of 2,000 cases from the training cohort for computational
+tractability ($\mathcal{O}(n^2 T^2)$ for full pairwise computation).
 Ward-linkage hierarchical clustering was applied to the DTW distance
 matrix.
 
@@ -311,6 +352,13 @@ Cluster stability was confirmed by repeating on five independent
 2,000-patient bootstrap samples; Adjusted Rand Index exceeded 0.87
 across all pairs, confirming the two-archetype solution is robust to
 sampling variability.
+
+**DTW features were not incorporated into the predictive model.**
+All trajectory outputs served as visualization and clinical
+interpretation only; merging DTW-derived sequence distances into
+the model feature matrix would encode outcome-adjacent temporal
+information that violates the B1 temporal leakage constraint
+(Chapter 2, §sec-pipeline).
 
 ## Statistical Analysis
 
