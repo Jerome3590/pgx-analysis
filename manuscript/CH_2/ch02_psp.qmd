@@ -85,7 +85,7 @@ format:
     pdf-engine: xelatex
     cite-method: natbib
     template: ../templates/cpt_psp_template.tex
-    classoption: [AMA, STIX2COL]
+    classoption: [AMA, STIX2COL, oneside]
     article-type: "Research Article"
     journal: "CPT: Pharmacometrics & Systems Pharmacology"
     year: 2026
