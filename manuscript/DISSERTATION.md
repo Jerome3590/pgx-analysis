@@ -139,7 +139,7 @@
 **Figures needed** (`figures/ch02/`):
 - `fig_architecture.pdf` — end-to-end pipeline diagram (draw.io / Lucidchart)
 - `fig_attrition.pdf` — CONSORT-style cohort attrition flowchart
-- `fig_consensus.pdf` — Consensus Filter evaluation (Brier score boxplots by feature method)
+- `fig_consensus.pdf` — Consensus Filter (SHAP ∩ FFA → Causal Features; TikZ `fig_consensus_standalone.tex`)
 
 ---
 

@@ -79,6 +79,8 @@ flowchart TD
 
 ### Research Question Coverage
 
+**Canonical mapping (artifacts + per-visual commentary):** [docs/RESEARCH_QUESTIONS_ARTIFACTS.md](docs/RESEARCH_QUESTIONS_ARTIFACTS.md) — includes the master RQ → tab → artifact table and **[Visuals, research questions, and clinical OODA loop](docs/RESEARCH_QUESTIONS_ARTIFACTS.md#visuals-research-questions-and-clinical-ooda-loop)** with comments on how each saved visual supports N1–N6 / RQ1–RQ2 and the clinical **Observe → Orient → Decide → Act** cycle illustrated above.
+
 ```mermaid
 flowchart LR
     RQ1["RQ1 · Polypharmacy\nDrug window → outcome?\nWhich drugs?"]

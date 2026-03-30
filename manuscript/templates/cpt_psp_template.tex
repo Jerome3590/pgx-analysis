@@ -73,6 +73,8 @@ $endif$
 \startpage{1}
 \raggedbottom
 
+\input{../templates/wiley_firstpage_mdpi_like.tex}
+
 %% ---- Title ----
 $if(title)$
 \title{$title$}
@@ -133,15 +135,15 @@ $for(by-author)$\author{$by-author.name.literal$}$sep$, $endfor$}.
 %% ============================================================
 \begin{document}
 
-%% Abbreviations footnote must run after \begin{document} (valid \footnotetext).
+\maketitle
+
+%% After title/abstract strip so the footnote sits above the page footer, not fighting column 1.
 $if(abbreviations-note)$
 \renewcommand\thefootnote{}
 \footnotetext{\textbf{Abbreviations:} $abbreviations-note$}
 \renewcommand\thefootnote{\fnsymbol{footnote}}
 \setcounter{footnote}{1}
 $endif$
-
-\maketitle
 
 $body$
 

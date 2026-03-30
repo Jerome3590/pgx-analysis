@@ -3399,76 +3399,19 @@ def main() -> None:
             shutil.copy2(cb_cbm_source, cb_cbm_dest)
             logger.info(f"Copied CatBoost CBM to model_outputs: {cb_cbm_dest}")
         
-        # Still try to sync to S3 if not already there (idempotent upload)
+        # Idempotent upload to S3 (explicit keys; same as py_helpers.final_model_s3_upload)
         try:
-            from py_helpers.checkpoint_utils import upload_file_to_s3, save_step_checkpoint
-            
-            s3_outputs = []
-            s3_base = f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}"
-            
-            # Upload each file if not already in S3
-            if local_outputs["metadata"].exists():
-                s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_model_selection_metadata.json"
-                if upload_file_to_s3(local_outputs["metadata"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["xgb_json"].exists():
-                s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_best_xgboost_model.json"
-                if upload_file_to_s3(local_outputs["xgb_json"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["cb_cbm"].exists():
-                s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_best_catboost_model.cbm"
-                if upload_file_to_s3(local_outputs["cb_cbm"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["xgb_joblib"].exists():
-                s3_path = f"{s3_base}/xgboost.joblib"
-                if upload_file_to_s3(local_outputs["xgb_joblib"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["cb_joblib"].exists():
-                s3_path = f"{s3_base}/catboost.joblib"
-                if upload_file_to_s3(local_outputs["cb_joblib"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["fi_csv"].exists():
-                s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_xgboost_feature_importance.csv"
-                if upload_file_to_s3(local_outputs["fi_csv"], s3_path, logger):
-                    s3_outputs.append(s3_path)
-            
-            if local_outputs["features_csv"].exists():
-                s3_path = f"{s3_base}/{args.cohort}_{age_band_fname_check}_train_final_features_no_leakage.csv"
-                if upload_file_to_s3(local_outputs["features_csv"], s3_path, logger):
-                    s3_outputs.append(s3_path)
+            from py_helpers.final_model_s3_upload import upload_step6_outputs_to_s3
 
-            # Per-bin deployment joblibs (same keys as train_and_evaluate); repair may have just filled bins.
-            if args.train_mode == "per_bin":
-                from py_helpers.event_density_utils import DENSITY_BINS as _UP_BINS
-                for b in _UP_BINS:
-                    mdir = out_base_check / "bin_models" / b / "models"
-                    xjb = mdir / "xgboost.joblib"
-                    cjb = mdir / "catboost.joblib"
-                    if xjb.exists():
-                        s3_p = f"{s3_base}/bin_models/{b}/xgboost.joblib"
-                        if upload_file_to_s3(xjb, s3_p, logger):
-                            s3_outputs.append(s3_p)
-                    if cjb.exists():
-                        s3_p = f"{s3_base}/bin_models/{b}/catboost.joblib"
-                        if upload_file_to_s3(cjb, s3_p, logger):
-                            s3_outputs.append(s3_p)
-            
-            # Save checkpoint if outputs uploaded
-            if s3_outputs:
-                save_step_checkpoint(
-                    step_name="6_final_model",
-                    cohort=args.cohort,
-                    age_band=args.age_band,
-                    metadata={"n_outputs": len(s3_outputs)},
-                    output_paths=s3_outputs,
-                )
+            upload_step6_outputs_to_s3(
+                args.cohort,
+                args.age_band,
+                PROJECT_ROOT,
+                logger=logger,
+                train_mode=args.train_mode,
+            )
         except ImportError:
-            pass  # S3 sync is optional
+            pass  # S3 upload is optional
         
         return
     

@@ -26,8 +26,6 @@ library(DT)
 
 # Research Questions
 
-> Source of truth: `docs/CrossStep_Workflow/README_research_questions_mapping.md`
-
 ## Primary Research Questions (Dashboard Cohorts)
 
 ### RQ1 — Non-Opioid ED Cohort (`non_opioid_ed`)
@@ -142,7 +140,7 @@ Recent literature demonstrates the potential of combining APCD data with advance
 
 - **Gradient Boosting Models**: CatBoost and XGBoost have shown particular promise for handling the categorical and mixed-type data common in claims databases
 - **Feature Engineering**: Temporal features, interaction terms, and domain-specific transformations enhance model performance
-- **Validation Strategies**: Temporal validation (e.g., training on 2016-2019, testing on 2020) provides realistic performance estimates
+- **Validation Strategies**: Temporal validation (e.g., training on earlier calendar years and evaluating on a strictly later holdout year) provides realistic performance estimates when event distributions shift over time
 
 ## 1.4 Pharmacovigilance: Current State and Machine Learning Applications
 
@@ -654,7 +652,7 @@ duckdb_results <- read_csv(here("Chapter1_DuckDB","duckdb_broader_articles.csv")
 ## Gap Coverage Searches (Added for Full Aim Alignment)
 
 > These 4 searches fill the coverage gaps identified in the Aim → RQ → Search traceability matrix.
-> See `README.md` § "Full Traceability: Aim → RQ → Search Keyword".
+> See the literature-review traceability section for full Aim → RQ → keyword mapping.
 
 ### 15. CPT Procedure Codes and Opioid Risk Prediction (Aim 1 / RQ2)
 

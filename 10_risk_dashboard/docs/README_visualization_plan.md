@@ -71,7 +71,7 @@ Original RQ1/RQ2 (cohort-level questions) are covered by the same tabs and risk 
 
 | Doc | Use |
 |-----|-----|
-| **`10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md`** | **Canonical:** RQ → tab → exact artifacts we keep and use. Only these are saved/displayed. |
+| **`10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md`** | **Canonical:** RQ → tab → exact artifacts we keep and use. Only these are saved/displayed. **Also:** [Visuals, research questions, and clinical OODA loop](RESEARCH_QUESTIONS_ARTIFACTS.md#visuals-research-questions-and-clinical-ooda-loop) — per-artifact comments (RQ + Observe/Orient/Decide/Act). |
 | **`10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md`** | Map: dashboard visual → data artifact → EC2 file path → S3 path (path-style). |
 | **`10_risk_dashboard/docs/ARCHIVED_ARTIFACTS_NO_LONGER_USED.md`** | Artifacts no longer used; archived for documentation and pipeline cleanup. |
 | **`9_dashboard_visuals/README.md`** | Step 9 pipeline, run commands, quick DTW test. |

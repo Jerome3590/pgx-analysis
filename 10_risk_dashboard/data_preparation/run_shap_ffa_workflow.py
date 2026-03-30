@@ -6,7 +6,10 @@ Uses PHTS risk calculator pattern:
 1. Ensure Step 7 (SHAP) artifacts exist; run 7_shap_analysis if missing.
 2. Load XGBoost JSON and SHAP from Step 6/7; run FFA (rule extraction + SHAP filtering).
 3. Write FFA outputs to 8_ffa_analysis/outputs for combine.
-4. Run combine_shap_ffa_results to produce dashboard_data.json etc.
+4. Mirror FFA artifacts to ``s3://…/gold/ffa_analysis/`` (idempotent upload), matching Step 7’s
+   ``gold/shap_analysis/`` pattern. If outputs are missing locally but present in S3, download
+   and skip FFA so downstream work (e.g. combine, extra analyses) can run without EC2.
+5. Run combine_shap_ffa_results to produce dashboard_data.json etc.
 
 Usage:
     python run_shap_ffa_workflow.py --cohort opioid_ed --age-band 13-24
@@ -18,7 +21,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -43,11 +46,141 @@ from py_helpers.event_density_utils import (
     DENSITY_BINS,
     cohort_aggregate_final_model_has_artifacts,
     final_model_bin_has_trained_artifacts,
+    resolve_step6_cohort_age_dir,
+    resolve_step6_train_features_csv,
 )
 
 
 def _age_band_fname(age_band: str) -> str:
     return age_band.replace("-", "_")
+
+
+def _ffa_xgboost_and_base_dirs(
+    cohort: str, age_band: str, bin_name: Optional[str]
+) -> Tuple[Path, Path]:
+    """Local ``.../xgboost`` output dir and parent (holds ``ffa_causal_factors.csv``)."""
+    age_band_fname = _age_band_fname(age_band)
+    if bin_name:
+        base = (
+            PROJECT_ROOT
+            / "8_ffa_analysis"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / "bin_models"
+            / bin_name
+        )
+    else:
+        base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / cohort / age_band_fname
+    return base / "xgboost", base
+
+
+def _ffa_required_local_paths(xgb_dir: Path, ffa_base: Path) -> List[Path]:
+    return [
+        xgb_dir / "feature_importance_axp.parquet",
+        xgb_dir / "axp_explanations.parquet",
+        ffa_base / "ffa_causal_factors.csv",
+    ]
+
+
+def _ffa_s3_bucket_and_keys(
+    cohort: str, age_band: str, bin_name: Optional[str]
+) -> Tuple[str, List[str]]:
+    """S3 bucket and ``gold/ffa_analysis/...`` keys (no s3:// prefix)."""
+    import os
+
+    bucket = os.environ.get("PGX_S3_BUCKET", "pgxdatalake")
+    if bin_name:
+        prefix = f"gold/ffa_analysis/{cohort}/{age_band}/bin_models/{bin_name}"
+    else:
+        prefix = f"gold/ffa_analysis/{cohort}/{age_band}"
+    keys = [
+        f"{prefix}/xgboost/axp_explanations.parquet",
+        f"{prefix}/xgboost/feature_importance_axp.parquet",
+        f"{prefix}/ffa_causal_factors.csv",
+    ]
+    return bucket, keys
+
+
+def _ffa_s3_uris_full(cohort: str, age_band: str, bin_name: Optional[str]) -> List[str]:
+    bucket, keys = _ffa_s3_bucket_and_keys(cohort, age_band, bin_name)
+    return [f"s3://{bucket}/{k}" for k in keys]
+
+
+def _upload_ffa_outputs_to_gold_s3(
+    cohort: str,
+    age_band: str,
+    bin_name: Optional[str],
+    xgb_dir: Path,
+    ffa_base: Path,
+    log: logging.Logger,
+) -> List[str]:
+    """
+    Idempotent upload to ``pgxdatalake/gold/ffa_analysis/`` (same layout as PIPELINE_DATA_LOCATIONS.md).
+    Mirrors Step 7 SHAP behavior for ``gold/shap_analysis/``.
+    """
+    uploaded: List[str] = []
+    try:
+        from py_helpers.checkpoint_utils import save_step_checkpoint, upload_file_to_s3
+
+        bucket, keys = _ffa_s3_bucket_and_keys(cohort, age_band, bin_name)
+        mapping = [
+            (xgb_dir / "axp_explanations.parquet", keys[0]),
+            (xgb_dir / "feature_importance_axp.parquet", keys[1]),
+            (ffa_base / "ffa_causal_factors.csv", keys[2]),
+        ]
+        for local_path, key in mapping:
+            if local_path.is_file():
+                uri = f"s3://{bucket}/{key}"
+                if upload_file_to_s3(local_path, uri, logger=log):
+                    uploaded.append(uri)
+        if uploaded:
+            save_step_checkpoint(
+                step_name="8_ffa_analysis",
+                cohort=cohort,
+                age_band=age_band,
+                metadata={"n_outputs": len(uploaded), "bin": bin_name},
+                output_paths=uploaded,
+            )
+    except Exception as e:
+        log.warning("FFA gold S3 upload skipped: %s", e)
+    return uploaded
+
+
+def _try_download_ffa_from_gold_s3(
+    cohort: str,
+    age_band: str,
+    bin_name: Optional[str],
+    xgb_dir: Path,
+    ffa_base: Path,
+    log: logging.Logger,
+) -> bool:
+    """If all three FFA artifacts exist in S3, download to local paths (Step 7 SHAP-style fallback)."""
+    try:
+        from py_helpers.checkpoint_utils import check_step_outputs_exist
+
+        uris = _ffa_s3_uris_full(cohort, age_band, bin_name)
+        if not check_step_outputs_exist(uris, log):
+            return False
+        import boto3
+
+        bucket, keys = _ffa_s3_bucket_and_keys(cohort, age_band, bin_name)
+        s3 = boto3.client("s3")
+        local_paths = [
+            xgb_dir / "axp_explanations.parquet",
+            xgb_dir / "feature_importance_axp.parquet",
+            ffa_base / "ffa_causal_factors.csv",
+        ]
+        xgb_dir.mkdir(parents=True, exist_ok=True)
+        ffa_base.mkdir(parents=True, exist_ok=True)
+        for i, key in enumerate(keys):
+            lp = local_paths[i]
+            s3.download_file(bucket, key, str(lp))
+            log.info("Downloaded FFA from S3: s3://%s/%s -> %s", bucket, key, lp)
+        return True
+    except Exception as e:
+        log.warning("Could not download FFA from S3 (will compute locally if possible): %s", e)
+        return False
 
 
 def _ffa_step_log_path(cohort: str, age_band: str, bin_name: Optional[str]) -> Path:
@@ -133,7 +266,7 @@ def _load_shap_for_ffa(
 
 def _find_xgboost_json(cohort: str, age_band: str, bin_name: str | None = None) -> Path:
     age_band_fname = _age_band_fname(age_band)
-    _base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _base = resolve_step6_cohort_age_dir(PROJECT_ROOT, cohort, age_band)
     _bin_base = _base / "bin_models" / bin_name if bin_name else _base
     candidates = [
         _bin_base / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json",
@@ -150,7 +283,7 @@ def _find_xgboost_json(cohort: str, age_band: str, bin_name: str | None = None) 
 def _find_xgboost_binary(cohort: str, age_band: str, bin_name: str | None = None) -> Optional[Path]:
     """Path to native binary (e.g. .ubj) for Booster.load_model; avoids JSON parse errors."""
     age_band_fname = _age_band_fname(age_band)
-    _base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _base = resolve_step6_cohort_age_dir(PROJECT_ROOT, cohort, age_band)
     _bin_base = _base / "bin_models" / bin_name if bin_name else _base
     candidates = [
         _bin_base / "models" / "xgboost_model.ubj",
@@ -167,11 +300,8 @@ def _find_xgboost_binary(cohort: str, age_band: str, bin_name: str | None = None
 def _load_test_data(cohort: str, age_band: str, max_rows: int = 2000, bin_name: str | None = None) -> Optional[pd.DataFrame]:
     """Load a sample of training features via DuckDB (avoids loading full CSV on EC2)."""
     import duckdb
-    age_band_fname = _age_band_fname(age_band)
-    csv_path = (
-        PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
-        / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
-    )
+
+    csv_path = resolve_step6_train_features_csv(PROJECT_ROOT, cohort, age_band)
     if not csv_path.exists():
         return None
     con = duckdb.connect()
@@ -395,6 +525,26 @@ def main() -> None:
         )
         sys.exit(1)
 
+    ffa_xgb_dir, ffa_base = _ffa_xgboost_and_base_dirs(args.cohort, args.age_band, bin_name)
+    required_ffa = _ffa_required_local_paths(ffa_xgb_dir, ffa_base)
+
+    skip_ffa_compute = False
+    if all(p.exists() for p in required_ffa):
+        logger.info(
+            "FFA outputs already exist locally for %s/%s%s; skipping FFA computation (will mirror to S3).",
+            args.cohort,
+            args.age_band,
+            f" bin={bin_name}" if bin_name else "",
+        )
+        skip_ffa_compute = True
+    elif _try_download_ffa_from_gold_s3(
+        args.cohort, args.age_band, bin_name, ffa_xgb_dir, ffa_base, logger
+    ):
+        logger.info(
+            "FFA outputs downloaded from s3://…/gold/ffa_analysis/; skipping FFA computation."
+        )
+        skip_ffa_compute = True
+
     if not args.skip_shap:
         _ensure_shap_artifacts(
             args.cohort,
@@ -403,46 +553,51 @@ def main() -> None:
             skip_missing_bin=args.skip_missing_bin,
         )
 
-    shap_map, shap_values_df = _load_shap_for_ffa(
-        args.cohort, args.age_band, max_shap_rows=args.max_shap_rows, bin_name=bin_name
-    )
-    xgboost_json = _find_xgboost_json(args.cohort, args.age_band, bin_name=bin_name)
-    X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows, bin_name=bin_name)
-    if X_test is None or len(X_test) == 0:
-        logger.error(
-            "Required test data missing: cannot generate axp_explanations.parquet. "
-            "Expected 6_final_model/outputs/%s/%s/%s_%s_train_final_features_no_leakage.csv%s",
-            args.cohort, age_band_fname, args.cohort, age_band_fname,
-            f" (bin={bin_name})" if bin_name else "",
+    if not skip_ffa_compute:
+        shap_map, shap_values_df = _load_shap_for_ffa(
+            args.cohort, args.age_band, max_shap_rows=args.max_shap_rows, bin_name=bin_name
         )
-        sys.exit(1)
+        xgboost_json = _find_xgboost_json(args.cohort, args.age_band, bin_name=bin_name)
+        X_test = _load_test_data(args.cohort, args.age_band, max_rows=args.max_test_rows, bin_name=bin_name)
+        if X_test is None or len(X_test) == 0:
+            logger.error(
+                "Required test data missing: cannot generate axp_explanations.parquet. "
+                "Expected 6_final_model/outputs/%s/%s/%s_%s_train_final_features_no_leakage.csv%s",
+                args.cohort, age_band_fname, args.cohort, age_band_fname,
+                f" (bin={bin_name})" if bin_name else "",
+            )
+            sys.exit(1)
 
-    if bin_name:
-        ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "bin_models" / bin_name / "xgboost"
-    else:
-        ffa_out_base = PROJECT_ROOT / "8_ffa_analysis" / "outputs" / args.cohort / age_band_fname / "xgboost"
-    ffa_out_base.mkdir(parents=True, exist_ok=True)
+        ffa_xgb_dir.mkdir(parents=True, exist_ok=True)
 
-    causal_df = _run_ffa_with_shap(
-        args.cohort,
-        args.age_band,
-        xgboost_json,
-        shap_map,
-        shap_values_df,
-        X_test,
-        ffa_out_base,
-        bin_name=bin_name,
-    )
+        causal_df = _run_ffa_with_shap(
+            args.cohort,
+            args.age_band,
+            xgboost_json,
+            shap_map,
+            shap_values_df,
+            X_test,
+            ffa_xgb_dir,
+            bin_name=bin_name,
+        )
 
-    # Write FFA outputs so combine_shap_ffa_results finds them
-    importance_df = causal_df.copy()
-    importance_df["importance"] = importance_df["causal_responsibility"]
-    importance_path = ffa_out_base / "feature_importance_axp.parquet"
-    importance_df.to_parquet(importance_path, index=False)
-    logger.info(f"Wrote {importance_path}")
-    causal_csv = ffa_out_base.parent / "ffa_causal_factors.csv"
-    causal_df.to_csv(causal_csv, index=False)
-    logger.info(f"Wrote {causal_csv}")
+        # Write FFA outputs so combine_shap_ffa_results finds them
+        importance_df = causal_df.copy()
+        importance_df["importance"] = importance_df["causal_responsibility"]
+        importance_path = ffa_xgb_dir / "feature_importance_axp.parquet"
+        importance_df.to_parquet(importance_path, index=False)
+        logger.info("Wrote %s", importance_path)
+        causal_csv = ffa_base / "ffa_causal_factors.csv"
+        causal_df.to_csv(causal_csv, index=False)
+        logger.info("Wrote %s", causal_csv)
+
+    # Mirror to pgxdatalake (idempotent; same role as Step 7 → gold/shap_analysis/)
+    if all(p.exists() for p in required_ffa):
+        _upload_ffa_outputs_to_gold_s3(
+            args.cohort, args.age_band, bin_name, ffa_xgb_dir, ffa_base, logger
+        )
+    elif not skip_ffa_compute:
+        logger.warning("FFA outputs incomplete; skipping gold/ffa_analysis S3 upload.")
 
     if not args.skip_combine:
         combine_script = Path(__file__).parent / "combine_shap_ffa_results.py"
