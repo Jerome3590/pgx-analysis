@@ -228,7 +228,7 @@ Two structural loops are embedded in this framework:
 
 ```{tikz}
 %| label: fig-framework
-%| fig-cap: "OODA loop analytical framework for Chapter 2. Nodes are grouped by phase: Observe (blue), Orient (green), Decide (yellow), Act (pink). Thick-bordered nodes (DuckDB, Target Leakage Prevention, Gradient Boosting, SHAP/FFA) are Chapter 2 implementations. Dashed feedback arrows (Act $\\rightarrow$ Observe, 2019 holdout) represent the empirical OODA feedback cycle: model trained on 2016--2018, evaluated on 2019. R1 = reinforcing polypharmacy $\\leftrightarrow$ opioid feedback loop; B1 = balancing temporal leakage constraint."
+%| fig-cap: "OODA loop operational data flow for the Chapter 2 pipeline. Observe phase ingests 2016--2018 APCD claims (Drug/ICD/CPT), FAERS pharmacovigilance data, and RQ1/RQ2 targets into Aggregated Observations. Orient defines the prediction target (B1 leakage guard), ranks features by Step~3b importance, and fans out to parallel exploratory visualisation (BupaR, DTW, FP-Growth). Decide trains the Final GBT ensemble, applies SHAP and FFA explainers in parallel, and combines them into the Consensus-Causal filter. Act delivers the RQ1/RQ2 Risk Dashboard; feedback closes the loop to the 2019 test cohort."
 %| fig-align: center
 %| fig-env: figure*
 %| out-width: 100%
@@ -238,101 +238,88 @@ Two structural loops are embedded in this framework:
 
 \begin{tikzpicture}[
   >= Stealth,
-  every node/.style = {font=\footnotesize},
-  block/.style  = {draw, rectangle, rounded corners=2pt,
-                   minimum width=1.7cm, minimum height=0.62cm,
-                   align=center, inner sep=3pt},
-  active/.style = {draw, rectangle, rounded corners=2pt, line width=1.4pt,
-                   minimum width=1.7cm, minimum height=0.62cm,
-                   align=center, inner sep=3pt, draw=purple!65},
-  arr/.style    = {-Stealth, semithick},
-  darr/.style   = {-Stealth, dashed, gray!70, semithick},
-  zlbl/.style   = {font=\tiny\bfseries},
+  every node/.style  = {font=\footnotesize},
+  block/.style       = {draw, rectangle, rounded corners=2pt, fill=white,
+                         minimum width=2.0cm, minimum height=0.65cm,
+                         align=center, inner sep=3pt},
+  synthnode/.style   = {draw, ellipse, fill=white,
+                         minimum width=2.0cm, minimum height=0.65cm, align=center},
+  combnode/.style    = {draw, diamond, aspect=2.5, fill=white,
+                         minimum width=2.4cm, minimum height=0.65cm, align=center},
+  phlbl/.style       = {font=\small\bfseries},
 ]
 
-%% ── OBSERVE nodes ────────────────────────────────────────────────────────────
-\node[block,  fill=blue!15, draw=blue!50]            (apcd) at (0,   3.8) {APCD Claims\\RQ1 $\cdot$ RQ2};
-\node[block,  fill=blue!15, draw=blue!50]            (cpt)  at (0,   2.4) {CPT/ICD Codes\\RQ2};
-\node[block,  fill=blue!12, draw=blue!40]            (pv)   at (0,   1.0) {FAERS\\Pharmacovigil.};
-\node[active, fill=blue!15]                          (ddb)  at (0,   5.2) {DuckDB\\Partition-First};
+%% ── OBSERVE ───────────────────────────────────────────────────────────────────
+\node[block,     fill=blue!10]  at (1.0,  2.2)  (APCD)  {APCD Claims\\(Drug/ICD/CPT)};
+\node[block,     fill=blue!10]  at (1.0,  0.8)  (FAERS) {FAERS};
+\node[block,     fill=blue!10]  at (1.0, -0.5)  (RQ)    {RQ1 $|$ RQ2\\Target};
+\node[synthnode, fill=blue!22]  at (3.3,  0.8)  (OBS)   {Aggregated\\Observations};
 
+\draw[->] (APCD.east)  |- (OBS.north);
+\draw[->] (FAERS.east) -- (OBS.west);
+\draw[->] (RQ.east)    |- (OBS.south);
+
+%% ── ORIENT ────────────────────────────────────────────────────────────────────
+\node[block, fill=green!10] at (5.8,  1.8)  (TGT)  {Target Definition\\(B1 Leakage Guard)};
+\node[block, fill=green!10] at (5.8,  0.5)  (FI)   {Feature Importance\\(Step 3b)};
+\node[block, fill=green!10] at (8.8,  2.6)  (BPAR) {BupaR\\Process Mining};
+\node[block, fill=green!10] at (8.8,  1.2)  (DTW)  {DTW\\Trajectories};
+\node[block, fill=green!10] at (8.8, -0.2)  (FPG)  {FP-Growth\\Associations};
+
+\draw[->] (OBS.east) |- (TGT.west);
+\draw[->] (TGT)      -- (FI);
+\coordinate (fib)    at ($(FI.east)+(1.2,0)$);
+\coordinate (fitop)  at (fib |- BPAR.west);
+\coordinate (fimid)  at (fib |- DTW.west);
+\coordinate (fibot)  at (fib |- FPG.west);
+\draw    (FI.east) -- (fib);
+\draw    (fitop)   -- (fibot);
+\draw[->] (fitop)  -- (BPAR.west);
+\draw[->] (fimid)  -- (DTW.west);
+\draw[->] (fibot)  -- (FPG.west);
+
+%% ── DECIDE ────────────────────────────────────────────────────────────────────
+\node[block,    fill=yellow!25] at (12.0,  0.5)  (GBT)  {Final GBT\\(Step 6)};
+\node[block,    fill=yellow!25] at (10.6, -0.9)  (SHAP) {SHAP};
+\node[block,    fill=yellow!25] at (13.4, -0.9)  (FFA)  {FFA};
+\node[combnode, fill=yellow!45] at (12.0, -2.3)  (COMB) {Combined\\SHAP/FFA};
+
+\draw[->] (FI.east) -- (GBT.west);
+
+\coordinate (gbtb)  at ($(GBT.south)+(0,-0.4)$);
+\coordinate (gbtl)  at (gbtb -| SHAP.north);
+\coordinate (gbtr)  at (gbtb -| FFA.north);
+\draw    (GBT.south)  -- (gbtb);
+\draw    (gbtl)       -- (gbtr);
+\draw[->] (gbtl)     -- (SHAP.north);
+\draw[->] (gbtr)     -- (FFA.north);
+\draw[->] (SHAP.south) |- (COMB.west);
+\draw[->] (FFA.south)  |- (COMB.east);
+
+%% ── ACT ───────────────────────────────────────────────────────────────────────
+\node[block,     fill=red!12] at (16.8, -0.9)  (DASH) {RQ1 $|$ RQ2\\Risk Dashboard};
+\node[synthnode, fill=red!8]  at (16.8, -2.3)  (FB)   {Feedback\\to APCD};
+
+\draw[->] (COMB.east) |- (DASH.west);
+\draw[->] (DASH)      -- (FB);
+
+%% ── PHASE BACKGROUND BOXES ────────────────────────────────────────────────────
 \begin{scope}[on background layer]
-  \node[draw=blue!45, fill=blue!5, dashed, rounded corners=5pt, inner sep=7pt,
-        fit=(apcd)(cpt)(pv)(ddb),
-        label={[zlbl, blue!70!black]above:\textcircled{1} Observe}] (zobs) {};
+  \node[draw=blue!50,   fill=blue!4,   thick, rounded corners=4pt, inner sep=8pt,
+    fit=(APCD)(FAERS)(RQ)(OBS),
+    label={[phlbl, blue!70!black,  yshift=3pt]above:
+           \textbf{(1) OBSERVE} \textendash\ Training 2016\textendash 2018}] {};
+  \node[draw=green!50,  fill=green!3,  thick, rounded corners=4pt, inner sep=8pt,
+    fit=(TGT)(FI)(BPAR)(DTW)(FPG),
+    label={[phlbl, green!55!black, yshift=3pt]above:\textbf{(2) ORIENT}}] {};
+  \node[draw=orange!60, fill=yellow!4, thick, rounded corners=4pt, inner sep=8pt,
+    fit=(GBT)(SHAP)(FFA)(COMB),
+    label={[phlbl, orange!80!black, yshift=3pt]above:
+           \textbf{(3) DECIDE} \textendash\ Test 2019}] {};
+  \node[draw=red!45,    fill=red!3,    thick, rounded corners=4pt, inner sep=20pt,
+    fit=(DASH)(FB),
+    label={[phlbl, red!65!black,   yshift=3pt]above:\textbf{(4) ACT}}] {};
 \end{scope}
-
-%% ── ORIENT nodes ─────────────────────────────────────────────────────────────
-\node[block,  fill=green!15, draw=green!50]          (fpg)  at (4.5, 5.2) {FP-Growth\\(viz only)};
-\node[block,  fill=green!15, draw=green!50]          (bupa) at (4.5, 3.8) {BupaR\\Process Mining};
-\node[block,  fill=green!15, draw=green!50]          (dtw)  at (4.5, 2.4) {DTW Trajectories\\RQ1};
-\node[active, fill=green!15]                         (tl)   at (4.5, 1.0) {Target Leakage\\Prevention B1};
-
-\begin{scope}[on background layer]
-  \node[draw=green!50, fill=green!5, dashed, rounded corners=5pt, inner sep=7pt,
-        fit=(fpg)(bupa)(dtw)(tl),
-        label={[zlbl, green!60!black]above:\textcircled{2} Orient}] (zori) {};
-\end{scope}
-
-%% ── DECIDE nodes ─────────────────────────────────────────────────────────────
-\node[active, fill=yellow!20]                        (gb)   at (9.0, 3.8) {Gradient Boosting\\Consensus Filter};
-\node[active, fill=yellow!20]                        (xai)  at (9.0, 2.4) {SHAP $\cdot$ FFA\\(N5)};
-
-\begin{scope}[on background layer]
-  \node[draw=yellow!65!black, fill=yellow!6, dashed, rounded corners=5pt, inner sep=7pt,
-        fit=(gb)(xai),
-        label={[zlbl, yellow!70!black]above:\textcircled{3} Decide}] (zdec) {};
-\end{scope}
-
-%% ── ACT nodes ────────────────────────────────────────────────────────────────
-\node[block,  fill=pink!20, draw=red!40]             (oed)  at (13.0, 3.8) {Opioid ED\\RQ2 $\cdot$ Aim 1};
-\node[block,  fill=pink!20, draw=red!40]             (ped)  at (13.0, 2.4) {Polypharmacy ED\\RQ1 $\cdot$ Aims 2--3};
-
-\begin{scope}[on background layer]
-  \node[draw=red!40, fill=pink!5, dashed, rounded corners=5pt, inner sep=7pt,
-        fit=(oed)(ped),
-        label={[zlbl, red!55!black]above:\textcircled{4} Act}] (zact) {};
-\end{scope}
-
-%% ── ARROWS: Observe → Orient ─────────────────────────────────────────────────
-\draw[arr]  (apcd.east) -- (fpg.west  |- apcd.east);
-\draw[arr]  (apcd.east) -- (bupa.west |- apcd.east);
-\draw[arr]  (apcd.east) -- (dtw.west  |- apcd.east);
-\draw[arr]  (cpt.east)  -- (fpg.west  |- cpt.east);
-\draw[darr] (ddb.east)  -- (fpg.west  |- ddb.east);
-
-%% ── ARROWS: within Orient ────────────────────────────────────────────────────
-\draw[arr]  (fpg.south)  -- (bupa.north);
-\draw[arr]  (bupa.south) -- (dtw.north);
-\draw[arr]  (dtw.south)  -- (tl.north);
-
-%% ── ARROWS: Orient → Decide ──────────────────────────────────────────────────
-\draw[arr]  (fpg.east)  -- (gb.west |- fpg.east);
-\draw[arr]  (bupa.east) -- (gb.west |- bupa.east);
-\draw[arr]  (dtw.east)  -- (gb.west |- dtw.east);
-\draw[arr]  (tl.east)   -- (gb.west |- tl.east)
-            node[midway, above, font=\tiny, black] {B1($-$)};
-\draw[arr]  (apcd.east) -- ++(1.2,0) |- (gb.west);
-\draw[arr]  (cpt.east)  -- ++(1.2,0) |- (gb.west);
-\draw[arr]  (gb.south)  -- (xai.north);
-
-%% ── ARROWS: Decide → Act ─────────────────────────────────────────────────────
-\draw[arr]  (gb.east)   -- (oed.west |- gb.east);
-\draw[arr]  (gb.east)   -- (ped.west |- gb.east);
-\draw[arr]  (xai.east)  -- (oed.west |- xai.east);
-\draw[arr]  (xai.east)  -- (ped.west |- xai.east);
-\draw[darr] (pv.east)   -- ++(0.8,0) |- (oed.west);
-\draw[darr] (pv.east)   -- ++(0.8,0) |- (ped.west);
-
-%% ── R1 reinforcing loop (Act ↔ Act) ──────────────────────────────────────────
-\draw[arr, bend left=25]  (oed.south) to
-      node[midway, right, font=\tiny] {R1($+$)} (ped.north);
-\draw[arr, bend left=25]  (ped.north) to (oed.south);
-
-%% ── OODA feedback: Act → Observe (2019 holdout, dashed) ─────────────────────
-\draw[darr, bend right=40] (oed.north) to[out=120, in=60]
-      node[above, font=\tiny, gray] {2019 holdout feedback}
-      (apcd.north);
 
 \end{tikzpicture}
 ```
