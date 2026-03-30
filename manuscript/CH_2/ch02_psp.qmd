@@ -47,7 +47,10 @@ abstract: >
   Year partitions processed by parallel DuckDB workers on distributed AWS
   EC2 infrastructure. A five-stage pipeline (Bronze → Silver → Gold data
   lake, Monte Carlo cross-validation feature selection, and an ensemble
-  of CatBoost, XGBoost, and XGBoost-RF models) feeds a novel Consensus
+  of CatBoost, XGBoost, and XGBoost-RF models, trained within four
+  utilization-density strata defined by training-cohort percentiles of
+  total pre-index events, with ordinal stratum encoding in the feature
+  matrix and no raw continuous event-count predictor, feeds a novel Consensus
   Filter: a feature is designated causal only when identified by *both*
   distributional (SHAP) and structural (Formal Feature Attribution, FFA)
   analysis. FP-Growth and BupaR process-mining methods are strictly
@@ -228,103 +231,8 @@ Two structural loops are embedded in this framework:
   spurious predictive signal, enabling the OODA cycle to generalise
   across temporal partitions.
 
-```{tikz}
-%| label: fig-framework
-%| fig-cap: "OODA loop operational data flow for the Chapter 2 pipeline. Observe phase ingests 2016--2018 APCD claims (Drug/ICD/CPT), FAERS pharmacovigilance data, and RQ1/RQ2 targets into Aggregated Observations. Orient defines the prediction target (B1 leakage guard), ranks features by Step~3b importance, and fans out to parallel exploratory visualisation (BupaR, DTW, FP-Growth). Decide trains the Final GBT ensemble, applies SHAP and FFA explainers in parallel, and combines them into the Consensus-Causal filter. Act delivers the RQ1/RQ2 Risk Dashboard; feedback closes the loop to the 2019 test cohort."
-%| fig-align: center
-%| fig-env: figure*
-%| out-width: 100%
-%| echo: false
-
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
-
-\begin{tikzpicture}[
-  >= Stealth,
-  every node/.style  = {font=\footnotesize},
-  block/.style       = {draw, rectangle, rounded corners=2pt, fill=white,
-                         minimum width=2.0cm, minimum height=0.65cm,
-                         align=center, inner sep=3pt},
-  synthnode/.style   = {draw, ellipse, fill=white,
-                         minimum width=2.0cm, minimum height=0.65cm, align=center},
-  combnode/.style    = {draw, diamond, aspect=2.5, fill=white,
-                         minimum width=2.4cm, minimum height=0.65cm, align=center},
-  phlbl/.style       = {font=\small\bfseries},
-]
-
-%% ── OBSERVE ───────────────────────────────────────────────────────────────────
-\node[block,     fill=blue!10]  at (1.0,  2.2)  (APCD)  {APCD Claims\\(Drug/ICD/CPT)};
-\node[block,     fill=blue!10]  at (1.0,  0.8)  (FAERS) {FAERS};
-\node[block,     fill=blue!10]  at (1.0, -0.5)  (RQ)    {RQ1 $|$ RQ2\\Target};
-\node[synthnode, fill=blue!22]  at (3.3,  0.8)  (OBS)   {Aggregated\\Observations};
-
-\draw[->] (APCD.east)  |- (OBS.north);
-\draw[->] (FAERS.east) -- (OBS.west);
-\draw[->] (RQ.east)    |- (OBS.south);
-
-%% ── ORIENT ────────────────────────────────────────────────────────────────────
-\node[block, fill=green!10] at (5.8,  1.8)  (TGT)  {Target Definition\\(B1 Leakage Guard)};
-\node[block, fill=green!10] at (5.8,  0.5)  (FI)   {Feature Importance\\(Step 3b)};
-\node[block, fill=green!10] at (8.8,  2.6)  (BPAR) {BupaR\\Process Mining};
-\node[block, fill=green!10] at (8.8,  1.2)  (DTW)  {DTW\\Trajectories};
-\node[block, fill=green!10] at (8.8, -0.2)  (FPG)  {FP-Growth\\Associations};
-
-\draw[->] (OBS.east) |- (TGT.west);
-\draw[->] (TGT)      -- (FI);
-\coordinate (fib)    at ($(FI.east)+(1.2,0)$);
-\coordinate (fitop)  at (fib |- BPAR.west);
-\coordinate (fimid)  at (fib |- DTW.west);
-\coordinate (fibot)  at (fib |- FPG.west);
-\draw    (FI.east) -- (fib);
-\draw    (fitop)   -- (fibot);
-\draw[->] (fitop)  -- (BPAR.west);
-\draw[->] (fimid)  -- (DTW.west);
-\draw[->] (fibot)  -- (FPG.west);
-
-%% ── DECIDE ────────────────────────────────────────────────────────────────────
-\node[block,    fill=yellow!25] at (12.0,  0.5)  (GBT)  {Final GBT\\(Step 6)};
-\node[block,    fill=yellow!25] at (10.6, -0.9)  (SHAP) {SHAP};
-\node[block,    fill=yellow!25] at (13.4, -0.9)  (FFA)  {FFA};
-\node[combnode, fill=yellow!45] at (12.0, -2.3)  (COMB) {Combined\\SHAP/FFA};
-
-\draw[->] (FI.east) -- (GBT.west);
-
-\coordinate (gbtb)  at ($(GBT.south)+(0,-0.4)$);
-\coordinate (gbtl)  at (gbtb -| SHAP.north);
-\coordinate (gbtr)  at (gbtb -| FFA.north);
-\draw    (GBT.south)  -- (gbtb);
-\draw    (gbtl)       -- (gbtr);
-\draw[->] (gbtl)     -- (SHAP.north);
-\draw[->] (gbtr)     -- (FFA.north);
-\draw[->] (SHAP.south) |- (COMB.west);
-\draw[->] (FFA.south)  |- (COMB.east);
-
-%% ── ACT ───────────────────────────────────────────────────────────────────────
-\node[block,     fill=red!12] at (16.8, -0.9)  (DASH) {RQ1 $|$ RQ2\\Risk Dashboard};
-\node[synthnode, fill=red!8]  at (16.8, -2.3)  (FB)   {Feedback\\to APCD};
-
-\draw[->] (COMB.east) |- (DASH.west);
-\draw[->] (DASH)      -- (FB);
-
-%% ── PHASE BACKGROUND BOXES ────────────────────────────────────────────────────
-\begin{scope}[on background layer]
-  \node[draw=blue!50,   fill=blue!4,   thick, rounded corners=4pt, inner sep=8pt,
-    fit=(APCD)(FAERS)(RQ)(OBS),
-    label={[phlbl, blue!70!black,  yshift=3pt]above:
-           \textbf{(1) OBSERVE} \textendash\ Training 2016\textendash 2018}] {};
-  \node[draw=green!50,  fill=green!3,  thick, rounded corners=4pt, inner sep=8pt,
-    fit=(TGT)(FI)(BPAR)(DTW)(FPG),
-    label={[phlbl, green!55!black, yshift=3pt]above:\textbf{(2) ORIENT}}] {};
-  \node[draw=orange!60, fill=yellow!4, thick, rounded corners=4pt, inner sep=8pt,
-    fit=(GBT)(SHAP)(FFA)(COMB),
-    label={[phlbl, orange!80!black, yshift=3pt]above:
-           \textbf{(3) DECIDE} \textendash\ Test 2019}] {};
-  \node[draw=red!45,    fill=red!3,    thick, rounded corners=4pt, inner sep=20pt,
-    fit=(DASH)(FB),
-    label={[phlbl, red!65!black,   yshift=3pt]above:\textbf{(4) ACT}}] {};
-\end{scope}
-
-\end{tikzpicture}
-```
+![OODA loop operational data flow for the Chapter 2 pipeline. Observe phase ingests 2016--2018 APCD claims (Drug/ICD/CPT), FAERS pharmacovigilance data, and RQ1/RQ2 targets into Aggregated Observations. Orient defines the prediction target (B1 leakage guard), ranks features by Step~3b importance, and fans out to parallel exploratory visualisation (BupaR, DTW, FP-Growth). Decide trains the Final GBT ensemble, applies SHAP and FFA explainers in parallel, and combines them into the Consensus-Causal filter. Act delivers the RQ1/RQ2 Risk Dashboard; feedback closes the loop to the 2019 test cohort.](../figures/ch02/pgx_architecture1.pdf){#fig-framework
+width=100% fig-align="center"}
 
 ## Data Source
 
@@ -349,111 +257,8 @@ holds analysis-ready feature tables and trained model artifacts.
 FAERS pharmacovigilance signals (quarterly MedWatch extracts, 2016–2019)
 augmented cohort outcome labeling as a secondary corroborating source.
 
-```{tikz}
-%| label: fig-architecture
-%| fig-cap: "Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed)."
-%| fig-align: center
-%| fig-env: figure*
-%| out-width: 100%
-%| echo: false
-
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
-
-\begin{tikzpicture}[
-  >= Stealth,
-  every node/.style = {font=\footnotesize},
-  block/.style = {draw, rectangle, rounded corners=2pt, fill=white,
-                  minimum width=1.75cm, minimum height=0.62cm,
-                  align=center, inner sep=4pt},
-  arr/.style  = {-Stealth, semithick},
-  darr/.style = {-Stealth, dashed, gray, semithick},
-  zlbl/.style = {font=\tiny\bfseries},
-]
-
-%% ── 1  DATA SOURCES ──────────────────────────────────────────────────────────
-\node[block, fill=blue!15, draw=blue!55] (med)   at (0, 4.6) {Medical\\Claims};
-\node[block, fill=blue!15, draw=blue!55] (pharm) at (0, 3.4) {Pharmacy\\Claims};
-\node[block, fill=blue!8,  draw=blue!35] (faers) at (0, 2.2) {FAERS\\Pharmacovigil.};
-\begin{scope}[on background layer]
-  \node[draw=blue!40, fill=blue!4, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(med)(faers), label={[zlbl]above:\textcircled{1} Data Sources}] (z1) {};
-\end{scope}
-
-%% ── 2  INGESTION ─────────────────────────────────────────────────────────────
-\node[block, fill=blue!10, draw=blue!40] (upload) at (2.5, 3.9) {Direct\\Upload};
-\begin{scope}[on background layer]
-  \node[draw=blue!30, fill=blue!3, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(upload), label={[zlbl]above:\textcircled{2} Ingestion}] (z2) {};
-\end{scope}
-
-%% ── 3  BRONZE ZONE ───────────────────────────────────────────────────────────
-\node[block, fill=orange!22, draw=orange!65] (s3raw)   at (5.0, 4.6) {S3 Raw\\(Bronze)};
-\node[block, fill=orange!12, draw=orange!45] (glacier) at (5.0, 3.4) {S3 Glacier\\Archive};
-\begin{scope}[on background layer]
-  \node[draw=orange!55, fill=orange!5, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(s3raw)(glacier), label={[zlbl]above:\textcircled{3} Bronze Zone}] (z3) {};
-\end{scope}
-
-%% ── 4  CATALOG ───────────────────────────────────────────────────────────────
-\node[block, fill=purple!12, draw=purple!50] (glue1) at (7.5, 3.9) {AWS Glue\\Crawler};
-\begin{scope}[on background layer]
-  \node[draw=purple!40, fill=purple!4, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(glue1), label={[zlbl]above:\textcircled{4} Catalog}] (z4) {};
-\end{scope}
-
-%% ── 5  TRANSFORM (EC2 + DuckDB) ──────────────────────────────────────────────
-\node[block, fill=orange!20, draw=orange!60,
-      minimum width=2.1cm] (ec2t)  at (10.0, 4.6) {EC2 Spot\\Instance};
-\node[block, fill=yellow!25, draw=yellow!60!black,
-      minimum width=2.1cm] (duck)  at (10.0, 3.4) {DuckDB\\Steps 1--14};
-\begin{scope}[on background layer]
-  \node[draw=orange!55, fill=orange!4, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(ec2t)(duck), label={[zlbl]above:\textcircled{5} Transform}] (z5) {};
-\end{scope}
-
-%% ── 6  SILVER ZONE ───────────────────────────────────────────────────────────
-\node[block, fill=gray!18, draw=gray!55,
-      minimum width=2.0cm] (s3ck) at (12.6, 3.9) {S3\\Checkpoints};
-\begin{scope}[on background layer]
-  \node[draw=gray!50, fill=gray!5, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(s3ck), label={[zlbl]above:\textcircled{6} Silver Zone}] (z6) {};
-\end{scope}
-
-%% ── 7  GOLD ZONE ─────────────────────────────────────────────────────────────
-\node[block, fill=purple!12, draw=purple!50] (glue2)  at (15.2, 4.6) {AWS Glue\\Crawler};
-\node[block, fill=yellow!28, draw=yellow!60!black,
-      minimum width=2.1cm] (s3gold) at (15.2, 3.4) {S3 Curated\\Age Bd $\times$ Year};
-\begin{scope}[on background layer]
-  \node[draw=yellow!65!black, fill=yellow!6, dashed, rounded corners=4pt, inner sep=6pt,
-        fit=(glue2)(s3gold), label={[zlbl, fill=yellow!25, inner sep=1pt,
-        rounded corners=2pt]above:\textcircled{7} Gold Zone}] (z7) {};
-\end{scope}
-
-%% ── ARROWS: main pipeline ─────────────────────────────────────────────────────
-\draw[arr] (med.east)    -- (upload.west |- med.east);
-\draw[arr] (pharm.east)  -- (upload.west |- pharm.east);
-\draw[darr](faers.east)  -- ++(0.5,0) |- (s3raw.west |- faers.east);
-\draw[arr] (upload.east) -- (s3raw.west |- upload.east);
-\draw[darr](s3raw.south) -- (glacier.north);
-\draw[arr] (s3raw.east)  -- (glue1.west |- s3raw.east);
-\draw[arr] (glue1.east)  -- (ec2t.west |- glue1.east);
-\draw[arr] (ec2t.east)   -- (s3ck.west |- ec2t.east);
-\draw[arr] (duck.east)   -- (s3ck.west |- duck.east);
-\draw[arr] (s3ck.east)   -- (glue2.west |- s3ck.east);
-\draw[arr] (glue2.south) -- (s3gold.north);
-
-%% ── GOVERNANCE BAR ───────────────────────────────────────────────────────────
-\node[block, fill=pink!15, draw=red!40]     (cw)   at (5.5,  1.5) {Amazon\\CloudWatch};
-\node[block, fill=orange!18, draw=orange!55](ec2g)  at (8.5,  1.5) {EC2 $\cdot$ DuckDB\\Observability};
-\node[block, fill=pink!12, draw=red!35]     (ct)   at (11.5, 1.5) {AWS\\CloudTrail};
-\begin{scope}[on background layer]
-  \node[draw=red!35, fill=red!3, dashed, rounded corners=4pt, inner sep=7pt,
-        fit=(cw)(ct),
-        label={[zlbl]above:\textcircled{7} Governance, Automation \& Security}] {};
-\end{scope}
-
-\end{tikzpicture}
-```
+![Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed).](../figures/ch02/pgx_architecture2.pdf){#fig-architecture
+width=100% fig-align="center"}
 
 ## Partition-First Architecture {#sec-partition}
 
@@ -516,18 +321,65 @@ straggler delays across the pool.
 
 ## Cohort Construction {#sec-cohort}
 
-### Target Definitions
+Cohort fact tables were produced by a modular **cohort-creation** pipeline that
+ingests Gold-tier medical and pharmacy partitions (Age Band $\times$ Event Year),
+builds a unified event fact table, assigns each row an event classification, and
+exports partitioned cohort tables for downstream feature engineering and modeling.
+The following summarizes **case definitions**, **who is excluded**, and **how the
+binary modeling target is assigned**; CONSORT-style counts through
+Bronze/Silver/Gold appear in @fig-attrition.
 
-Two mutually exclusive cohorts were constructed from the Gold layer:
+### Target definitions and binary outcome
 
-**Opioid ED cohort:** Patients with at least one opioid use disorder
-diagnosis (ICD-10: F11.xx) in any of 10 diagnosis columns of an ED claim.
-*Controls*: patients with zero opioid-related ICD codes (matched 5:1).
+Two **mutually exclusive** case definitions are used for **targets** (cases);
+each target is matched to up to **five controls** drawn at random **without
+replacement within** the same Age Band $\times$ Event Year partition (5:1
+structure; if fewer than five controls exist, all eligible controls are retained
+and a warning is logged). The modeling label is the usual binary indicator
+(`target` / `is_target_case` $=1$ for cases, $0$ for controls).
 
-**Polypharmacy (non-opioid) ED cohort:** Patients identified by Milliman
-Healthcare Cost Group (HCG) codes O11 or P51 (Emergency Room) with strict
-exclusion of any opioid-related ICD codes.
-*Controls*: matched 5:1 without replacement.
+**Opioid ED cohort.** A patient is a **case** if they have at least one
+qualifying **opioid-related emergency presentation** (OUD; ICD-10-CM **F11.xx**)
+on medical claims, with codes appearing in
+**any of the ten** diagnosis fields carried on the claim (primary through
+tertiary and additional positions), consistent with the pipeline’s SQL that
+expands opioid ICD predicates across all ten diagnosis columns. Event
+classification gives **priority to opioid ICD/CPT targets** before HCG-based ED
+routing, so OUD-coded visits are labeled as opioid-cohort targets rather than as
+polypharmacy-route ED events. **Controls** are patients who are not opioid-
+cohort cases in that partition, sampled at random up to five per case (without
+replacement within the cohort). The pipeline allows the **same** patient to
+appear as a control in **both** cohorts’ outputs across partitions; within a
+given cohort, controls are not reused. Full longitudinal
+drug history is retained for feature construction subject to the temporal B1
+windowing rules in later steps.
+
+**Polypharmacy (non-opioid ED) cohort.** A patient is a **case** if they have at
+least one **non-opioid ED (or urgent-care) utilization** identified via Milliman
+**Healthcare Cost Group (HCG) line** codes on medical claims (ED, observation,
+and urgent-care lines used in production, e.g., **P51**, **O11**, **P33**;
+exact literals match the Gold tier and cohort pipeline). **Opioid exclusion is strict:** any patient with
+an **opioid-related ICD code in any of the ten diagnosis columns** is **removed
+entirely** from this cohort’s **target and control** pools, so that opioid-
+defined patients cannot appear as polypharmacy cases or as matched controls.
+This enforces **mutual exclusivity** of case definitions at the patient level
+for targets. Pharmacy-heavy feature windows for this cohort use a **balanced
+30-day** lookback relative to the index reference date for targets and controls,
+so that cases and controls are compared under the same temporal window structure.
+
+### Exclusion rules and QA
+
+Beyond the **opioid ICD cross-cohort exclusion** for the polypharmacy cohort,
+Phase~1 medical and pharmacy filters enforce **valid member keys**, **in-calendar
+year** service dates, **imputed age** within the allowed analytic range, and
+non-empty drug or diagnosis fields as required by the SQL views. **Cohort
+exclusivity** is checked in QA: no opioid-flagged patient should appear in the
+polypharmacy (non-opioid ED) cohort outputs; **5:1** ratios are verified per partition, with
+**control-only** partitions (zero targets in a stratum) filled using pre-
+computed average target counts so that every partition has a usable training
+file. These rules are reflected at a high level in the attrition figure’s step
+labels; intermediate row counts are maintained from pipeline logs or
+cloud data-lake queries.
 
 ### Statistical Controls
 
@@ -648,6 +500,57 @@ subsample 0.6–1.0; colsample\_bytree 0.6–1.0).
 Early stopping (20 rounds without improvement on validation PR-AUC)
 prevented overfitting within each Optuna trial.
 
+### Utilization density: raw event count versus ordinal stratum {#sec-density-encoding}
+
+**Final implementation (training and deployment).** For each patient, the
+pipeline computes the total number of pre-index utilization events
+`n_events` (row count in the model-events table). Within each cohort
+$\times$ age band, the **training** distribution of `n_events` defines
+percentile cut-points (P25, P50, P95) that map every patient to one of
+four **density strata** (low, medium, high, extreme). The stratum label
+(`n_event_bin`) is used **only for routing**---which per-stratum model
+artifact to train or load---not as a high-cardinality categorical
+predictor.
+
+The **raw** count `n_events` is **not** included in the gradient-boosting
+feature matrix: it would otherwise dominate tree splits and swamp
+leave-one-out drug/diagnosis counterfactuals.
+Instead, density is encoded in a **single ordinal** feature
+`n_event_bin_ordinal` (0--3), aligned with the four strata.
+Thus utilization intensity enters the model as a **coarse ordered
+category** (four levels), not as a continuous event total.
+This matches the production Lambda and `final_model` code paths: submitted
+code counts at inference are mapped through the same thresholds to load
+the correct per-stratum ensemble.
+
+**Related prior work.** Administrative analyses often operationalize
+high utilization with discrete thresholds or count-based criteria
+[@Grafe2020]; multiclass machine learning over fixed visit or length-of-stay
+bands has been used to forecast utilization at ordered intensity levels
+[@Tan2026]. Mixture-of-experts approaches learn subpopulation-specific risk
+structure [@Shou2020], and high-need high-cost patients are not clinically
+homogeneous [@Nuti2019]. Quantile-oriented machine learning similarly shows
+that cost drivers can differ across the cost distribution [@Hu2020]. Here,
+cohort-specific density strata determine which per-stratum ensemble is
+trained or deployed, and an ordinal density signal is supplied without a
+continuous raw event-count predictor.
+
+**Clinical interpretation (comorbidity and high-burden patients).** Total
+pre-index event volume is a strong proxy for **overall utilization** and,
+in practice, for **multimorbidity and clinical complexity**: patients with
+more chronic conditions, complications, or care intensity accumulate more
+claims than otherwise similar patients with fewer active problems.
+The density-stratified design is how the system **handles** such patients:
+it **does not** treat “sicker” versus “healthier” individuals as a single
+pool distinguished only by a continuous claim tally (which would absorb
+most of the model’s capacity). Instead, patients are assigned to a
+utilization band, **separate** models are trained within each band, and the
+ordinal stratum feature lets the ensemble express that a patient is in a
+**high- or extreme-utilization** regime while still learning **which** drugs
+and diagnoses drive risk **within** that regime---rather than conflating
+opioid or polypharmacy signal with a generic marker of being “extremely
+sick.”
+
 ### Performance-Based Ensemble Weighting
 
 Ensemble weights were derived from MCCV validation metrics:
@@ -696,95 +599,8 @@ request time, ensuring that weight computation overhead does not
 contribute to per-request latency.
 Full deployment details are described in Chapter 5.
 
-```{tikz}
-%| label: fig-dashboard
-%| fig-cap: "Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response."
-%| fig-align: center
-%| fig-env: figure*
-%| out-width: 100%
-%| echo: false
-
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
-
-\begin{tikzpicture}[
-  >= Stealth,
-  every node/.style = {font=\footnotesize},
-  block/.style  = {draw, rectangle, rounded corners=2pt, fill=white,
-                   minimum width=2.0cm, minimum height=0.65cm,
-                   align=center, inner sep=4pt},
-  svcbox/.style = {draw, rectangle, rounded corners=4pt, fill=white,
-                   minimum width=2.2cm, minimum height=0.75cm,
-                   align=center, inner sep=5pt},
-  arr/.style  = {-Stealth, semithick},
-  darr/.style = {-Stealth, dashed, gray, semithick},
-]
-
-%% ── STORAGE TIER ─────────────────────────────────────────────────────────────
-\node[svcbox, fill=yellow!22, draw=yellow!60!black] (s3models) at (0, 4.5)
-      {$\lambda$ Container\\per-bin models\\(up to 84)};
-\node[svcbox, fill=yellow!14, draw=yellow!50!black] (s3assets) at (0, 3.0)
-      {S3\\Static Assets\\(frontend)};
-
-%% ── COMPUTE TIER (Lambda) ────────────────────────────────────────────────────
-\node[svcbox, fill=orange!20, draw=orange!65,
-      minimum width=2.8cm, minimum height=1.1cm] (lambda) at (4.0, 4.5)
-      {$\lambda$ Lambda\\Container\\CatBoost $\cdot$ XGBoost\\Impute Normality};
-
-%% ── CPIC PATH ────────────────────────────────────────────────────────────────
-\node[svcbox, fill=blue!10, draw=blue!45] (cpic) at (4.0, 2.4)
-      {CPIC Database\\573 gene-drug pairs};
-\node[svcbox, fill=green!12, draw=green!50,
-      minimum width=2.6cm] (pgxcard) at (7.5, 2.4)
-      {PGx Patient Card\\stateless $\cdot$ ephemeral\\zero PII stored};
-
-%% ── API TIER ──────────────────────────────────────────────────────────────────
-\node[svcbox, fill=blue!14, draw=blue!55,
-      minimum width=2.4cm] (apigw) at (7.5, 4.5)
-      {API Gateway\\{\small/risk $\cdot$ /causal}\\{\small/pgx}};
-
-%% ── CDN TIER ─────────────────────────────────────────────────────────────────
-\node[svcbox, fill=purple!14, draw=purple!55] (cf) at (11.0, 4.5)
-      {CloudFront\\CDN $\cdot$ HTTPS\\TLS termination};
-
-%% ── CLIENT ───────────────────────────────────────────────────────────────────
-\node[svcbox, fill=green!14, draw=green!55] (cli) at (14.5, 4.5)
-      {Clinician\\Browser};
-
-%% ── PRIVACY BOUNDARY (ephemeral compute) ─────────────────────────────────────
-\begin{scope}[on background layer]
-  \node[draw=red!45, fill=red!3, dashed, rounded corners=6pt, inner sep=8pt,
-        fit=(lambda)(apigw)(cpic)(pgxcard),
-        label={[font=\tiny, red!60!black]above:No PII stored\,---\,ephemeral in-memory compute}]
-        (priv) {};
-\end{scope}
-
-%% ── AWS CLOUD BOUNDARY ───────────────────────────────────────────────────────
-\begin{scope}[on background layer]
-  \node[draw=orange!45, fill=orange!3, dashed, rounded corners=8pt, inner sep=14pt,
-        fit=(s3models)(s3assets)(lambda)(apigw)(cf)(cpic)(pgxcard),
-        label={[font=\tiny, orange!65!black]below:AWS Cloud}]
-        (aws) {};
-\end{scope}
-
-%% ── ARROWS: main inference path ──────────────────────────────────────────────
-\draw[arr] (s3models.east) -- (lambda.west);
-\draw[arr] (s3assets.east) -- ++(0.6,0) |- (cf.west);
-\draw[arr] (lambda.east)   -- (apigw.west);
-\draw[arr] (apigw.east)    -- (cf.west);
-\draw[arr] (cf.east)       -- (cli.west);
-
-%% ── ARROWS: CPIC / PGx path ──────────────────────────────────────────────────
-\draw[arr]  (cpic.east)   -- (pgxcard.west);
-\draw[arr]  (lambda.south) -- (cpic.north);
-\draw[darr] (pgxcard.north) -- ++(0,0.5) -| (apigw.south);
-
-%% ── ENDPOINT LABELS ──────────────────────────────────────────────────────────
-\node[font=\tiny, gray] at (2.0, 5.0) {load model};
-\node[font=\tiny, gray] at (5.75, 5.0) {REST response};
-\node[font=\tiny, gray] at (9.25, 5.0) {CDN delivery};
-
-\end{tikzpicture}
-```
+![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response.](../figures/ch02/pgx_dashboard.pdf){#fig-dashboard
+width=100% fig-align="center"}
 
 ## The Consensus Filter {#sec-consensus}
 
@@ -799,11 +615,24 @@ rare drug combinations that lack broad population support.
 The **Consensus Filter** (SHAP $\cap$ FFA) requires independent confirmation
 by both methods, eliminating the characteristic failure modes of each.
 
+![Consensus Filter (**DECIDE**): **Model tournament** $\rightarrow$ **SHAP**
+(importance from the winning ensemble) $\cap$ **FFA** (rules from fixed
+XGBoost). The intersection (checkmark) designates **Causal Features**;
+diagonal hatching emphasizes the SHAP region and the overlap. The note
+below the figure summarizes **robustness** (best-of-three SHAP), **consistency** (FFA on
+fixed XGB), and the **consensus gate** (intersection filters spurious
+correlations).](../figures/ch02/fig_consensus.pdf){#fig-consensus
+width=88% fig-align="center"}
+
+The subsections that follow operationalize distributional SHAP and symbolic FFA;
+@fig-consensus summarizes how the model tournament feeds SHAP while FFA remains
+on a fixed XGBoost representation before the intersection is evaluated empirically.
+
 ### SHAP Analysis (Distributional Importance)
 
 Global SHAP values were computed via `TreeExplainer` [@Lundberg2020; @SHAPdocs2023] applied
 to the native binaries of the XGBoost and CatBoost final models for each
-Age Band $\times$ Cohort partition (`7_shap_analysis/run_shap_analysis.py`).
+Age Band $\times$ Cohort partition.
 `TreeExplainer` exploits the tree structure directly, computing exact Shapley
 values without sampling approximation.
 Both XGBoost and CatBoost SHAP importances were retained: when CatBoost was
@@ -841,6 +670,24 @@ utilization proxy that co-occurs with high-risk patients.
 FFA transforms the opaque decision trees of the best-performing XGBoost
 variant into explicit symbolic Boolean rules suitable for formal causal
 verification [@Ignatiev2023ffa; @Ignatiev2020].
+In *On Formal Feature Attribution and Its Approximation*, Ignatiev et al. formally define FFA and computable approximations and benchmark them against
+model-agnostic, sampling-based explainers (SHAP, LIME) [@Ignatiev2023ffa].
+Alignment with formal attributions was quantified using Manhattan distance
+between attribution vectors, Kendall's $\tau$ for concordance of feature
+rankings, and rank-biased overlap (RBO) for similarity of ranked lists (including
+depth-sensitive overlap).
+Across 11 standard tabular datasets, SHAP and LIME showed high error and weak
+rank agreement with FFA; on image benchmarks (e.g., MNIST, PneumoniaMNIST),
+even a short approximate FFA run (on the order of tens of seconds) outperformed
+SHAP and LIME on all three metrics [@Ignatiev2023ffa].
+A real-world just-in-time software-defect prediction task showed the same
+pattern---heuristic explainers misaligned with formal attribution.
+The authors argue that random sampling and local surrogate constructions can
+assign negligible weight to features the model structurally depends on, or
+non-zero weight to features that are logically immaterial to the prediction
+under the formal definition [@Ignatiev2023ffa]---motivating structural rule
+extraction in this pipeline rather than SHAP alone.
+
 CatBoost FFA was not performed: CatBoost's Counter-based Target Statistics
 (CTR) transformations for categorical variables make direct symbolic rule
 extraction intractable.
@@ -855,8 +702,7 @@ model to a conjunctive clause in propositional logic:
 $$\text{IF } (f_1 \geq \theta_1) \wedge (f_2 < \theta_2) \wedge \cdots
   \text{ THEN } \hat{y} \in \{0, 1\}$$
 
-Rules are extracted via a DataFrame-centric path
-(`8_ffa_analysis/xgboost_axp_explainer.py`): each tree text dump is parsed
+Rules are extracted via a DataFrame-centric path in the FFA implementation: each tree text dump is parsed
 into a structured representation, exploded to a path DataFrame, and converted
 to CNF clauses with feature names aligned to the training feature matrix.
 This guarantees name alignment across XGBoost versions and avoids dependency
@@ -945,7 +791,7 @@ IR $= 0$ indicates the feature has no effect on any patient's model explanation
 under intervention; IR $= 1$ indicates the feature alters the explanation in
 every applicable instance.
 Threshold IR $> 0.10$ was used as the minimum meaningful causal effect
-(`8_ffa_analysis/ffa_analysis.py`).
+in the FFA analysis code path.
 
 IR scores are computed via grouped AXP comparison for computational
 tractability: instances sharing an identical set of matched rules and the same
@@ -962,138 +808,8 @@ predictive signal.
 
 The interactive analytics and deployment workflow is illustrated in @fig-insights.
 
-```{tikz}
-%| label: fig-insights
-%| fig-cap: "Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team."
-%| fig-align: center
-%| fig-env: figure*
-%| out-width: 100%
-%| echo: false
-
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
-
-\begin{tikzpicture}[
-  >= Stealth,
-  every node/.style = {font=\footnotesize},
-  block/.style = {draw, rectangle, rounded corners=2pt, fill=white,
-                  minimum width=2.0cm, minimum height=0.62cm,
-                  align=center, inner sep=4pt},
-  arr/.style  = {-Stealth, semithick},
-  darr/.style = {-Stealth, dashed, gray, semithick},
-  zlbl/.style = {font=\tiny\bfseries},
-]
-
-%% ── 1  GOLD ZONE (S3 Data Lake) ──────────────────────────────────────────────
-\node[block, fill=yellow!25, draw=yellow!60!black] (g1) at (0.0, 6.0) {S3 Gold\\Opioid ED\\13--24};
-\node[block, fill=yellow!25, draw=yellow!60!black] (g2) at (2.2, 6.0) {S3 Gold\\Opioid ED\\25--44};
-\node[block, fill=yellow!20, draw=yellow!55!black] (g3) at (4.4, 6.0) {$\cdots$};
-\node[block, fill=yellow!25, draw=yellow!60!black] (g4) at (6.6, 6.0) {S3 Gold\\Non-Opioid\\65--94};
-\begin{scope}[on background layer]
-  \node[draw=yellow!65!black, fill=yellow!6, dashed, rounded corners=5pt, inner sep=8pt,
-        fit=(g1)(g4),
-        label={[zlbl, fill=yellow!20, inner sep=2pt, rounded corners=2pt]%
-               above:\textcircled{1} Gold Zone (S3 Data Lake --- Age Band $\times$ Year Partitions)}]
-        (zgold) {};
-\end{scope}
-
-%% ── 2  AI/ML CUSTOM ANALYTICS ────────────────────────────────────────────────
-\node[block, fill=orange!20, draw=orange!60,
-      minimum width=2.2cm] (ec2a) at (0.5, 3.8) {EC2 Spot\\Instance\\DuckDB};
-\node[block, fill=red!10, draw=red!45,
-      minimum width=2.4cm] (ml)   at (3.2, 3.8) {CatBoost $\cdot$ XGBoost\\Optuna Tuning\\MCCV 50+ splits};
-\node[block, fill=yellow!20, draw=yellow!60!black,
-      minimum width=2.2cm] (xai)  at (6.0, 3.8) {SHAP $\cdot$ FFA\\Consensus Filter\\IR Scores};
-\begin{scope}[on background layer]
-  \node[draw=orange!50, fill=orange!4, dashed, rounded corners=5pt, inner sep=8pt,
-        fit=(ec2a)(xai),
-        label={[zlbl]above:\textcircled{2} AI/ML Custom Analytics}] (zml) {};
-\end{scope}
-
-%% ── 3  DATA SHARING (S3 + CloudFront) ────────────────────────────────────────
-\node[block, fill=yellow!18, draw=yellow!55!black] (s3fe)  at (9.5, 5.2) {S3\\Static Hosting\\(frontend)};
-\node[block, fill=purple!14, draw=purple!50]        (cfront) at (9.5, 3.8) {CloudFront\\CDN $\cdot$ HTTPS};
-\begin{scope}[on background layer]
-  \node[draw=purple!45, fill=purple!4, dashed, rounded corners=5pt, inner sep=8pt,
-        fit=(s3fe)(cfront),
-        label={[zlbl]above:\textcircled{3} Data Sharing (S3 $+$ CloudFront)}] (zds) {};
-\end{scope}
-
-%% ── 4  CI/CD PIPELINE ────────────────────────────────────────────────────────
-\node[block, fill=gray!16, draw=gray!55]            (gh)  at (0.5, 1.5) {GitHub\\Actions};
-\node[block, fill=orange!18, draw=orange!55]         (lam) at (3.2, 1.5) {$\lambda$ Lambda\\Container\\(model deploy)};
-\begin{scope}[on background layer]
-  \node[draw=gray!50, fill=gray!5, dashed, rounded corners=5pt, inner sep=8pt,
-        fit=(gh)(lam),
-        label={[zlbl]above:\textcircled{4} CI/CD Pipeline}] (zci) {};
-\end{scope}
-
-%% ── 5  COLLABORATION ─────────────────────────────────────────────────────────
-\node[block, fill=blue!10, draw=blue!45,
-      minimum width=2.2cm] (jup)  at (6.5, 1.5) {Jupyter\\Notebook\\(Python $\cdot$ R)};
-\node[block, fill=green!12, draw=green!50,
-      minimum width=2.2cm] (bupar) at (9.5, 1.5) {BupaR\\FP-Growth\\Exploratory};
-\begin{scope}[on background layer]
-  \node[draw=blue!40, fill=blue!4, dashed, rounded corners=5pt, inner sep=8pt,
-        fit=(jup)(bupar),
-        label={[zlbl]above:\textcircled{5} Collaboration}] (zcol) {};
-\end{scope}
-
-%% ── ARROWS ───────────────────────────────────────────────────────────────────
-%% Gold → AI/ML
-\draw[arr] (g1.south) |- (ec2a.north);
-\draw[arr] (g4.south) |- (xai.north);
-%% AI/ML internal
-\draw[arr] (ec2a) -- (ml);
-\draw[arr] (ml)   -- (xai);
-%% Gold → S3 frontend
-\draw[arr] (zgold.east) -- ++(0.3,0) |- (s3fe.west);
-%% S3 → CloudFront
-\draw[arr] (s3fe.south) -- (cfront.north);
-%% AI/ML → CI/CD
-\draw[arr] (ml.south) -- (lam.north);
-\draw[arr] (ec2a.south) -- (gh.north);
-%% CI/CD → CloudFront (model artifact)
-\draw[arr] (lam.east) -- ++(0.4,0) |- (cfront.south);
-%% Collaboration
-\draw[arr] (xai.south) |- (jup.north);
-\draw[arr] (jup) -- (bupar);
-%% CloudFront → Clinician (outside)
-\draw[arr] (cfront.east) -- ++(0.5,0)
-           node[right, font=\tiny\bfseries, green!60!black] {Clinician\\Browser};
-
-%% ── COST / PERFORMANCE CALLOUTS ──────────────────────────────────────────────
-%% Callout 1: EMR → EC2 + DuckDB
-\node[draw=red!55, fill=red!6, rounded corners=3pt,
-      font=\tiny, align=left, inner sep=4pt,
-      text width=3.6cm] (c1) at (0.5, -0.6)
-      {\textbf{\textcolor{red!70!black}{Architecture substitution}}\\
-       AWS EMR Studio Lab $\rightarrow$ EC2 Spot $+$ DuckDB\\[1pt]
-       \textit{AWS Pricing Calculator estimate:}\\
-       \textit{order-of-magnitude lower cost}\\
-       \textit{per 2 TB transform step$^\dagger$}};
-\draw[darr, red!50] (c1.north) -- (ec2a.south);
-
-%% Callout 2: QuickSight → S3 + Lambda + CloudFront
-\node[draw=red!55, fill=red!6, rounded corners=3pt,
-      font=\tiny, align=left, inner sep=4pt,
-      text width=3.6cm] (c2) at (9.5, -0.6)
-      {\textbf{\textcolor{red!70!black}{Architecture substitution}}\\
-       AWS QuickSight $\rightarrow$ S3 $+$ $\lambda$ $+$ CloudFront\\[1pt]
-       \textit{AWS Pricing Calculator estimate:}\\
-       \textit{order-of-magnitude lower cost;}\\
-       \textit{serverless, zero idle capacity$^\dagger$}};
-\draw[darr, red!50] (c2.north) -- (cfront.south);
-
-%% Footnote caveat
-\node[font=\tiny, gray, align=left, text width=9.0cm] at (5.0, -1.8)
-      {$^\dagger$Estimates derived from AWS Pricing Calculator for a 2~TB
-       data-transformation workload. Direct comparison is not strictly
-       apples-to-apples: EMR and EC2$+$DuckDB differ in execution model,
-       cluster provisioning, and I/O patterns. Isolated head-to-head
-       benchmarking on identical datasets and transformations was not performed.};
-
-\end{tikzpicture}
-```
+![Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_architecture3.pdf){#fig-insights
+width=100% fig-align="center"}
 
 ## Analytical Methods and Statistical Analysis {#sec-analytical}
 
@@ -1168,8 +884,8 @@ Two calibration metrics were computed for each partition:
   where $\hat{p}_i$ is the ensemble-calibrated probability and $y_i$ is
   the binary outcome; computed via `sklearn.metrics.brier_score_loss`.
   A score of 0 indicates perfect calibration.
-  Observed range across opioid ED bands: **0.007–0.051**
-  (`brier_ici_results.json`); non-opioid ED geriatric bands: **0.007–0.008**.
+  Observed range across opioid ED bands: **0.007–0.051**;
+  non-opioid ED geriatric bands: **0.007–0.008**.
 - **Integrated Calibration Index (ICI)**: mean absolute deviation between
   observed event rates and mean predicted probabilities across 10
   equal-width probability bins, computed as:
@@ -1178,10 +894,10 @@ Two calibration metrics were computed for each partition:
       y_true, y_prob, n_bins=10, strategy="uniform")
   ICI = mean(abs(frac_pos - mean_pred))
   ```
-  (sklearn `calibration_curve`; `scripts/compute_brier_ici.py`).
+  (sklearn `calibration_curve`; same binning as the primary holdout evaluation).
   ICI = 0 indicates perfect calibration.
   Observed range: opioid ED **0.108–0.163**; non-opioid ED geriatric bands
-  **0.071–0.290** (`brier_ici_results.json`).
+  **0.071–0.290**.
 
 Prior to ensemble weighting, individual model probabilities were
 Platt-scaled (logistic regression on out-of-fold predictions) to
@@ -1214,6 +930,9 @@ The analytic cohorts were drawn from 6,929,576 unique patients with any
 APCD medical claim in Virginia (2016–2019), representing the full
 insured population of the Commonwealth across all payer types
 (commercial, Medicaid, Medicare, self-insured employer plans).
+Operational definitions of **cases** versus **controls**, HCG-based routing for
+the polypharmacy cohort, and strict opioid ICD exclusion rules are documented
+in @sec-cohort.
 
 The opioid ED cohort comprised N = 26,710 cases and N = 180,640
 matched controls across the four primary age bands (13–24, 25–44, 45–54,
@@ -1256,8 +975,10 @@ Full cohort attrition is depicted in @fig-attrition.
 
 ![CONSORT-style cohort attrition diagram. Left column: opioid ED cohort
 construction from raw APCD through Bronze/Silver/Gold layers.
-Right column: non-opioid ED (polypharmacy) cohort.
-Exclusion counts are shown at each step.](../figures/ch02/fig_attrition.pdf){#fig-attrition
+Right column: Polypharmacy (non-opioid ED). Case definitions, cross-cohort
+opioid exclusions, and binary target labeling are given in @sec-cohort;
+step counts are sourced from pipeline logs or cloud data-lake queries.
+Exclusion counts are shown between stages.](../figures/ch02/fig_attrition.pdf){#fig-attrition
 width=90% fig-align="center"}
 
 ## Architecture Performance
@@ -1342,7 +1063,7 @@ for the polypharmacy cohort, 34 of 89 features (38%) overlapped with
 CPIC-annotated drugs, reflecting the higher CYP interaction density
 of geriatric cardiovascular and CNS polypharmacy.
 
-## Consensus Filter Results
+## Consensus Filter Results {#sec-consensus-results}
 
 Across all age-band partitions, the Consensus Filter designated
 49% of MCCV-screened features as Consensus-Causal (confirmed by both SHAP
@@ -1364,20 +1085,21 @@ but lacked sufficient distributional representation to register in global
 SHAP rankings; these represent potentially important rare-exposure interactions
 and are flagged for targeted investigation in future work.
 
+**Consensus-Causal** features are those in the **intersection** of
+distributional importance (SHAP) and symbolic rule support (FFA)—i.e.,
+SHAP $\cap$ FFA—as formalized in **@fig-consensus**.
+The **model tournament** (CatBoost, XGBoost, XGBoost RF) selects the
+**best** ensemble for computing SHAP-based importance, mitigating
+architecture-specific bias; **FFA** remains tied to a **fixed** XGBoost
+representation so Boolean rule frequencies stay comparable across temporal
+holdouts.
+
 Consensus-Causal features showed lower Brier score variance
-across 2019 holdout partitions than SHAP-only or FFA-only subsets
-(@fig-consensus).
+across 2019 holdout partitions than SHAP-only or FFA-only subsets.
 Median Brier score for Consensus models (0.008–0.051 across partitions) was
 consistently below SHAP-only models (0.014–0.068) and FFA-only models
 (0.011–0.074), confirming that dual confirmation reduces false-positive causal
 assignments and improves calibration stability under temporal distribution shift.
-
-![Consensus Filter evaluation. Box plots of Brier score on 2019 holdout for
-models trained with: (A) All MCCV features; (B) SHAP-only features;
-(C) FFA-only features; (D) Consensus-Causal features (SHAP ∩ FFA).
-Lower Brier score = better calibration. Consensus features show lowest
-variance across age-band partitions.](../figures/ch02/fig_consensus.pdf){#fig-consensus
-width=90% fig-align="center"}
 
 ## Temporal Validation Summary
 
@@ -1469,7 +1191,7 @@ Brier score and ICI available for primary study bands: opioid ED 13–64
 AUROC, area under the receiver operating characteristic curve;
 PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal classification threshold.
-Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-validation}
+Source: 2019 holdout evaluation exports. {#tbl-validation}
 
 # Discussion {#sec-discussion}
 

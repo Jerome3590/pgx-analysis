@@ -49,6 +49,9 @@ abstract: >
   A three-model ensemble (CatBoost, XGBoost, XGBoost-RF) with per-event-density
   sub-models (Optuna-tuned) was trained on 2016–2018 data and evaluated on
   a prospective 2019 holdout.
+  Raw total event counts determine density **stratum** and model routing only;
+  the learned feature set uses ordinal density encoding, not continuous
+  event totals (Chapter~2).
   Causal features were identified using the Consensus Filter (SHAP ∩ Formal
   Feature Attribution), and patient trajectories were characterized via
   Dynamic Time Warping (DTW) clustering and BupaR pre-diagnosis process maps.
@@ -173,6 +176,22 @@ developed in Chapter 2 to the opioid ED cohort, with three specific aims:
 
 # Methods {#sec-methods}
 
+**Utilization density (read first).** Throughout this chapter, the total
+pre-index event count per patient (`n_events`) is used **only** to assign a
+**four-level density stratum** (low/medium/high/extreme) and to load the
+matching per-stratum model. The gradient-boosting feature matrix does **not**
+include `n_events` as a continuous predictor; the **only** density-related
+input is the ordinal `n_event_bin_ordinal` (0--3), as defined in
+Chapter~2 (*Ensemble Modeling*: utilization density subsection).
+Stratification aligns patients with similar **overall utilization and
+comorbidity burden** before estimating drug- and diagnosis-level effects;
+per-stratum models learn risk **within** high- versus low-intensity care
+regimes rather than collapsing signal into a single continuous “how sick”
+count.
+Analyses that use raw claim totals as **regression covariates** (when
+explicitly stated, e.g. in Chapter~4) are **not** the same construct as
+the ensemble GBM inputs summarized here.
+
 ## Study Design and Data Source
 
 This was a retrospective matched case-control study using Virginia's
@@ -250,11 +269,11 @@ cases only, then applied to holdout data without recomputation.
   drugs in the patient's pharmacy record) and `pgx_num_cpic_drugs`
   (count of drugs with CPIC Level A or B evidence for CYP2D6, CYP2C9,
   CYP2C19, or OPRM1 pathways) [@Crews2021].
-- **Claim density ordinal** (`n_event_bin_ordinal`): per-age-band
-  quartile of total 12-month medical and pharmacy claim count, encoded
-  as an ordinal integer (0 = low density, 3 = extreme density).
-  This feature captures healthcare utilization intensity without
-  the linear scaling artifacts of raw count features.
+- **Claim density ordinal** (`n_event_bin_ordinal`): four-level ordinal
+  (0 = low through 3 = extreme) from training-cohort percentiles of total
+  12-month medical and pharmacy claim count (P25/P50/P95 cut-points).
+  The raw count `n_events` is **not** a model input; the ordinal is the
+  utilization-intensity signal in the ensemble (Chapter~2).
 
 ## Ensemble Model and Consensus Filter
 
@@ -283,17 +302,15 @@ target leakage at each stage.
 
 **Stage 1 — Upstream protocol event filtering (Step 1b).**
 Prior to any feature construction, DTW was applied to the raw
-`model_events.parquet` to identify and remove standard administrative
+model-events table to identify and remove standard administrative
 care protocol codes: well-visit, preventive screening, and routine
 disease-management codes that both cases and controls generate at
 comparable rates.
 These codes are uninformative for prediction but inflate apparent sequence
-similarity between cases and controls; their removal produced
-`model_events_no_protocols.parquet`
-(`gold/dtw_filter/opioid_ed/`; `scripts/1b_apcd_event_filter.py`),
+similarity between cases and controls; their removal produced a
+protocol-filtered event table,
 which was used for all downstream MCCV feature engineering.
-Protocol removal statistics are summarized in
-`protocol_summary_opioid_ed_{band}.csv` per age band.
+Protocol removal statistics are summarized in per age band summary tables.
 
 **Stage 2 — Trajectory archetype analysis.**
 DTW clustering was applied to 12-month pre-index clinical event sequences
@@ -303,11 +320,10 @@ Sequences were anchored at the first recorded ICD-10 F11.20
 window preceding that date.
 
 Before trajectory construction, events were filtered to the top-500
-features by **Step 3b cohort feature importance**
-(`cohort_feature_importance_{band}.csv`; `3b_feature_importance_eda/`):
+features by **Step 3b cohort feature importance** rankings:
 the same ranked feature set used as input to Step 4 model training,
 shared across the BupaR and FP-Growth exploratory modules
-(`allowed_codes_shap_ffa_opioid_ed_{band}.json`).
+via the SHAP/FFA **allowed-code** sets.
 This pre-filtering focuses the trajectory analysis on the model's
 decision-relevant event sequences and prevents noise from codes the
 training pipeline assigned zero importance.
@@ -330,7 +346,7 @@ This distinction provides a clinically meaningful overlay on the
 archetype clusters.
 
 Per-patient event spans (days from first to last pre-index event) were
-computed from `event_intervals_opioid_ed_{band}.parquet`.
+computed from stored interval summaries per age band.
 Pairwise DTW distances were computed using the `dtaidistance` library
 [@Meert2020] on the 12-month event sequences, applied to a stratified random
 sample of 2,000 cases from the training cohort for computational
@@ -347,7 +363,7 @@ $\approx$ 9.8 months; elbow boundary at 9 months / 274 days):
 
 Cluster proportions were computed on DTW-matched cases (82% coverage
 of the 2,000-patient sample) and extrapolated to the full 26,710 training
-cohort (`scripts/dtw_cluster_sizes.py`).
+cohort.
 Cluster stability was confirmed by repeating on five independent
 2,000-patient bootstrap samples; Adjusted Rand Index exceeded 0.87
 across all pairs, confirming the two-archetype solution is robust to
@@ -406,9 +422,9 @@ with high local confidence that do not replicate across age bands.
 
 **Calibration metrics.** Brier Score (`sklearn.metrics.brier_score_loss`)
 and ICI (10-bin `calibration_curve` with `strategy="uniform"`;
-`scripts/compute_brier_ici.py`) were computed for each partition.
+same definitions as Chapter 2) were computed for each partition.
 Observed range (2019 holdout): Brier **0.007–0.051**;
-ICI **0.108–0.163** (`brier_ici_results.json`).
+ICI **0.108–0.163**.
 
 # Results {#sec-results}
 
@@ -513,7 +529,7 @@ for direct risk-band assignment.
 characteristic curve; PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal threshold. The 0–12 age band was excluded
 (N = 893 cases; insufficient cases for stable Optuna training).
-Source: `model_performance_metrics.json`. {#tbl-performance}
+Source: 2019 holdout evaluation exports. {#tbl-performance}
 
 ![Model performance curves on 2019 holdout. (A) Precision-recall curves by
 age band; dashed line indicates no-skill baseline (case prevalence = 0.17).

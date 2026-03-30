@@ -34,6 +34,8 @@ from py_helpers.event_density_utils import (  # type: ignore
     DENSITY_BINS,
     cohort_aggregate_final_model_has_artifacts,
     final_model_bin_has_trained_artifacts,
+    resolve_step6_cohort_age_dir,
+    resolve_step6_train_features_csv,
 )
 
 
@@ -45,14 +47,7 @@ def _load_final_features(cohort: str, age_band: str) -> Tuple[pd.DataFrame, pd.S
     import duckdb
 
     age_band_fname = age_band_to_fname(age_band)
-    features_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
-    )
+    features_path = resolve_step6_train_features_csv(PROJECT_ROOT, cohort, age_band)
     if not features_path.exists():
         raise FileNotFoundError(f"Final features file not found: {features_path}")
 
@@ -466,20 +461,13 @@ def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
 
     age_band_fname = age_band_to_fname(age_band)
     _bin_infix = ("bin_models", bin_name) if bin_name else ()
-    _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _model_base = resolve_step6_cohort_age_dir(PROJECT_ROOT, cohort, age_band)
     _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
 
     # Load model selection metadata
     metadata_path = _bin_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
     if not metadata_path.exists():
-        metadata_path = (
-            PROJECT_ROOT
-            / "6_final_model"
-            / "outputs"
-            / cohort
-            / age_band_fname
-            / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-        )
+        metadata_path = _model_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
 
     if metadata_path.exists():
         with open(metadata_path, "r") as f:
@@ -610,7 +598,7 @@ def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = 
     
     age_band_fname = age_band_to_fname(age_band)
     _bin_infix = ("bin_models", bin_name) if bin_name else ()
-    _model_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    _model_base = resolve_step6_cohort_age_dir(PROJECT_ROOT, cohort, age_band)
     _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
 
     xgb_binary_candidates: list[Path] = [_bin_base / "models" / "xgboost_model.ubj"]
@@ -807,14 +795,7 @@ def run_shap_analysis(
     # Load full data including mi_person_key for row IDs
     import duckdb
     age_band_fname = age_band_to_fname(age_band)
-    features_path = (
-        PROJECT_ROOT
-        / "6_final_model"
-        / "outputs"
-        / cohort
-        / age_band_fname
-        / f"{cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
-    )
+    features_path = resolve_step6_train_features_csv(PROJECT_ROOT, cohort, age_band)
     if not features_path.exists():
         raise FileNotFoundError(f"Final features file not found: {features_path}")
     

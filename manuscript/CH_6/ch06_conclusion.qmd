@@ -42,7 +42,10 @@ abstract: >
   with trajectory archetypes enabling pre-diagnosis intervention;
   (4) a multi-feature Formal Feature Attribution causal calculator for
   polypharmacy deprescribing prioritization; and (5) a privacy-first
-  serverless PGx Risk Dashboard achieving clinical deployment standards.
+  serverless PGx Risk Dashboard achieving clinical deployment standards,
+  with the final dashboard UI documented in Chapter 5 and tabs and pipeline
+  visuals integrated in Chapter 6 under explicit research questions, an
+  Observe–Orient–Decide–Act workflow, and pharmacogenomic outcomes.
   Collectively, these contributions advance translational informatics by
   providing a replicable, causally grounded, and clinically actionable
   pipeline from raw claims data to bedside decision support.
@@ -246,8 +249,8 @@ Up to 84 per-density-bin ensemble models (2 cohorts × 7 usable age bands
 × 4 density bins × 3 algorithms) are packaged within a 619 MB Lambda
 container (ECR: `pgx-risk-calculator`), enabling sub-100 ms warm inference
 without S3 model-load latency.
-Three exploratory visualization types (BupaR Sankey care-pathway diagrams;
-FP-Growth drug co-occurrence networks; DTW trajectory archetype overlays)
+Three exploratory visualization types (BupaR process-mining views;
+FP-Growth drug co-occurrence networks; DTW trajectory overlays)
 are rendered from training-cohort population context and clearly labeled
 as non-predictive, preserving the clinical value of process-mining insights
 while maintaining the causal validity of the risk score.
@@ -267,6 +270,75 @@ The stateless CPIC Patient Card performs a CPIC-guideline lookup for
 making it the first clinical tool to integrate ensemble opioid and
 polypharmacy risk scoring with PGx patient card generation in a single
 serverless deployment.
+
+The subsection that follows synthesizes how that deployment answers the
+**operational research questions** (RQ1, RQ2, N1--N6) and how **each tab
+and visualization class** supports the **clinical OODA loop** toward
+**improved pharmacogenomic outcomes**, using the same canonical mapping as
+dashboard artifact governance in the project documentation
+(*Research Questions → Artifacts*, including the
+**Visuals, research questions, and clinical OODA loop** section).
+The **canonical Risk Assessment figure** (Tab~2) lives in **Chapter 5**
+(**Final PGx Risk Dashboard**); this section does not repeat it.
+
+## Dashboard tabs, visuals, and the clinical OODA loop for pharmacogenomic outcomes {#sec-ch6-dashboard}
+
+The PGx Risk Assessment Dashboard is not only a deployment shell for the
+ensemble models: it is the **surface on which the dissertation's operational
+questions become actionable** and **where pharmacogenomic (PGx) outcomes can
+be improved** by sequencing model-based risk, population context, causal
+counterfactuals, and allele-informed CPIC guidance in one workflow.
+
+**Chapter 5 vs. this section.** Chapter 5’s **Final PGx Risk Dashboard**
+section specifies the **deployed** UI, architecture, and latency; it hosts
+the **canonical Tab~2** Risk Assessment screenshot. **This section** explains
+**how tabs and pipeline visualization bundles compose
+Observe$\rightarrow$Orient$\rightarrow$Decide$\rightarrow$Act** for
+**interpretation, intervention, and PGx-informed action**---not a second
+copy of the primary figure plate.
+
+| Tab / feature (Chapter 5) | OODA emphasis | Role in PGx / pharmacogenomic outcomes |
+|:----------------------------|:--------------|:---------------------------------------|
+| **Tabs 1--2** Risk Assessment | **Observe** | Stratified ensemble risk in the **same feature space** as Chapters 3--4; density-bin routing matches training utilization strata. Sets the clinical problem **before** PGx interpretation. |
+| **Tab 4** Exploratory (BupaR, DTW, FP-Growth bundles) + Feature / Causal views | **Orient** | Population **context** (non-score); **N1--N6** alignment. **PGx Cohort** topology frames gene--drug--literature links for precision. |
+| **Tab 3** What-If + hub/window cues from Orient | **Decide** | Counterfactual $\Delta\hat{p}$; synergy alerts; which drugs or timing windows matter **before** allele-informed choice. |
+| **Tab 5** PGx Patient Card | **Decide / Act** | CPIC Level A/B statements; SNP$\rightarrow$phenotype$\rightarrow$drug; test-order and prescribing implications; closes claims-risk loop with **genotype-guided** therapy. |
+
+Project documentation aligns every **saved** visualization artifact with (i) at least one of **RQ1** (polypharmacy / non-opioid ED), **RQ2** (opioid-related ED), or **N1--N6** (routine care, sequences, timing, co-occurrence, causal drivers, drug combinations), and (ii) a phase of the **clinical OODA loop**---Observe, Orient, Decide, Act---as summarized below.
+
+| OODA phase | Dashboard role |
+|:-----------|:---------------|
+| **Observe** | Risk Assessment: ensemble score, risk band, model-agreement indicator, and routing by **utilization density stratum** (the same percentile-based bins used in training). Inputs (age, drugs, ICD-10, CPT) encode the patient's story in the **same feature space** as Chapters 3--4. Documentation and metadata tabs expose holdout performance and cohort definitions for governance. |
+| **Orient** | **Feature Importance** heatmaps (**N5**): global SHAP-derived drivers by cohort and age. **Causal Analysis** (**N5**, **N6**): FFA-structured factors, SHAP bars, interactions, and radar-style summaries separate correlation from intervention-relevant structure. **BupaR** (**N2**, **N3**, **N6**): sequences to target, pre-/post-target activity frequency, trace explorer, drug×drug process matrix. **DTW** (**N1**, **N3**; supports **RQ2** narrative): routine vs utilization contrasts, time-between and time-to-target on **aligned** sequences, trajectory overview images. **FP-Growth** (**N4**): lifted drug itemsets and target-rules network. **PGx Cohort** topology: gene--drug--literature context for precision framing. |
+| **Decide** | Counterfactual and scenario reasoning (risk deltas), FP-Growth **hub** drugs (high leverage if deprescribed), DTW **windows** for referral timing (e.g., PDMP, physical therapy, mental health), and CPIC evidence tiers on the PGx Card. |
+| **Act** | Downloadable **PGx Patient Card** (SNP → phenotype → CPIC); prescribing and test-order implications; subsequent encounters refresh **Observe** with new claims. |
+
+**Cohort-level outcomes (RQ1, RQ2).** The Risk Assessment workflow instantiates **RQ1** and **RQ2** directly: the posted feature vector matches the training schema, and the returned probability is calibrated under the same temporal split as the dissertation analyses. Density-bin routing is an explicit **Observe** step: it assigns the patient to the stratum whose ensemble was trained on comparable pre-index event intensity, echoing Chapter 2's utilization-density design.
+
+**N1---routine vs utilization.** DTW `chart_data` (routine comparison, routine-by-utilization views) **orients** clinicians to whether administrative and utilization patterns resemble high- or low-outcome trajectories and supports **decisions** about under- vs over-managed care---not a second risk score, but context for interpreting the primary prediction.
+
+**N2---sequences to target; N3---time between sequences.** BupaR's sequences-to-target and activity-frequency artifacts address **N2**; DTW time-between and time-to-target metrics on warped paths address **N3** with **like-with-like** timing (Chapter 3). Together they **orient** the clinician to *where* in a pathway an intervention might still change the arc, and *when* referral windows remain open.
+
+**N4---drug connections.** FP-Growth itemsets and the target-rules **network** **orient** toward co-prescription structure among model-important drugs and **decide** which combinations to break first (hub drugs that participate in many high-lift edges).
+
+**N5---features and relationships; N6---drug combinations.** Causal and feature-importance views carry **N5**; causal drug factors and BupaR's drug×drug process matrix support **N6** alongside Chapter 4's FFA narrative.
+
+**PGx precision layer (RQ1).** The PGx Cohort network and the **Patient Card** tab move from population **orientation** to individual **decide/act**: CPIC Level A/B statements close the loop from claims-based risk to allele-informed therapy.
+
+**Primary Risk Assessment display (Observe).** The ensemble gauge, risk band,
+model agreement, and top SHAP drivers are illustrated in **Chapter 5**
+(**Final PGx Risk Dashboard**, Tab~2 figure). They are the **Observe** anchor:
+Tabs~3--5 and the Step~9 pipeline bundles **Orient** the same patient story
+toward **Decide** and **Act**, including CPIC-guided pharmacogenomic choice.
+
+**Pipeline visualization bundles (Orient).** The dashboard's BupaR PNG/JSON,
+FP-Growth PNG/HTML, and DTW PNG/`chart_data.json` bundles are **the same
+objects** produced by the Step~9 visualization pipeline and listed in the
+canonical artifact tables: they are **not** additional model features; they
+supply **population context** for questions **N1--N4** and **N6** under
+SHAP/FFA-gated allowed codes. Regenerating conclusion-chapter figure plates from those bundles is a
+mechanical packaging step handled by the repository's manuscript export
+utility; the **research** content is the mapping above.
 
 # Integrated Findings {#sec-integrated}
 
@@ -393,7 +465,7 @@ Opioid ED 0–12 excluded (N = 893; insufficient for Optuna training).
 AUROC, area under the receiver operating characteristic curve;
 PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal threshold.
-Source: `model_performance_metrics.json`. {#tbl-performance}
+Source: 2019 holdout evaluation exports. {#tbl-performance}
 
 # Broader Implications {#sec-implications}
 

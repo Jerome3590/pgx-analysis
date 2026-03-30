@@ -272,7 +272,7 @@ def _age_band_fname(age_band: str) -> str:
 def final_model_bin_base(
     project_root: Path, cohort: str, age_band: str, bin_name: str
 ) -> Path:
-    """``.../6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}``."""
+    """``.../6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin_name}`` (project root only)."""
     abf = _age_band_fname(age_band)
     return (
         Path(project_root)
@@ -285,16 +285,55 @@ def final_model_bin_base(
     )
 
 
-def final_model_bin_has_trained_artifacts(
-    project_root: Path, cohort: str, age_band: str, bin_name: str
-) -> bool:
+def resolve_step6_cohort_age_dir(project_root: Path, cohort: str, age_band: str) -> Path:
     """
-    True if Step 6 produced a usable model for this density bin (under ``bin_models/{bin}/``).
+    Single canonical ``.../6_final_model/outputs/{cohort}/{age_band_fname}/`` for loading models/features.
 
-    Bins are omitted when ``train_and_evaluate`` never ran for that slice (e.g. too few patients).
-    We treat presence of model files under ``models/`` or ``final_model_json/`` as success.
+    Prefers the first candidate directory that exists and has ``models/`` or ``bin_models/``; otherwise
+    returns the first candidate (typically project root) so callers can surface a clear FileNotFoundError.
     """
-    bdir = final_model_bin_base(project_root, cohort, age_band, bin_name)
+    for d in _step6_cohort_age_output_dirs(project_root, cohort, age_band):
+        if not d.is_dir():
+            continue
+        if (d / "models").is_dir() or (d / "bin_models").is_dir():
+            return d
+    return _step6_cohort_age_output_dirs(project_root, cohort, age_band)[0]
+
+
+def resolve_step6_train_features_csv(project_root: Path, cohort: str, age_band: str) -> Path:
+    """Resolve ``..._train_final_features_no_leakage.csv`` under project or data root."""
+    abf = _age_band_fname(age_band)
+    fname = f"{cohort}_{abf}_train_final_features_no_leakage.csv"
+    for d in _step6_cohort_age_output_dirs(project_root, cohort, age_band):
+        p = d / fname
+        if p.exists():
+            return p
+    return _step6_cohort_age_output_dirs(project_root, cohort, age_band)[0] / fname
+
+
+def _step6_cohort_age_output_dirs(project_root: Path, cohort: str, age_band: str) -> list[Path]:
+    """
+    Step 6 output directory(ies) for (cohort, age_band): repo + data root if different.
+
+    On EC2, training often writes under ``DATA_ROOT/6_final_model/outputs/`` while orchestration
+    uses ``PROJECT_ROOT`` — both must be checked so SHAP/FFA see every trained bin.
+    """
+    abf = _age_band_fname(age_band)
+    p1 = Path(project_root) / "6_final_model" / "outputs" / cohort / abf
+    out: list[Path] = [p1]
+    try:
+        from py_helpers.env_utils import get_data_root
+
+        p2 = Path(get_data_root()) / "6_final_model" / "outputs" / cohort / abf
+        if p2.resolve() != p1.resolve():
+            out.append(p2)
+    except Exception:
+        pass
+    return out
+
+
+def _bin_folder_has_trained_artifacts(bdir: Path, cohort: str, age_band: str) -> bool:
+    """True if one ``bin_models/{bin}/`` tree has deployment or JSON markers."""
     if not bdir.is_dir():
         return False
     abf = _age_band_fname(age_band)
@@ -318,6 +357,25 @@ def final_model_bin_has_trained_artifacts(
     return False
 
 
+def final_model_bin_has_trained_artifacts(
+    project_root: Path, cohort: str, age_band: str, bin_name: str
+) -> bool:
+    """
+    True if Step 6 produced a usable model for this density bin (under ``bin_models/{bin}/``).
+
+    Bins are omitted when ``train_and_evaluate`` never ran for that slice (e.g. too few patients).
+    We treat presence of model files under ``models/`` or ``final_model_json/`` as success.
+
+    Checks both ``PROJECT_ROOT/6_final_model/outputs/...`` and ``get_data_root()/6_final_model/outputs/...``
+    when they differ (EC2 NVMe vs repo).
+    """
+    for cohort_dir in _step6_cohort_age_output_dirs(project_root, cohort, age_band):
+        bdir = cohort_dir / "bin_models" / bin_name
+        if _bin_folder_has_trained_artifacts(bdir, cohort, age_band):
+            return True
+    return False
+
+
 def list_trained_density_bins(project_root: Path, cohort: str, age_band: str) -> list[str]:
     """Return bins that have Step 6 artifacts, in ``DENSITY_BINS`` order."""
     return [
@@ -327,17 +385,11 @@ def list_trained_density_bins(project_root: Path, cohort: str, age_band: str) ->
     ]
 
 
-def cohort_aggregate_final_model_has_artifacts(
-    project_root: Path, cohort: str, age_band: str
-) -> bool:
-    """
-    True if cohort-level (non-bin) Step 6 outputs exist under ``outputs/.../{cohort}/{ab}/models/``
-    or ``final_model_json/`` (aggregate / legacy train mode).
-    """
-    abf = _age_band_fname(age_band)
-    root = Path(project_root) / "6_final_model" / "outputs" / cohort / abf
+def _aggregate_cohort_age_dir_has_artifacts(root: Path, cohort: str, age_band: str) -> bool:
+    """True if ``root`` is ``.../outputs/{cohort}/{abf}/`` (non-bin aggregate) with model files."""
     if not root.is_dir():
         return False
+    abf = _age_band_fname(age_band)
     stem = f"{cohort}_{abf}_best"
     models_dir = root / "models"
     if models_dir.is_dir():
@@ -354,5 +406,20 @@ def cohort_aggregate_final_model_has_artifacts(
         if (fj / f"{stem}_xgboost_model.json").exists():
             return True
         if (fj / f"{stem}_catboost_model.cbm").exists() or (fj / f"{stem}_catboost_model.json").exists():
+            return True
+    return False
+
+
+def cohort_aggregate_final_model_has_artifacts(
+    project_root: Path, cohort: str, age_band: str
+) -> bool:
+    """
+    True if cohort-level (non-bin) Step 6 outputs exist under ``outputs/.../{cohort}/{ab}/models/``
+    or ``final_model_json/`` (aggregate / legacy train mode).
+
+    Checks project and ``get_data_root()`` when paths differ.
+    """
+    for cohort_dir in _step6_cohort_age_output_dirs(project_root, cohort, age_band):
+        if _aggregate_cohort_age_dir_has_artifacts(cohort_dir, cohort, age_band):
             return True
     return False

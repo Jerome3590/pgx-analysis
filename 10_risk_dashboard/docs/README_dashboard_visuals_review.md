@@ -6,6 +6,8 @@
 
 **Canonical workflow and tab/RQ mapping:** [README_visualization_plan.md](README_visualization_plan.md) (this folder). This doc is a detailed review with lessons learned; use the visualization plan as the source of truth for production workflow and research questions → tabs.
 
+**Clinical OODA + per-artifact commentary:** [RESEARCH_QUESTIONS_ARTIFACTS.md — Visuals, research questions, and clinical OODA loop](RESEARCH_QUESTIONS_ARTIFACTS.md#visuals-research-questions-and-clinical-ooda-loop).
+
 ---
 
 ## Executive Summary

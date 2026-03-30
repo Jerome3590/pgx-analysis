@@ -51,6 +51,9 @@ abstract: >
   ED visit.
   A per-event-density-bin ensemble (CatBoost, XGBoost, XGBoost-RF; Optuna-tuned)
   was trained on 2016–2018 data (holdout: 2019).
+  Raw event totals define density stratum and routing for those models;
+  the learned inputs use ordinal density encoding, not continuous counts
+  (Chapter~2).
   Formal Feature Attribution (FFA) was extended to multi-feature interaction
   testing (pairs and triplets), evaluating synergy via counterfactual
   probability shifts and Intervention Rate (IR) scores for deprescribing
@@ -198,6 +201,16 @@ reconciliation tools that cannot resolve acute DDI timing.
 
 # Methods {#sec-methods}
 
+**Utilization density (read first).** The ensemble risk models use the
+same convention as Chapter~2 (*Ensemble Modeling*: utilization density): total pre-index
+events per patient determine stratum assignment and which per-stratum
+model is trained or loaded; the **gradient-boosting** matrix includes
+`n_event_bin_ordinal` (0--3) **without** the raw `n_events` count.
+**This chapter's** Z-code proportion and logistic-regression analyses
+(§Results) use **raw** 30-day claim counts as statistical covariates where
+stated; that is a **different** statistical use of counts than the GBM
+feature matrix.
+
 ## Study Design and Data Source
 
 This was a retrospective matched case-control study using Virginia's
@@ -275,6 +288,10 @@ Claims with ICD-10 Z-codes (Z00–Z99: routine examinations, health status
 contacts) were quantified per patient.
 The Z-code proportion (Z-code claims ÷ total claims in 30-day window) served
 as a proxy for managed polypharmacy with regular clinical oversight.
+Those denominators and the **Z-code logistic regression** (Chapter~2
+statistical methods) use raw claim counts as covariates; they are
+distinct from the ordinal density encoding in the ensemble models
+(Chapter~2).
 
 ## Ensemble Model {#sec-model}
 
@@ -353,10 +370,9 @@ prevalence in the polypharmacy cohort: at these low prevalences, the
 conventional 0.80 AUROC threshold corresponds to PR-AUC values as low as
 0.30, making AUROC unsuitable as the sole performance indicator.
 Observed performance (geriatric bands, 2019 holdout): **PR-AUC 0.991±0.007**
-(mean±SD); Brier **0.007–0.008**; ICI **0.071–0.290**
-(`brier_ici_results.json`, `model_performance_metrics.json`).
+(mean±SD); Brier **0.007–0.008**; ICI **0.071–0.290**.
 Calibration metrics used 10-bin `calibration_curve` with
-`strategy="uniform"` (`scripts/compute_brier_ici.py`).
+`strategy="uniform"` (definitions aligned with Chapter 2).
 
 **Interaction Effect (IE) estimation.** Pairwise IE was defined as
 a lift-based synergy score:
@@ -365,7 +381,7 @@ $$\text{IE}(f_i, f_j) = \mathbb{E}[\hat{p}(f_i{=}1, f_j{=}1)]
   - \mathbb{E}[\hat{p}(f_i{=}0, f_j{=}1)]
   + \mathbb{E}[\hat{p}(f_i{=}0, f_j{=}0)]$$
 where each term is the counterfactual ensemble probability under the
-specified feature configuration (`scripts/ffa_synergy_pairs.py`).
+specified feature configuration (custom pairwise estimation code).
 IE $>$ 0 indicates synergy; IE $<$ 0 indicates antagonism.
 Triplet IE was defined analogously for three-feature configurations.
 All IEs were estimated by bootstrap resampling (1,000 draws with
@@ -374,13 +390,12 @@ replacement) of the 2019 holdout, yielding 95% percentile bootstrap CIs.
 baseline) with 95% CI lower bound $>$ 0, after Bonferroni correction
 for the 1,081 pre-filtered candidate pairs (top-47 drug features by
 MCCV recall rank; $\alpha_{\text{Bonf}}$ = 0.05/1,081 = $4.6\times10^{-5}$).
-Result: 115 synergistic pairs; 5,021 high-risk triplets
-(`scripts/ffa_synergy_pairs.py`; `ffa_manuscript_data.json`).
+Result: 115 synergistic pairs; 5,021 high-risk triplets.
 
 **Z-code protective effect analysis.** Z-code proportion
 ($z_\text{prop}$ = Z-code claims $\div$ total 30-day claims) was
-computed from `model_events.parquet` filtered to the 30-day pre-index
-window (`scripts/zcode_30day.py`).
+computed from model-events rows filtered to the 30-day pre-index
+window.
 Patients were stratified into quartiles (Q1: $z_\text{prop}=0$;
 Q2: 1–12%; Q3: 12–20%; Q4: $>$20%).
 Between-group differences were assessed by Kruskal-Wallis test
@@ -395,7 +410,7 @@ OR $= e^{\beta_1}$; 95% CI $= e^{\beta_1 \pm 1.96 \cdot \text{SE}}$
 (Fisher information SE; `scipy.optimize.minimize` L-BFGS-B).
 Result: per-quartile OR = **2.10 (95% CI 1.51–2.94)**;
 protective Q2 crude OR = **0.25 (95% CI 0.18–0.34)**
-(`scripts/zcode_30day.py`; `scripts/zcode_athena.py`).
+(same 30-day pre-index claims extracts as the primary analysis).
 
 **Intervention Rate (IR) score derivation.** IR was defined as the
 mean counterfactual probability shift across the holdout:
@@ -515,7 +530,7 @@ characteristic curve; PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal threshold.
 Brier score and ICI computed for primary study bands (65–114):
 Brier 0.007–0.008; ICI 0.071–0.290.
-Source: `model_performance_metrics.json`; `brier_ici_results.json`. {#tbl-ch4-perf}
+Source: 2019 holdout evaluation exports. {#tbl-ch4-perf}
 
 ## Synergistic Drug-Drug Interactions {#sec-ddi}
 

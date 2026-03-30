@@ -41,6 +41,8 @@ $endif$
 \startpage{1}
 \raggedbottom
 
+\input{../templates/wiley_firstpage_mdpi_like.tex}
+
 %% ---- Title ----
 $if(title)$
 \title{$title$}
@@ -92,18 +94,18 @@ $for(by-author)$\author{$by-author.name.literal$}$sep$, $endfor$}.
 \cjournal{\it $if(journal)$$journal$$else$Clinical and Translational Science$endif$}
 \cvol{$if(year)$$year$$else$2026$endif$;$if(volume)$$volume$$else$00$endif$($if(issue)$$issue$$else$00$endif$):$if(pages)$$pages$$else$1--20$endif$}.}
 
-%% ---- Abbreviations (as footnote, per Wiley NJD style) ----
+%% ============================================================
+\begin{document}
+
+\maketitle
+
+%% Abbreviations footnote after \maketitle (must be after \begin{document}; keeps page-1 foot clear).
 $if(abbreviations-note)$
 \renewcommand\thefootnote{}
 \footnotetext{\textbf{Abbreviations:} $abbreviations-note$}
 \renewcommand\thefootnote{\fnsymbol{footnote}}
 \setcounter{footnote}{1}
 $endif$
-
-%% ============================================================
-\begin{document}
-
-\maketitle
 
 $body$
 

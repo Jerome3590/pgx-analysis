@@ -258,9 +258,17 @@ width=100% fig-align="center"}
 
 ## Partition-First Routing
 
-The Lambda routing logic inherits the partition-first scheme from Chapter 2.
+The Lambda routing logic inherits the partition-first scheme from Chapter 2
+(*Ensemble Modeling*: utilization density definitions).
 At inference time, the request handler computes two routing keys from the
 submitted patient data before loading any model:
+
+**Feature vector versus routing.** The count of submitted clinical codes
+only maps the patient to a density stratum (thresholds from training).
+The feature vector passed to CatBoost/XGBoost includes `n_event_bin_ordinal`
+(0--3) as the utilization intensity signal; the raw integer count and the
+string bin label are not used in place of drug/diagnosis indicators in
+$\mathbf{x}$.
 
 $$\text{Input Age} \xrightarrow{\text{partition}} \text{Age Band}
   \xrightarrow{\text{load}} \text{Bin Models}_{\text{age band}}
@@ -271,8 +279,8 @@ The first routing key is **age band** (13–24, 25–44, 45–54, 55–64,
 65–74, 75–84, 85–114), determined from the patient's submitted age.
 The second routing key is **density bin** (low, medium, high, extreme),
 determined by comparing the count of submitted clinical codes against
-per-age-band threshold quantiles stored in a `n_event_bin_thresholds.json`
-artifact bundled in the container.
+per-age-band threshold quantiles stored in a bundled JSON configuration
+shipped with the container image.
 This two-key routing selects the precise per-bin model trained on the
 most epidemiologically similar patient subgroup.
 
@@ -387,13 +395,14 @@ signal.
 
 **Validation:** Sensitivity analysis on the 2019 holdout randomly masked
 drug flag features in 10% increments (10%–90% missingness), with
-`n_events` and PGx scores provided in full, reflecting
+submitted-code-list length (for density-bin routing) and PGx scores
+provided in full, reflecting
 the realistic clinical scenario where basic patient characteristics
 are present at all sparsity levels but specific drug counts may be incomplete.
 Mean |$\Delta\hat{p}$| between sparse and full-input inference was < 0.06
 across all sparsity levels up to 70% missingness (**@fig-imputation**).
-At extreme sparsity (≥99% drug-flag missingness, where only `n_events`
-and 5 random drug flags are provided), mean |$\Delta\hat{p}$| = 0.10
+At extreme sparsity (≥99% drug-flag missingness, where only the
+code-count input used for bin routing and 5 random drug flags are provided), mean |$\Delta\hat{p}$| = 0.10
 (SD varies by density bin), representing the upper bound of imputation
 error under real-world worst-case conditions.
 Risk-band assignment (Low / Moderate / High) remained stable---meaning
@@ -401,9 +410,8 @@ the patient was assigned to the same risk band as with complete input---for
 87% of patients at 50% sparsity and for 74% at 70% sparsity, confirming
 that the imputation approach preserves the clinically relevant risk
 stratification even under severe real-world data sparsity.
-Sensitivity analysis code: `scripts/sparse_sensitivity.py`;
-results derived from 50 random masking trials on 2,000 sampled patients
-from `opioid_ed/25–44` low-density bin.
+Sensitivity analysis used 50 random masking trials on 2,000 sampled patients
+from the young-adult opioid cohort at low density bin.
 
 The Imputation of Normality design differs conceptually from multiple
 imputation and MICE [@Buuren2011] approaches used in training: rather than
@@ -427,7 +435,14 @@ Shaded band = ± 1 SD. Prediction stability is maintained up to 70% sparsity.
 Band assignment is stable up to ~60% sparsity.](../figures/ch05/fig_imputation.pdf){#fig-imputation
 width=90% fig-align="center"}
 
-# Dashboard Features {#sec-features}
+# Final PGx Risk Dashboard {#sec-features}
+
+This section documents the **deployed** interface: the **Risk Assessment**
+screenshot under Tab~2 below is the **canonical manuscript figure** for the
+live ensemble output. **Chapter 6** synthesizes how **all tabs and pipeline
+visualization bundles** compose the **clinical OODA loop** and connect
+model-based risk to **pharmacogenomic** decision-making (counterfactuals,
+population context, CPIC Patient Card), without repeating that figure plate.
 
 ## Feature 1: Clinical Risk Assessment (Tabs 1–2)
 
@@ -698,10 +713,10 @@ complete days apart.
 The pipeline executes the following stages on each push to the `main`
 branch:
 
-1. **Model preparation**: `prepare_models.py` reads trained model
-   artifacts from the local `6_final_model/outputs/` directory and copies
+1. **Model preparation**: a preparation step reads trained model
+   artifacts from the final-model output directory and copies
    per-bin model files, calibration models, feature schemas, and
-   n_event_bin thresholds into the Lambda build directory structure.
+   density-bin thresholds into the Lambda build directory structure.
    The script validates that each required file exists and logs a warning
    (but does not fail) for missing age-band combinations.
 2. **Unit tests**: A `pytest` suite of 48 tests covers the Lambda handler
