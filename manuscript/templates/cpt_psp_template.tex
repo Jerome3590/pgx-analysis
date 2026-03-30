@@ -112,6 +112,22 @@ $if(abbreviations-note)$
 \setcounter{footnote}{1}
 $endif$
 
+%% Patch \maketitle to skip the \twocolumn[\@maketitle] wrapper.
+%% WileyNJDv5 uses \twocolumn[...] which issues \clearpage at document start,
+%% producing a blank page before the title. \@maketitle already sets
+%% \hsize=\textwidth, so full-width layout is preserved without the page break.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \@afterindentfalse
+  \@maketitle
+  \thispagestyle{titlepage}%
+  \setcounter{footnote}{0}%
+  \let\thanks\relax
+  \let\maketitle\relax\let\@maketitle\relax
+  \gdef\@thanks{}\gdef\@author{}\gdef\@title{}%
+  \@afterheading
+}
+\makeatother
 %% ============================================================
 \begin{document}
 
