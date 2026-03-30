@@ -14,6 +14,26 @@
 \usepackage{longtable}  % Pandoc renders markdown tables as longtables
 \usepackage{booktabs}   % \toprule, \midrule, \bottomrule
 \usepackage{array}      % extended column types in tabular
+%% Typography: fewer overfull lines and better hyphenation in narrow 2-column measure
+\usepackage{microtype}
+\AtBeginDocument{%
+  \hyphenation{phar-ma-co-e-pi-de-mi-o-log-i-cal e-pi-de-mi-o-log-i-cal
+    inter-pret-a-bil-i-ty phar-ma-co-vi-gi-lance}}
+
+%% ---- First-page vertical glue (CH3/CTS-style tightness, but STIX2COL) ----
+%% Clinical CTS chapters use STIX1COL + cts_template.tex: one-column title page,
+%% no Wiley two-column abstract strip. CPT:PSP uses STIX2COL; WileyNJDv5's
+%% \absworkarea inserts \vspace*{2pc} after the title/abstract strip (six times),
+%% which reads as extra whitespace on page 1. Shrink that glue; keep 2-col body.
+\usepackage{xpatch}
+\makeatletter
+\adjtitleskip=0pt plus 2pt minus 1pt
+\@ifundefined{absworkarea}{%
+  \PackageWarning{cpt_psp_template}{absworkarea missing; spacing patch skipped}}{%
+  \xpatchcmd*\absworkarea{\vspace*{2pc}}{\vspace*{0.5pc}}{}{%
+    \PackageWarning{cpt_psp_template}{xpatch on absworkarea failed}}%
+}
+\makeatother
 
 %% longtable fails in 2-column mode (STIX2COL). Patch: temporarily switch to 1-column.
 \makeatletter
@@ -70,14 +90,14 @@ $endif$
 
 $for(by-affiliation)$
 \address[$it.number$]{%
-  \orgdiv{%
-    $if(it.department)$$it.department$, $endif$%
-    \orgname{$if(it.name)$$it.name$, $endif$}%
-    \orgaddress{%
-      \state{$if(it.city)$$it.city$$endif$}%
-      $if(it.city)$, $endif$%
-      \country{$if(it.country)$$it.country$$endif$}%
-    }%
+  $if(it.department)$\orgdiv{%
+    $it.department$%
+  }\par$endif$%
+  \orgname{$if(it.name)$$it.name$$endif$}\par
+  \orgaddress{%
+    $if(it.city)$\city{$it.city$}$endif$%
+    $if(it.region)$, \state{$it.region$}$else$$if(it.state)$, \state{$it.state$}$endif$$endif$%
+    $if(it.country)$, \country{$it.country$$endif$}%
   }%
 }
 $endfor$
@@ -104,32 +124,22 @@ $for(by-author)$\author{$by-author.name.literal$}$sep$, $endfor$}.
 \cjournal{\it $if(journal)$$journal$$else$CPT: Pharmacometrics \& Systems Pharmacology$endif$}
 \cvol{$if(year)$$year$$else$2026$endif$;$if(volume)$$volume$$else$00$endif$($if(issue)$$issue$$else$00$endif$):$if(pages)$$pages$$else$1--20$endif$}.}
 
-%% ---- Abbreviations (as footnote, per Wiley NJD style) ----
+%% ---- \maketitle: match standard article.cls twocolumn branch ----
+%% WileyNJDv5 sets BOTH branches to \twocolumn[\@maketitle]. The kernel's
+%% \@twocolumn begins with \clearpage, which ships an empty first page when
+%% \maketitle is the first output. See \input file (Pandoc chokes on \@ in templates).
+\input{../templates/cpt_psp_maketitle_patch.tex}
+
+%% ============================================================
+\begin{document}
+
+%% Abbreviations footnote must run after \begin{document} (valid \footnotetext).
 $if(abbreviations-note)$
 \renewcommand\thefootnote{}
 \footnotetext{\textbf{Abbreviations:} $abbreviations-note$}
 \renewcommand\thefootnote{\fnsymbol{footnote}}
 \setcounter{footnote}{1}
 $endif$
-
-%% Patch \maketitle to skip the \twocolumn[\@maketitle] wrapper.
-%% WileyNJDv5 uses \twocolumn[...] which issues \clearpage at document start,
-%% producing a blank page before the title. \@maketitle already sets
-%% \hsize=\textwidth, so full-width layout is preserved without the page break.
-\makeatletter
-\renewcommand{\maketitle}{%
-  \@afterindentfalse
-  \@maketitle
-  \thispagestyle{titlepage}%
-  \setcounter{footnote}{0}%
-  \let\thanks\relax
-  \let\maketitle\relax\let\@maketitle\relax
-  \gdef\@thanks{}\gdef\@author{}\gdef\@title{}%
-  \@afterheading
-}
-\makeatother
-%% ============================================================
-\begin{document}
 
 \maketitle
 
