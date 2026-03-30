@@ -1,7 +1,7 @@
 ---
 title: >-
   Building the Clinical OODA Loop: A Partition-First Data Architecture
-  for Model-Based Precision Therapeutics
+  for Model-Based Precision Analytics
 
 author:
   - name: "R. Jerome Dixon"
@@ -10,28 +10,30 @@ author:
     corresponding: true
     affiliations:
       - id: pts
-        name: >-
+        department: >-
           Department of Pharmacotherapy and Outcomes Science,
-          School of Pharmacy, Virginia Commonwealth University
+          School of Pharmacy
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
       - id: ils
-        name: >-
+        department: >-
           Ph.D. Program in Integrative Life Sciences,
-          School of Life Sciences and Sustainability,
-          Virginia Commonwealth University
+          School of Life Sciences and Sustainability
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
   - name: "Elvin T. Price"
     orcid: "0000-0001-6046-7540"
     affiliations:
       - ref: pts
       - id: cvl
-        name: "ConvergenceLabs@VCU\u2014Health Outcomes, Virginia Commonwealth University"
+        department: ConvergenceLabs@VCU—Health Outcomes
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
 
 abstract: >

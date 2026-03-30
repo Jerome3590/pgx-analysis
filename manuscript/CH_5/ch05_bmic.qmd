@@ -1,6 +1,6 @@
 ---
 title: >
-  A Privacy-First Serverless Pharmacogenomic Risk Dashboard:
+  A Serverless Pharmacogenomic Risk Dashboard:
   Translating Ensemble Models and Causal Rules to Clinical Decision Support
 target-journal: "Journal of Personalized Medicine"
 target-journal-short: "JPM"

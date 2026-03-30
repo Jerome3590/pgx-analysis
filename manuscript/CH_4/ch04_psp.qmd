@@ -2,7 +2,7 @@
 title: >-
   Formal Feature Attribution as a Causal Calculator for Drug-Drug
   Interaction Risk in Polypharmacy: A Systems Pharmacology Approach
-  Using All-Payer Claims Data
+  Using Virginia's All Payer Claim Database
 
 author:
   - name: "R. Jerome Dixon"
@@ -11,28 +11,30 @@ author:
     corresponding: true
     affiliations:
       - id: pts
-        name: >-
+        department: >-
           Department of Pharmacotherapy and Outcomes Science,
-          School of Pharmacy, Virginia Commonwealth University
+          School of Pharmacy
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
       - id: ils
-        name: >-
+        department: >-
           Ph.D. Program in Integrative Life Sciences,
-          School of Life Sciences and Sustainability,
-          Virginia Commonwealth University
+          School of Life Sciences and Sustainability
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
   - name: "Elvin T. Price"
     orcid: "0000-0001-6046-7540"
     affiliations:
       - ref: pts
       - id: cvl
-        name: "ConvergenceLabs@VCU—Health Outcomes, Virginia Commonwealth University"
+        department: ConvergenceLabs@VCU—Health Outcomes
+        name: Virginia Commonwealth University
         city: Richmond
-        state: VA
+        region: VA
         country: USA
 
 abstract: >
@@ -94,6 +96,8 @@ abbreviations-note: >-
 
 format:
   wiley-njd-pdf:
+    pdf-engine: xelatex
+    cite-method: natbib
     template: ../templates/cpt_psp_template.tex
     classoption: [AMA, STIX2COL, oneside]
     article-type: "Research Article"
